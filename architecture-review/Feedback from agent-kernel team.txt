@@ -1,0 +1,150 @@
+  ---
+  向 hi-agent 传递的协商内容
+
+  以下是需要与 hi-agent 团队确认的内容，建议以正式设计决策的形式传递。
+
+  ---
+  协商文件：agent-kernel TRACE 对齐边界确认
+
+  ---
+  一、我们承诺提供的能力（Kernel Commitments）
+
+  以下能力将在 Phase 1 + Phase 2 完成后由 agent-kernel 稳定提供，hi-agent 可依赖：
+
+  1. Run lifecycle with policy version freeze
+    - start_run 时接收 route/skill/evaluation/task_view_policy_version 字段并持久化
+    - 等待恢复时继续使用冻结版本，不会自动跟随 evolve 发布的新版本
+    - 如需切换版本，必须通过显式 change_record 事件确认
+  2. TraceRuntimeView（统一运行时真相视图）
+    - query_trace_runtime(run_id) 返回 TraceRuntimeView
+    - 包含 RunState / WaitState / ReviewState / BranchState 聚合视图
+    - 这是派生视图，基于事件日志重建，不是独立状态机
+  3. ActionState 含 succeeded 状态
+    - get_action_state(run_id, action_id) 返回当前 ActionState
+    - succeeded = 结果已确认 + 证据可采集（不是 acknowledged）
+    - 状态转移遵循 arbitration rules（详见下方）
+  4. TaskViewRecord（Task View 一等记录）
+    - hi-agent 在每次模型调用前调用 record_task_view(record) 存入引用
+    - 内核只存引用（evidence_refs / memory_refs / knowledge_refs），不存内容本身
+    - 支持 get_task_view_by_decision(run_id, decision_ref) 按决策回溯
+  5. Branch Protocol
+    - open_branch / mark_branch_*  5个方法，管理分支生命周期状态
+    - 内核负责状态持久化和事件记录，不参与分支语义决策
+  6. 明确的仲裁承诺（Arbitration Guarantees）
+    - A1：callback 携带有效 action_id/callback_id 时，结果优先于后续 timeout
+    - A2：effect_unknown 进入 RecoveryGate，不自动重发 irreversible 动作
+    - A3：waiting run 恢复时使用创建时冻结的 policy_versions
+    - A4：ReviewState != approved 时，scheduled_resume 不推进高风险动作
+  7. Failure Taxonomy 规范化
+    - FailureEnvelope.trace_failure_code 使用 TRACE 10类统一编码
+    - 由内核 RecoveryPlanner 在写入 RecoveryOutcome 时规范化
+
+  ---
+  二、我们明确不做的事（Kernel Boundaries — 请 hi-agent 不要依赖）
+
+  1. 内核不拥有 Task View 的内容装配策略
+    - 内核只负责记录引用、持久化、provider 传输映射
+    - 哪些证据进入窗口、何时降级，由 hi-agent 决定
+  2. 内核不拥有 CTS / Stage Graph 语义
+    - 内核知道 stage_id 是字符串，不解释它的业务含义
+    - 内核不知道 S1=Understand / S2=Gather，那是 hi-agent 的领域模型
+  3. 内核不拥有路由策略和分支剪枝逻辑
+    - mark_branch_pruned 只是状态记录，pruning 决策在 hi-agent
+    - 内核不自动 prune 分支，除非 budget_exhausted 触发 escalation
+  4. 内核不拥有 skill 生命周期（候选/试用/认证/弃用/退役）
+    - 内核只需要 skill_policy_version 字段，不参与 skill 治理逻辑
+  5. 内核不拥有 Evolve 触发逻辑
+    - per_run_postmortem / batch_evolution / regression_trigger 都是 hi-agent 的业务
+    - 内核提供 query_metrics_for_evaluation 接口，由 hi-agent 决定何时触发 evolve
+  6. 内核不向上暴露六权威实现细节
+    - CapabilitySnapshot、TurnEngine FSM、DedupeStore 状态机是内核内部实现
+    - hi-agent 通过 KernelFacade 和 TraceRuntimeView 消费结果，不依赖内部实现
+
+  ---
+  三、我们需要 hi-agent 提供的东西（Input Requirements）
+
+  在 hi-agent 侧集成前，需要确认以下字段和约定：
+
+  1. policy_version 字符串格式
+    - route_policy_version 等字段内核会原样存储
+    - 请确认格式约定：建议语义版本号 "1.0.0" 或时间戳 "2026-04-05T10:00:00Z"
+    - 内核不解释版本号大小，只做等值比较
+  2. stage_id 和 branch_id 的生成责任
+    - 内核接受 hi-agent 传入的 stage_id 和 branch_id，不自动生成
+    - 请确认 hi-agent 侧的 ID 生成规则（建议 UUID 或有意义的前缀）
+    - 同一 run 内唯一性由 hi-agent 保证
+  3. task_view_id 的生成责任
+    - TaskViewRecord.task_view_id 由 hi-agent 在调用 record_task_view 前生成
+    - decision_ref 必须与 TurnIntentRecord.intent_commit_ref 匹配（如何获取？）
+    - 需要协商： hi-agent 何时知道 decision_ref？建议内核在 run 信号响应中返回最近 intent_commit_ref
+  4. model_role 粗粒度分层
+    - 内核 LLM Gateway 按 heavy_reasoning / light_processing / evaluation 三档路由
+    - 细粒度角色（route_compare / summarize / review / write）是 hi-agent 内部策略，不暴露到内核
+    - 请确认 hi-agent 的调用模式能映射到这三档
+  5. callback_id 生成规范
+    - 内核的 A1 仲裁规则依赖 callback 携带稳定的 callback_id
+    - 需要 agent-core 和 hi-agent 在调用外部系统时遵循 callback_id 生成和传递规范
+
+  ---
+  四、需要联合确认的接口（Joint Agreement）
+
+  以下几个接口点，两边都有利益，需要开一个联合会话确认：
+
+  接口点 1：TaskViewRecord 与 TurnIntent 的关联方式
+
+  方案 A：hi-agent 先调 record_task_view，内核返回 task_view_id，再提交 plan/signal，并在 signal 中携带 task_view_id。内核在 TurnIntent 写入时关联。
+
+  方案 B：hi-agent 提交 plan 时带 task_view_id，内核负责关联。
+
+  建议方案 A，因为内核不应要求 hi-agent 了解 TurnIntent 内部 ID。
+
+  ---
+  接口点 2：branch 状态与 child run 的对应关系
+
+  当前内核有 active_child_runs（child run 级别）。TRACE 的 Branch 可能对应一个 child run，也可能是一个 parallel execution slot 内的逻辑概念。
+
+  需要确认：
+  - 1个 Branch = 1个 child run（推荐，边界清晰）
+  - 还是 Branch 是更高层的逻辑概念，一个 Branch 可跨多个 Run？
+
+  如果是前者，open_branch 和 start_run(parent_run_id=...) 可以合并。如果是后者，Branch 需要额外的 ID 层。
+
+  ---
+  接口点 3：Human Gate 触发的响应合约
+
+  当内核因系统条件触发 Human Gate（如 budget_exhausted 触发 Gate B），通知 hi-agent 的方式是：
+
+  方案 A：内核主动推送事件（通过 stream_run_events）
+  方案 B：hi-agent polling query_trace_runtime 发现 ReviewState = requested
+
+  建议方案 A（事件驱动），但需要 hi-agent 确认监听模式是否可行。
+
+  ---
+  接口点 4：policy version 切换的授权流
+
+  当 evolve 发布新版本，需要让某个 waiting run 升级时：
+
+  方案 A：hi-agent 发一个 update_policy_versions 信号到内核，内核创建 change_record 后更新冻结版本
+
+  方案 B：只有新 run 才能使用新版本，existing waiting run 永远不切换
+
+  建议方案 A 为可选能力，默认行为是方案 B（保守安全）。
+
+  ---
+  五、不建议放进 V1 的内容
+
+  以下需求虽然在 TRACE 文档中出现，但建议双方共同确认推到 V2：
+
+  ┌───────────────────────────────────────┬─────────────────────────────────────────────────────┐
+  │                 能力                  │                        理由                         │
+  ├───────────────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ replay_old_run_under_old_versions     │ 需要 policy snapshot store，工作量大，V1 验证不需要 │
+  ├───────────────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ evolve change set 回滚机制            │ 依赖完整的 champion/challenger 对比基础设施         │
+  ├───────────────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ 完整的 skill 5阶段生命周期 management │ hi-agent 内部逻辑，内核只需 version pinning 字段    │
+  ├───────────────────────────────────────┼─────────────────────────────────────────────────────┤
+  │ 批量 run 级别 metrics aggregation     │ 需要 analytics 层，V1 用事件日志查询即可            │
+  └───────────────────────────────────────┴─────────────────────────────────────────────────────┘
+
+  ---

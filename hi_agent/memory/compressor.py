@@ -1,0 +1,262 @@
+"""Memory compressor utilities with async LLM compression and fallback."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+from hi_agent.memory.compress_prompts import STAGE_COMPRESSION_PROMPT
+from hi_agent.memory.l0_raw import RawEventRecord
+from hi_agent.memory.l1_compressed import CompressedStageMemory
+
+
+@dataclass
+class CompressionMetrics:
+    """Track compression statistics."""
+
+    compressed_count: int = 0
+    fallback_count: int = 0
+    direct_count: int = 0
+    _ratios: list[float] = field(default_factory=list)
+
+    @property
+    def avg_compression_ratio(self) -> float:
+        """Average ratio of output items to input evidence count."""
+        if not self._ratios:
+            return 0.0
+        return sum(self._ratios) / len(self._ratios)
+
+    def record(
+        self,
+        method: str,
+        input_count: int,
+        output_items: int,
+    ) -> None:
+        """Record one compression event."""
+        if method == "llm":
+            self.compressed_count += 1
+        elif method == "fallback":
+            self.fallback_count += 1
+        else:
+            self.direct_count += 1
+        if input_count > 0:
+            self._ratios.append(output_items / input_count)
+
+
+class MemoryCompressor:
+    """Compress L0 records into L1 stage summary.
+
+    Supports three modes:
+    - **direct**: when evidence count < *compress_threshold*, build summary
+      deterministically without an LLM call.
+    - **llm**: when evidence count >= threshold, call *llm_fn* with a
+      structured prompt and parse the JSON result.
+    - **fallback**: on LLM timeout / error, truncate to last *fallback_items*
+      records and build summary deterministically.
+    """
+
+    def __init__(
+        self,
+        llm_fn: Callable[..., Any] | None = None,
+        timeout_s: float = 10.0,
+        compress_threshold: int = 25,
+        fallback_items: int = 20,
+    ) -> None:
+        """Initialize compression policy controls.
+
+        Parameters
+        ----------
+        llm_fn:
+            Async callable ``(prompt: str) -> str``.  When *None* the
+            compressor always uses the deterministic path.
+        timeout_s:
+            Maximum seconds to wait for *llm_fn*.
+        compress_threshold:
+            Evidence count at which the LLM path is attempted.
+        fallback_items:
+            Number of most-recent records kept when falling back.
+        """
+        self.llm_fn = llm_fn
+        self.timeout_s = timeout_s
+        self.compress_threshold = compress_threshold
+        self.fallback_items = fallback_items
+        self.metrics = CompressionMetrics()
+
+    # -- public entry points --------------------------------------------------
+
+    def compress_stage(
+        self,
+        stage_id: str,
+        records: list[RawEventRecord],
+    ) -> CompressedStageMemory:
+        """Synchronous entry point (backward-compatible).
+
+        Delegates to :meth:`_build_summary_from_raw` for below-threshold
+        evidence and to :meth:`_fallback_truncate` when above threshold
+        (no LLM call from sync context).
+        """
+        if len(records) < self.compress_threshold:
+            result = self._build_summary_from_raw(stage_id, records)
+            self.metrics.record(
+                "direct",
+                len(records),
+                len(result.findings) + len(result.decisions),
+            )
+            return result
+        result = self._fallback_truncate(stage_id, records)
+        self.metrics.record(
+            "fallback",
+            len(records),
+            len(result.findings) + len(result.decisions),
+        )
+        return result
+
+    async def acompress_stage(
+        self,
+        stage_id: str,
+        records: list[RawEventRecord],
+    ) -> CompressedStageMemory:
+        """Compress *records* for *stage_id* into a :class:`CompressedStageMemory`."""
+        if len(records) < self.compress_threshold:
+            result = self._build_summary_from_raw(stage_id, records)
+            self.metrics.record(
+                "direct",
+                len(records),
+                len(result.findings) + len(result.decisions),
+            )
+            return result
+
+        if self.llm_fn is not None:
+            try:
+                result = await asyncio.wait_for(
+                    self._llm_compress(stage_id, records),
+                    timeout=self.timeout_s,
+                )
+                self.metrics.record(
+                    "llm",
+                    len(records),
+                    len(result.findings) + len(result.decisions),
+                )
+                return result
+            except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+                result = self._fallback_truncate(stage_id, records)
+                self.metrics.record(
+                    "fallback",
+                    len(records),
+                    len(result.findings) + len(result.decisions),
+                )
+                return result
+
+        # No llm_fn – deterministic fallback
+        result = self._fallback_truncate(stage_id, records)
+        self.metrics.record(
+            "fallback",
+            len(records),
+            len(result.findings) + len(result.decisions),
+        )
+        return result
+
+    # -- synchronous convenience alias ----------------------------------------
+
+    def compress_stage_sync(
+        self,
+        stage_id: str,
+        records: list[RawEventRecord],
+    ) -> CompressedStageMemory:
+        """Alias for :meth:`compress_stage` (sync)."""
+        return self.compress_stage(stage_id, records)
+
+    # -- internal helpers -----------------------------------------------------
+
+    def _build_summary_from_raw(
+        self,
+        stage_id: str,
+        records: list[RawEventRecord],
+    ) -> CompressedStageMemory:
+        """Extract findings, decisions, outcome from raw records without LLM."""
+        findings: list[str] = []
+        decisions: list[str] = []
+        key_entities: list[str] = []
+        contradiction_refs: list[str] = []
+
+        for record in records:
+            if record.event_type == "StageStateChanged":
+                sid = record.payload.get("stage_id", "")
+                to_state = record.payload.get("to_state", "")
+                findings.append(f"{sid}:{to_state}")
+                if sid and sid not in key_entities:
+                    key_entities.append(sid)
+            if record.event_type == "TaskViewRecorded":
+                decisions.append(
+                    f"task_view:{record.payload.get('task_view_id')}"
+                )
+            for tag in getattr(record, "tags", []):
+                if tag.startswith("contradiction:"):
+                    contradiction_refs.append(tag)
+
+        outcome = (
+            "succeeded"
+            if any("completed" in item for item in findings)
+            else "active"
+        )
+
+        return CompressedStageMemory(
+            stage_id=stage_id,
+            findings=findings[:8],
+            decisions=decisions[:8],
+            outcome=outcome,
+            contradiction_refs=contradiction_refs,
+            key_entities=key_entities[:10],
+            source_evidence_count=len(records),
+            compression_method="direct",
+        )
+
+    async def _llm_compress(
+        self,
+        stage_id: str,
+        records: list[RawEventRecord],
+    ) -> CompressedStageMemory:
+        """Use LLM to compress evidence into structured summary."""
+        evidence_lines: list[str] = []
+        for idx, rec in enumerate(records):
+            evidence_lines.append(
+                f"[{idx}] {rec.event_type}: {json.dumps(rec.payload)}"
+            )
+        evidence_text = "\n".join(evidence_lines)
+
+        prompt = STAGE_COMPRESSION_PROMPT.format(
+            stage_id=stage_id,
+            evidence_count=len(records),
+            evidence_text=evidence_text,
+        )
+
+        raw_response = await self.llm_fn(prompt)  # type: ignore[misc]
+        parsed = json.loads(raw_response)
+
+        return CompressedStageMemory(
+            stage_id=stage_id,
+            findings=parsed.get("findings", []),
+            decisions=parsed.get("decisions", []),
+            outcome=parsed.get("outcome", "inconclusive"),
+            contradiction_refs=parsed.get("contradiction_refs", []),
+            key_entities=parsed.get("key_entities", []),
+            source_evidence_count=len(records),
+            compression_method="llm",
+        )
+
+    def _fallback_truncate(
+        self,
+        stage_id: str,
+        records: list[RawEventRecord],
+        max_items: int | None = None,
+    ) -> CompressedStageMemory:
+        """Take last *max_items* records and build summary deterministically."""
+        limit = max_items if max_items is not None else self.fallback_items
+        truncated = records[-limit:]
+        result = self._build_summary_from_raw(stage_id, truncated)
+        result.compression_method = "fallback"
+        result.source_evidence_count = len(records)
+        return result

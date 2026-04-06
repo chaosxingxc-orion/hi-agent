@@ -1,0 +1,139 @@
+Let me read the V1.2 document carefully.全文已完整阅读（810 行）。下面是第三轮严格评审。
+
+---
+
+## TRACE V1.2 架构评审意见
+
+### 一、V1.1 遗留问题的逐条验收
+
+**遗留 1：Evolve 变更隔离——已解决，设计精准**
+
+6.3 节新增的 `change_scope` 声明机制（routing_only / skill_candidates_only / knowledge_summaries_only / evaluation_baselines_only）直接回应了"多变量同时变更导致归因失败"的问题。"One evolve execution must not update evaluation baselines and the evaluated targets in the same change set"这条规则是整个 Evolve 设计的安全锁，写得干净利落。
+
+**验收通过。**
+
+---
+
+**遗留 2：Task View 降级策略——已解决，且比预期更好**
+
+6.4 节的"Completeness check and degradation"明确定义了三档降级行为（触发 Human Gate / 保守路由 / 升级到更大 context 模型），且关键的一句"the system must not silently continue after truncation"把底线画清楚了。这条规则的价值在于它是一个**不可绕过的守门条件**，而不是一个"建议"。
+
+**验收通过。**
+
+---
+
+**遗留 3：Human Gate 系统触发条件——已解决，触发条件合理**
+
+6.5 节为四个 Gate 各定义了系统主动触发条件。特别是 Gate B 的触发条件"exploration budget is heavily consumed and no viable branch is available"与 CTS 预算模型形成了闭环。Gate C 的"contradictory evidence"触发也很好——这是人工介入 ROI 最高的时机。
+
+**验收通过。**
+
+---
+
+**遗留 4：Evolve 自身预算——已解决**
+
+6.3 节新增的 evolution budget 四个控制维度（max_runs_analyzed / max_llm_calls / max_summary_tokens / min_regression_trigger_cooldown）覆盖了关键的成本面。尤其是 `min_regression_trigger_cooldown` 直接解决了我上轮担心的"阈值过敏导致频繁触发"问题。
+
+**验收通过。**
+
+---
+
+**遗留附加 A（Skill 生命周期）——已解决，且超出预期**
+
+Skill 从三阶段扩展为五阶段生命周期（Candidate → Provisional → Certified → Deprecated → Retired），并且每个 Skill 附带了六个元数据字段（applicability scope / preconditions / forbidden conditions / evidence requirements / side-effect class / rollback policy）。这已经不是架构层面的描述了，而是可以直接映射为数据模型的定义。
+
+**验收通过。**
+
+---
+
+**遗留附加 B（跨仓库 prompt 组装歧义）——已解决**
+
+6.6 节末尾的"Task View ownership"三条规则干净地切开了边界：hi-agent 拥有语义选择权、kernel 拥有封装/持久化/replay/传输权、core 不参与认知组装。步骤 3 的措辞也从"assembles model invocation envelope"修正为"packages the selected Task View into stable replayable model invocation records"，消除了歧义。
+
+**验收通过。**
+
+---
+
+**遗留 7（验证策略领域绑定）——已解决**
+
+第 12 节增加了影子验证场景："enterprise data analysis and reporting"。简洁，不过度承诺，但表明了架构师对领域绑定风险的认知。
+
+**验收通过。**
+
+---
+
+**V1.1 遗留问题全部验收通过。** 这是三轮评审中第一次出现全部通过的情况。
+
+---
+
+### 二、V1.2 新增内容的独立评审
+
+V1.2 主动新增了三块重要内容：Runtime Truth Model（6.7）、Idempotency and Side-Effect Contract（6.8）、Failure Taxonomy（6.9）。这三块都不是我上轮要求的，是架构师自主延伸的。逐一评审。
+
+---
+
+**6.7 Runtime Truth Model——高价值增量，但有一个状态缺失**
+
+六组状态机（RunState / StageState / BranchState / ActionState / WaitState / ReviewState）的引入是正确的决策。对于一个 7×24 持久运行的系统，没有显式状态机就没有可调试性。状态转移图也是合理的。
+
+**但 ActionState 缺少一个关键状态：`succeeded`。** 当前定义是 `prepared → dispatched → acknowledged | effect_unknown | failed`。`acknowledged` 暗示外部系统确认收到了请求，但"收到"不等于"成功完成"。在异步场景中，一个 action 被 dispatch 后可能经过 `acknowledged`（系统确认了请求）再到 `completed`（操作真正完成了）这两个不同的时刻。特别是当 action 是一个长时间运行的外部任务（比如启动一个实验、触发一个数据管道），`acknowledged` 和真正的 `succeeded` 之间可能间隔数小时。如果不区分这两个状态，Capture 阶段在什么时点采集证据就会产生歧义。
+
+**建议：ActionState 应扩展为 `prepared → dispatched → acknowledged → succeeded | effect_unknown | failed`，其中 `acknowledged` 表示外部系统确认受理，`succeeded` 表示操作完成且结果可采集。**
+
+---
+
+**6.8 Idempotency and Side-Effect Contract——非常成熟的设计，几乎无可挑剔**
+
+七层 ID 体系（task_id 到 callback_id）、四级 side-effect 分类（read_only / local_write / external_write / irreversible_submit）、以及五条契约规则，构成了一套完整的幂等性治理框架。特别是"every external action must carry an idempotency key"和"retry policy must respect side-effect class"这两条，直接解决了企业级 Agent 在真实环境中最容易出事故的场景。
+
+**只有一个小建议：** `local_write` 和 `external_write` 的边界在某些场景下可能模糊。比如 Agent 写入一个共享文件系统——对 Agent 来说是"本地"操作，但对企业来说影响范围是"外部"的。建议在定义中补一句边界判定原则，比如"side-effect class is determined by the blast radius of the action, not by the network location of the target"。
+
+---
+
+**6.9 Failure Taxonomy——实用且克制**
+
+八类失败分类覆盖了 TRACE 运行时最常见的失败模式。分类既不过粗（不是只有"success/fail"），也不过细（没有试图穷尽所有可能的错误码）。`contradictory_evidence` 和 `unsafe_action_blocked` 的引入特别好——它们与 Human Gate C 的触发条件和 Harness 的安全治理形成了闭环。
+
+**一个小观察：** 当前分类中缺少一类——**模型层面的失败**。比如 LLM Gateway 返回了不可解析的输出、模型幻觉导致生成了不可执行的 action plan、或者模型拒绝执行（safety refusal）。这些失败不属于现有八类中的任何一类，但在实际运行中一定会遇到。
+
+**建议：增加 `model_output_invalid` 和 `model_refusal` 两类，覆盖 LLM 层面的失败模式。**
+
+---
+
+### 三、架构级的整体审视——从 V1.0 到 V1.2 的进化评估
+
+经过三轮评审，现在有必要从整体上审视这套架构的成熟度。
+
+**架构的核心赌注是正确的。** TRACE 赌的是：下一代企业 Agent 的竞争力不在单次推理的聪明程度上（那是模型厂商的事），而在持久运行 + 结构化探索 + 可进化 这三者的交叉点上。这个判断我认为是对的。当前的 Agent 框架（无论是 LangChain/CrewAI/AutoGen）都没有认真处理这三个问题，它们仍然在短周期的 prompt engineering 层面竞争。
+
+**从"可进化"这个核心要素来看，V1.2 已经构成了一个可信的闭环。** 具体来说：
+
+进化的数据基础有了——Capture 产出结构化的 trajectory / evidence / failure classification，不再是黑箱。进化的触发机制有了——三种触发模式覆盖了事后总结、批量学习、异常驱动三种时机。进化的隔离机制有了——change_scope 防止归因混乱，champion/challenger 防止盲目更新。进化的知识载体有了——Skill 的五阶段生命周期让经验可以沉淀、验证、推广、退役，而不是在 prompt 里堆砌。进化的成本控制有了——Evolution budget 与 CTS budget 平级对待。
+
+这五个要素共同构成了一个"可信的进化闭环"，而不是一句"系统会越来越好"的空话。
+
+---
+
+### 四、V1.2 最终评定
+
+| 维度 | V1.0 | V1.1 | V1.2 | 变化说明 |
+|------|------|------|------|----------|
+| 概念完整性 | B+ | A- | **A** | Runtime Truth Model + Failure Taxonomy + Idempotency Contract 补齐了运行时的最后一块拼图 |
+| 约束识别 | A- | A- | **A** | Side-effect governance 将约束识别从"认知层"延伸到了"执行层" |
+| 可实施性 | B- | B+ | **A-** | 状态机、ID 体系、side-effect 分类已经可以直接转化为代码设计。仅 ActionState 和 Failure Taxonomy 需要小幅补充 |
+| 首验策略 | B | B | **B+** | 影子验证场景的加入解决了领域绑定风险 |
+| 差异化 | B+ | A- | **A** | 进化闭环的五个要素（数据基础、触发机制、隔离机制、知识载体、成本控制）形成了真正的体系性壁垒 |
+
+---
+
+### 五、最终建议
+
+**架构批准通过。可以冻结 TRACE 词汇表，进入实现规划。**
+
+在冻结前完成以下三项微调（均为补充性修改，不影响架构结构）：
+
+1. **ActionState 补充 `succeeded` 状态**，区分"外部系统确认受理"和"操作完成可采集结果"两个时点。
+
+2. **Failure Taxonomy 补充 `model_output_invalid` 和 `model_refusal`**，覆盖 LLM 层面的失败模式。
+
+3. **Side-effect class 补充边界判定原则**，明确分类依据是 blast radius 而非 network location。

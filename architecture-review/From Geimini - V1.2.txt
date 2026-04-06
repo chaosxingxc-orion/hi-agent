@@ -1,0 +1,125 @@
+我基于你这次上传的 **V1.2** 文档来审。先给结论：**这次不是“修辞刷新”，而是一次真实硬化；但我仍然不会给你“可以无条件大规模开工”的结论。** 它已经从“方向对但工程口子太大”，提升到了“可以进入受控实施，但必须先补齐几张硬契约表”的状态。 
+
+## 总评
+
+**总分：7.5 / 10。**
+相比上一版，我愿意把结论从“值得继续，但不能放心开工”，上调为：**“可以启动受控范围实施，但还不能宣称企业级可进化架构已经闭合。”** 原因很明确：V1.2 已经把我上轮最核心的批评——`Evolve` 隔离、Task View 退化、运行时真相、幂等性、副作用治理、旧决策版本回放——都明确写进了架构正文，而不再只是口头要求。相较 V1.1 只有触发器、输入输出、质量护栏和三段式 skill 晋升，V1.2 新增了 `change_scope`、evolution budget、五阶段 skill 生命周期、Task View completeness/degradation、runtime truth model、idempotency contract 和 version pinning，这些都是实质改进。 
+
+## 我认可这次确实补上的东西
+
+第一，**“可进化”终于不再只是抽象愿景，而变成了一个受限、可隔离、可回滚的后执行子系统。** 文档明确要求每次 evolve 声明 `change_scope`，限制同一 change set 不能同时改 baseline 与被评估对象，并引入 champion/challenger、limited rollout、regression detection、disable-on-regression 和 evolve 自身预算控制；这说明你们开始真正理解：进化不是“学到就替换”，而是“发布治理”。这一步是对的，而且很关键。
+
+第二，**Task View 终于从“怎么拼上下文”进化到了“拼不全时怎么办”。** 这次增加了 completeness check，并禁止 silent truncation，允许触发人工门、保守路由、升级大上下文模型。这很重要，因为真正把长程 agent 打穿的，往往不是模型弱，而是上下文不完整却装作完整继续执行。V1.2 在这里开始具备工程诚实性。
+
+第三，**运行时真相模型和幂等契约终于进入主文。** `RunState / StageState / BranchState / ActionState / WaitState / ReviewState` 的引入，以及 `task_id/run_id/stage_id/branch_id/action_id/attempt_id/callback_id`、副作用分级、idempotency key、side-effect-aware retry、不可逆动作审计，这些都说明架构师已经承认：长程 agent 的核心不是“推理链”，而是“真实世界动作的可恢复执行语义”。这部分虽然还不够闭合，但比上一版成熟了一大截。
+
+第四，**仓库边界这次终于基本站住了。** 文档明确了 `hi-agent` 负责 Task View 的语义选择，`agent-kernel` 负责稳定封装、持久化、回放与 provider transport，`agent-core` 不参与任务级认知拼装。这个划分比上一版清楚得多，能显著降低后续 repo 漂移。 
+
+## 但我仍然要严厉指出：这版还没有彻底封口
+
+### 1. “可进化”已经可治理，但还没有完全**可发布**
+
+V1.2 已经有 `change_scope` 和版本 pinning，但**还没有完整的“进化发布模型”**。最关键缺口是：
+你定义了 evolve 能改什么，却还没定义清楚 **按什么发布域发布**。现在文档里只有推荐 scope，却没有严格声明 rollout unit 是 `task_family`、`tenant`、`risk_level`、`model_tier` 还是它们的组合；也没有定义 `routing heuristic`、`skill`、`knowledge summary`、`evaluation baseline` 之间的依赖图与兼容矩阵。没有这套东西，进化仍然可能发生“局部正确、整体污染”。
+
+严厉一点说：
+**这版已经做到“可学习地上线”，但还没做到“可发布地进化”。**
+
+### 2. 运行时真相模型只是“状态草图”，还不是“裁决协议”
+
+你们这次给了 state sketch，这是进步；但我不会因为画了状态名就放行。真正难的是：
+
+* callback 先到、timeout 后到，谁赢
+* human gate 修改 task contract 后，哪些 branch 失效，哪些可继承
+* `effect_unknown` 动作在恢复时如何仲裁
+* waiting run 在新策略发布后恢复，是否继续沿用旧 route/eval/skill policy
+* review rejected 后，run 回哪一级状态，branch 如何处理
+
+这些在 V1.2 里都还没有变成**事件仲裁表**和**合法转移矩阵**。文档已经意识到 race arbitration 问题，但还停在“kernel should preserve enough data”层面。对一个真正 7x24 的企业 agent 来说，这还不够。
+
+### 3. Skill 生命周期更成熟了，但 Skill 还不是“可执行契约对象”
+
+V1.2 把 skill 从三阶段扩到五阶段，并要求 eventually 携带 applicability、preconditions、forbidden conditions、evidence requirements、side-effect class、rollback policy，这方向完全正确。问题是：**“should eventually carry” 不等于“现在已经是强制契约”。** 仍然缺少最关键的三件事：
+
+* 输入输出 contract
+* 成功判定与证据绑定 contract
+* skill 对幂等与副作用约束的继承规则
+
+没有这三样，skill 仍然偏向“被提炼的经验模板”，还不是 runtime 可安全调度的一级资产。
+
+### 4. CTS 已经有预算，但还缺“收敛机制”
+
+文档已经有 budget、pruning、cheap-first compare，这很好。问题在于：**CTS 还是更像“被约束的多分支搜索”，还没有形成工程上可控的收敛语义。** 仍然没看到：
+
+* branch canonicalization：两个近似同义分支如何去重
+* branch merge：何时合并证据链，何时保持分叉
+* repeated failure signature 的归一化规则
+* value-of-information 判断：什么时候值得再开新 branch
+
+没有这些，CTS 很容易从“可优化探索”退化成“成本受限但仍然昂贵的树试探”。
+
+### 5. Human Gate 变强了，但“人改了以后系统怎么清算”还没写透
+
+这次我认可 Human Gate A/B/C/D 的定义，以及系统主动触发条件，这是实打实的企业化强化。可问题在于，文档只说人可以 revise contract、prune branches、inject evidence、edit artifact，却没写清：
+
+* 合同被修订后，已完成 stage 是否作废
+* 中间产物被人工直接改写后，哪些 skill/evaluation 数据还可用于 evolve
+* injected evidence 是覆盖、追加，还是形成新 branch
+* 被人工驳回的结果，后续 route compare 怎么使用
+
+不把这些“人机交互后的账怎么算”写清，后面的 evolve 数据会被污染。
+
+### 6. “企业通用”仍未被证明，只是研究验证 + 一个影子场景提议
+
+文档很诚实：首个验证闭环仍然是 research-domain，外加一个 enterprise data analysis/reporting 的 shadow scenario。这个策略本身没有问题，我支持；但严格评审下，我不会允许把它说成“已验证企业通用”。它现在最多是：**企业通用架构假设 + 研究域首证 + 影子域旁证计划**。这意味着你可以开工，但不能过度承诺。
+
+## 分项评分
+
+我按你最关心的“可进化真正能实施下去”来重新打：
+
+* **可进化设计**：8.0
+  已经从“愿景”升级成“有隔离、有预算、有生命周期、有回放要求”的系统部件，但还缺发布域和依赖图。
+
+* **内核正确性**：7.0
+  有 durable run、rebuildable Task View、watchdog、recovery、runtime truth、kernel requirements，但事件裁决协议还没定死。
+
+* **边界清晰度**：7.9
+  三仓边界和 Task View ownership 这次清晰很多，明显比上一版更稳。 
+
+* **幂等性/恢复成熟度**：7.4
+  已经进入架构层，不再是实现备注；但 effect arbitration 还没闭合。
+
+* **可实施性**：7.8
+  作为“研究验证闭环 + 受控企业影子场景”的 V1 可以开工；作为企业通用平台宣称 ready 还不行。
+
+* **安全与副作用治理**：7.5
+  Harness、副作用分级、dry-run、approval-required、不可逆提交前审计都对；但租户级/策略级发布隔离还没落到操作面。
+
+* **简洁性与可维护性**：7.1
+  结构仍然算克制，但已经开始接近“抽象越来越多”的边缘。后续再加概念要非常节制。
+
+## 我的最终判断
+
+**这版比上一版明显更像一个能落地的下一代智能体架构。**
+我愿意明确说：**它已经通过“方向合理性评审”，并且可以进入“受控实施评审通过”状态。** 但我不会给“全面架构冻结通过”。
+
+更准确地说：
+
+* **可以做的**：
+  按文档第 12 节的 research closed loop 启动首版实现，同时准备一个非研究影子场景，开始映射 `hi-agent -> agent-kernel` 契约。
+
+* **不能跳过的**：
+  在 kernel 团队正式大规模编码前，必须先补四份硬文档：
+  1）**运行时状态转移与事件仲裁表**
+  2）**evolve 发布域/版本依赖/回滚矩阵**
+  3）**skill 强制契约 schema**
+  4）**human gate 后的 branch / evidence / evaluation 清算规则**
+
+## 最后的严厉结论
+
+如果用一句不好听但准确的话评价：
+
+**V1.1 是“像未来”；V1.2 已经开始“像系统”。**
+但它现在仍然是 **“可治理的进化架构雏形”**，不是 **“已闭合的可进化内核”**。
+你现在最该做的，不是再加新概念，而是把上面四张表补死。补死之后，这套架构才真正有资格说：**可进化，而且真的实施得下去。** 
+
