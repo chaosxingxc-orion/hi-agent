@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from hi_agent.contracts import deterministic_id
+from hi_agent.llm.protocol import LLMGateway
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.route_engine.llm_engine import LLMRouteEngine
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
@@ -27,12 +28,30 @@ class HybridRouteEngine:
         self,
         *,
         rule_engine: RuleRouteEngine | None = None,
-        llm_engine: LLMRouteEngine,
+        llm_engine: LLMRouteEngine | None = None,
         confidence_threshold: float = 0.7,
+        gateway: LLMGateway | None = None,
     ) -> None:
-        """Initialize hybrid route policy."""
+        """Initialize hybrid route policy.
+
+        Parameters
+        ----------
+        rule_engine:
+            Deterministic rule engine.  Defaults to :class:`RuleRouteEngine`.
+        llm_engine:
+            Pre-built LLM route engine.  When *None* but *gateway* is provided,
+            an :class:`LLMRouteEngine` is created automatically using the gateway.
+        confidence_threshold:
+            Rule confidence must meet this threshold to skip LLM.
+        gateway:
+            Optional :class:`LLMGateway`.  Passed through to the LLM engine
+            when *llm_engine* is not explicitly provided.
+        """
         self._rule_engine = rule_engine or RuleRouteEngine()
-        self._llm_engine = llm_engine
+        if llm_engine is not None:
+            self._llm_engine = llm_engine
+        else:
+            self._llm_engine = LLMRouteEngine(gateway=gateway)
         self._confidence_threshold = confidence_threshold
 
     def propose(

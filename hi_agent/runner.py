@@ -9,7 +9,13 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from hi_agent.evolve.contracts import RunPostmortem
+    from hi_agent.evolve.engine import EvolveEngine
+    from hi_agent.harness.contracts import ActionSpec
+    from hi_agent.harness.executor import HarnessExecutor
 
 from hi_agent.capability import (
     CapabilityInvoker,
@@ -20,6 +26,7 @@ from hi_agent.capability import (
 from hi_agent.contracts import (
     BranchState,
     CTSExplorationBudget,
+    HumanGateRequest,
     NodeState,
     NodeType,
     StageState,
@@ -79,6 +86,9 @@ class RunExecutor:
         ) = None,
         observability_hook: Callable[[str, dict[str, object]], None] | None = None,
         cts_budget: CTSExplorationBudget | None = None,
+        evolve_engine: EvolveEngine | None = None,
+        harness_executor: HarnessExecutor | None = None,
+        human_gate_quality_threshold: float = 0.5,
     ) -> None:
         """Initialize run executor state.
 
@@ -103,6 +113,13 @@ class RunExecutor:
           cts_budget: Optional CTS exploration budget. When provided the
               runner enforces branch limits, action budget (from
               TaskContract.budget), and total branch caps during execution.
+          evolve_engine: Optional EvolveEngine for postmortem analysis after
+              run completion.
+          harness_executor: Optional HarnessExecutor for governed action
+              execution. When provided, actions are routed through the
+              harness instead of direct capability invocation.
+          human_gate_quality_threshold: Quality score threshold below which
+              Gate C (artifact_review) is auto-triggered. Defaults to 0.5.
         """
         self.contract = contract
         self.kernel = kernel
@@ -149,6 +166,10 @@ class RunExecutor:
         self.cts_budget = cts_budget or CTSExplorationBudget()
         self._total_branches_opened = 0
         self._stage_active_branches: dict[str, int] = {}
+        self.evolve_engine = evolve_engine
+        self.harness_executor = harness_executor
+        self.human_gate_quality_threshold = human_gate_quality_threshold
+        self._gate_seq = 0
 
     @property
     def run_id(self) -> str:
@@ -294,7 +315,14 @@ class RunExecutor:
     def _invoke_capability(
         self, proposal: object, payload: dict
     ) -> dict:
-        """Invoke capability with optional role and action metadata propagation."""
+        """Invoke capability with optional role and action metadata propagation.
+
+        When a harness_executor is configured, actions are routed through the
+        harness governance pipeline instead of direct capability invocation.
+        """
+        if self.harness_executor is not None:
+            return self._invoke_via_harness(proposal, payload)
+
         kwargs: dict[str, object] = {}
         if self._invoker_accepts_role:
             kwargs["role"] = self.runner_role
@@ -594,6 +622,198 @@ class RunExecutor:
         with contextlib.suppress(Exception):
             self.kernel.signal_run(self.run_id, signal, payload)
 
+    def _make_gate_ref(self, gate_type: str) -> str:
+        """Generate a deterministic gate reference."""
+        ref = f"{self.run_id}:gate:{gate_type}:{self._gate_seq:03d}"
+        self._gate_seq += 1
+        return ref
+
+    def _build_postmortem(self, outcome: str) -> RunPostmortem:
+        """Build a RunPostmortem from current run state.
+
+        Args:
+            outcome: Final outcome string (``completed`` or ``failed``).
+
+        Returns:
+            A populated RunPostmortem dataclass.
+        """
+        from hi_agent.evolve.contracts import RunPostmortem
+
+        stages_completed: list[str] = []
+        stages_failed: list[str] = []
+        for sid in self.stage_summaries:
+            stage_state = self.kernel.stages.get(sid) if hasattr(self.kernel, "stages") else None
+            if stage_state == StageState.FAILED:
+                stages_failed.append(sid)
+            elif stage_state == StageState.COMPLETED:
+                stages_completed.append(sid)
+            else:
+                # Fallback: check summary outcome
+                if self.stage_summaries[sid].outcome == "failed":
+                    stages_failed.append(sid)
+                else:
+                    stages_completed.append(sid)
+
+        branches_explored = 0
+        branches_pruned = 0
+        for node in self.dag.values():
+            branches_explored += 1
+            if node.state == NodeState.PRUNED:
+                branches_pruned += 1
+
+        failure_codes: list[str] = []
+        for record in self.raw_memory.list_all():
+            code = record.payload.get("failure_code")
+            if code and code not in failure_codes:
+                failure_codes.append(code)
+
+        return RunPostmortem(
+            run_id=self.run_id,
+            task_id=self.contract.task_id,
+            task_family=self.contract.task_family,
+            outcome=outcome,
+            stages_completed=stages_completed,
+            stages_failed=stages_failed,
+            branches_explored=branches_explored,
+            branches_pruned=branches_pruned,
+            total_actions=self.action_seq,
+            failure_codes=failure_codes,
+            duration_seconds=0.0,
+        )
+
+    def _invoke_via_harness(
+        self, proposal: object, payload: dict
+    ) -> dict:
+        """Route action through HarnessExecutor and convert result to dict.
+
+        Args:
+            proposal: Route proposal with action_kind and branch_id.
+            payload: Action payload dict.
+
+        Returns:
+            Dict in the format the runner expects from capability invocation.
+        """
+        from hi_agent.harness.contracts import ActionSpec, ActionState, SideEffectClass
+
+        spec = ActionSpec(
+            action_id=deterministic_id(
+                self.run_id,
+                payload["stage_id"],
+                payload["branch_id"],
+                str(payload["seq"]),
+            ),
+            action_type="mutate",
+            capability_name=proposal.action_kind,
+            payload=payload,
+            side_effect_class=SideEffectClass(
+                getattr(proposal, "side_effect_class", "read_only")
+            )
+            if hasattr(proposal, "side_effect_class")
+            and proposal.side_effect_class
+            in {e.value for e in SideEffectClass}
+            else SideEffectClass.READ_ONLY,
+        )
+
+        result = self.harness_executor.execute(spec)
+
+        success = result.state == ActionState.SUCCEEDED
+        output = result.output if isinstance(result.output, dict) else {}
+        return {
+            "success": success,
+            "score": output.get("score", 0.0),
+            "evidence_hash": result.evidence_ref or "ev_missing",
+            "action_id": result.action_id,
+            "side_effect_class": spec.side_effect_class.value,
+            **output,
+        }
+
+    def _check_human_gate_triggers(
+        self,
+        stage_id: str,
+        action_result: dict,
+        failure_code: str | None = None,
+    ) -> None:
+        """Check if any Human Gate should be auto-triggered.
+
+        Gate A (contract_correction): contradictory_evidence failure code.
+        Gate B (route_direction): budget nearly exhausted (>80%) and no
+            viable branch found.
+        Gate C (artifact_review): action result quality_score below threshold.
+        Gate D (final_approval): irreversible_submit side effect class.
+        """
+        # Gate A: contradictory evidence
+        if failure_code == "contradictory_evidence":
+            self.kernel.open_human_gate(
+                HumanGateRequest(
+                    run_id=self.run_id,
+                    gate_type="contract_correction",
+                    gate_ref=self._make_gate_ref("contract_correction"),
+                    context={
+                        "stage_id": stage_id,
+                        "reason": "Contradictory evidence detected",
+                        "failure_code": failure_code,
+                    },
+                )
+            )
+
+        # Gate B: budget crisis (>80% used and no viable branch)
+        task_budget = self.contract.budget
+        if task_budget is not None and task_budget.max_actions > 0:
+            usage_ratio = self.action_seq / task_budget.max_actions
+            if usage_ratio > 0.8:
+                # Check if there are any succeeded branches in current stage
+                has_viable = any(
+                    node.state == NodeState.SUCCEEDED
+                    for node in self.dag.values()
+                    if node.stage_id == stage_id
+                )
+                if not has_viable:
+                    self.kernel.open_human_gate(
+                        HumanGateRequest(
+                            run_id=self.run_id,
+                            gate_type="route_direction",
+                            gate_ref=self._make_gate_ref("route_direction"),
+                            context={
+                                "stage_id": stage_id,
+                                "reason": "Budget nearly exhausted with no viable branch",
+                                "budget_usage_ratio": usage_ratio,
+                            },
+                        )
+                    )
+
+        # Gate C: quality threshold
+        quality_score = action_result.get("quality_score")
+        if quality_score is not None and quality_score < self.human_gate_quality_threshold:
+            self.kernel.open_human_gate(
+                HumanGateRequest(
+                    run_id=self.run_id,
+                    gate_type="artifact_review",
+                    gate_ref=self._make_gate_ref("artifact_review"),
+                    context={
+                        "stage_id": stage_id,
+                        "reason": "Action result quality below threshold",
+                        "quality_score": quality_score,
+                        "threshold": self.human_gate_quality_threshold,
+                    },
+                )
+            )
+
+        # Gate D: irreversible action
+        side_effect_class = action_result.get("side_effect_class")
+        if side_effect_class == "irreversible_submit":
+            self.kernel.open_human_gate(
+                HumanGateRequest(
+                    run_id=self.run_id,
+                    gate_type="final_approval",
+                    gate_ref=self._make_gate_ref("final_approval"),
+                    context={
+                        "stage_id": stage_id,
+                        "reason": "Irreversible action requires approval",
+                        "side_effect_class": side_effect_class,
+                    },
+                )
+            )
+
     def _check_budget_exceeded(self, stage_id: str) -> str | None:
         """Return a failure code if any CTS or task budget limit is exceeded.
 
@@ -705,6 +925,8 @@ class RunExecutor:
                 )
                 self.dag[node.node_id] = node
 
+                success = False
+                result: dict | None = None
                 try:
                     self._record_event(
                         "ActionDispatched",
@@ -842,6 +1064,17 @@ class RunExecutor:
                             },
                         )
                 finally:
+                    # Check human gate triggers after each action
+                    action_result_for_gate = result if result else {}
+                    failure_code_for_gate: str | None = None
+                    if not success:
+                        failure_code_for_gate = (
+                            action_result_for_gate.get("failure_code")
+                            or "harness_denied"
+                        )
+                    self._check_human_gate_triggers(
+                        stage_id, action_result_for_gate, failure_code_for_gate
+                    )
                     self.action_seq += 1
                     self.optimizer.backpropagate(node, self.dag)
 
@@ -866,6 +1099,9 @@ class RunExecutor:
                     "run_failed",
                     {"run_id": self.run_id, "stage_id": stage_id},
                 )
+                if self.evolve_engine is not None:
+                    postmortem = self._build_postmortem("failed")
+                    self.evolve_engine.on_run_completed(postmortem)
                 return "failed"
 
             self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
@@ -889,4 +1125,7 @@ class RunExecutor:
             "run_completed",
             {"run_id": self.run_id, "stage_id": self.current_stage},
         )
+        if self.evolve_engine is not None:
+            postmortem = self._build_postmortem("completed")
+            self.evolve_engine.on_run_completed(postmortem)
         return "completed"

@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from hi_agent.llm.protocol import LLMGateway, LLMRequest
 from hi_agent.memory.compress_prompts import STAGE_COMPRESSION_PROMPT
 from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.memory.l1_compressed import CompressedStageMemory
@@ -64,6 +65,8 @@ class MemoryCompressor:
         timeout_s: float = 10.0,
         compress_threshold: int = 25,
         fallback_items: int = 20,
+        *,
+        gateway: LLMGateway | None = None,
     ) -> None:
         """Initialize compression policy controls.
 
@@ -71,15 +74,20 @@ class MemoryCompressor:
         ----------
         llm_fn:
             Async callable ``(prompt: str) -> str``.  When *None* the
-            compressor always uses the deterministic path.
+            compressor always uses the deterministic path (unless *gateway*
+            is provided).
         timeout_s:
-            Maximum seconds to wait for *llm_fn*.
+            Maximum seconds to wait for *llm_fn* or gateway call.
         compress_threshold:
             Evidence count at which the LLM path is attempted.
         fallback_items:
             Number of most-recent records kept when falling back.
+        gateway:
+            Optional :class:`LLMGateway`.  When provided, takes precedence
+            over *llm_fn* for LLM compression calls.
         """
         self.llm_fn = llm_fn
+        self._gateway = gateway
         self.timeout_s = timeout_s
         self.compress_threshold = compress_threshold
         self.fallback_items = fallback_items
@@ -95,8 +103,8 @@ class MemoryCompressor:
         """Synchronous entry point (backward-compatible).
 
         Delegates to :meth:`_build_summary_from_raw` for below-threshold
-        evidence and to :meth:`_fallback_truncate` when above threshold
-        (no LLM call from sync context).
+        evidence.  For above-threshold evidence, uses the gateway if
+        available (synchronous call), otherwise falls back to truncation.
         """
         if len(records) < self.compress_threshold:
             result = self._build_summary_from_raw(stage_id, records)
@@ -106,6 +114,19 @@ class MemoryCompressor:
                 len(result.findings) + len(result.decisions),
             )
             return result
+
+        if self._gateway is not None:
+            try:
+                result = self._gateway_compress_sync(stage_id, records)
+                self.metrics.record(
+                    "llm",
+                    len(records),
+                    len(result.findings) + len(result.decisions),
+                )
+                return result
+            except Exception:  # noqa: BLE001
+                pass  # fall through to fallback
+
         result = self._fallback_truncate(stage_id, records)
         self.metrics.record(
             "fallback",
@@ -129,6 +150,27 @@ class MemoryCompressor:
             )
             return result
 
+        if self._gateway is not None:
+            try:
+                result = await asyncio.wait_for(
+                    self._gateway_compress(stage_id, records),
+                    timeout=self.timeout_s,
+                )
+                self.metrics.record(
+                    "llm",
+                    len(records),
+                    len(result.findings) + len(result.decisions),
+                )
+                return result
+            except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+                result = self._fallback_truncate(stage_id, records)
+                self.metrics.record(
+                    "fallback",
+                    len(records),
+                    len(result.findings) + len(result.decisions),
+                )
+                return result
+
         if self.llm_fn is not None:
             try:
                 result = await asyncio.wait_for(
@@ -150,7 +192,7 @@ class MemoryCompressor:
                 )
                 return result
 
-        # No llm_fn – deterministic fallback
+        # No gateway and no llm_fn – deterministic fallback
         result = self._fallback_truncate(stage_id, records)
         self.metrics.record(
             "fallback",
@@ -212,6 +254,118 @@ class MemoryCompressor:
             key_entities=key_entities[:10],
             source_evidence_count=len(records),
             compression_method="direct",
+        )
+
+    async def _gateway_compress(
+        self,
+        stage_id: str,
+        records: list[RawEventRecord],
+    ) -> CompressedStageMemory:
+        """Use :class:`LLMGateway` to compress evidence into structured summary."""
+        evidence_lines: list[str] = []
+        for idx, rec in enumerate(records):
+            evidence_lines.append(
+                f"[{idx}] {rec.event_type}: {json.dumps(rec.payload)}"
+            )
+        evidence_text = "\n".join(evidence_lines)
+
+        user_prompt = STAGE_COMPRESSION_PROMPT.format(
+            stage_id=stage_id,
+            evidence_count=len(records),
+            evidence_text=evidence_text,
+        )
+
+        request = LLMRequest(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a memory compression engine for the TRACE framework. "
+                        "Compress stage execution evidence into a structured JSON summary."
+                    ),
+                },
+                {"role": "user", "content": user_prompt},
+            ],
+            model="default",
+            temperature=0.2,
+            max_tokens=2048,
+            metadata={
+                "stage_id": stage_id,
+                "evidence_count": len(records),
+                "purpose": "memory_compression",
+            },
+        )
+
+        # Gateway.complete is synchronous; run in executor to keep async contract
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None, self._gateway.complete, request  # type: ignore[union-attr]
+        )
+        parsed = json.loads(response.content)
+
+        return CompressedStageMemory(
+            stage_id=stage_id,
+            findings=parsed.get("findings", []),
+            decisions=parsed.get("decisions", []),
+            outcome=parsed.get("outcome", "inconclusive"),
+            contradiction_refs=parsed.get("contradiction_refs", []),
+            key_entities=parsed.get("key_entities", []),
+            source_evidence_count=len(records),
+            compression_method="llm",
+        )
+
+    def _gateway_compress_sync(
+        self,
+        stage_id: str,
+        records: list[RawEventRecord],
+    ) -> CompressedStageMemory:
+        """Synchronous gateway compression (for :meth:`compress_stage`)."""
+        evidence_lines: list[str] = []
+        for idx, rec in enumerate(records):
+            evidence_lines.append(
+                f"[{idx}] {rec.event_type}: {json.dumps(rec.payload)}"
+            )
+        evidence_text = "\n".join(evidence_lines)
+
+        user_prompt = STAGE_COMPRESSION_PROMPT.format(
+            stage_id=stage_id,
+            evidence_count=len(records),
+            evidence_text=evidence_text,
+        )
+
+        request = LLMRequest(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a memory compression engine for the TRACE framework. "
+                        "Compress stage execution evidence into a structured JSON summary."
+                    ),
+                },
+                {"role": "user", "content": user_prompt},
+            ],
+            model="default",
+            temperature=0.2,
+            max_tokens=2048,
+            metadata={
+                "stage_id": stage_id,
+                "evidence_count": len(records),
+                "purpose": "memory_compression",
+            },
+        )
+
+        response = self._gateway.complete(request)  # type: ignore[union-attr]
+        parsed = json.loads(response.content)
+
+        return CompressedStageMemory(
+            stage_id=stage_id,
+            findings=parsed.get("findings", []),
+            decisions=parsed.get("decisions", []),
+            outcome=parsed.get("outcome", "inconclusive"),
+            contradiction_refs=parsed.get("contradiction_refs", []),
+            key_entities=parsed.get("key_entities", []),
+            source_evidence_count=len(records),
+            compression_method="llm",
         )
 
     async def _llm_compress(
