@@ -4,7 +4,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-This repository is currently in the **architecture design phase**. The `architecture-review/` directory contains the full design baseline (V2.0). Source code implementation has not yet begun.
+This repository is in **active implementation — core subsystems complete, integration in progress**. The `architecture-review/` directory contains the full design baseline (V2.0).
+
+## Current Implementation
+
+| Module | Description |
+|---|---|
+| `hi_agent/contracts/` | Enriched TaskContract, PolicyVersionSet, CTSBudget |
+| `hi_agent/llm/` | LLM Gateway (protocol, HTTP, mock, router, budget) |
+| `hi_agent/evolve/` | Evolve subsystem (postmortem, skill extraction, regression, champion/challenger) |
+| `hi_agent/task_decomposition/` | DAG decomposition, executor, feedback |
+| `hi_agent/orchestrator/` | Task orchestrator, parallel dispatcher, result aggregator |
+| `hi_agent/harness/` | Harness governance (dual-dimension, approval, evidence) |
+| `hi_agent/memory/` | L0/L1/L2 + episodic memory + retriever |
+| `hi_agent/knowledge/` | Knowledge store and query |
+| `hi_agent/route_engine/` | Rule, LLM, Hybrid routing with LLM Gateway integration |
+| `hi_agent/server/` | HTTP API server + CLI entry point |
+| `hi_agent/runner.py` | RunExecutor with Evolve, Harness, Human Gate integration |
+| `hi_agent/runtime_adapter/` | Kernel adapter protocol + mock |
+| `hi_agent/capability/` | Capability registry, invoker, circuit breaker |
+| `hi_agent/events/` | Event emitter and store |
+| `hi_agent/recovery/` | Compensation and recovery orchestration |
+| `hi_agent/replay/` | Deterministic replay engine |
+| `hi_agent/trajectory/` | Stage graph, optimizers, dead-end detection |
+| `hi_agent/state/` | Run state persistence |
+| `hi_agent/task_view/` | Task view builder with token budgets |
+| `hi_agent/observability/` | Metrics, tracing, notifications |
+| `hi_agent/auth/` | RBAC, JWT, SOC guard |
+| `hi_agent/management/` | Operations, gates, SLOs, alerts, reconciliation |
+
+## Quick Start
+
+```bash
+# Run a task via CLI
+python -m hi_agent run --goal "Analyze quarterly revenue data"
+
+# Start API server
+python -m hi_agent serve --port 8080
+
+# Run tests
+python -m pytest tests/ -v
+```
+
+## Test Coverage
+
+990+ tests, all passing. Zero external dependencies.
 
 ## System Overview
 
@@ -22,9 +66,9 @@ The three-repository architecture:
 
 **Key principle**: `agent-core` is not a peer system — it is a capability module library integrated inside hi-agent. `agent-kernel` is not a peer system — it is the runtime substrate below hi-agent.
 
-## Planned Internal Structure
+## Internal Structure
 
-hi-agent will be organized into three faces:
+hi-agent is organized into three faces:
 
 1. **TRACE Agent Runtime** — the agent itself:
    - Task Runtime, Route Engine, Context OS
@@ -84,13 +128,14 @@ Default stage sequence: S1 Understand → S2 Gather → S3 Build/Analyze → S4 
 
 ## Key Design Documents
 
-All in `architecture-review/`:
-- `2026-04-05-trace-architecture-design-v2.0.md` — authoritative design baseline
-- `2026-04-05-trace-spec-contracts-and-interfaces-v2.0.md` — interface contracts and specs
-- `2026-04-05-trace-runtime-arbitration.md` — callback/timeout/recovery arbitration rules
-- `2026-04-05-trace-contract-mapping.md` — contract mapping to agent-kernel APIs
-- `2026-04-05-agent-kernel-systematic-assessment.md` — gap analysis of agent-kernel
-- `2026-04-05-agent-kernel-negotiation-review.md` — negotiation outcomes with kernel team
+All in `architecture-review/`. Documents marked [implemented] have corresponding code in `hi_agent/`.
+
+- `2026-04-05-trace-architecture-design-v2.0.md` — authoritative design baseline [implemented]
+- `2026-04-05-trace-spec-contracts-and-interfaces-v2.0.md` — interface contracts and specs [implemented]
+- `2026-04-05-trace-runtime-arbitration.md` — callback/timeout/recovery arbitration rules [implemented]
+- `2026-04-05-trace-contract-mapping.md` — contract mapping to agent-kernel APIs [implemented — mock adapter]
+- `2026-04-05-agent-kernel-systematic-assessment.md` — gap analysis of agent-kernel [reference]
+- `2026-04-05-agent-kernel-negotiation-review.md` — negotiation outcomes with kernel team [reference]
 
 ## Human Gate Types
 

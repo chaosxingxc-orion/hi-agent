@@ -35,6 +35,7 @@ from hi_agent.contracts import (
     TrajectoryNode,
     deterministic_id,
 )
+from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter, EventEnvelope
 from hi_agent.memory import MemoryCompressor, RawEventRecord, RawMemoryStore
 from hi_agent.recovery import CompensationHandler, orchestrate_recovery
@@ -89,6 +90,7 @@ class RunExecutor:
         evolve_engine: EvolveEngine | None = None,
         harness_executor: HarnessExecutor | None = None,
         human_gate_quality_threshold: float = 0.5,
+        policy_versions: PolicyVersionSet | None = None,
     ) -> None:
         """Initialize run executor state.
 
@@ -170,6 +172,7 @@ class RunExecutor:
         self.harness_executor = harness_executor
         self.human_gate_quality_threshold = human_gate_quality_threshold
         self._gate_seq = 0
+        self.policy_versions = policy_versions or PolicyVersionSet()
 
     @property
     def run_id(self) -> str:
@@ -679,6 +682,14 @@ class RunExecutor:
             total_actions=self.action_seq,
             failure_codes=failure_codes,
             duration_seconds=0.0,
+            policy_versions={
+                "route_policy": self.policy_versions.route_policy,
+                "acceptance_policy": self.policy_versions.acceptance_policy,
+                "memory_policy": self.policy_versions.memory_policy,
+                "evaluation_policy": self.policy_versions.evaluation_policy,
+                "task_view_policy": self.policy_versions.task_view_policy,
+                "skill_policy": self.policy_versions.skill_policy,
+            },
         )
 
     def _invoke_via_harness(
@@ -847,7 +858,18 @@ class RunExecutor:
         self._run_id = self.kernel.start_run(self.contract.task_id)
         self._record_event(
             "RunStarted",
-            {"run_id": self.run_id, "task_id": self.contract.task_id},
+            {
+                "run_id": self.run_id,
+                "task_id": self.contract.task_id,
+                "policy_versions": {
+                    "route_policy": self.policy_versions.route_policy,
+                    "acceptance_policy": self.policy_versions.acceptance_policy,
+                    "memory_policy": self.policy_versions.memory_policy,
+                    "evaluation_policy": self.policy_versions.evaluation_policy,
+                    "task_view_policy": self.policy_versions.task_view_policy,
+                    "skill_policy": self.policy_versions.skill_policy,
+                },
+            },
         )
 
         for stage_id in self.stage_graph.trace_order():
@@ -1012,6 +1034,14 @@ class RunExecutor:
                                     "action_kind": proposal.action_kind,
                                     "local_score": node.local_score,
                                     "knowledge": knowledge_items,
+                                    "policy_versions": {
+                                        "route_policy": self.policy_versions.route_policy,
+                                        "acceptance_policy": self.policy_versions.acceptance_policy,
+                                        "memory_policy": self.policy_versions.memory_policy,
+                                        "evaluation_policy": self.policy_versions.evaluation_policy,
+                                        "task_view_policy": self.policy_versions.task_view_policy,
+                                        "skill_policy": self.policy_versions.skill_policy,
+                                    },
                                 },
                             )
                             # Bind task view to decision reference

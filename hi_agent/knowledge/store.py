@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, replace
 from time import time
+from typing import Any
+
+from hi_agent.knowledge.entry import KnowledgeEntry
 
 
 @dataclass(frozen=True)
@@ -147,3 +151,75 @@ class InMemoryKnowledgeStore:
             content=merged_content,
             updated_at=float(time() if now_value is None else now_value),
         )
+
+    def upsert_batch(self, entries: list[KnowledgeEntry]) -> int:
+        """Bulk upsert KnowledgeEntry items into the store.
+
+        Each entry is mapped to a KnowledgeRecord using entry_id as the key
+        and source (or ``"batch"`` if empty) as the source.
+
+        Returns:
+            Number of entries upserted.
+        """
+        count = 0
+        for entry in entries:
+            source = entry.source.strip() or "batch"
+            key = entry.entry_id.strip()
+            if not key or not entry.content.strip():
+                continue
+            self.upsert(
+                source=source,
+                key=key,
+                content=entry.content,
+                tags=entry.tags,
+            )
+            count += 1
+        return count
+
+    def search_by_tags(
+        self, tags: list[str], limit: int = 10
+    ) -> list[KnowledgeEntry]:
+        """Search records that contain all specified tags.
+
+        Returns:
+            Matching entries converted to KnowledgeEntry, up to *limit*.
+        """
+        if not tags:
+            return []
+        required = {t.strip() for t in tags if t.strip()}
+        if not required:
+            return []
+
+        results: list[KnowledgeEntry] = []
+        for record in self.all_records():
+            if required.issubset(set(record.tags)):
+                results.append(
+                    KnowledgeEntry(
+                        entry_id=record.key,
+                        content=record.content,
+                        tags=list(record.tags),
+                        source=record.source,
+                    )
+                )
+                if len(results) >= limit:
+                    break
+        return results
+
+    def get_stats(self) -> dict[str, Any]:
+        """Return store statistics: total count, counts by source, tag distribution.
+
+        Returns:
+            Dictionary with ``total``, ``by_source``, and ``tag_distribution`` keys.
+        """
+        records = self.all_records()
+        by_source: dict[str, int] = Counter()  # type: ignore[assignment]
+        tag_dist: dict[str, int] = Counter()  # type: ignore[assignment]
+        for rec in records:
+            by_source[rec.source] += 1
+            for tag in rec.tags:
+                tag_dist[tag] += 1
+        return {
+            "total": len(records),
+            "by_source": dict(by_source),
+            "tag_distribution": dict(tag_dist),
+        }

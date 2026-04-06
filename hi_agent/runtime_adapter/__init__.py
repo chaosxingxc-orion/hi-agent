@@ -10,6 +10,7 @@ from hi_agent.runtime_adapter.errors import (
     RuntimeAdapterBackendError,
     RuntimeAdapterError,
 )
+from hi_agent.runtime_adapter.event_buffer import EventBuffer
 from hi_agent.runtime_adapter.event_stream_summary import summarize_runtime_events
 from hi_agent.runtime_adapter.event_summary_commands import (
     cmd_event_summary_get,
@@ -17,6 +18,7 @@ from hi_agent.runtime_adapter.event_summary_commands import (
     cmd_event_summary_list_runs,
 )
 from hi_agent.runtime_adapter.event_summary_store import EventSummaryStore
+from hi_agent.runtime_adapter.health import AdapterHealthMonitor
 from hi_agent.runtime_adapter.kernel_adapter import KernelAdapter
 from hi_agent.runtime_adapter.kernel_backend import KernelBackend
 from hi_agent.runtime_adapter.kernel_client import (
@@ -30,6 +32,11 @@ from hi_agent.runtime_adapter.kernel_facade_adapter import (
 )
 from hi_agent.runtime_adapter.mock_kernel import MockKernel
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter, RuntimeAdapterBackend
+from hi_agent.runtime_adapter.resilient_adapter import (
+    AdapterMetrics,
+    CircuitOpenError,
+    ResilientKernelAdapter,
+)
 from hi_agent.runtime_adapter.reconcile_loop import ReconcileLoop, ReconcileLoopReport
 from hi_agent.runtime_adapter.reconciler import (
     ConsistencyIssueStatus,
@@ -48,9 +55,13 @@ from hi_agent.runtime_adapter.temporal_health import (
 )
 
 __all__ = [
+    "AdapterHealthMonitor",
+    "AdapterMetrics",
+    "CircuitOpenError",
     "ConsistencyIssue",
     "ConsistencyIssueStatus",
     "ConsistencyReconcileReport",
+    "EventBuffer",
     "ConsistencyReconciler",
     "EventSummaryStore",
     "FileBackedConsistencyJournal",
@@ -62,6 +73,7 @@ __all__ = [
     "KernelClient",
     "KernelFacadeAdapter",
     "MockKernel",
+    "ResilientKernelAdapter",
     "ReconcileLoop",
     "ReconcileLoopReport",
     "RuntimeAdapter",

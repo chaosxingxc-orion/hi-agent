@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from hi_agent.contracts import RunIndex, StageSummary
 from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l2_index import RunMemoryIndex
+from hi_agent.memory.retriever import MemoryRetriever
 from hi_agent.task_view.token_budget import (
     DEFAULT_BUDGET,
     LAYER_BUDGETS,
@@ -130,6 +131,10 @@ def build_task_view(
     knowledge_records: list | None = None,
     budget: int = DEFAULT_BUDGET,
     *,
+    memory_retriever: MemoryRetriever | None = None,
+    task_family: str = "",
+    stage_id: str = "",
+    current_failures: list[str] | None = None,
     # Legacy kwargs — accepted so old call-sites keep working.
     stage_summaries: dict[str, StageSummary] | None = None,
     knowledge: list[str] | None = None,
@@ -221,6 +226,24 @@ def build_task_view(
             tokens = count_tokens(content)
             sections.append(
                 TaskViewSection(layer="knowledge", content=content, token_count=tokens)
+            )
+            remaining -= tokens
+
+    # 6) Episodic memory from retriever (lower priority, fits in remaining)
+    if memory_retriever is not None and remaining > 0:
+        retriever_budget = min(remaining, LAYER_BUDGETS.get("l3_episodic", 1024))
+        snippets = memory_retriever.retrieve_for_stage(
+            task_family=task_family,
+            stage_id=stage_id,
+            current_failures=current_failures,
+            budget_tokens=retriever_budget,
+        )
+        if snippets:
+            raw = "\n".join(snippets)
+            content = enforce_layer_budget(raw, retriever_budget)
+            tokens = count_tokens(content)
+            sections.append(
+                TaskViewSection(layer="episodic", content=content, token_count=tokens)
             )
             remaining -= tokens
 
