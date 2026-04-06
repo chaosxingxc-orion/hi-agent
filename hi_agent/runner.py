@@ -19,6 +19,7 @@ from hi_agent.capability import (
 )
 from hi_agent.contracts import (
     BranchState,
+    CTSExplorationBudget,
     NodeState,
     NodeType,
     StageState,
@@ -77,6 +78,7 @@ class RunExecutor:
             | None
         ) = None,
         observability_hook: Callable[[str, dict[str, object]], None] | None = None,
+        cts_budget: CTSExplorationBudget | None = None,
     ) -> None:
         """Initialize run executor state.
 
@@ -98,6 +100,9 @@ class RunExecutor:
           recovery_handlers: Optional action-to-handler map for recovery execution.
           recovery_executor: Optional recovery executor callable.
           observability_hook: Optional best-effort telemetry callback.
+          cts_budget: Optional CTS exploration budget. When provided the
+              runner enforces branch limits, action budget (from
+              TaskContract.budget), and total branch caps during execution.
         """
         self.contract = contract
         self.kernel = kernel
@@ -141,6 +146,9 @@ class RunExecutor:
             self._supports_optional_invoke_arguments(self.invoker.invoke)
         )
         self.current_stage = ""
+        self.cts_budget = cts_budget or CTSExplorationBudget()
+        self._total_branches_opened = 0
+        self._stage_active_branches: dict[str, int] = {}
 
     @property
     def run_id(self) -> str:
@@ -586,6 +594,29 @@ class RunExecutor:
         with contextlib.suppress(Exception):
             self.kernel.signal_run(self.run_id, signal, payload)
 
+    def _check_budget_exceeded(self, stage_id: str) -> str | None:
+        """Return a failure code if any CTS or task budget limit is exceeded.
+
+        Returns:
+            A standard failure code string, or ``None`` if all budgets
+            are within limits.
+        """
+        # --- Task-level action budget ---
+        task_budget = self.contract.budget
+        if task_budget is not None and self.action_seq >= task_budget.max_actions:
+            return "budget_exhausted"
+
+        # --- CTS branch-per-stage limit ---
+        active_in_stage = self._stage_active_branches.get(stage_id, 0)
+        if active_in_stage >= self.cts_budget.max_active_branches_per_stage:
+            return "budget_exhausted"
+
+        # --- CTS total branches across run ---
+        if self._total_branches_opened >= self.cts_budget.max_total_branches_per_run:
+            return "budget_exhausted"
+
+        return None
+
     def execute(self) -> str:
         """Execute all stages with deterministic routing and capability dispatch.
 
@@ -617,8 +648,33 @@ class RunExecutor:
                 stage_id, self.run_id, self.action_seq
             )
             for proposal in proposals:
+                # --- CTS / Task budget enforcement ---
+                budget_code = self._check_budget_exceeded(stage_id)
+                if budget_code is not None:
+                    self._record_event(
+                        "BudgetExhausted",
+                        {
+                            "run_id": self.run_id,
+                            "stage_id": stage_id,
+                            "failure_code": budget_code,
+                        },
+                    )
+                    self._emit_observability(
+                        "budget_exhausted",
+                        {
+                            "run_id": self.run_id,
+                            "stage_id": stage_id,
+                            "failure_code": budget_code,
+                        },
+                    )
+                    break
+
                 # --- Branch lifecycle: open ---
                 branch_id = self._make_branch_id(stage_id)
+                self._total_branches_opened += 1
+                self._stage_active_branches[stage_id] = (
+                    self._stage_active_branches.get(stage_id, 0) + 1
+                )
                 self.kernel.open_branch(
                     self.run_id, stage_id, branch_id
                 )

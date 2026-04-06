@@ -6,7 +6,7 @@ internal schema split across focused modules.
 
 from hi_agent.contracts.branch import BranchState
 from hi_agent.contracts.config import TaskFamilyConfig
-from hi_agent.contracts.cts_budget import CTSBudget, CTSBudgetTemplate
+from hi_agent.contracts.cts_budget import CTSBudget, CTSBudgetTemplate, CTSExplorationBudget
 from hi_agent.contracts.identity import deterministic_id
 from hi_agent.contracts.memory import RunIndex, StageSummary
 from hi_agent.contracts.policy import PolicyVersionSet, SkillContentSpec
@@ -24,7 +24,7 @@ from hi_agent.contracts.requests import (
 )
 from hi_agent.contracts.run import RunState
 from hi_agent.contracts.stage import StageState
-from hi_agent.contracts.task import TaskContract
+from hi_agent.contracts.task import TaskBudget, TaskContract
 from hi_agent.contracts.trajectory import NodeState, NodeType, TrajectoryNode
 
 __all__ = [
@@ -33,6 +33,7 @@ __all__ = [
     "BranchStateUpdateRequest",
     "CTSBudget",
     "CTSBudgetTemplate",
+    "CTSExplorationBudget",
     "HumanGateRequest",
     "KernelManifest",
     "NodeState",
@@ -48,6 +49,7 @@ __all__ = [
     "StageSummary",
     "StartRunRequest",
     "StartRunResponse",
+    "TaskBudget",
     "TaskContract",
     "TaskFamilyConfig",
     "TraceRuntimeView",
