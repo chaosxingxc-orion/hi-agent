@@ -7,19 +7,39 @@ from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
 from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
 from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l2_index import RunMemoryIndex, StagePointer
+from hi_agent.memory.long_term import (
+    LongTermConsolidator,
+    LongTermMemoryGraph,
+    MemoryEdge,
+    MemoryNode,
+)
+from hi_agent.memory.mid_term import DailySummary, DreamConsolidator, MidTermMemoryStore
 from hi_agent.memory.retriever import MemoryRetriever
+from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
+from hi_agent.memory.unified_retriever import MemoryContext, UnifiedMemoryRetriever
 
 __all__ = [
     "CompressedStageMemory",
     "CompressionMetrics",
+    "DailySummary",
+    "DreamConsolidator",
     "EpisodeBuilder",
     "EpisodeRecord",
     "EpisodicMemoryStore",
+    "LongTermConsolidator",
+    "LongTermMemoryGraph",
     "MemoryCompressor",
+    "MemoryContext",
+    "MemoryEdge",
+    "MemoryNode",
     "MemoryRetriever",
     "RawEventRecord",
     "RawMemoryStore",
     "RunMemoryIndex",
     "STAGE_COMPRESSION_PROMPT",
+    "ShortTermMemory",
+    "ShortTermMemoryStore",
     "StagePointer",
+    "MidTermMemoryStore",
+    "UnifiedMemoryRetriever",
 ]
