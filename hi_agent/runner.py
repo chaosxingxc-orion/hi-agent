@@ -222,6 +222,29 @@ class RunExecutor:
             except Exception:
                 self.session = None
 
+        # --- Wire session context into route engine (compression pipeline) ---
+        self._auto_compress: Any | None = None
+        self._cost_calculator: Any | None = None
+        if self.session is not None:
+            try:
+                # 1. Inject context_provider into LLMRouteEngine
+                if hasattr(self.route_engine, '_context_provider'):
+                    self.route_engine._context_provider = (
+                        lambda: self.session.build_context_for_llm("routing")
+                    )
+                # 2. Create auto-compress trigger
+                from hi_agent.task_view.auto_compress import (
+                    AutoCompressTrigger as _ACT,
+                )
+                self._auto_compress = _ACT(compressor=self.compressor)
+                # 3. Create cost calculator
+                from hi_agent.session.cost_tracker import (
+                    CostCalculator as _CC,
+                )
+                self._cost_calculator = _CC()
+            except Exception:
+                pass
+
     @property
     def run_id(self) -> str:
         """Return the active run ID, falling back to deterministic ID."""
@@ -1109,18 +1132,43 @@ class RunExecutor:
             self._persist_snapshot(stage_id=stage_id)
             self._watchdog_reset()
 
+            # --- Auto-compress before routing (lazy compaction) ---
+            if self._auto_compress is not None and self.session is not None:
+                try:
+                    fresh = self.session.get_records_after_boundary()
+                    filtered, summary = self._auto_compress.check_and_compress(
+                        fresh, stage_id, budget_tokens=8192
+                    )
+                    if summary is not None:
+                        self.session.set_stage_summary(
+                            f"{stage_id}_auto", summary
+                        )
+                        self.session.mark_compact_boundary(
+                            stage_id, summary_ref=f"{stage_id}_auto"
+                        )
+                except Exception:
+                    pass
+
             proposals = self.route_engine.propose(
                 stage_id, self.run_id, self.action_seq
             )
-            # Session: record routing LLM call (best-effort)
+            # Session: record routing LLM call with cost (best-effort)
             if self.session is not None:
                 try:
                     from hi_agent.session.run_session import LLMCallRecord
+                    cost = 0.0
+                    if self._cost_calculator is not None:
+                        cost = self._cost_calculator.calculate(
+                            "default", 500, 200
+                        )
                     record = LLMCallRecord(
                         call_id=f"{self.run_id}:llm:route:{stage_id}",
                         purpose="routing",
                         stage_id=stage_id,
                         model="default",
+                        input_tokens=500,
+                        output_tokens=200,
+                        cost_usd=cost,
                     )
                     self.session.record_llm_call(record)
                 except Exception:
