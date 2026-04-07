@@ -107,6 +107,7 @@ class RunExecutor:
         short_term_store: ShortTermMemoryStore | None = None,
         session: RunSession | None = None,
         retrieval_engine: Any | None = None,  # RetrievalEngine
+        knowledge_manager: Any | None = None,  # KnowledgeManager
     ) -> None:
         """Initialize run executor state.
 
@@ -228,6 +229,9 @@ class RunExecutor:
 
         # --- Retrieval engine for knowledge loading ---
         self.retrieval_engine = retrieval_engine
+
+        # --- Knowledge manager for session knowledge ingestion ---
+        self.knowledge_manager = knowledge_manager
 
         # --- Wire session context into route engine (compression pipeline) ---
         self._auto_compress: Any | None = None
@@ -1487,6 +1491,15 @@ class RunExecutor:
                         })
                     except Exception:
                         pass
+                # Auto-ingest session knowledge
+                if self.knowledge_manager is not None and self.session is not None:
+                    try:
+                        count = self.knowledge_manager.ingest_from_session(self.session)
+                        self._emit_observability("knowledge_ingested", {
+                            "run_id": self.run_id, "items_ingested": count,
+                        })
+                    except Exception:
+                        pass
                 return "failed"
 
             self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
@@ -1532,6 +1545,15 @@ class RunExecutor:
                     "run_id": self.run_id,
                     "session_id": stm.session_id,
                     "outcome": stm.outcome,
+                })
+            except Exception:
+                pass
+        # Auto-ingest session knowledge
+        if self.knowledge_manager is not None and self.session is not None:
+            try:
+                count = self.knowledge_manager.ingest_from_session(self.session)
+                self._emit_observability("knowledge_ingested", {
+                    "run_id": self.run_id, "items_ingested": count,
                 })
             except Exception:
                 pass

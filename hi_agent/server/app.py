@@ -7,6 +7,12 @@ Endpoints:
     POST /runs/{run_id}/signal -- Send signal to run
     GET  /health        -- Health check
     GET  /manifest      -- System capabilities manifest
+    POST /knowledge/ingest           -- Ingest text knowledge
+    POST /knowledge/ingest-structured -- Ingest structured facts
+    GET  /knowledge/query            -- Query knowledge
+    GET  /knowledge/status           -- Knowledge system stats
+    POST /knowledge/lint             -- Run health check
+    POST /knowledge/sync             -- Sync graph→wiki
 """
 
 from __future__ import annotations
@@ -16,6 +22,7 @@ import re
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.run_manager import RunManager
@@ -26,6 +33,12 @@ _SIGNAL_RE = re.compile(r"^/runs/([^/]+)/signal$")
 _MEMORY_DREAM_PATH = "/memory/dream"
 _MEMORY_CONSOLIDATE_PATH = "/memory/consolidate"
 _MEMORY_STATUS_PATH = "/memory/status"
+_KNOWLEDGE_INGEST_PATH = "/knowledge/ingest"
+_KNOWLEDGE_INGEST_STRUCTURED_PATH = "/knowledge/ingest-structured"
+_KNOWLEDGE_QUERY_PATH = "/knowledge/query"
+_KNOWLEDGE_STATUS_PATH = "/knowledge/status"
+_KNOWLEDGE_LINT_PATH = "/knowledge/lint"
+_KNOWLEDGE_SYNC_PATH = "/knowledge/sync"
 
 
 class AgentAPIHandler(BaseHTTPRequestHandler):
@@ -51,6 +64,10 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             self._handle_list_runs()
         elif path == _MEMORY_STATUS_PATH:
             self._handle_memory_status()
+        elif path == _KNOWLEDGE_QUERY_PATH:
+            self._handle_knowledge_query()
+        elif path == _KNOWLEDGE_STATUS_PATH:
+            self._handle_knowledge_status()
         else:
             match = _RUN_ID_RE.match(path)
             if match:
@@ -68,6 +85,14 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             self._handle_memory_dream()
         elif path == _MEMORY_CONSOLIDATE_PATH:
             self._handle_memory_consolidate()
+        elif path == _KNOWLEDGE_INGEST_PATH:
+            self._handle_knowledge_ingest()
+        elif path == _KNOWLEDGE_INGEST_STRUCTURED_PATH:
+            self._handle_knowledge_ingest_structured()
+        elif path == _KNOWLEDGE_LINT_PATH:
+            self._handle_knowledge_lint()
+        elif path == _KNOWLEDGE_SYNC_PATH:
+            self._handle_knowledge_sync()
         else:
             match = _SIGNAL_RE.match(path)
             if match:
@@ -266,6 +291,104 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
         result = manager.get_status()
         self._send_json(200, result)
 
+    # ------------------------------------------------------------------
+    # Knowledge handlers
+    # ------------------------------------------------------------------
+
+    @property
+    def _knowledge_manager(self) -> Any | None:
+        """Access the KnowledgeManager from the server instance."""
+        server: AgentServer = self.server  # type: ignore[assignment]
+        return server.knowledge_manager
+
+    def _handle_knowledge_ingest(self) -> None:
+        """Ingest text knowledge as a wiki page."""
+        km = self._knowledge_manager
+        if km is None:
+            self._send_json(503, {"error": "knowledge_not_configured"})
+            return
+        try:
+            body = self._read_json_body()
+        except (ValueError, json.JSONDecodeError):
+            self._send_json(400, {"error": "invalid_json"})
+            return
+        title = body.get("title", "")
+        content = body.get("content", "")
+        if not title or not content:
+            self._send_json(400, {"error": "missing_title_or_content"})
+            return
+        tags = body.get("tags", [])
+        page_id = km.ingest_text(title, content, tags)
+        self._send_json(201, {"page_id": page_id, "status": "created"})
+
+    def _handle_knowledge_ingest_structured(self) -> None:
+        """Ingest structured facts into the knowledge graph."""
+        km = self._knowledge_manager
+        if km is None:
+            self._send_json(503, {"error": "knowledge_not_configured"})
+            return
+        try:
+            body = self._read_json_body()
+        except (ValueError, json.JSONDecodeError):
+            self._send_json(400, {"error": "invalid_json"})
+            return
+        facts = body.get("facts", [])
+        count = km.ingest_structured(facts)
+        self._send_json(201, {"nodes_created": count, "status": "created"})
+
+    def _handle_knowledge_query(self) -> None:
+        """Query knowledge across all sources."""
+        km = self._knowledge_manager
+        if km is None:
+            self._send_json(503, {"error": "knowledge_not_configured"})
+            return
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        q = params.get("q", [""])[0]
+        limit = int(params.get("limit", ["10"])[0])
+        budget = int(params.get("budget", ["1500"])[0])
+        if not q:
+            self._send_json(400, {"error": "missing_query_param_q"})
+            return
+        context = km.query_for_context(q, budget_tokens=budget)
+        result = km.query(q, limit=limit)
+        self._send_json(200, {
+            "query": q,
+            "total_results": result.total_results,
+            "context": context,
+        })
+
+    def _handle_knowledge_status(self) -> None:
+        """Return knowledge system stats."""
+        km = self._knowledge_manager
+        if km is None:
+            self._send_json(503, {"error": "knowledge_not_configured"})
+            return
+        stats = km.get_stats()
+        self._send_json(200, stats)
+
+    def _handle_knowledge_lint(self) -> None:
+        """Run knowledge health check."""
+        km = self._knowledge_manager
+        if km is None:
+            self._send_json(503, {"error": "knowledge_not_configured"})
+            return
+        issues = km.lint()
+        self._send_json(200, {"issues": issues, "count": len(issues)})
+
+    def _handle_knowledge_sync(self) -> None:
+        """Sync graph nodes to wiki pages."""
+        km = self._knowledge_manager
+        if km is None:
+            self._send_json(503, {"error": "knowledge_not_configured"})
+            return
+        pages_synced = km.renderer.to_wiki_pages(km.wiki)
+        index = km.wiki.rebuild_index()
+        self._send_json(200, {
+            "pages_synced": pages_synced,
+            "status": "completed",
+        })
+
 
 class AgentServer(HTTPServer):
     """Extended HTTPServer that holds agent state."""
@@ -288,6 +411,7 @@ class AgentServer(HTTPServer):
         super().__init__((host, port), AgentAPIHandler)
         self.run_manager = RunManager()
         self.memory_manager: MemoryLifecycleManager | None = None
+        self.knowledge_manager: Any | None = None
 
         # Lazy import to avoid circular dependency at module level.
         from hi_agent.config.trace_config import TraceConfig

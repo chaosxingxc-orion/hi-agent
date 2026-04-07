@@ -184,7 +184,7 @@ class SystemBuilder:
         """Build four-layer retrieval engine across all memory tiers."""
         from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 
-        wiki = getattr(self, "_wiki", None)
+        wiki = self.build_knowledge_wiki()
         graph = self.build_long_term_graph()
         short = self.build_short_term_store()
         mid = self.build_mid_term_store()
@@ -199,6 +199,37 @@ class SystemBuilder:
             mid_term_store=self.build_mid_term_store(),
             long_term_graph=self.build_long_term_graph(),
             retrieval_engine=self.build_retrieval_engine(),
+        )
+
+    # ------------------------------------------------------------------
+    # Knowledge tier builders
+    # ------------------------------------------------------------------
+
+    def build_knowledge_wiki(self) -> Any:
+        """Build KnowledgeWiki for wiki-based knowledge storage."""
+        from hi_agent.knowledge.wiki import KnowledgeWiki
+
+        base = self._config.episodic_storage_dir.replace("episodes", "")
+        return KnowledgeWiki(os.path.join(base, "knowledge", "wiki"))
+
+    def build_user_knowledge_store(self) -> Any:
+        """Build UserKnowledgeStore for user profile knowledge."""
+        from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+
+        base = self._config.episodic_storage_dir.replace("episodes", "")
+        return UserKnowledgeStore(os.path.join(base, "knowledge", "user"))
+
+    def build_knowledge_manager(self) -> Any:
+        """Build KnowledgeManager wiring wiki, user store, graph, and renderer."""
+        from hi_agent.knowledge.knowledge_manager import KnowledgeManager
+        from hi_agent.knowledge.graph_renderer import GraphRenderer
+
+        wiki = self.build_knowledge_wiki()
+        user_store = self.build_user_knowledge_store()
+        graph = self.build_long_term_graph()
+        renderer = GraphRenderer(graph)
+        return KnowledgeManager(
+            wiki=wiki, user_store=user_store, graph=graph, renderer=renderer,
         )
 
     # ------------------------------------------------------------------
@@ -231,6 +262,7 @@ class SystemBuilder:
 
     def build_executor(self, contract: TaskContract) -> RunExecutor:
         """Build a fully-wired RunExecutor for a given task contract."""
+        km = self.build_knowledge_manager()
         return RunExecutor(
             contract=contract,
             kernel=self.build_kernel(),
@@ -250,6 +282,7 @@ class SystemBuilder:
             route_engine=self._build_route_engine(),
             acceptance_policy=AcceptancePolicy(),
             short_term_store=self.build_short_term_store(),
+            knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
         )
 
     def build_orchestrator(self) -> TaskOrchestrator:
@@ -267,4 +300,5 @@ class SystemBuilder:
             max_concurrent=self._config.server_max_concurrent_runs,
         )
         server.memory_manager = self.build_memory_lifecycle_manager()
+        server.knowledge_manager = self.build_knowledge_manager()
         return server
