@@ -10,7 +10,10 @@ from typing import Any
 from hi_agent.contracts import deterministic_id
 from hi_agent.llm.protocol import LLMGateway, LLMRequest
 from hi_agent.route_engine.base import BranchProposal
-from hi_agent.route_engine.llm_prompts import build_route_decision_prompt
+from hi_agent.route_engine.llm_prompts import (
+    build_context_aware_route_prompt,
+    build_route_decision_prompt,
+)
 
 
 class LLMRouteParseError(ValueError):
@@ -48,6 +51,7 @@ class LLMRouteEngine:
         client: Callable[[str], dict[str, Any] | str] | None = None,
         *,
         gateway: LLMGateway | None = None,
+        context_provider: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         """Initialize engine with a callable or an LLMGateway (or both).
 
@@ -58,9 +62,14 @@ class LLMRouteEngine:
         gateway:
             Structured LLM gateway.  When provided, takes precedence over
             *client*.
+        context_provider:
+            Optional callable returning run context (stage summaries, fresh
+            evidence, current stage state).  When set, routing decisions
+            include this context in the LLM prompt.
         """
         self._client = client
         self._gateway = gateway
+        self._context_provider = context_provider
         self.last_decision: LLMRouteDecision | None = None
 
     # -- public API -----------------------------------------------------------
@@ -73,13 +82,34 @@ class LLMRouteEngine:
         seq: int,
         context: dict[str, Any] | None = None,
     ) -> LLMRouteDecision:
-        """Produce and validate a structured route decision."""
-        prompt = build_route_decision_prompt(
-            stage_id=stage_id,
-            run_id=run_id,
-            seq=seq,
-            context=context,
-        )
+        """Produce and validate a structured route decision.
+
+        When a *context_provider* was supplied at init time, its output is
+        merged into the prompt so the LLM sees stage summaries, fresh
+        evidence, and current stage state.
+        """
+        # Enrich context from provider if available.
+        rich_context: dict[str, Any] | None = None
+        if self._context_provider is not None:
+            rich_context = self._context_provider()
+
+        if rich_context is not None:
+            prompt = build_context_aware_route_prompt(
+                stage_id=stage_id,
+                run_id=run_id,
+                seq=seq,
+                stage_summaries=rich_context.get("stage_summaries", ""),
+                fresh_evidence=rich_context.get("fresh_evidence", ""),
+                current_stage_state=rich_context.get("current_stage_state", ""),
+                allowed_next_stages=rich_context.get("allowed_next_stages"),
+            )
+        else:
+            prompt = build_route_decision_prompt(
+                stage_id=stage_id,
+                run_id=run_id,
+                seq=seq,
+                context=context,
+            )
 
         if self._gateway is not None:
             raw = self._call_gateway(prompt, stage_id=stage_id, run_id=run_id, seq=seq)

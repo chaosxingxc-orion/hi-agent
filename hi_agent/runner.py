@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from hi_agent.harness.executor import HarnessExecutor
     from hi_agent.memory.episode_builder import EpisodeBuilder
     from hi_agent.memory.episodic import EpisodicMemoryStore
+    from hi_agent.session.run_session import LLMCallRecord, RunSession
     from hi_agent.skill.recorder import SkillUsageRecorder
 
 from hi_agent.capability import (
@@ -102,6 +103,7 @@ class RunExecutor:
         episode_builder: EpisodeBuilder | None = None,
         episodic_store: EpisodicMemoryStore | None = None,
         skill_recorder: SkillUsageRecorder | None = None,
+        session: RunSession | None = None,
     ) -> None:
         """Initialize run executor state.
 
@@ -206,6 +208,19 @@ class RunExecutor:
         self.episodic_store = episodic_store
         self.skill_recorder = skill_recorder
         self._skill_ids_used: list[str] = []
+
+        # --- Session: unified state management (additive) ---
+        if session is not None:
+            self.session = session
+        else:
+            try:
+                from hi_agent.session.run_session import RunSession as _RS
+                self.session: RunSession | None = _RS(
+                    run_id=self._run_id_fallback,
+                    task_contract=contract,
+                )
+            except Exception:
+                self.session = None
 
     @property
     def run_id(self) -> str:
@@ -451,6 +466,15 @@ class RunExecutor:
         self.raw_memory.append(
             RawEventRecord(event_type=event_type, payload=payload)
         )
+        # Delegate to session (additive — never break core execution)
+        if self.session is not None:
+            try:
+                self.session.append_record(
+                    event_type, payload, stage_id=self.current_stage
+                )
+                self.session.emit_event(event_type, payload)
+            except Exception:
+                pass
 
     def _compress_stage_summary(self, stage_id: str) -> StageSummary:
         """Build StageSummary from stage-scoped raw memory records."""
@@ -460,13 +484,28 @@ class RunExecutor:
             if record.payload.get("stage_id") == stage_id
         ]
         compressed = self.compressor.compress_stage(stage_id, stage_records)
-        return StageSummary(
+        summary = StageSummary(
             stage_id=stage_id,
             stage_name=stage_id,
             findings=compressed.findings,
             decisions=compressed.decisions,
             outcome=compressed.outcome,
         )
+        # Session: store L1 summary and mark compact boundary
+        if self.session is not None:
+            try:
+                self.session.set_stage_summary(stage_id, {
+                    "stage_id": stage_id,
+                    "findings": compressed.findings,
+                    "decisions": compressed.decisions,
+                    "outcome": compressed.outcome,
+                })
+                self.session.mark_compact_boundary(
+                    stage_id, summary_ref=stage_id
+                )
+            except Exception:
+                pass
+        return summary
 
     def _execute_action_with_retry(
         self, stage_id: str, proposal: object
@@ -547,6 +586,21 @@ class RunExecutor:
         self, *, stage_id: str, result: str | None = None
     ) -> None:
         """Persist current run state when a store is configured."""
+        # Session checkpoint (independent of state_store)
+        if self.session is not None:
+            try:
+                self.session.current_stage = stage_id
+                self.session.stage_states = {
+                    key: (
+                        value.value if isinstance(value, StageState) else str(value)
+                    )
+                    for key, value in getattr(self.kernel, "stages", {}).items()
+                }
+                self.session.action_seq = self.action_seq
+                self.session.save_checkpoint()
+            except Exception:
+                pass
+
         if self.state_store is None:
             return
 
@@ -1018,6 +1072,12 @@ class RunExecutor:
         """
         # --- Start run lifecycle via adapter ---
         self._run_id = self.kernel.start_run(self.contract.task_id)
+        # Sync session run_id to the kernel-assigned value
+        if self.session is not None:
+            try:
+                self.session.run_id = self._run_id
+            except Exception:
+                pass
         self._record_event(
             "RunStarted",
             {
@@ -1052,6 +1112,19 @@ class RunExecutor:
             proposals = self.route_engine.propose(
                 stage_id, self.run_id, self.action_seq
             )
+            # Session: record routing LLM call (best-effort)
+            if self.session is not None:
+                try:
+                    from hi_agent.session.run_session import LLMCallRecord
+                    record = LLMCallRecord(
+                        call_id=f"{self.run_id}:llm:route:{stage_id}",
+                        purpose="routing",
+                        stage_id=stage_id,
+                        model="default",
+                    )
+                    self.session.record_llm_call(record)
+                except Exception:
+                    pass
             for proposal in proposals:
                 # --- CTS / Task budget enforcement ---
                 budget_code = self._check_budget_exceeded(stage_id)
@@ -1307,6 +1380,14 @@ class RunExecutor:
                     self.evolve_engine.on_run_completed(postmortem)
                 self._finalize_skill_outcomes("failed")
                 self._build_and_store_episode("failed")
+                # Session: emit cost summary at run end (even on failure)
+                if self.session is not None:
+                    try:
+                        self._emit_observability(
+                            "run_cost_summary", self.session.get_cost_summary()
+                        )
+                    except Exception:
+                        pass
                 return "failed"
 
             self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
@@ -1335,4 +1416,12 @@ class RunExecutor:
             self.evolve_engine.on_run_completed(postmortem)
         self._finalize_skill_outcomes("completed")
         self._build_and_store_episode("completed")
+        # Session: emit cost summary at run end
+        if self.session is not None:
+            try:
+                cost = self.session.get_cost_summary()
+                cost["run_id"] = self.run_id
+                self._emit_observability("run_cost_summary", cost)
+            except Exception:
+                pass
         return "completed"

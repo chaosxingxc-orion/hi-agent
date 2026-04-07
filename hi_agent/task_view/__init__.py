@@ -1,5 +1,6 @@
 """Task view package."""
 
+from hi_agent.task_view.auto_compress import AutoCompressTrigger
 from hi_agent.task_view.builder import (
     TaskView,
     TaskViewSection,
@@ -20,6 +21,7 @@ from hi_agent.task_view.token_budget import (
 )
 
 __all__ = [
+    "AutoCompressTrigger",
     "DEFAULT_BUDGET",
     "LAYER_BUDGETS",
     "TaskView",
