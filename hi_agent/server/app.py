@@ -40,6 +40,13 @@ _KNOWLEDGE_QUERY_PATH = "/knowledge/query"
 _KNOWLEDGE_STATUS_PATH = "/knowledge/status"
 _KNOWLEDGE_LINT_PATH = "/knowledge/lint"
 _KNOWLEDGE_SYNC_PATH = "/knowledge/sync"
+_SKILLS_LIST_PATH = "/skills/list"
+_SKILLS_STATUS_PATH = "/skills/status"
+_SKILLS_EVOLVE_PATH = "/skills/evolve"
+_SKILL_ID_METRICS_RE = re.compile(r"^/skills/([^/]+)/metrics$")
+_SKILL_ID_VERSIONS_RE = re.compile(r"^/skills/([^/]+)/versions$")
+_SKILL_ID_OPTIMIZE_RE = re.compile(r"^/skills/([^/]+)/optimize$")
+_SKILL_ID_PROMOTE_RE = re.compile(r"^/skills/([^/]+)/promote$")
 
 
 class AgentAPIHandler(BaseHTTPRequestHandler):
@@ -69,12 +76,24 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             self._handle_knowledge_query()
         elif path == _KNOWLEDGE_STATUS_PATH:
             self._handle_knowledge_status()
+        elif path == _SKILLS_LIST_PATH:
+            self._handle_skills_list()
+        elif path == _SKILLS_STATUS_PATH:
+            self._handle_skills_status()
         else:
             match = _RUN_ID_RE.match(path)
             if match:
                 self._handle_get_run(match.group(1))
             else:
-                self._send_json(404, {"error": "not_found"})
+                match = _SKILL_ID_METRICS_RE.match(path)
+                if match:
+                    self._handle_skill_metrics(match.group(1))
+                else:
+                    match = _SKILL_ID_VERSIONS_RE.match(path)
+                    if match:
+                        self._handle_skill_versions(match.group(1))
+                    else:
+                        self._send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
         """Dispatch POST requests to appropriate handler."""
@@ -94,6 +113,8 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             self._handle_knowledge_lint()
         elif path == _KNOWLEDGE_SYNC_PATH:
             self._handle_knowledge_sync()
+        elif path == _SKILLS_EVOLVE_PATH:
+            self._handle_skills_evolve()
         else:
             match = _SIGNAL_RE.match(path)
             if match:
@@ -103,7 +124,15 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
                 if match:
                     self._handle_resume_run(match.group(1))
                 else:
-                    self._send_json(404, {"error": "not_found"})
+                    match = _SKILL_ID_OPTIMIZE_RE.match(path)
+                    if match:
+                        self._handle_skill_optimize(match.group(1))
+                    else:
+                        match = _SKILL_ID_PROMOTE_RE.match(path)
+                        if match:
+                            self._handle_skill_promote(match.group(1))
+                        else:
+                            self._send_json(404, {"error": "not_found"})
 
     # ------------------------------------------------------------------
     # Helpers
@@ -460,6 +489,177 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
         })
 
 
+    # ------------------------------------------------------------------
+    # Skill handlers
+    # ------------------------------------------------------------------
+
+    @property
+    def _skill_evolver(self) -> Any | None:
+        """Access the SkillEvolver from the server instance."""
+        server: AgentServer = self.server  # type: ignore[assignment]
+        return server.skill_evolver
+
+    @property
+    def _skill_loader(self) -> Any | None:
+        """Access the SkillLoader from the server instance."""
+        server: AgentServer = self.server  # type: ignore[assignment]
+        return server.skill_loader
+
+    def _handle_skills_list(self) -> None:
+        """List all discovered skills with eligibility status."""
+        loader = self._skill_loader
+        if loader is None:
+            self._send_json(503, {"error": "skills_not_configured"})
+            return
+        try:
+            loader.discover()
+            skills = loader.list_skills(eligible_only=False)
+            items = []
+            for s in skills:
+                eligible, reason = s.check_eligibility()
+                items.append({
+                    "skill_id": s.skill_id,
+                    "name": s.name,
+                    "version": s.version,
+                    "description": s.description,
+                    "lifecycle_stage": s.lifecycle_stage,
+                    "confidence": s.confidence,
+                    "eligible": eligible,
+                    "eligibility_reason": reason,
+                    "tags": s.tags,
+                })
+            self._send_json(200, {"skills": items, "count": len(items)})
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def _handle_skill_metrics(self, skill_id: str) -> None:
+        """Get skill metrics from observer."""
+        evolver = self._skill_evolver
+        if evolver is None:
+            self._send_json(503, {"error": "skills_not_configured"})
+            return
+        try:
+            from dataclasses import asdict
+            metrics = evolver._observer.get_metrics(skill_id)
+            self._send_json(200, asdict(metrics))
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def _handle_skills_evolve(self) -> None:
+        """Trigger evolution cycle, return EvolutionReport."""
+        evolver = self._skill_evolver
+        if evolver is None:
+            self._send_json(503, {"error": "skills_not_configured"})
+            return
+        try:
+            from dataclasses import asdict
+            report = evolver.evolve_cycle()
+            self._send_json(200, asdict(report))
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def _handle_skill_optimize(self, skill_id: str) -> None:
+        """Trigger prompt optimization for one skill."""
+        evolver = self._skill_evolver
+        if evolver is None:
+            self._send_json(503, {"error": "skills_not_configured"})
+            return
+        try:
+            new_prompt = evolver.optimize_prompt(skill_id)
+            if new_prompt is None:
+                self._send_json(200, {
+                    "skill_id": skill_id,
+                    "optimized": False,
+                    "reason": "no_optimization_needed",
+                })
+                return
+            record = evolver.deploy_optimization(skill_id, new_prompt)
+            self._send_json(200, {
+                "skill_id": skill_id,
+                "optimized": True,
+                "new_version": record.version,
+                "is_challenger": record.is_challenger,
+            })
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def _handle_skill_versions(self, skill_id: str) -> None:
+        """List versions with champion/challenger status."""
+        evolver = self._skill_evolver
+        if evolver is None:
+            self._send_json(503, {"error": "skills_not_configured"})
+            return
+        try:
+            versions = evolver._version_manager.list_versions(skill_id)
+            items = []
+            for v in versions:
+                items.append({
+                    "version": v.version,
+                    "is_champion": v.is_champion,
+                    "is_challenger": v.is_challenger,
+                    "created_at": v.created_at,
+                })
+            self._send_json(200, {
+                "skill_id": skill_id,
+                "versions": items,
+                "count": len(items),
+            })
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def _handle_skill_promote(self, skill_id: str) -> None:
+        """Promote challenger to champion."""
+        evolver = self._skill_evolver
+        if evolver is None:
+            self._send_json(503, {"error": "skills_not_configured"})
+            return
+        try:
+            promoted = evolver._version_manager.promote_challenger(skill_id)
+            self._send_json(200, {
+                "skill_id": skill_id,
+                "promoted": promoted,
+            })
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def _handle_skills_status(self) -> None:
+        """Overall skill system status (counts, top performers)."""
+        evolver = self._skill_evolver
+        loader = self._skill_loader
+        if evolver is None or loader is None:
+            self._send_json(503, {"error": "skills_not_configured"})
+            return
+        try:
+            loader.discover()
+            all_skills = loader.list_skills(eligible_only=False)
+            eligible = [s for s in all_skills if s.check_eligibility()[0]]
+            all_metrics = evolver._observer.get_all_metrics()
+
+            # Top performers by success rate
+            top = sorted(
+                all_metrics.items(),
+                key=lambda kv: kv[1].success_rate,
+                reverse=True,
+            )[:5]
+            top_performers = [
+                {
+                    "skill_id": sid,
+                    "success_rate": m.success_rate,
+                    "total_executions": m.total_executions,
+                }
+                for sid, m in top
+            ]
+
+            self._send_json(200, {
+                "total_skills": len(all_skills),
+                "eligible_skills": len(eligible),
+                "observed_skills": len(all_metrics),
+                "top_performers": top_performers,
+            })
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+
 class AgentServer(HTTPServer):
     """Extended HTTPServer that holds agent state."""
 
@@ -482,6 +682,8 @@ class AgentServer(HTTPServer):
         self.run_manager = RunManager()
         self.memory_manager: MemoryLifecycleManager | None = None
         self.knowledge_manager: Any | None = None
+        self.skill_evolver: Any | None = None
+        self.skill_loader: Any | None = None
 
         # Lazy import to avoid circular dependency at module level.
         from hi_agent.config.trace_config import TraceConfig

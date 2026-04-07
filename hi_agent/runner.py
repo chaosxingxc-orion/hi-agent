@@ -23,7 +23,10 @@ if TYPE_CHECKING:
     from hi_agent.memory.episodic import EpisodicMemoryStore
     from hi_agent.memory.short_term import ShortTermMemoryStore
     from hi_agent.session.run_session import LLMCallRecord, RunSession
+    from hi_agent.skill.loader import SkillLoader
+    from hi_agent.skill.observer import SkillObserver
     from hi_agent.skill.recorder import SkillUsageRecorder
+    from hi_agent.skill.version import SkillVersionManager
 
 from hi_agent.capability import (
     CapabilityInvoker,
@@ -104,6 +107,9 @@ class RunExecutor:
         episode_builder: EpisodeBuilder | None = None,
         episodic_store: EpisodicMemoryStore | None = None,
         skill_recorder: SkillUsageRecorder | None = None,
+        skill_observer: Any | None = None,  # SkillObserver
+        skill_version_mgr: Any | None = None,  # SkillVersionManager
+        skill_loader: Any | None = None,  # SkillLoader
         short_term_store: ShortTermMemoryStore | None = None,
         session: RunSession | None = None,
         retrieval_engine: Any | None = None,  # RetrievalEngine
@@ -211,6 +217,9 @@ class RunExecutor:
         self.episode_builder = episode_builder
         self.episodic_store = episodic_store
         self.skill_recorder = skill_recorder
+        self.skill_observer = skill_observer
+        self.skill_version_mgr = skill_version_mgr
+        self.skill_loader = skill_loader
         self.short_term_store = short_term_store
         self._skill_ids_used: list[str] = []
 
@@ -272,6 +281,34 @@ class RunExecutor:
                 return ctx
             if hasattr(self.route_engine, '_context_provider'):
                 self.route_engine._context_provider = _enriched_context
+
+        # --- Skill prompt injection into routing context ---
+        if self.skill_loader is not None:
+            try:
+                _skill_loader = self.skill_loader
+                _skill_vmgr = self.skill_version_mgr
+                _prev_provider = getattr(self.route_engine, '_context_provider', None)
+
+                def _skill_enriched_context() -> dict:
+                    ctx: dict = {}
+                    if _prev_provider is not None:
+                        try:
+                            ctx = _prev_provider()
+                        except Exception:
+                            ctx = {}
+                    try:
+                        prompt = _skill_loader.build_prompt()
+                        skill_text = prompt.to_prompt_string()
+                        if skill_text:
+                            ctx["skill_prompt"] = skill_text
+                    except Exception:
+                        pass
+                    return ctx
+
+                if hasattr(self.route_engine, '_context_provider'):
+                    self.route_engine._context_provider = _skill_enriched_context
+            except Exception:
+                pass
 
     @property
     def run_id(self) -> str:
@@ -1095,6 +1132,52 @@ class RunExecutor:
         except Exception:
             pass
 
+    def _observe_skill_execution(
+        self,
+        proposal: object,
+        stage_id: str,
+        action_succeeded: bool,
+        payload: dict,
+        result: dict | None,
+    ) -> None:
+        """Record skill execution observation (best-effort, non-blocking)."""
+        if self.skill_observer is None:
+            return
+        try:
+            from datetime import datetime, timezone
+            from hi_agent.skill.observer import SkillObservation
+
+            skill_id = getattr(proposal, 'skill_id', '') or getattr(proposal, 'action_kind', 'unknown')
+            skill_version = getattr(proposal, 'version', '0.1.0')
+            quality_score = None
+            tokens_used = 0
+            if isinstance(result, dict):
+                quality_score = result.get("score")
+                if quality_score is not None:
+                    try:
+                        quality_score = float(quality_score)
+                    except (ValueError, TypeError):
+                        quality_score = None
+                tokens_used = int(result.get("tokens_used", 0))
+
+            obs = SkillObservation(
+                observation_id=f"{self.run_id}:{stage_id}:{self.action_seq}",
+                skill_id=skill_id,
+                skill_version=skill_version,
+                run_id=self.run_id,
+                stage_id=stage_id,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                success=action_succeeded,
+                input_summary=str(payload)[:500],
+                output_summary=str(result)[:500] if result else "",
+                quality_score=quality_score,
+                tokens_used=tokens_used,
+                task_family=self.contract.task_family,
+            )
+            self.skill_observer.observe(obs)
+        except Exception:
+            pass
+
     def _build_and_store_episode(self, outcome: str) -> None:
         """Build and store episode after run completes (best-effort)."""
         if self.episode_builder is None or self.episodic_store is None:
@@ -1419,6 +1502,13 @@ class RunExecutor:
                 )
                 # Watchdog: track action outcome and check for no-progress
                 self._watchdog_record_and_check(success, stage_id)
+                # Skill observation: record execution telemetry
+                self._observe_skill_execution(
+                    proposal, stage_id, success,
+                    {"action_kind": getattr(proposal, "action_kind", ""),
+                     "branch_id": branch_id},
+                    result,
+                )
                 self.action_seq += 1
                 self.optimizer.backpropagate(node, self.dag)
 

@@ -135,6 +135,42 @@ class SystemBuilder:
         """Build SkillRegistry using configured storage directory."""
         return SkillRegistry(storage_dir=self._config.skill_storage_dir)
 
+    def build_skill_loader(self) -> Any:
+        """Build SkillLoader for multi-source skill discovery."""
+        from hi_agent.skill.loader import SkillLoader
+
+        dirs = [self._config.skill_storage_dir]
+        return SkillLoader(search_dirs=dirs)
+
+    def build_skill_observer(self) -> Any:
+        """Build SkillObserver for execution telemetry."""
+        from hi_agent.skill.observer import SkillObserver
+
+        return SkillObserver(
+            storage_dir=self._config.skill_storage_dir + "/observations"
+        )
+
+    def build_skill_version_manager(self) -> Any:
+        """Build SkillVersionManager for champion/challenger versioning."""
+        from hi_agent.skill.version import SkillVersionManager
+
+        return SkillVersionManager(
+            storage_dir=self._config.skill_storage_dir + "/versions"
+        )
+
+    def build_skill_evolver(self) -> Any:
+        """Build SkillEvolver for observation-driven skill optimization."""
+        from hi_agent.skill.evolver import SkillEvolver
+
+        observer = self.build_skill_observer()
+        version_mgr = self.build_skill_version_manager()
+        gateway = self.build_llm_gateway()
+        return SkillEvolver(
+            observer=observer,
+            version_manager=version_mgr,
+            llm_gateway=gateway,
+        )
+
     def build_episodic_store(self) -> EpisodicMemoryStore:
         """Build EpisodicMemoryStore using configured storage directory."""
         return EpisodicMemoryStore(storage_dir=self._config.episodic_storage_dir)
@@ -278,6 +314,9 @@ class SystemBuilder:
             episode_builder=EpisodeBuilder(),
             episodic_store=self.build_episodic_store(),
             skill_recorder=self._build_skill_recorder(),
+            skill_observer=self.build_skill_observer(),
+            skill_version_mgr=self.build_skill_version_manager(),
+            skill_loader=self.build_skill_loader(),
             state_store=RunStateStore(),
             policy_versions=PolicyVersionSet(),
             route_engine=self._build_route_engine(),
@@ -316,6 +355,9 @@ class SystemBuilder:
                 episode_builder=EpisodeBuilder(),
                 episodic_store=self.build_episodic_store(),
                 skill_recorder=self._build_skill_recorder(),
+                skill_observer=self.build_skill_observer(),
+                skill_version_mgr=self.build_skill_version_manager(),
+                skill_loader=self.build_skill_loader(),
                 state_store=RunStateStore(),
                 policy_versions=PolicyVersionSet(),
                 route_engine=self._build_route_engine(),
@@ -342,4 +384,6 @@ class SystemBuilder:
         )
         server.memory_manager = self.build_memory_lifecycle_manager()
         server.knowledge_manager = self.build_knowledge_manager()
+        server.skill_evolver = self.build_skill_evolver()
+        server.skill_loader = self.build_skill_loader()
         return server
