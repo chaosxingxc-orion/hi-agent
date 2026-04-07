@@ -17,11 +17,15 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from collections.abc import Callable
 from typing import Any
 
+from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.run_manager import RunManager
 
 # Route patterns for path matching.
 _RUN_ID_RE = re.compile(r"^/runs/([^/]+)$")
 _SIGNAL_RE = re.compile(r"^/runs/([^/]+)/signal$")
+_MEMORY_DREAM_PATH = "/memory/dream"
+_MEMORY_CONSOLIDATE_PATH = "/memory/consolidate"
+_MEMORY_STATUS_PATH = "/memory/status"
 
 
 class AgentAPIHandler(BaseHTTPRequestHandler):
@@ -45,6 +49,8 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             self._handle_manifest()
         elif path == "/runs":
             self._handle_list_runs()
+        elif path == _MEMORY_STATUS_PATH:
+            self._handle_memory_status()
         else:
             match = _RUN_ID_RE.match(path)
             if match:
@@ -58,6 +64,10 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
 
         if path == "/runs":
             self._handle_create_run()
+        elif path == _MEMORY_DREAM_PATH:
+            self._handle_memory_dream()
+        elif path == _MEMORY_CONSOLIDATE_PATH:
+            self._handle_memory_consolidate()
         else:
             match = _SIGNAL_RE.match(path)
             if match:
@@ -211,6 +221,51 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
         else:
             self._send_json(400, {"error": "unknown_signal", "signal": signal})
 
+    # ------------------------------------------------------------------
+    # Memory lifecycle handlers
+    # ------------------------------------------------------------------
+
+    @property
+    def _memory_manager(self) -> MemoryLifecycleManager | None:
+        """Access the MemoryLifecycleManager from the server instance."""
+        server: AgentServer = self.server  # type: ignore[assignment]
+        return server.memory_manager
+
+    def _handle_memory_dream(self) -> None:
+        """Trigger dream consolidation (short-term -> mid-term)."""
+        manager = self._memory_manager
+        if manager is None:
+            self._send_json(503, {"error": "memory_not_configured"})
+            return
+        try:
+            body = self._read_json_body()
+        except (ValueError, json.JSONDecodeError):
+            body = {}
+        result = manager.trigger_dream(body.get("date"))
+        self._send_json(200, result)
+
+    def _handle_memory_consolidate(self) -> None:
+        """Trigger consolidation (mid-term -> long-term)."""
+        manager = self._memory_manager
+        if manager is None:
+            self._send_json(503, {"error": "memory_not_configured"})
+            return
+        try:
+            body = self._read_json_body()
+        except (ValueError, json.JSONDecodeError):
+            body = {}
+        result = manager.trigger_consolidation(body.get("days", 7))
+        self._send_json(200, result)
+
+    def _handle_memory_status(self) -> None:
+        """Return memory tier status."""
+        manager = self._memory_manager
+        if manager is None:
+            self._send_json(503, {"error": "memory_not_configured"})
+            return
+        result = manager.get_status()
+        self._send_json(200, result)
+
 
 class AgentServer(HTTPServer):
     """Extended HTTPServer that holds agent state."""
@@ -232,6 +287,7 @@ class AgentServer(HTTPServer):
         """
         super().__init__((host, port), AgentAPIHandler)
         self.run_manager = RunManager()
+        self.memory_manager: MemoryLifecycleManager | None = None
 
         # Lazy import to avoid circular dependency at module level.
         from hi_agent.config.trace_config import TraceConfig

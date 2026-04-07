@@ -27,6 +27,7 @@ from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 from hi_agent.runtime_adapter.mock_kernel import MockKernel
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 from hi_agent.server.app import AgentServer
+from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.run_manager import RunManager
 from hi_agent.skill.matcher import SkillMatcher
 from hi_agent.skill.recorder import SkillUsageRecorder
@@ -150,6 +151,57 @@ class SystemBuilder:
         )
 
     # ------------------------------------------------------------------
+    # Memory tier builders
+    # ------------------------------------------------------------------
+
+    def build_short_term_store(self) -> Any:
+        """Build short-term memory store."""
+        from hi_agent.memory.short_term import ShortTermMemoryStore
+
+        return ShortTermMemoryStore(
+            self._config.episodic_storage_dir.replace("episodes", "short_term")
+        )
+
+    def build_mid_term_store(self) -> Any:
+        """Build mid-term memory store."""
+        from hi_agent.memory.mid_term import MidTermMemoryStore
+
+        return MidTermMemoryStore(
+            self._config.episodic_storage_dir.replace("episodes", "mid_term")
+        )
+
+    def build_long_term_graph(self) -> Any:
+        """Build long-term memory graph."""
+        from hi_agent.memory.long_term import LongTermMemoryGraph
+
+        return LongTermMemoryGraph(
+            self._config.episodic_storage_dir.replace(
+                "episodes", "long_term/graph.json"
+            )
+        )
+
+    def build_retrieval_engine(self) -> Any:
+        """Build four-layer retrieval engine across all memory tiers."""
+        from hi_agent.knowledge.retrieval_engine import RetrievalEngine
+
+        wiki = getattr(self, "_wiki", None)
+        graph = self.build_long_term_graph()
+        short = self.build_short_term_store()
+        mid = self.build_mid_term_store()
+        return RetrievalEngine(
+            wiki=wiki, graph=graph, short_term=short, mid_term=mid
+        )
+
+    def build_memory_lifecycle_manager(self) -> MemoryLifecycleManager:
+        """Build MemoryLifecycleManager wiring all memory tiers."""
+        return MemoryLifecycleManager(
+            short_term_store=self.build_short_term_store(),
+            mid_term_store=self.build_mid_term_store(),
+            long_term_graph=self.build_long_term_graph(),
+            retrieval_engine=self.build_retrieval_engine(),
+        )
+
+    # ------------------------------------------------------------------
     # Composite builders
     # ------------------------------------------------------------------
 
@@ -197,6 +249,7 @@ class SystemBuilder:
             policy_versions=PolicyVersionSet(),
             route_engine=self._build_route_engine(),
             acceptance_policy=AcceptancePolicy(),
+            short_term_store=self.build_short_term_store(),
         )
 
     def build_orchestrator(self) -> TaskOrchestrator:
@@ -213,4 +266,5 @@ class SystemBuilder:
         server.run_manager = RunManager(
             max_concurrent=self._config.server_max_concurrent_runs,
         )
+        server.memory_manager = self.build_memory_lifecycle_manager()
         return server

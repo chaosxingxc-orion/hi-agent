@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from hi_agent.harness.executor import HarnessExecutor
     from hi_agent.memory.episode_builder import EpisodeBuilder
     from hi_agent.memory.episodic import EpisodicMemoryStore
+    from hi_agent.memory.short_term import ShortTermMemoryStore
     from hi_agent.session.run_session import LLMCallRecord, RunSession
     from hi_agent.skill.recorder import SkillUsageRecorder
 
@@ -103,7 +104,9 @@ class RunExecutor:
         episode_builder: EpisodeBuilder | None = None,
         episodic_store: EpisodicMemoryStore | None = None,
         skill_recorder: SkillUsageRecorder | None = None,
+        short_term_store: ShortTermMemoryStore | None = None,
         session: RunSession | None = None,
+        retrieval_engine: Any | None = None,  # RetrievalEngine
     ) -> None:
         """Initialize run executor state.
 
@@ -207,6 +210,7 @@ class RunExecutor:
         self.episode_builder = episode_builder
         self.episodic_store = episodic_store
         self.skill_recorder = skill_recorder
+        self.short_term_store = short_term_store
         self._skill_ids_used: list[str] = []
 
         # --- Session: unified state management (additive) ---
@@ -221,6 +225,9 @@ class RunExecutor:
                 )
             except Exception:
                 self.session = None
+
+        # --- Retrieval engine for knowledge loading ---
+        self.retrieval_engine = retrieval_engine
 
         # --- Wire session context into route engine (compression pipeline) ---
         self._auto_compress: Any | None = None
@@ -244,6 +251,23 @@ class RunExecutor:
                 self._cost_calculator = _CC()
             except Exception:
                 pass
+
+        # If retrieval_engine available, create enriched context provider
+        if self.retrieval_engine is not None and self.session is not None:
+            _retrieval = self.retrieval_engine
+            _session = self.session
+            def _enriched_context():
+                ctx = _session.build_context_for_llm("routing")
+                try:
+                    query = getattr(_session.task_contract, 'goal', '') + " " + _session.current_stage
+                    r = _retrieval.retrieve(query.strip(), budget_tokens=500)
+                    if r.items:
+                        ctx["retrieved_knowledge"] = [i.content[:200] for i in r.items[:3]]
+                except Exception:
+                    pass
+                return ctx
+            if hasattr(self.route_engine, '_context_provider'):
+                self.route_engine._context_provider = _enriched_context
 
     @property
     def run_id(self) -> str:
@@ -1149,6 +1173,21 @@ class RunExecutor:
                 except Exception:
                     pass
 
+            # --- Knowledge retrieval: inject event into session ---
+            if self.retrieval_engine is not None and self.session is not None:
+                try:
+                    query = f"{self.contract.goal} {stage_id}"
+                    result = self.retrieval_engine.retrieve(query, budget_tokens=800)
+                    if result.items:
+                        self.session.append_record(
+                            "knowledge_retrieved",
+                            {"stage_id": stage_id, "items": len(result.items),
+                             "tokens": result.total_tokens},
+                            stage_id=stage_id,
+                        )
+                except Exception:
+                    pass
+
             proposals = self.route_engine.propose(
                 stage_id, self.run_id, self.action_seq
             )
@@ -1436,6 +1475,18 @@ class RunExecutor:
                         )
                     except Exception:
                         pass
+                # Build and store short-term memory from session
+                if self.short_term_store is not None and self.session is not None:
+                    try:
+                        stm = self.short_term_store.build_from_session(self.session)
+                        self.short_term_store.save(stm)
+                        self._emit_observability("short_term_memory_saved", {
+                            "run_id": self.run_id,
+                            "session_id": stm.session_id,
+                            "outcome": stm.outcome,
+                        })
+                    except Exception:
+                        pass
                 return "failed"
 
             self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
@@ -1470,6 +1521,18 @@ class RunExecutor:
                 cost = self.session.get_cost_summary()
                 cost["run_id"] = self.run_id
                 self._emit_observability("run_cost_summary", cost)
+            except Exception:
+                pass
+        # Build and store short-term memory from session
+        if self.short_term_store is not None and self.session is not None:
+            try:
+                stm = self.short_term_store.build_from_session(self.session)
+                self.short_term_store.save(stm)
+                self._emit_observability("short_term_memory_saved", {
+                    "run_id": self.run_id,
+                    "session_id": stm.session_id,
+                    "outcome": stm.outcome,
+                })
             except Exception:
                 pass
         return "completed"
