@@ -7,12 +7,14 @@ from hi_agent.llm.errors import (
     LLMProviderError,
     LLMTimeoutError,
 )
+from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
 from hi_agent.llm.http_gateway import HttpLLMGateway
 from hi_agent.llm.mock_gateway import MockLLMGateway
 from hi_agent.llm.protocol import LLMGateway, LLMRequest, LLMResponse, TokenUsage
 from hi_agent.llm.router import ModelRouter
 
 __all__ = [
+    "AnthropicLLMGateway",
     "HttpLLMGateway",
     "LLMBudgetExhaustedError",
     "LLMBudgetTracker",

@@ -63,7 +63,7 @@ class TraceConfig:
     server_max_concurrent_runs: int = 4
 
     # Kernel adapter
-    kernel_base_url: str = "http://localhost:9090"
+    kernel_base_url: str = "mock"
     kernel_max_retries: int = 3
     kernel_circuit_breaker_threshold: int = 5
 

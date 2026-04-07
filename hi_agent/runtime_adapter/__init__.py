@@ -30,6 +30,7 @@ from hi_agent.runtime_adapter.kernel_facade_adapter import (
     KernelFacadeAdapter,
     create_local_adapter,
 )
+from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 from hi_agent.runtime_adapter.mock_kernel import MockKernel
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter, RuntimeAdapterBackend
 from hi_agent.runtime_adapter.resilient_adapter import (
@@ -72,6 +73,7 @@ __all__ = [
     "KernelBackend",
     "KernelClient",
     "KernelFacadeAdapter",
+    "KernelFacadeClient",
     "MockKernel",
     "ResilientKernelAdapter",
     "ReconcileLoop",

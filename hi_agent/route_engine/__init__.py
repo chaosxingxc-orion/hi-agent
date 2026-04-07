@@ -2,6 +2,12 @@
 
 from hi_agent.route_engine.acceptance import AcceptancePolicy, AcceptanceResult
 from hi_agent.route_engine.base import BranchProposal, RouteEngine
+from hi_agent.route_engine.conditional_router import (
+    ConditionalRoute,
+    ConditionalRouter,
+    RouteContext,
+    RouteExplanation,
+)
 from hi_agent.route_engine.confidence_policy import should_escalate_route_decision
 from hi_agent.route_engine.decision_audit import is_low_confidence, record_route_decision_audit
 from hi_agent.route_engine.decision_audit_store import InMemoryDecisionAuditStore
@@ -14,13 +20,17 @@ __all__ = [
     "AcceptancePolicy",
     "AcceptanceResult",
     "BranchProposal",
+    "ConditionalRoute",
+    "ConditionalRouter",
     "HybridRouteEngine",
     "HybridRouteOutcome",
     "InMemoryDecisionAuditStore",
     "LLMRouteDecision",
     "LLMRouteEngine",
     "LLMRouteParseError",
+    "RouteContext",
     "RouteEngine",
+    "RouteExplanation",
     "RuleRouteEngine",
     "SkillAwareRouteEngine",
     "is_low_confidence",

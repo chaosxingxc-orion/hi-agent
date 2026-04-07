@@ -23,6 +23,7 @@ from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
 from hi_agent.runner import RunExecutor
+from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 from hi_agent.runtime_adapter.mock_kernel import MockKernel
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 from hi_agent.server.app import AgentServer
@@ -51,9 +52,22 @@ class SystemBuilder:
     # ------------------------------------------------------------------
 
     def build_kernel(self) -> RuntimeAdapter:
-        """Build kernel adapter (mock for now)."""
+        """Build kernel adapter.
+
+        When ``config.kernel_base_url`` is set and is not ``"mock"``,
+        creates a :class:`KernelFacadeClient` in HTTP mode.
+        Otherwise falls back to :class:`MockKernel`.
+        """
         if self._kernel is None:
-            self._kernel = MockKernel()
+            base_url = self._config.kernel_base_url
+            if base_url and base_url.lower() != "mock":
+                self._kernel = KernelFacadeClient(
+                    mode="http",
+                    base_url=base_url,
+                    timeout_seconds=30,
+                )
+            else:
+                self._kernel = MockKernel()
         return self._kernel
 
     def build_llm_gateway(self) -> LLMGateway | None:
