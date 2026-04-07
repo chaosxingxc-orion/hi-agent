@@ -16,6 +16,15 @@ python -m hi_agent run --goal "Analyze quarterly revenue data" --local
 # Start API server
 python -m hi_agent serve --port 8080
 
+# Resume a run from checkpoint
+python -m hi_agent resume --checkpoint checkpoint_run-001.json
+
+# Trigger memory Dream consolidation
+curl -X POST http://localhost:8080/memory/dream
+
+# Query knowledge
+curl "http://localhost:8080/knowledge/query?q=revenue+trends&limit=5"
+
 # Run tests
 python -m pytest tests/ -v
 ```
@@ -47,16 +56,16 @@ agent-core (Capability Supply Layer)
 
 | Module | Description |
 |--------|-------------|
-| **Session** (`session/`) | RunSession: unified state, compact boundary dedup, L0 JSONL persistence, checkpoint/restore, CostCalculator (per-model USD pricing) |
-| **Memory** (`memory/`) | Three-tier: short-term (session summary), mid-term (daily Dream consolidation), long-term (knowledge graph). Transfer: Short->Mid->Long (consolidation). Loading: Long->Mid->Short (retrieval) |
-| **Knowledge** (`knowledge/`) | Wiki (Karpathy pattern with `[[wikilinks]]`), user knowledge (profile/preferences), graph renderer (Mermaid), four-layer retrieval engine (grep->BM25->graph->embedding) |
+| **Session** (`session/`) | RunSession: unified state, compact boundary dedup, L0 JSONL persistence, checkpoint save/resume, CostCalculator. **Lifecycle: create→checkpoint→crash→resume→continue** |
+| **Memory** (`memory/`) | Three-tier (short/mid/long-term). **Creation**: auto-build STM after each run. **Transfer**: Dream (short→mid) + Consolidation (mid→long). **Loading**: RetrievalEngine→routing context. **API**: `/memory/dream`, `/memory/consolidate`, `/memory/status` |
+| **Knowledge** (`knowledge/`) | Wiki + user knowledge + graph + Mermaid. **Creation**: auto-ingest from session. **Transfer**: graph→wiki sync. **Loading**: four-layer retrieval (grep→BM25→graph→embedding). **API**: 6 endpoints (`/knowledge/ingest`, `/query`, `/sync`, `/lint`, `/status`) |
 | **Skill** (`skill/`) | 5-stage lifecycle (Candidate->Provisional->Certified->Deprecated->Retired), registry, matcher (scope+preconditions), validator, usage recorder |
 
 ### TRACE Runtime
 
 | Module | Description |
 |--------|-------------|
-| **Runner** (`runner.py`) | RunExecutor orchestrating S1->S5 stages with Evolve, Harness, Human Gate, RunSession, auto-compress pipeline |
+| **Runner** (`runner.py`) | RunExecutor: S1->S5 stages, _execute_stage refactor, session resume from checkpoint, auto STM/knowledge creation, retrieval injection |
 | **Route Engine** (`route_engine/`) | Rule-based, LLM-based, Hybrid, Skill-aware, Conditional routing. Context-aware prompts with stage summaries + fresh evidence |
 | **Task View** (`task_view/`) | Layered context builder with token budgets, auto-compress trigger (snip->window->compress), context processor chain |
 | **Contracts** (`contracts/`) | TaskContract (13 fields), PolicyVersionSet (6 versions), CTSBudget, TaskBudget |
@@ -78,8 +87,8 @@ agent-core (Capability Supply Layer)
 |--------|-------------|
 | **LLM Gateway** (`llm/`) | Provider-decoupled: OpenAI HTTP, Anthropic native, mock. Model router, budget tracker |
 | **Runtime Adapter** (`runtime_adapter/`) | 17-method protocol, MockKernel, KernelFacadeClient (direct+HTTP), resilient adapter (retry+circuit breaker+event buffer) |
-| **Config** (`config/`) | TraceConfig (95+ params, JSON/env/code), SystemBuilder (full subsystem wiring) |
-| **Server** (`server/`) | HTTP API (stdlib), thread-safe RunManager, CLI (`python -m hi_agent`) |
+| **Config** (`config/`) | TraceConfig (95+ params, JSON/env/code), SystemBuilder (full wiring incl. memory/knowledge/resume) |
+| **Server** (`server/`) | HTTP API (stdlib), RunManager, MemoryLifecycleManager, knowledge API, resume endpoint, CLI |
 | **Orchestrator** (`orchestrator/`) | Task decomposition DAG, parallel dispatcher (ThreadPoolExecutor), result aggregator |
 
 ## Key Design Decisions
@@ -87,14 +96,20 @@ agent-core (Capability Supply Layer)
 ### Three-Tier Memory (P1 + P2)
 
 ```
-Short-term (session)  --Dream-->  Mid-term (daily)  --Consolidate-->  Long-term (graph)
-       ^                                                                    |
-       |______________ Retrieval + Progressive Loading _____________________|
+Run ends ──→ auto-build STM ──→ ShortTermMemory (JSON)
+                                       │
+POST /memory/dream ─────────────→ DreamConsolidator ──→ DailySummary (JSON)
+                                                              │
+POST /memory/consolidate ──────→ LongTermConsolidator ──→ Graph nodes (JSON)
+                                                              │
+Next Run ──→ RetrievalEngine (4-layer) ──→ routing context ←──┘
 ```
 
-- **Short-term**: Session interaction summary, strips noise, file-based
-- **Mid-term**: Daily work consolidation via DreamConsolidator, file-based
-- **Long-term**: Knowledge graph (nodes + edges + confidence), file-based
+**Lifecycle closed loop:**
+- **Creation**: Auto-build STM after each run (success or failure)
+- **Transfer**: Dream (short→mid, daily cron) + Consolidation (mid→long, weekly)
+- **Loading**: RetrievalEngine injects knowledge into routing context per-stage
+- **API**: `POST /memory/dream`, `POST /memory/consolidate`, `GET /memory/status`
 
 ### Four-Layer Retrieval (P2)
 
@@ -122,14 +137,38 @@ Three knowledge types with three representation layers:
 - **LLM Interface**: Wiki (Markdown + `[[wikilinks]]` + YAML frontmatter) -- for LLM read/write
 - **Visualization**: Mermaid (auto-generated flowcharts/mindmaps) -- for human understanding
 
+**Lifecycle closed loop:**
+- **Creation**: Auto-ingest from session (findings→wiki, facts→graph, feedback→user profile)
+- **Transfer**: `POST /knowledge/sync` (graph→wiki pages + rebuild index)
+- **Loading**: Four-layer retrieval (grep→BM25→graph→embedding) injected into routing
+- **Health**: `POST /knowledge/lint` (orphan pages, broken links, stale content)
+- **API**: 6 endpoints (`/knowledge/ingest`, `/ingest-structured`, `/query`, `/sync`, `/lint`, `/status`)
+
+### Session Resume (P2)
+
+```
+Run executing ──→ checkpoint saved every Stage (JSON)
+     │
+  crash / stop
+     │
+  python -m hi_agent resume --checkpoint <path>
+  POST /runs/{id}/resume
+     │
+  load checkpoint ──→ restore L0/L1/events/costs/boundaries
+     │
+  skip completed stages ──→ continue from interruption point
+     │
+  finalize (STM + knowledge + evolve) ──→ done
+```
+
 ## Stats
 
 | Metric | Value |
 |--------|-------|
-| Source files | 211 |
-| Test files | 178 |
-| Source LOC | 24,322 |
-| Tests | 1,543 passing |
+| Source files | 212 |
+| Test files | 184 |
+| Source LOC | 25,108 |
+| Tests | 1,616 passing |
 | Modules | 26 |
 | External deps | 0 |
 | Config params | 95+ (all configurable) |

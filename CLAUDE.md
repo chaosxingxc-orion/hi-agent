@@ -15,13 +15,13 @@ This repository is in **active implementation — core subsystems complete, inte
 | `hi_agent/task_decomposition/` | DAG decomposition, executor, feedback |
 | `hi_agent/orchestrator/` | Task orchestrator, parallel dispatcher, result aggregator |
 | `hi_agent/harness/` | Harness governance (dual-dimension, approval, evidence) |
-| `hi_agent/memory/` | Three-tier memory (short/mid/long-term), Dream consolidation, L0/L1/L2 + episodic + unified retriever |
-| `hi_agent/knowledge/` | Wiki (Karpathy pattern), user knowledge, graph renderer (Mermaid), four-layer retrieval (grep→BM25→graph→embedding) |
-| `hi_agent/server/` | HTTP API server, CLI entry point, thread-safe RunManager |
-| `hi_agent/runner.py` | RunExecutor with Evolve, Harness, Human Gate, RunSession, auto-compress pipeline |
+| `hi_agent/memory/` | Three-tier memory (short/mid/long-term), Dream consolidation, auto-creation after run, retrieval→routing injection, MemoryLifecycleManager |
+| `hi_agent/knowledge/` | Wiki (Karpathy), user knowledge, graph renderer (Mermaid), four-layer retrieval (grep→BM25→graph→embedding), auto-ingest from session, 6 API endpoints |
+| `hi_agent/server/` | HTTP API server, CLI, RunManager, MemoryLifecycleManager, knowledge API, resume endpoint |
+| `hi_agent/runner.py` | RunExecutor with session resume, _execute_stage refactor, auto STM/knowledge creation, retrieval injection |
 | `hi_agent/runtime_adapter/` | Kernel adapter protocol, mock, resilient adapter (retry+circuit breaker), real KernelFacadeClient |
-| `hi_agent/session/` | RunSession (unified state), compact boundary dedup, CostCalculator (per-model USD) |
-| `hi_agent/config/` | TraceConfig (95+ params), SystemBuilder (full subsystem wiring) |
+| `hi_agent/session/` | RunSession (unified state), compact boundary dedup, CostCalculator, checkpoint save/resume |
+| `hi_agent/config/` | TraceConfig (95+ params), SystemBuilder (full wiring incl. memory/knowledge/resume) |
 | `hi_agent/skill/` | 5-stage lifecycle (Candidate→Retired), registry, matcher, validator, recorder |
 | `hi_agent/failures/` | 10 failure codes (enum), FailureCollector, ProgressWatchdog, typed exceptions |
 | `hi_agent/state_machine/` | Generic StateMachine + 6 TRACE definitions (Run/Stage/Branch/Action/Wait/Review) |
@@ -42,10 +42,13 @@ This repository is in **active implementation — core subsystems complete, inte
 
 ```bash
 # Run a task via CLI
-python -m hi_agent run --goal "Analyze quarterly revenue data"
+python -m hi_agent run --goal "Analyze quarterly revenue data" --local
 
 # Start API server
 python -m hi_agent serve --port 8080
+
+# Resume a run from checkpoint
+python -m hi_agent resume --checkpoint checkpoint_run-001.json
 
 # Run tests
 python -m pytest tests/ -v
@@ -53,7 +56,7 @@ python -m pytest tests/ -v
 
 ## Test Coverage
 
-1543 tests, all passing. Zero external dependencies.
+1616 tests, all passing. Zero external dependencies.
 
 ## System Overview
 
