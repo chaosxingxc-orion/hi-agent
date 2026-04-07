@@ -30,6 +30,7 @@ from hi_agent.server.run_manager import RunManager
 # Route patterns for path matching.
 _RUN_ID_RE = re.compile(r"^/runs/([^/]+)$")
 _SIGNAL_RE = re.compile(r"^/runs/([^/]+)/signal$")
+_RESUME_RE = re.compile(r"^/runs/([^/]+)/resume$")
 _MEMORY_DREAM_PATH = "/memory/dream"
 _MEMORY_CONSOLIDATE_PATH = "/memory/consolidate"
 _MEMORY_STATUS_PATH = "/memory/status"
@@ -98,7 +99,11 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             if match:
                 self._handle_signal_run(match.group(1))
             else:
-                self._send_json(404, {"error": "not_found"})
+                match = _RESUME_RE.match(path)
+                if match:
+                    self._handle_resume_run(match.group(1))
+                else:
+                    self._send_json(404, {"error": "not_found"})
 
     # ------------------------------------------------------------------
     # Helpers
@@ -245,6 +250,71 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
                 self._send_json(409, {"error": "cannot_cancel", "run_id": run_id})
         else:
             self._send_json(400, {"error": "unknown_signal", "signal": signal})
+
+    def _handle_resume_run(self, run_id: str) -> None:
+        """Resume a run from its checkpoint file.
+
+        Looks for a checkpoint file in the configured storage dir or the
+        current directory.  If found, spawns a background thread to resume
+        the run and returns immediately.
+
+        Args:
+            run_id: The run identifier from the URL path.
+        """
+        import os
+        import threading
+
+        try:
+            body = self._read_json_body()
+        except (ValueError, json.JSONDecodeError):
+            body = {}
+
+        # Search for checkpoint file
+        checkpoint_path = body.get("checkpoint_path")
+        if not checkpoint_path:
+            # Try common locations
+            candidates = [
+                f"checkpoint_{run_id}.json",
+                os.path.join(".hi_agent", f"checkpoint_{run_id}.json"),
+            ]
+            for candidate in candidates:
+                if os.path.exists(candidate):
+                    checkpoint_path = candidate
+                    break
+
+        if not checkpoint_path or not os.path.exists(checkpoint_path):
+            self._send_json(404, {
+                "error": "checkpoint_not_found",
+                "run_id": run_id,
+            })
+            return
+
+        server: AgentServer = self.server  # type: ignore[assignment]
+
+        def _resume_in_background() -> None:
+            try:
+                from hi_agent.runner import RunExecutor
+
+                kernel = server._builder.build_kernel()
+                RunExecutor.resume_from_checkpoint(
+                    checkpoint_path,
+                    kernel,
+                    evolve_engine=server._builder.build_evolve_engine(),
+                    harness_executor=server._builder.build_harness(),
+                )
+            except Exception:
+                pass
+
+        thread = threading.Thread(
+            target=_resume_in_background, daemon=True
+        )
+        thread.start()
+
+        self._send_json(200, {
+            "status": "resuming",
+            "run_id": run_id,
+            "checkpoint_path": checkpoint_path,
+        })
 
     # ------------------------------------------------------------------
     # Memory lifecycle handlers

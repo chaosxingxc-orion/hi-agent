@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from typing import Any
 
 from hi_agent.config.trace_config import TraceConfig
@@ -284,6 +285,46 @@ class SystemBuilder:
             short_term_store=self.build_short_term_store(),
             knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
         )
+
+    def build_executor_from_checkpoint(
+        self, checkpoint_path: str
+    ) -> Callable[[], str]:
+        """Build a callable that resumes execution from a checkpoint.
+
+        Args:
+            checkpoint_path: Path to the checkpoint JSON file.
+
+        Returns:
+            A zero-argument callable that drives the resumed run to
+            completion and returns the outcome string.
+        """
+        kernel = self.build_kernel()
+        km = self.build_knowledge_manager()
+
+        def resume() -> str:
+            return RunExecutor.resume_from_checkpoint(
+                checkpoint_path,
+                kernel,
+                evolve_engine=self.build_evolve_engine(),
+                harness_executor=self.build_harness(),
+                human_gate_quality_threshold=self._config.gate_quality_threshold,
+                event_emitter=EventEmitter(),
+                raw_memory=RawMemoryStore(),
+                compressor=self._build_compressor(),
+                failure_collector=self.build_failure_collector(),
+                watchdog=self.build_watchdog(),
+                episode_builder=EpisodeBuilder(),
+                episodic_store=self.build_episodic_store(),
+                skill_recorder=self._build_skill_recorder(),
+                state_store=RunStateStore(),
+                policy_versions=PolicyVersionSet(),
+                route_engine=self._build_route_engine(),
+                acceptance_policy=AcceptancePolicy(),
+                short_term_store=self.build_short_term_store(),
+                knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
+            )
+
+        return resume
 
     def build_orchestrator(self) -> TaskOrchestrator:
         """Build a fully-wired TaskOrchestrator."""

@@ -1115,6 +1115,409 @@ class RunExecutor:
         except Exception:
             pass
 
+    def _execute_stage(self, stage_id: str) -> str | None:
+        """Execute a single stage.
+
+        Returns:
+            ``"failed"`` if the stage is a dead end and the run should abort,
+            or ``None`` if the stage completed successfully and execution
+            should continue to the next stage.
+        """
+        self.current_stage = stage_id
+        self.kernel.open_stage(stage_id)
+        self.kernel.mark_stage_state(stage_id, StageState.ACTIVE)
+        self._record_event(
+            "StageStateChanged",
+            {"stage_id": stage_id, "to_state": "active"},
+        )
+        self._emit_observability(
+            "stage_started",
+            {"run_id": self.run_id, "stage_id": stage_id},
+        )
+        self._persist_snapshot(stage_id=stage_id)
+        self._watchdog_reset()
+
+        # --- Auto-compress before routing (lazy compaction) ---
+        if self._auto_compress is not None and self.session is not None:
+            try:
+                fresh = self.session.get_records_after_boundary()
+                filtered, summary = self._auto_compress.check_and_compress(
+                    fresh, stage_id, budget_tokens=8192
+                )
+                if summary is not None:
+                    self.session.set_stage_summary(
+                        f"{stage_id}_auto", summary
+                    )
+                    self.session.mark_compact_boundary(
+                        stage_id, summary_ref=f"{stage_id}_auto"
+                    )
+            except Exception:
+                pass
+
+        # --- Knowledge retrieval: inject event into session ---
+        if self.retrieval_engine is not None and self.session is not None:
+            try:
+                query = f"{self.contract.goal} {stage_id}"
+                result = self.retrieval_engine.retrieve(query, budget_tokens=800)
+                if result.items:
+                    self.session.append_record(
+                        "knowledge_retrieved",
+                        {"stage_id": stage_id, "items": len(result.items),
+                         "tokens": result.total_tokens},
+                        stage_id=stage_id,
+                    )
+            except Exception:
+                pass
+
+        proposals = self.route_engine.propose(
+            stage_id, self.run_id, self.action_seq
+        )
+        # Session: record routing LLM call with cost (best-effort)
+        if self.session is not None:
+            try:
+                from hi_agent.session.run_session import LLMCallRecord
+                cost = 0.0
+                if self._cost_calculator is not None:
+                    cost = self._cost_calculator.calculate(
+                        "default", 500, 200
+                    )
+                record = LLMCallRecord(
+                    call_id=f"{self.run_id}:llm:route:{stage_id}",
+                    purpose="routing",
+                    stage_id=stage_id,
+                    model="default",
+                    input_tokens=500,
+                    output_tokens=200,
+                    cost_usd=cost,
+                )
+                self.session.record_llm_call(record)
+            except Exception:
+                pass
+        for proposal in proposals:
+            # --- CTS / Task budget enforcement ---
+            budget_code = self._check_budget_exceeded(stage_id)
+            if budget_code is not None:
+                self._record_event(
+                    "BudgetExhausted",
+                    {
+                        "run_id": self.run_id,
+                        "stage_id": stage_id,
+                        "failure_code": budget_code,
+                    },
+                )
+                self._emit_observability(
+                    "budget_exhausted",
+                    {
+                        "run_id": self.run_id,
+                        "stage_id": stage_id,
+                        "failure_code": budget_code,
+                    },
+                )
+                break
+
+            # --- Branch lifecycle: open ---
+            branch_id = self._make_branch_id(stage_id)
+            self._total_branches_opened += 1
+            self._stage_active_branches[stage_id] = (
+                self._stage_active_branches.get(stage_id, 0) + 1
+            )
+            self.kernel.open_branch(
+                self.run_id, stage_id, branch_id
+            )
+            self._record_event(
+                "BranchProposed",
+                {
+                    "run_id": self.run_id,
+                    "stage_id": stage_id,
+                    "branch_id": branch_id,
+                    "rationale": proposal.rationale,
+                },
+            )
+            self.kernel.mark_branch_state(
+                self.run_id, stage_id, branch_id, BranchState.ACTIVE
+            )
+            self._record_skill_usage_from_proposal(proposal, stage_id)
+
+            node = TrajectoryNode(
+                node_id=deterministic_id(
+                    self.run_id,
+                    stage_id,
+                    proposal.branch_id,
+                    str(self.action_seq),
+                ),
+                node_type=NodeType.ACTION,
+                stage_id=stage_id,
+                branch_id=proposal.branch_id,
+                description=proposal.rationale,
+            )
+            self.dag[node.node_id] = node
+
+            success = False
+            result: dict | None = None
+            try:
+                self._record_event(
+                    "ActionDispatched",
+                    {
+                        "run_id": self.run_id,
+                        "stage_id": stage_id,
+                        "branch_id": branch_id,
+                        "action_kind": proposal.action_kind,
+                    },
+                )
+                success, result, final_attempt = (
+                    self._execute_action_with_retry(stage_id, proposal)
+                )
+                node.local_score = (
+                    float(result.get("score", 0.0)) if result else 0.0
+                )
+                node.propagated_score = node.local_score
+                node.state = (
+                    NodeState.SUCCEEDED
+                    if success
+                    else NodeState.FAILED
+                )
+
+                if success:
+                    self._record_event(
+                        "ActionSucceeded",
+                        {
+                            "run_id": self.run_id,
+                            "stage_id": stage_id,
+                            "branch_id": branch_id,
+                            "action_kind": proposal.action_kind,
+                        },
+                    )
+                    acceptance = self.acceptance_policy.evaluate(
+                        self.contract, node
+                    )
+                    if not acceptance.accepted:
+                        node.state = NodeState.FAILED
+                        self._record_event(
+                            "AcceptanceRejected",
+                            {
+                                "stage_id": stage_id,
+                                "attempt": final_attempt,
+                                "reason": acceptance.reason,
+                            },
+                        )
+                        # Mark branch as failed after rejection
+                        self.kernel.mark_branch_state(
+                            self.run_id,
+                            stage_id,
+                            branch_id,
+                            BranchState.FAILED,
+                            "acceptance_rejected",
+                        )
+                    else:
+                        task_view_id = deterministic_id(
+                            self.run_id,
+                            stage_id,
+                            proposal.branch_id,
+                            str(self.action_seq),
+                            str(
+                                result.get(
+                                    "evidence_hash", "ev_missing"
+                                )
+                            ),
+                            self.policy_version,
+                        )
+                        knowledge_items = (
+                            self._build_task_view_knowledge(
+                                stage_id=stage_id,
+                                action_kind=proposal.action_kind,
+                                result=(
+                                    result
+                                    if isinstance(result, dict)
+                                    else None
+                                ),
+                            )
+                        )
+                        tv_id = self.kernel.record_task_view(
+                            task_view_id,
+                            {
+                                "stage_id": stage_id,
+                                "action_kind": proposal.action_kind,
+                                "local_score": node.local_score,
+                                "knowledge": knowledge_items,
+                                "policy_versions": {
+                                    "route_policy": self.policy_versions.route_policy,
+                                    "acceptance_policy": self.policy_versions.acceptance_policy,
+                                    "memory_policy": self.policy_versions.memory_policy,
+                                    "evaluation_policy": self.policy_versions.evaluation_policy,
+                                    "task_view_policy": self.policy_versions.task_view_policy,
+                                    "skill_policy": self.policy_versions.skill_policy,
+                                },
+                            },
+                        )
+                        # Bind task view to decision reference
+                        decision_ref = self._make_decision_ref(
+                            stage_id, branch_id
+                        )
+                        self.kernel.bind_task_view_to_decision(
+                            tv_id, decision_ref
+                        )
+                        self._record_event(
+                            "TaskViewRecorded",
+                            {
+                                "stage_id": stage_id,
+                                "attempt": final_attempt,
+                                "task_view_id": tv_id,
+                                "decision_ref": decision_ref,
+                            },
+                        )
+                        # Mark branch succeeded
+                        self.kernel.mark_branch_state(
+                            self.run_id,
+                            stage_id,
+                            branch_id,
+                            BranchState.SUCCEEDED,
+                        )
+                        self._record_event(
+                            "BranchSucceeded",
+                            {
+                                "run_id": self.run_id,
+                                "stage_id": stage_id,
+                                "branch_id": branch_id,
+                            },
+                        )
+                else:
+                    # Action failed
+                    self.kernel.mark_branch_state(
+                        self.run_id,
+                        stage_id,
+                        branch_id,
+                        BranchState.FAILED,
+                        "harness_denied",
+                    )
+                    self._record_event(
+                        "BranchFailed",
+                        {
+                            "run_id": self.run_id,
+                            "stage_id": stage_id,
+                            "branch_id": branch_id,
+                            "failure_code": "harness_denied",
+                        },
+                    )
+            finally:
+                # Check human gate triggers after each action
+                action_result_for_gate = result if result else {}
+                failure_code_for_gate: str | None = None
+                if not success:
+                    failure_code_for_gate = (
+                        action_result_for_gate.get("failure_code")
+                        or "harness_denied"
+                    )
+                    # Record structured failure
+                    self._record_failure(
+                        failure_code_str=failure_code_for_gate,
+                        message=f"Action {getattr(proposal, 'action_kind', '?')} failed at stage {stage_id}",
+                        stage_id=stage_id,
+                        branch_id=branch_id,
+                    )
+                self._check_human_gate_triggers(
+                    stage_id, action_result_for_gate, failure_code_for_gate
+                )
+                # Watchdog: track action outcome and check for no-progress
+                self._watchdog_record_and_check(success, stage_id)
+                self.action_seq += 1
+                self.optimizer.backpropagate(node, self.dag)
+
+        if detect_dead_end(stage_id, self.dag):
+            self.kernel.mark_stage_state(stage_id, StageState.FAILED)
+            self._record_event(
+                "StageStateChanged",
+                {"stage_id": stage_id, "to_state": "failed"},
+            )
+            self._trigger_recovery(stage_id)
+            self.stage_summaries[stage_id] = (
+                self._compress_stage_summary(stage_id)
+            )
+            self._persist_snapshot(
+                stage_id=stage_id, result="failed"
+            )
+            self._signal_run_safe(
+                "recovery_failed",
+                {"stage_id": stage_id},
+            )
+            return "failed"
+
+        self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
+        self._record_event(
+            "StageStateChanged",
+            {"stage_id": stage_id, "to_state": "completed"},
+        )
+        self.stage_summaries[stage_id] = (
+            self._compress_stage_summary(stage_id)
+        )
+        self._persist_snapshot(stage_id=stage_id)
+        self._emit_observability(
+            "stage_completed",
+            {"run_id": self.run_id, "stage_id": stage_id},
+        )
+        return None  # stage completed OK, continue
+
+    def _finalize_run(self, outcome: str) -> str:
+        """Run post-execution finalization for a given outcome.
+
+        Handles observability, evolve engine, skill outcomes, episode
+        building, cost summary, short-term memory, and knowledge ingestion.
+
+        Returns:
+            The *outcome* string unchanged.
+        """
+        if outcome == "failed":
+            self._emit_observability(
+                "run_failed",
+                {"run_id": self.run_id, "stage_id": self.current_stage},
+            )
+        else:
+            self._persist_snapshot(
+                stage_id=self.current_stage, result="completed"
+            )
+            self._emit_observability(
+                "run_completed",
+                {"run_id": self.run_id, "stage_id": self.current_stage},
+            )
+
+        if self.evolve_engine is not None:
+            try:
+                postmortem = self._build_postmortem(outcome)
+                self.evolve_engine.on_run_completed(postmortem)
+            except Exception:
+                pass
+        self._finalize_skill_outcomes(outcome)
+        self._build_and_store_episode(outcome)
+        # Session: emit cost summary at run end
+        if self.session is not None:
+            try:
+                cost = self.session.get_cost_summary()
+                cost["run_id"] = self.run_id
+                self._emit_observability("run_cost_summary", cost)
+            except Exception:
+                pass
+        # Build and store short-term memory from session
+        if self.short_term_store is not None and self.session is not None:
+            try:
+                stm = self.short_term_store.build_from_session(self.session)
+                self.short_term_store.save(stm)
+                self._emit_observability("short_term_memory_saved", {
+                    "run_id": self.run_id,
+                    "session_id": stm.session_id,
+                    "outcome": stm.outcome,
+                })
+            except Exception:
+                pass
+        # Auto-ingest session knowledge
+        if self.knowledge_manager is not None and self.session is not None:
+            try:
+                count = self.knowledge_manager.ingest_from_session(self.session)
+                self._emit_observability("knowledge_ingested", {
+                    "run_id": self.run_id, "items_ingested": count,
+                })
+            except Exception:
+                pass
+        return outcome
+
     def execute(self) -> str:
         """Execute all stages with deterministic routing and capability dispatch.
 
@@ -1146,415 +1549,142 @@ class RunExecutor:
         )
 
         for stage_id in self.stage_graph.trace_order():
-            self.current_stage = stage_id
-            self.kernel.open_stage(stage_id)
-            self.kernel.mark_stage_state(stage_id, StageState.ACTIVE)
-            self._record_event(
-                "StageStateChanged",
-                {"stage_id": stage_id, "to_state": "active"},
-            )
-            self._emit_observability(
-                "stage_started",
-                {"run_id": self.run_id, "stage_id": stage_id},
-            )
-            self._persist_snapshot(stage_id=stage_id)
-            self._watchdog_reset()
+            stage_result = self._execute_stage(stage_id)
+            if stage_result == "failed":
+                return self._finalize_run("failed")
 
-            # --- Auto-compress before routing (lazy compaction) ---
-            if self._auto_compress is not None and self.session is not None:
-                try:
-                    fresh = self.session.get_records_after_boundary()
-                    filtered, summary = self._auto_compress.check_and_compress(
-                        fresh, stage_id, budget_tokens=8192
-                    )
-                    if summary is not None:
-                        self.session.set_stage_summary(
-                            f"{stage_id}_auto", summary
-                        )
-                        self.session.mark_compact_boundary(
-                            stage_id, summary_ref=f"{stage_id}_auto"
-                        )
-                except Exception:
-                    pass
+        return self._finalize_run("completed")
 
-            # --- Knowledge retrieval: inject event into session ---
-            if self.retrieval_engine is not None and self.session is not None:
-                try:
-                    query = f"{self.contract.goal} {stage_id}"
-                    result = self.retrieval_engine.retrieve(query, budget_tokens=800)
-                    if result.items:
-                        self.session.append_record(
-                            "knowledge_retrieved",
-                            {"stage_id": stage_id, "items": len(result.items),
-                             "tokens": result.total_tokens},
-                            stage_id=stage_id,
-                        )
-                except Exception:
-                    pass
+    def _execute_remaining(self) -> str:
+        """Execute stages that haven't been completed yet.
 
-            proposals = self.route_engine.propose(
-                stage_id, self.run_id, self.action_seq
-            )
-            # Session: record routing LLM call with cost (best-effort)
-            if self.session is not None:
-                try:
-                    from hi_agent.session.run_session import LLMCallRecord
-                    cost = 0.0
-                    if self._cost_calculator is not None:
-                        cost = self._cost_calculator.calculate(
-                            "default", 500, 200
-                        )
-                    record = LLMCallRecord(
-                        call_id=f"{self.run_id}:llm:route:{stage_id}",
-                        purpose="routing",
-                        stage_id=stage_id,
-                        model="default",
-                        input_tokens=500,
-                        output_tokens=200,
-                        cost_usd=cost,
-                    )
-                    self.session.record_llm_call(record)
-                except Exception:
-                    pass
-            for proposal in proposals:
-                # --- CTS / Task budget enforcement ---
-                budget_code = self._check_budget_exceeded(stage_id)
-                if budget_code is not None:
-                    self._record_event(
-                        "BudgetExhausted",
-                        {
-                            "run_id": self.run_id,
-                            "stage_id": stage_id,
-                            "failure_code": budget_code,
-                        },
-                    )
-                    self._emit_observability(
-                        "budget_exhausted",
-                        {
-                            "run_id": self.run_id,
-                            "stage_id": stage_id,
-                            "failure_code": budget_code,
-                        },
-                    )
-                    break
+        Skips stages that are already ``completed`` in
+        ``session.stage_states``.  Continues from the first
+        non-completed stage.
 
-                # --- Branch lifecycle: open ---
-                branch_id = self._make_branch_id(stage_id)
-                self._total_branches_opened += 1
-                self._stage_active_branches[stage_id] = (
-                    self._stage_active_branches.get(stage_id, 0) + 1
-                )
-                self.kernel.open_branch(
-                    self.run_id, stage_id, branch_id
-                )
-                self._record_event(
-                    "BranchProposed",
-                    {
-                        "run_id": self.run_id,
-                        "stage_id": stage_id,
-                        "branch_id": branch_id,
-                        "rationale": proposal.rationale,
-                    },
-                )
-                self.kernel.mark_branch_state(
-                    self.run_id, stage_id, branch_id, BranchState.ACTIVE
-                )
-                self._record_skill_usage_from_proposal(proposal, stage_id)
-
-                node = TrajectoryNode(
-                    node_id=deterministic_id(
-                        self.run_id,
-                        stage_id,
-                        proposal.branch_id,
-                        str(self.action_seq),
-                    ),
-                    node_type=NodeType.ACTION,
-                    stage_id=stage_id,
-                    branch_id=proposal.branch_id,
-                    description=proposal.rationale,
-                )
-                self.dag[node.node_id] = node
-
-                success = False
-                result: dict | None = None
-                try:
-                    self._record_event(
-                        "ActionDispatched",
-                        {
-                            "run_id": self.run_id,
-                            "stage_id": stage_id,
-                            "branch_id": branch_id,
-                            "action_kind": proposal.action_kind,
-                        },
-                    )
-                    success, result, final_attempt = (
-                        self._execute_action_with_retry(stage_id, proposal)
-                    )
-                    node.local_score = (
-                        float(result.get("score", 0.0)) if result else 0.0
-                    )
-                    node.propagated_score = node.local_score
-                    node.state = (
-                        NodeState.SUCCEEDED
-                        if success
-                        else NodeState.FAILED
-                    )
-
-                    if success:
-                        self._record_event(
-                            "ActionSucceeded",
-                            {
-                                "run_id": self.run_id,
-                                "stage_id": stage_id,
-                                "branch_id": branch_id,
-                                "action_kind": proposal.action_kind,
-                            },
-                        )
-                        acceptance = self.acceptance_policy.evaluate(
-                            self.contract, node
-                        )
-                        if not acceptance.accepted:
-                            node.state = NodeState.FAILED
-                            self._record_event(
-                                "AcceptanceRejected",
-                                {
-                                    "stage_id": stage_id,
-                                    "attempt": final_attempt,
-                                    "reason": acceptance.reason,
-                                },
-                            )
-                            # Mark branch as failed after rejection
-                            self.kernel.mark_branch_state(
-                                self.run_id,
-                                stage_id,
-                                branch_id,
-                                BranchState.FAILED,
-                                "acceptance_rejected",
-                            )
-                        else:
-                            task_view_id = deterministic_id(
-                                self.run_id,
-                                stage_id,
-                                proposal.branch_id,
-                                str(self.action_seq),
-                                str(
-                                    result.get(
-                                        "evidence_hash", "ev_missing"
-                                    )
-                                ),
-                                self.policy_version,
-                            )
-                            knowledge_items = (
-                                self._build_task_view_knowledge(
-                                    stage_id=stage_id,
-                                    action_kind=proposal.action_kind,
-                                    result=(
-                                        result
-                                        if isinstance(result, dict)
-                                        else None
-                                    ),
-                                )
-                            )
-                            tv_id = self.kernel.record_task_view(
-                                task_view_id,
-                                {
-                                    "stage_id": stage_id,
-                                    "action_kind": proposal.action_kind,
-                                    "local_score": node.local_score,
-                                    "knowledge": knowledge_items,
-                                    "policy_versions": {
-                                        "route_policy": self.policy_versions.route_policy,
-                                        "acceptance_policy": self.policy_versions.acceptance_policy,
-                                        "memory_policy": self.policy_versions.memory_policy,
-                                        "evaluation_policy": self.policy_versions.evaluation_policy,
-                                        "task_view_policy": self.policy_versions.task_view_policy,
-                                        "skill_policy": self.policy_versions.skill_policy,
-                                    },
-                                },
-                            )
-                            # Bind task view to decision reference
-                            decision_ref = self._make_decision_ref(
-                                stage_id, branch_id
-                            )
-                            self.kernel.bind_task_view_to_decision(
-                                tv_id, decision_ref
-                            )
-                            self._record_event(
-                                "TaskViewRecorded",
-                                {
-                                    "stage_id": stage_id,
-                                    "attempt": final_attempt,
-                                    "task_view_id": tv_id,
-                                    "decision_ref": decision_ref,
-                                },
-                            )
-                            # Mark branch succeeded
-                            self.kernel.mark_branch_state(
-                                self.run_id,
-                                stage_id,
-                                branch_id,
-                                BranchState.SUCCEEDED,
-                            )
-                            self._record_event(
-                                "BranchSucceeded",
-                                {
-                                    "run_id": self.run_id,
-                                    "stage_id": stage_id,
-                                    "branch_id": branch_id,
-                                },
-                            )
-                    else:
-                        # Action failed
-                        self.kernel.mark_branch_state(
-                            self.run_id,
-                            stage_id,
-                            branch_id,
-                            BranchState.FAILED,
-                            "harness_denied",
-                        )
-                        self._record_event(
-                            "BranchFailed",
-                            {
-                                "run_id": self.run_id,
-                                "stage_id": stage_id,
-                                "branch_id": branch_id,
-                                "failure_code": "harness_denied",
-                            },
-                        )
-                finally:
-                    # Check human gate triggers after each action
-                    action_result_for_gate = result if result else {}
-                    failure_code_for_gate: str | None = None
-                    if not success:
-                        failure_code_for_gate = (
-                            action_result_for_gate.get("failure_code")
-                            or "harness_denied"
-                        )
-                        # Record structured failure
-                        self._record_failure(
-                            failure_code_str=failure_code_for_gate,
-                            message=f"Action {getattr(proposal, 'action_kind', '?')} failed at stage {stage_id}",
-                            stage_id=stage_id,
-                            branch_id=branch_id,
-                        )
-                    self._check_human_gate_triggers(
-                        stage_id, action_result_for_gate, failure_code_for_gate
-                    )
-                    # Watchdog: track action outcome and check for no-progress
-                    self._watchdog_record_and_check(success, stage_id)
-                    self.action_seq += 1
-                    self.optimizer.backpropagate(node, self.dag)
-
-            if detect_dead_end(stage_id, self.dag):
-                self.kernel.mark_stage_state(stage_id, StageState.FAILED)
-                self._record_event(
-                    "StageStateChanged",
-                    {"stage_id": stage_id, "to_state": "failed"},
-                )
-                self._trigger_recovery(stage_id)
-                self.stage_summaries[stage_id] = (
-                    self._compress_stage_summary(stage_id)
-                )
-                self._persist_snapshot(
-                    stage_id=stage_id, result="failed"
-                )
-                self._signal_run_safe(
-                    "recovery_failed",
-                    {"stage_id": stage_id},
-                )
-                self._emit_observability(
-                    "run_failed",
-                    {"run_id": self.run_id, "stage_id": stage_id},
-                )
-                if self.evolve_engine is not None:
-                    postmortem = self._build_postmortem("failed")
-                    self.evolve_engine.on_run_completed(postmortem)
-                self._finalize_skill_outcomes("failed")
-                self._build_and_store_episode("failed")
-                # Session: emit cost summary at run end (even on failure)
-                if self.session is not None:
-                    try:
-                        self._emit_observability(
-                            "run_cost_summary", self.session.get_cost_summary()
-                        )
-                    except Exception:
-                        pass
-                # Build and store short-term memory from session
-                if self.short_term_store is not None and self.session is not None:
-                    try:
-                        stm = self.short_term_store.build_from_session(self.session)
-                        self.short_term_store.save(stm)
-                        self._emit_observability("short_term_memory_saved", {
-                            "run_id": self.run_id,
-                            "session_id": stm.session_id,
-                            "outcome": stm.outcome,
-                        })
-                    except Exception:
-                        pass
-                # Auto-ingest session knowledge
-                if self.knowledge_manager is not None and self.session is not None:
-                    try:
-                        count = self.knowledge_manager.ingest_from_session(self.session)
-                        self._emit_observability("knowledge_ingested", {
-                            "run_id": self.run_id, "items_ingested": count,
-                        })
-                    except Exception:
-                        pass
-                return "failed"
-
-            self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
-            self._record_event(
-                "StageStateChanged",
-                {"stage_id": stage_id, "to_state": "completed"},
-            )
-            self.stage_summaries[stage_id] = (
-                self._compress_stage_summary(stage_id)
-            )
-            self._persist_snapshot(stage_id=stage_id)
-            self._emit_observability(
-                "stage_completed",
-                {"run_id": self.run_id, "stage_id": stage_id},
-            )
-
-        self._persist_snapshot(
-            stage_id=self.current_stage, result="completed"
-        )
-        self._emit_observability(
-            "run_completed",
-            {"run_id": self.run_id, "stage_id": self.current_stage},
-        )
-        if self.evolve_engine is not None:
-            postmortem = self._build_postmortem("completed")
-            self.evolve_engine.on_run_completed(postmortem)
-        self._finalize_skill_outcomes("completed")
-        self._build_and_store_episode("completed")
-        # Session: emit cost summary at run end
+        Returns:
+            Completion status string (``completed`` or ``failed``).
+        """
+        completed_stages: set[str] = set()
         if self.session is not None:
-            try:
-                cost = self.session.get_cost_summary()
-                cost["run_id"] = self.run_id
-                self._emit_observability("run_cost_summary", cost)
-            except Exception:
-                pass
-        # Build and store short-term memory from session
-        if self.short_term_store is not None and self.session is not None:
-            try:
-                stm = self.short_term_store.build_from_session(self.session)
-                self.short_term_store.save(stm)
-                self._emit_observability("short_term_memory_saved", {
-                    "run_id": self.run_id,
-                    "session_id": stm.session_id,
-                    "outcome": stm.outcome,
+            completed_stages = {
+                sid
+                for sid, state in self.session.stage_states.items()
+                if state == "completed"
+            }
+
+        self._emit_observability("run_resumed", {
+            "run_id": self.run_id,
+            "completed_stages": sorted(completed_stages),
+            "resuming_from": self.current_stage,
+        })
+
+        all_completed = True
+        for stage_id in self.stage_graph.trace_order():
+            if stage_id in completed_stages:
+                self._emit_observability("stage_skipped_resume", {
+                    "run_id": self.run_id, "stage_id": stage_id,
                 })
-            except Exception:
-                pass
-        # Auto-ingest session knowledge
-        if self.knowledge_manager is not None and self.session is not None:
-            try:
-                count = self.knowledge_manager.ingest_from_session(self.session)
-                self._emit_observability("knowledge_ingested", {
-                    "run_id": self.run_id, "items_ingested": count,
-                })
-            except Exception:
-                pass
-        return "completed"
+                continue
+
+            all_completed = False
+            stage_result = self._execute_stage(stage_id)
+            if stage_result == "failed":
+                return self._finalize_run("failed")
+
+        if all_completed:
+            # All stages were already completed in the checkpoint
+            self._emit_observability("run_already_completed", {
+                "run_id": self.run_id,
+            })
+
+        return self._finalize_run("completed")
+
+    @classmethod
+    def resume_from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        kernel: RuntimeAdapter,
+        **kwargs: Any,
+    ) -> str:
+        """Resume a run from a checkpoint file.
+
+        Loads the checkpoint, restores RunSession state (L0, L1,
+        stage_states, events, LLM calls, compact boundaries), then
+        continues execution from the NEXT incomplete stage.
+
+        Args:
+            checkpoint_path: Path to the checkpoint JSON file.
+            kernel: RuntimeAdapter instance.
+            **kwargs: All other RunExecutor constructor parameters
+                (e.g. ``evolve_engine``, ``harness_executor``).
+
+        Returns:
+            Completion status string (``completed`` or ``failed``).
+        """
+        import json as _json
+
+        from hi_agent.session.run_session import RunSession
+
+        # 1. Load checkpoint
+        with open(checkpoint_path, encoding="utf-8") as f:
+            cp_data = _json.load(f)
+
+        # 2. Reconstruct TaskContract from checkpoint data
+        contract_data = cp_data.get("task_contract", {})
+        contract = TaskContract(
+            task_id=contract_data.get("task_id", cp_data.get("run_id", "resumed")),
+            goal=contract_data.get("goal", "resumed task"),
+            task_family=contract_data.get("task_family", "quick_task"),
+            constraints=contract_data.get("constraints", []),
+            acceptance_criteria=contract_data.get("acceptance_criteria", []),
+            risk_level=contract_data.get("risk_level", "low"),
+        )
+
+        # 3. Restore session from checkpoint
+        session = RunSession.from_checkpoint(cp_data, task_contract=contract)
+
+        # 4. Create executor with restored session
+        executor = cls(
+            contract=contract,
+            kernel=kernel,
+            session=session,
+            **kwargs,
+        )
+
+        # 5. Register run with kernel (so kernel tracks it)
+        try:
+            kernel_run_id = kernel.start_run(contract.task_id)
+        except Exception:
+            kernel_run_id = session.run_id
+
+        # 6. Restore internal state from session (override kernel run_id)
+        executor._run_id = session.run_id
+        executor.action_seq = session.action_seq
+        executor.branch_seq = session.branch_seq
+        executor.current_stage = session.current_stage
+
+        # Remap the kernel run entry so it knows about the restored run_id
+        try:
+            if hasattr(kernel, "runs") and kernel_run_id != session.run_id:
+                run_data = kernel.runs.pop(kernel_run_id, None)
+                if run_data is not None:
+                    run_data["run_id"] = session.run_id
+                    kernel.runs[session.run_id] = run_data
+        except Exception:
+            pass
+
+        # 7. Restore stage_summaries from session L1
+        for stage_id, summary_data in session.l1_summaries.items():
+            if stage_id.endswith("_auto"):
+                continue  # skip auto-compress summaries
+            executor.stage_summaries[stage_id] = StageSummary(
+                stage_id=stage_id,
+                stage_name=stage_id,
+                findings=summary_data.get("findings", []),
+                decisions=summary_data.get("decisions", []),
+                outcome=summary_data.get("outcome", ""),
+            )
+
+        # 8. Execute remaining stages only
+        return executor._execute_remaining()

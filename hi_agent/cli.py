@@ -118,6 +118,66 @@ def _cmd_health(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _cmd_resume(args: argparse.Namespace) -> None:
+    """Resume a run from a checkpoint file.
+
+    Supports two modes:
+    - ``--checkpoint <path>``: use the file directly.
+    - ``--run-id <run_id>``: search for checkpoint in default storage dir.
+    """
+    import os
+
+    checkpoint_path: str | None = getattr(args, "checkpoint", None)
+
+    if not checkpoint_path:
+        run_id = getattr(args, "run_id", None)
+        if not run_id:
+            print("Error: must specify --checkpoint or --run-id", file=sys.stderr)  # noqa: T201
+            sys.exit(1)
+        # Search common locations
+        candidates = [
+            f"checkpoint_{run_id}.json",
+            os.path.join(".hi_agent", f"checkpoint_{run_id}.json"),
+        ]
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                checkpoint_path = candidate
+                break
+        if not checkpoint_path:
+            print(  # noqa: T201
+                f"Error: checkpoint not found for run {run_id}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    if not os.path.exists(checkpoint_path):
+        print(  # noqa: T201
+            f"Error: checkpoint file not found: {checkpoint_path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    from hi_agent.config.builder import SystemBuilder
+    from hi_agent.config.trace_config import TraceConfig
+    from hi_agent.runner import RunExecutor
+
+    config = TraceConfig()
+    builder = SystemBuilder(config)
+    kernel = builder.build_kernel()
+
+    result = RunExecutor.resume_from_checkpoint(
+        checkpoint_path,
+        kernel,
+        evolve_engine=builder.build_evolve_engine(),
+        harness_executor=builder.build_harness(),
+    )
+
+    if getattr(args, "json", False):
+        print(json.dumps({"result": str(result)}, indent=2))  # noqa: T201
+    else:
+        print(f"Resume completed: {result}")  # noqa: T201
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser.
 
@@ -162,6 +222,20 @@ def build_parser() -> argparse.ArgumentParser:
     # health
     subparsers.add_parser("health", help="Check system health")
 
+    # resume
+    resume_parser = subparsers.add_parser(
+        "resume", help="Resume a run from checkpoint"
+    )
+    resume_parser.add_argument(
+        "--checkpoint", required=False, help="Path to checkpoint file"
+    )
+    resume_parser.add_argument(
+        "--run-id", required=False, help="Run ID to search for checkpoint"
+    )
+    resume_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON"
+    )
+
     return parser
 
 
@@ -175,6 +249,7 @@ def main() -> None:
         "run": _cmd_run,
         "status": _cmd_status,
         "health": _cmd_health,
+        "resume": _cmd_resume,
     }
 
     handler = handlers.get(args.command)
