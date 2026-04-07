@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from collections.abc import Callable
 from typing import Any
 
 from hi_agent.server.run_manager import RunManager
@@ -169,7 +170,13 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
         # If the server has an executor factory, start the run immediately.
         server: AgentServer = self.server  # type: ignore[assignment]
         if server.executor_factory is not None:
-            manager.start_run(run_id, server.executor_factory)
+            run_data = dict(body, run_id=run_id)
+            task_runner = server.executor_factory(run_data)
+
+            def _executor_fn(_managed_run: Any) -> Any:
+                return task_runner()
+
+            manager.start_run(run_id, _executor_fn)
 
         run = manager.get_run(run_id)
         self._send_json(201, manager.to_dict(run))  # type: ignore[arg-type]
@@ -208,16 +215,68 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
 class AgentServer(HTTPServer):
     """Extended HTTPServer that holds agent state."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 8080) -> None:
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        port: int = 8080,
+        config: Any | None = None,
+    ) -> None:
         """Initialize the agent server.
 
         Args:
             host: Bind address.
             port: Bind port.
+            config: Optional TraceConfig instance. When provided, a
+                :class:`SystemBuilder` is created and the default
+                executor factory is wired automatically.
         """
         super().__init__((host, port), AgentAPIHandler)
         self.run_manager = RunManager()
-        self.executor_factory: Any | None = None
+
+        # Lazy import to avoid circular dependency at module level.
+        from hi_agent.config.trace_config import TraceConfig
+
+        self._config = config if config is not None else TraceConfig()
+
+        from hi_agent.config.builder import SystemBuilder
+
+        self._builder = SystemBuilder(self._config)
+        self.executor_factory: Callable[..., Callable[..., Any]] | None = (
+            self._default_executor_factory
+        )
+
+    def _default_executor_factory(self, run_data: dict[str, Any]) -> Callable[..., Any]:
+        """Create a callable that runs a task to completion.
+
+        Args:
+            run_data: Dictionary with at least ``goal``; may contain
+                ``task_id``, ``run_id``, ``task_family``, ``risk_level``.
+
+        Returns:
+            A zero-argument callable whose invocation drives the task
+            through the TRACE pipeline.
+        """
+        import uuid
+
+        from hi_agent.contracts import TaskContract
+
+        task_id = (
+            run_data.get("task_id")
+            or run_data.get("run_id")
+            or uuid.uuid4().hex[:12]
+        )
+        contract = TaskContract(
+            task_id=task_id,
+            goal=run_data.get("goal", ""),
+            task_family=run_data.get("task_family", "quick_task"),
+            risk_level=run_data.get("risk_level", "low"),
+        )
+        executor = self._builder.build_executor(contract)
+
+        def run() -> Any:
+            return executor.execute()
+
+        return run
 
     def start(self) -> None:
         """Start serving (blocking)."""

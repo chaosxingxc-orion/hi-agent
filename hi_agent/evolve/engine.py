@@ -18,6 +18,7 @@ from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
 
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
+    from hi_agent.skill.registry import SkillRegistry
 
 
 class EvolveEngine:
@@ -33,6 +34,7 @@ class EvolveEngine:
         skill_extractor: SkillExtractor | None = None,
         regression_detector: RegressionDetector | None = None,
         champion_challenger: ChampionChallenger | None = None,
+        skill_registry: SkillRegistry | None = None,
     ) -> None:
         """Initialize the evolve engine.
 
@@ -41,12 +43,14 @@ class EvolveEngine:
             skill_extractor: Skill extractor instance; created if not provided.
             regression_detector: Regression detector; created if not provided.
             champion_challenger: Champion/challenger comparator; created if not provided.
+            skill_registry: Optional skill registry for auto-registering candidates.
         """
         self._llm = llm_gateway
         self._postmortem_analyzer = PostmortemAnalyzer(llm_gateway=llm_gateway)
         self._skill_extractor = skill_extractor or SkillExtractor()
         self._regression_detector = regression_detector or RegressionDetector()
         self._champion_challenger = champion_challenger or ChampionChallenger()
+        self._skill_registry = skill_registry
         self._skill_candidates: list[SkillCandidate] = []
 
     def on_run_completed(self, postmortem: RunPostmortem) -> EvolveResult:
@@ -82,6 +86,11 @@ class EvolveEngine:
                     )
                 )
             result.metrics.skill_candidates_found += len(new_skills)
+
+            # Auto-register candidates in the skill registry if available.
+            if self._skill_registry is not None:
+                for candidate in new_skills:
+                    self._skill_registry.register_candidate(candidate)
 
         # 3. Record metrics for regression detection.
         if postmortem.quality_score is not None and postmortem.efficiency_score is not None:

@@ -46,14 +46,40 @@ def _api_request(
 
 def _cmd_serve(args: argparse.Namespace) -> None:
     """Start the API server."""
+    from hi_agent.config.trace_config import TraceConfig
     from hi_agent.server.app import AgentServer
 
-    server = AgentServer(host=args.host, port=args.port)
+    config = TraceConfig(server_host=args.host, server_port=args.port)
+    server = AgentServer(host=args.host, port=args.port, config=config)
     server.start()
 
 
 def _cmd_run(args: argparse.Namespace) -> None:
-    """Submit a task run via the API server."""
+    """Execute a task -- locally via SystemBuilder, or via the API server."""
+    if getattr(args, "local", False):
+        # Local execution: build executor directly, no server needed.
+        from hi_agent.config.builder import SystemBuilder
+        from hi_agent.config.trace_config import TraceConfig
+        from hi_agent.contracts import TaskContract
+
+        config = TraceConfig()
+        builder = SystemBuilder(config)
+        import uuid
+        contract = TaskContract(
+            task_id=uuid.uuid4().hex[:12],
+            goal=args.goal,
+            task_family=args.task_family,
+            risk_level=args.risk_level,
+        )
+        executor = builder.build_executor(contract)
+        result = executor.execute()
+        if args.json:
+            print(json.dumps({"result": str(result)}, indent=2))  # noqa: T201
+        else:
+            print(f"Run completed: {result}")  # noqa: T201
+        return
+
+    # Remote execution: submit to API server.
     base = f"http://{args.api_host}:{args.api_port}"
     body = {
         "goal": args.goal,
@@ -123,6 +149,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--task-family", default="quick_task")
     run_parser.add_argument("--risk-level", default="low")
     run_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    run_parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Execute locally via SystemBuilder (no server needed)",
+    )
 
     # status
     status_parser = subparsers.add_parser("status", help="Check run status")

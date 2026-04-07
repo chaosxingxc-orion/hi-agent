@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+import json as _json
 from dataclasses import dataclass, field
-
+from typing import TYPE_CHECKING
 
 from hi_agent.evolve.contracts import RunPostmortem
+
+if TYPE_CHECKING:
+    from hi_agent.llm.protocol import LLMGateway
 
 
 @dataclass
@@ -43,16 +47,25 @@ class SkillExtractor:
     are considered.
     """
 
-    def __init__(self, min_confidence: float = 0.6) -> None:
+    def __init__(
+        self,
+        min_confidence: float = 0.6,
+        gateway: LLMGateway | None = None,
+    ) -> None:
         """Initialize the skill extractor.
 
         Args:
             min_confidence: Minimum confidence threshold for emitting a candidate.
+            gateway: Optional LLM gateway for LLM-based skill extraction.
         """
         self._min_confidence = min_confidence
+        self._gateway = gateway
 
     def extract(self, postmortem: RunPostmortem) -> list[SkillCandidate]:
         """Extract skill candidates from a successful run.
+
+        If an LLM gateway is available, attempts LLM-based extraction first.
+        Falls back to heuristic extraction on any error or empty result.
 
         Only runs with outcome ``"completed"`` are eligible for skill extraction.
         Failed or aborted runs are skipped.
@@ -66,6 +79,96 @@ class SkillExtractor:
         if postmortem.outcome != "completed":
             return []
 
+        if self._gateway is not None:
+            try:
+                llm_skills = self._llm_extract(postmortem)
+                if llm_skills:
+                    return llm_skills
+            except Exception:
+                pass  # fallback to heuristics
+
+        return self._heuristic_extract(postmortem)
+
+    # ------------------------------------------------------------------
+    # LLM-based extraction
+    # ------------------------------------------------------------------
+
+    def _llm_extract(self, postmortem: RunPostmortem) -> list[SkillCandidate]:
+        """Use LLM to analyze trajectory and extract reusable patterns."""
+        from hi_agent.llm.protocol import LLMRequest
+
+        prompt = (
+            "Analyze this completed run and identify reusable patterns "
+            "that could become skills:\n\n"
+            f"Run: {postmortem.run_id}\n"
+            f"Task Family: {postmortem.task_family}\n"
+            f"Goal: {postmortem.trajectory_summary}\n"
+            f"Outcome: {postmortem.outcome}\n"
+            f"Stages Completed: {postmortem.stages_completed}\n"
+            f"Branches Explored: {postmortem.branches_explored}\n"
+            f"Quality Score: {postmortem.quality_score}\n\n"
+            "Identify 0-3 reusable patterns. For each, provide:\n"
+            "- name: short name\n"
+            "- description: what this pattern does\n"
+            "- applicability: when to use it\n"
+            "- preconditions: what must be true\n\n"
+            'Respond in JSON: [{"name": "...", "description": "...", '
+            '"applicability": "...", "preconditions": ["..."]}]'
+        )
+
+        request = LLMRequest(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert at identifying reusable execution "
+                        "patterns from task trajectories."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=1024,
+        )
+        assert self._gateway is not None
+        response = self._gateway.complete(request)
+        return self._parse_llm_skills(response.content, postmortem)
+
+    def _parse_llm_skills(
+        self, content: str, postmortem: RunPostmortem
+    ) -> list[SkillCandidate]:
+        """Parse JSON response from LLM into SkillCandidate objects."""
+        items = _json.loads(content)
+        if not isinstance(items, list):
+            return []
+
+        candidates: list[SkillCandidate] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name", "")
+            if not name:
+                continue
+            skill_id = _make_skill_id(postmortem.task_family, name)
+            candidates.append(
+                SkillCandidate(
+                    skill_id=skill_id,
+                    name=name,
+                    description=item.get("description", ""),
+                    applicability_scope=item.get("applicability", postmortem.task_family),
+                    preconditions=item.get("preconditions", []),
+                    confidence=0.7,
+                    source_run_ids=[postmortem.run_id],
+                )
+            )
+        return candidates
+
+    # ------------------------------------------------------------------
+    # Heuristic-based extraction
+    # ------------------------------------------------------------------
+
+    def _heuristic_extract(self, postmortem: RunPostmortem) -> list[SkillCandidate]:
+        """Extract skill candidates using rule-based heuristics."""
         candidates: list[SkillCandidate] = []
 
         # Heuristic 1: efficient multi-stage completion is a skill pattern.
