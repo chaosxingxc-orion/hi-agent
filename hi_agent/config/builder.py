@@ -82,8 +82,16 @@ class SystemBuilder:
             return self._llm_gateway
 
         for env_var, base_url, default_model in [
-            ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4o"),
-            ("ANTHROPIC_API_KEY", "https://api.anthropic.com/v1", "claude-sonnet-4-20250514"),
+            (
+                self._config.openai_api_key_env,
+                self._config.openai_base_url,
+                self._config.openai_default_model,
+            ),
+            (
+                self._config.anthropic_api_key_env,
+                self._config.anthropic_base_url + "/v1",
+                self._config.anthropic_default_model,
+            ),
         ]:
             if os.environ.get(env_var):
                 self._llm_gateway = HttpLLMGateway(
@@ -98,14 +106,28 @@ class SystemBuilder:
 
     def build_evolve_engine(self) -> EvolveEngine:
         """Build EvolveEngine with config-driven parameters."""
+        from hi_agent.evolve.regression_detector import RegressionDetector
+        from hi_agent.evolve.skill_extractor import SkillExtractor
+
+        gateway = self.build_llm_gateway()
         return EvolveEngine(
-            llm_gateway=self.build_llm_gateway(),
+            llm_gateway=gateway,
+            skill_extractor=SkillExtractor(
+                min_confidence=self._config.evolve_min_confidence,
+                gateway=gateway,
+            ),
+            regression_detector=RegressionDetector(
+                baseline_window=self._config.evolve_regression_window,
+                threshold=self._config.evolve_regression_threshold,
+            ),
         )
 
     def build_harness(self) -> HarnessExecutor:
         """Build HarnessExecutor with config-driven governance."""
         governance = GovernanceEngine()
-        return HarnessExecutor(governance=governance)
+        return HarnessExecutor(
+            governance=governance,
+        )
 
     def build_skill_registry(self) -> SkillRegistry:
         """Build SkillRegistry using configured storage directory."""
@@ -133,7 +155,12 @@ class SystemBuilder:
 
     def _build_compressor(self) -> MemoryCompressor:
         """Create MemoryCompressor, wiring LLM gateway if available."""
-        return MemoryCompressor(gateway=self.build_llm_gateway())
+        return MemoryCompressor(
+            gateway=self.build_llm_gateway(),
+            compress_threshold=self._config.memory_compress_threshold,
+            timeout_s=self._config.memory_compress_timeout_seconds,
+            fallback_items=self._config.memory_compress_fallback_items,
+        )
 
     def _build_route_engine(self) -> HybridRouteEngine:
         """Create HybridRouteEngine with LLM gateway + SkillMatcher if available."""

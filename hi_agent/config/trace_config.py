@@ -71,6 +71,90 @@ class TraceConfig:
     evolve_enabled: bool = True
     evolve_min_confidence: float = 0.6
 
+    # --- Auto-compression (NEW) ---
+    compress_snip_threshold: int = 50
+    compress_window_threshold: int = 6000
+    compress_compress_threshold: int = 4000
+    compress_default_budget_tokens: int = 8192
+
+    # --- Memory compressor (NEW) ---
+    memory_compress_threshold: int = 25
+    memory_compress_timeout_seconds: float = 10.0
+    memory_compress_fallback_items: int = 20
+    memory_compress_max_findings: int = 8
+    memory_compress_max_decisions: int = 8
+    memory_compress_max_entities: int = 10
+    memory_compress_temperature: float = 0.2
+    memory_compress_max_tokens: int = 2048
+
+    # --- Task View (NEW) ---
+    task_view_default_budget: int = 9728
+    task_view_tokens_per_char: float = 0.25
+    task_view_l1_budget_fraction: float = 0.6
+    task_view_evidence_budget_fraction: float = 0.85
+
+    # --- LLM Gateway (NEW) ---
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_api_key_env: str = "OPENAI_API_KEY"
+    openai_default_model: str = "gpt-4o"
+    anthropic_base_url: str = "https://api.anthropic.com"
+    anthropic_api_key_env: str = "ANTHROPIC_API_KEY"
+    anthropic_default_model: str = "claude-sonnet-4-20250514"
+    anthropic_api_version: str = "2023-06-01"
+
+    # --- LLM Budget (NEW) ---
+    llm_budget_max_calls: int = 100
+    llm_budget_max_tokens: int = 500_000
+    llm_default_max_output_tokens: int = 4096
+
+    # --- Route Engine (NEW) ---
+    route_skill_base_priority: int = 10
+    route_skill_precondition_boost: int = 5
+    route_rule_priority: int = 50
+
+    # --- Evolve detail (NEW) ---
+    evolve_skill_initial_evidence: int = 1
+    evolve_skill_initial_confidence: float = 0.5
+    evolve_stages_threshold: int = 3
+    evolve_branches_threshold: int = 2
+    evolve_successful_confidence: float = 0.5
+    evolve_exploration_confidence: float = 0.6
+    evolve_regression_window: int = 10
+    evolve_regression_threshold: float = 0.15
+    evolve_failure_codes_threshold: int = 3
+    evolve_prune_ratio_threshold: float = 0.5
+
+    # --- Capability (NEW) ---
+    circuit_breaker_failure_threshold: int = 3
+    circuit_breaker_cooldown_seconds: float = 30.0
+
+    # --- Harness (NEW) ---
+    harness_backoff_base_ms: int = 1000
+    harness_backoff_max_ms: int = 30000
+    harness_action_default_timeout: int = 60
+
+    # --- Task Budget defaults (NEW) ---
+    task_budget_max_llm_calls: int = 100
+    task_budget_max_wall_clock_seconds: int = 3600
+    task_budget_max_actions: int = 50
+    task_budget_max_cost_cents: int = 1000
+    task_default_priority: int = 5
+
+    # --- CTS Exploration (NEW) ---
+    cts_max_active_branches_per_stage: int = 3
+    cts_max_total_branches: int = 20
+    cts_max_route_compare_calls: int = 5
+    cts_route_compare_token_budget: int = 4096
+    cts_exploration_wall_clock_budget: int = 1800
+
+    # --- Memory retriever (NEW) ---
+    memory_retriever_default_budget: int = 2000
+    memory_retriever_default_limit: int = 3
+    memory_retriever_max_findings_display: int = 3
+
+    # --- Gate (NEW) ---
+    gate_default_timeout_seconds: float = 300.0
+
     # ------------------------------------------------------------------
     # Factory methods
     # ------------------------------------------------------------------
