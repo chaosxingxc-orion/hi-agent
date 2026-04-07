@@ -11,24 +11,29 @@ This repository is in **active implementation — core subsystems complete, inte
 | Module | Description |
 |---|---|
 | `hi_agent/contracts/` | Enriched TaskContract, PolicyVersionSet, CTSBudget |
-| `hi_agent/llm/` | LLM Gateway (protocol, HTTP, mock, router, budget) |
-| `hi_agent/evolve/` | Evolve subsystem (postmortem, skill extraction, regression, champion/challenger) |
+| `hi_agent/evolve/` | Evolve subsystem (postmortem, LLM skill extraction, regression, champion/challenger) |
 | `hi_agent/task_decomposition/` | DAG decomposition, executor, feedback |
 | `hi_agent/orchestrator/` | Task orchestrator, parallel dispatcher, result aggregator |
 | `hi_agent/harness/` | Harness governance (dual-dimension, approval, evidence) |
-| `hi_agent/memory/` | L0/L1/L2 + episodic memory + retriever |
-| `hi_agent/knowledge/` | Knowledge store and query |
-| `hi_agent/route_engine/` | Rule, LLM, Hybrid routing with LLM Gateway integration |
-| `hi_agent/server/` | HTTP API server + CLI entry point |
-| `hi_agent/runner.py` | RunExecutor with Evolve, Harness, Human Gate integration |
-| `hi_agent/runtime_adapter/` | Kernel adapter protocol + mock |
+| `hi_agent/memory/` | Three-tier memory (short/mid/long-term), Dream consolidation, L0/L1/L2 + episodic + unified retriever |
+| `hi_agent/knowledge/` | Wiki (Karpathy pattern), user knowledge, graph renderer (Mermaid), four-layer retrieval (grep→BM25→graph→embedding) |
+| `hi_agent/server/` | HTTP API server, CLI entry point, thread-safe RunManager |
+| `hi_agent/runner.py` | RunExecutor with Evolve, Harness, Human Gate, RunSession, auto-compress pipeline |
+| `hi_agent/runtime_adapter/` | Kernel adapter protocol, mock, resilient adapter (retry+circuit breaker), real KernelFacadeClient |
+| `hi_agent/session/` | RunSession (unified state), compact boundary dedup, CostCalculator (per-model USD) |
+| `hi_agent/config/` | TraceConfig (95+ params), SystemBuilder (full subsystem wiring) |
+| `hi_agent/skill/` | 5-stage lifecycle (Candidate→Retired), registry, matcher, validator, recorder |
+| `hi_agent/failures/` | 10 failure codes (enum), FailureCollector, ProgressWatchdog, typed exceptions |
+| `hi_agent/state_machine/` | Generic StateMachine + 6 TRACE definitions (Run/Stage/Branch/Action/Wait/Review) |
 | `hi_agent/capability/` | Capability registry, invoker, circuit breaker |
 | `hi_agent/events/` | Event emitter and store |
 | `hi_agent/recovery/` | Compensation and recovery orchestration |
 | `hi_agent/replay/` | Deterministic replay engine |
 | `hi_agent/trajectory/` | Stage graph, optimizers, dead-end detection |
 | `hi_agent/state/` | Run state persistence |
-| `hi_agent/task_view/` | Task view builder with token budgets |
+| `hi_agent/task_view/` | Task view builder, token budgets, auto-compress trigger, context processor chain |
+| `hi_agent/llm/` | LLM Gateway (protocol, HTTP/OpenAI, Anthropic), model router, budget tracker |
+| `hi_agent/route_engine/` | Rule, LLM, Hybrid, Skill-aware, Conditional routing with context-aware prompts |
 | `hi_agent/observability/` | Metrics, tracing, notifications |
 | `hi_agent/auth/` | RBAC, JWT, SOC guard |
 | `hi_agent/management/` | Operations, gates, SLOs, alerts, reconciliation |
@@ -48,7 +53,7 @@ python -m pytest tests/ -v
 
 ## Test Coverage
 
-990+ tests, all passing. Zero external dependencies.
+1543 tests, all passing. Zero external dependencies.
 
 ## System Overview
 
@@ -94,8 +99,8 @@ hi-agent is organized into three faces:
 | **Branch** | A logical trajectory in the exploration space (semantic object, not a child run) |
 | **Task View** | Minimal sufficient context rebuilt before each model call |
 | **Action** | An external operation executed via Harness |
-| **Memory** | What the agent has experienced |
-| **Knowledge** | What the agent stably knows |
+| **Memory** | What the agent has experienced — three tiers: short-term (session), mid-term (daily/dream), long-term (graph) |
+| **Knowledge** | What the agent stably knows — wiki (text), user profile, knowledge graph (structured), four-layer retrieval |
 | **Skill** | A reusable process unit crystallized from quality traces |
 | **Feedback** | Optimization signals from results, evaluations, and experiments |
 
