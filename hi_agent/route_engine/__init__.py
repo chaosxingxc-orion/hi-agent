@@ -8,6 +8,7 @@ from hi_agent.route_engine.decision_audit_store import InMemoryDecisionAuditStor
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine, HybridRouteOutcome
 from hi_agent.route_engine.llm_engine import LLMRouteDecision, LLMRouteEngine, LLMRouteParseError
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
+from hi_agent.route_engine.skill_aware_engine import SkillAwareRouteEngine
 
 __all__ = [
     "AcceptancePolicy",
@@ -21,6 +22,7 @@ __all__ = [
     "LLMRouteParseError",
     "RouteEngine",
     "RuleRouteEngine",
+    "SkillAwareRouteEngine",
     "is_low_confidence",
     "record_route_decision_audit",
     "should_escalate_route_decision",

@@ -14,8 +14,14 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from hi_agent.evolve.contracts import RunPostmortem
     from hi_agent.evolve.engine import EvolveEngine
+    from hi_agent.failures.collector import FailureCollector
+    from hi_agent.failures.taxonomy import FailureCode, FailureRecord
+    from hi_agent.failures.watchdog import ProgressWatchdog
     from hi_agent.harness.contracts import ActionSpec
     from hi_agent.harness.executor import HarnessExecutor
+    from hi_agent.memory.episode_builder import EpisodeBuilder
+    from hi_agent.memory.episodic import EpisodicMemoryStore
+    from hi_agent.skill.recorder import SkillUsageRecorder
 
 from hi_agent.capability import (
     CapabilityInvoker,
@@ -91,6 +97,11 @@ class RunExecutor:
         harness_executor: HarnessExecutor | None = None,
         human_gate_quality_threshold: float = 0.5,
         policy_versions: PolicyVersionSet | None = None,
+        failure_collector: FailureCollector | None = None,
+        watchdog: ProgressWatchdog | None = None,
+        episode_builder: EpisodeBuilder | None = None,
+        episodic_store: EpisodicMemoryStore | None = None,
+        skill_recorder: SkillUsageRecorder | None = None,
     ) -> None:
         """Initialize run executor state.
 
@@ -173,6 +184,28 @@ class RunExecutor:
         self.human_gate_quality_threshold = human_gate_quality_threshold
         self._gate_seq = 0
         self.policy_versions = policy_versions or PolicyVersionSet()
+
+        # --- Final wiring: FailureCollector, Watchdog, Episode, Skill ---
+        self.failure_collector = failure_collector
+        if self.failure_collector is None:
+            try:
+                from hi_agent.failures.collector import FailureCollector as _FC
+                self.failure_collector = _FC()
+            except Exception:
+                pass
+
+        self.watchdog = watchdog
+        if self.watchdog is None:
+            try:
+                from hi_agent.failures.watchdog import ProgressWatchdog as _PW
+                self.watchdog = _PW()
+            except Exception:
+                pass
+
+        self.episode_builder = episode_builder
+        self.episodic_store = episodic_store
+        self.skill_recorder = skill_recorder
+        self._skill_ids_used: list[str] = []
 
     @property
     def run_id(self) -> str:
@@ -665,10 +698,17 @@ class RunExecutor:
                 branches_pruned += 1
 
         failure_codes: list[str] = []
-        for record in self.raw_memory.list_all():
-            code = record.payload.get("failure_code")
-            if code and code not in failure_codes:
-                failure_codes.append(code)
+        # Prefer structured failure collector when available
+        if self.failure_collector is not None:
+            try:
+                failure_codes = self.failure_collector.get_failure_codes()
+            except Exception:
+                failure_codes = []
+        if not failure_codes:
+            for record in self.raw_memory.list_all():
+                code = record.payload.get("failure_code")
+                if code and code not in failure_codes:
+                    failure_codes.append(code)
 
         return RunPostmortem(
             run_id=self.run_id,
@@ -848,6 +888,128 @@ class RunExecutor:
 
         return None
 
+    def _record_failure(
+        self,
+        failure_code_str: str,
+        message: str,
+        stage_id: str = "",
+        branch_id: str = "",
+        action_id: str = "",
+        context: dict[str, object] | None = None,
+    ) -> None:
+        """Record a structured failure to the FailureCollector (best-effort)."""
+        if self.failure_collector is None:
+            return
+        try:
+            from hi_agent.failures.taxonomy import FailureCode, FailureRecord
+
+            code = FailureCode(failure_code_str)
+            record = FailureRecord(
+                failure_code=code,
+                message=message,
+                run_id=self.run_id,
+                stage_id=stage_id,
+                branch_id=branch_id,
+                action_id=action_id,
+                context=context or {},
+            )
+            self.failure_collector.record(record)
+        except Exception:
+            pass
+
+    def _watchdog_record_and_check(
+        self, success: bool, stage_id: str
+    ) -> None:
+        """Record action to watchdog and check for no-progress (best-effort).
+
+        If watchdog triggers, records the failure and opens Gate B.
+        """
+        if self.watchdog is None:
+            return
+        try:
+            self.watchdog.record_action(success=success)
+            trigger = self.watchdog.check()
+            if trigger is not None:
+                # Record to failure collector
+                if self.failure_collector is not None:
+                    trigger.run_id = self.run_id
+                    trigger.stage_id = stage_id
+                    self.failure_collector.record(trigger)
+                # Trigger Gate B (route_direction)
+                self.kernel.open_human_gate(
+                    HumanGateRequest(
+                        run_id=self.run_id,
+                        gate_type="route_direction",
+                        gate_ref=self._make_gate_ref("route_direction"),
+                        context={
+                            "stage_id": stage_id,
+                            "reason": trigger.message,
+                            "failure_code": "no_progress",
+                        },
+                    )
+                )
+        except Exception:
+            pass
+
+    def _watchdog_reset(self) -> None:
+        """Reset watchdog state at stage transitions (best-effort)."""
+        if self.watchdog is None:
+            return
+        try:
+            self.watchdog.reset()
+        except Exception:
+            pass
+
+    def _record_skill_usage_from_proposal(
+        self, proposal: object, stage_id: str
+    ) -> None:
+        """If proposal has skill_id metadata, record skill usage (best-effort)."""
+        if self.skill_recorder is None:
+            return
+        try:
+            skill_id = getattr(proposal, "skill_id", None)
+            if skill_id:
+                self.skill_recorder.record_usage(
+                    skill_id=skill_id, run_id=self.run_id, success=True
+                )
+                if skill_id not in self._skill_ids_used:
+                    self._skill_ids_used.append(skill_id)
+        except Exception:
+            pass
+
+    def _finalize_skill_outcomes(self, outcome: str) -> None:
+        """After run completes, record final outcome per skill used (best-effort)."""
+        if self.skill_recorder is None or not self._skill_ids_used:
+            return
+        try:
+            success = outcome == "completed"
+            for skill_id in self._skill_ids_used:
+                self.skill_recorder.record_usage(
+                    skill_id=skill_id, run_id=self.run_id, success=success
+                )
+        except Exception:
+            pass
+
+    def _build_and_store_episode(self, outcome: str) -> None:
+        """Build and store episode after run completes (best-effort)."""
+        if self.episode_builder is None or self.episodic_store is None:
+            return
+        try:
+            failure_codes: list[str] = []
+            if self.failure_collector is not None:
+                failure_codes = self.failure_collector.get_failure_codes()
+
+            episode = self.episode_builder.build(
+                run_id=self.run_id,
+                task_contract=self.contract,
+                stage_summaries=self.stage_summaries,
+                outcome=outcome,
+                failure_codes=failure_codes,
+            )
+            self.episodic_store.store(episode)
+        except Exception:
+            pass
+
     def execute(self) -> str:
         """Execute all stages with deterministic routing and capability dispatch.
 
@@ -885,6 +1047,7 @@ class RunExecutor:
                 {"run_id": self.run_id, "stage_id": stage_id},
             )
             self._persist_snapshot(stage_id=stage_id)
+            self._watchdog_reset()
 
             proposals = self.route_engine.propose(
                 stage_id, self.run_id, self.action_seq
@@ -932,6 +1095,7 @@ class RunExecutor:
                 self.kernel.mark_branch_state(
                     self.run_id, stage_id, branch_id, BranchState.ACTIVE
                 )
+                self._record_skill_usage_from_proposal(proposal, stage_id)
 
                 node = TrajectoryNode(
                     node_id=deterministic_id(
@@ -1102,9 +1266,18 @@ class RunExecutor:
                             action_result_for_gate.get("failure_code")
                             or "harness_denied"
                         )
+                        # Record structured failure
+                        self._record_failure(
+                            failure_code_str=failure_code_for_gate,
+                            message=f"Action {getattr(proposal, 'action_kind', '?')} failed at stage {stage_id}",
+                            stage_id=stage_id,
+                            branch_id=branch_id,
+                        )
                     self._check_human_gate_triggers(
                         stage_id, action_result_for_gate, failure_code_for_gate
                     )
+                    # Watchdog: track action outcome and check for no-progress
+                    self._watchdog_record_and_check(success, stage_id)
                     self.action_seq += 1
                     self.optimizer.backpropagate(node, self.dag)
 
@@ -1132,6 +1305,8 @@ class RunExecutor:
                 if self.evolve_engine is not None:
                     postmortem = self._build_postmortem("failed")
                     self.evolve_engine.on_run_completed(postmortem)
+                self._finalize_skill_outcomes("failed")
+                self._build_and_store_episode("failed")
                 return "failed"
 
             self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
@@ -1158,4 +1333,6 @@ class RunExecutor:
         if self.evolve_engine is not None:
             postmortem = self._build_postmortem("completed")
             self.evolve_engine.on_run_completed(postmortem)
+        self._finalize_skill_outcomes("completed")
+        self._build_and_store_episode("completed")
         return "completed"

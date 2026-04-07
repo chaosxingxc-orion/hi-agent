@@ -31,6 +31,8 @@ class HybridRouteEngine:
         llm_engine: LLMRouteEngine | None = None,
         confidence_threshold: float = 0.7,
         gateway: LLMGateway | None = None,
+        skill_matcher: Any | None = None,
+        task_family: str = "",
     ) -> None:
         """Initialize hybrid route policy.
 
@@ -38,6 +40,8 @@ class HybridRouteEngine:
         ----------
         rule_engine:
             Deterministic rule engine.  Defaults to :class:`RuleRouteEngine`.
+            When *skill_matcher* is provided and no explicit *rule_engine* is
+            given, the default rule engine is created with the matcher.
         llm_engine:
             Pre-built LLM route engine.  When *None* but *gateway* is provided,
             an :class:`LLMRouteEngine` is created automatically using the gateway.
@@ -46,8 +50,21 @@ class HybridRouteEngine:
         gateway:
             Optional :class:`LLMGateway`.  Passed through to the LLM engine
             when *llm_engine* is not explicitly provided.
+        skill_matcher:
+            Optional :class:`~hi_agent.skill.matcher.SkillMatcher`.  Passed
+            through to the rule engine for skill-aware proposals.
+        task_family:
+            Task family string for skill applicability matching.
         """
-        self._rule_engine = rule_engine or RuleRouteEngine()
+        if rule_engine is not None:
+            self._rule_engine = rule_engine
+        else:
+            self._rule_engine = RuleRouteEngine(
+                skill_matcher=skill_matcher,
+                task_family=task_family,
+            )
+        self._skill_matcher = skill_matcher
+        self._task_family = task_family
         if llm_engine is not None:
             self._llm_engine = llm_engine
         else:
@@ -94,10 +111,23 @@ class HybridRouteEngine:
             seq=seq,
             context=context,
         )
+
+        # Annotate LLM proposals with matching skill_ids when available.
+        skill_annotation = ""
+        if self._skill_matcher is not None:
+            matched = self._skill_matcher.match(
+                task_family=self._task_family,
+                stage_id=stage_id,
+                context=context,
+            )
+            if matched:
+                skill_ids = [s.skill_id for s in matched]
+                skill_annotation = f" skills={skill_ids}"
+
         llm_proposals = [
             BranchProposal(
                 branch_id=deterministic_id(run_id, stage_id, str(seq), "llm"),
-                rationale=f"llm(conf={llm_decision.confidence:.2f}): {llm_decision.rationale}",
+                rationale=f"llm(conf={llm_decision.confidence:.2f}): {llm_decision.rationale}{skill_annotation}",
                 action_kind=llm_decision.action_kind,
             )
         ]
