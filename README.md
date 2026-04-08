@@ -31,92 +31,110 @@ python -m pytest tests/ -v
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                    hi-agent Architecture                      │
-│                                                              │
-│  Model-Driven Management                                      │
-│  ┌──────────────────────────────────────────────────┐        │
-│  │ ModelRegistry (gateway-registered, capability tags)│        │
-│  │ TierRouter (purpose→strong/medium/light)          │        │
-│  │ ModelSelector (budget-aware, downgrade/upgrade)    │        │
-│  └──────────────────────────────────────────────────┘        │
-│                                                              │
-│  Middleware Layer (independent contexts, ~86% cost savings)    │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐        │
-│  │Perception│→│ Control  │→│Execution │→│Evaluation│        │
-│  │ (light)  │ │ (medium) │ │ (dynamic)│ │ (light)  │        │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘        │
-│  5-phase lifecycle: pre_create→pre_execute→execute→          │
-│                     post_execute→pre_destroy                  │
-│  Extensible: add/replace/remove middlewares + custom hooks    │
-│                                                              │
-│  Task Management                                              │
-│  ┌──────────────────────────────────────────────────┐        │
-│  │ TaskScheduler (Superstep + Yield/Resume)          │        │
-│  │ TaskCommunicator (notifications + signals)        │        │
-│  │ TaskMonitor (heartbeat + deadlock detection)      │        │
-│  │ TrajectoryGraph (chain/tree/DAG/general)          │        │
-│  └──────────────────────────────────────────────────┘        │
-│                                                              │
-│  Context OS                                                   │
-│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌──────┐       │
-│  │Context │ │Session │ │Memory  │ │Knowledge│ │Skill │       │
-│  │Manager │ │+Resume │ │3-tier  │ │Wiki+    │ │Evolve│       │
-│  │4-level │ │Chkpoint│ │+Dream  │ │Graph+   │ │A/B   │       │
-│  │thresh. │ │        │ │        │ │4L-Retr. │ │Test  │       │
-│  └────────┘ └────────┘ └────────┘ └────────┘ └──────┘       │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                       hi-agent Architecture                         │
+│                                                                     │
+│  Model-Driven Management                                            │
+│  ┌────────────────────────────────────────────────────────────┐     │
+│  │ ModelRegistry → TierRouter → ModelSelector (budget-aware)   │     │
+│  │ LLMGateway (sync) + AsyncLLMGateway (async/httpx)          │     │
+│  │ HttpLLMGateway, HTTPGateway, AnthropicGateway, MockGateway │     │
+│  └────────────────────────────────────────────────────────────┘     │
+│                                                                     │
+│  Middleware Layer (independent contexts, ~86% cost savings)          │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐           │
+│  │Perception│→ │ Control  │→ │Execution │→ │Evaluation│           │
+│  │ (light)  │  │ (medium) │  │ (dynamic)│  │ (light)  │           │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘           │
+│  5-phase lifecycle + extensible orchestrator                        │
+│                                                                     │
+│  Task Management (asyncio-native)                                   │
+│  ┌────────────────────────────────────────────────────────────┐     │
+│  │ AsyncTaskScheduler (Semaphore backpressure, 1000+ Runs)    │     │
+│  │ GraphFactory (complexity-driven) → BudgetGuard (tier mgmt) │     │
+│  │ RestartPolicyEngine (retry/reflect/escalate/abort)         │     │
+│  │ ReflectionOrchestrator (LLM-driven failure recovery)       │     │
+│  │ TrajectoryGraph (chain/tree/DAG + backtrack edges)         │     │
+│  └────────────────────────────────────────────────────────────┘     │
+│                                                                     │
+│  Execution Modes                                                    │
+│  ┌────────────────────────────────────────────────────────────┐     │
+│  │ execute()       — linear stage traversal (S1→S5)           │     │
+│  │ execute_graph() — dynamic graph with backtrack + routing    │     │
+│  │ execute_async() — full asyncio + AsyncTaskScheduler         │     │
+│  └────────────────────────────────────────────────────────────┘     │
+│                                                                     │
+│  Context OS                                                         │
+│  ┌────────┐ ┌────────┐ ┌─────────┐ ┌─────────┐ ┌──────┐          │
+│  │Context │ │Session │ │Memory   │ │Knowledge│ │Skill │          │
+│  │Manager │ │+Resume │ │3-tier + │ │Wiki +   │ │Evolve│          │
+│  │RunCtx  │ │Chkpoint│ │AsyncComp│ │Graph +  │ │A/B   │          │
+│  │isolate │ │        │ │ressor  │ │4L-Retr. │ │Test  │          │
+│  └────────┘ └────────┘ └─────────┘ └─────────┘ └──────┘          │
+│                                                                     │
+│  Runtime Adapter                                                    │
+│  ┌────────────────────────────────────────────────────────────┐     │
+│  │ 17-method Protocol → KernelFacadeAdapter (sync)            │     │
+│  │ AsyncKernelFacadeAdapter + execute_turn() (async)          │     │
+│  │ ResilientAdapter (retry + circuit breaker + event buffer)  │     │
+│  └────────────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────┘
+        │                              │
+   agent-kernel                   agent-core
+   (durable runtime)         (capability modules)
 ```
 
-## Three Management Domains
+## Three-Repository Architecture
 
-### 1. Model-Driven Management
+| Repository | Role |
+|-----------|------|
+| **hi-agent** (this repo) | Sole intelligent agent — owns all cognitive logic, decision making, graph scheduling, restart policy, reflection |
+| **agent-kernel** | Durable runtime substrate — run lifecycle, TurnEngine, event log, idempotency, state tracking (TaskRegistry, TaskWatchdog) |
+| **agent-core** | Reusable capability modules — tools, retrieval, MCP, workflows |
 
-Models are **registered at runtime by LLM gateways**, not hardcoded. Each model carries capability tags (tier, cost, speed, context window, capabilities).
+## Model-Driven Management
 
-```
-Gateway registers: claude-opus-4 (strong, $15/Mtok), gpt-4o-mini (light, $0.15/Mtok)
-                         │
-TierRouter maps:   perception→light, control→medium, execution→dynamic, evaluation→light
-                         │
-ModelSelector:     budget=$10 → select cheapest in tier → auto-downgrade if over budget
-```
-
-**Cost savings: ~81%** vs all-strong model usage.
-
-### 2. Middleware Layer
-
-Four middlewares with **independent context windows** (no shared LLM context):
-
-| Middleware | Tier | Context | Responsibility |
-|-----------|------|---------|----------------|
-| Perception | light (~3K tok) | Input + session summary | Multimodal parse, entity extraction, summarization |
-| Control | medium (~5K tok) | Request + capabilities | Decompose → TrajectoryGraph, resource binding |
-| Execution | dynamic (~5K tok) | Current node + loaded resources | Retrieve skills/memory/knowledge, execute idempotently |
-| Evaluation | light (~2K tok) | Result + quality criteria | Quality assess, reflection→Execution, escalation→Control |
-
-**5-phase lifecycle** per middleware: `pre_create → pre_execute → execute → post_execute → pre_destroy`
-
-Hook actions: CONTINUE, MODIFY, SKIP, BLOCK, RETRY
-
-**Cost savings: ~86%** vs single shared context window.
-
-### 3. Task Management
+Models are **registered at runtime by LLM gateways**, not hardcoded. Each model carries capability tags.
 
 ```
-TrajectoryGraph (task execution plan)
+Gateway registers → ModelRegistry → TierRouter (purpose→tier) → ModelSelector (budget-aware)
+```
+
+| Protocol | Implementation | Use Case |
+|----------|---------------|----------|
+| `LLMGateway` (sync) | `HttpLLMGateway` (urllib) | Synchronous calls |
+| `AsyncLLMGateway` (async) | `HTTPGateway` (httpx pool) | Async concurrent calls |
+| — | `AnthropicGateway` | Anthropic-specific |
+
+## Task Management
+
+```
+AsyncTaskScheduler (asyncio + Semaphore backpressure)
     │
-TaskScheduler (Superstep model)
-    ├─ Find ready nodes → dispatch parallel
-    ├─ Node B needs Node C → yield_task(B, blocked_by=[C])
-    │   └─ Save B's session snapshot
-    │   └─ Schedule C
-    │   └─ C completes → resume_task(B, {C: result})
-    └─ All terminal → ScheduleResult
+    ├─ GraphFactory → complexity-driven graph templates
+    ├─ BudgetGuard → tier downgrade + optional node skip
+    ├─ RestartPolicyEngine → retry / reflect / escalate / abort
+    │   └─ ReflectionOrchestrator → LLM-driven failure recovery
+    │       └─ ReflectionBridge → build failure context for model
+    └─ RunContext → per-run state isolation + serialization
+        └─ RunContextManager → concurrent run management
 ```
 
-- **TaskCommunicator**: Notifications (state changes) + Signals (commands) + Broadcast
-- **TaskMonitor**: Heartbeat tracking, timeout-based stuck detection, DFS deadlock detection
+Three execution modes:
+
+| Mode | Method | Use Case |
+|------|--------|----------|
+| Linear | `execute()` | Sequential S1→S5 stage traversal |
+| Graph-driven | `execute_graph()` | Dynamic traversal with backtrack edges + multi-successor routing |
+| Async | `execute_async()` | Full asyncio with AsyncTaskScheduler + KernelFacade |
+
+## Capability Subsystem
+
+| Component | Sync | Async |
+|-----------|------|-------|
+| Invoker | `CapabilityInvoker` (ThreadPool timeout, retry) | `AsyncCapabilityInvoker` (asyncio.wait_for, exponential backoff) |
+| Circuit Breaker | `CircuitBreaker` (closed→open→half_open with cooldown) | Same (shared) |
+| Registry | `CapabilityRegistry` (named handlers) | Same (shared) |
 
 ## Context OS
 
@@ -126,31 +144,49 @@ TaskScheduler (Superstep model)
 Run → checkpoint every Stage (JSON) → crash → resume → skip completed → continue
 ```
 
-### Memory (three-tier with Dream)
+### Memory (three-tier with async compression)
 
 ```
 Run ends → auto-build ShortTermMemory
 POST /memory/dream → DreamConsolidator → DailySummary
-POST /memory/consolidate → LongTermConsolidator → Graph nodes
+AsyncMemoryCompressor → LLM-powered L1 summarization (fallback: concat)
 Next Run → RetrievalEngine (4-layer) → routing context
 ```
 
 ### Knowledge (wiki + graph + four-layer retrieval)
 
 ```
+Query → L1:grep → L2:BM25 → L3:graph traverse → L4:embedding(optional)
 Run ends → auto-ingest findings→wiki, facts→graph, feedback→user profile
-Query → L1:grep → L2:BM25 → L3:graph traverse+Mermaid → L4:embedding(optional)
-POST /knowledge/sync → graph→wiki pages + rebuild index
 ```
 
 ### Skill (evolution pipeline)
 
 ```
-SKILL.md discovery → SkillLoader (token-budget binary search: full/compact)
+SKILL.md discovery → SkillLoader (token-budget binary search)
 Execution → SkillObserver (async JSONL) → SkillMetrics
 Analysis → SkillEvolver: textual gradient→new prompt / pattern→new skill
-Deploy → SkillVersionManager: challenger@v1.3 (10% traffic) vs champion@v1.2
+Deploy → SkillVersionManager: challenger vs champion (A/B traffic split)
 ```
+
+## Safety Mechanisms
+
+- **CircuitBreaker**: closed→open→half_open with configurable cooldown
+- **Dead-end detection**: Integrated into runner stage loop
+- **Runner exception protection**: Top-level try/except wrapping stage execution
+- **Exponential backoff**: AsyncCapabilityInvoker with jitter
+- **Resilient adapter**: Retry + circuit breaker + event buffer for kernel calls
+
+## Engineering Gates (all passed)
+
+| Gate | Description | Key Deliverables |
+|------|-------------|------------------|
+| 1 | Async foundation | AsyncTaskScheduler, EventBus, httpx gateway |
+| 2 | Kernel integration | AsyncKernelFacadeAdapter, execute_turn() |
+| 3 | LLM wiring | AsyncLLMGateway, HTTPGateway.complete(), AsyncMemoryCompressor |
+| 4 | Safety mechanisms | AsyncCapabilityInvoker, runner exception protection |
+| 5 | Graph-driven execution | execute_graph(), backtrack edges, multi-successor routing |
+| 6 | Concurrent isolation | RunContext, RunContextManager, per-run state serialization |
 
 ## API Endpoints (20+)
 
@@ -161,6 +197,7 @@ Knowledge:  POST /knowledge/ingest, /ingest-structured, GET /query, POST /sync, 
 Skills:     GET /skills/list, /skills/{id}/metrics, /skills/{id}/versions,
             POST /skills/evolve, /skills/{id}/optimize, /skills/{id}/promote, GET /skills/status
 Context:    GET /context/health
+SSE:        GET /events/stream (real-time event streaming)
 ```
 
 ## Configuration
@@ -177,12 +214,11 @@ config = TraceConfig.from_env()  # HI_AGENT_* prefix
 
 | Metric | Value |
 |--------|-------|
-| Source files | 238 |
-| Test files | 193 |
-| Source LOC | 32,317 |
-| Tests | 1,975 passing |
-| Modules | 29 |
-| External deps | 0 |
+| Source modules | 252 |
+| Source LOC | ~34,000 |
+| Test LOC | ~35,000 |
+| Tests | 2,067 passing |
+| External deps | 0 (httpx optional) |
 | Config params | 95+ |
 | API endpoints | 20+ |
 
@@ -191,5 +227,18 @@ config = TraceConfig.from_env()  # HI_AGENT_* prefix
 | Document | Description |
 |----------|-------------|
 | `architecture-review/` | Architecture design baseline (V2.0) |
-| `docs/module-evolution-analysis.md` | Module gap analysis against P1/P2 principles |
-| `docs/agent-kernel-integration-proposal.md` | 6-point kernel integration plan |
+| `docs/superpowers/specs/` | Parallel scalability design spec |
+| `docs/superpowers/plans/` | Implementation plans |
+| `docs/module-evolution-analysis.md` | Module gap analysis against P1/P2 |
+| `docs/agent-kernel-integration-proposal.md` | Kernel integration plan |
+
+## Human Gate Types
+
+- **Gate A** (`contract_correction`) — modify task contract mid-run
+- **Gate B** (`route_direction`) — guide path selection
+- **Gate C** (`artifact_review`) — review/edit outputs
+- **Gate D** (`final_approval`) — gate high-risk final actions
+
+## Standard Failure Codes
+
+`missing_evidence`, `invalid_context`, `harness_denied`, `model_output_invalid`, `model_refusal`, `callback_timeout`, `no_progress`, `contradictory_evidence`, `unsafe_action_blocked`, `budget_exhausted`
