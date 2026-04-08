@@ -10,4 +10,4 @@ build/
 venv/
 .env
 .hi_agent/
-checkpoint_run-*.json
+checkpoint_*.json
