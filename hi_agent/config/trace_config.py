@@ -155,6 +155,10 @@ class TraceConfig:
     # --- Gate (NEW) ---
     gate_default_timeout_seconds: float = 300.0
 
+    # --- Async scheduler (NEW) ---
+    max_concurrency: int = 64        # AsyncTaskScheduler Semaphore limit
+    kernel_backend: str = "mock"     # "mock" | "local" | "postgres"
+
     # ------------------------------------------------------------------
     # Factory methods
     # ------------------------------------------------------------------

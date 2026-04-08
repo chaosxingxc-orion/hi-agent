@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -1836,3 +1837,62 @@ class RunExecutor:
 
         # 8. Execute remaining stages only
         return executor._execute_remaining()
+
+
+# ---------------------------------------------------------------------------
+# Async execution support
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RunResult:
+    run_id: str
+    success: bool
+    completed_nodes: list[str] = field(default_factory=list)
+
+
+async def execute_async(
+    executor: RunExecutor,
+    *,
+    max_concurrency: int = 64,
+) -> RunResult:
+    """Execute a RunExecutor using AsyncTaskScheduler and KernelFacade.
+
+    This is a standalone async function (not a method) to avoid mutating
+    the existing RunExecutor class interface. Call it as::
+
+        result = await execute_async(executor, max_concurrency=8)
+    """
+    from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
+    from hi_agent.task_mgmt.graph_factory import GraphFactory, ComplexityScore
+
+    scheduler = AsyncTaskScheduler(
+        kernel=executor.kernel, max_concurrency=max_concurrency
+    )
+
+    complexity = ComplexityScore(score=0.5)
+    graph = GraphFactory().build(executor.contract, complexity)
+
+    run_id = deterministic_id(executor.contract.task_id, "run")
+    await executor.kernel.start_run(
+        run_id=run_id,
+        session_id=run_id,
+        metadata={"goal": executor.contract.goal},
+    )
+
+    async def make_handler(node_id: str):
+        async def handler(action, grant):
+            return {"node_id": node_id, "status": "completed"}
+        return handler
+
+    schedule_result = await scheduler.run(
+        graph=graph,
+        run_id=run_id,
+        make_handler=make_handler,
+    )
+
+    return RunResult(
+        run_id=run_id,
+        success=schedule_result.success,
+        completed_nodes=schedule_result.completed_nodes,
+    )
