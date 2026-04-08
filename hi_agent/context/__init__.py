@@ -13,6 +13,7 @@ from hi_agent.context.manager import (
     ContextSection,
     ContextSnapshot,
 )
+from hi_agent.context.run_context import RunContext, RunContextManager
 
 __all__ = [
     "ContextBudget",
@@ -22,4 +23,6 @@ __all__ = [
     "ContextMonitor",
     "ContextSection",
     "ContextSnapshot",
+    "RunContext",
+    "RunContextManager",
 ]

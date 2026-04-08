@@ -35,6 +35,7 @@ from hi_agent.capability import (
     CircuitBreaker,
     register_default_capabilities,
 )
+from hi_agent.context.run_context import RunContext
 from hi_agent.contracts import (
     BranchState,
     CTSExplorationBudget,
@@ -116,6 +117,7 @@ class RunExecutor:
         retrieval_engine: Any | None = None,  # RetrievalEngine
         knowledge_manager: Any | None = None,  # KnowledgeManager
         context_manager: Any | None = None,  # ContextManager
+        run_context: RunContext | None = None,
     ) -> None:
         """Initialize run executor state.
 
@@ -247,6 +249,21 @@ class RunExecutor:
         # --- Context manager: unified context orchestration (additive) ---
         self.context_manager = context_manager
 
+        # --- RunContext: per-run state container (additive) ---
+        self.run_context = run_context
+        if self.run_context is not None:
+            # Sync initial state from RunContext
+            self.dag = self.run_context.dag
+            self.stage_summaries = self.run_context.stage_summaries
+            self.action_seq = self.run_context.action_seq
+            self.branch_seq = self.run_context.branch_seq
+            self.decision_seq = self.run_context.decision_seq
+            self.current_stage = self.run_context.current_stage
+            self._total_branches_opened = self.run_context.total_branches_opened
+            self._stage_active_branches = self.run_context.stage_active_branches
+            self._gate_seq = self.run_context.gate_seq
+            self._skill_ids_used = self.run_context.skill_ids_used
+
         # --- Wire session context into route engine (compression pipeline) ---
         self._auto_compress: Any | None = None
         self._cost_calculator: Any | None = None
@@ -346,6 +363,21 @@ class RunExecutor:
     @run_id.setter
     def run_id(self, value: str) -> None:
         self._run_id = value
+
+    def _sync_to_context(self) -> None:
+        """Sync mutable state back to RunContext if present."""
+        if self.run_context is None:
+            return
+        self.run_context.dag = self.dag
+        self.run_context.stage_summaries = self.stage_summaries
+        self.run_context.action_seq = self.action_seq
+        self.run_context.branch_seq = self.branch_seq
+        self.run_context.decision_seq = self.decision_seq
+        self.run_context.current_stage = self.current_stage
+        self.run_context.total_branches_opened = self._total_branches_opened
+        self.run_context.stage_active_branches = self._stage_active_branches
+        self.run_context.gate_seq = self._gate_seq
+        self.run_context.skill_ids_used = self._skill_ids_used
 
     def _make_branch_id(self, stage_id: str) -> str:
         """Generate deterministic branch ID and increment counter."""
@@ -1588,6 +1620,7 @@ class RunExecutor:
                 "recovery_failed",
                 {"stage_id": stage_id},
             )
+            self._sync_to_context()
             return "failed"
 
         self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
@@ -1603,6 +1636,7 @@ class RunExecutor:
             "stage_completed",
             {"run_id": self.run_id, "stage_id": stage_id},
         )
+        self._sync_to_context()
         return None  # stage completed OK, continue
 
     def _finalize_run(self, outcome: str) -> str:
@@ -1665,6 +1699,7 @@ class RunExecutor:
                 })
             except Exception:
                 pass
+        self._sync_to_context()
         return outcome
 
     def execute(self) -> str:
@@ -1697,12 +1732,109 @@ class RunExecutor:
             },
         )
 
-        for stage_id in self.stage_graph.trace_order():
-            stage_result = self._execute_stage(stage_id)
-            if stage_result == "failed":
-                return self._finalize_run("failed")
+        try:
+            for stage_id in self.stage_graph.trace_order():
+                stage_result = self._execute_stage(stage_id)
+                if stage_result == "failed":
+                    return self._finalize_run("failed")
+        except Exception as exc:
+            self._record_event("RunError", {"error": str(exc), "run_id": self.run_id})
+            return self._finalize_run("failed")
 
         return self._finalize_run("completed")
+
+    def execute_graph(self) -> str:
+        """Execute stages using dynamic graph traversal.
+
+        Instead of pre-computing trace_order(), follows successors()
+        dynamically after each stage completes. Uses route_engine to
+        choose among multiple successors when available.
+        """
+        self._run_id = self.kernel.start_run(self.contract.task_id)
+        if self.session is not None:
+            try:
+                self.session.run_id = self._run_id
+            except Exception:
+                pass
+        self._record_event(
+            "RunStarted",
+            {
+                "run_id": self.run_id,
+                "task_id": self.contract.task_id,
+                "policy_versions": {
+                    "route_policy": self.policy_versions.route_policy,
+                    "acceptance_policy": self.policy_versions.acceptance_policy,
+                    "memory_policy": self.policy_versions.memory_policy,
+                    "evaluation_policy": self.policy_versions.evaluation_policy,
+                    "task_view_policy": self.policy_versions.task_view_policy,
+                    "skill_policy": self.policy_versions.skill_policy,
+                },
+            },
+        )
+
+        # Find start stage (zero indegree)
+        current_stage = self._find_start_stage()
+        completed_stages: set[str] = set()
+        max_steps = len(self.stage_graph.transitions) * 2  # safety limit
+        steps = 0
+
+        while current_stage is not None and steps < max_steps:
+            steps += 1
+            result = self._execute_stage(current_stage)
+            if result == "failed":
+                backtrack = self.stage_graph.get_backtrack(current_stage)
+                if backtrack and backtrack not in completed_stages:
+                    # Backtrack: re-execute a previous stage
+                    current_stage = backtrack
+                    continue
+                return self._finalize_run("failed")
+            completed_stages.add(current_stage)
+
+            # Get next stage from graph
+            successors = self.stage_graph.successors(current_stage)
+            candidates = successors - completed_stages
+
+            if not candidates:
+                # No more stages to run
+                break
+
+            if len(candidates) == 1:
+                current_stage = next(iter(candidates))
+            else:
+                # Multiple successors: use route engine or pick lexically
+                current_stage = self._select_next_stage(candidates)
+
+        return self._finalize_run("completed")
+
+    def _find_start_stage(self) -> str | None:
+        """Find start stage (zero indegree) from stage graph."""
+        if not self.stage_graph.transitions:
+            return None
+        indegree: dict[str, int] = dict.fromkeys(self.stage_graph.transitions, 0)
+        for targets in self.stage_graph.transitions.values():
+            for t in targets:
+                indegree[t] = indegree.get(t, 0) + 1
+        roots = sorted(s for s, c in indegree.items() if c == 0)
+        return roots[0] if roots else sorted(self.stage_graph.transitions)[0]
+
+    def _select_next_stage(self, candidates: set[str]) -> str:
+        """Select next stage from multiple candidates.
+
+        Delegates to route_engine if it has a select_stage method,
+        otherwise picks the lexicographically first candidate.
+        """
+        if hasattr(self.route_engine, "select_stage") and callable(
+            getattr(self.route_engine, "select_stage")
+        ):
+            try:
+                return self.route_engine.select_stage(
+                    candidates=sorted(candidates),
+                    run_id=self.run_id,
+                    completed_stages=list(self.stage_summaries.keys()),
+                )
+            except Exception:
+                pass
+        return sorted(candidates)[0]
 
     def _execute_remaining(self) -> str:
         """Execute stages that haven't been completed yet.

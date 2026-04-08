@@ -25,6 +25,7 @@ class StageGraph:
     """Directed graph of stage transitions."""
 
     transitions: dict[str, set[str]] = field(default_factory=dict)
+    backtrack_edges: dict[str, str] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     # Core graph operations
@@ -38,6 +39,14 @@ class StageGraph:
     def successors(self, stage_id: str) -> set[str]:
         """Return outgoing transitions from stage."""
         return self.transitions.get(stage_id, set())
+
+    def add_backtrack(self, source: str, target: str) -> None:
+        """Add backtrack edge (failure recovery path)."""
+        self.backtrack_edges[source] = target
+
+    def get_backtrack(self, stage_id: str) -> str | None:
+        """Return backtrack target for a stage, or None."""
+        return self.backtrack_edges.get(stage_id)
 
     # ------------------------------------------------------------------
     # Legacy helpers (kept for backward compatibility)
