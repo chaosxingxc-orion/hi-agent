@@ -472,6 +472,156 @@ Exact match at line 2570 of `contracts.py`.
 
 ---
 
+### 7. Task-Level Yield/Resume Support (NEW — from Task Management layer)
+
+#### Why needed
+
+hi-agent's `TaskScheduler` implements a Superstep execution model where individual task nodes within a run can **yield** when blocked by dependencies, and **resume** when dependencies complete. Currently, agent-kernel only supports run-level wait/resume via `signal_run`. Task-level yield/resume is finer-grained.
+
+**Scenario:**
+```
+Run R1 contains TrajectoryGraph: A → B → D, A → C → D
+  - Node B starts, discovers it needs C's result → yield_task(B)
+  - Scheduler saves B's session_snapshot (context, progress, partial results)
+  - C executes and completes
+  - Scheduler resumes B with C's result injected
+```
+
+The session_snapshot for a yielded task must survive process restarts for durable execution.
+
+#### Proposed modification
+
+**Option A (minimal — hi-agent manages task state):**
+- hi-agent stores task-level snapshots in its own persistence (JSON files, already implemented in `TaskHandle.session_snapshot`)
+- Kernel only handles run-level wait/resume
+- **Pro:** No kernel changes. **Con:** Task state not durable if both hi-agent and kernel restart.
+
+**Option B (kernel-aware task graph):**
+- Extend `KernelFacade` with task-graph awareness:
+  ```python
+  async def save_task_snapshot(self, run_id: str, task_id: str, snapshot: dict) -> None:
+      """Persist task-level snapshot in run's event log."""
+  
+  async def load_task_snapshot(self, run_id: str, task_id: str) -> dict | None:
+      """Restore task-level snapshot from event log."""
+  ```
+- These snapshots are stored as events in the run's event log (append-only, replayable)
+- **Pro:** Full durability. **Con:** Kernel needs to understand task-level granularity.
+
+**Recommendation:** Start with **Option A** (hi-agent manages), migrate to **Option B** when durable task-level execution is needed.
+
+---
+
+### 8. Dynamic Stage/Node Creation (NEW — from TrajectoryGraph)
+
+#### Why needed
+
+hi-agent's `TrajectoryGraph` replaces the fixed S1→S5 stage sequence with **arbitrary graph topologies** (chain, tree, DAG, general graph with backtrack edges). Stage IDs are no longer limited to `S1_understand`, `S2_gather`, etc. — they can be any string (e.g., `analyze_revenue`, `fetch_data_api`, `generate_report`).
+
+agent-kernel's `open_stage(stage_id, run_id)` already accepts arbitrary strings, but:
+
+1. `KernelManifest.default_stages` may validate against a fixed set
+2. Stage-related projections may assume sequential ordering
+3. The `TraceStageView` list in `query_trace_runtime` may not handle 20+ dynamic stages efficiently
+
+#### Proposed modification
+
+- Ensure `open_stage` accepts any valid string ID without validation against a preset list
+- Ensure `TraceRuntimeView.stages` can hold variable-length stage lists (no hardcoded cap)
+- Add optional `stage_metadata` parameter to `open_stage`:
+  ```python
+  async def open_stage(self, stage_id: str, run_id: str, 
+                       metadata: dict | None = None) -> None:
+      """metadata can include: node_type, parent_stage_id, estimated_duration"""
+  ```
+- This is likely already supported (stage_id is just a string), but needs explicit confirmation and test coverage.
+
+---
+
+### 9. Background Job Scheduling (NEW — from Memory/Knowledge/Skill lifecycle)
+
+#### Why needed
+
+hi-agent has three periodic background jobs that should ideally run as durable activities:
+
+1. **Dream consolidation** (`POST /memory/dream`): Short-term → mid-term memory. Should run daily.
+2. **Knowledge consolidation** (`POST /memory/consolidate`): Mid-term → long-term graph. Should run weekly.
+3. **Skill evolution** (`POST /skills/evolve`): Analyze observations → optimize/create skills. Should run after N runs.
+
+Currently these are triggered via HTTP API (manual or cron). For production, they should be durable (survive process restarts, retry on failure).
+
+#### Proposed modification
+
+**Option A (Temporal scheduled workflows):**
+- Register each background job as a Temporal workflow:
+  ```python
+  @workflow.defn
+  class DreamConsolidationWorkflow:
+      @workflow.run
+      async def run(self, date: str | None = None) -> dict:
+          return await workflow.execute_activity(
+              dream_activity, date, 
+              start_to_close_timeout=timedelta(minutes=10)
+          )
+  ```
+- Schedule via Temporal's cron syntax: `"0 2 * * *"` (daily at 2am)
+
+**Option B (agent-kernel job scheduler):**
+- Extend `KernelFacade` with a simple job scheduler:
+  ```python
+  async def schedule_background_job(self, job_id: str, cron: str, 
+                                     callback_signal: str) -> None:
+  ```
+- Kernel fires a signal to the designated run/handler when cron triggers
+
+**Recommendation:** **Option A** if Temporal is available (production). For local dev, hi-agent's existing `MemoryLifecycleManager` with external cron is sufficient.
+
+---
+
+### 10. Middleware-Level Event Tagging (NEW — from Middleware architecture)
+
+#### Why needed
+
+hi-agent's four middlewares (Perception, Control, Execution, Evaluation) each produce events independently. When these events flow to agent-kernel's event log, it's useful to know which middleware produced them for:
+- Postmortem analysis (which middleware failed?)
+- Cost attribution (which middleware consumed most tokens?)
+- Debugging (filter events by middleware)
+
+#### Proposed modification
+
+Extend `RuntimeEvent` with optional middleware source tag:
+```python
+@dataclass
+class RuntimeEvent:
+    # ... existing fields ...
+    middleware_source: str | None = None  # "perception", "control", "execution", "evaluation"
+```
+
+This is a backward-compatible additive field. Events without the tag are treated as run-level events (same as today). hi-agent's adapter layer populates this field when emitting events from middleware execution.
+
+**Alternatively**, this can be handled entirely in hi-agent by including `middleware_source` in the event payload dict (no kernel change needed). **Recommendation:** Payload-level tagging (no kernel change required).
+
+---
+
+## Updated Modification Summary
+
+| # | Modification | Kernel change needed? | Priority |
+|---|-------------|----------------------|----------|
+| 1 | HTTP/gRPC Service Layer | **Yes** (new service) | P0 |
+| 2 | TRACE Protocol V1.2.1→V2.8 | **Yes** (enum + version bump) | P0 |
+| 3 | Evolve Postmortem Query | **Yes** (new facade method) | P1 |
+| 4 | Child Run Orchestration | **Yes** (extend SpawnChildRunRequest) | P1 |
+| 5 | PolicyVersionSet Alignment | **Yes** (add 2 fields) | P0 |
+| 6 | State Machine Alignment | **No** (adapter handles) | — |
+| 7 | Task-Level Yield/Resume | **No** (hi-agent manages, Option A) | — |
+| 8 | Dynamic Stage Creation | **Confirm** (likely already works) | P1 |
+| 9 | Background Job Scheduling | **Optional** (Temporal cron or external) | P2 |
+| 10 | Middleware Event Tagging | **No** (payload-level tagging) | — |
+
+**Net: 4 kernel changes required (items 1,2,3,5), 1 confirmation needed (item 8), 1 optional (item 9), 4 handled by hi-agent adapter.**
+
+---
+
 ## Integration Plan
 
 ### Step 1: In-Process Direct Mode (Development)
