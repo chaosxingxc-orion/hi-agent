@@ -35,7 +35,14 @@
       "WebFetch(domain:www.npmjs.com)",
       "Bash(git clone:*)",
       "Bash(claude reload-plugins:*)",
-      "Bash(claude /reload-plugins)"
+      "Bash(claude /reload-plugins)",
+      "Bash(grep -n \"async def append\\\\|def append\" agent_kernel/kernel/persistence/*.py agent_kernel/kernel/*.py)",
+      "Bash(grep -l \"LocalFSM\\\\|LocalWorkflow\\\\|local_kernel\\\\|local_facade\" python_tests/**/*.py)",
+      "Bash(rm agent_kernel/kernel/plan_executor.py)",
+      "Bash(rm agent_kernel/kernel/plan_type_registry.py)",
+      "Bash(rm:*)",
+      "Bash(echo \"Cleaned $\\(find . -name \"*.pyc\")",
+      "Bash(git ls-files:*)"
     ]
   }
 }
