@@ -379,6 +379,37 @@ class RunExecutor:
         self.run_context.gate_seq = self._gate_seq
         self.run_context.skill_ids_used = self._skill_ids_used
 
+    def _track_llm_cost(self, response: Any, purpose: str = "action") -> None:
+        """Record LLM call cost from response if cost tracking is available."""
+        if self._cost_calculator is None or self.session is None:
+            return
+        try:
+            usage = getattr(response, "usage", None)
+            if usage is None:
+                return
+            prompt_tokens = getattr(usage, "prompt_tokens", 0)
+            completion_tokens = getattr(usage, "completion_tokens", 0)
+            model = getattr(response, "model", "unknown")
+            cost = self._cost_calculator.calculate(
+                model=model,
+                input_tokens=prompt_tokens,
+                output_tokens=completion_tokens,
+            )
+            from hi_agent.session.run_session import LLMCallRecord
+
+            record = LLMCallRecord(
+                call_id=deterministic_id(self.run_id, model, str(prompt_tokens)),
+                purpose=purpose,
+                stage_id=self.current_stage or "",
+                model=model,
+                input_tokens=prompt_tokens,
+                output_tokens=completion_tokens,
+                cost_usd=cost,
+            )
+            self.session.record_llm_call(record)
+        except Exception:
+            pass
+
     def _make_branch_id(self, stage_id: str) -> str:
         """Generate deterministic branch ID and increment counter."""
         bid = f"{self.run_id}:{stage_id}:b{self.branch_seq:03d}"

@@ -14,11 +14,20 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
+
+
+@dataclass
+class _SimpleTurnResult:
+    """Fallback result for execute_turn when facade lacks the method."""
+
+    outcome_kind: str
+    result: Any = None
 
 
 class KernelFacadeAdapter:
@@ -273,6 +282,36 @@ class KernelFacadeAdapter:
         Delegates to ``facade.submit_approval(request)``.
         """
         self._call("submit_approval", request)
+
+    # ------------------------------------------------------------------
+    # Turn execution
+    # ------------------------------------------------------------------
+
+    async def execute_turn(
+        self,
+        *,
+        run_id: str,
+        action: Any,
+        handler: Any,
+        idempotency_key: str,
+    ) -> Any:
+        """Forward execute_turn to facade.
+
+        Falls back to a simple handler call if the facade doesn't
+        implement execute_turn.
+        """
+        method = getattr(self._facade, "execute_turn", None)
+        if callable(method):
+            return await method(
+                run_id=run_id,
+                action=action,
+                handler=handler,
+                idempotency_key=idempotency_key,
+            )
+        # Fallback: just call handler directly (for facades without execute_turn)
+        result = await handler(action, None)
+        # Return a simple result object
+        return _SimpleTurnResult(outcome_kind="dispatched", result=result)
 
     # ------------------------------------------------------------------
     # Plan & manifest

@@ -55,6 +55,18 @@ class LLMResponse:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+class AsyncLLMGateway(Protocol):
+    """Async version of LLMGateway for use with asyncio contexts."""
+
+    async def complete(self, request: LLMRequest) -> LLMResponse:
+        """Send a completion request and return the response."""
+        ...
+
+    def supports_model(self, model: str) -> bool:
+        """Return whether this gateway can serve the given model."""
+        ...
+
+
 class LLMGateway(Protocol):
     """Provider-decoupled LLM Gateway protocol.
 

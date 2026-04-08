@@ -120,11 +120,21 @@ class HttpLLMGateway:
 
 
 class HTTPGateway:
-    """OpenAI-compatible async LLM gateway using httpx connection pool."""
+    """OpenAI-compatible async LLM gateway using httpx connection pool.
 
-    def __init__(self, base_url: str, api_key: str, timeout: float = 120.0) -> None:
+    Implements :class:`AsyncLLMGateway` protocol for use in async contexts.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        timeout: float = 120.0,
+        default_model: str = "gpt-4o",
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
+        self._default_model = default_model
         # Shared AsyncClient = connection pool reused across all calls
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
@@ -136,7 +146,33 @@ class HTTPGateway:
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
         )
 
+    # -- AsyncLLMGateway protocol ----------------------------------------------
+
+    async def complete(self, request: LLMRequest) -> LLMResponse:
+        """Implement AsyncLLMGateway protocol."""
+        model = request.model if request.model != "default" else self._default_model
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": request.messages,
+            "temperature": request.temperature,
+            "max_tokens": request.max_tokens,
+        }
+        if request.stop_sequences:
+            payload["stop"] = request.stop_sequences
+
+        response = await self._client.post("/v1/chat/completions", json=payload)
+        response.raise_for_status()
+        raw = response.json()
+        return HttpLLMGateway._parse_response(raw, model)
+
+    def supports_model(self, model: str) -> bool:  # noqa: ARG002
+        """Return ``True``; the HTTP gateway delegates model validation to the provider."""
+        return True
+
+    # -- Legacy call interface -------------------------------------------------
+
     async def call(self, model_id: str, messages: list[dict], **kwargs) -> dict:
+        """Legacy call method for backward compatibility."""
         payload = {"model": model_id, "messages": messages, **kwargs}
         response = await self._client.post("/v1/messages", json=payload)
         response.raise_for_status()

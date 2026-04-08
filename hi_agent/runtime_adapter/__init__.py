@@ -1,5 +1,8 @@
 ﻿"""Runtime adapter package."""
 
+from hi_agent.runtime_adapter.async_kernel_facade_adapter import (
+    AsyncKernelFacadeAdapter,
+)
 from hi_agent.runtime_adapter.consistency import (
     ConsistencyIssue,
     FileBackedConsistencyJournal,
@@ -58,6 +61,7 @@ from hi_agent.runtime_adapter.temporal_health import (
 __all__ = [
     "AdapterHealthMonitor",
     "AdapterMetrics",
+    "AsyncKernelFacadeAdapter",
     "CircuitOpenError",
     "ConsistencyIssue",
     "ConsistencyIssueStatus",

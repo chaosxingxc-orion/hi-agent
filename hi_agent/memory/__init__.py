@@ -1,5 +1,6 @@
 """Memory subsystem exports."""
 
+from hi_agent.memory.async_compressor import AsyncMemoryCompressor, CompressionResult
 from hi_agent.memory.compress_prompts import STAGE_COMPRESSION_PROMPT
 from hi_agent.memory.compressor import CompressionMetrics, MemoryCompressor
 from hi_agent.memory.episode_builder import EpisodeBuilder
@@ -19,8 +20,10 @@ from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
 from hi_agent.memory.unified_retriever import MemoryContext, UnifiedMemoryRetriever
 
 __all__ = [
+    "AsyncMemoryCompressor",
     "CompressedStageMemory",
     "CompressionMetrics",
+    "CompressionResult",
     "DailySummary",
     "DreamConsolidator",
     "EpisodeBuilder",
