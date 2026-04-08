@@ -1,0 +1,524 @@
+"""Extensible middleware orchestrator with 5-phase lifecycle.
+
+The orchestrator IS a TrajectoryGraph. Users can:
+  - add/replace/remove middlewares
+  - insert custom middlewares at any position
+  - register hooks at any lifecycle phase of any middleware
+  - modify the flow graph (add routes, conditions)
+  - visualize the flow as Mermaid
+
+Default flow: perception -> control -> execution -> evaluation
+  with escalation (eval->control) and reflection (eval->execution) loops.
+"""
+from __future__ import annotations
+
+from typing import Any, Callable
+
+from hi_agent.middleware.protocol import (
+    HookAction,
+    HookResult,
+    LifecycleHook,
+    LifecyclePhase,
+    MiddlewareMessage,
+)
+from hi_agent.trajectory.graph import (
+    EdgeType,
+    TrajEdge,
+    TrajNode,
+    TrajectoryGraph,
+)
+
+
+class PipelineBlockedError(Exception):
+    """Raised when a hook BLOCKs the pipeline."""
+
+
+class MiddlewareOrchestrator:
+    """Extensible middleware orchestrator with 5-phase lifecycle hooks."""
+
+    def __init__(self) -> None:
+        self._middlewares: dict[str, Any] = {}  # name -> middleware instance
+        self._hooks: dict[str, list[LifecycleHook]] = {}  # middleware_name -> hooks
+        self._global_hooks: dict[LifecyclePhase, list[LifecycleHook]] = {
+            phase: [] for phase in LifecyclePhase
+        }
+        self._flow_graph: TrajectoryGraph = TrajectoryGraph("middleware_flow")
+        self._flow_order: list[str] = []  # ordered middleware names for traversal
+        self._message_log: list[MiddlewareMessage] = []
+        self._middleware_metrics: dict[str, dict[str, Any]] = {}
+        self._middleware_configs: dict[str, dict[str, Any]] = {}
+        self._setup_default_flow()
+
+    # --- Default flow ---
+
+    def _setup_default_flow(self) -> None:
+        """perception -> control -> execution -> evaluation + feedback loops."""
+        default_names = ["perception", "control", "execution", "evaluation"]
+        for name in default_names:
+            node = TrajNode(node_id=name, node_type="middleware")
+            self._flow_graph.add_node(node)
+            self._hooks[name] = []
+            self._middleware_metrics[name] = {
+                "calls": 0, "tokens": 0, "errors": 0,
+            }
+
+        # Linear flow
+        self._flow_graph.add_sequence("perception", "control")
+        self._flow_graph.add_sequence("control", "execution")
+        self._flow_graph.add_sequence("execution", "evaluation")
+
+        # Feedback loops as backtrack edges
+        self._flow_graph.add_backtrack(
+            "evaluation", "execution", desc="reflection",
+        )
+        self._flow_graph.add_backtrack(
+            "evaluation", "control", desc="escalation",
+        )
+
+        self._flow_order = list(default_names)
+
+    # --- Middleware management ---
+
+    def register_middleware(self, name: str, mw: Any) -> None:
+        """Register a middleware. Does not change flow graph (assumes node exists)."""
+        self._middlewares[name] = mw
+        if name not in self._hooks:
+            self._hooks[name] = []
+        if name not in self._middleware_metrics:
+            self._middleware_metrics[name] = {
+                "calls": 0, "tokens": 0, "errors": 0,
+            }
+
+    def replace_middleware(self, name: str, mw: Any) -> None:
+        """Replace an existing middleware instance."""
+        if name not in self._middlewares:
+            raise KeyError(f"Middleware '{name}' not registered")
+        self._middlewares[name] = mw
+
+    def add_middleware(
+        self,
+        name: str,
+        mw: Any,
+        after: str | None = None,
+        before: str | None = None,
+    ) -> None:
+        """Insert middleware into flow. Reconnects edges automatically."""
+        # Add the node
+        node = TrajNode(node_id=name, node_type="middleware")
+        self._flow_graph.add_node(node)
+        self._middlewares[name] = mw
+        self._hooks[name] = []
+        self._middleware_metrics[name] = {
+            "calls": 0, "tokens": 0, "errors": 0,
+        }
+
+        if after is not None:
+            # Insert after 'after': find outgoing SEQUENCE edge from 'after'
+            outgoing = [
+                e for e in self._flow_graph.get_outgoing(after)
+                if e.edge_type == EdgeType.SEQUENCE
+            ]
+            if outgoing:
+                next_node = outgoing[0].target
+                # Remove old edge
+                self._flow_graph.remove_edge(after, next_node)
+                # Insert: after -> name -> next_node
+                self._flow_graph.add_sequence(after, name)
+                self._flow_graph.add_sequence(name, next_node)
+            else:
+                # Just add at end
+                self._flow_graph.add_sequence(after, name)
+
+            # Update flow order
+            idx = self._flow_order.index(after) if after in self._flow_order else len(self._flow_order)
+            self._flow_order.insert(idx + 1, name)
+
+        elif before is not None:
+            # Insert before 'before': find incoming SEQUENCE edge to 'before'
+            incoming = [
+                e for e in self._flow_graph.get_incoming(before)
+                if e.edge_type == EdgeType.SEQUENCE
+            ]
+            if incoming:
+                prev_node = incoming[0].source
+                # Remove old edge
+                self._flow_graph.remove_edge(prev_node, before)
+                # Insert: prev_node -> name -> before
+                self._flow_graph.add_sequence(prev_node, name)
+                self._flow_graph.add_sequence(name, before)
+            else:
+                # Just add at beginning
+                self._flow_graph.add_sequence(name, before)
+
+            # Update flow order
+            idx = self._flow_order.index(before) if before in self._flow_order else 0
+            self._flow_order.insert(idx, name)
+        else:
+            # Append to end
+            if self._flow_order:
+                last = self._flow_order[-1]
+                self._flow_graph.add_sequence(last, name)
+            self._flow_order.append(name)
+
+    def remove_middleware(self, name: str) -> None:
+        """Remove and reconnect neighbors."""
+        if name not in self._middlewares and self._flow_graph.get_node(name) is None:
+            raise KeyError(f"Middleware '{name}' not found")
+
+        # Find incoming and outgoing SEQUENCE edges to reconnect
+        incoming_seq = [
+            e for e in self._flow_graph.get_incoming(name)
+            if e.edge_type == EdgeType.SEQUENCE
+        ]
+        outgoing_seq = [
+            e for e in self._flow_graph.get_outgoing(name)
+            if e.edge_type == EdgeType.SEQUENCE
+        ]
+
+        # Remove the node (removes all edges)
+        self._flow_graph.remove_node(name)
+
+        # Reconnect: each predecessor to each successor
+        for inc in incoming_seq:
+            for out in outgoing_seq:
+                if self._flow_graph.get_node(inc.source) and self._flow_graph.get_node(out.target):
+                    self._flow_graph.add_sequence(inc.source, out.target)
+
+        self._middlewares.pop(name, None)
+        self._hooks.pop(name, None)
+        self._middleware_metrics.pop(name, None)
+        if name in self._flow_order:
+            self._flow_order.remove(name)
+
+    # --- Lifecycle hooks ---
+
+    def add_hook(
+        self,
+        middleware_name: str,
+        phase: LifecyclePhase,
+        callback: Callable[[MiddlewareMessage, dict[str, Any]], HookResult],
+        priority: int = 0,
+        name: str = "",
+        once: bool = False,
+    ) -> None:
+        """Register a hook for a specific middleware's lifecycle phase."""
+        hook = LifecycleHook(
+            phase=phase,
+            callback=callback,
+            priority=priority,
+            name=name,
+            once=once,
+        )
+        self._hooks.setdefault(middleware_name, []).append(hook)
+
+    def add_global_hook(
+        self,
+        phase: LifecyclePhase,
+        callback: Callable[[MiddlewareMessage, dict[str, Any]], HookResult],
+        priority: int = 0,
+        name: str = "",
+    ) -> None:
+        """Register a hook that fires for ALL middlewares at given phase."""
+        hook = LifecycleHook(
+            phase=phase,
+            callback=callback,
+            priority=priority,
+            name=name,
+        )
+        self._global_hooks[phase].append(hook)
+
+    def remove_hook(self, middleware_name: str, hook_name: str) -> None:
+        """Remove a named hook from a middleware."""
+        hooks = self._hooks.get(middleware_name, [])
+        self._hooks[middleware_name] = [
+            h for h in hooks if h.name != hook_name
+        ]
+
+    # --- Flow customization ---
+
+    def add_route(
+        self,
+        source: str,
+        target: str,
+        condition: Callable[[dict[str, Any]], bool] | None = None,
+        edge_type: str = "sequence",
+    ) -> None:
+        """Add a custom route edge between middlewares."""
+        etype = EdgeType(edge_type) if edge_type in [e.value for e in EdgeType] else EdgeType.SEQUENCE
+        edge = TrajEdge(
+            source=source,
+            target=target,
+            edge_type=etype,
+            condition=condition,
+        )
+        self._flow_graph.add_edge(edge)
+
+    def remove_route(self, source: str, target: str) -> None:
+        """Remove a route between middlewares."""
+        self._flow_graph.remove_edge(source, target)
+
+    def get_flow_mermaid(self) -> str:
+        """Render the flow graph as Mermaid."""
+        return self._flow_graph.to_mermaid(title="Middleware Flow")
+
+    # --- Execution ---
+
+    def run(
+        self, user_input: str, metadata: dict[str, Any] | None = None,
+    ) -> MiddlewareMessage:
+        """Execute full pipeline with lifecycle hooks at each middleware."""
+        meta = metadata or {}
+
+        # Create initial message
+        message = MiddlewareMessage(
+            source="user",
+            target="perception",
+            msg_type="user_input",
+            payload={"user_input": user_input},
+            metadata=meta,
+        )
+        self._message_log.append(message)
+
+        current = "perception"
+        max_iterations = 50  # safety limit
+        iterations = 0
+
+        while current is not None and iterations < max_iterations:
+            iterations += 1
+
+            if current not in self._middlewares:
+                break
+
+            try:
+                message = self._execute_middleware_with_lifecycle(
+                    current, message,
+                )
+            except PipelineBlockedError:
+                break
+
+            self._message_log.append(message)
+
+            # Route to next middleware
+            current = self._route_next(current, message)
+
+        return message
+
+    def _execute_middleware_with_lifecycle(
+        self, name: str, message: MiddlewareMessage,
+    ) -> MiddlewareMessage:
+        """Execute one middleware through all 5 lifecycle phases.
+
+        1. pre_create hooks -> middleware.on_create()
+        2. pre_execute hooks -> check for SKIP/BLOCK/MODIFY
+        3. execute -> middleware.process(message) (with RETRY support)
+        4. post_execute hooks -> check for MODIFY/BLOCK
+        5. pre_destroy hooks -> middleware.on_destroy()
+
+        Hook execution order: global hooks first, then middleware-specific,
+        sorted by priority DESC.
+        """
+        mw = self._middlewares[name]
+        metrics = self._middleware_metrics.get(name, {"calls": 0, "tokens": 0, "errors": 0})
+
+        # Phase 1: PRE_CREATE
+        hook_result = self._run_hooks(name, LifecyclePhase.PRE_CREATE, message)
+        if hook_result.action == HookAction.BLOCK:
+            raise PipelineBlockedError(hook_result.reason)
+        config = self._middleware_configs.get(name, {})
+        if hasattr(mw, "on_create"):
+            mw.on_create(config)
+
+        # Phase 2: PRE_EXECUTE
+        hook_result = self._run_hooks(name, LifecyclePhase.PRE_EXECUTE, message)
+        if hook_result.action == HookAction.BLOCK:
+            raise PipelineBlockedError(hook_result.reason)
+        if hook_result.action == HookAction.SKIP:
+            # Skip this middleware, pass message through
+            metrics["calls"] += 1
+            self._middleware_metrics[name] = metrics
+            # Phase 5: PRE_DESTROY even on skip
+            self._run_hooks(name, LifecyclePhase.PRE_DESTROY, message)
+            if hasattr(mw, "on_destroy"):
+                mw.on_destroy()
+            return message
+        if hook_result.action == HookAction.MODIFY and hook_result.modified_message is not None:
+            message = hook_result.modified_message
+
+        # Phase 3: EXECUTE (with RETRY support)
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                result = mw.process(message)
+                metrics["calls"] += 1
+                metrics["tokens"] += result.token_cost
+                break
+            except Exception as exc:
+                metrics["errors"] += 1
+                if attempt == max_retries:
+                    result = MiddlewareMessage(
+                        source=name,
+                        target="error",
+                        msg_type="error",
+                        payload={"error": str(exc)},
+                        metadata=message.metadata,
+                    )
+                    break
+
+        # Run execute hooks to check for RETRY
+        exec_hook_result = self._run_hooks(name, LifecyclePhase.EXECUTE, result)
+        if exec_hook_result.action == HookAction.RETRY:
+            retry_limit = exec_hook_result.metadata.get("max_retries", 3)
+            for _retry in range(retry_limit):
+                try:
+                    result = mw.process(message)
+                    metrics["calls"] += 1
+                    metrics["tokens"] += result.token_cost
+                    break
+                except Exception:
+                    metrics["errors"] += 1
+
+        # Phase 4: POST_EXECUTE
+        hook_result = self._run_hooks(name, LifecyclePhase.POST_EXECUTE, result)
+        if hook_result.action == HookAction.BLOCK:
+            raise PipelineBlockedError(hook_result.reason)
+        if hook_result.action == HookAction.MODIFY and hook_result.modified_message is not None:
+            result = hook_result.modified_message
+
+        # Phase 5: PRE_DESTROY
+        self._run_hooks(name, LifecyclePhase.PRE_DESTROY, result)
+        if hasattr(mw, "on_destroy"):
+            mw.on_destroy()
+
+        self._middleware_metrics[name] = metrics
+        return result
+
+    def _run_hooks(
+        self,
+        middleware_name: str,
+        phase: LifecyclePhase,
+        message: MiddlewareMessage,
+    ) -> HookResult:
+        """Run all hooks for a phase. Merge results (first BLOCK/SKIP wins)."""
+        # Collect all applicable hooks
+        hooks: list[LifecycleHook] = []
+
+        # Global hooks first
+        for h in self._global_hooks.get(phase, []):
+            hooks.append(h)
+
+        # Middleware-specific hooks
+        for h in self._hooks.get(middleware_name, []):
+            if h.phase == phase:
+                hooks.append(h)
+
+        # Sort by priority DESC (higher priority first)
+        hooks.sort(key=lambda h: h.priority, reverse=True)
+
+        combined = HookResult()
+        hooks_to_remove: list[LifecycleHook] = []
+
+        ctx: dict[str, Any] = {
+            "middleware_name": middleware_name,
+            "phase": phase.value,
+        }
+
+        for hook in hooks:
+            if hook.once and hook._executed:
+                continue
+
+            result = hook.callback(message, ctx)
+            hook._executed = True
+
+            if hook.once:
+                hooks_to_remove.append(hook)
+
+            # First BLOCK wins
+            if result.action == HookAction.BLOCK:
+                return result
+
+            # First SKIP wins
+            if result.action == HookAction.SKIP:
+                return result
+
+            # RETRY is returned directly
+            if result.action == HookAction.RETRY:
+                return result
+
+            # MODIFY: apply, continue checking other hooks
+            if result.action == HookAction.MODIFY:
+                combined = result
+
+        # Remove once-hooks
+        for hook in hooks_to_remove:
+            if hook in self._global_hooks.get(phase, []):
+                self._global_hooks[phase].remove(hook)
+            mw_hooks = self._hooks.get(middleware_name, [])
+            if hook in mw_hooks:
+                mw_hooks.remove(hook)
+
+        return combined
+
+    def _route_next(
+        self, current: str, result: MiddlewareMessage,
+    ) -> str | None:
+        """Determine next middleware based on message target and flow graph.
+
+        Priority:
+        1. Special targets (end, error, user) -> stop
+        2. If the message target matches a backtrack edge from current -> follow it
+           (this handles escalation and reflection feedback loops)
+        3. Otherwise, follow the flow graph SEQUENCE edges from current node
+           (this handles normal flow and custom middleware insertion)
+        """
+        target = result.target
+
+        # Special targets
+        if target in ("end", "error", "user"):
+            return None
+
+        # Check if target is reachable via backtrack edge (feedback loop)
+        backtrack_targets = {
+            e.target for e in self._flow_graph.get_outgoing(current)
+            if e.edge_type == EdgeType.BACKTRACK
+        }
+        if target in backtrack_targets and target in self._middlewares:
+            return target
+
+        # Follow the flow graph sequence
+        outgoing_seq = [
+            e for e in self._flow_graph.get_outgoing(current)
+            if e.edge_type == EdgeType.SEQUENCE
+        ]
+        if outgoing_seq:
+            seq_next = outgoing_seq[0].target
+            if seq_next in self._middlewares:
+                return seq_next
+
+        # Fallback: if target is a known middleware, go there
+        if target in self._middlewares:
+            return target
+
+        return None
+
+    # --- Observability ---
+
+    def get_message_log(self) -> list[MiddlewareMessage]:
+        """Return all messages exchanged during execution."""
+        return list(self._message_log)
+
+    def get_cost_summary(self) -> dict[str, Any]:
+        """Return per-middleware cost summary."""
+        total_tokens = 0
+        per_middleware: dict[str, int] = {}
+        for name, metrics in self._middleware_metrics.items():
+            tokens = metrics.get("tokens", 0)
+            per_middleware[name] = tokens
+            total_tokens += tokens
+        return {
+            "total_tokens": total_tokens,
+            "per_middleware": per_middleware,
+        }
+
+    def get_metrics(self) -> dict[str, dict[str, Any]]:
+        """Return all middleware metrics."""
+        return dict(self._middleware_metrics)
