@@ -47,6 +47,7 @@ _SKILL_ID_METRICS_RE = re.compile(r"^/skills/([^/]+)/metrics$")
 _SKILL_ID_VERSIONS_RE = re.compile(r"^/skills/([^/]+)/versions$")
 _SKILL_ID_OPTIMIZE_RE = re.compile(r"^/skills/([^/]+)/optimize$")
 _SKILL_ID_PROMOTE_RE = re.compile(r"^/skills/([^/]+)/promote$")
+_CONTEXT_HEALTH_PATH = "/context/health"
 
 
 class AgentAPIHandler(BaseHTTPRequestHandler):
@@ -80,6 +81,8 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             self._handle_skills_list()
         elif path == _SKILLS_STATUS_PATH:
             self._handle_skills_status()
+        elif path == _CONTEXT_HEALTH_PATH:
+            self._handle_context_health()
         else:
             match = _RUN_ID_RE.match(path)
             if match:
@@ -660,6 +663,39 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": str(exc)})
 
 
+    # ------------------------------------------------------------------
+    # Context health handler
+    # ------------------------------------------------------------------
+
+    @property
+    def _context_manager(self) -> Any | None:
+        """Access the ContextManager from the server instance."""
+        server: AgentServer = self.server  # type: ignore[assignment]
+        return server.context_manager
+
+    def _handle_context_health(self) -> None:
+        """Return context health report (utilization, compressions, recommendations)."""
+        cm = self._context_manager
+        if cm is None:
+            self._send_json(503, {"error": "context_manager_not_configured"})
+            return
+        try:
+            report = cm.get_health_report()
+            self._send_json(200, {
+                "health": report.health.value,
+                "utilization_pct": report.utilization_pct,
+                "total_tokens": report.total_tokens,
+                "budget_tokens": report.budget_tokens,
+                "per_section": report.per_section,
+                "compressions_total": report.compressions_total,
+                "compression_failures": report.compression_failures,
+                "circuit_breaker_open": report.circuit_breaker_open,
+                "diminishing_returns": report.diminishing_returns,
+            })
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+
 class AgentServer(HTTPServer):
     """Extended HTTPServer that holds agent state."""
 
@@ -684,6 +720,7 @@ class AgentServer(HTTPServer):
         self.knowledge_manager: Any | None = None
         self.skill_evolver: Any | None = None
         self.skill_loader: Any | None = None
+        self.context_manager: Any | None = None
 
         # Lazy import to avoid circular dependency at module level.
         from hi_agent.config.trace_config import TraceConfig

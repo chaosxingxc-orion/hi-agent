@@ -114,6 +114,7 @@ class RunExecutor:
         session: RunSession | None = None,
         retrieval_engine: Any | None = None,  # RetrievalEngine
         knowledge_manager: Any | None = None,  # KnowledgeManager
+        context_manager: Any | None = None,  # ContextManager
     ) -> None:
         """Initialize run executor state.
 
@@ -242,6 +243,9 @@ class RunExecutor:
         # --- Knowledge manager for session knowledge ingestion ---
         self.knowledge_manager = knowledge_manager
 
+        # --- Context manager: unified context orchestration (additive) ---
+        self.context_manager = context_manager
+
         # --- Wire session context into route engine (compression pipeline) ---
         self._auto_compress: Any | None = None
         self._cost_calculator: Any | None = None
@@ -309,6 +313,29 @@ class RunExecutor:
                     self.route_engine._context_provider = _skill_enriched_context
             except Exception:
                 pass
+
+        # --- ContextManager: override context provider if provided ---
+        if self.context_manager is not None:
+            _cm = self.context_manager
+            _session_fallback = self.session
+
+            def _managed_context():
+                try:
+                    snapshot = _cm.prepare_context(
+                        purpose="routing",
+                        system_prompt=f"TRACE Agent: {contract.goal}",
+                    )
+                    ctx = snapshot.to_sections_dict()
+                    ctx["health"] = snapshot.health.value
+                    ctx["utilization_pct"] = snapshot.utilization_pct
+                    return ctx
+                except Exception:
+                    if _session_fallback is not None:
+                        return _session_fallback.build_context_for_llm("routing")
+                    return {}
+
+            if hasattr(self.route_engine, '_context_provider'):
+                self.route_engine._context_provider = _managed_context
 
     @property
     def run_id(self) -> str:
@@ -563,6 +590,17 @@ class RunExecutor:
                 self.session.emit_event(event_type, payload)
             except Exception:
                 pass
+        # ContextManager: add history entry for context window tracking
+        if self.context_manager is not None:
+            try:
+                import json as _json_mod
+                self.context_manager.add_history_entry(
+                    role="system",
+                    content=f"[{event_type}] {_json_mod.dumps(payload, default=str)[:500]}",
+                    metadata={"stage_id": self.current_stage},
+                )
+            except Exception:
+                pass
 
     def _compress_stage_summary(self, stage_id: str) -> StageSummary:
         """Build StageSummary from stage-scoped raw memory records."""
@@ -686,6 +724,20 @@ class RunExecutor:
                 }
                 self.session.action_seq = self.action_seq
                 self.session.save_checkpoint()
+            except Exception:
+                pass
+
+        # ContextManager: emit context health at stage boundaries
+        if self.context_manager is not None:
+            try:
+                report = self.context_manager.get_health_report()
+                self._emit_observability("context_health", {
+                    "health": report.health.value,
+                    "utilization_pct": report.utilization_pct,
+                    "compressions": report.compressions_total,
+                    "circuit_breaker_open": report.circuit_breaker_open,
+                    "diminishing_returns": report.diminishing_returns,
+                })
             except Exception:
                 pass
 
@@ -1274,6 +1326,12 @@ class RunExecutor:
                     cost_usd=cost,
                 )
                 self.session.record_llm_call(record)
+            except Exception:
+                pass
+        # ContextManager: record LLM response after routing call
+        if self.context_manager is not None:
+            try:
+                self.context_manager.record_response(output_tokens=200)
             except Exception:
                 pass
         for proposal in proposals:

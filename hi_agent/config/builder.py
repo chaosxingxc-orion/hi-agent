@@ -297,6 +297,26 @@ class SystemBuilder:
         """Create SkillUsageRecorder with the skill registry."""
         return SkillUsageRecorder(registry=self.build_skill_registry())
 
+    def build_context_manager(self) -> Any:
+        """Build ContextManager with config-driven budget allocation."""
+        from hi_agent.context.manager import ContextBudget, ContextManager
+
+        budget = ContextBudget(
+            total_window=200_000,
+            output_reserve=self._config.llm_default_max_output_tokens,
+            system_prompt=2000,
+            tool_definitions=3000,
+            skill_prompts=self._config.compress_default_budget_tokens,
+            memory_context=self._config.memory_retriever_default_budget,
+        )
+        return ContextManager(
+            budget=budget,
+            session=None,  # Will be set per-executor
+            memory_retriever=None,  # Will be set per-executor
+            skill_loader=self.build_skill_loader() if hasattr(self, 'build_skill_loader') else None,
+            compressor=self._build_compressor(),
+        )
+
     def build_executor(self, contract: TaskContract) -> RunExecutor:
         """Build a fully-wired RunExecutor for a given task contract."""
         km = self.build_knowledge_manager()
@@ -323,6 +343,7 @@ class SystemBuilder:
             acceptance_policy=AcceptancePolicy(),
             short_term_store=self.build_short_term_store(),
             knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
+            context_manager=self.build_context_manager(),
         )
 
     def build_executor_from_checkpoint(
