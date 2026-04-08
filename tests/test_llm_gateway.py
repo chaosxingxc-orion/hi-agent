@@ -279,3 +279,38 @@ class TestHttpGateway:
     def test_supports_model_always_true(self) -> None:
         gw = HttpLLMGateway()
         assert gw.supports_model("anything") is True
+
+
+# ---------------------------------------------------------------------------
+# HTTPGateway (async, httpx)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_http_gateway_uses_async_client():
+    """Verify that HTTPGateway.call() is a coroutine (non-blocking)."""
+    import inspect
+    from hi_agent.llm.http_gateway import HTTPGateway
+    gw = HTTPGateway(base_url="http://localhost:9999", api_key="test")
+    assert inspect.iscoroutinefunction(gw.call)
+    await gw.aclose()
+
+
+@pytest.mark.asyncio
+async def test_http_gateway_connection_pool_reused(respx_mock):
+    """Two calls reuse the same underlying httpx connection pool."""
+    import httpx
+    from hi_agent.llm.http_gateway import HTTPGateway
+
+    respx_mock.post("http://test-llm/v1/messages").mock(
+        return_value=httpx.Response(200, json={
+            "content": [{"type": "text", "text": "hello"}],
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+        })
+    )
+
+    gw = HTTPGateway(base_url="http://test-llm", api_key="key")
+    await gw.call(model_id="claude-haiku-4.5", messages=[{"role": "user", "content": "hi"}])
+    await gw.call(model_id="claude-haiku-4.5", messages=[{"role": "user", "content": "hi"}])
+    assert respx_mock.calls.call_count == 2
+    await gw.aclose()

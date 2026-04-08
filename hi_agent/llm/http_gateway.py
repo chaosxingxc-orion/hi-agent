@@ -1,4 +1,4 @@
-"""HTTP-based LLM gateway using stdlib urllib."""
+"""HTTP-based LLM gateway — sync (urllib) and async (httpx) variants."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ import os
 import urllib.error
 import urllib.request
 from typing import Any
+
+import httpx
 
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, TokenUsage
@@ -115,3 +117,30 @@ class HttpLLMGateway:
             finish_reason=choice.get("finish_reason", "stop"),
             raw=raw,
         )
+
+
+class HTTPGateway:
+    """OpenAI-compatible async LLM gateway using httpx connection pool."""
+
+    def __init__(self, base_url: str, api_key: str, timeout: float = 120.0) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._api_key = api_key
+        # Shared AsyncClient = connection pool reused across all calls
+        self._client = httpx.AsyncClient(
+            base_url=self._base_url,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=httpx.Timeout(timeout),
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+        )
+
+    async def call(self, model_id: str, messages: list[dict], **kwargs) -> dict:
+        payload = {"model": model_id, "messages": messages, **kwargs}
+        response = await self._client.post("/v1/messages", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
