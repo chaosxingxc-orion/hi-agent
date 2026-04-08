@@ -10,20 +10,19 @@ An enterprise-grade intelligent agent built on the **TRACE framework**: Task, Ro
 ## Quick Start
 
 ```bash
-# Run a task via CLI
+# Run a task
 python -m hi_agent run --goal "Analyze quarterly revenue data" --local
 
 # Start API server
 python -m hi_agent serve --port 8080
 
-# Resume a run from checkpoint
+# Resume from checkpoint
 python -m hi_agent resume --checkpoint checkpoint_run-001.json
 
-# Trigger memory Dream consolidation
+# Memory & knowledge management
 curl -X POST http://localhost:8080/memory/dream
-
-# Query knowledge
-curl "http://localhost:8080/knowledge/query?q=revenue+trends&limit=5"
+curl "http://localhost:8080/knowledge/query?q=revenue+trends"
+curl -X POST http://localhost:8080/skills/evolve
 
 # Run tests
 python -m pytest tests/ -v
@@ -32,171 +31,165 @@ python -m pytest tests/ -v
 ## Architecture
 
 ```
-TRACE = Task -> Route -> Act -> Capture -> Evolve
-
-hi-agent (Agent Application Layer)
-  |-- TRACE Runtime (Task View, Route Engine, CTS Stage Graph)
-  |-- Context OS (Session, Memory, Knowledge, Skill)
-  |-- Evolution Engine (Postmortem, Skill Extraction, Regression Detection)
-  |-- Harness Orchestration (Dual-dimension governance)
-  |
-  v (durable contracts)
-agent-kernel (Durable Runtime Substrate)
-  |-- Run Lifecycle, Event Log, Checkpoint, Recovery
-  |-- Temporal integration (optional)
-  |
-  v (execution requests)
-agent-core (Capability Supply Layer)
-  |-- Tools, Workflows, Retrieval, MCP
+┌──────────────────────────────────────────────────────────────┐
+│                    hi-agent Architecture                      │
+│                                                              │
+│  Model-Driven Management                                      │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │ ModelRegistry (gateway-registered, capability tags)│        │
+│  │ TierRouter (purpose→strong/medium/light)          │        │
+│  │ ModelSelector (budget-aware, downgrade/upgrade)    │        │
+│  └──────────────────────────────────────────────────┘        │
+│                                                              │
+│  Middleware Layer (independent contexts, ~86% cost savings)    │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐        │
+│  │Perception│→│ Control  │→│Execution │→│Evaluation│        │
+│  │ (light)  │ │ (medium) │ │ (dynamic)│ │ (light)  │        │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘        │
+│  5-phase lifecycle: pre_create→pre_execute→execute→          │
+│                     post_execute→pre_destroy                  │
+│  Extensible: add/replace/remove middlewares + custom hooks    │
+│                                                              │
+│  Task Management                                              │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │ TaskScheduler (Superstep + Yield/Resume)          │        │
+│  │ TaskCommunicator (notifications + signals)        │        │
+│  │ TaskMonitor (heartbeat + deadlock detection)      │        │
+│  │ TrajectoryGraph (chain/tree/DAG/general)          │        │
+│  └──────────────────────────────────────────────────┘        │
+│                                                              │
+│  Context OS                                                   │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌──────┐       │
+│  │Context │ │Session │ │Memory  │ │Knowledge│ │Skill │       │
+│  │Manager │ │+Resume │ │3-tier  │ │Wiki+    │ │Evolve│       │
+│  │4-level │ │Chkpoint│ │+Dream  │ │Graph+   │ │A/B   │       │
+│  │thresh. │ │        │ │        │ │4L-Retr. │ │Test  │       │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └──────┘       │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-## Modules
+## Three Management Domains
 
-### Context OS
+### 1. Model-Driven Management
 
-| Module | Description |
-|--------|-------------|
-| **Session** (`session/`) | RunSession: unified state, compact boundary dedup, L0 JSONL persistence, checkpoint save/resume, CostCalculator. **Lifecycle: create→checkpoint→crash→resume→continue** |
-| **Memory** (`memory/`) | Three-tier (short/mid/long-term). **Creation**: auto-build STM after each run. **Transfer**: Dream (short→mid) + Consolidation (mid→long). **Loading**: RetrievalEngine→routing context. **API**: `/memory/dream`, `/memory/consolidate`, `/memory/status` |
-| **Knowledge** (`knowledge/`) | Wiki + user knowledge + graph + Mermaid. **Creation**: auto-ingest from session. **Transfer**: graph→wiki sync. **Loading**: four-layer retrieval (grep→BM25→graph→embedding). **API**: 6 endpoints (`/knowledge/ingest`, `/query`, `/sync`, `/lint`, `/status`) |
-| **Skill** (`skill/`) | 5-stage lifecycle (Candidate->Provisional->Certified->Deprecated->Retired), registry, matcher (scope+preconditions), validator, usage recorder |
-
-### TRACE Runtime
-
-| Module | Description |
-|--------|-------------|
-| **Runner** (`runner.py`) | RunExecutor: S1->S5 stages, _execute_stage refactor, session resume from checkpoint, auto STM/knowledge creation, retrieval injection |
-| **Route Engine** (`route_engine/`) | Rule-based, LLM-based, Hybrid, Skill-aware, Conditional routing. Context-aware prompts with stage summaries + fresh evidence |
-| **Task View** (`task_view/`) | Layered context builder with token budgets, auto-compress trigger (snip->window->compress), context processor chain |
-| **Contracts** (`contracts/`) | TaskContract (13 fields), PolicyVersionSet (6 versions), CTSBudget, TaskBudget |
-| **Trajectory** (`trajectory/`) | Stage graph with reachability validation, dead-end detection, greedy optimizer |
-| **State Machine** (`state_machine/`) | 6 formal TRACE state machines: Run, Stage, Branch, Action, Wait, Review |
-
-### Governance & Evolution
-
-| Module | Description |
-|--------|-------------|
-| **Harness** (`harness/`) | Dual-dimension governance (EffectClass + SideEffectClass), approval enforcement, evidence store |
-| **Evolve** (`evolve/`) | Postmortem analyzer, LLM skill extraction, regression detector, champion/challenger comparison |
-| **Failures** (`failures/`) | 10 frozen failure codes, FailureCollector, ProgressWatchdog, typed exceptions |
-| **Human Gates** | Gate A (contract correction), B (route direction), C (artifact review), D (final approval) — auto-triggered |
-
-### Infrastructure
-
-| Module | Description |
-|--------|-------------|
-| **LLM Gateway** (`llm/`) | Provider-decoupled: OpenAI HTTP, Anthropic native, mock. Model router, budget tracker |
-| **Runtime Adapter** (`runtime_adapter/`) | 17-method protocol, MockKernel, KernelFacadeClient (direct+HTTP), resilient adapter (retry+circuit breaker+event buffer) |
-| **Config** (`config/`) | TraceConfig (95+ params, JSON/env/code), SystemBuilder (full wiring incl. memory/knowledge/resume) |
-| **Server** (`server/`) | HTTP API (stdlib), RunManager, MemoryLifecycleManager, knowledge API, resume endpoint, CLI |
-| **Orchestrator** (`orchestrator/`) | Task decomposition DAG, parallel dispatcher (ThreadPoolExecutor), result aggregator |
-
-## Key Design Decisions
-
-### Three-Tier Memory (P1 + P2)
+Models are **registered at runtime by LLM gateways**, not hardcoded. Each model carries capability tags (tier, cost, speed, context window, capabilities).
 
 ```
-Run ends ──→ auto-build STM ──→ ShortTermMemory (JSON)
-                                       │
-POST /memory/dream ─────────────→ DreamConsolidator ──→ DailySummary (JSON)
-                                                              │
-POST /memory/consolidate ──────→ LongTermConsolidator ──→ Graph nodes (JSON)
-                                                              │
-Next Run ──→ RetrievalEngine (4-layer) ──→ routing context ←──┘
+Gateway registers: claude-opus-4 (strong, $15/Mtok), gpt-4o-mini (light, $0.15/Mtok)
+                         │
+TierRouter maps:   perception→light, control→medium, execution→dynamic, evaluation→light
+                         │
+ModelSelector:     budget=$10 → select cheapest in tier → auto-downgrade if over budget
 ```
 
-**Lifecycle closed loop:**
-- **Creation**: Auto-build STM after each run (success or failure)
-- **Transfer**: Dream (short→mid, daily cron) + Consolidation (mid→long, weekly)
-- **Loading**: RetrievalEngine injects knowledge into routing context per-stage
-- **API**: `POST /memory/dream`, `POST /memory/consolidate`, `GET /memory/status`
+**Cost savings: ~81%** vs all-strong model usage.
 
-### Four-Layer Retrieval (P2)
+### 2. Middleware Layer
 
-```
-Query --> L1: grep (0 cost) --> L2: BM25 (0 cost) --> L3: Graph expand (0 model cost) --> L4: Embedding (optional)
-          ~50 candidates        ~10 ranked            Mermaid + summaries               cosine rerank
-```
+Four middlewares with **independent context windows** (no shared LLM context):
 
-99% of retrievals cost zero LLM calls. Embedding only for final ~8 candidates when API key available.
+| Middleware | Tier | Context | Responsibility |
+|-----------|------|---------|----------------|
+| Perception | light (~3K tok) | Input + session summary | Multimodal parse, entity extraction, summarization |
+| Control | medium (~5K tok) | Request + capabilities | Decompose → TrajectoryGraph, resource binding |
+| Execution | dynamic (~5K tok) | Current node + loaded resources | Retrieve skills/memory/knowledge, execute idempotently |
+| Evaluation | light (~2K tok) | Result + quality criteria | Quality assess, reflection→Execution, escalation→Control |
 
-### Context Compression Pipeline (P2)
+**5-phase lifecycle** per middleware: `pre_create → pre_execute → execute → post_execute → pre_destroy`
 
-```
-Stage start --> AutoCompressTrigger --> Snip/Window/Compress --> mark compact boundary
-            --> build_context_for_llm() --> only fresh content + L1 summaries (deduped)
-            --> route_engine.propose() --> LLM sees full history without duplication
-```
+Hook actions: CONTINUE, MODIFY, SKIP, BLOCK, RETRY
 
-Inspired by claude-code's three-layer lazy compaction (snip -> microcompact -> autocompact).
+**Cost savings: ~86%** vs single shared context window.
 
-### Knowledge System (P1 + P2)
-
-Three knowledge types with three representation layers:
-- **Storage**: Graph (nodes + edges + confidence) -- for computation
-- **LLM Interface**: Wiki (Markdown + `[[wikilinks]]` + YAML frontmatter) -- for LLM read/write
-- **Visualization**: Mermaid (auto-generated flowcharts/mindmaps) -- for human understanding
-
-**Lifecycle closed loop:**
-- **Creation**: Auto-ingest from session (findings→wiki, facts→graph, feedback→user profile)
-- **Transfer**: `POST /knowledge/sync` (graph→wiki pages + rebuild index)
-- **Loading**: Four-layer retrieval (grep→BM25→graph→embedding) injected into routing
-- **Health**: `POST /knowledge/lint` (orphan pages, broken links, stale content)
-- **API**: 6 endpoints (`/knowledge/ingest`, `/ingest-structured`, `/query`, `/sync`, `/lint`, `/status`)
-
-### Session Resume (P2)
+### 3. Task Management
 
 ```
-Run executing ──→ checkpoint saved every Stage (JSON)
-     │
-  crash / stop
-     │
-  python -m hi_agent resume --checkpoint <path>
-  POST /runs/{id}/resume
-     │
-  load checkpoint ──→ restore L0/L1/events/costs/boundaries
-     │
-  skip completed stages ──→ continue from interruption point
-     │
-  finalize (STM + knowledge + evolve) ──→ done
+TrajectoryGraph (task execution plan)
+    │
+TaskScheduler (Superstep model)
+    ├─ Find ready nodes → dispatch parallel
+    ├─ Node B needs Node C → yield_task(B, blocked_by=[C])
+    │   └─ Save B's session snapshot
+    │   └─ Schedule C
+    │   └─ C completes → resume_task(B, {C: result})
+    └─ All terminal → ScheduleResult
+```
+
+- **TaskCommunicator**: Notifications (state changes) + Signals (commands) + Broadcast
+- **TaskMonitor**: Heartbeat tracking, timeout-based stuck detection, DFS deadlock detection
+
+## Context OS
+
+### Session (checkpoint/resume)
+
+```
+Run → checkpoint every Stage (JSON) → crash → resume → skip completed → continue
+```
+
+### Memory (three-tier with Dream)
+
+```
+Run ends → auto-build ShortTermMemory
+POST /memory/dream → DreamConsolidator → DailySummary
+POST /memory/consolidate → LongTermConsolidator → Graph nodes
+Next Run → RetrievalEngine (4-layer) → routing context
+```
+
+### Knowledge (wiki + graph + four-layer retrieval)
+
+```
+Run ends → auto-ingest findings→wiki, facts→graph, feedback→user profile
+Query → L1:grep → L2:BM25 → L3:graph traverse+Mermaid → L4:embedding(optional)
+POST /knowledge/sync → graph→wiki pages + rebuild index
+```
+
+### Skill (evolution pipeline)
+
+```
+SKILL.md discovery → SkillLoader (token-budget binary search: full/compact)
+Execution → SkillObserver (async JSONL) → SkillMetrics
+Analysis → SkillEvolver: textual gradient→new prompt / pattern→new skill
+Deploy → SkillVersionManager: challenger@v1.3 (10% traffic) vs champion@v1.2
+```
+
+## API Endpoints (20+)
+
+```
+Tasks:      POST /runs, GET /runs/{id}, POST /runs/{id}/resume, GET /health
+Memory:     POST /memory/dream, POST /memory/consolidate, GET /memory/status
+Knowledge:  POST /knowledge/ingest, /ingest-structured, GET /query, POST /sync, /lint, GET /status
+Skills:     GET /skills/list, /skills/{id}/metrics, /skills/{id}/versions,
+            POST /skills/evolve, /skills/{id}/optimize, /skills/{id}/promote, GET /skills/status
+Context:    GET /context/health
+```
+
+## Configuration
+
+All 95+ parameters configurable via three methods:
+
+```python
+config = TraceConfig(compress_snip_threshold=100, default_model="claude-sonnet-4")
+config = TraceConfig.from_file("production.json")
+config = TraceConfig.from_env()  # HI_AGENT_* prefix
 ```
 
 ## Stats
 
 | Metric | Value |
 |--------|-------|
-| Source files | 212 |
-| Test files | 184 |
-| Source LOC | 25,108 |
-| Tests | 1,616 passing |
-| Modules | 26 |
+| Source files | 238 |
+| Test files | 193 |
+| Source LOC | 32,317 |
+| Tests | 1,975 passing |
+| Modules | 29 |
 | External deps | 0 |
-| Config params | 95+ (all configurable) |
-
-## Configuration
-
-All parameters configurable via three methods:
-
-```python
-# Code
-config = TraceConfig(compress_snip_threshold=100, default_model="claude-sonnet-4")
-
-# JSON file
-config = TraceConfig.from_file("production.json")
-
-# Environment variables (HI_AGENT_ prefix)
-# HI_AGENT_DEFAULT_MODEL=claude-sonnet-4
-config = TraceConfig.from_env()
-```
+| Config params | 95+ |
+| API endpoints | 20+ |
 
 ## Documentation
 
-| Document | Location |
-|----------|----------|
-| Architecture design (V2.0) | `architecture-review/` |
-| Module evolution analysis | `docs/module-evolution-analysis.md` |
-| Agent-kernel integration proposal | `docs/agent-kernel-integration-proposal.md` |
-
-## License
-
-See LICENSE file.
+| Document | Description |
+|----------|-------------|
+| `architecture-review/` | Architecture design baseline (V2.0) |
+| `docs/module-evolution-analysis.md` | Module gap analysis against P1/P2 principles |
+| `docs/agent-kernel-integration-proposal.md` | 6-point kernel integration plan |
