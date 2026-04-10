@@ -137,16 +137,16 @@ class ExecutionMiddleware:
             try:
                 if hasattr(self._skill_loader, "load"):
                     loaded["skill"] = self._skill_loader.load(skill_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to load skill %r: %s", skill_id, exc)
 
         memory_query = node_resources.get("memory_query", "")
         if memory_query and self._retrieval_engine is not None:
             try:
                 if hasattr(self._retrieval_engine, "retrieve"):
                     loaded["memory"] = self._retrieval_engine.retrieve(memory_query)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to retrieve memory for query %r: %s", memory_query, exc)
 
         loaded["tools"] = node_resources.get("tools", [])
         return loaded

@@ -27,7 +27,9 @@ if TYPE_CHECKING:
     from hi_agent.memory.episode_builder import EpisodeBuilder
     from hi_agent.memory.episodic import EpisodicMemoryStore
     from hi_agent.memory.short_term import ShortTermMemoryStore
+    from hi_agent.observability.trajectory_exporter import TrajectoryExporter
     from hi_agent.session.run_session import RunSession
+    from hi_agent.skill.evolver import SkillEvolver
 
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.memory import RawMemoryStore
@@ -52,6 +54,13 @@ class RunLifecycle:
         failure_collector: FailureCollector | None,
         raw_memory: RawMemoryStore,
         cts_budget: CTSExplorationBudget,
+        route_engine: Any | None = None,
+        tier_router: Any | None = None,
+        trajectory_exporter: "TrajectoryExporter | None" = None,
+        trajectory_export_dir: str = ".hi_agent/trajectories",
+        trajectory_export_enabled: bool = True,
+        skill_evolver: "SkillEvolver | None" = None,
+        skill_evolve_interval: int = 10,
     ) -> None:
         self.session = session
         self.short_term_store = short_term_store
@@ -64,6 +73,14 @@ class RunLifecycle:
         self.failure_collector = failure_collector
         self.raw_memory = raw_memory
         self.cts_budget = cts_budget
+        self.route_engine = route_engine
+        self.tier_router = tier_router
+        self.trajectory_exporter = trajectory_exporter
+        self.trajectory_export_dir = trajectory_export_dir
+        self._trajectory_export_enabled = trajectory_export_enabled
+        self.skill_evolver = skill_evolver
+        self._skill_evolve_interval = skill_evolve_interval
+        self._evolve_run_count: int = 0
 
     # ------------------------------------------------------------------
     # Budget checking
@@ -152,6 +169,7 @@ class RunLifecycle:
         action_seq: int,
         policy_versions: PolicyVersionSet,
         kernel: Any,
+        skill_ids_used: list[str] | None = None,
     ) -> RunPostmortem:
         """Build a RunPostmortem from current run state."""
         from hi_agent.evolve.contracts import RunPostmortem
@@ -194,6 +212,30 @@ class RunLifecycle:
                 if code and code not in failure_codes:
                     failure_codes.append(code)
 
+        # quality_score: outcome-based heuristic (0=failed, 0.5=partial, 1=completed)
+        if outcome == "completed":
+            quality_score: float | None = 1.0
+        elif outcome == "failed":
+            quality_score = 0.0
+        else:
+            quality_score = 0.5
+
+        # efficiency_score: ratio of stages completed vs total actions taken
+        total_stages = len(stages_completed) + len(stages_failed)
+        if total_stages > 0 and action_seq > 0:
+            efficiency_score: float | None = min(
+                1.0, len(stages_completed) / max(action_seq, total_stages)
+            )
+        else:
+            efficiency_score = None
+
+        # trajectory_summary: brief textual summary
+        trajectory_summary = (
+            f"outcome={outcome} stages_completed={len(stages_completed)} "
+            f"stages_failed={len(stages_failed)} "
+            f"branches={branches_explored} actions={action_seq}"
+        )
+
         return RunPostmortem(
             run_id=run_id,
             task_id=contract.task_id,
@@ -206,6 +248,10 @@ class RunLifecycle:
             total_actions=action_seq,
             failure_codes=failure_codes,
             duration_seconds=0.0,
+            quality_score=quality_score,
+            efficiency_score=efficiency_score,
+            trajectory_summary=trajectory_summary,
+            skills_used=list(skill_ids_used) if skill_ids_used else [],
             policy_versions={
                 "route_policy": policy_versions.route_policy,
                 "acceptance_policy": policy_versions.acceptance_policy,
@@ -268,8 +314,31 @@ class RunLifecycle:
                     action_seq=action_seq,
                     policy_versions=policy_versions,
                     kernel=kernel,
+                    skill_ids_used=skill_ids_used,
                 )
-                self.evolve_engine.on_run_completed(postmortem)
+                evolve_result = self.evolve_engine.on_run_completed(postmortem)
+                if evolve_result.changes:
+                    _logger.info(
+                        "run.evolve_changes run_id=%s changes=%d",
+                        run_id,
+                        len(evolve_result.changes),
+                    )
+                    for change in evolve_result.changes:
+                        _logger.debug(
+                            "evolve_change type=%s target=%s confidence=%.2f",
+                            change.change_type,
+                            change.target_id,
+                            change.confidence,
+                        )
+                    if self.route_engine is not None:
+                        try:
+                            self.route_engine.apply_evolve_changes(evolve_result.changes)
+                        except Exception as exc:
+                            _logger.warning(
+                                "run.apply_evolve_changes_failed run_id=%s error=%s",
+                                run_id,
+                                exc,
+                            )
             except Exception as exc:
                 _logger.warning(
                     "run.evolve_postmortem_failed run_id=%s stage_id=%s error=%s",
@@ -339,5 +408,63 @@ class RunLifecycle:
                     current_stage,
                     exc,
                 )
+        # Best-effort cost optimization hints → apply to TierRouter (P2 feedback loop)
+        if self.session is not None:
+            try:
+                from hi_agent.session.cost_optimizer import (
+                    derive_tier_overrides,
+                    recommend_cost_optimizations,
+                )
+                summary = self.session.get_cost_summary()
+                hints = recommend_cost_optimizations(
+                    run_count=1,
+                    avg_cost_per_run=summary.get("total_usd", 0.0),
+                    per_model_breakdown=summary.get("per_model", {}),
+                )
+                if hints:
+                    _logger.info("run.cost_hints run_id=%s hints=%d", run_id, len(hints))
+                    for h in hints:
+                        _logger.debug(
+                            "cost_hint code=%s severity=%s action=%s",
+                            h.code,
+                            h.severity,
+                            h.action,
+                        )
+                    # Apply tier overrides so the next run immediately benefits
+                    if self.tier_router is not None:
+                        overrides = derive_tier_overrides(hints)
+                        if overrides:
+                            self.tier_router.apply_overrides(overrides)
+                            _logger.info(
+                                "run.tier_overrides_applied run_id=%s overrides=%s",
+                                run_id,
+                                overrides,
+                            )
+            except Exception as exc:
+                _logger.debug("run.cost_hints_failed run_id=%s error=%s", run_id, exc)
         sync_to_context_fn()
+        # Auto-export trajectory for RL training (only when enabled via config)
+        trajectory_enabled = getattr(self, '_trajectory_export_enabled', True)
+        if trajectory_enabled and self.trajectory_exporter is not None and self.session is not None:
+            try:
+                output_path = f"{self.trajectory_export_dir}/{run_id}.jsonl"
+                self.trajectory_exporter.export_session(
+                    self.session.to_checkpoint(), output_path
+                )
+            except Exception as exc:
+                _logger.debug(
+                    "trajectory_export_failed run_id=%s error=%s", run_id, exc
+                )
+        # Auto-trigger skill evolve_cycle every N runs
+        if self.skill_evolver is not None:
+            self._evolve_run_count += 1
+            if self._evolve_run_count % self._skill_evolve_interval == 0:
+                try:
+                    result = self.skill_evolver.evolve_cycle()
+                    _logger.info(
+                        "skill_evolve_cycle completed changes=%d",
+                        len(result.details) if result else 0,
+                    )
+                except Exception as exc:
+                    _logger.debug("skill_evolve_cycle_failed error=%s", exc)
         return outcome

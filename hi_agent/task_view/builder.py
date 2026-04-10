@@ -6,7 +6,8 @@ Loading priority:
   3. L1 previous stage  (previous stage summary, if budget remains)
   4. L3 episodic        (episodic memories, if budget remains)
   5. Knowledge          (knowledge records, if budget remains)
-  6. System reserved    (always deducted from budget)
+  6. Retrieval result   (knowledge-base hits grouped by source_type, if budget remains)
+  7. System reserved    (always deducted from budget)
 
 The builder also retains the legacy item-count helpers used by earlier spikes.
 """
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from hi_agent.contracts import RunIndex, StageSummary
 from hi_agent.memory.l1_compressed import CompressedStageMemory
@@ -27,6 +29,9 @@ from hi_agent.task_view.token_budget import (
     enforce_budget,
     enforce_layer_budget,
 )
+
+if TYPE_CHECKING:
+    from hi_agent.knowledge.retrieval_engine import RetrievalResult
 
 # ---------------------------------------------------------------------------
 # Dataclasses
@@ -118,6 +123,99 @@ def format_knowledge(records: list, max_tokens: int) -> str:
     return "\n".join(lines)
 
 
+# Source-type label aliases for human-readable block headers.
+_SOURCE_TYPE_LABELS: dict[str, str] = {
+    "short_term": "short_term",
+    "mid_term": "mid_term",
+    "long_term_text": "wiki",
+    "long_term_graph": "graph",
+}
+
+
+def format_retrieval_result(retrieval_result: "RetrievalResult", budget_tokens: int) -> str:
+    """Format a :class:`~hi_agent.knowledge.retrieval_engine.RetrievalResult` into
+    one or more ``[KNOWLEDGE: <source>]`` blocks.
+
+    Items are grouped by ``source_type``.  Each group receives at most
+    ``budget_tokens // 4`` tokens (four groups maximum), and the combined
+    output never exceeds *budget_tokens*.
+
+    Parameters
+    ----------
+    retrieval_result:
+        The retrieval result returned by
+        :class:`~hi_agent.knowledge.retrieval_engine.RetrievalEngine`.
+    budget_tokens:
+        Maximum number of tokens for the entire knowledge block.
+
+    Returns
+    -------
+    str
+        A multi-section string ready to be injected into the task view, or an
+        empty string when *retrieval_result* has no items or budget is zero.
+    """
+    if not retrieval_result.items or budget_tokens <= 0:
+        return ""
+
+    # Group items by source_type preserving insertion order.
+    groups: dict[str, list[str]] = {}
+    for item in retrieval_result.items:
+        stype = item.source_type
+        groups.setdefault(stype, []).append(item.content)
+
+    if not groups:
+        return ""
+
+    # Allocate per-group budget (equal share, up to 4 buckets).
+    num_groups = max(len(groups), 1)
+    per_group_budget = max(1, budget_tokens // max(num_groups, 4))
+
+    blocks: list[str] = []
+    total_used = 0
+
+    for source_type, contents in groups.items():
+        if total_used >= budget_tokens:
+            break
+
+        label = _SOURCE_TYPE_LABELS.get(source_type, source_type)
+        header = f"[KNOWLEDGE: {label}]"
+        header_tokens = count_tokens(header)
+
+        # Leave room for the header inside this group's budget.
+        content_budget = max(0, per_group_budget - header_tokens)
+
+        lines: list[str] = []
+        used = 0
+        for content in contents:
+            t = count_tokens(content)
+            if used + t > content_budget:
+                # Partial: try to fit a truncated version.
+                remaining_chars = max(0, (content_budget - used) * 4)
+                if remaining_chars > 0:
+                    lines.append(content[:remaining_chars])
+                break
+            lines.append(content)
+            used += t
+
+        if not lines:
+            continue
+
+        block = header + "\n" + "\n---\n".join(lines)
+        block_tokens = count_tokens(block)
+
+        # Guard against exceeding overall budget.
+        if total_used + block_tokens > budget_tokens:
+            allowed_chars = max(0, (budget_tokens - total_used) * 4)
+            block = block[:allowed_chars]
+            block_tokens = count_tokens(block)
+
+        if block_tokens > 0:
+            blocks.append(block)
+            total_used += block_tokens
+
+    return "\n\n".join(blocks)
+
+
 # ---------------------------------------------------------------------------
 # Layered builder (new, token-based)
 # ---------------------------------------------------------------------------
@@ -135,6 +233,7 @@ def build_task_view(
     task_family: str = "",
     stage_id: str = "",
     current_failures: list[str] | None = None,
+    retrieval_result: "RetrievalResult | None" = None,
     # Legacy kwargs — accepted so old call-sites keep working.
     stage_summaries: dict[str, StageSummary] | None = None,
     knowledge: list[str] | None = None,
@@ -150,7 +249,18 @@ def build_task_view(
       3. L1 previous stage     (<=2048t) - if budget remains
       4. L3 episodic memories  (<=1024t) - if budget remains
       5. Knowledge records     (<=1024t) - if budget remains
-      6. System reserved       (512t)    - always reserved
+      6. Retrieval result      (<=1024t) - if budget remains and retrieval_result provided
+      7. System reserved       (512t)    - always reserved
+
+    Parameters
+    ----------
+    retrieval_result:
+        Optional :class:`~hi_agent.knowledge.retrieval_engine.RetrievalResult`
+        produced by the runner before building the task view.  When provided,
+        items are grouped by ``source_type`` and injected as labelled
+        ``[KNOWLEDGE: <source>]`` blocks after the knowledge_records layer.
+        Passing ``None`` (the default) keeps behaviour identical to before,
+        ensuring full backward compatibility.
     """
     # ---- legacy path -------------------------------------------------------
     if stage_summaries is not None:
@@ -229,7 +339,19 @@ def build_task_view(
             )
             remaining -= tokens
 
-    # 6) Episodic memory from retriever (lower priority, fits in remaining)
+    # 6) Retrieval result (knowledge-base hits from runner, grouped by source_type)
+    if retrieval_result is not None and retrieval_result.items and remaining > 0:
+        layer_max = min(LAYER_BUDGETS.get("knowledge", 1024), remaining)
+        raw = format_retrieval_result(retrieval_result, layer_max)
+        if raw:
+            content = enforce_layer_budget(raw, layer_max)
+            tokens = count_tokens(content)
+            sections.append(
+                TaskViewSection(layer="retrieval_result", content=content, token_count=tokens)
+            )
+            remaining -= tokens
+
+    # 7) Episodic memory from retriever (lower priority, fits in remaining)
     if memory_retriever is not None and remaining > 0:
         retriever_budget = min(remaining, LAYER_BUDGETS.get("l3_episodic", 1024))
         snippets = memory_retriever.retrieve_for_stage(

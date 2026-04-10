@@ -9,11 +9,14 @@ of this class rather than implementing the logic inline.
 from __future__ import annotations
 
 import contextlib
+import logging
 from collections.abc import Callable
 from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
 from hi_agent.contracts import StageSummary, deterministic_id
+
+logger = logging.getLogger(__name__)
 from hi_agent.events import EventEmitter
 from hi_agent.memory import RawEventRecord, RawMemoryStore
 from hi_agent.observability.trace_context import TraceContextManager
@@ -58,14 +61,15 @@ class RunTelemetry:
         if self.metrics_collector is not None:
             try:
                 self.record_metric(name, payload)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Metrics collection for event %r failed: %s", name, exc)
 
         if self.observability_hook is None:
             return
         try:
             self.observability_hook(name, payload)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Observability hook for event %r failed: %s", name, exc)
             return
 
     def record_metric(
@@ -125,8 +129,8 @@ class RunTelemetry:
                     event_type, payload, stage_id=current_stage
                 )
                 self.session.emit_event(event_type, payload)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Session record/emit for event %r failed: %s", event_type, exc)
         # ContextManager: add history entry for context window tracking
         if self.context_manager is not None:
             try:
@@ -136,8 +140,8 @@ class RunTelemetry:
                     content=f"[{event_type}] {_json_mod.dumps(payload, default=str)[:500]}",
                     metadata={"stage_id": current_stage},
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("ContextManager history entry for event %r failed: %s", event_type, exc)
 
     # ------------------------------------------------------------------
     # Skill telemetry
@@ -157,8 +161,8 @@ class RunTelemetry:
                 )
                 if skill_id not in skill_ids_used:
                     skill_ids_used.append(skill_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Skill usage recording from proposal failed: %s", exc)
 
     def finalize_skill_outcomes(
         self, outcome: str, *, run_id: str, skill_ids_used: list[str]
@@ -172,8 +176,8 @@ class RunTelemetry:
                 self.skill_recorder.record_usage(
                     skill_id=skill_id, run_id=run_id, success=success
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Finalizing skill outcomes for run %r failed: %s", run_id, exc)
 
     def observe_skill_execution(
         self,
@@ -227,5 +231,5 @@ class RunTelemetry:
                 task_family=task_family,
             )
             self.skill_observer.observe(obs)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Skill execution observation for stage %r failed: %s", stage_id, exc)

@@ -95,8 +95,10 @@ class TaskDecomposer:
         followed by *synthesize* and *review* in sequence.
         """
         if self.llm_gateway is not None:
-            # Placeholder: would call model to produce structured plan.
-            return self._linear_decompose(contract)
+            try:
+                return self._llm_dag_decompose(contract)
+            except Exception:
+                pass  # fall through to heuristic DAG below
 
         dag = TaskDAG()
 
@@ -144,11 +146,133 @@ class TaskDecomposer:
     def _tree_decompose(self, contract: TaskContract) -> TaskDAG:
         """Recursive decomposition tree.
 
-        Without an LLM this falls back to linear decomposition.
+        With an LLM, asks for a two-level hierarchy: top-level sub-goals
+        each with optional child sub-goals.  Children are added first
+        (no deps); each parent depends on all its children.
+        Falls back to linear decomposition on any error or when no LLM.
         """
         if self.llm_gateway is not None:
-            return self._linear_decompose(contract)
+            try:
+                return self._llm_tree_decompose(contract)
+            except Exception:
+                pass  # fall through to linear
         return self._linear_decompose(contract)
+
+    def _llm_dag_decompose(self, contract: TaskContract) -> TaskDAG:
+        """Call LLM to build a structured DAG plan.
+
+        Prompt the model for a JSON list of nodes
+        ``[{"stage": str, "goal": str, "deps": [stage_name, ...]}]``
+        where ``deps`` are stage names of predecessors.  Falls back to the
+        heuristic DAG if parsing fails.
+        """
+        from hi_agent.llm.protocol import LLMRequest  # noqa: PLC0415
+
+        prompt = (
+            f"Decompose this task into a parallel DAG of sub-tasks:\n\n"
+            f"Goal: {contract.goal}\n\n"
+            "Return a JSON array of nodes. Each node:\n"
+            '  {"stage": "<short_name>", "goal": "<sub-goal>", "deps": ["<stage_name>", ...]}\n'
+            "deps lists stage names this node depends on (empty list = no deps).\n"
+            "Aim for 3-6 nodes with real parallelism where possible.\n"
+            "Respond with ONLY the JSON array, no extra text."
+        )
+        assert self.llm_gateway is not None
+        request = LLMRequest(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=800,
+        )
+        response = self.llm_gateway.complete(request)
+
+        import json  # noqa: PLC0415
+        items = json.loads(response.content)
+        if not isinstance(items, list) or not items:
+            raise ValueError("LLM returned empty or non-list DAG plan")
+
+        dag = TaskDAG()
+        node_by_stage: dict[str, TaskNode] = {}
+
+        # First pass: create all nodes
+        for item in items:
+            stage = str(item.get("stage", "")).strip()
+            goal = str(item.get("goal", "")).strip()
+            if not stage or not goal:
+                continue
+            node = self._create_subtask(contract, stage, goal, [])
+            dag.add_node(node)
+            node_by_stage[stage] = node
+
+        if not node_by_stage:
+            raise ValueError("LLM returned no valid nodes")
+
+        # Second pass: wire edges
+        for item in items:
+            stage = str(item.get("stage", "")).strip()
+            if stage not in node_by_stage:
+                continue
+            node = node_by_stage[stage]
+            for dep_stage in item.get("deps", []):
+                dep_stage = str(dep_stage).strip()
+                if dep_stage in node_by_stage:
+                    dep_node = node_by_stage[dep_stage]
+                    dag.add_edge(dep_node.node_id, node.node_id)
+
+        return dag
+
+    def _llm_tree_decompose(self, contract: TaskContract) -> TaskDAG:
+        """Call LLM to build a two-level hierarchical task tree as a DAG."""
+        from hi_agent.llm.protocol import LLMRequest  # noqa: PLC0415
+
+        prompt = (
+            f"Decompose this task hierarchically into a 2-level tree:\n\n"
+            f"Goal: {contract.goal}\n\n"
+            "Return a JSON array of top-level nodes, each with optional children:\n"
+            '  [{"stage": "<name>", "goal": "<sub-goal>", '
+            '"children": [{"stage": "<name>", "goal": "<sub-goal>"}]}]\n'
+            "Aim for 2-4 top-level nodes, each with 0-3 children.\n"
+            "Respond with ONLY the JSON array."
+        )
+        assert self.llm_gateway is not None
+        request = LLMRequest(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=900,
+        )
+        response = self.llm_gateway.complete(request)
+
+        import json  # noqa: PLC0415
+        items = json.loads(response.content)
+        if not isinstance(items, list) or not items:
+            raise ValueError("LLM returned empty tree plan")
+
+        dag = TaskDAG()
+
+        for item in items:
+            parent_stage = str(item.get("stage", "")).strip()
+            parent_goal = str(item.get("goal", "")).strip()
+            if not parent_stage or not parent_goal:
+                continue
+
+            child_ids: list[str] = []
+            for child in item.get("children", []):
+                c_stage = str(child.get("stage", "")).strip()
+                c_goal = str(child.get("goal", "")).strip()
+                if not c_stage or not c_goal:
+                    continue
+                child_node = self._create_subtask(contract, c_stage, c_goal, [])
+                dag.add_node(child_node)
+                child_ids.append(child_node.node_id)
+
+            parent_node = self._create_subtask(contract, parent_stage, parent_goal, child_ids)
+            dag.add_node(parent_node)
+            for cid in child_ids:
+                dag.add_edge(cid, parent_node.node_id)
+
+        if not dag._nodes:
+            raise ValueError("No valid nodes in tree plan")
+
+        return dag
 
     # ------------------------------------------------------------------
     # Helpers

@@ -460,6 +460,7 @@ class TestRetrievalEngineIntegration:
 
         engine = RetrievalEngine(
             wiki=wiki, graph=graph, short_term=short_term, mid_term=mid_term,
+            storage_dir=str(tmp_path / "knowledge"),
         )
         count = engine.build_index()
         # 3 wiki + 3 graph + 1 short + 1 mid = 8

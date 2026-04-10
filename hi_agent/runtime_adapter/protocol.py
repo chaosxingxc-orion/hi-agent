@@ -95,6 +95,32 @@ class RuntimeAdapter(Protocol):
     def submit_plan(self, run_id: str, plan: dict[str, Any]) -> None:
         """Persist execution plan for run."""
 
+    # --- Child run management ---
+
+    def spawn_child_run(
+        self,
+        parent_run_id: str,
+        task_id: str,
+        config: dict[str, Any] | None = None,
+    ) -> str:
+        """Spawn a child run under the given parent run. Returns child run_id."""
+
+    def query_child_runs(self, parent_run_id: str) -> list[dict[str, Any]]:
+        """Query all child runs of the given parent run."""
+
+    async def spawn_child_run_async(
+        self,
+        parent_run_id: str,
+        task_id: str,
+        config: dict[str, Any] | None = None,
+    ) -> str:
+        """Async version of spawn_child_run. Returns child run_id."""
+
+    async def query_child_runs_async(
+        self, parent_run_id: str
+    ) -> list[dict[str, Any]]:
+        """Async version of query_child_runs."""
+
 
 class RuntimeAdapterBackend(Protocol):
     """Optional backend hooks consumed by :class:`KernelAdapter`."""

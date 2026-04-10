@@ -253,8 +253,8 @@ class ControlMiddleware:
                         skill = self._skill_loader.match(desc)
                         if skill:
                             resources[node_id]["skill_id"] = getattr(skill, "skill_id", None)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Control middleware plan decomposition failed: %s", exc)
 
         return resources
 

@@ -14,9 +14,14 @@ Searches across all knowledge tiers:
 
 from __future__ import annotations
 
+import logging
 import math
+import os
+import pickle
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 from hi_agent.knowledge.granularity import KnowledgeItem, estimate_tokens
 from hi_agent.knowledge.graph_renderer import GraphRenderer
@@ -25,6 +30,8 @@ from hi_agent.knowledge.wiki import KnowledgeWiki
 from hi_agent.memory.long_term import LongTermMemoryGraph
 from hi_agent.memory.mid_term import MidTermMemoryStore
 from hi_agent.memory.short_term import ShortTermMemoryStore
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -64,6 +71,7 @@ class RetrievalEngine:
         mid_term: MidTermMemoryStore | None = None,
         graph_renderer: GraphRenderer | None = None,
         embedding_fn: Callable[[str], list[float]] | None = None,
+        storage_dir: str = ".hi_agent/knowledge",
     ) -> None:
         """Initialize RetrievalEngine."""
         self._wiki = wiki
@@ -75,35 +83,155 @@ class RetrievalEngine:
         self._tfidf = TFIDFIndex()
         self._ranker = HybridRanker(self._tfidf)
         self._indexed = False
+        self._index_lock = threading.Lock()
+        self._storage_dir = storage_dir
+        self._injection_scanner = None  # lazy-initialised in _scan_content
+
+    # ------------------------------------------------------------------
+    # Index persistence helpers (Fix-6)
+    # ------------------------------------------------------------------
+
+    def _index_cache_path(self) -> str:
+        """Returns the file path for the persisted TF-IDF index cache."""
+        return os.path.join(self._storage_dir, ".index_cache.pkl")
+
+    def _save_index(self) -> None:
+        """Persist the TF-IDF index to disk.
+
+        Failures are swallowed so that a transient IO error never disrupts
+        the main retrieval flow.
+        """
+        try:
+            path = self._index_cache_path()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                pickle.dump(
+                    {
+                        "tfidf": self._tfidf,
+                        "built_at": datetime.now(tz=timezone.utc).isoformat(),
+                    },
+                    f,
+                )
+            logger.debug("Index cache saved to %s", path)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to save index cache: %s", exc)
+
+    def _load_index(self) -> bool:
+        """Try to restore the TF-IDF index from disk.
+
+        Returns True when the index was successfully loaded; False otherwise.
+        Failures are swallowed so that a missing or corrupt cache simply
+        triggers a fresh build.
+        """
+        try:
+            path = self._index_cache_path()
+            if not os.path.exists(path):
+                return False
+            with open(path, "rb") as f:
+                data = pickle.load(f)  # noqa: S301
+            self._tfidf = data["tfidf"]
+            # Rebuild the ranker so it references the restored index object.
+            self._ranker = HybridRanker(self._tfidf)
+            logger.debug(
+                "Index cache loaded from %s (built_at=%s)",
+                path,
+                data.get("built_at", "unknown"),
+            )
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to load index cache: %s", exc)
+            return False
+
+    # ------------------------------------------------------------------
+    # Injection scanning helper (Fix-9)
+    # ------------------------------------------------------------------
+
+    def _scan_content(self, content: str, source: str = "") -> None:
+        """Scan *content* for prompt injection before ingesting.
+
+        Delegates to InjectionScanner.scan_and_raise() when the security
+        module is available.  InjectionDetectedError is intentionally NOT
+        caught here — callers must handle it.
+
+        ImportError is silently ignored so that the security module remains
+        an optional dependency.
+        """
+        try:
+            from hi_agent.security.injection_scanner import InjectionScanner  # noqa: PLC0415
+
+            if self._injection_scanner is None:
+                self._injection_scanner = InjectionScanner()
+            self._injection_scanner.scan_and_raise(content, source=source)
+        except ImportError:
+            pass  # security module not available — skip scan
 
     def build_index(self) -> int:
-        """Build TF-IDF index from all knowledge sources. Returns doc count."""
-        # Index wiki pages
-        if self._wiki is not None:
-            for page in self._wiki.list_pages():
-                doc_text = f"{page.title} {page.content} {' '.join(page.tags)}"
-                self._tfidf.add(f"wiki:{page.page_id}", doc_text)
+        """Build TF-IDF index from all knowledge sources. Returns doc count.
 
-        # Index graph nodes
-        if self._graph is not None:
-            for node_id, node in self._graph._nodes.items():
-                doc_text = f"{node.content} {' '.join(node.tags)}"
-                self._tfidf.add(f"graph:{node_id}", doc_text)
+        On the first call the method attempts to restore a previously
+        persisted index from disk (Fix-6: index persistence).  When no
+        valid cache exists, the index is built from scratch and then saved
+        so that subsequent restarts can skip the rebuild.
+        """
+        with self._index_lock:
+            if self._indexed:
+                return self._tfidf.doc_count
 
-        # Index short-term summaries
-        if self._short_term is not None:
-            for mem in self._short_term.list_recent(limit=50):
-                doc_text = mem.to_context_string()
-                self._tfidf.add(f"short:{mem.session_id}", doc_text)
+            # Attempt to load a previously persisted index before rebuilding.
+            if self._load_index():
+                self._indexed = True
+                return self._tfidf.doc_count
 
-        # Index mid-term daily summaries
-        if self._mid_term is not None:
-            for summary in self._mid_term.list_recent(days=30):
-                doc_text = summary.to_context_string()
-                self._tfidf.add(f"mid:{summary.date}", doc_text)
+            # Index wiki pages
+            if self._wiki is not None:
+                for page in self._wiki.list_pages():
+                    doc_text = f"{page.title} {page.content} {' '.join(page.tags)}"
+                    self._tfidf.add(f"wiki:{page.page_id}", doc_text)
 
-        self._indexed = True
-        return self._tfidf.doc_count
+            # Index graph nodes
+            if self._graph is not None:
+                for node_id, node in self._graph._nodes.items():
+                    doc_text = f"{node.content} {' '.join(node.tags)}"
+                    self._tfidf.add(f"graph:{node_id}", doc_text)
+
+            # Index short-term summaries
+            if self._short_term is not None:
+                for mem in self._short_term.list_recent(limit=50):
+                    doc_text = mem.to_context_string()
+                    self._tfidf.add(f"short:{mem.session_id}", doc_text)
+
+            # Index mid-term daily summaries
+            if self._mid_term is not None:
+                for summary in self._mid_term.list_recent(days=30):
+                    doc_text = summary.to_context_string()
+                    self._tfidf.add(f"mid:{summary.date}", doc_text)
+
+            self._indexed = True
+            # Persist the freshly built index so future restarts skip the rebuild.
+            self._save_index()
+            return self._tfidf.doc_count
+
+    def ingest_document(self, doc_id: str, text: str, source: str = "") -> None:
+        """Ingest a single document into the TF-IDF index.
+
+        Runs an injection scan (Fix-9) before adding the text so that
+        malicious content is rejected before it reaches the index.
+        InjectionDetectedError propagates to the caller; all other
+        indexing work is performed under the index lock.
+
+        Args:
+            doc_id: Unique identifier for this document (e.g. ``"wiki:slug"``).
+            text:   Raw text content to index.
+            source: Human-readable origin label used in scan error messages.
+        """
+        # Security scan — InjectionDetectedError must propagate to caller.
+        self._scan_content(text, source=source or doc_id)
+
+        with self._index_lock:
+            self._tfidf.add(doc_id, text)
+            # Mark index as dirty so the next retrieve() triggers a fresh cache save.
+            self._indexed = True
+            self._save_index()
 
     def retrieve(
         self,

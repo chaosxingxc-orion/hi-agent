@@ -25,6 +25,52 @@ class InMemoryNotificationBackend:
         self.payloads.append(deepcopy(payload))
 
 
+class WebhookNotificationBackend:
+    """HTTP webhook notification backend.
+
+    Sends formatted payloads to a configured URL via HTTP POST.
+    Failures are logged but never re-raised (best-effort delivery).
+    Configure via WEBHOOK_URL environment variable or pass url directly.
+    """
+
+    def __init__(self, url: str, timeout_seconds: float = 10.0) -> None:
+        """Initialize with target URL and request timeout."""
+        self._url = url
+        self._timeout = timeout_seconds
+
+    def send(self, payload: dict[str, object]) -> None:
+        """POST payload as JSON to the configured webhook URL."""
+        import json as _json
+        import logging
+        import urllib.request
+        _logger = logging.getLogger(__name__)
+        try:
+            data = _json.dumps(payload).encode()
+            req = urllib.request.Request(
+                self._url,
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=self._timeout) as _resp:
+                pass  # fire-and-forget
+        except Exception as exc:
+            _logger.warning(
+                "WebhookNotificationBackend.send failed url=%s error=%s",
+                self._url,
+                exc,
+            )
+
+
+def build_notification_backend(url: str | None = None) -> NotificationBackend:
+    """Build notification backend from URL or WEBHOOK_URL env var."""
+    import os
+    resolved = url or os.environ.get("WEBHOOK_URL", "")
+    if resolved:
+        return WebhookNotificationBackend(resolved)
+    return InMemoryNotificationBackend()
+
+
 def _normalize_severity(severity: str) -> str:
     """Run _normalize_severity."""
     normalized = severity.strip().lower()

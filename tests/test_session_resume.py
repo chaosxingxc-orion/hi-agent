@@ -502,7 +502,13 @@ class TestCLIResume:
         assert args.run_id == "run-0001"
 
     def test_resume_with_checkpoint_file(self) -> None:
-        """End-to-end: resume from a real checkpoint file via CLI function."""
+        """End-to-end: resume from a real checkpoint file via CLI function.
+
+        The kernel is patched with MockKernel because this test exercises
+        the resume *logic* (checkpoint loading, stage skipping, continuation),
+        not the LocalFSM integration.  The real LocalFSM starts fresh and has
+        no knowledge of 'cli-resume-test', causing run-not-found errors.
+        """
         path = _create_checkpoint_at_stage(
             ["S1_understand", "S2_gather"],
             run_id="cli-resume-test",
@@ -513,8 +519,12 @@ class TestCLIResume:
             parser = build_parser()
             args = parser.parse_args(["resume", "--checkpoint", path])
 
-            # Should complete without error
-            _cmd_resume(args)
+            # Patch build_kernel so the resume uses MockKernel instead of LocalFSM.
+            with patch(
+                "hi_agent.config.builder.SystemBuilder.build_kernel",
+                return_value=MockKernel(),
+            ):
+                _cmd_resume(args)
         finally:
             os.unlink(path)
 
@@ -611,12 +621,15 @@ class TestBuilderCheckpoint:
         )
         try:
             builder = SystemBuilder(TraceConfig())
-            resume_fn = builder.build_executor_from_checkpoint(path)
-            assert callable(resume_fn)
+            # Patch build_kernel to use MockKernel so this unit-level test
+            # does not depend on the real agent-kernel LocalFSM.
+            with patch.object(builder, "build_kernel", return_value=MockKernel()):
+                resume_fn = builder.build_executor_from_checkpoint(path)
+                assert callable(resume_fn)
 
-            result = resume_fn()
-            # Result depends on full subsystem wiring — either outcome is valid
-            # as long as the resume function actually ran
-            assert result in ("completed", "failed")
+                result = resume_fn()
+                # Result depends on full subsystem wiring — either outcome is valid
+                # as long as the resume function actually ran
+                assert result in ("completed", "failed")
         finally:
             os.unlink(path)

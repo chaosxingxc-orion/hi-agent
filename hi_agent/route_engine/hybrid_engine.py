@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,6 +11,8 @@ from hi_agent.llm.protocol import LLMGateway
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.route_engine.llm_engine import LLMRouteEngine
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -143,6 +146,84 @@ class HybridRouteEngine:
             source="llm",
             confidence=llm_decision.confidence,
         )
+
+    def apply_evolve_changes(self, changes: list) -> None:
+        """Apply EvolveResult changes to tune routing thresholds.
+
+        Parameters
+        ----------
+        changes:
+            List of :class:`~hi_agent.evolve.types.EvolveChange` (or any
+            object with ``change_type``, ``confidence``, and ``target_id``
+            attributes) produced by :class:`~hi_agent.evolve.engine.EvolveEngine`.
+        """
+        for change in changes:
+            change_type = getattr(change, "change_type", None)
+            confidence = getattr(change, "confidence", 0.0)
+            target_id = getattr(change, "target_id", "")
+            if change_type == "routing_heuristic" and confidence >= 0.7:
+                # Exploration failure detected — lower threshold so LLM fallback
+                # is triggered more readily.
+                old = self._confidence_threshold
+                self._confidence_threshold = max(0.3, self._confidence_threshold - 0.05)
+                _logger.info(
+                    "route_engine.apply_evolve_changes type=%s target=%s "
+                    "confidence=%.2f threshold %.2f -> %.2f",
+                    change_type, target_id, confidence, old, self._confidence_threshold,
+                )
+            elif change_type == "efficiency_heuristic" and confidence >= 0.7:
+                # Efficiency signal — raise threshold to prefer deterministic rules.
+                old = self._confidence_threshold
+                self._confidence_threshold = min(0.9, self._confidence_threshold + 0.05)
+                _logger.info(
+                    "route_engine.apply_evolve_changes type=%s target=%s "
+                    "confidence=%.2f threshold %.2f -> %.2f",
+                    change_type, target_id, confidence, old, self._confidence_threshold,
+                )
+            elif change_type == "route_config_updated" and confidence >= 0.6:
+                # Structured config update: target_id encodes "key:value"
+                # e.g. "confidence_threshold:0.75" or "prefer_llm_for:analysis"
+                self._apply_route_config_update(target_id, confidence)
+            else:
+                _logger.info(
+                    "route_engine.apply_evolve_changes skipped type=%s target=%s "
+                    "confidence=%.2f (below threshold or unrecognised type)",
+                    change_type, target_id, confidence,
+                )
+
+    def _apply_route_config_update(self, target_id: str, confidence: float) -> None:
+        """Parse and apply a structured route_config_updated change.
+
+        Format: ``"key:value"`` e.g. ``"confidence_threshold:0.75"``.
+        """
+        if ":" not in target_id:
+            _logger.debug(
+                "route_engine.route_config_update invalid target_id=%s", target_id
+            )
+            return
+        key, _, raw_value = target_id.partition(":")
+        key = key.strip()
+        raw_value = raw_value.strip()
+        if key == "confidence_threshold":
+            try:
+                new_val = float(raw_value)
+                new_val = max(0.1, min(0.99, new_val))
+                old = self._confidence_threshold
+                self._confidence_threshold = new_val
+                _logger.info(
+                    "route_engine.route_config_updated key=%s confidence=%.2f "
+                    "threshold %.2f -> %.2f",
+                    key, confidence, old, new_val,
+                )
+            except ValueError:
+                _logger.debug(
+                    "route_engine.route_config_update bad value key=%s value=%s",
+                    key, raw_value,
+                )
+        else:
+            _logger.debug(
+                "route_engine.route_config_update unknown key=%s", key
+            )
 
     def _estimate_rule_confidence(self, proposals: list[BranchProposal]) -> float:
         """Run _estimate_rule_confidence."""

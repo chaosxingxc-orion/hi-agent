@@ -42,7 +42,11 @@
       "Bash(rm agent_kernel/kernel/plan_type_registry.py)",
       "Bash(rm:*)",
       "Bash(echo \"Cleaned $\\(find . -name \"*.pyc\")",
-      "Bash(git ls-files:*)"
+      "Bash(git ls-files:*)",
+      "Bash(grep:*)",
+      "Bash(wc -l /d/chao_workspace/hi-agent/hi_agent/**/*.py)",
+      "Bash(read dir:*)",
+      "mcp__plugin_claude-mem_mcp-search__smart_outline"
     ]
   }
 }

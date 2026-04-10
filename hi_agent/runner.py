@@ -24,6 +24,9 @@ if TYPE_CHECKING:
     from hi_agent.memory.short_term import ShortTermMemoryStore
     from hi_agent.session.run_session import RunSession
     from hi_agent.skill.recorder import SkillUsageRecorder
+    from hi_agent.task_mgmt.delegation import DelegationManager
+    from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine
+    from hi_agent.task_mgmt.reflection import ReflectionOrchestrator
 
 from datetime import UTC
 
@@ -125,6 +128,11 @@ class RunExecutor:
         metrics_collector: Any | None = None,  # MetricsCollector
         memory_lifecycle_manager: Any | None = None,  # MemoryLifecycleManager
         replay_recorder: Any | None = None,  # ReplayRecorder
+        llm_gateway: Any | None = None,  # LLMGateway — wired into default invoker
+        tier_router: Any | None = None,  # TierRouter — passed to lifecycle for P2 feedback
+        restart_policy_engine: "RestartPolicyEngine | None" = None,
+        reflection_orchestrator: "ReflectionOrchestrator | None" = None,
+        delegation_manager: "DelegationManager | None" = None,
     ) -> None:
         """Initialize run executor state.
 
@@ -138,6 +146,9 @@ class RunExecutor:
           action_max_retries: Maximum retry count for each action.
           runner_role: Optional role propagated to capability invocation.
           invoker: Optional capability invoker. Defaults to built-in registry.
+          llm_gateway: Optional LLM gateway passed to the default capability
+              invoker when *invoker* is not provided.  Enables real model-backed
+              execution for all TRACE stage capabilities.
           event_emitter: Optional event emitter for observability.
           raw_memory: Optional L0 memory store.
           compressor: Optional memory compressor.
@@ -211,7 +222,7 @@ class RunExecutor:
         self.force_fail_actions = self._parse_forced_fail_actions(
             contract.constraints
         )
-        self.invoker = invoker or self._build_default_invoker()
+        self.invoker = invoker or self._build_default_invoker(llm_gateway)
         self._invoker_accepts_role, self._invoker_accepts_metadata = (
             self._supports_optional_invoke_arguments(self.invoker.invoke)
         )
@@ -307,6 +318,9 @@ class RunExecutor:
 
         # --- ReplayRecorder: optional JSONL event recording (additive) ---
         self.replay_recorder = replay_recorder
+
+        # --- TierRouter: P2 cost-feedback loop ---
+        self.tier_router = tier_router
 
         # --- RunContext: per-run state container (additive) ---
         self.run_context = run_context
@@ -479,6 +493,8 @@ class RunExecutor:
             failure_collector=self.failure_collector,
             raw_memory=self.raw_memory,
             cts_budget=self.cts_budget,
+            route_engine=self.route_engine,
+            tier_router=self.tier_router,
         )
         self._stage_executor = StageExecutor(
             kernel=self.kernel,
@@ -494,6 +510,58 @@ class RunExecutor:
             auto_compress=self._auto_compress,
             cost_calculator=self._cost_calculator,
         )
+
+        # --- Fix-4: ExecutionHookManager — wraps capability invocations so all
+        #     registered pre/post hooks fire around every action execution. ---
+        try:
+            from hi_agent.middleware.hooks import ExecutionHookManager, HookRegistry
+            self._hook_registry = HookRegistry()
+            self._hook_manager = ExecutionHookManager(self._hook_registry)
+        except Exception as _exc:  # noqa: BLE001
+            _logger.debug(
+                "runner.hook_manager_init_failed run_id=%s error=%s",
+                self.run_id, _exc,
+            )
+            self._hook_registry = None
+            self._hook_manager = None
+
+        # --- Fix-5: NudgeInjector — periodically injects memory/skill nudges
+        #     into the agent's context to drive continuous evolution (P1). ---
+        try:
+            from hi_agent.context.nudge import NudgeConfig, NudgeInjector, NudgeState
+            self._nudge_config = NudgeConfig(
+                memory_nudge_interval=getattr(
+                    getattr(self, 'config', None), 'memory_nudge_interval', 10
+                ),
+                skill_nudge_interval=getattr(
+                    getattr(self, 'config', None), 'skill_nudge_interval', 15
+                ),
+                enabled=getattr(
+                    getattr(self, 'config', None), 'nudge_enabled', True
+                ),
+            )
+            self._nudge_injector = NudgeInjector(self._nudge_config)
+            self._nudge_state = NudgeState()
+        except Exception as _exc:  # noqa: BLE001
+            _logger.debug(
+                "runner.nudge_injector_init_failed run_id=%s error=%s",
+                self.run_id, _exc,
+            )
+            self._nudge_injector = None
+            self._nudge_state = None
+        # Pending nudge blocks to be prepended to the next task-view payload.
+        self._pending_nudge_blocks: list[dict] = []
+
+        # --- RestartPolicyEngine + ReflectionOrchestrator (optional, injected) ---
+        self._restart_policy: RestartPolicyEngine | None = restart_policy_engine
+        self._reflection_orchestrator: ReflectionOrchestrator | None = (
+            reflection_orchestrator
+        )
+        # Per-stage retry attempt counters used by _handle_stage_failure
+        self._stage_attempt: dict[str, int] = {}
+
+        # --- DelegationManager: parallel child-run delegation (optional) ---
+        self._delegation_manager: DelegationManager | None = delegation_manager
 
     @property
     def run_id(self) -> str:
@@ -573,6 +641,111 @@ class RunExecutor:
                 exc,
                 run_id=self.run_id,
                 stage_id=self.current_stage,
+            )
+
+    # ------------------------------------------------------------------
+    # Fix-4: ExecutionHookManager helpers
+    # ------------------------------------------------------------------
+
+    def _invoke_capability_via_hooks(
+        self, proposal: object, payload: dict
+    ) -> dict:
+        """Invoke capability through ExecutionHookManager pre/post tool hooks.
+
+        When _hook_manager is available, wraps the raw capability invocation
+        so that all registered pre_tool and post_tool hooks fire around it.
+        Falls back to direct invocation if hooks are unavailable.
+        """
+        if self._hook_manager is None:
+            return self._invoke_capability(proposal, payload)
+
+        try:
+            from hi_agent.middleware.hooks import ToolCallContext
+            import asyncio
+
+            tool_ctx = ToolCallContext(
+                run_id=self.run_id,
+                stage_id=payload.get("stage_id", self.current_stage or ""),
+                tool_name=str(getattr(proposal, "action_kind", "unknown")),
+                tool_input=payload,
+                turn_number=self.action_seq,
+            )
+
+            def _call_fn(_ctx: ToolCallContext) -> str:
+                result = self._invoke_capability(proposal, payload)
+                # Store result so we can return it after hook chain completes
+                _call_fn._last_result = result  # type: ignore[attr-defined]
+                return str(result.get("success", False))
+
+            _call_fn._last_result = {}  # type: ignore[attr-defined]
+
+            # Run async hook chain synchronously
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Already in an async context — skip hooks, call directly
+                    return self._invoke_capability(proposal, payload)
+                loop.run_until_complete(
+                    self._hook_manager.wrap_tool_call(tool_ctx, _call_fn)
+                )
+            except RuntimeError:
+                asyncio.run(
+                    self._hook_manager.wrap_tool_call(tool_ctx, _call_fn)
+                )
+
+            return _call_fn._last_result  # type: ignore[attr-defined]
+        except Exception as exc:  # noqa: BLE001
+            _logger.debug(
+                "runner.hook_wrap_failed run_id=%s stage_id=%s error=%s",
+                self.run_id, payload.get("stage_id", ""), exc,
+            )
+            return self._invoke_capability(proposal, payload)
+
+    # ------------------------------------------------------------------
+    # Fix-5: NudgeInjector helpers
+    # ------------------------------------------------------------------
+
+    def _nudge_check_after_action(
+        self, stage_id: str, action_text: str = ""
+    ) -> None:
+        """Check nudge state after an action and accumulate pending blocks.
+
+        Increments the turn counter, optionally resets counters when the
+        agent saves memory or creates a skill, and stores any triggered nudge
+        blocks in ``self._pending_nudge_blocks`` for injection into the next
+        task-view payload.
+        """
+        if self._nudge_injector is None or self._nudge_state is None:
+            return
+        try:
+            # Reset counters when agent performs the target action
+            if action_text:
+                from hi_agent.context.nudge import ActionDetector
+                memory_saved, skill_created = ActionDetector.detect_from_text(
+                    action_text
+                )
+                if memory_saved:
+                    self._nudge_state.reset_memory()
+                if skill_created:
+                    self._nudge_state.reset_skill()
+
+            self._nudge_state.increment_turn()
+            self._nudge_state.increment_iter()
+
+            triggers = self._nudge_injector.check(self._nudge_state)
+            if triggers:
+                blocks = [
+                    self._nudge_injector.to_system_block(t) for t in triggers
+                ]
+                self._pending_nudge_blocks.extend(blocks)
+                _logger.debug(
+                    "runner.nudge_triggered run_id=%s stage_id=%s nudges=%d",
+                    self.run_id, stage_id, len(triggers),
+                )
+        except Exception as exc:  # noqa: BLE001
+            _logger.debug(
+                "runner.nudge_check_failed run_id=%s stage_id=%s error=%s",
+                self.run_id, stage_id, exc,
             )
 
     def _make_branch_id(self, stage_id: str) -> str:
@@ -733,10 +906,18 @@ class RunExecutor:
                 return role
         return None
 
-    def _build_default_invoker(self) -> CapabilityInvoker:
-        """Build a default capability invoker with built-in action handlers."""
+    def _build_default_invoker(
+        self, llm_gateway: Any | None = None
+    ) -> CapabilityInvoker:
+        """Build a default capability invoker with built-in action handlers.
+
+        Args:
+            llm_gateway: Optional LLM gateway for model-backed capability
+                execution.  When provided, each default handler calls the LLM
+                and falls back to a heuristic on failure.
+        """
         registry = CapabilityRegistry()
-        register_default_capabilities(registry)
+        register_default_capabilities(registry, llm_gateway=llm_gateway)
         return CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
 
     def _parse_forced_fail_actions(
@@ -872,7 +1053,8 @@ class RunExecutor:
             self._record_event("ActionPlanned", payload)
 
             try:
-                result = self._invoke_capability(proposal, payload)
+                # Fix-4: route through ExecutionHookManager (pre/post tool hooks)
+                result = self._invoke_capability_via_hooks(proposal, payload)
                 success = bool(result.get("success", False))
                 self._record_event(
                     "ActionExecuted",
@@ -893,6 +1075,9 @@ class RunExecutor:
                         "success": success,
                     },
                 )
+                # Fix-5: nudge check after each completed action attempt
+                action_text = str(result) if result else ""
+                self._nudge_check_after_action(stage_id, action_text)
                 if success:
                     return True, result, attempt
                 if attempt == max_attempts:
@@ -1082,7 +1267,12 @@ class RunExecutor:
     ) -> None:
         """Send signal_run to kernel, ignoring errors for robustness."""
         try:
-            self.kernel.signal_run(self.run_id, signal, payload)
+            result = self.kernel.signal_run(self.run_id, signal, payload)
+            # If kernel.signal_run is a coroutine (async facade), close it
+            # gracefully rather than letting Python emit an "unawaited coroutine"
+            # RuntimeWarning.
+            if inspect.iscoroutine(result):
+                result.close()
         except Exception as exc:
             self._log_best_effort_exception(
                 logging.DEBUG,
@@ -1485,7 +1675,10 @@ class RunExecutor:
             for stage_id in self.stage_graph.trace_order():
                 stage_result = self._execute_stage(stage_id)
                 if stage_result == "failed":
-                    return self._finalize_run("failed")
+                    handled = self._handle_stage_failure(stage_id, stage_result)
+                    if handled == "failed":
+                        return self._finalize_run("failed")
+                    # "reflected" or any non-failed result: continue to next stage
         except Exception as exc:
             self._log_best_effort_exception(
                 logging.WARNING,
@@ -1495,7 +1688,10 @@ class RunExecutor:
                 stage_id=self.current_stage,
             )
             self._record_event("RunError", {"error": str(exc), "run_id": self.run_id})
-            return self._finalize_run("failed")
+            handled = self._handle_stage_failure(self.current_stage, "failed")
+            if handled == "failed":
+                return self._finalize_run("failed")
+            # "reflected" or non-failed: continue to finalize as completed
 
         return self._finalize_run("completed")
 
@@ -1561,7 +1757,10 @@ class RunExecutor:
                     # Backtrack: re-execute a previous stage
                     current_stage = backtrack
                     continue
-                return self._finalize_run("failed")
+                handled = self._handle_stage_failure(current_stage, result)
+                if handled == "failed":
+                    return self._finalize_run("failed")
+                # "reflected" or non-failed: treat as completed and continue
             completed_stages.add(current_stage)
 
             # Get next stage from graph
@@ -1579,6 +1778,166 @@ class RunExecutor:
                 current_stage = self._select_next_stage(candidates)
 
         return self._finalize_run("completed")
+
+    def _handle_stage_failure(
+        self,
+        stage_id: str,
+        stage_result: str,
+        *,
+        max_retries: int = 3,
+    ) -> str:
+        """Decide how to handle a stage failure using RestartPolicyEngine.
+
+        When no RestartPolicyEngine is configured the method returns "failed"
+        immediately, preserving the original behaviour.  When an engine is
+        present it queries ``engine.decide(...)`` and acts on the decision:
+
+        * retry   — re-execute the stage (up to *max_retries* times)
+        * reflect — run ReflectionOrchestrator then continue
+        * escalate — log the escalation and return "failed"
+        * abort   — return "failed" immediately
+
+        All new logic is wrapped in try/except so any error falls back to the
+        original "failed" path.
+        """
+        if self._restart_policy is None:
+            return "failed"
+
+        try:
+            attempt = self._stage_attempt.get(stage_id, 0) + 1
+            self._stage_attempt[stage_id] = attempt
+
+            # Build a lightweight failure object the engine can inspect.
+            class _StageFail:
+                retryability = "unknown"
+                failure_code = stage_result
+
+            policy_task_id = self.contract.task_id
+
+            decision = self._restart_policy._decide(
+                self._restart_policy._get_policy(policy_task_id),  # type: ignore[arg-type]
+                policy_task_id,
+                attempt,
+                _StageFail(),
+            )
+
+            _logger.info(
+                "runner.restart_decision stage_id=%s attempt=%d action=%s reason=%s",
+                stage_id,
+                attempt,
+                decision.action,
+                decision.reason,
+            )
+
+            if decision.action == "retry":
+                if attempt <= max_retries:
+                    _logger.info(
+                        "runner.stage_retry stage_id=%s attempt=%d/%d",
+                        stage_id,
+                        attempt,
+                        max_retries,
+                    )
+                    retry_result = self._execute_stage(stage_id)
+                    if retry_result != "failed":
+                        return retry_result
+                    # Recursive call: let the engine decide again for the new attempt
+                    return self._handle_stage_failure(
+                        stage_id, retry_result, max_retries=max_retries
+                    )
+                _logger.warning(
+                    "runner.stage_retry_exhausted stage_id=%s max_retries=%d",
+                    stage_id,
+                    max_retries,
+                )
+                return "failed"
+
+            if decision.action == "reflect":
+                if self._reflection_orchestrator is not None:
+                    try:
+                        import asyncio
+
+                        descriptor_cls = None
+                        try:
+                            from hi_agent.task_mgmt.reflection_bridge import (
+                                TaskDescriptor,
+                            )
+                            descriptor_cls = TaskDescriptor
+                        except Exception:
+                            pass
+
+                        if descriptor_cls is not None:
+                            descriptor = descriptor_cls(
+                                task_id=policy_task_id,
+                                goal=getattr(self.contract, "goal", ""),
+                                context={},
+                            )
+                            loop = None
+                            try:
+                                loop = asyncio.get_event_loop()
+                            except RuntimeError:
+                                pass
+
+                            if loop is not None and loop.is_running():
+                                _logger.info(
+                                    "runner.reflect_skipped_async_loop stage_id=%s",
+                                    stage_id,
+                                )
+                            else:
+                                asyncio.run(
+                                    self._reflection_orchestrator.reflect_and_infer(
+                                        descriptor=descriptor,
+                                        attempts=[],
+                                        run_id=self.run_id,
+                                    )
+                                )
+                    except Exception as exc:
+                        _logger.warning(
+                            "runner.reflect_failed stage_id=%s error=%s",
+                            stage_id,
+                            exc,
+                        )
+                else:
+                    _logger.info(
+                        "runner.reflect_no_orchestrator stage_id=%s",
+                        stage_id,
+                    )
+                # After reflection, continue (do not propagate failure)
+                return "reflected"
+
+            if decision.action == "escalate":
+                _logger.warning(
+                    "runner.stage_escalated stage_id=%s run_id=%s",
+                    stage_id,
+                    self.run_id,
+                )
+                try:
+                    self._record_event(
+                        "StageEscalated",
+                        {
+                            "stage_id": stage_id,
+                            "run_id": self.run_id,
+                            "reason": decision.reason,
+                        },
+                    )
+                except Exception:
+                    pass
+                return "failed"
+
+            # action == "abort" or unknown
+            _logger.info(
+                "runner.stage_aborted stage_id=%s run_id=%s",
+                stage_id,
+                self.run_id,
+            )
+            return "failed"
+
+        except Exception as exc:
+            _logger.warning(
+                "runner.handle_stage_failure_error stage_id=%s error=%s — falling back to failed",
+                stage_id,
+                exc,
+            )
+            return "failed"
 
     def _find_start_stage(self) -> str | None:
         """Find start stage (zero indegree) from stage graph."""
@@ -1651,7 +2010,10 @@ class RunExecutor:
             all_completed = False
             stage_result = self._execute_stage(stage_id)
             if stage_result == "failed":
-                return self._finalize_run("failed")
+                handled = self._handle_stage_failure(stage_id, stage_result)
+                if handled == "failed":
+                    return self._finalize_run("failed")
+                # "reflected" or non-failed: continue to next stage
 
         if all_completed:
             # All stages were already completed in the checkpoint
@@ -1806,10 +2168,71 @@ async def execute_async(
         metadata={"goal": executor.contract.goal},
     )
 
+    # When the stage kernel (sync) differs from executor.kernel (async facade),
+    # pre-register the run_id so open_branch / mark_branch_state can locate it.
+    _sk = getattr(executor._stage_executor, "kernel", None)
+    if _sk is not None and _sk is not executor.kernel and hasattr(_sk, "runs"):
+        if run_id not in _sk.runs:
+            _sk.runs[run_id] = {
+                "run_id": run_id,
+                "task_id": executor.contract.task_id,
+                "status": "running",
+                "cancel_reason": None,
+                "signals": [],
+                "plan": None,
+            }
+
     async def make_handler(node_id: str):
         async def handler(action, grant):
-            return {"node_id": node_id, "status": "completed"}
+            import asyncio
+            _stage_kernel = getattr(executor._stage_executor, "kernel", None)
+            _sync_capable = _stage_kernel is not None and callable(
+                getattr(_stage_kernel, "open_stage", None)
+            ) and not inspect.iscoroutinefunction(
+                getattr(_stage_kernel, "open_stage", None)
+            )
+            if _sync_capable:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None, executor._execute_stage, node_id
+                )
+                status = "failed" if result == "failed" else "completed"
+            else:
+                # Async-only kernel (e.g. pure facade) — state is managed by
+                # execute_turn; no sync stage methods available.
+                status = "completed"
+            return {"node_id": node_id, "status": status}
         return handler
+
+    # --- Sub-goal delegation: dispatch child runs when contract exposes sub_goals ---
+    # The contract schema does not require sub_goals; check defensively so that
+    # this path is safely skipped when the field is absent or empty.
+    _sub_goals: list[Any] = getattr(executor.contract, "sub_goals", None) or []
+    if _sub_goals and executor._delegation_manager is not None:
+        from hi_agent.task_mgmt.delegation import DelegationRequest
+        import uuid as _uuid
+
+        delegation_requests = [
+            DelegationRequest(
+                goal=str(sg),
+                task_id=f"{run_id}-sub-{idx}",
+            )
+            for idx, sg in enumerate(_sub_goals)
+        ]
+        try:
+            delegation_results = await executor._delegation_manager.delegate(
+                delegation_requests, parent_run_id=run_id
+            )
+            _logger.info(
+                "execute_async: delegated %d sub-goals for run_id=%s; results=%s",
+                len(delegation_results),
+                run_id,
+                [(r.status, r.request.goal[:40]) for r in delegation_results],
+            )
+        except Exception as _exc:
+            _logger.warning(
+                "execute_async: delegation failed for run_id=%s: %s", run_id, _exc
+            )
 
     schedule_result = await scheduler.run(
         graph=graph,

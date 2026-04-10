@@ -5,10 +5,12 @@ Called by:
 - Runner: on_run_completed() auto-triggers dream/consolidation based on intervals
 - API: POST /memory/dream, POST /memory/consolidate, GET /memory/status
 - Cron/manual: trigger_full_cycle()
+- Background: start()/stop() asyncio periodic scheduler loop
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 from datetime import UTC, datetime
@@ -58,6 +60,118 @@ class MemoryLifecycleManager:
             from hi_agent.memory.long_term import LongTermConsolidator
 
             self._consolidator = LongTermConsolidator(self._mid, self._graph)
+
+        # Asyncio periodic scheduler state
+        self._scheduler_task: asyncio.Task | None = None  # type: ignore[type-arg]
+        self._check_interval_seconds: float = 60.0  # check once per minute
+
+    # ------------------------------------------------------------------
+    # Asyncio periodic scheduler
+    # ------------------------------------------------------------------
+
+    async def start(self) -> None:
+        """Start the background asyncio scheduler loop.
+
+        Safe to call multiple times — subsequent calls are no-ops if the
+        loop is already running.
+        """
+        if self._scheduler_task is not None:
+            return
+        self._scheduler_task = asyncio.create_task(self._scheduler_loop())
+        logger.info(
+            "MemoryLifecycleManager scheduler started "
+            "(dream_interval=%d runs, consolidate_interval=%d runs, "
+            "check_interval=%.0fs)",
+            self.auto_dream_interval,
+            self.auto_consolidate_interval,
+            self._check_interval_seconds,
+        )
+
+    async def stop(self) -> None:
+        """Stop the background asyncio scheduler loop gracefully."""
+        if self._scheduler_task is None:
+            return
+        self._scheduler_task.cancel()
+        try:
+            await self._scheduler_task
+        except asyncio.CancelledError:
+            pass
+        self._scheduler_task = None
+        logger.info("MemoryLifecycleManager scheduler stopped")
+
+    async def _scheduler_loop(self) -> None:
+        """Periodic check loop.  Runs until cancelled.
+
+        Every ``_check_interval_seconds`` the loop reads the current run
+        counter and fires dream / LTM consolidation when the configured
+        thresholds have been crossed.  A single ``Exception`` does *not*
+        abort the loop — errors are logged and the loop continues.
+        ``asyncio.CancelledError`` propagates so that ``stop()`` works
+        correctly.
+        """
+        while True:
+            try:
+                await asyncio.sleep(self._check_interval_seconds)
+                await self._maybe_run_dream()
+                await self._maybe_run_consolidate()
+            except asyncio.CancelledError:
+                # Requested shutdown — propagate so the task terminates.
+                raise
+            except Exception as exc:
+                logger.error(
+                    "MemoryLifecycleManager scheduler loop error (continuing): %s",
+                    exc,
+                    exc_info=True,
+                )
+
+    def notify_run_completed(self) -> None:
+        """Notify the scheduler that a run has finished.
+
+        Delegates to ``on_run_completed()`` which already contains the
+        interval-threshold logic and is thread-safe.  This method exists
+        as a named hook so callers don't need to know the internal name.
+        """
+        self.on_run_completed()
+
+    async def _maybe_run_dream(self) -> None:
+        """Trigger dream consolidation when the run-count threshold is reached.
+
+        Uses the shared ``_run_count`` maintained by ``on_run_completed``
+        so that both the periodic scheduler and direct ``on_run_completed``
+        calls share a single counter and cannot double-trigger.
+        """
+        if self.auto_dream_interval <= 0:
+            return
+        with self._lock:
+            count = self._run_count
+        if count > 0 and count % self.auto_dream_interval == 0:
+            logger.info(
+                "Scheduler: auto-triggering Dream consolidation (run_count=%d)", count,
+            )
+            try:
+                today = datetime.now(UTC).strftime("%Y-%m-%d")
+                result = self.trigger_dream(today)
+                logger.info("Scheduler: Dream consolidation result: %s", result.get("status"))
+            except Exception as exc:
+                logger.error("Scheduler: Dream consolidation failed: %s", exc)
+
+    async def _maybe_run_consolidate(self) -> None:
+        """Trigger LTM consolidation when the run-count threshold is reached."""
+        if self.auto_consolidate_interval <= 0:
+            return
+        with self._lock:
+            count = self._run_count
+        if count > 0 and count % self.auto_consolidate_interval == 0:
+            logger.info(
+                "Scheduler: auto-triggering LTM consolidation (run_count=%d)", count,
+            )
+            try:
+                result = self.trigger_consolidation()
+                logger.info(
+                    "Scheduler: LTM consolidation result: %s", result.get("status"),
+                )
+            except Exception as exc:
+                logger.error("Scheduler: LTM consolidation failed: %s", exc)
 
     def trigger_dream(self, date: str | None = None) -> dict[str, Any]:
         """Transfer short-term -> mid-term. Thread-safe."""
@@ -147,19 +261,19 @@ class MemoryLifecycleManager:
         try:
             if self._short:
                 status["short_term"] = {"count": len(self._short.list_recent(1000))}
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to query short_term memory store for status: %s", exc)
         try:
             if self._mid:
                 status["mid_term"] = {"count": len(self._mid.list_recent(365))}
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to query mid_term memory store for status: %s", exc)
         try:
             if self._graph:
                 status["long_term"] = {
                     "nodes": self._graph.node_count(),
                     "edges": self._graph.edge_count(),
                 }
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to query long_term memory graph for status: %s", exc)
         return status

@@ -167,11 +167,14 @@ class AsyncTaskScheduler:
 
         async with self._semaphore:
             try:
-                result = await self._kernel.execute_turn(
-                    run_id=self._run_id,
-                    action=action,
-                    handler=handler,
-                    idempotency_key=f"{self._run_id}:{node_id}",
+                result = await asyncio.wait_for(
+                    self._kernel.execute_turn(
+                        run_id=self._run_id,
+                        action=action,
+                        handler=handler,
+                        idempotency_key=f"{self._run_id}:{node_id}",
+                    ),
+                    timeout=300.0,  # 5-minute per-node hard timeout
                 )
                 self._graph.update_node_state(
                     node_id,

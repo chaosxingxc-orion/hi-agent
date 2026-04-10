@@ -63,7 +63,7 @@ class TraceConfig:
     server_max_concurrent_runs: int = 4
 
     # Kernel adapter
-    kernel_base_url: str = "mock"
+    kernel_base_url: str = "local"
     kernel_max_retries: int = 3
     kernel_circuit_breaker_threshold: int = 5
 
@@ -132,7 +132,7 @@ class TraceConfig:
     harness_backoff_base_ms: int = 1000
     harness_backoff_max_ms: int = 30000
     harness_action_default_timeout: int = 60
-    evidence_store_backend: str = "memory"
+    evidence_store_backend: str = "sqlite"
     evidence_store_path: str = ".hi_agent/evidence.db"
 
     # --- Task Budget defaults (NEW) ---
@@ -163,7 +163,38 @@ class TraceConfig:
 
     # --- Async scheduler (NEW) ---
     max_concurrency: int = 64        # AsyncTaskScheduler Semaphore limit
-    kernel_backend: str = "mock"     # "mock" | "local" | "postgres"
+    kernel_backend: str = "local"     # "local" | "postgres"
+
+    # --- Prompt caching (Track C) ---
+    prompt_cache_enabled: bool = True
+    prompt_cache_anchor_messages: int = 3   # lock first N messages as cache prefix
+    prompt_cache_min_tokens: int = 1024     # skip caching if system prompt is tiny
+
+    # --- LLM Failover (Track B) ---
+    llm_failover_enabled: bool = True
+    llm_failover_max_retries: int = 3
+    llm_failover_base_delay_ms: int = 500
+    llm_failover_max_delay_ms: int = 30_000
+    llm_credential_pool_env_var: str = "ANTHROPIC_API_KEY"  # comma-sep multi-key
+
+    # --- Tool result budget (Track D) ---
+    tool_result_max_single_chars: int = 32_000   # per-result char limit (~8k tokens)
+    tool_result_max_cumulative_chars: int = 128_000  # cross-turn cumulative limit
+    tool_result_budget_enabled: bool = True
+
+    # --- Memory & Skill Nudge (Track I) ---
+    nudge_enabled: bool = True
+    memory_nudge_interval: int = 10    # nudge every N turns without memory save
+    skill_nudge_interval: int = 15     # nudge every N tool-iters without skill create
+
+    # --- Delegation (Track F) ---
+    delegation_max_concurrent: int = 3
+    delegation_poll_interval_seconds: float = 2.0
+    delegation_summary_max_chars: int = 2000
+
+    # --- Trajectory export ---
+    trajectory_export_enabled: bool = False   # 默认关闭，避免生产环境磁盘爆满
+    trajectory_export_dir: str = ".hi_agent/trajectories"
 
     # ------------------------------------------------------------------
     # Factory methods

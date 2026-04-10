@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hi_agent.harness.contracts import (
     ActionResult,
@@ -14,6 +14,9 @@ from hi_agent.harness.contracts import (
 )
 from hi_agent.harness.evidence_store import EvidenceStore
 from hi_agent.harness.governance import GovernanceEngine
+
+if TYPE_CHECKING:
+    from hi_agent.harness.permission_rules import PermissionGate
 
 
 class HarnessExecutor:
@@ -29,6 +32,7 @@ class HarnessExecutor:
         governance: GovernanceEngine,
         capability_invoker: Any | None = None,
         evidence_store: EvidenceStore | None = None,
+        permission_gate: "PermissionGate | None" = None,
     ) -> None:
         """Initialize executor with governance and optional dependencies.
 
@@ -37,10 +41,14 @@ class HarnessExecutor:
             capability_invoker: Optional capability invoker (from hi_agent.capability).
                 Must have an ``invoke(name, payload)`` method.
             evidence_store: Optional evidence store. Created internally if None.
+            permission_gate: Optional PermissionGate for fine-grained per-tool
+                permission checks before action dispatch. When provided, DENY
+                decisions short-circuit execution before governance checks.
         """
         self._governance = governance
         self._invoker = capability_invoker
         self._evidence_store = evidence_store or EvidenceStore()
+        self._permission_gate = permission_gate
         self._action_states: dict[str, ActionState] = {}
         self._action_results: dict[str, ActionResult] = {}
 
@@ -63,6 +71,30 @@ class HarnessExecutor:
             ActionResult with outcome, evidence_ref, and state.
         """
         self._action_states[spec.action_id] = ActionState.PREPARED
+
+        # Step 0: Permission gate check (before governance)
+        if self._permission_gate is not None:
+            try:
+                from hi_agent.harness.permission_rules import PermissionAction
+
+                gate_decision = self._permission_gate.check(
+                    run_id=spec.metadata.get("run_id", ""),
+                    tool_name=spec.capability_name,
+                    tool_input=spec.payload,
+                )
+                if gate_decision.permission_decision.action == PermissionAction.DENY:
+                    self._action_states[spec.action_id] = ActionState.FAILED
+                    result = ActionResult(
+                        action_id=spec.action_id,
+                        state=ActionState.FAILED,
+                        error_code="permission_denied",
+                        error_message=gate_decision.permission_decision.reason,
+                    )
+                    self._action_results[spec.action_id] = result
+                    return result
+            except Exception:
+                # Permission gate failure must not block execution
+                pass
 
         # Step 1-2: Governance check
         allowed, reason = self._governance.can_execute(spec)

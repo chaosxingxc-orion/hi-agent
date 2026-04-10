@@ -8,6 +8,8 @@ Stored as JSON file, participates in context building.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -75,14 +77,24 @@ class ShortTermMemoryStore:
         return self._storage_dir / f"{session_id}.json"
 
     def save(self, memory: ShortTermMemory) -> None:
-        """Save to JSON file named by session_id."""
+        """Save to JSON file named by session_id (atomic write)."""
         self._ensure_dir()
         if not memory.created_at:
             memory.created_at = datetime.now(UTC).isoformat()
         data = asdict(memory)
-        self._memory_path(memory.session_id).write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        payload = json.dumps(data, indent=2, ensure_ascii=False)
+        dest = self._memory_path(memory.session_id)
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._storage_dir), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+            os.replace(tmp_path, dest)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def load(self, session_id: str) -> ShortTermMemory | None:
         """Load a short-term memory by session_id."""

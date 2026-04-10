@@ -1,6 +1,9 @@
 # ARCHITECTURE: hi-agent
 
-本文档描述 `hi-agent` 当前代码实现（as-is），用于工程协作与运维对齐。
+本文档描述 `hi-agent` 当前代码实现（as-is），涵盖分层架构视图、接口关系、使用关系、时序图与数据流图。  
+所有图表均基于代码实际实现，与工程实现严格对齐。
+
+---
 
 ## 1. 系统边界
 
@@ -10,160 +13,961 @@ hi-agent (agent brain / orchestration)
   └─ agent-core   (capability ecosystem)
 ```
 
-- `hi-agent`：任务执行编排与智能决策核心。
-- `agent-kernel`：run 生命周期、事件事实、幂等与恢复治理。
-- `agent-core`：通用能力模块来源（工具、检索、MCP 等）。
+| 仓库 | 职责 |
+|------|------|
+| `hi-agent` | 智能体大脑：任务理解、路由决策、执行编排、记忆/知识/技能、持续进化 |
+| `agent-kernel` | 持久化运行时：run 生命周期、事件事实、幂等与恢复治理 |
+| `agent-core` | 通用能力模块：工具、检索、MCP 等（agent-core 集成到 hi-agent） |
 
-## 2. 分层架构
+---
+
+## 2. 分层架构视图（含全组件标注）
 
 ```mermaid
 graph TB
-  subgraph App[hi-agent Application Layer]
-    CLI[CLI / Server API]
-    RUN[RunExecutor]
-    STAGE[StageExecutor]
-    LIFE[RunLifecycle]
-    TELE[RunTelemetry]
+  subgraph API["API & CLI Layer"]
+    CLI["CLI<br/>hi_agent/__main__.py"]
+    SRV["HTTP Server<br/>server/app.py"]
+    RLM["RunManager<br/>server/run_manager.py"]
+    EBUS["EventBus<br/>server/event_bus.py"]
+    DSCH["DreamScheduler<br/>server/dream_scheduler.py"]
+    RLIM["RateLimiter<br/>server/rate_limiter.py"]
   end
 
-  subgraph Domain[Domain Services]
-    ROUTE[Route Engine]
-    HARN[Harness + Governance]
-    TASK[Task Management]
-    MEM[Memory + Session]
-    KNOW[Knowledge]
-    EVO[Evolve]
-    FAIL[Failure Taxonomy]
+  subgraph EXEC["Execution Layer"]
+    REXEC["RunExecutor<br/>runner.py"]
+    STAGE["StageExecutor<br/>runner_stage.py"]
+    LIFE["RunLifecycle<br/>runner_lifecycle.py"]
+    TELE["RunTelemetry<br/>runner_telemetry.py"]
   end
 
-  subgraph Infra[Infrastructure]
-    ADP[Runtime Adapter]
-    OBS[Observability]
-    REPLAY[Replay]
-    TESTING[Testing Bridge]
+  subgraph MW["Middleware Pipeline"]
+    MWORCH["MiddlewareOrchestrator<br/>middleware/orchestrator.py"]
+    PERC["PerceptionMiddleware<br/>middleware/perception.py"]
+    CTRL["ControlMiddleware<br/>middleware/control.py"]
+    EXMW["ExecutionMiddleware<br/>middleware/execution.py"]
+    EVAL["EvaluationMiddleware<br/>middleware/evaluation.py"]
+    HOOKS["HookSystem<br/>middleware/hooks.py"]
   end
 
-  subgraph Kernel[agent-kernel]
-    KR[Kernel Runtime]
+  subgraph ROUTE["Route Engine"]
+    HROUT["HybridRouteEngine<br/>route_engine/hybrid_engine.py"]
+    RROUT["RuleRouteEngine<br/>route_engine/rule_engine.py"]
+    LROUT["LLMRouteEngine<br/>route_engine/llm_engine.py"]
+    SROUT["SkillAwareRouteEngine<br/>route_engine/skill_aware_engine.py"]
+    DACIT["DecisionAuditStore<br/>route_engine/decision_audit.py"]
+    ACCP["AcceptancePolicy<br/>route_engine/acceptance.py"]
   end
 
-  CLI --> RUN
-  RUN --> STAGE
-  RUN --> LIFE
-  RUN --> TELE
-  STAGE --> ROUTE
-  STAGE --> HARN
-  RUN --> TASK
-  RUN --> MEM
-  RUN --> KNOW
-  LIFE --> EVO
-  RUN --> FAIL
-  RUN --> ADP
-  ADP --> KR
-  RUN --> OBS
-  RUN --> REPLAY
-  TESTING --> KR
+  subgraph HARN["Harness & Governance"]
+    HEXEC["HarnessExecutor<br/>harness/executor.py"]
+    GOV["GovernanceEngine<br/>harness/governance.py"]
+    PERM["PermissionGate<br/>harness/permission_rules.py"]
+    EVID["EvidenceStore<br/>harness/evidence_store.py"]
+  end
+
+  subgraph TASKMGMT["Task Management"]
+    TSCH["TaskScheduler<br/>task_mgmt/scheduler.py"]
+    ATSCH["AsyncTaskScheduler<br/>task_mgmt/async_scheduler.py"]
+    THND["TaskHandle<br/>task_mgmt/handle.py"]
+    BGRD["BudgetGuard<br/>task_mgmt/budget_guard.py"]
+    RPOL["RestartPolicyEngine<br/>task_mgmt/restart_policy.py"]
+    REFL["ReflectionOrchestrator<br/>task_mgmt/reflection.py"]
+    TMON["TaskMonitor<br/>task_mgmt/monitor.py"]
+    GFACT["GraphFactory<br/>task_mgmt/graph_factory.py"]
+  end
+
+  subgraph LLM["LLM Subsystem"]
+    TIER["TierAwareLLMGateway<br/>llm/tier_router.py"]
+    FAIL["FailoverChain<br/>llm/failover.py"]
+    CACHE["PromptCacheInjector<br/>llm/cache.py"]
+    STREAM["StreamingGateway<br/>llm/streaming.py"]
+    HTTPLM["HttpLLMGateway<br/>llm/http_gateway.py"]
+    ANTHLM["AnthropicGateway<br/>llm/anthropic_gateway.py"]
+    MREG["ModelRegistry<br/>llm/registry.py"]
+    BUDG["LLMBudgetTracker<br/>llm/budget_tracker.py"]
+  end
+
+  subgraph MEM["Memory Subsystem (3-Tier)"]
+    L0["RawMemoryStore (L0)<br/>memory/l0_raw.py"]
+    STM["ShortTermMemoryStore (L1)<br/>memory/short_term.py"]
+    MTM["MidTermMemoryStore (L2)<br/>memory/mid_term.py"]
+    LTM["LongTermMemoryGraph (L3)<br/>memory/long_term.py"]
+    COMP["AsyncMemoryCompressor<br/>memory/async_compressor.py"]
+    STRCOMP["StructuredCompressor<br/>memory/structured_compression.py"]
+    MRET["UnifiedMemoryRetriever<br/>memory/unified_retriever.py"]
+  end
+
+  subgraph KNOW["Knowledge Subsystem"]
+    KMGR["KnowledgeManager<br/>knowledge/knowledge_manager.py"]
+    WIKI["KnowledgeWiki<br/>knowledge/wiki.py"]
+    KGRAPH["KnowledgeGraph<br/>knowledge/store.py"]
+    RETR["RetrievalEngine<br/>knowledge/retrieval_engine.py"]
+    TFIDF["TF-IDF/BM25<br/>knowledge/tfidf.py"]
+    EMBD["EmbeddingIndex<br/>knowledge/embedding.py"]
+    GREND["GraphRenderer<br/>knowledge/graph_renderer.py"]
+  end
+
+  subgraph SKILL["Skill Subsystem"]
+    SREG["SkillRegistry<br/>skill/registry.py"]
+    SLDR["SkillLoader<br/>skill/loader.py"]
+    SMATCH["SkillMatcher<br/>skill/matcher.py"]
+    SEVO["SkillEvolver<br/>skill/evolver.py"]
+    SVER["SkillVersionManager<br/>skill/version.py"]
+    SOBS["SkillObserver<br/>skill/observer.py"]
+    SREC["SkillUsageRecorder<br/>skill/recorder.py"]
+  end
+
+  subgraph EVO["Evolve Engine"]
+    ENG["EvolveEngine<br/>evolve/engine.py"]
+    POST["PostmortemAnalyzer<br/>evolve/postmortem.py"]
+    SEXT["SkillExtractor<br/>evolve/skill_extractor.py"]
+    REG["RegressionDetector<br/>evolve/regression_detector.py"]
+    CC["ChampionChallenger<br/>evolve/champion_challenger.py"]
+    DSET["DatasetEvaluator<br/>evolve/dataset_evaluator.py"]
+  end
+
+  subgraph CTX["Context OS"]
+    CTXMGR["ContextManager<br/>context/manager.py"]
+    RCTX["RunContext<br/>context/run_context.py"]
+    RCTXMGR["RunContextManager<br/>context/run_context.py"]
+    NUDGE["NudgeStrategy<br/>context/nudge.py"]
+  end
+
+  subgraph CAP["Capability System"]
+    CREG["CapabilityRegistry<br/>capability/registry.py"]
+    CINV["CapabilityInvoker<br/>capability/invoker.py"]
+    ACINV["AsyncCapabilityInvoker<br/>capability/async_invoker.py"]
+    CB["CircuitBreaker<br/>capability/circuit_breaker.py"]
+  end
+
+  subgraph TRAJ["Trajectory"]
+    TRGPH["TrajectoryGraph<br/>trajectory/graph.py"]
+    STGPH["StageGraph<br/>trajectory/stage_graph.py"]
+    OPT["GreedyOptimizer<br/>trajectory/optimizers.py"]
+    DEAD["DeadEndDetector<br/>trajectory/dead_end.py"]
+  end
+
+  subgraph OBS["Observability"]
+    MET["MetricsCollector<br/>observability/collector.py"]
+    NOTIF["NotificationService<br/>observability/notification.py"]
+    TRAJEXP["TrajectoryExporter<br/>observability/trajectory_exporter.py"]
+    EVEM["EventEmitter<br/>events/emitter.py"]
+    EVST["EventStore<br/>events/store.py"]
+  end
+
+  subgraph SESS["Session"]
+    RSESS["RunSession<br/>session/run_session.py"]
+    COST["CostCalculator<br/>session/cost_tracker.py"]
+  end
+
+  subgraph ADP["Runtime Adapter"]
+    KADP["KernelFacadeAdapter<br/>runtime_adapter/kernel_facade_adapter.py"]
+    AKADP["AsyncKernelFacadeAdapter<br/>runtime_adapter/async_kernel_facade_adapter.py"]
+    KCLI["KernelFacadeClient<br/>runtime_adapter/kernel_facade_client.py"]
+    RESADP["ResilientAdapter<br/>runtime_adapter/resilient_adapter.py"]
+    MOCK["MockKernel<br/>runtime_adapter/mock_kernel.py"]
+  end
+
+  subgraph KERNEL["agent-kernel"]
+    KR["KernelRuntime<br/>TurnEngine / EventLog / IdempotencyStore"]
+  end
+
+  subgraph SEC["Security"]
+    AUTH["AuthMiddleware<br/>auth/"]
+    RBAC["RBAC<br/>auth/rbac.py"]
+    JWT["JWTService<br/>auth/jwt.py"]
+  end
+
+  %% Top-down connections
+  CLI --> RLM
+  SRV --> RLM
+  SRV --> EBUS
+  SRV --> DSCH
+  SRV --> AUTH
+  RLM --> REXEC
+
+  REXEC --> STAGE
+  REXEC --> LIFE
+  REXEC --> TELE
+  REXEC --> RCTX
+  REXEC --> RSESS
+  REXEC --> MWORCH
+  REXEC --> TSCH
+  REXEC --> KADP
+
+  STAGE --> HROUT
+  STAGE --> HEXEC
+  STAGE --> RETR
+  STAGE --> SLDR
+
+  MWORCH --> PERC
+  MWORCH --> CTRL
+  MWORCH --> EXMW
+  MWORCH --> EVAL
+  MWORCH --> HOOKS
+
+  HROUT --> RROUT
+  HROUT --> LROUT
+  HROUT --> SROUT
+  HROUT --> DACIT
+
+  HEXEC --> GOV
+  HEXEC --> PERM
+  HEXEC --> CINV
+  HEXEC --> EVID
+
+  TSCH --> ATSCH
+  TSCH --> BGRD
+  TSCH --> RPOL
+  TSCH --> REFL
+  TSCH --> TMON
+  TSCH --> GFACT
+
+  TIER --> FAIL
+  TIER --> CACHE
+  TIER --> STREAM
+  FAIL --> HTTPLM
+  FAIL --> ANTHLM
+  TIER --> MREG
+  TIER --> BUDG
+
+  L0 --> STM
+  STM --> MTM
+  MTM --> LTM
+  COMP --> STM
+  STRCOMP --> COMP
+  MRET --> STM
+  MRET --> MTM
+  MRET --> LTM
+
+  KMGR --> WIKI
+  KMGR --> KGRAPH
+  KMGR --> RETR
+  RETR --> TFIDF
+  RETR --> EMBD
+  KMGR --> GREND
+
+  SREG --> SLDR
+  SREG --> SMATCH
+  SREG --> SVER
+  SLDR --> SOBS
+  SEVO --> SREG
+  SREC --> SOBS
+
+  ENG --> POST
+  ENG --> SEXT
+  ENG --> REG
+  ENG --> CC
+  ENG --> DSET
+  SEXT --> SREG
+
+  RCTXMGR --> RCTX
+  CTXMGR --> RCTX
+  CTXMGR --> NUDGE
+
+  CREG --> CINV
+  CINV --> CB
+  CINV --> ACINV
+
+  TRGPH --> STGPH
+  TRGPH --> OPT
+  TRGPH --> DEAD
+
+  EVEM --> EVST
+  EVEM --> MET
+  EVEM --> EBUS
+  NOTIF --> EBUS
+  TRAJEXP --> EVST
+
+  LIFE --> ENG
+  LIFE --> STM
+  LIFE --> KMGR
+  LIFE --> RSESS
+
+  TELE --> EVEM
+  TELE --> MET
+  TELE --> SOBS
+
+  KADP --> KR
+  AKADP --> KADP
+  RESADP --> KADP
+  KCLI --> KR
+
+  RSESS --> COST
 ```
 
-## 3. 核心执行链路（TRACE）
+---
+
+## 3. 接口关系图（Protocol 与实现）
+
+```mermaid
+classDiagram
+  class LLMGateway {
+    <<Protocol>>
+    +complete(request: LLMRequest) LLMResponse
+    +supports_model(model: str) bool
+  }
+  class TierAwareLLMGateway {
+    +complete(request) LLMResponse
+    +supports_model(model) bool
+    -tier_router: TierRouter
+    -budget_tracker: LLMBudgetTracker
+  }
+  class FailoverChain {
+    +complete(request) LLMResponse
+    -gateways: list[LLMGateway]
+    -credential_pool: list[str]
+  }
+  class HttpLLMGateway {
+    +complete(request) LLMResponse
+    -base_url: str
+    -api_key: str
+  }
+  class AnthropicGateway {
+    +complete(request) LLMResponse
+  }
+  LLMGateway <|.. TierAwareLLMGateway
+  LLMGateway <|.. FailoverChain
+  LLMGateway <|.. HttpLLMGateway
+  LLMGateway <|.. AnthropicGateway
+  TierAwareLLMGateway --> FailoverChain : delegates
+  FailoverChain --> HttpLLMGateway : rotates
+
+  class RuntimeAdapter {
+    <<Protocol>>
+    +start_run(task_id) str
+    +open_stage(stage_id) void
+    +mark_stage_state(stage_id, state) void
+    +open_branch(run_id, stage_id, branch_id) void
+    +record_task_view(task_view_id, content) str
+    +open_human_gate(request) void
+    +stream_run_events(run_id) AsyncIterator
+    +query_run(run_id) RunInfo
+    +close_run(run_id, outcome) void
+  }
+  class KernelFacadeAdapter {
+    +start_run(task_id) str
+    +open_stage(stage_id) void
+    -kernel_facade: KernelFacade
+  }
+  class AsyncKernelFacadeAdapter {
+    +start_run(task_id) str
+    -sync_adapter: KernelFacadeAdapter
+  }
+  class ResilientAdapter {
+    +start_run(task_id) str
+    -retry_policy: RetryPolicy
+    -circuit_breaker: CircuitBreaker
+  }
+  RuntimeAdapter <|.. KernelFacadeAdapter
+  RuntimeAdapter <|.. AsyncKernelFacadeAdapter
+  RuntimeAdapter <|.. ResilientAdapter
+  AsyncKernelFacadeAdapter --> KernelFacadeAdapter : wraps
+  ResilientAdapter --> KernelFacadeAdapter : wraps
+
+  class Middleware {
+    <<Protocol>>
+    +process(message: MiddlewareMessage) MiddlewareMessage
+    +on_create(config) void
+    +on_destroy() void
+  }
+  class PerceptionMiddleware {
+    +process(message) MiddlewareMessage
+    -entity_extractor: EntityExtractor
+  }
+  class ControlMiddleware {
+    +process(message) MiddlewareMessage
+    -skill_matcher: SkillMatcher
+    -route_engine: RouteEngine
+  }
+  class ExecutionMiddleware {
+    +process(message) MiddlewareMessage
+    -harness_executor: HarnessExecutor
+  }
+  class EvaluationMiddleware {
+    +process(message) MiddlewareMessage
+    -quality_threshold: float
+  }
+  Middleware <|.. PerceptionMiddleware
+  Middleware <|.. ControlMiddleware
+  Middleware <|.. ExecutionMiddleware
+  Middleware <|.. EvaluationMiddleware
+
+  class RouteEngine {
+    <<Protocol>>
+    +propose(stage_id, run_id, seq) list~BranchProposal~
+  }
+  class HybridRouteEngine {
+    +propose(stage_id, run_id, seq) list~BranchProposal~
+    -rule_engine: RuleRouteEngine
+    -llm_engine: LLMRouteEngine
+  }
+  class RuleRouteEngine {
+    +propose(stage_id, run_id, seq) list~BranchProposal~
+  }
+  class LLMRouteEngine {
+    +propose(stage_id, run_id, seq) list~BranchProposal~
+    -llm_gateway: LLMGateway
+  }
+  RouteEngine <|.. HybridRouteEngine
+  RouteEngine <|.. RuleRouteEngine
+  RouteEngine <|.. LLMRouteEngine
+  HybridRouteEngine --> RuleRouteEngine : delegates
+  HybridRouteEngine --> LLMRouteEngine : delegates
+
+  class CapabilityInvoker {
+    +invoke(name, payload) dict
+    -registry: CapabilityRegistry
+    -circuit_breaker: CircuitBreaker
+  }
+  class AsyncCapabilityInvoker {
+    +async_invoke(name, payload) dict
+    -invoker: CapabilityInvoker
+    -timeout: float
+  }
+  CapabilityInvoker --> AsyncCapabilityInvoker : async variant
+```
+
+---
+
+## 4. 使用关系图（模块依赖）
+
+```mermaid
+graph LR
+  REXEC["RunExecutor"]
+  STAGE["StageExecutor"]
+  LIFE["RunLifecycle"]
+  TELE["RunTelemetry"]
+  MWORCH["MiddlewareOrchestrator"]
+  HROUT["HybridRouteEngine"]
+  HEXEC["HarnessExecutor"]
+  TIER["TierAwareLLMGateway"]
+  RETR["RetrievalEngine"]
+  KMGR["KnowledgeManager"]
+  SREG["SkillRegistry"]
+  SLDR["SkillLoader"]
+  STM["ShortTermMemory"]
+  COMP["AsyncMemoryCompressor"]
+  ENG["EvolveEngine"]
+  KADP["KernelFacadeAdapter"]
+  CINV["CapabilityInvoker"]
+  MET["MetricsCollector"]
+  EVEM["EventEmitter"]
+  RSESS["RunSession"]
+  RCTX["RunContext"]
+  TSCH["TaskScheduler"]
+  TRGPH["TrajectoryGraph"]
+
+  REXEC -->|delegates stage| STAGE
+  REXEC -->|delegates lifecycle| LIFE
+  REXEC -->|delegates telemetry| TELE
+  REXEC -->|uses| MWORCH
+  REXEC -->|uses| TSCH
+  REXEC -->|uses| KADP
+  REXEC -->|uses| RSESS
+  REXEC -->|uses| RCTX
+
+  STAGE -->|gets proposals| HROUT
+  STAGE -->|dispatches action| HEXEC
+  STAGE -->|retrieves knowledge| RETR
+  STAGE -->|injects skills| SLDR
+
+  MWORCH -->|runs pipeline| HEXEC
+  MWORCH -->|uses| HROUT
+  MWORCH -->|uses| TIER
+
+  HROUT -->|calls| TIER
+  HEXEC -->|calls| CINV
+  CINV -->|executes| CAP["Capability"]
+
+  LIFE -->|triggers| ENG
+  LIFE -->|stores| STM
+  LIFE -->|ingests| KMGR
+
+  TELE -->|emits| EVEM
+  TELE -->|records| MET
+
+  COMP -->|compresses to| STM
+  RETR -->|queries| KMGR
+  RETR -->|uses| TIER
+
+  ENG -->|extracts skills| SREG
+  ENG -->|updates| SREG
+
+  TIER -->|routes to| LLM["LLM API"]
+  KADP -->|calls| KERNEL["agent-kernel"]
+```
+
+---
+
+## 5. 任务执行时序图（Sequence Diagram）
 
 ```mermaid
 sequenceDiagram
-  participant C as Client (CLI/API)
-  participant R as RunExecutor
-  participant S as StageExecutor
-  participant RE as RouteEngine
-  participant H as Harness/Invoker
-  participant K as RuntimeAdapter
-  participant L as RunLifecycle
-  participant E as Evolve/Memory
+  autonumber
+  participant Client as Client (CLI/API)
+  participant Server as HTTP Server<br/>server/app.py
+  participant RunMgr as RunManager
+  participant Exec as RunExecutor<br/>runner.py
+  participant Stage as StageExecutor<br/>runner_stage.py
+  participant MW as MiddlewareOrchestrator
+  participant Route as HybridRouteEngine
+  participant Harness as HarnessExecutor
+  participant Gov as GovernanceEngine
+  participant Cap as CapabilityInvoker
+  participant LLM as TierAwareLLMGateway
+  participant Know as KnowledgeManager
+  participant Skill as SkillLoader
+  participant Mem as AsyncMemoryCompressor
+  participant Kernel as RuntimeAdapter→agent-kernel
+  participant Evolve as EvolveEngine
 
-  C->>R: start(run/task_contract)
-  R->>K: start_run
-  loop stage traversal
-    R->>S: execute_stage(stage_id)
-    S->>K: open_stage / mark_stage_state(active)
-    S->>RE: propose(stage context)
-    RE-->>S: branch proposals
-    S->>H: execute action
-    H-->>S: success/failure + evidence
-    S->>K: mark_branch_state / events
-    S->>R: update action_seq / trajectory
+  Client->>Server: POST /runs {TaskContract}
+  Server->>RunMgr: submit_run(contract)
+  RunMgr->>Exec: RunExecutor(contract, builder)
+  RunMgr-->>Client: {run_id, status: ACTIVE}
+
+  Exec->>Kernel: start_run(task_id) → run_id
+  Exec->>Exec: build stage_graph (S1→S5)
+
+  loop For each Stage in TRACE (S1 Understand → S5 Deliver)
+    Exec->>Stage: execute_stage(stage_id)
+    Stage->>Kernel: open_stage(stage_id)
+    Stage->>Know: query(stage_context) → KnowledgeResult
+    Stage->>Skill: build_prompt() → skill_context
+    Stage->>MW: process(MiddlewareMessage)
+
+    MW->>MW: Perception: extract entities, build context
+    MW->>LLM: complete(control_request) [medium tier]
+    LLM-->>MW: ExecutionPlan
+    MW->>MW: Control: skill matching, resource binding
+
+    MW->>Route: propose(stage_id, run_id, seq)
+    Route->>LLM: complete(route_request) [if LLM route]
+    LLM-->>Route: BranchProposal[]
+    Route-->>MW: BranchProposal[]
+
+    loop For each BranchProposal
+      MW->>Kernel: open_branch(run_id, stage_id, branch_id)
+      MW->>Harness: execute(ActionSpec)
+      Harness->>Gov: can_execute(spec) → bool
+      Gov-->>Harness: approved
+      Harness->>Cap: invoke(capability_name, payload)
+      Cap-->>Harness: ActionResult
+      Harness->>Harness: store evidence
+      Harness-->>MW: ActionResult + evidence_refs
+      MW->>Kernel: mark_branch_state(branch_id, outcome)
+    end
+
+    MW->>MW: Evaluation: quality_score ≥ threshold?
+    MW-->>Stage: MiddlewareResult
+
+    alt Quality accepted
+      Stage->>Kernel: mark_stage_state(stage_id, COMPLETED)
+      Stage->>Mem: compress_stage(stage_summary)
+      Mem->>LLM: complete(compress_request) [light tier]
+      LLM-->>Mem: CompressedSummary
+      Mem->>Mem: store to ShortTermMemory (L1)
+    else Quality rejected / dead-end
+      Stage->>Stage: detect backtrack edge
+      Stage->>Exec: request_recovery(stage_id)
+      Exec->>Kernel: mark_stage_state(stage_id, FAILED)
+    end
+
+    Stage-->>Exec: StageResult {findings, decisions}
   end
-  R->>L: finalize_run(outcome)
-  L->>E: postmortem, memory, knowledge ingest, evolve hooks
-  R-->>C: completed/failed
+
+  Exec->>Evolve: on_run_completed(RunPostmortem)
+  Evolve->>Evolve: PostmortemAnalyzer.analyze()
+  Evolve->>Evolve: SkillExtractor.extract() → SkillCandidate[]
+  Evolve->>Evolve: RegressionDetector.record()
+  Evolve->>Evolve: ChampionChallenger.update_metrics()
+
+  Exec->>Kernel: close_run(run_id, outcome)
+  Exec-->>RunMgr: RunResult {run_id, findings, cost}
+  RunMgr->>Server: emit RUN_COMPLETED event (SSE)
+  Server-->>Client: GET /runs/{run_id}/events (SSE stream)
 ```
 
-## 4. 关键实现模块
+---
 
-### 4.1 执行与生命周期
-- `hi_agent/runner.py`
-  - 主执行入口：`execute` / `execute_graph` / `resume_from_checkpoint` / `execute_async`
-  - 汇总调度、分支推进、故障记录、人类门禁触发
-- `hi_agent/runner_stage.py`
-  - 单 stage 的路由提案、分支执行、budget 检查与 dead-end 判断
-- `hi_agent/runner_lifecycle.py`
-  - run 收尾：postmortem、短期记忆、知识摄入、进化触发、episode 落盘
-- `hi_agent/runner_telemetry.py`
-  - 事件、技能执行与观测输出
+## 6. 数据流图（Data Flow Diagram）
 
-### 4.2 任务管理与恢复
-- `hi_agent/task_mgmt/`
-  - `restart_policy.py`：重试决策与反思触发
-  - `budget_guard.py`：预算分层决策
-  - `reflection*.py`：失败历史构建与恢复推理上下文
+```mermaid
+flowchart TD
+  INPUT["用户输入<br/>TaskContract<br/>{goal, constraints, budget}"]
 
-### 4.3 路由与治理
-- `hi_agent/route_engine/`
-  - 规则路由、LLM 路由、混合路由与决策审计
-- `hi_agent/harness/`
-  - side-effect 分级、门禁决策、人类审批触发
+  subgraph INGRESS["入口层"]
+    API["POST /runs"]
+    RUN_CTX["RunContext 创建<br/>run_context.py"]
+    SESS["RunSession 初始化<br/>session/run_session.py"]
+  end
 
-### 4.4 记忆、知识与进化
-- `hi_agent/memory/`：分层记忆、压缩、检索
-- `hi_agent/knowledge/`：知识摄取、查询、图谱/索引
-- `hi_agent/evolve/`：postmortem 分析、技能候选、回归检测
-- `hi_agent/skill/`：技能定义、版本管理、观测与演进执行
+  subgraph PREPROCESS["预处理层"]
+    KNOW_QUERY["Knowledge Query<br/>retrieval_engine.retrieve()"]
+    SKILL_INJECT["Skill Injection<br/>skill_loader.build_prompt()"]
+    TASK_VIEW["Task View 构建<br/>task_view/builder.py"]
+  end
 
-### 4.5 运行时适配
-- `hi_agent/runtime_adapter/`
-  - 统一协议适配到 `agent-kernel`（本地 facade / HTTP client）
-  - 包含容错、重试与健康探测
+  subgraph PIPELINE["中间件管道"]
+    PERC_DATA["Perception Data<br/>entity_map, context_str"]
+    CTRL_DATA["Control Data<br/>ExecutionPlan, resource_bindings"]
+    EXEC_DATA["Execution Data<br/>ActionSpec, capability_name"]
+    EVAL_DATA["Evaluation Data<br/>quality_score, retry_flag"]
+  end
 
-### 4.6 测试桥接
-- `hi_agent/testing/`
-  - re-export `agent_kernel.testing` 常用内存测试组件：
-    - `InMemoryKernelRuntimeEventLog`
-    - `InMemoryDedupeStore`
-    - `StaticRecoveryGateService`
+  subgraph LLM_LAYER["LLM 调用层"]
+    LLM_REQ["LLMRequest<br/>{messages, model, max_tokens}"]
+    TIER_ROUTE["TierRouter<br/>purpose→strong/medium/light"]
+    CACHE_CHK["PromptCacheInjector<br/>cache_control anchors"]
+    LLM_RESP["LLMResponse<br/>{content, usage, finish_reason}"]
+  end
 
-## 5. 可靠性与可观测性设计
+  subgraph EXECUTION["执行层"]
+    ACTION_SPEC["ActionSpec<br/>{action_id, capability_name, payload}"]
+    GOV_CHECK["GovernanceEngine<br/>EffectClass + SideEffectClass 分级"]
+    CAP_RESULT["Capability Result<br/>{output, metadata}"]
+    EVIDENCE["EvidenceRecord<br/>{action_id, result, timestamp}"]
+  end
 
-- 失败体系：`failures/taxonomy.py` 对齐 `TraceFailureCode`，并兼容 legacy `budget_exhausted`。
-- 人类门禁：支持 contract correction / route direction / artifact review / final approval。
-- 重试与退避：`TaskRestartPolicy` 使用上游 `max_backoff_ms`。
-- best-effort 路径：关键后处理改为记录日志而非静默吞异常，避免“假成功”。
-- 事件与审计：运行事件、路由决策与技能执行结果可追踪。
+  subgraph CAPTURE["捕获层"]
+    STAGE_SUM["StageSummary<br/>{findings, decisions, outcome}"]
+    RAW_EVT["RawEventRecord (L0)<br/>JSONL uncompressed"]
+    COMPRESS["CompressedMemory<br/>LLM summarized"]
+    STM_REC["ShortTermMemory (L1)<br/>per-session working set"]
+  end
 
-## 6. 配置与运行模式
+  subgraph KERNEL_LAYER["Kernel 层"]
+    K_EVENTS["Kernel Event Log<br/>immutable facts"]
+    K_STATE["Run/Stage/Branch State<br/>state machine"]
+    K_IDEM["Idempotency Store<br/>dedup key"]
+  end
 
-- CLI 本地模式：`python -m hi_agent run --local ...`
-- API 模式：`python -m hi_agent serve` + `run/status/health/resume`
-- 图执行模式：`execute_graph` 按 stage graph 动态推进
-- checkpoint 恢复：`resume_from_checkpoint`
+  subgraph EVOLVE_LAYER["进化层"]
+    POSTMORT["RunPostmortem<br/>{run_id, stage_results, metrics}"]
+    SKILL_CAND["SkillCandidate<br/>{name, prompt_template, trigger}"]
+    REGR_DATA["RegressionPoint<br/>{metric, baseline, delta}"]
+    CC_DATA["ChampionChallenger<br/>A/B metrics comparison"]
+  end
 
-## 7. 已知工程边界
+  subgraph OUTPUT["输出层"]
+    RUN_RESULT["RunResult<br/>{run_id, status, findings, cost}"]
+    SSE_STREAM["SSE Events<br/>/runs/{id}/events"]
+    KNOW_UPDATE["Knowledge Update<br/>wiki + graph auto-ingest"]
+    SKILL_UPDATE["Skill Registry Update<br/>new/promoted skills"]
+  end
 
-- CLI 对 localhost 代理绕行（P0）当前未在本仓库修复，依赖运行环境代理配置。
-- `TaskAttemptRecord` 仍保留兼容入口（带弃用提示），建议新代码仅使用 `TaskAttempt`。
-- `agent-kernel` 仍为 git 引用（已固定 commit），未来建议切换可发布制品（wheel/index）。
+  INPUT --> API
+  API --> RUN_CTX
+  API --> SESS
 
-## 8. 质量门禁
+  RUN_CTX --> KNOW_QUERY
+  RUN_CTX --> SKILL_INJECT
+  KNOW_QUERY --> TASK_VIEW
+  SKILL_INJECT --> TASK_VIEW
+
+  TASK_VIEW --> PERC_DATA
+  PERC_DATA --> CTRL_DATA
+  CTRL_DATA --> EXEC_DATA
+  EXEC_DATA --> EVAL_DATA
+
+  CTRL_DATA --> LLM_REQ
+  LLM_REQ --> TIER_ROUTE
+  TIER_ROUTE --> CACHE_CHK
+  CACHE_CHK --> LLM_RESP
+  LLM_RESP --> CTRL_DATA
+
+  EXEC_DATA --> ACTION_SPEC
+  ACTION_SPEC --> GOV_CHECK
+  GOV_CHECK --> CAP_RESULT
+  CAP_RESULT --> EVIDENCE
+
+  EVAL_DATA --> STAGE_SUM
+  EVIDENCE --> STAGE_SUM
+  STAGE_SUM --> RAW_EVT
+  STAGE_SUM --> COMPRESS
+  COMPRESS --> STM_REC
+
+  ACTION_SPEC --> K_EVENTS
+  STAGE_SUM --> K_STATE
+  K_STATE --> K_IDEM
+
+  STAGE_SUM --> POSTMORT
+  POSTMORT --> SKILL_CAND
+  POSTMORT --> REGR_DATA
+  SKILL_CAND --> CC_DATA
+
+  STAGE_SUM --> RUN_RESULT
+  K_STATE --> SSE_STREAM
+  STM_REC --> KNOW_UPDATE
+  CC_DATA --> SKILL_UPDATE
+
+  RUN_RESULT --> OUTPUT
+  SSE_STREAM --> OUTPUT
+  KNOW_UPDATE --> OUTPUT
+  SKILL_UPDATE --> OUTPUT
+```
+
+---
+
+## 7. 记忆系统数据流（Memory Consolidation Flow）
+
+```mermaid
+flowchart LR
+  subgraph SESSION["Session"]
+    ACT["Action Events<br/>RawEventRecord"]
+    STAGE_DONE["Stage Completion<br/>StageSummary"]
+  end
+
+  subgraph L0["L0: Raw Store"]
+    RAW["JSONL append-only<br/>memory/l0_raw.py"]
+  end
+
+  subgraph L1["L1: Short-Term (per session)"]
+    STM["ShortTermMemory<br/>LLM-compressed summaries<br/>memory/short_term.py"]
+    CTX_WINDOW["Context Window<br/>last N turns"]
+  end
+
+  subgraph L2["L2: Mid-Term (daily dream)"]
+    DREAM["DreamConsolidator<br/>memory/mid_term.py"]
+    DAILY["DailySummary<br/>{date, key_facts, decisions}"]
+  end
+
+  subgraph L3["L3: Long-Term (graph)"]
+    LTMG["LongTermMemoryGraph<br/>memory/long_term.py"]
+    NODES["MemoryNode<br/>{id, content, type, embedding}"]
+    EDGES["MemoryEdge<br/>{source, target, relation}"]
+  end
+
+  subgraph RETRIEVAL["检索层"]
+    URET["UnifiedMemoryRetriever<br/>memory/unified_retriever.py"]
+    RENG["RetrievalEngine<br/>knowledge/retrieval_engine.py"]
+  end
+
+  ACT --> RAW
+  STAGE_DONE --> STM
+  RAW --> STM
+  STM --> CTX_WINDOW
+
+  STM -->|nightly dream| DREAM
+  DREAM --> DAILY
+  DAILY --> LTMG
+  LTMG --> NODES
+  LTMG --> EDGES
+
+  URET --> STM
+  URET --> DAILY
+  URET --> LTMG
+  RENG --> URET
+```
+
+---
+
+## 8. 进化引擎流程（Evolve Engine Flow）
+
+```mermaid
+flowchart TD
+  RUN_END["Run Completed<br/>RunPostmortem"]
+
+  POST["PostmortemAnalyzer<br/>evolve/postmortem.py<br/>分析成功/失败模式"]
+  SEXT["SkillExtractor<br/>evolve/skill_extractor.py<br/>提取可复用技能候选"]
+  DSET["DatasetEvaluator<br/>evolve/dataset_evaluator.py<br/>benchmark 评测"]
+  REG["RegressionDetector<br/>evolve/regression_detector.py<br/>检测性能退化"]
+  CC["ChampionChallenger<br/>evolve/champion_challenger.py<br/>A/B 版本对比"]
+
+  CAND["SkillCandidate<br/>{name, prompt, trigger, score}"]
+  SREG["SkillRegistry<br/>skill/registry.py"]
+  SVER["SkillVersionManager<br/>champion/challenger"]
+  SEVO["SkillEvolver<br/>textual gradient 优化"]
+
+  ALERT["RegressionAlert<br/>observability/notification.py"]
+
+  RUN_END --> POST
+  POST --> SEXT
+  POST --> DSET
+  POST --> REG
+  SEXT --> CAND
+  CAND --> SREG
+  SREG --> SVER
+  SVER --> CC
+  CC --> SEVO
+  SEVO --> SREG
+  REG --> ALERT
+  DSET --> REG
+```
+
+---
+
+## 9. 关键模块接口说明
+
+### 9.1 RunExecutor — 主执行入口
+
+| 方法 | 签名 | 职责 |
+|------|------|------|
+| `execute` | `() → dict` | 线性 stage 遍历执行（TRACE S1→S5） |
+| `execute_graph` | `(stage_graph: TrajectoryGraph) → dict` | 动态图遍历含回溯与多后继路由 |
+| `execute_async` | `() → Coroutine[dict]` | asyncio 全异步模式（AsyncTaskScheduler） |
+| `resume_from_checkpoint` | `(checkpoint: dict) → dict` | 从 checkpoint 恢复运行 |
+
+### 9.2 LLMGateway Protocol
+
+| 方法 | 签名 | 职责 |
+|------|------|------|
+| `complete` | `(request: LLMRequest) → LLMResponse` | 执行模型调用 |
+| `supports_model` | `(model: str) → bool` | 检查模型兼容性 |
+
+**实现链路**：`TierAwareLLMGateway` → `FailoverChain` → `HttpLLMGateway`（或 `AnthropicGateway`）
+
+### 9.3 RuntimeAdapter Protocol（17 方法）
+
+| 方法组 | 方法 | 职责 |
+|--------|------|------|
+| Run | `start_run`, `close_run`, `query_run` | run 生命周期 |
+| Stage | `open_stage`, `mark_stage_state` | stage 状态 |
+| Branch | `open_branch`, `mark_branch_state` | branch 状态 |
+| Human Gate | `open_human_gate`, `resolve_human_gate` | 人类审批 |
+| Events | `record_event`, `stream_run_events` | 事件流 |
+| Task View | `record_task_view` | 任务视图持久化 |
+| Planning | `record_plan`, `query_plan` | 计划存储 |
+
+### 9.4 Middleware Protocol
+
+| 生命周期 | 方法 | 职责 |
+|---------|------|------|
+| 创建 | `on_create(config)` | 中间件初始化 |
+| 处理 | `process(message: MiddlewareMessage) → MiddlewareMessage` | 核心管道处理 |
+| 销毁 | `on_destroy()` | 资源清理 |
+
+**HookAction**: `CONTINUE` / `MODIFY` / `SKIP` / `BLOCK` / `RETRY`
+
+### 9.5 Server API 端点
+
+| 路径 | 方法 | 职责 |
+|------|------|------|
+| `/runs` | `POST` | 提交任务，返回 run_id |
+| `/runs` | `GET` | 列出活跃 run |
+| `/runs/{id}` | `GET` | 查询 run 状态 |
+| `/runs/{id}/signal` | `POST` | 发送信号（pause/resume/cancel） |
+| `/runs/{id}/resume` | `POST` | 从 checkpoint 恢复 |
+| `/runs/{id}/events` | `GET` | SSE 事件流 |
+| `/knowledge/ingest` | `POST` | 文本摄取到 wiki |
+| `/knowledge/ingest-structured` | `POST` | 结构化事实摄取到图谱 |
+| `/knowledge/query` | `GET` | 知识查询 |
+| `/knowledge/status` | `GET` | 知识库状态 |
+| `/knowledge/lint` | `POST` | 知识健康检查 |
+| `/memory/dream` | `POST` | 触发 dream 整合（mid-term） |
+| `/memory/consolidate` | `POST` | 触发长期图整合 |
+| `/memory/status` | `GET` | 记忆系统状态 |
+| `/skills/list` | `GET` | 技能列表 |
+| `/skills/evolve` | `POST` | 触发 champion/challenger 轮次 |
+| `/skills/{id}/optimize` | `POST` | 优化技能 prompt |
+| `/skills/{id}/promote` | `POST` | challenger → champion |
+| `/context/health` | `GET` | 上下文预算健康 |
+| `/health` | `GET` | 全系统健康 |
+| `/metrics` | `GET` | Prometheus 指标 |
+
+---
+
+## 10. 配置与组件装配（SystemBuilder）
+
+```mermaid
+flowchart LR
+  CFG["TraceConfig<br/>95+ 参数<br/>JSON/env/code"]
+
+  subgraph SB["SystemBuilder<br/>config/builder.py"]
+    KRN["build_kernel()<br/>→ RuntimeAdapter"]
+    LLM["build_llm_gateway()<br/>→ TierAwareLLMGateway"]
+    MEM["build_memory_manager()<br/>→ 3-tier stack"]
+    KNOW["build_knowledge_manager()<br/>→ KnowledgeManager"]
+    SKL["build_skill_registry()<br/>→ SkillRegistry"]
+    EVO["build_evolve_engine()<br/>→ EvolveEngine"]
+    HARN["build_harness_executor()<br/>→ HarnessExecutor"]
+    MW["build_middleware_orchestrator()<br/>→ MiddlewareOrchestrator"]
+    SCHED["build_task_scheduler()<br/>→ TaskScheduler"]
+    SRV["build_http_server()<br/>→ AgentServer"]
+  end
+
+  CFG --> SB
+  SB --> REXEC["RunExecutor<br/>(assembled)"]
+```
+
+**TraceConfig 核心参数**：
+
+| 类别 | 参数示例 |
+|------|---------|
+| Kernel | `kernel_base_url` ("local" / HTTP URL) |
+| LLM | `llm_api_key`, `llm_default_model`, `llm_budget_max_calls` |
+| 缓存 | `prompt_cache_enabled`, `prompt_cache_anchor_messages` |
+| 记忆 | `memory_tier_enabled`, `memory_consolidation_interval_seconds` |
+| 知识 | `knowledge_storage_dir` |
+| 技能 | `skill_registry_dir`, `skill_evolution_enabled` |
+| 中间件 | `middleware_enabled`, `gate_quality_threshold` |
+| 服务器 | `server_host`, `server_port`, `server_workers` |
+
+---
+
+## 11. 失败处理与恢复机制
+
+```mermaid
+flowchart TD
+  FAIL_EVT["Action/Stage 失败"]
+
+  subgraph DETECT["检测层"]
+    FC["FailureCollector<br/>failures/collector.py"]
+    WD["ProgressWatchdog<br/>failures/watchdog.py"]
+    DD["DeadEndDetector<br/>trajectory/dead_end.py"]
+  end
+
+  subgraph CLASSIFY["分类层<br/>failures/taxonomy.py"]
+    MISSING["missing_evidence"]
+    HARNESS_D["harness_denied"]
+    MODEL_INV["model_output_invalid"]
+    NO_PROG["no_progress"]
+    BUDGET_X["execution_budget_exhausted"]
+  end
+
+  subgraph RECOVER["恢复层"]
+    RPOL["RestartPolicyEngine<br/>task_mgmt/restart_policy.py"]
+    REFL["ReflectionOrchestrator<br/>task_mgmt/reflection.py"]
+    BACK["Backtrack Edge<br/>trajectory/graph.py"]
+    GATE["HumanGate<br/>runtime_adapter → kernel"]
+  end
+
+  FAIL_EVT --> FC
+  FAIL_EVT --> WD
+  FAIL_EVT --> DD
+
+  FC --> MISSING
+  FC --> HARNESS_D
+  FC --> MODEL_INV
+  WD --> NO_PROG
+  DD --> BUDGET_X
+
+  MISSING --> RPOL
+  HARNESS_D --> GATE
+  MODEL_INV --> REFL
+  NO_PROG --> BACK
+  BUDGET_X --> RPOL
+
+  RPOL --> RECOVER_ACTION["retry / reflect / escalate / abort"]
+  REFL --> LLM_REFL["LLM 生成恢复建议"]
+  LLM_REFL --> RPOL
+```
+
+---
+
+## 12. 已知工程边界
+
+- `agent-kernel` 通过固定 commit 引用（git submodule），未来建议切换可发布制品（wheel/index）。
+- `TaskAttemptRecord` 保留兼容入口（带弃用提示），新代码仅使用 `TaskAttempt`。
+- Windows 环境代理绕行依赖运行环境配置（P0）。
+
+## 13. 质量门禁
 
 ```bash
 python -m ruff check .
-python -m pytest -q
+python -m pytest -q        # 2067 tests, all passing
 ```
 
-当前文档对应的代码形态已通过全量测试回归。
+当前文档对应代码形态已通过全量测试回归（2026-04-11）。

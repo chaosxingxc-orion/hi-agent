@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import os
+import random
+import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, TokenUsage
+
+if TYPE_CHECKING:
+    from hi_agent.llm.failover import FailoverChain
+    from hi_agent.llm.cache import PromptCacheInjector
+    from hi_agent.llm.budget_tracker import LLMBudgetTracker
+
+logger = logging.getLogger(__name__)
 
 
 class HttpLLMGateway:
@@ -25,6 +36,8 @@ class HttpLLMGateway:
         api_key_env: Environment variable that holds the API key.
         default_model: Model to use when the request specifies ``"default"``.
         timeout_seconds: HTTP request timeout.
+        max_retries: Maximum number of retry attempts for transient errors.
+        retry_base_seconds: Base delay in seconds for exponential backoff.
     """
 
     def __init__(
@@ -33,22 +46,109 @@ class HttpLLMGateway:
         api_key_env: str = "OPENAI_API_KEY",
         default_model: str = "gpt-4o",
         timeout_seconds: int = 120,
+        max_retries: int = 3,
+        retry_base_seconds: float = 1.0,
+        failover_chain: "FailoverChain | None" = None,
+        cache_injector: "PromptCacheInjector | None" = None,
+        budget_tracker: "LLMBudgetTracker | None" = None,
     ) -> None:
         """Initialize HttpLLMGateway."""
         self._base_url = base_url.rstrip("/")
         self._api_key_env = api_key_env
         self._default_model = default_model
         self._timeout = timeout_seconds
+        self._max_retries = max_retries
+        self._retry_base = retry_base_seconds
+        self._failover_chain = failover_chain
+        self._cache_injector = cache_injector
+        self._budget_tracker = budget_tracker
 
     # -- LLMGateway protocol --------------------------------------------------
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         """Send a chat-completion request and return a structured response.
 
+        When a :class:`PromptCacheInjector` is configured, cache_control markers
+        are injected into the message list before sending.  When a
+        :class:`FailoverChain` is configured, the request is routed through it
+        instead of the direct HTTP path.
+
         Raises:
             LLMTimeoutError: If the HTTP call exceeds *timeout_seconds*.
             LLMProviderError: On any non-200 HTTP response or connection failure.
+            LLMBudgetExhaustedError: If the configured budget tracker signals exhaustion.
         """
+        if self._budget_tracker is not None:
+            self._budget_tracker.check()
+            # Inject real-time remaining budget ratio into request metadata so
+            # that TierAwareLLMGateway can make accurate per-request tier
+            # downgrade decisions instead of relying on the caller-supplied
+            # default of 1.0.
+            remaining_calls = self._budget_tracker.remaining_calls
+            max_calls = self._budget_tracker._max_calls  # noqa: SLF001
+            remaining_tokens = max(
+                0, self._budget_tracker._max_tokens - self._budget_tracker._total_tokens  # noqa: SLF001
+            )
+            max_tokens = self._budget_tracker._max_tokens  # noqa: SLF001
+            calls_ratio = remaining_calls / max_calls if max_calls > 0 else 1.0
+            tokens_ratio = remaining_tokens / max_tokens if max_tokens > 0 else 1.0
+            budget_ratio = min(calls_ratio, tokens_ratio)
+            request = LLMRequest(
+                model=request.model,
+                messages=request.messages,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                stop_sequences=request.stop_sequences,
+                metadata={**request.metadata, "budget_remaining": budget_ratio},
+            )
+        try:
+            # 1. Inject prompt cache markers if configured.
+            if self._cache_injector is not None:
+                try:
+                    messages = self._cache_injector.inject(list(request.messages))
+                    request = LLMRequest(
+                        model=request.model,
+                        messages=messages,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens,
+                        stop_sequences=request.stop_sequences,
+                        metadata=request.metadata,
+                    )
+                except Exception as exc:  # pragma: no cover
+                    logger.warning("PromptCacheInjector.inject failed, skipping: %s", exc)
+
+            # 2. Route through failover chain if configured.
+            if self._failover_chain is not None:
+                import asyncio as _asyncio
+                try:
+                    loop = _asyncio.get_event_loop()
+                    if loop.is_running():
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                            future = pool.submit(
+                                _asyncio.run, self._failover_chain.complete(request)
+                            )
+                            return future.result()
+                    else:
+                        return loop.run_until_complete(
+                            self._failover_chain.complete(request)
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
+                    )
+
+        except Exception as exc:  # pragma: no cover
+            logger.warning("http_gateway integration error (%s), using direct path.", exc)
+
+        # 3. Fallback: original direct HTTP logic.
+        response = self._direct_complete(request)
+        if self._budget_tracker is not None:
+            self._budget_tracker.record(response.usage)
+        return response
+
+    def _direct_complete(self, request: LLMRequest) -> LLMResponse:
+        """Execute the request directly via urllib (no failover)."""
         model = request.model if request.model != "default" else self._default_model
         payload = self._build_payload(request, model)
         raw = self._post(payload)
@@ -73,7 +173,7 @@ class HttpLLMGateway:
         return body
 
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Run _post."""
+        """Run _post with retry logic for transient errors."""
         api_key = os.environ.get(self._api_key_env, "")
         url = f"{self._base_url}/chat/completions"
         headers = {
@@ -81,25 +181,38 @@ class HttpLLMGateway:
             "Authorization": f"Bearer {api_key}",
         }
         data = json.dumps(payload).encode()
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        try:
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
-                return json.loads(resp.read().decode())
-        except urllib.error.HTTPError as exc:
-            body = ""
-            if exc.fp:
-                body = exc.fp.read().decode(errors="replace")
-            raise LLMProviderError(
-                f"HTTP {exc.code}: {body}",
-                status_code=exc.code,
-            ) from exc
-        except urllib.error.URLError as exc:
-            if "timed out" in str(exc.reason):
-                raise LLMTimeoutError(str(exc.reason)) from exc
-            raise LLMProviderError(str(exc.reason)) from exc
-        except TimeoutError as exc:
-            raise LLMTimeoutError(str(exc)) from exc
+        last_exc: LLMProviderError | None = None
+        for attempt in range(self._max_retries + 1):
+            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                    return json.loads(resp.read().decode())
+            except urllib.error.HTTPError as exc:
+                body = ""
+                if exc.fp:
+                    body = exc.fp.read().decode(errors="replace")
+                provider_exc = LLMProviderError(
+                    f"HTTP {exc.code}: {body}",
+                    status_code=exc.code,
+                )
+                # Don't retry client errors (4xx) except 429 (rate limit)
+                if exc.code < 500 and exc.code != 429:
+                    raise provider_exc from exc
+                last_exc = provider_exc
+                if attempt < self._max_retries:
+                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    time.sleep(delay)
+            except urllib.error.URLError as exc:
+                if "timed out" in str(exc.reason):
+                    raise LLMTimeoutError(str(exc.reason)) from exc
+                last_exc = LLMProviderError(str(exc.reason))
+                if attempt < self._max_retries:
+                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    time.sleep(delay)
+            except TimeoutError as exc:
+                raise LLMTimeoutError(str(exc)) from exc
+        raise last_exc  # type: ignore[misc]
 
     @staticmethod
     def _parse_response(raw: dict[str, Any], model: str) -> LLMResponse:
@@ -135,11 +248,21 @@ class HTTPGateway:
         api_key: str,
         timeout: float = 120.0,
         default_model: str = "gpt-4o",
+        max_retries: int = 3,
+        retry_base_seconds: float = 1.0,
+        failover_chain: "FailoverChain | None" = None,
+        cache_injector: "PromptCacheInjector | None" = None,
+        budget_tracker: "LLMBudgetTracker | None" = None,
     ) -> None:
         """Initialize HTTPGateway."""
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._default_model = default_model
+        self._max_retries = max_retries
+        self._retry_base = retry_base_seconds
+        self._failover_chain = failover_chain
+        self._cache_injector = cache_injector
+        self._budget_tracker = budget_tracker
         # Shared AsyncClient = connection pool reused across all calls
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
@@ -154,7 +277,75 @@ class HTTPGateway:
     # -- AsyncLLMGateway protocol ----------------------------------------------
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
-        """Implement AsyncLLMGateway protocol."""
+        """Implement AsyncLLMGateway protocol with cache injection and failover.
+
+        When a :class:`PromptCacheInjector` is configured, cache_control markers
+        are injected into the message list before sending.  When a
+        :class:`FailoverChain` is configured, the request is routed through it
+        instead of the direct HTTP path.
+
+        Raises:
+            LLMBudgetExhaustedError: If the configured budget tracker signals exhaustion.
+        """
+        if self._budget_tracker is not None:
+            self._budget_tracker.check()
+            # Inject real-time remaining budget ratio into request metadata so
+            # that TierAwareLLMGateway can make accurate per-request tier
+            # downgrade decisions instead of relying on the caller-supplied
+            # default of 1.0.
+            remaining_calls = self._budget_tracker.remaining_calls
+            max_calls = self._budget_tracker._max_calls  # noqa: SLF001
+            remaining_tokens = max(
+                0, self._budget_tracker._max_tokens - self._budget_tracker._total_tokens  # noqa: SLF001
+            )
+            max_tokens = self._budget_tracker._max_tokens  # noqa: SLF001
+            calls_ratio = remaining_calls / max_calls if max_calls > 0 else 1.0
+            tokens_ratio = remaining_tokens / max_tokens if max_tokens > 0 else 1.0
+            budget_ratio = min(calls_ratio, tokens_ratio)
+            request = LLMRequest(
+                model=request.model,
+                messages=request.messages,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                stop_sequences=request.stop_sequences,
+                metadata={**request.metadata, "budget_remaining": budget_ratio},
+            )
+        try:
+            # 1. Inject prompt cache markers if configured.
+            if self._cache_injector is not None:
+                try:
+                    messages = self._cache_injector.inject(list(request.messages))
+                    request = LLMRequest(
+                        model=request.model,
+                        messages=messages,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens,
+                        stop_sequences=request.stop_sequences,
+                        metadata=request.metadata,
+                    )
+                except Exception as exc:  # pragma: no cover
+                    logger.warning("PromptCacheInjector.inject failed, skipping: %s", exc)
+
+            # 2. Route through failover chain if configured.
+            if self._failover_chain is not None:
+                try:
+                    return await self._failover_chain.complete(request)
+                except Exception as exc:
+                    logger.warning(
+                        "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
+                    )
+
+        except Exception as exc:  # pragma: no cover
+            logger.warning("HTTPGateway integration error (%s), using direct path.", exc)
+
+        # 3. Fallback: original direct HTTP logic.
+        response = await self._direct_complete(request)
+        if self._budget_tracker is not None:
+            self._budget_tracker.record(response.usage)
+        return response
+
+    async def _direct_complete(self, request: LLMRequest) -> LLMResponse:
+        """Execute the request directly via httpx (no failover)."""
         model = request.model if request.model != "default" else self._default_model
         payload: dict[str, Any] = {
             "model": model,
@@ -165,10 +356,36 @@ class HTTPGateway:
         if request.stop_sequences:
             payload["stop"] = request.stop_sequences
 
-        response = await self._client.post("/v1/chat/completions", json=payload)
-        response.raise_for_status()
-        raw = response.json()
-        return HttpLLMGateway._parse_response(raw, model)
+        last_exc: Exception | None = None
+        for attempt in range(self._max_retries + 1):
+            try:
+                response = await self._client.post("/v1/chat/completions", json=payload)
+                response.raise_for_status()
+                raw = response.json()
+                return HttpLLMGateway._parse_response(raw, model)
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                # Don't retry client errors (4xx) except 429 (rate limit)
+                if status < 500 and status != 429:
+                    raise LLMProviderError(
+                        f"HTTP {status}: {exc.response.text}",
+                        status_code=status,
+                    ) from exc
+                last_exc = LLMProviderError(
+                    f"HTTP {status}: {exc.response.text}",
+                    status_code=status,
+                )
+                if attempt < self._max_retries:
+                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    await asyncio.sleep(delay)
+            except httpx.TimeoutException as exc:
+                raise LLMTimeoutError(str(exc)) from exc
+            except httpx.RequestError as exc:
+                last_exc = LLMProviderError(str(exc))
+                if attempt < self._max_retries:
+                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    await asyncio.sleep(delay)
+        raise last_exc  # type: ignore[misc]
 
     def supports_model(self, model: str) -> bool:
         """Return ``True``; the HTTP gateway delegates model validation to the provider."""

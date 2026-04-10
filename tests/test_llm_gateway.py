@@ -252,7 +252,7 @@ class TestHttpGateway:
         assert body["stop"] == ["###"]
 
     def test_http_error_raises_provider_error(self) -> None:
-        gw = HttpLLMGateway()
+        gw = HttpLLMGateway(max_retries=0)  # disable retries for unit test speed
         req = LLMRequest(messages=[{"role": "user", "content": "hi"}])
         import urllib.error
 

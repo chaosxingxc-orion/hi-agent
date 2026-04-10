@@ -261,8 +261,8 @@ class PerceptionMiddleware:
                     extra_context={"current_input": text},
                 )
                 return snapshot.to_prompt_string()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Perception fallback path failed: %s", exc)
 
         # Fallback: just return the text
         return text

@@ -36,6 +36,9 @@ class PostmortemAnalyzer:
     def analyze(self, postmortem: RunPostmortem) -> EvolveResult:
         """Run postmortem analysis on a completed run.
 
+        Rule-based heuristics always run.  When an LLM gateway is present,
+        ``_llm_analyze()`` is called and its changes are merged in.
+
         Args:
             postmortem: Structured postmortem data for the run.
 
@@ -43,8 +46,36 @@ class PostmortemAnalyzer:
             An EvolveResult containing proposed changes and metrics.
         """
         changes = self._rule_based_analysis(postmortem)
+        llm_calls = 0
+
+        if self._llm is not None:
+            try:
+                llm_changes, llm_calls = self._llm_analyze(postmortem)
+                # Deduplicate by (change_type, target_id): LLM wins on collision.
+                existing_keys = {(c.change_type, c.target_id) for c in changes}
+                for lc in llm_changes:
+                    key = (lc.change_type, lc.target_id)
+                    if key not in existing_keys:
+                        changes.append(lc)
+                        existing_keys.add(key)
+                    else:
+                        # Replace rule-based with LLM version when confidence is higher.
+                        for i, c in enumerate(changes):
+                            if (c.change_type, c.target_id) == key:
+                                if lc.confidence > c.confidence:
+                                    changes[i] = lc
+                                break
+            except Exception:
+                import logging
+                logging.getLogger(__name__).debug(
+                    "postmortem._llm_analyze failed for run %s",
+                    postmortem.run_id,
+                    exc_info=True,
+                )
+
         metrics = EvolveMetrics(
             runs_analyzed=1,
+            llm_calls_used=llm_calls,
             skill_candidates_found=sum(
                 1 for c in changes if c.change_type == "skill_candidate"
             ),
@@ -68,6 +99,33 @@ class PostmortemAnalyzer:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _llm_analyze(
+        self, postmortem: RunPostmortem
+    ) -> tuple[list[EvolveChange], int]:
+        """Use LLM to extract deeper improvement signals from the postmortem.
+
+        Asks the LLM to:
+        - Identify routing improvements not captured by rules
+        - Suggest knowledge gaps to fill
+        - Recommend skill candidates from the trajectory
+
+        Returns:
+            (list of EvolveChange, llm_call_count)
+        """
+        from hi_agent.llm.protocol import LLMRequest
+
+        prompt = _build_postmortem_prompt(postmortem)
+        request = LLMRequest(
+            messages=[{"role": "user", "content": prompt}],
+            model="default",
+            temperature=0.3,
+            max_tokens=1024,
+            metadata={"purpose": "evaluation", "run_id": postmortem.run_id},
+        )
+        response = self._llm.complete(request)  # type: ignore[union-attr]
+        changes = _parse_llm_changes(response.content, postmortem.run_id)
+        return changes, 1
 
     def _rule_based_analysis(self, postmortem: RunPostmortem) -> list[EvolveChange]:
         """Apply rule-based heuristics to extract improvement signals.
@@ -204,3 +262,84 @@ def _infer_scope(changes: list[EvolveChange]) -> str:
     # When multiple scopes are present, use the first change's scope
     # to enforce single-scope isolation.
     return type_to_scope.get(changes[0].change_type, "routing_only")
+
+
+# ---------------------------------------------------------------------------
+# LLM prompt helpers
+# ---------------------------------------------------------------------------
+
+def _build_postmortem_prompt(postmortem: RunPostmortem) -> str:
+    """Build a structured prompt for LLM postmortem analysis."""
+    lines = [
+        "You are an AI agent improvement advisor. Analyze this run postmortem and "
+        "suggest concrete improvements. Output a JSON array of change objects.",
+        "",
+        f"Run: {postmortem.run_id}  Task family: {postmortem.task_family}",
+        f"Outcome: {postmortem.outcome}  Actions: {postmortem.total_actions}",
+        f"Stages completed: {postmortem.stages_completed}",
+        f"Stages failed: {postmortem.stages_failed}",
+        f"Failure codes: {postmortem.failure_codes}",
+        f"Branches explored: {postmortem.branches_explored}  Pruned: {postmortem.branches_pruned}",
+        f"Quality score: {postmortem.quality_score}  Efficiency score: {postmortem.efficiency_score}",
+        f"Trajectory: {postmortem.trajectory_summary}",
+        "",
+        'Return a JSON array. Each item must have: "change_type" (one of '
+        '"routing_heuristic", "skill_candidate", "knowledge_update", "baseline_update"), '
+        '"target_id" (string), "description" (string), "confidence" (0.0-1.0).',
+        "Return [] if no meaningful improvements are found.",
+        "Output ONLY the JSON array, no surrounding text.",
+    ]
+    return "\n".join(lines)
+
+
+def _parse_llm_changes(content: str, run_id: str) -> list[EvolveChange]:
+    """Parse LLM JSON output into EvolveChange objects."""
+    import json
+    import logging
+
+    _logger = logging.getLogger(__name__)
+    content = content.strip()
+
+    # Strip markdown code fences if present
+    if content.startswith("```"):
+        lines = content.splitlines()
+        content = "\n".join(
+            line for line in lines if not line.startswith("```")
+        ).strip()
+
+    try:
+        raw = json.loads(content)
+    except json.JSONDecodeError:
+        _logger.debug("postmortem._parse_llm_changes: invalid JSON from LLM")
+        return []
+
+    if not isinstance(raw, list):
+        return []
+
+    valid_types = {"routing_heuristic", "skill_candidate", "knowledge_update", "baseline_update"}
+    changes: list[EvolveChange] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        change_type = str(item.get("change_type", ""))
+        if change_type not in valid_types:
+            continue
+        target_id = str(item.get("target_id", "")).strip()
+        description = str(item.get("description", "")).strip()
+        if not target_id or not description:
+            continue
+        try:
+            confidence = float(item.get("confidence", 0.5))
+            confidence = max(0.0, min(1.0, confidence))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        changes.append(
+            EvolveChange(
+                change_type=change_type,
+                target_id=target_id,
+                description=description,
+                confidence=confidence,
+                evidence_refs=[run_id],
+            )
+        )
+    return changes

@@ -166,6 +166,51 @@ class AsyncKernelFacadeAdapter:
             idempotency_key=idempotency_key,
         )
 
+    # ------------------------------------------------------------------
+    # Child run management (async versions)
+    # ------------------------------------------------------------------
+
+    async def spawn_child_run_async(
+        self,
+        parent_run_id: str,
+        task_id: str,
+        config: dict[str, Any] | None = None,
+    ) -> str:
+        """Async version of spawn_child_run.
+
+        Delegates to the underlying sync implementation via
+        ``asyncio.to_thread`` to avoid blocking the event loop.
+
+        Args:
+            parent_run_id: The parent run identifier under which to spawn.
+            task_id: The task identifier to bind to the child run.
+            config: Optional dict of config overrides for the child run.
+
+        Returns:
+            The child run identifier string.
+        """
+        return await asyncio.to_thread(
+            self._sync.spawn_child_run, parent_run_id, task_id, config
+        )
+
+    async def query_child_runs_async(
+        self, parent_run_id: str
+    ) -> list[dict[str, Any]]:
+        """Async version of query_child_runs.
+
+        Delegates to the underlying sync implementation via
+        ``asyncio.to_thread`` to avoid blocking the event loop.
+
+        Args:
+            parent_run_id: The parent run identifier to query.
+
+        Returns:
+            A list of dicts, each representing one child run summary.
+        """
+        return await asyncio.to_thread(
+            self._sync.query_child_runs, parent_run_id
+        )
+
     async def subscribe_events(
         self, run_id: str
     ) -> AsyncIterator[dict[str, Any]]:

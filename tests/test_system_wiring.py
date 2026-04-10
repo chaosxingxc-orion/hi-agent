@@ -14,6 +14,7 @@ from hi_agent.config.trace_config import TraceConfig
 from hi_agent.contracts import TaskContract
 from hi_agent.events import EventEmitter
 from hi_agent.llm.http_gateway import HttpLLMGateway
+from hi_agent.llm.tier_router import TierAwareLLMGateway
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
@@ -171,8 +172,9 @@ class TestLLMGatewayActivation:
         builder = SystemBuilder(config)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-123")
         gateway = builder.build_llm_gateway()
-        assert isinstance(gateway, HttpLLMGateway)
-        assert gateway._default_model == "gpt-4o"
+        assert isinstance(gateway, TierAwareLLMGateway)
+        assert isinstance(gateway._inner, HttpLLMGateway)
+        assert gateway._inner._default_model == "gpt-4o"
 
     def test_returns_gateway_with_anthropic_key(self, tmp_path: Any, monkeypatch: Any) -> None:
         config = TraceConfig(
@@ -183,8 +185,9 @@ class TestLLMGatewayActivation:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
         gateway = builder.build_llm_gateway()
-        assert isinstance(gateway, HttpLLMGateway)
-        assert gateway._default_model == "claude-sonnet-4-20250514"
+        assert isinstance(gateway, TierAwareLLMGateway)
+        assert isinstance(gateway._inner, HttpLLMGateway)
+        assert gateway._inner._default_model == "claude-sonnet-4-20250514"
 
     def test_caches_gateway_instance(self, tmp_path: Any, monkeypatch: Any) -> None:
         config = TraceConfig(

@@ -8,6 +8,7 @@ from hi_agent.task_view.builder import (
     build_task_view,
     format_episodes,
     format_knowledge,
+    format_retrieval_result,
     format_run_index,
     format_stage_summary,
 )
@@ -33,6 +34,7 @@ __all__ = [
     "enforce_layer_budget",
     "format_episodes",
     "format_knowledge",
+    "format_retrieval_result",
     "format_run_index",
     "format_stage_summary",
     "set_token_counter",

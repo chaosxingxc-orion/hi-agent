@@ -1,0 +1,187 @@
+"""API-key + JWT-claim auth middleware for the hi-agent HTTP server.
+
+Design
+------
+- Reads ``HI_AGENT_API_KEY`` from environment (comma-separated list of valid keys).
+- When the env-var is absent or empty, the middleware is a no-op (backwards
+  compatible: existing deployments that have no key configured are unaffected).
+- When enabled, every non-exempt request must carry::
+
+      Authorization: Bearer <api-key-or-jwt-token>
+
+- For plain API-key tokens the bearer value is compared directly against the
+  configured key set.
+- For structured JWT tokens (three dot-separated Base64 segments), the payload
+  claims are validated via ``validate_jwt_claims`` (sub, aud, exp).
+- RBAC is enforced via ``RBACEnforcer``: write operations (POST/PUT/DELETE/PATCH)
+  require the ``write`` role; read operations require ``read``.
+- Exempt paths (/health, /metrics) bypass all checks.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import logging
+import os
+from typing import Any
+
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+from hi_agent.auth.jwt_middleware import (
+    JWTValidationError,
+    validate_jwt_claims,
+)
+from hi_agent.auth.rbac_enforcer import OperationNotAllowedError, RBACEnforcer
+
+_logger = logging.getLogger(__name__)
+
+# Paths that bypass all auth checks.
+_EXEMPT_PATHS: frozenset[str] = frozenset({"/health", "/metrics", "/metrics/json"})
+
+# Default RBAC policy: maps operation name to allowed roles.
+_DEFAULT_POLICY: dict[str, frozenset[str]] = {
+    "read": frozenset({"read", "write", "admin"}),
+    "write": frozenset({"write", "admin"}),
+    "admin": frozenset({"admin"}),
+}
+
+# HTTP methods considered write operations.
+_WRITE_METHODS: frozenset[str] = frozenset({"POST", "PUT", "DELETE", "PATCH"})
+
+
+def _load_api_keys() -> frozenset[str]:
+    """Load valid API keys from the ``HI_AGENT_API_KEY`` env-var."""
+    raw = os.environ.get("HI_AGENT_API_KEY", "").strip()
+    if not raw:
+        return frozenset()
+    return frozenset(k.strip() for k in raw.split(",") if k.strip())
+
+
+def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
+    """Decode (no verification) the payload of a JWT token.
+
+    Returns None when the token is not a three-part JWT.
+    """
+    parts = token.split(".")
+    if len(parts) != 3:
+        return None
+    payload_b64 = parts[1]
+    # Add padding
+    padding = 4 - len(payload_b64) % 4
+    if padding != 4:
+        payload_b64 += "=" * padding
+    try:
+        decoded = base64.urlsafe_b64decode(payload_b64)
+        return json.loads(decoded)
+    except Exception:
+        return None
+
+
+class AuthMiddleware:
+    """ASGI middleware that enforces API-key / JWT-claim authentication.
+
+    When ``HI_AGENT_API_KEY`` is not set the middleware is disabled and all
+    requests pass through without modification.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        audience: str = "hi-agent",
+    ) -> None:
+        self.app = app
+        self._audience = audience
+        self._api_keys = _load_api_keys()
+        self._rbac = RBACEnforcer(_DEFAULT_POLICY)
+        self._enabled = bool(self._api_keys)
+        if self._enabled:
+            _logger.info(
+                "AuthMiddleware enabled (%d key(s) configured)", len(self._api_keys)
+            )
+        else:
+            _logger.warning(
+                "AuthMiddleware disabled: HI_AGENT_API_KEY not set. "
+                "All endpoints are unauthenticated."
+            )
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not self._enabled:
+            await self.app(scope, receive, send)
+            return
+
+        path: str = scope.get("path", "")
+        if path in _EXEMPT_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        method: str = (scope.get("method") or "GET").upper()
+        operation = "write" if method in _WRITE_METHODS else "read"
+
+        # Extract bearer token from Authorization header.
+        headers = dict(scope.get("headers", []))
+        auth_header: bytes = headers.get(b"authorization", b"")
+        if not auth_header:
+            await self._reject(scope, receive, send, "missing_authorization")
+            return
+
+        auth_str = auth_header.decode("utf-8", errors="replace").strip()
+        if not auth_str.lower().startswith("bearer "):
+            await self._reject(scope, receive, send, "invalid_authorization_scheme")
+            return
+
+        token = auth_str[7:].strip()
+        role = self._authenticate(token)
+        if role is None:
+            await self._reject(scope, receive, send, "invalid_or_expired_token", status=401)
+            return
+
+        try:
+            self._rbac.enforce(role=role, operation=operation)
+        except OperationNotAllowedError:
+            await self._reject(scope, receive, send, "forbidden", status=403)
+            return
+
+        await self.app(scope, receive, send)
+
+    def _authenticate(self, token: str) -> str | None:
+        """Validate token and return the resolved role, or None on failure.
+
+        Plain API-key tokens get role ``write``.  JWT tokens get their
+        role from the ``role`` claim (defaulting to ``read``).
+        """
+        # Plain API-key path
+        if token in self._api_keys:
+            return "write"
+
+        # JWT path: decode and validate claims
+        claims = _decode_jwt_payload(token)
+        if claims is None:
+            return None
+        try:
+            validated = validate_jwt_claims(claims, audience=self._audience)
+            return str(validated.get("role", "read"))
+        except JWTValidationError:
+            return None
+
+    async def _reject(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+        reason: str,
+        status: int = 401,
+    ) -> None:
+        response = JSONResponse(
+            {"error": "unauthorized", "reason": reason},
+            status_code=status,
+            headers={"WWW-Authenticate": 'Bearer realm="hi-agent"'},
+        )
+        await response(scope, receive, send)
+
+    def reload_keys(self) -> None:
+        """Reload API keys from environment (for zero-downtime key rotation)."""
+        self._api_keys = _load_api_keys()
+        self._enabled = bool(self._api_keys)
+        _logger.info("AuthMiddleware keys reloaded (%d key(s))", len(self._api_keys))

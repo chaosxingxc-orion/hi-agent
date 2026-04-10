@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
 from hi_agent.contracts import StageSummary, TrajectoryNode
+
+try:
+    from hi_agent.context.nudge import NudgeState
+except ImportError:  # pragma: no cover
+    NudgeState = None  # type: ignore[assignment,misc]
+
+try:
+    from hi_agent.task_view.result_budget import ToolResultBudgetState
+except ImportError:  # pragma: no cover
+    ToolResultBudgetState = None  # type: ignore[assignment,misc]
 
 
 @dataclass
@@ -32,6 +43,12 @@ class RunContext:
     skill_ids_used: list[str] = field(default_factory=list)
     completed_stages: set[str] = field(default_factory=set)
     metadata: dict[str, Any] = field(default_factory=dict)
+    nudge_state: Any = field(
+        default_factory=lambda: NudgeState() if NudgeState is not None else None
+    )
+    tool_result_budget_state: Any = field(
+        default_factory=lambda: ToolResultBudgetState() if ToolResultBudgetState is not None else None
+    )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize run context to a JSON-compatible dict."""
@@ -51,12 +68,22 @@ class RunContext:
             "skill_ids_used": list(self.skill_ids_used),
             "completed_stages": sorted(self.completed_stages),
             "metadata": dict(self.metadata),
+            "nudge_state": (
+                self.nudge_state.to_dict()
+                if self.nudge_state is not None
+                else {}
+            ),
+            "tool_result_budget_state": (
+                self.tool_result_budget_state.to_dict()
+                if self.tool_result_budget_state is not None
+                else {}
+            ),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RunContext:
         """Deserialize run context from a dict."""
-        return cls(
+        ctx = cls(
             run_id=data["run_id"],
             action_seq=data.get("action_seq", 0),
             branch_seq=data.get("branch_seq", 0),
@@ -69,6 +96,13 @@ class RunContext:
             completed_stages=set(data.get("completed_stages", [])),
             metadata=data.get("metadata", {}),
         )
+        if NudgeState is not None:
+            ctx.nudge_state = NudgeState.from_dict(data.get("nudge_state", {}))
+        if ToolResultBudgetState is not None:
+            ctx.tool_result_budget_state = ToolResultBudgetState.from_dict(
+                data.get("tool_result_budget_state", {})
+            )
+        return ctx
 
 
 def _node_to_dict(node: TrajectoryNode) -> dict[str, Any]:
@@ -108,34 +142,41 @@ class RunContextManager:
     def __init__(self) -> None:
         """Initialize RunContextManager."""
         self._contexts: dict[str, RunContext] = {}
+        self._lock = threading.Lock()
 
     def create(self, run_id: str, **kwargs: Any) -> RunContext:
         """Create and register a new RunContext."""
-        if run_id in self._contexts:
-            raise ValueError(f"RunContext already exists for {run_id}")
-        ctx = RunContext(run_id=run_id, **kwargs)
-        self._contexts[run_id] = ctx
-        return ctx
+        with self._lock:
+            if run_id in self._contexts:
+                raise ValueError(f"RunContext already exists for {run_id}")
+            ctx = RunContext(run_id=run_id, **kwargs)
+            self._contexts[run_id] = ctx
+            return ctx
 
     def get(self, run_id: str) -> RunContext | None:
         """Get RunContext by run_id, or None if not found."""
-        return self._contexts.get(run_id)
+        with self._lock:
+            return self._contexts.get(run_id)
 
     def get_or_create(self, run_id: str, **kwargs: Any) -> RunContext:
         """Get existing or create new RunContext."""
-        if run_id not in self._contexts:
-            self._contexts[run_id] = RunContext(run_id=run_id, **kwargs)
-        return self._contexts[run_id]
+        with self._lock:
+            if run_id not in self._contexts:
+                self._contexts[run_id] = RunContext(run_id=run_id, **kwargs)
+            return self._contexts[run_id]
 
     def remove(self, run_id: str) -> RunContext | None:
         """Remove and return RunContext, or None if not found."""
-        return self._contexts.pop(run_id, None)
+        with self._lock:
+            return self._contexts.pop(run_id, None)
 
     def list_runs(self) -> list[str]:
         """Return list of active run IDs."""
-        return list(self._contexts.keys())
+        with self._lock:
+            return list(self._contexts.keys())
 
     @property
     def active_count(self) -> int:
         """Return number of active run contexts."""
-        return len(self._contexts)
+        with self._lock:
+            return len(self._contexts)

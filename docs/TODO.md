@@ -13,7 +13,23 @@
   - [x] `hi_agent/contracts/{task,trajectory,stage,identity,memory,policy,cts_budget,config}.py`
 - [x] Implement route, memory, capability, events, management modules.
 - [x] Add spike + integration + subsystem test coverage.
-- [ ] Remaining advanced roadmap:
-  - [ ] Real external `agent-kernel` backend wiring in `KernelAdapter`.
-  - [ ] Inline + batch evolve workflow.
-  - [ ] Skill promotion and dataset evaluation pipeline.
+- [x] Remaining advanced roadmap (Phase 1 — engineering hardening):
+  - [x] Real external `agent-kernel` backend wiring in `KernelFacadeAdapter` (_use_kernel_dtos, StartRunRequest/Response DTOs, run_id tracking).
+  - [x] MockLLMGateway moved to `tests/helpers/`; all production code uses real gateway.
+  - [x] LLM-backed decomposer paths (_llm_dag_decompose, _llm_tree_decompose).
+  - [x] ExecutionMiddleware config injection (capability_invoker, harness, retrieval_engine, skill_loader).
+  - [x] PostmortemAnalyzer LLM path (_llm_analyze, _parse_llm_changes).
+  - [x] SkillExtractor heuristic enhancement (focused_execution, high_quality_run, failure_recovery).
+  - [x] Capability defaults: real LLM-backed handlers via _make_llm_handler closure.
+  - [x] RunPostmortem scoring: quality_score, efficiency_score, trajectory_summary, skills_used.
+  - [x] execute_async() make_handler: real stage execution via run_in_executor (sync kernel) or async fallback.
+  - [x] Knowledge/memory persistence: wiki.load(), long_term_graph.load(), skill_version_manager.load() on startup.
+  - [x] build_executor() wires memory_lifecycle_manager + retrieval_engine.
+  - [x] SkillVersionManager auto-save after champion promotion.
+  - [x] EvolveResult.changes logged; champion/challenger feedback loop complete.
+  - [x] MetricsCollector: default_alert_rules() auto-registered at build time.
+  - [x] _signal_run_safe: async coroutine gracefully closed to eliminate RuntimeWarning.
+- [x] Remaining advanced roadmap (Phase 2 — production evolution):
+  - [x] Inline + batch evolve workflow with policy application (route_config_updated changes applied to route engine).
+  - [x] Skill promotion and dataset evaluation pipeline.
+  - [x] Real agent-kernel HTTP backend (KernelFacadeClient) integration test.

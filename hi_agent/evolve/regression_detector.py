@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import os
 from collections import defaultdict
 from dataclasses import dataclass
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,15 +56,18 @@ class RegressionDetector:
         self,
         baseline_window: int = 10,
         threshold: float = 0.15,
+        storage_path: str | None = None,
     ) -> None:
         """Initialize the regression detector.
 
         Args:
             baseline_window: Number of recent runs to use as baseline.
             threshold: Minimum delta (absolute drop) to flag a regression.
+            storage_path: Optional path to a JSON file for persistent storage.
         """
         self._baseline_window = baseline_window
         self._threshold = threshold
+        self._storage_path = storage_path
         self._records: dict[str, list[_RunRecord]] = defaultdict(list)
 
     def record(
@@ -80,6 +88,60 @@ class RegressionDetector:
         self._records[task_family].append(
             _RunRecord(run_id=run_id, quality=quality, efficiency=efficiency)
         )
+        if self._storage_path is not None:
+            self._save_best_effort()
+
+    def save(self) -> None:
+        """Persist _records to storage_path as JSON.
+
+        Best-effort: creates parent directories as needed.
+        Raises exceptions on failure (caller should use _save_best_effort).
+        """
+        if self._storage_path is None:
+            return
+        os.makedirs(os.path.dirname(self._storage_path), exist_ok=True)
+        payload: dict[str, list[dict]] = {}
+        for family, records in self._records.items():
+            payload[family] = [
+                {"run_id": r.run_id, "quality": r.quality, "efficiency": r.efficiency}
+                for r in records
+            ]
+        with open(self._storage_path, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+        _logger.debug("RegressionDetector: saved %d families to %s", len(payload), self._storage_path)
+
+    def load(self) -> None:
+        """Load _records from storage_path JSON if the file exists.
+
+        Best-effort: logs a warning on failure and leaves _records unchanged.
+        """
+        if self._storage_path is None or not os.path.exists(self._storage_path):
+            return
+        try:
+            with open(self._storage_path, "r", encoding="utf-8") as fh:
+                payload: dict[str, list[dict]] = json.load(fh)
+            self._records = defaultdict(list)
+            for family, records in payload.items():
+                self._records[family] = [
+                    _RunRecord(
+                        run_id=r["run_id"],
+                        quality=float(r["quality"]),
+                        efficiency=float(r["efficiency"]),
+                    )
+                    for r in records
+                ]
+            _logger.debug(
+                "RegressionDetector: loaded %d families from %s", len(self._records), self._storage_path
+            )
+        except Exception as exc:
+            _logger.warning("RegressionDetector.load failed: %s", exc)
+
+    def _save_best_effort(self) -> None:
+        """Attempt to save; log debug message on failure."""
+        try:
+            self.save()
+        except Exception as exc:
+            _logger.debug("RegressionDetector.save failed: %s", exc)
 
     def check(self, task_family: str) -> RegressionReport:
         """Check for regressions in a task family.

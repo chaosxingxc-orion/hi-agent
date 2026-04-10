@@ -8,7 +8,7 @@ RunExecutor delegates to an instance of this class.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hi_agent.contracts import (
     BranchState,
@@ -24,6 +24,9 @@ from hi_agent.task_view.builder import (
     build_task_view_with_knowledge_query,
 )
 from hi_agent.trajectory.dead_end import detect_dead_end
+
+if TYPE_CHECKING:
+    from hi_agent.middleware.orchestrator import MiddlewareOrchestrator
 
 _logger = logging.getLogger(__name__)
 
@@ -46,6 +49,7 @@ class StageExecutor:
         retrieval_engine: Any | None,
         auto_compress: Any | None,
         cost_calculator: Any | None,
+        middleware_orchestrator: MiddlewareOrchestrator | None = None,
     ) -> None:
         self.kernel = kernel
         self.route_engine = route_engine
@@ -59,6 +63,7 @@ class StageExecutor:
         self.retrieval_engine = retrieval_engine
         self.auto_compress = auto_compress
         self.cost_calculator = cost_calculator
+        self._middleware_orchestrator = middleware_orchestrator
 
     # ------------------------------------------------------------------
     # Task-view knowledge
@@ -186,6 +191,11 @@ class StageExecutor:
                 )
                 return None
             executor._budget_tier_decision = decision
+            # Propagate budget fraction into LLM metadata so that
+            # TierAwareLLMGateway can apply budget-driven tier downgrade.
+            if not hasattr(executor, "_llm_metadata"):
+                executor._llm_metadata = {}  # type: ignore[attr-defined]
+            executor._llm_metadata["budget_remaining"] = self.budget_guard.remaining_fraction  # type: ignore[attr-defined]
 
         # --- Auto-compress before routing (lazy compaction) ---
         if self.auto_compress is not None and executor.session is not None:
@@ -224,6 +234,21 @@ class StageExecutor:
             except Exception as exc:
                 _logger.debug(
                     "stage.knowledge_retrieval_failed run_id=%s stage_id=%s error=%s",
+                    executor.run_id,
+                    stage_id,
+                    exc,
+                )
+
+        # --- Fix-A: MiddlewareOrchestrator pre_execute lifecycle hook ---
+        if self._middleware_orchestrator is not None:
+            try:
+                self._middleware_orchestrator.run(
+                    stage_id,
+                    {"stage_id": stage_id, "run_id": executor.run_id, "phase": "pre_execute"},
+                )
+            except Exception as exc:
+                _logger.debug(
+                    "stage.middleware_pre_execute_failed run_id=%s stage_id=%s error=%s",
                     executor.run_id,
                     stage_id,
                     exc,
@@ -360,6 +385,45 @@ class StageExecutor:
                 success, result, final_attempt = (
                     executor._execute_action_with_retry(stage_id, proposal)
                 )
+
+                # --- Fix-D: ToolResultBudget — truncate oversized tool results ---
+                if result is not None:
+                    try:
+                        from hi_agent.task_view.result_budget import (
+                            ToolResultBudget,
+                            ToolResultBudgetConfig,
+                        )
+                        _run_ctx = getattr(executor, "run_context", None)
+                        _budget_state = (
+                            getattr(_run_ctx, "tool_result_budget_state", None)
+                            if _run_ctx is not None
+                            else None
+                        )
+                        if _budget_state is not None:
+                            _budget = ToolResultBudget(
+                                config=ToolResultBudgetConfig(),
+                                state=_budget_state,
+                            )
+                            _raw_content = str(result)
+                            _processed = _budget.process(
+                                tool_name=str(
+                                    getattr(proposal, "action_kind", "unknown")
+                                ),
+                                result_content=_raw_content,
+                            )
+                            # If truncated, record the fact in result metadata
+                            if _processed != _raw_content:
+                                result = dict(result)
+                                result["_tool_result_truncated"] = True
+                                result["_tool_result_placeholder"] = _processed
+                    except Exception as exc:
+                        _logger.debug(
+                            "stage.tool_result_budget_failed run_id=%s stage_id=%s error=%s",
+                            executor.run_id,
+                            stage_id,
+                            exc,
+                        )
+
                 node.local_score = (
                     float(result.get("score", 0.0)) if result else 0.0
                 )
@@ -521,6 +585,21 @@ class StageExecutor:
                 )
                 executor.action_seq += 1
                 executor.optimizer.backpropagate(node, executor.dag)
+
+        # --- Fix-A: MiddlewareOrchestrator post_execute lifecycle hook ---
+        if self._middleware_orchestrator is not None:
+            try:
+                self._middleware_orchestrator.run(
+                    stage_id,
+                    {"stage_id": stage_id, "run_id": executor.run_id, "phase": "post_execute"},
+                )
+            except Exception as exc:
+                _logger.debug(
+                    "stage.middleware_post_execute_failed run_id=%s stage_id=%s error=%s",
+                    executor.run_id,
+                    stage_id,
+                    exc,
+                )
 
         if detect_dead_end(stage_id, executor.dag):
             self.kernel.mark_stage_state(stage_id, StageState.FAILED)

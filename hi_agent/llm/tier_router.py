@@ -249,6 +249,102 @@ class TierRouter:
         mapping = self._tier_map.get(purpose)
         return mapping.default_tier if mapping else ModelTier.MEDIUM
 
+    def apply_overrides(self, overrides: dict[str, str]) -> None:
+        """Apply purpose->tier override mapping from cost optimizer.
+
+        Each key is a purpose name (e.g. "gather", "retrieval"); value is
+        the target tier string ("light", "medium", "strong").  Existing
+        allow_upgrade/allow_downgrade flags are preserved.
+        """
+        for purpose, tier in overrides.items():
+            existing = self._tier_map.get(purpose)
+            allow_upgrade = existing.allow_upgrade if existing else True
+            allow_downgrade = existing.allow_downgrade if existing else True
+            self._tier_map[purpose] = TierMapping(
+                purpose=purpose,
+                default_tier=tier,
+                allow_upgrade=allow_upgrade,
+                allow_downgrade=allow_downgrade,
+            )
+
+    def apply_cost_overrides(self, overrides: dict[str, str]) -> None:
+        """Apply cost optimization tier overrides dynamically.
+
+        Convenience alias for :meth:`apply_overrides` that matches the
+        method name expected by SystemBuilder._wire_cost_optimizer and
+        runner.py post-run hooks.
+
+        Args:
+            overrides: mapping of purpose -> tier,
+                e.g. ``{"gather": "light", "retrieval": "light"}``.
+                Keys use the same purpose vocabulary as the rest of
+                TierRouter (``"gather"``, ``"retrieval"``,
+                ``"synthesis"``, ``"evaluation"``, etc.).
+        """
+        self.apply_overrides(overrides)
+
     def list_mappings(self) -> list[TierMapping]:
         """List all purpose -> tier mappings."""
         return list(self._tier_map.values())
+
+
+class TierAwareLLMGateway:
+    """Wraps any LLMGateway to use TierRouter for model selection.
+
+    Intercepts complete() calls, reads metadata["purpose"] to select
+    the appropriate model tier, then delegates to the inner gateway.
+    This implements P2 (cost continuously decreases) by ensuring that
+    light/medium/strong tier settings stored in request metadata are
+    actually honoured during model selection.
+    """
+
+    def __init__(
+        self, inner: object, tier_router: "TierRouter", registry: "ModelRegistry"
+    ) -> None:
+        """Initialize TierAwareLLMGateway."""
+        self._inner = inner
+        self._tier_router = tier_router
+        self._registry = registry
+
+    def complete(self, request: object) -> object:
+        """Route to appropriate model tier based on request purpose.
+
+        If request.model == "default", reads metadata["purpose"],
+        metadata["budget_remaining"] (0-1 fraction), and
+        metadata["complexity"] to pick a model via TierRouter, then
+        rewrites the request with the selected model_id before
+        delegating to the inner gateway.
+        """
+        from hi_agent.llm.protocol import LLMRequest
+
+        if getattr(request, "model", None) == "default":
+            meta = getattr(request, "metadata", None) or {}
+            purpose: str = meta.get("purpose", "routing")
+            # budget_remaining is a 0-1 fraction; scale to rough USD so
+            # that the TierRouter budget thresholds (0.10, 0.50) work
+            # meaningfully: treat 1.0 fraction as $1.00.
+            budget_fraction: float = float(meta.get("budget_remaining", 1.0))
+            budget_usd: float = budget_fraction  # 1:1 mapping, fraction acts as proxy
+            complexity: str = meta.get("complexity", "moderate")
+            try:
+                result = self._tier_router.select_model(
+                    purpose=purpose,
+                    budget_remaining_usd=budget_usd,
+                    complexity=complexity,
+                )
+                request = LLMRequest(
+                    messages=getattr(request, "messages", []),
+                    model=result.model_id,
+                    temperature=getattr(request, "temperature", 0.7),
+                    max_tokens=getattr(request, "max_tokens", 4096),
+                    stop_sequences=getattr(request, "stop_sequences", []),
+                    metadata=meta,
+                )
+            except Exception:
+                pass  # fall through to inner gateway with original request
+
+        return self._inner.complete(request)  # type: ignore[union-attr]
+
+    def supports_model(self, model: str) -> bool:
+        """Delegate to inner gateway."""
+        return self._inner.supports_model(model)  # type: ignore[union-attr]

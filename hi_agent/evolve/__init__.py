@@ -11,6 +11,7 @@ from hi_agent.evolve.contracts import (
     EvolveResult,
     RunPostmortem,
 )
+from hi_agent.evolve.dataset_evaluator import DatasetEvaluator, SkillPromotionPipeline
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.evolve.postmortem import PostmortemAnalyzer
 from hi_agent.evolve.regression_detector import RegressionDetector, RegressionReport
@@ -19,6 +20,7 @@ from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
 __all__ = [
     "ChampionChallenger",
     "ComparisonResult",
+    "DatasetEvaluator",
     "EvolveChange",
     "EvolveEngine",
     "EvolveMetrics",
@@ -29,4 +31,5 @@ __all__ = [
     "RunPostmortem",
     "SkillCandidate",
     "SkillExtractor",
+    "SkillPromotionPipeline",
 ]

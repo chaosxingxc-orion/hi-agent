@@ -4,6 +4,7 @@ Endpoints:
     POST /runs          -- Submit a new task (body: TaskContract JSON)
     GET  /runs/{run_id} -- Query run status
     GET  /runs          -- List active runs
+    GET  /runs/active   -- Active RunContext entries from RunContextManager
     POST /runs/{run_id}/signal -- Send signal to run
     POST /runs/{run_id}/resume -- Resume run from checkpoint
     GET  /runs/{run_id}/events -- SSE stream of run events
@@ -31,12 +32,15 @@ Endpoints:
     GET  /context/health             -- Context health report
     POST /replay/{run_id}            -- Trigger replay of a recorded run
     GET  /replay/{run_id}/status     -- Check replay file availability
+    GET  /management/capacity        -- Capacity tuning recommendations
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -46,11 +50,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
+from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.run_manager import RunManager
 
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Starlette route handlers
@@ -194,6 +201,24 @@ async def handle_list_runs(request: Request) -> JSONResponse:
     return JSONResponse({"runs": [manager.to_dict(r) for r in runs]})
 
 
+async def handle_runs_active(request: Request) -> JSONResponse:
+    """Return currently active run contexts from RunContextManager."""
+    server: AgentServer = request.app.state.agent_server
+    rcm = getattr(server, "run_context_manager", None)
+    if rcm is None:
+        return JSONResponse({"run_ids": [], "count": 0, "status": "not_configured"})
+    try:
+        run_ids = rcm.list_runs()
+        return JSONResponse({
+            "run_ids": run_ids,
+            "count": len(run_ids),
+            "status": "ok",
+        })
+    except Exception as exc:
+        logger.warning("handle_runs_active: error fetching active runs: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 async def handle_create_run(request: Request) -> JSONResponse:
     """Create a new run from the POST body."""
     try:
@@ -307,8 +332,11 @@ async def handle_resume_run(request: Request) -> JSONResponse:
                 evolve_engine=server._builder.build_evolve_engine(),
                 harness_executor=server._builder.build_harness(),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.error(
+                "Background checkpoint resume failed for run %r: %s",
+                run_id, exc, exc_info=True,
+            )
 
     thread = threading.Thread(target=_resume_in_background, daemon=True)
     thread.start()
@@ -884,6 +912,72 @@ async def handle_replay_status(request: Request) -> JSONResponse:
 
 
 # ------------------------------------------------------------------
+# Management: capacity advice
+# ------------------------------------------------------------------
+
+async def handle_capacity_advice(request: Request) -> JSONResponse:
+    """Return capacity tuning recommendations based on current server health.
+
+    The handler re-uses the /health subsystem data as the ``health_payload``
+    and, when available, the metrics snapshot as ``metrics_snapshot``.
+    This keeps the endpoint self-contained with no external dependencies
+    beyond what the server already tracks.
+    """
+    from hi_agent.management.capacity_advisor import (
+        recommend_server_capacity_tuning,
+        recommendations_to_payload,
+    )
+
+    server: AgentServer = request.app.state.agent_server
+    try:
+        # Build a minimal health payload that mirrors /health's shape so the
+        # advisor can inspect run_manager utilisation statistics.
+        run_manager_info: dict[str, Any] = {}
+        try:
+            status = server.run_manager.get_status()
+            active = int(status.get("active_runs", 0))
+            queued = int(status.get("queued_runs", 0))
+            capacity = int(status.get("total_capacity", 0))
+            queue_util = (active + queued) / capacity if capacity > 0 else 0.0
+            queue_full = int(status.get("queue_full_rejections", 0))
+            queue_timeouts = int(status.get("queue_timeouts", 0))
+            run_manager_info = {
+                "active_runs": active,
+                "queued_runs": queued,
+                "capacity": capacity,
+                "queue_utilization": queue_util,
+                "queue_full_rejections": queue_full,
+                "queue_timeouts": queue_timeouts,
+            }
+        except Exception:
+            pass
+
+        health_payload: dict[str, Any] = {
+            "subsystems": {"run_manager": run_manager_info},
+        }
+
+        # Optional: supply metrics snapshot when a collector is configured.
+        metrics_snapshot: dict[str, Any] | None = None
+        try:
+            collector = getattr(server, "metrics_collector", None)
+            if collector is not None:
+                metrics_snapshot = collector.snapshot()
+        except Exception:
+            pass
+
+        recommendations = recommend_server_capacity_tuning(
+            health_payload, metrics_snapshot
+        )
+        return JSONResponse({
+            "recommendations": recommendations_to_payload(recommendations),
+            "status": "ok",
+        })
+    except Exception as exc:
+        logger.warning("handle_capacity_advice error: %s", exc)
+        return JSONResponse({"error": str(exc), "status": "error"}, status_code=500)
+
+
+# ------------------------------------------------------------------
 # Catch-all for 404
 # ------------------------------------------------------------------
 
@@ -913,6 +1007,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # Runs
         Route("/runs", handle_list_runs, methods=["GET"]),
         Route("/runs", handle_create_run, methods=["POST"]),
+        Route("/runs/active", handle_runs_active, methods=["GET"]),
         Route("/runs/{run_id}", handle_get_run, methods=["GET"]),
         Route("/runs/{run_id}/signal", handle_signal_run, methods=["POST"]),
         Route("/runs/{run_id}/resume", handle_resume_run, methods=["POST"]),
@@ -957,9 +1052,29 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # Replay
         Route("/replay/{run_id}", handle_replay_trigger, methods=["POST"]),
         Route("/replay/{run_id}/status", handle_replay_status, methods=["GET"]),
+
+        # Management
+        Route("/management/capacity", handle_capacity_advice, methods=["GET"]),
     ]
 
-    app = Starlette(routes=routes)
+    @contextlib.asynccontextmanager
+    async def lifespan(app: Starlette):  # type: ignore[misc]
+        """Start/stop background subsystems around the Starlette lifespan."""
+        mm: MemoryLifecycleManager | None = agent_server.memory_manager
+        if mm is not None:
+            await mm.start()
+        try:
+            yield
+        finally:
+            if mm is not None:
+                await mm.stop()
+
+    app = Starlette(routes=routes, lifespan=lifespan)
+
+    # Auth middleware (outermost — rejects unauthenticated requests before
+    # they reach rate limiting or route handlers).
+    # Enabled only when HI_AGENT_API_KEY env-var is set; no-op otherwise.
+    app.add_middleware(AuthMiddleware)
 
     # Rate limiting middleware.
     app.add_middleware(
@@ -1028,6 +1143,8 @@ class AgentServer:
         self.skill_loader: Any | None = None
         self.context_manager: Any | None = None
         self.metrics_collector: Any | None = None
+        self.run_context_manager: Any | None = None
+        self.capacity_advisor: Any | None = None
 
         # Lazy import to avoid circular dependency at module level.
         from hi_agent.config.trace_config import TraceConfig

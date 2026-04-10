@@ -206,6 +206,14 @@ class EvolveEngine:
                         _logger.info(
                             "Auto-promoted challenger for skill '%s'", scope
                         )
+                        try:
+                            vm.save()
+                        except Exception:
+                            _logger.debug(
+                                "SkillVersionManager.save failed after promote '%s'",
+                                scope,
+                                exc_info=True,
+                            )
                     except Exception:
                         _logger.debug(
                             "Auto-promote failed for '%s'",
@@ -217,15 +225,19 @@ class EvolveEngine:
         self,
         postmortems: list[RunPostmortem],
         change_scope: str,
+        route_engine: object | None = None,
     ) -> EvolveResult:
         """Trigger batch evolution across multiple runs.
 
         Analyzes multiple runs together and produces changes restricted to
-        a single change scope.
+        a single change scope.  When *route_engine* is provided and the scope
+        produces routing changes, they are applied immediately via
+        ``route_engine.apply_evolve_changes()``.
 
         Args:
             postmortems: List of postmortem data for runs to analyze.
             change_scope: The scope to restrict changes to.
+            route_engine: Optional route engine to apply routing changes inline.
 
         Returns:
             An EvolveResult with aggregated changes for the given scope.
@@ -266,7 +278,7 @@ class EvolveEngine:
 
             total_metrics.skill_candidates_found += result.metrics.skill_candidates_found
 
-        return EvolveResult(
+        evolve_result = EvolveResult(
             trigger="batch_evolution",
             change_scope=change_scope,
             changes=all_changes,
@@ -274,6 +286,27 @@ class EvolveEngine:
             run_ids_analyzed=run_ids,
             timestamp=datetime.datetime.now(tz=datetime.UTC).isoformat(),
         )
+
+        # Inline policy application: apply routing changes to route engine immediately.
+        if route_engine is not None and all_changes:
+            routing_changes = [
+                c for c in all_changes
+                if c.change_type in ("routing_heuristic", "efficiency_heuristic", "route_config_updated")
+            ]
+            if routing_changes:
+                try:
+                    route_engine.apply_evolve_changes(routing_changes)  # type: ignore[union-attr]
+                    _logger.info(
+                        "batch_evolve.route_changes_applied scope=%s count=%d",
+                        change_scope, len(routing_changes),
+                    )
+                except Exception as exc:
+                    _logger.warning(
+                        "batch_evolve.route_changes_failed scope=%s error=%s",
+                        change_scope, exc,
+                    )
+
+        return evolve_result
 
     def check_regression(self, task_family: str) -> RegressionReport:
         """Check for regressions in a task family.

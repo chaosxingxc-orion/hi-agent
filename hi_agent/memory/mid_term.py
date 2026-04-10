@@ -8,6 +8,8 @@ Stored as JSON file, available for next-day context.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -69,14 +71,24 @@ class MidTermMemoryStore:
         return self._storage_dir / f"{date}.json"
 
     def save(self, summary: DailySummary) -> None:
-        """Persist daily summary to disk as JSON."""
+        """Persist daily summary to disk as JSON (atomic write)."""
         self._ensure_dir()
         if not summary.created_at:
             summary.created_at = datetime.now(UTC).isoformat()
         data = asdict(summary)
-        self._summary_path(summary.date).write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        payload = json.dumps(data, indent=2, ensure_ascii=False)
+        dest = self._summary_path(summary.date)
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._storage_dir), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+            os.replace(tmp_path, dest)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def load(self, date: str) -> DailySummary | None:
         """Load daily summary by date string."""
