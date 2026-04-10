@@ -2,36 +2,31 @@
 
 from __future__ import annotations
 
-import asyncio
+import importlib
+import warnings
+from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
-
-from hi_agent.task_mgmt.restart_policy import (
-    RestartDecision,
-    RestartPolicyEngine,
-    TaskAttemptRecord,
-    TaskRestartPolicy,
-)
-
+from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskAttempt, TaskRestartPolicy
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_attempt(task_id: str, seq: int, outcome: str = "failed") -> TaskAttemptRecord:
-    return TaskAttemptRecord(
+def _make_attempt(task_id: str, seq: int, outcome: str = "failed") -> TaskAttempt:
+    return TaskAttempt(
         attempt_id=f"att-{seq}",
         task_id=task_id,
         run_id=f"run-{seq}",
         attempt_seq=seq,
+        started_at=datetime(2026, 1, 1, 0, seq, tzinfo=UTC).isoformat(),
         outcome=outcome,
     )
 
 
 def _build_engine(
-    attempts: list[TaskAttemptRecord] | None = None,
+    attempts: list[TaskAttempt] | None = None,
     policy: TaskRestartPolicy | None = None,
     retry_launcher: Any = None,
     reflection_handler: Any = None,
@@ -41,7 +36,7 @@ def _build_engine(
     _policy = policy or TaskRestartPolicy()
     state_log: dict[str, Any] = {"states": [], "recorded": []}
 
-    def get_attempts(task_id: str) -> list[TaskAttemptRecord]:
+    def get_attempts(task_id: str) -> list[TaskAttempt]:
         return [a for a in _attempts if a.task_id == task_id]
 
     def get_policy(task_id: str) -> TaskRestartPolicy | None:
@@ -50,7 +45,7 @@ def _build_engine(
     def update_state(task_id: str, state: str) -> None:
         state_log["states"].append((task_id, state))
 
-    def record_attempt(attempt: TaskAttemptRecord) -> None:
+    def record_attempt(attempt: TaskAttempt) -> None:
         _attempts.append(attempt)
         state_log["recorded"].append(attempt)
 
@@ -65,6 +60,17 @@ def _build_engine(
     return engine, state_log
 
 
+def _get_task_attempt_record_alias() -> type[TaskAttempt]:
+    """Fetch the deprecated alias and assert it warns."""
+    module = importlib.import_module("hi_agent.task_mgmt.restart_policy")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        alias = module.TaskAttemptRecord
+    assert any(item.category is DeprecationWarning for item in caught)
+    assert alias is TaskAttempt
+    return alias
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -74,6 +80,7 @@ async def test_decide_retry_within_budget():
     """Returns 'retry' when attempts < max_attempts and launcher is provided."""
     policy = TaskRestartPolicy(max_attempts=3, backoff_base_ms=0, max_backoff_ms=0)
     attempts = [_make_attempt("t1", 1)]
+    task_attempt_record = _get_task_attempt_record_alias()
 
     async def launcher(task_id: str, seq: int) -> str:
         return f"new-run-{seq}"
@@ -83,6 +90,7 @@ async def test_decide_retry_within_budget():
     decision = await engine.handle_failure("t1", "run-1")
     assert decision.action == "retry"
     assert decision.next_attempt_seq == 2
+    assert task_attempt_record is TaskAttempt
 
 
 @pytest.mark.asyncio
@@ -145,6 +153,8 @@ async def test_handle_failure_retry_launches_new_run():
     assert decision.action == "retry"
     assert len(state_log["recorded"]) == 1
     assert state_log["recorded"][0].run_id == "new-run-2"
+    assert state_log["recorded"][0].started_at is not None
+    assert state_log["recorded"][0].outcome is None
 
 
 @pytest.mark.asyncio
@@ -153,7 +163,7 @@ async def test_handle_failure_no_launcher():
     policy = TaskRestartPolicy(max_attempts=3, backoff_base_ms=0, max_backoff_ms=0)
     attempts = [_make_attempt("t1", 1)]
 
-    engine, state_log = _build_engine(
+    engine, _state_log = _build_engine(
         attempts=attempts, policy=policy, retry_launcher=None,
     )
 

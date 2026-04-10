@@ -20,6 +20,7 @@ def build_ops_timeline(
 
 
 def _normalize_rows(rows: list[dict[str, Any]], *, kind: str) -> list[dict[str, Any]]:
+    """Run _normalize_rows."""
     normalized: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict):
@@ -38,6 +39,7 @@ def _normalize_rows(rows: list[dict[str, Any]], *, kind: str) -> list[dict[str, 
 
 
 def _timeline_sort_key(item: dict[str, Any]) -> tuple[int, float]:
+    """Run _timeline_sort_key."""
     ts = item.get("ts")
     if isinstance(ts, int | float):
         return (0, float(ts))

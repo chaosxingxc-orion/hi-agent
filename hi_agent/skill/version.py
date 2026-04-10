@@ -13,7 +13,7 @@ import json
 import os
 import random
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from hi_agent.skill.observer import SkillMetrics
@@ -37,6 +37,7 @@ class SkillVersionManager:
     """Manages skill versions and A/B traffic splitting."""
 
     def __init__(self, storage_dir: str = ".hi_agent/skill_versions") -> None:
+        """Initialize SkillVersionManager."""
         self._storage_dir = storage_dir
         # skill_id -> list of SkillVersionRecord
         self._versions: dict[str, list[SkillVersionRecord]] = {}
@@ -51,7 +52,7 @@ class SkillVersionManager:
         existing = self._versions.get(skill_id, [])
         next_num = len(existing) + 1
         version = f"v{next_num}"
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         record = SkillVersionRecord(
             skill_id=skill_id,

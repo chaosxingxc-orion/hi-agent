@@ -15,8 +15,8 @@ Searches across all knowledge tiers:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
 
 from hi_agent.knowledge.granularity import KnowledgeItem, estimate_tokens
 from hi_agent.knowledge.graph_renderer import GraphRenderer
@@ -65,6 +65,7 @@ class RetrievalEngine:
         graph_renderer: GraphRenderer | None = None,
         embedding_fn: Callable[[str], list[float]] | None = None,
     ) -> None:
+        """Initialize RetrievalEngine."""
         self._wiki = wiki
         self._graph = graph
         self._short_term = short_term
@@ -274,7 +275,7 @@ class RetrievalEngine:
         for item in candidates:
             if item.source_type == "long_term_graph" and self._graph is not None:
                 # Get subgraph (depth=2)
-                nodes, edges = self._graph.get_subgraph(
+                nodes, _edges = self._graph.get_subgraph(
                     item.source_id, depth=2
                 )
                 if not nodes:
@@ -346,7 +347,7 @@ class RetrievalEngine:
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
     """Compute cosine similarity between two vectors."""
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     norm_a = math.sqrt(sum(x * x for x in a))
     norm_b = math.sqrt(sum(x * x for x in b))
     if norm_a == 0 or norm_b == 0:

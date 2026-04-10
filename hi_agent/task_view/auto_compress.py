@@ -66,7 +66,7 @@ class AutoCompressTrigger:
         budget_tokens:
             Token budget for the context window.
 
-        Returns
+        Returns:
         -------
         str
             One of ``'none'``, ``'snip'``, ``'window'``, ``'compress'``.
@@ -108,7 +108,7 @@ class AutoCompressTrigger:
         budget_tokens:
             Token budget for the context window.
 
-        Returns
+        Returns:
         -------
         tuple
             ``(filtered_records, summary_dict_or_None)``
@@ -200,7 +200,7 @@ class AutoCompressTrigger:
                 "outcome": result.outcome,
                 "compression_method": result.compression_method,
             }
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Fallback: return a minimal summary from the records.
             return {
                 "stage_id": stage_id,

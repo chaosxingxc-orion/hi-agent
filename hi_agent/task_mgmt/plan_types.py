@@ -13,7 +13,7 @@ Types:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
 
@@ -66,6 +66,7 @@ def plan_to_graph(plan: AnyPlan) -> TrajectoryGraph:
 
 
 def _sequential_to_graph(plan: SequentialPlan) -> TrajectoryGraph:
+    """Run _sequential_to_graph."""
     g = TrajectoryGraph()
     for nid in plan.node_ids:
         g.add_node(TrajNode(node_id=nid, node_type="task"))
@@ -89,6 +90,7 @@ def _parallel_to_graph(plan: ParallelPlan) -> TrajectoryGraph:
 
 
 def _dependency_to_graph(plan: DependencyPlan) -> TrajectoryGraph:
+    """Run _dependency_to_graph."""
     g = TrajectoryGraph()
     for dn in plan.nodes:
         g.add_node(TrajNode(node_id=dn.node_id, node_type="task"))
@@ -99,6 +101,7 @@ def _dependency_to_graph(plan: DependencyPlan) -> TrajectoryGraph:
 
 
 def _speculative_to_graph(plan: SpeculativePlan) -> TrajectoryGraph:
+    """Run _speculative_to_graph."""
     g = TrajectoryGraph()
     for cid in plan.candidate_ids:
         g.add_node(TrajNode(node_id=cid, node_type="task"))

@@ -36,16 +36,16 @@ from hi_agent.runtime_adapter.kernel_facade_adapter import (
 from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 from hi_agent.runtime_adapter.mock_kernel import MockKernel
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter, RuntimeAdapterBackend
-from hi_agent.runtime_adapter.resilient_adapter import (
-    AdapterMetrics,
-    CircuitOpenError,
-    ResilientKernelAdapter,
-)
 from hi_agent.runtime_adapter.reconcile_loop import ReconcileLoop, ReconcileLoopReport
 from hi_agent.runtime_adapter.reconciler import (
     ConsistencyIssueStatus,
     ConsistencyReconciler,
     ConsistencyReconcileReport,
+)
+from hi_agent.runtime_adapter.resilient_adapter import (
+    AdapterMetrics,
+    CircuitOpenError,
+    ResilientKernelAdapter,
 )
 from hi_agent.runtime_adapter.temporal_health import (
     SubstrateHealthChecker,
@@ -66,8 +66,8 @@ __all__ = [
     "ConsistencyIssue",
     "ConsistencyIssueStatus",
     "ConsistencyReconcileReport",
-    "EventBuffer",
     "ConsistencyReconciler",
+    "EventBuffer",
     "EventSummaryStore",
     "FileBackedConsistencyJournal",
     "HttpKernelClient",
@@ -79,9 +79,9 @@ __all__ = [
     "KernelFacadeAdapter",
     "KernelFacadeClient",
     "MockKernel",
-    "ResilientKernelAdapter",
     "ReconcileLoop",
     "ReconcileLoopReport",
+    "ResilientKernelAdapter",
     "RuntimeAdapter",
     "RuntimeAdapterBackend",
     "RuntimeAdapterBackendError",

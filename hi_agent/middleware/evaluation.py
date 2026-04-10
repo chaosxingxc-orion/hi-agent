@@ -8,12 +8,16 @@ Receives ExecutionResult(s), assesses quality per node, decides:
 """
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
 
 from hi_agent.middleware.protocol import (
     EvaluationResult,
     MiddlewareMessage,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class EvaluationMiddleware:
@@ -24,14 +28,18 @@ class EvaluationMiddleware:
         quality_threshold: float = 0.7,
         max_retries: int = 3,
         llm_gateway: Any | None = None,
+        model_tier: str = "light",
     ) -> None:
+        """Initialize EvaluationMiddleware."""
         self._quality_threshold = quality_threshold
         self._max_retries = max_retries
         self._llm_gateway = llm_gateway
+        self._model_tier = model_tier
         self._retry_counts: dict[str, int] = {}  # node_id -> count
 
     @property
     def name(self) -> str:
+        """Return name."""
         return "evaluation"
 
     def on_create(self, config: dict[str, Any]) -> None:
@@ -62,14 +70,28 @@ class EvaluationMiddleware:
             output = result.get("output")
             error = result.get("error")
 
+            # Detect synthetic output from ExecutionMiddleware
+            is_synthetic = (
+                isinstance(output, dict) and output.get("_synthetic") is True
+            )
+
             if not success:
                 score = 0.0
+                scoring_mode = "heuristic"
+            elif is_synthetic:
+                score = 0.0
+                scoring_mode = "heuristic"
             else:
-                score = self._assess_quality(
+                score, scoring_mode = self._assess_quality(
                     node_id=node_id,
                     output=output,
                     evidence=result.get("evidence", []),
+                    task_goal=perception_text,
                 )
+
+            issues: list[str] = []
+            if is_synthetic:
+                issues.append("synthetic_output")
 
             retry_count = self._retry_counts.get(node_id, 0)
             feedback = self._generate_feedback(node_id, score, output, error)
@@ -90,7 +112,11 @@ class EvaluationMiddleware:
                 verdict=verdict,
                 quality_score=score,
                 feedback=feedback,
-                retry_instruction=self._make_retry_instruction(feedback) if verdict == "retry" else None,
+                retry_instruction=(
+                    self._make_retry_instruction(feedback)
+                    if verdict == "retry"
+                    else None
+                ),
                 retry_count=retry_count,
                 max_retries=self._max_retries,
             )
@@ -103,6 +129,8 @@ class EvaluationMiddleware:
                 "retry_instruction": eval_result.retry_instruction,
                 "retry_count": eval_result.retry_count,
                 "max_retries": eval_result.max_retries,
+                "issues": issues,
+                "scoring_mode": scoring_mode,
             })
 
             overall_score = min(overall_score, score)
@@ -134,11 +162,33 @@ class EvaluationMiddleware:
 
     def _assess_quality(
         self, node_id: str, output: Any, evidence: list[str],
-    ) -> float:
-        """Assess quality of execution output. Returns 0.0-1.0."""
-        if output is None:
-            return 0.0
+        task_goal: str = "",
+    ) -> tuple[float, str]:
+        """Assess quality of execution output.
 
+        Returns:
+            Tuple of (score 0.0-1.0, scoring_mode "llm" or "heuristic").
+        """
+        if output is None:
+            return 0.0, "heuristic"
+
+        # Try LLM-based scoring when gateway is available
+        if self._llm_gateway is not None:
+            try:
+                score, _issues = self._llm_evaluate(task_goal, str(output))
+                return score, "llm"
+            except Exception:
+                logger.warning(
+                    "LLM evaluation failed for node '%s', "
+                    "falling back to heuristic scoring",
+                    node_id,
+                    exc_info=True,
+                )
+
+        return self._heuristic_score(output, evidence), "heuristic"
+
+    def _heuristic_score(self, output: Any, evidence: list[str]) -> float:
+        """Heuristic quality scoring. Returns 0.0-1.0."""
         score = 0.5  # base score for having output
 
         # Check output substance
@@ -154,6 +204,45 @@ class EvaluationMiddleware:
 
         return min(1.0, score)
 
+    def _llm_evaluate(
+        self, task_goal: str, output: str,
+    ) -> tuple[float, list[str]]:
+        """Use LLM to evaluate output quality.
+
+        Args:
+            task_goal: The task objective to evaluate against.
+            output: The execution output to assess.
+
+        Returns:
+            Tuple of (score 0.0-1.0, list of issues).
+
+        Raises:
+            Exception: On any LLM or parsing failure.
+        """
+        from hi_agent.llm.protocol import LLMRequest
+
+        prompt = (
+            "Rate the quality of this output (0.0-1.0) for the given task. "
+            "Return JSON: {\"score\": float, \"issues\": [str], "
+            "\"strengths\": [str]}\n\n"
+            f"Task: {task_goal}\n\n"
+            f"Output: {output}"
+        )
+        request = LLMRequest(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=512,
+            metadata={"purpose": self._model_tier},
+        )
+        response = self._llm_gateway.complete(request)  # type: ignore[union-attr]
+        parsed = json.loads(response.content)
+
+        raw_score = float(parsed["score"])
+        # Clamp to valid range
+        score = max(0.0, min(1.0, raw_score))
+        issues = list(parsed.get("issues", []))
+        return score, issues
+
     def _generate_feedback(
         self, node_id: str, score: float, output: Any, error: str | None,
     ) -> str:
@@ -162,7 +251,10 @@ class EvaluationMiddleware:
             return f"Node '{node_id}' failed: {error}"
         if score >= self._quality_threshold:
             return f"Node '{node_id}' passed (score={score:.2f})"
-        return f"Node '{node_id}' below threshold (score={score:.2f}, threshold={self._quality_threshold})"
+        return (
+            f"Node '{node_id}' below threshold "
+            f"(score={score:.2f}, threshold={self._quality_threshold})"
+        )
 
     def _should_escalate(self, node_id: str, retry_count: int) -> bool:
         """Determine if a node should escalate (retries exhausted)."""

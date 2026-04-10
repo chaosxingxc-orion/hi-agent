@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from hi_agent.task_decomposition.dag import TaskDAG, TaskNode, TaskNodeState
 
@@ -90,6 +91,7 @@ class DAGExecutor:
         execute_fn: Callable[[TaskNode], dict[str, Any]] | None = None,
         on_progress: Callable[[DAGProgress], None] | None = None,
     ) -> None:
+        """Initialize DAGExecutor."""
         self.dag = dag
         self.execute_fn = execute_fn or _default_execute
         self.on_progress = on_progress

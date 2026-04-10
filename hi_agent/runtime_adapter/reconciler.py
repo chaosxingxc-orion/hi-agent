@@ -118,6 +118,7 @@ class ConsistencyReconciler:
         )
 
     def _invoke(self, operation: str, *args: Any) -> ConsistencyIssueStatus:
+        """Run _invoke."""
         hook = getattr(self._backend, operation, None)
         if not callable(hook):
             return ConsistencyIssueStatus(

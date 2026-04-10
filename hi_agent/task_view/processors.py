@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-
 # ---------------------------------------------------------------------------
 # Data types
 # ---------------------------------------------------------------------------
@@ -73,9 +72,11 @@ class WindowLimitProcessor:
     """
 
     def __init__(self, max_tokens: int = 8192) -> None:
+        """Initialize WindowLimitProcessor."""
         self._max_tokens = max_tokens
 
     def process(self, context: TaskViewContext) -> TaskViewContext:
+        """Run process."""
         context.budget_tokens = self._max_tokens
 
         # Calculate structural (non-trimmable) cost.
@@ -131,10 +132,18 @@ class CompressionProcessor:
     """
 
     def __init__(self, threshold_tokens: int = 4096) -> None:
+        """Initialize CompressionProcessor."""
         self._threshold = threshold_tokens
 
     def process(self, context: TaskViewContext) -> TaskViewContext:
-        for field_name in ("evidence", "memory_snippets", "knowledge_snippets", "episodic_snippets"):
+        """Run process."""
+        field_names = (
+            "evidence",
+            "memory_snippets",
+            "knowledge_snippets",
+            "episodic_snippets",
+        )
+        for field_name in field_names:
             items: list[str] = getattr(context, field_name)
             total = _estimate_list_tokens(items)
             if total <= self._threshold:
@@ -156,6 +165,7 @@ class EvidencePriorityProcessor:
     """
 
     def process(self, context: TaskViewContext) -> TaskViewContext:
+        """Run process."""
         budget = context.budget_tokens
         structural = (
             _estimate_tokens(context.contract_summary)
@@ -187,7 +197,11 @@ class EvidencePriorityProcessor:
         actual_other_budget = other_budget + (evidence_budget - evidence_used)
 
         # Trim other fields with shared budget.
-        for field_name in ("memory_snippets", "knowledge_snippets", "episodic_snippets"):
+        for field_name in (
+            "memory_snippets",
+            "knowledge_snippets",
+            "episodic_snippets",
+        ):
             items: list[str] = getattr(context, field_name)
             kept: list[str] = []
             field_used = 0
@@ -201,7 +215,11 @@ class EvidencePriorityProcessor:
             setattr(context, field_name, kept)
             actual_other_budget -= field_used
 
-        context.total_tokens = budget - max(actual_other_budget, 0) - (evidence_budget - evidence_used)
+        context.total_tokens = (
+            budget
+            - max(actual_other_budget, 0)
+            - (evidence_budget - evidence_used)
+        )
         return context
 
 
@@ -214,6 +232,7 @@ class ContextProcessorChain:
     """Execute processors in sequence."""
 
     def __init__(self, processors: list[ContextProcessor] | None = None) -> None:
+        """Initialize ContextProcessorChain."""
         self._processors: list[ContextProcessor] = list(processors) if processors else []
 
     def add(self, processor: ContextProcessor) -> ContextProcessorChain:

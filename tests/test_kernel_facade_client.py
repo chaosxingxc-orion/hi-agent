@@ -205,11 +205,11 @@ class TestDirectMode:
         self, client: KernelFacadeClient, facade: FakeFacade
     ) -> None:
         client.mark_branch_state(
-            "run-0001", "S1", "b-1", "failed", failure_code="budget_exhausted"
+            "run-0001", "S1", "b-1", "failed", failure_code="exploration_budget_exhausted"
         )
         assert facade.calls[-1] == (
             "mark_branch_state",
-            ("run-0001", "S1", "b-1", "failed", "budget_exhausted"),
+            ("run-0001", "S1", "b-1", "failed", "exploration_budget_exhausted"),
         )
 
     def test_open_human_gate(
@@ -398,11 +398,11 @@ class TestHTTPMode:
         self, mock_urlopen, client: KernelFacadeClient
     ) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({})
-        client.mark_branch_state("r1", "S1", "b-1", "failed", "budget_exhausted")
+        client.mark_branch_state("r1", "S1", "b-1", "failed", "exploration_budget_exhausted")
         req = mock_urlopen.call_args[0][0]
         body = json.loads(req.data.decode("utf-8"))
         assert body["state"] == "failed"
-        assert body["failure_code"] == "budget_exhausted"
+        assert body["failure_code"] == "exploration_budget_exhausted"
 
     @patch("urllib.request.urlopen")
     def test_open_human_gate_http(

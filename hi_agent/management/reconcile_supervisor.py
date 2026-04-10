@@ -110,6 +110,7 @@ class ReconcileSupervisor:
         return report
 
     def _should_execute_tick(self, now: float) -> bool:
+        """Run _should_execute_tick."""
         if self._last_tick_execution_seconds is None:
             return True
         elapsed = now - self._last_tick_execution_seconds
@@ -122,6 +123,7 @@ class ReconcileSupervisor:
         max_rounds: int,
         timestamp_seconds: float,
     ) -> ReconcileSupervisorReport:
+        """Run _execute."""
         loop_report = self._reconcile_loop.run_until_clean(max_rounds=max_rounds)
         self.recent_reconcile_failures = loop_report.failed
         report = ReconcileSupervisorReport(

@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import io
 import json
 import threading
 import time
-from http.server import HTTPServer
 from typing import Any
 from unittest.mock import patch
 
 import pytest
+from starlette.testclient import TestClient
 
-from hi_agent.server.app import AgentAPIHandler, AgentServer
+from hi_agent.server.app import AgentAPIHandler, AgentServer, build_app
 from hi_agent.server.run_manager import ManagedRun, RunManager
 
 
@@ -60,9 +59,12 @@ class TestRunManagerStartAndQuery:
             return "done"
 
         mgr.start_run(run_id, executor)
-        # Wait for thread to finish.
+        # Wait for the background worker to pick up and finish.
         run = mgr.get_run(run_id)
         assert run is not None
+        deadline = time.monotonic() + 5
+        while run.thread is None and time.monotonic() < deadline:
+            time.sleep(0.02)
         assert run.thread is not None
         run.thread.join(timeout=5)
         assert run.state == "completed"
@@ -79,6 +81,9 @@ class TestRunManagerStartAndQuery:
         mgr.start_run(run_id, bad_executor)
         run = mgr.get_run(run_id)
         assert run is not None
+        deadline = time.monotonic() + 5
+        while run.thread is None and time.monotonic() < deadline:
+            time.sleep(0.02)
         assert run.thread is not None
         run.thread.join(timeout=5)
         assert run.state == "failed"
@@ -122,7 +127,11 @@ class TestRunManagerCancel:
         run_id = mgr.create_run({"goal": "test"})
         mgr.start_run(run_id, lambda r: "ok")
         run = mgr.get_run(run_id)
-        assert run is not None and run.thread is not None
+        assert run is not None
+        deadline = time.monotonic() + 5
+        while run.thread is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert run.thread is not None
         run.thread.join(timeout=5)
         assert mgr.cancel_run(run_id) is False
 
@@ -165,7 +174,6 @@ class TestRunManagerMaxConcurrent:
     def test_semaphore_limits_concurrent(self) -> None:
         """Only max_concurrent runs should execute simultaneously."""
         mgr = RunManager(max_concurrent=2)
-        active = threading.Semaphore(0)
         peak_lock = threading.Lock()
         peak = [0]
         current = [0]
@@ -178,7 +186,6 @@ class TestRunManagerMaxConcurrent:
             time.sleep(0.1)
             with peak_lock:
                 current[0] -= 1
-            active.release()
             return "done"
 
         ids = []
@@ -187,14 +194,190 @@ class TestRunManagerMaxConcurrent:
             ids.append(rid)
             mgr.start_run(rid, slow_executor)
 
-        # Wait for all to finish (some may fail due to semaphore).
+        # Wait for all to finish — queue absorbs the burst.
+        deadline = time.monotonic() + 10
         for rid in ids:
             run = mgr.get_run(rid)
-            if run and run.thread:
-                run.thread.join(timeout=10)
+            if run:
+                while run.state in ("created",) and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                if run.thread:
+                    while not run.thread.is_alive() and run.state == "running" and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    run.thread.join(timeout=10)
 
         # The peak concurrent should be at most 2.
         assert peak[0] <= 2
+        # All runs should complete (queued, not rejected).
+        for rid in ids:
+            run = mgr.get_run(rid)
+            assert run is not None
+            assert run.state == "completed"
+
+
+class TestRunManagerQueue:
+    """Test bounded queue and backoff behaviour."""
+
+    def test_queue_absorbs_burst(self) -> None:
+        """Runs beyond max_concurrent are queued and eventually execute."""
+        gate = threading.Event()
+        mgr = RunManager(max_concurrent=1, queue_size=4)
+
+        def blocking_executor(run: ManagedRun) -> str:
+            gate.wait(timeout=5)
+            return "ok"
+
+        ids = []
+        for i in range(3):
+            rid = mgr.create_run({"task_id": f"q-{i}", "goal": "test"})
+            ids.append(rid)
+            mgr.start_run(rid, blocking_executor)
+
+        # Give the worker a moment to pick the first item from the queue.
+        time.sleep(0.15)
+
+        # None should be rejected — queue absorbed them.
+        for rid in ids:
+            run = mgr.get_run(rid)
+            assert run is not None
+            assert run.error != "queue_full", f"{rid} was rejected"
+
+        # Release the gate so all runs complete.
+        gate.set()
+
+        # Wait for all runs to reach a terminal state.
+        deadline = time.monotonic() + 10
+        for rid in ids:
+            run = mgr.get_run(rid)
+            assert run is not None
+            while run.state not in ("completed", "failed") and time.monotonic() < deadline:
+                time.sleep(0.05)
+
+        for rid in ids:
+            run = mgr.get_run(rid)
+            assert run is not None
+            assert run.state == "completed", f"{rid} state={run.state} err={run.error}"
+
+    def test_queue_full_rejects(self) -> None:
+        """When queue is full, new runs are rejected with queue_full."""
+        gate = threading.Event()
+        mgr = RunManager(max_concurrent=1, queue_size=2)
+
+        def blocking_executor(run: ManagedRun) -> str:
+            gate.wait(timeout=5)
+            return "ok"
+
+        ids = []
+        # Fill semaphore (1) + queue (2) = 3 accepted, 4th should be rejected.
+        for i in range(5):
+            rid = mgr.create_run({"task_id": f"qf-{i}", "goal": "test"})
+            ids.append(rid)
+            mgr.start_run(rid, blocking_executor)
+
+        # At least one should be queue_full (immediate rejection).
+        errors = {rid: mgr.get_run(rid).error for rid in ids}  # type: ignore[union-attr]
+        assert "queue_full" in errors.values(), f"Expected queue_full, got {errors}"
+
+        gate.set()
+        # Wait for all to reach terminal state.
+        deadline = time.monotonic() + 10
+        for rid in ids:
+            run = mgr.get_run(rid)
+            if run:
+                while run.state not in ("completed", "failed") and time.monotonic() < deadline:
+                    time.sleep(0.05)
+
+    def test_pending_count_tracks(self) -> None:
+        """pending_count reflects the number of queued runs."""
+        gate = threading.Event()
+        mgr = RunManager(max_concurrent=1, queue_size=8)
+
+        def blocking_executor(run: ManagedRun) -> str:
+            gate.wait(timeout=5)
+            return "ok"
+
+        for i in range(3):
+            rid = mgr.create_run({"task_id": f"pc-{i}", "goal": "test"})
+            mgr.start_run(rid, blocking_executor)
+
+        # Give worker time to dequeue first item and block on semaphore for second.
+        time.sleep(0.5)
+
+        # At least 1 should still be pending in the queue.
+        pending = mgr.pending_count
+        assert pending >= 1, f"Expected pending >= 1, got {pending}"
+
+        gate.set()
+        # Wait for all to reach terminal state.
+        deadline = time.monotonic() + 10
+        for run in mgr.list_runs():
+            while run.state not in ("completed", "failed") and time.monotonic() < deadline:
+                time.sleep(0.05)
+
+        assert mgr.pending_count == 0
+
+    def test_get_status_reflects_reality(self) -> None:
+        """get_status returns correct active/queued/capacity/utilization."""
+        mgr = RunManager(max_concurrent=2, queue_size=4)
+        status = mgr.get_status()
+        assert status["active_runs"] == 0
+        assert status["queued_runs"] == 0
+        assert status["total_capacity"] == 2
+        assert status["queue_utilization"] == 0.0
+
+        gate = threading.Event()
+
+        def blocking_executor(run: ManagedRun) -> str:
+            gate.wait(timeout=5)
+            return "ok"
+
+        for i in range(4):
+            rid = mgr.create_run({"task_id": f"st-{i}", "goal": "test"})
+            mgr.start_run(rid, blocking_executor)
+
+        time.sleep(0.5)
+        status = mgr.get_status()
+        assert status["active_runs"] <= 2
+        assert status["total_capacity"] == 2
+        # queue_utilization should be a float between 0 and 1
+        assert 0.0 <= status["queue_utilization"] <= 1.0
+
+        gate.set()
+        deadline = time.monotonic() + 10
+        for run in mgr.list_runs():
+            while run.state not in ("completed", "failed") and time.monotonic() < deadline:
+                time.sleep(0.05)
+
+    def test_queued_run_eventually_executes(self) -> None:
+        """A run that enters the queue completes once a slot frees up."""
+        gate = threading.Event()
+        results: list[str] = []
+        mgr = RunManager(max_concurrent=1, queue_size=4)
+
+        def executor(run: ManagedRun) -> str:
+            gate.wait(timeout=5)
+            results.append(run.run_id)
+            return "done"
+
+        rid1 = mgr.create_run({"task_id": "first", "goal": "test"})
+        mgr.start_run(rid1, executor)
+        time.sleep(0.15)  # let worker pick it up
+
+        rid2 = mgr.create_run({"task_id": "second", "goal": "test"})
+        mgr.start_run(rid2, executor)
+
+        # second is queued while first is running.
+        gate.set()
+
+        deadline = time.monotonic() + 10
+        for run in mgr.list_runs():
+            while run.state not in ("completed", "failed") and time.monotonic() < deadline:
+                time.sleep(0.05)
+
+        assert mgr.get_run(rid1).state == "completed"  # type: ignore[union-attr]
+        assert mgr.get_run(rid2).state == "completed"  # type: ignore[union-attr]
+        assert "first" in results
+        assert "second" in results
 
 
 class TestRunManagerSerialize:
@@ -215,62 +398,125 @@ class TestRunManagerSerialize:
 
 
 # ---------------------------------------------------------------------------
-# HTTP API tests (using a real server on a random port)
+# HTTP API tests (using Starlette TestClient)
 # ---------------------------------------------------------------------------
 
 
 def _make_test_server() -> AgentServer:
-    """Create a server on a random port for testing."""
-    server = AgentServer(host="127.0.0.1", port=0)
+    """Create a server for testing."""
+    server = AgentServer(host="127.0.0.1", port=9999)
     return server
 
 
-def _request(
-    server: AgentServer,
-    method: str,
-    path: str,
-    body: dict[str, Any] | None = None,
-) -> tuple[int, dict[str, Any]]:
-    """Issue a request to the test server and return (status, json_body)."""
-    import http.client
-
-    host, port = server.server_address
-    conn = http.client.HTTPConnection(host, port, timeout=5)
-    headers = {"Content-Type": "application/json"}
-    data = json.dumps(body).encode() if body else None
-    conn.request(method, path, body=data, headers=headers)
-    resp = conn.getresponse()
-    raw = resp.read()
-    return resp.status, json.loads(raw) if raw else {}
+@pytest.fixture()
+def client():
+    """Fixture that creates a Starlette TestClient."""
+    server = _make_test_server()
+    with TestClient(server.app) as c:
+        yield c
 
 
 @pytest.fixture()
 def live_server():
-    """Fixture that starts a server in a thread and yields it."""
-    server = _make_test_server()
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield server
-    server.shutdown()
+    """Fixture providing an AgentServer (for backward compat with test references)."""
+    return _make_test_server()
 
 
 class TestHealthEndpoint:
     """Test GET /health."""
 
-    def test_health_returns_ok(self, live_server: AgentServer) -> None:
-        """Health check returns 200 with status ok."""
-        status, body = _request(live_server, "GET", "/health")
-        assert status == 200
-        assert body["status"] == "ok"
+    def test_health_returns_ok(self, client: TestClient) -> None:
+        """Health check returns 200 with status ok and subsystems."""
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] in ("ok", "degraded")
+        assert "subsystems" in body
+        assert "run_manager" in body["subsystems"]
+        assert "timestamp" in body
+
+
+class TestHealthEndpointSubsystems:
+    """Detailed tests for the aggregated /health endpoint."""
+
+    def test_all_subsystems_ok(self, client: TestClient) -> None:
+        """Healthy server reports all subsystems with ok or not_configured."""
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        body = resp.json()
+        subs = body["subsystems"]
+        # run_manager is always present
+        assert subs["run_manager"]["status"] == "ok"
+        assert "active_runs" in subs["run_manager"]
+        assert "capacity" in subs["run_manager"]
+        # event_bus is always present
+        assert subs["event_bus"]["status"] == "ok"
+        assert "subscribers" in subs["event_bus"]
+        assert "dropped" in subs["event_bus"]
+        # memory/metrics/context may be not_configured
+        for key in ("memory", "metrics", "context"):
+            assert subs[key]["status"] in ("ok", "not_configured", "error")
+
+    def test_missing_memory_shows_not_configured(self) -> None:
+        """When memory_manager is None, health reports not_configured."""
+        server = AgentServer(host="127.0.0.1", port=9999)
+        server.memory_manager = None
+        with TestClient(server.app) as c:
+            body = c.get("/health").json()
+            mem = body["subsystems"]["memory"]
+            assert mem["status"] == "not_configured"
+            assert mem["configured"] is False
+
+    def test_degraded_context_makes_overall_degraded(self) -> None:
+        """When context health is RED, overall status is degraded."""
+        from unittest.mock import MagicMock
+
+        server = AgentServer(host="127.0.0.1", port=9999)
+        mock_cm = MagicMock()
+        mock_report = MagicMock()
+        mock_report.health.value = "red"
+        mock_cm.get_health_report.return_value = mock_report
+        server.context_manager = mock_cm
+        with TestClient(server.app) as c:
+            body = c.get("/health").json()
+            assert body["status"] == "degraded"
+            assert body["subsystems"]["context"]["status"] == "degraded"
+            assert body["subsystems"]["context"]["health"] == "RED"
+
+    def test_subsystem_error_does_not_crash(self) -> None:
+        """If a subsystem check raises, health still returns 200."""
+        from unittest.mock import MagicMock, PropertyMock
+
+        server = AgentServer(host="127.0.0.1", port=9999)
+        # Make metrics_collector.snapshot() raise
+        mock_mc = MagicMock()
+        mock_mc.snapshot.side_effect = RuntimeError("boom")
+        server.metrics_collector = mock_mc
+        with TestClient(server.app) as c:
+            resp = c.get("/health")
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["subsystems"]["metrics"]["status"] == "error"
+            assert body["status"] == "degraded"
+
+    def test_response_includes_timestamp(self, client: TestClient) -> None:
+        """Health response includes an ISO timestamp."""
+        body = client.get("/health").json()
+        ts = body["timestamp"]
+        # Basic check: ISO format contains 'T' and is parseable
+        assert "T" in ts
+        from datetime import datetime
+        datetime.fromisoformat(ts)
 
 
 class TestManifestEndpoint:
     """Test GET /manifest."""
 
-    def test_manifest_returns_info(self, live_server: AgentServer) -> None:
+    def test_manifest_returns_info(self, client: TestClient) -> None:
         """Manifest returns system metadata."""
-        status, body = _request(live_server, "GET", "/manifest")
-        assert status == 200
+        resp = client.get("/manifest")
+        assert resp.status_code == 200
+        body = resp.json()
         assert body["name"] == "hi-agent"
         assert body["framework"] == "TRACE"
         assert "stages" in body
@@ -280,68 +526,161 @@ class TestManifestEndpoint:
 class TestRunsEndpoints:
     """Test run CRUD endpoints."""
 
-    def test_create_and_get_run(self, live_server: AgentServer) -> None:
+    def test_create_and_get_run(self, client: TestClient) -> None:
         """POST /runs creates a run, GET /runs/{id} retrieves it."""
-        status, body = _request(
-            live_server, "POST", "/runs", {"task_id": "abc", "goal": "test goal"}
-        )
-        assert status == 201
+        resp = client.post("/runs", json={"task_id": "abc", "goal": "test goal"})
+        assert resp.status_code == 201
+        body = resp.json()
         assert body["run_id"] == "abc"
-        # With executor_factory wired, run may start immediately.
         assert body["state"] in ("created", "running", "completed")
 
-        status2, body2 = _request(live_server, "GET", "/runs/abc")
-        assert status2 == 200
-        assert body2["run_id"] == "abc"
+        resp2 = client.get("/runs/abc")
+        assert resp2.status_code == 200
+        assert resp2.json()["run_id"] == "abc"
 
-    def test_create_without_goal_fails(self, live_server: AgentServer) -> None:
+    def test_create_without_goal_fails(self, client: TestClient) -> None:
         """POST /runs without goal returns 400."""
-        status, body = _request(live_server, "POST", "/runs", {"task_id": "x"})
-        assert status == 400
-        assert body["error"] == "missing_goal"
+        resp = client.post("/runs", json={"task_id": "x"})
+        assert resp.status_code == 400
+        assert resp.json()["error"] == "missing_goal"
 
-    def test_list_runs(self, live_server: AgentServer) -> None:
+    def test_list_runs(self, client: TestClient) -> None:
         """GET /runs lists created runs."""
-        _request(live_server, "POST", "/runs", {"task_id": "r1", "goal": "a"})
-        _request(live_server, "POST", "/runs", {"task_id": "r2", "goal": "b"})
-        status, body = _request(live_server, "GET", "/runs")
-        assert status == 200
-        ids = {r["run_id"] for r in body["runs"]}
+        client.post("/runs", json={"task_id": "r1", "goal": "a"})
+        client.post("/runs", json={"task_id": "r2", "goal": "b"})
+        resp = client.get("/runs")
+        assert resp.status_code == 200
+        ids = {r["run_id"] for r in resp.json()["runs"]}
         assert "r1" in ids
         assert "r2" in ids
 
-    def test_get_nonexistent_run(self, live_server: AgentServer) -> None:
+    def test_get_nonexistent_run(self, client: TestClient) -> None:
         """GET /runs/missing returns 404."""
-        status, body = _request(live_server, "GET", "/runs/missing")
-        assert status == 404
+        resp = client.get("/runs/missing")
+        assert resp.status_code == 404
 
-    def test_signal_cancel(self, live_server: AgentServer) -> None:
+    def test_signal_cancel(self, client: TestClient) -> None:
         """POST /runs/{id}/signal with cancel signal works."""
-        _request(live_server, "POST", "/runs", {"task_id": "s1", "goal": "test"})
-        status, body = _request(
-            live_server, "POST", "/runs/s1/signal", {"signal": "cancel"}
-        )
-        # Run may have already completed if executor_factory is wired;
-        # cancel is only possible for created/running states.
-        assert status in (200, 409)
-        if status == 200:
-            assert body["state"] == "cancelled"
+        client.post("/runs", json={"task_id": "s1", "goal": "test"})
+        resp = client.post("/runs/s1/signal", json={"signal": "cancel"})
+        assert resp.status_code in (200, 409)
+        if resp.status_code == 200:
+            assert resp.json()["state"] == "cancelled"
 
-    def test_signal_unknown(self, live_server: AgentServer) -> None:
+    def test_signal_unknown(self, client: TestClient) -> None:
         """POST /runs/{id}/signal with unknown signal returns 400."""
-        _request(live_server, "POST", "/runs", {"task_id": "s2", "goal": "test"})
-        status, body = _request(
-            live_server, "POST", "/runs/s2/signal", {"signal": "explode"}
-        )
-        assert status == 400
-        assert body["error"] == "unknown_signal"
+        client.post("/runs", json={"task_id": "s2", "goal": "test"})
+        resp = client.post("/runs/s2/signal", json={"signal": "explode"})
+        assert resp.status_code == 400
+        assert resp.json()["error"] == "unknown_signal"
 
-    def test_not_found_routes(self, live_server: AgentServer) -> None:
+    def test_not_found_routes(self, client: TestClient) -> None:
         """Unknown paths return 404."""
-        status, _ = _request(live_server, "GET", "/nope")
-        assert status == 404
-        status2, _ = _request(live_server, "POST", "/nope")
-        assert status2 == 404
+        resp = client.get("/nope")
+        assert resp.status_code == 404
+        resp2 = client.post("/nope")
+        assert resp2.status_code in (404, 405)
+
+
+class TestMetricsEndpoints:
+    """Test metrics endpoints."""
+
+    def test_metrics_prometheus_no_collector(self, client: TestClient) -> None:
+        """GET /metrics returns text when no collector configured."""
+        resp = client.get("/metrics")
+        assert resp.status_code == 200
+        assert "text/plain" in resp.headers["content-type"]
+        assert "No metrics collector configured" in resp.text
+
+    def test_metrics_json_no_collector(self, client: TestClient) -> None:
+        """GET /metrics/json returns empty dict when no collector configured."""
+        resp = client.get("/metrics/json")
+        assert resp.status_code == 200
+        assert resp.json() == {}
+
+
+class TestAsyncEndpoint:
+    """Test that async handlers work correctly."""
+
+    def test_async_health_endpoint(self, client: TestClient) -> None:
+        """Verify the async health handler responds correctly."""
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] in ("ok", "degraded")
+        assert "subsystems" in data
+        assert "timestamp" in data
+
+    def test_async_create_and_list(self, client: TestClient) -> None:
+        """Verify async create followed by list returns consistent data."""
+        client.post("/runs", json={"task_id": "async-1", "goal": "async test"})
+        resp = client.get("/runs")
+        assert resp.status_code == 200
+        runs = resp.json()["runs"]
+        assert any(r["run_id"] == "async-1" for r in runs)
+
+
+class TestSSEStreaming:
+    """Test SSE streaming endpoint is routable."""
+
+    def test_sse_endpoint_exists(self, client: TestClient) -> None:
+        """GET /runs/{run_id}/events should return SSE media type.
+
+        Note: Without publishing events, the stream will block.
+        We test that the endpoint is routable and returns the correct
+        content type by using a short timeout or by checking that the
+        route is registered.
+        """
+        from hi_agent.server.app import build_app
+
+        # Verify the route exists in the app routes
+        app = client.app
+        route_paths = []
+        for route in app.routes:  # type: ignore[union-attr]
+            if hasattr(route, "path"):
+                route_paths.append(route.path)
+        assert "/runs/{run_id}/events" in route_paths
+
+
+class TestConcurrentRequests:
+    """Test that concurrent requests are handled correctly."""
+
+    def test_concurrent_creates_via_client(self, client: TestClient) -> None:
+        """Multiple concurrent POST /runs should all succeed."""
+        errors: list[str] = []
+        results: list[dict] = []
+        lock = threading.Lock()
+
+        def create_run(idx: int) -> None:
+            try:
+                resp = client.post(
+                    "/runs",
+                    json={"task_id": f"conc-{idx}", "goal": f"goal-{idx}"},
+                )
+                with lock:
+                    if resp.status_code != 201:
+                        errors.append(f"conc-{idx}: status={resp.status_code}")
+                    else:
+                        results.append(resp.json())
+            except Exception as exc:  # noqa: BLE001
+                with lock:
+                    errors.append(str(exc))
+
+        threads = [threading.Thread(target=create_run, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"Errors: {errors}"
+        assert len(results) == 10
+
+        # Verify all runs are listed
+        resp = client.get("/runs")
+        assert resp.status_code == 200
+        ids = {r["run_id"] for r in resp.json()["runs"]}
+        for i in range(10):
+            assert f"conc-{i}" in ids
 
 
 # ---------------------------------------------------------------------------

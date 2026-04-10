@@ -5,9 +5,8 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from hi_agent.contracts import TaskContract, TaskBudget
-from hi_agent.task_decomposition.dag import TaskDAG, TaskNode, TaskNodeState
-
+from hi_agent.contracts import TaskContract
+from hi_agent.task_decomposition.dag import TaskDAG, TaskNode
 
 # Default TRACE stage sequence used for linear decomposition.
 _TRACE_STAGES: list[tuple[str, str]] = [
@@ -36,6 +35,7 @@ class TaskDecomposer:
     """
 
     def __init__(self, llm_gateway: Any | None = None) -> None:
+        """Initialize TaskDecomposer."""
         self.llm_gateway = llm_gateway
 
     def decompose(self, contract: TaskContract) -> TaskDAG:

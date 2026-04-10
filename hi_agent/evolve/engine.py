@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 from typing import TYPE_CHECKING
 
 from hi_agent.evolve.champion_challenger import ChampionChallenger
@@ -19,6 +20,11 @@ from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
     from hi_agent.skill.registry import SkillRegistry
+    from hi_agent.skill.version import SkillVersionManager
+
+_logger = logging.getLogger(__name__)
+
+_DEFAULT_COMPARISON_INTERVAL = 10
 
 
 class EvolveEngine:
@@ -35,6 +41,8 @@ class EvolveEngine:
         regression_detector: RegressionDetector | None = None,
         champion_challenger: ChampionChallenger | None = None,
         skill_registry: SkillRegistry | None = None,
+        version_manager: SkillVersionManager | None = None,
+        comparison_interval: int = _DEFAULT_COMPARISON_INTERVAL,
     ) -> None:
         """Initialize the evolve engine.
 
@@ -44,6 +52,8 @@ class EvolveEngine:
             regression_detector: Regression detector; created if not provided.
             champion_challenger: Champion/challenger comparator; created if not provided.
             skill_registry: Optional skill registry for auto-registering candidates.
+            version_manager: Optional skill version manager for auto-promote.
+            comparison_interval: Number of runs between champion/challenger comparisons.
         """
         self._llm = llm_gateway
         self._postmortem_analyzer = PostmortemAnalyzer(llm_gateway=llm_gateway)
@@ -51,6 +61,8 @@ class EvolveEngine:
         self._regression_detector = regression_detector or RegressionDetector()
         self._champion_challenger = champion_challenger or ChampionChallenger()
         self._skill_registry = skill_registry
+        self._version_manager = version_manager
+        self._comparison_interval = comparison_interval
         self._skill_candidates: list[SkillCandidate] = []
 
     def on_run_completed(self, postmortem: RunPostmortem) -> EvolveResult:
@@ -101,7 +113,105 @@ class EvolveEngine:
                 efficiency=postmortem.efficiency_score,
             )
 
+        # 4. Champion/challenger: record metrics for skills used in this run.
+        try:
+            self._record_skill_metrics(postmortem, result)
+        except Exception:
+            _logger.debug(
+                "champion_challenger recording failed for run %s",
+                postmortem.run_id,
+                exc_info=True,
+            )
+
         return result
+
+    # ------------------------------------------------------------------
+    # Champion/Challenger helpers
+    # ------------------------------------------------------------------
+
+    def _record_skill_metrics(
+        self, postmortem: RunPostmortem, result: EvolveResult
+    ) -> None:
+        """Record skill metrics and trigger comparisons when due."""
+        cc = self._champion_challenger
+        vm = self._version_manager
+        skills_used = postmortem.skills_used
+        if not skills_used:
+            return
+
+        # Build run-level metrics from postmortem scores.
+        run_metrics: dict[str, float] = {}
+        if postmortem.quality_score is not None:
+            run_metrics["quality"] = postmortem.quality_score
+        if postmortem.efficiency_score is not None:
+            run_metrics["efficiency"] = postmortem.efficiency_score
+        if not run_metrics:
+            return
+
+        for skill_id in skills_used:
+            # Determine if this skill has a challenger via version_manager.
+            is_challenger = False
+            version = "unknown"
+            if vm is not None:
+                challenger = vm.get_challenger(skill_id)
+                champion = vm.get_champion(skill_id)
+                if challenger is not None:
+                    is_challenger = True
+                    version = challenger.version
+                elif champion is not None:
+                    version = champion.version
+
+            cc.record(
+                scope=skill_id,
+                version=version,
+                metrics=run_metrics,
+                is_challenger=is_challenger,
+            )
+
+        # Check if any scopes are due for comparison.
+        for scope in cc.scopes_with_challenger():
+            if cc.get_run_count(scope) % self._comparison_interval != 0:
+                continue
+            comparison = cc.compare(scope)
+            if comparison.recommendation == "promote_challenger":
+                _logger.info(
+                    "Champion/challenger comparison for '%s': promoting "
+                    "challenger %s (score=%.3f) over champion %s (score=%.3f)",
+                    scope,
+                    comparison.challenger_version,
+                    comparison.challenger_score,
+                    comparison.champion_version,
+                    comparison.champion_score,
+                )
+                result.changes.append(
+                    EvolveChange(
+                        change_type="champion_challenger_promotion",
+                        target_id=scope,
+                        description=(
+                            f"Challenger {comparison.challenger_version} "
+                            f"outperforms champion {comparison.champion_version} "
+                            f"({comparison.challenger_score:.3f} vs "
+                            f"{comparison.champion_score:.3f})"
+                        ),
+                        confidence=min(
+                            comparison.challenger_score, 1.0
+                        ),
+                        evidence_refs=[postmortem.run_id],
+                    )
+                )
+                # Auto-promote via version_manager if available.
+                if vm is not None:
+                    try:
+                        vm.promote_challenger(scope)
+                        _logger.info(
+                            "Auto-promoted challenger for skill '%s'", scope
+                        )
+                    except Exception:
+                        _logger.debug(
+                            "Auto-promote failed for '%s'",
+                            scope,
+                            exc_info=True,
+                        )
 
     def batch_evolve(
         self,
@@ -162,7 +272,7 @@ class EvolveEngine:
             changes=all_changes,
             metrics=total_metrics,
             run_ids_analyzed=run_ids,
-            timestamp=datetime.datetime.now(tz=datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(tz=datetime.UTC).isoformat(),
         )
 
     def check_regression(self, task_family: str) -> RegressionReport:

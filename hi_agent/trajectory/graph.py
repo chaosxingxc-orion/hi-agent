@@ -21,14 +21,15 @@ Key design:
 """
 from __future__ import annotations
 
-import json
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 
 class NodeState(Enum):
+    """NodeState class."""
     PENDING = "pending"
     READY = "ready"
     RUNNING = "running"
@@ -39,6 +40,7 @@ class NodeState(Enum):
 
 
 class EdgeType(Enum):
+    """EdgeType class."""
     SEQUENCE = "sequence"        # normal flow A->B
     BRANCH = "branch"            # parallel split A->{B,C}
     CONDITIONAL = "conditional"  # A->B if condition, else A->C
@@ -82,6 +84,7 @@ class TrajectoryGraph:
     """
 
     def __init__(self, graph_id: str = "default") -> None:
+        """Initialize TrajectoryGraph."""
         self.graph_id = graph_id
         self._nodes: dict[str, TrajNode] = {}
         self._edges: list[TrajEdge] = []
@@ -210,10 +213,14 @@ class TrajectoryGraph:
             raise KeyError(f"Edge '{source}' -> '{target}' not found")
         # Rebuild adjacency for affected nodes.
         self._forward[source] = [
-            e for e in self._forward.get(source, []) if not (e.source == source and e.target == target)
+            edge
+            for edge in self._forward.get(source, [])
+            if not (edge.source == source and edge.target == target)
         ]
         self._backward[target] = [
-            e for e in self._backward.get(target, []) if not (e.source == source and e.target == target)
+            edge
+            for edge in self._backward.get(target, [])
+            if not (edge.source == source and edge.target == target)
         ]
         self._rebuild_entry_terminal()
 
@@ -283,7 +290,7 @@ class TrajectoryGraph:
         if not self._nodes:
             return []
         # Only consider SEQUENCE and BRANCH edges for levels.
-        in_degree: dict[str, int] = {nid: 0 for nid in self._nodes}
+        in_degree: dict[str, int] = dict.fromkeys(self._nodes, 0)
         for e in self._edges:
             if e.edge_type in (EdgeType.SEQUENCE, EdgeType.BRANCH):
                 in_degree[e.target] = in_degree.get(e.target, 0) + 1
@@ -306,7 +313,7 @@ class TrajectoryGraph:
 
     def topological_sort(self) -> list[str]:
         """Topological ordering. Ignores BACKTRACK edges for sorting."""
-        in_degree: dict[str, int] = {nid: 0 for nid in self._nodes}
+        in_degree: dict[str, int] = dict.fromkeys(self._nodes, 0)
         for e in self._edges:
             if e.edge_type != EdgeType.BACKTRACK:
                 in_degree[e.target] = in_degree.get(e.target, 0) + 1
@@ -407,26 +414,22 @@ class TrajectoryGraph:
 
     def has_cycle(self, exclude_backtrack: bool = True) -> bool:
         """Detect cycles. By default excludes BACKTRACK edges (they're intentional)."""
-        WHITE, GRAY, BLACK = 0, 1, 2
-        color: dict[str, int] = {nid: WHITE for nid in self._nodes}
+        white, gray, black = 0, 1, 2
+        color: dict[str, int] = dict.fromkeys(self._nodes, white)
 
         def _dfs(nid: str) -> bool:
-            color[nid] = GRAY
+            color[nid] = gray
             for e in self._forward.get(nid, []):
                 if exclude_backtrack and e.edge_type == EdgeType.BACKTRACK:
                     continue
-                if color.get(e.target, WHITE) == GRAY:
+                if color.get(e.target, white) == gray:
                     return True
-                if color.get(e.target, WHITE) == WHITE and _dfs(e.target):
+                if color.get(e.target, white) == white and _dfs(e.target):
                     return True
-            color[nid] = BLACK
+            color[nid] = black
             return False
 
-        for nid in self._nodes:
-            if color[nid] == WHITE:
-                if _dfs(nid):
-                    return True
-        return False
+        return any(color[nid] == white and _dfs(nid) for nid in self._nodes)
 
     def get_critical_path(self) -> list[str]:
         """Find the longest path (critical path) through the graph.
@@ -441,8 +444,8 @@ class TrajectoryGraph:
         if not order:
             return []
 
-        dist: dict[str, float] = {nid: 0.0 for nid in self._nodes}
-        prev: dict[str, str | None] = {nid: None for nid in self._nodes}
+        dist: dict[str, float] = dict.fromkeys(self._nodes, 0.0)
+        prev: dict[str, str | None] = dict.fromkeys(self._nodes)
 
         for nid in order:
             for e in self._forward.get(nid, []):
@@ -477,10 +480,12 @@ class TrajectoryGraph:
 
     @property
     def node_count(self) -> int:
+        """Return node_count."""
         return len(self._nodes)
 
     @property
     def edge_count(self) -> int:
+        """Return edge_count."""
         return len(self._edges)
 
     # --- Evaluate conditional edges ---
@@ -566,9 +571,9 @@ class TrajectoryGraph:
         """
         lines: list[str] = []
         if title:
-            lines.append(f"---")
+            lines.append("---")
             lines.append(f"title: {title}")
-            lines.append(f"---")
+            lines.append("---")
         lines.append("flowchart TD")
 
         state_styles = {

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-import threading
 from typing import Any
 
 import pytest
+from starlette.testclient import TestClient
 
 from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
@@ -49,39 +49,35 @@ def km(wiki, user_store, graph, renderer):
 
 
 def _make_test_server(km: KnowledgeManager) -> AgentServer:
-    """Create a server on a random port with knowledge_manager wired."""
-    server = AgentServer(host="127.0.0.1", port=0)
+    """Create a server with knowledge_manager wired."""
+    server = AgentServer(host="127.0.0.1", port=9999)
     server.knowledge_manager = km
     return server
 
 
 def _request(
-    server: AgentServer,
+    client: TestClient,
     method: str,
     path: str,
     body: dict[str, Any] | None = None,
 ) -> tuple[int, dict[str, Any]]:
-    """Issue a request to the test server and return (status, json_body)."""
-    import http.client
-
-    host, port = server.server_address
-    conn = http.client.HTTPConnection(host, port, timeout=5)
-    headers = {"Content-Type": "application/json"}
-    data = json.dumps(body).encode() if body else None
-    conn.request(method, path, body=data, headers=headers)
-    resp = conn.getresponse()
-    raw = resp.read()
-    return resp.status, json.loads(raw) if raw else {}
+    """Issue a request via TestClient and return (status, json_body)."""
+    if method == "GET":
+        resp = client.get(path)
+    elif method == "POST":
+        resp = client.post(path, json=body)
+    else:
+        resp = client.request(method, path, json=body)
+    raw = resp.content
+    return resp.status_code, json.loads(raw) if raw else {}
 
 
 @pytest.fixture()
 def live_server(km):
-    """Fixture that starts a server with knowledge_manager in a thread."""
+    """Fixture that provides a TestClient backed by AgentServer."""
     server = _make_test_server(km)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield server
-    server.shutdown()
+    with TestClient(server.app) as client:
+        yield client
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +88,7 @@ def live_server(km):
 class TestKnowledgeIngest:
     """Test POST /knowledge/ingest."""
 
-    def test_ingest_creates_wiki_page(self, live_server: AgentServer) -> None:
+    def test_ingest_creates_wiki_page(self, live_server: TestClient) -> None:
         """Ingesting text creates a wiki page and returns 201."""
         status, body = _request(live_server, "POST", "/knowledge/ingest", {
             "title": "Revenue Analysis",
@@ -103,7 +99,7 @@ class TestKnowledgeIngest:
         assert body["status"] == "created"
         assert body["page_id"]
 
-    def test_ingest_missing_fields_returns_400(self, live_server: AgentServer) -> None:
+    def test_ingest_missing_fields_returns_400(self, live_server: TestClient) -> None:
         """Missing title or content returns 400."""
         status, body = _request(live_server, "POST", "/knowledge/ingest", {
             "title": "Only title",
@@ -112,25 +108,21 @@ class TestKnowledgeIngest:
 
     def test_ingest_no_knowledge_manager_returns_503(self) -> None:
         """Server without knowledge_manager returns 503."""
-        server = AgentServer(host="127.0.0.1", port=0)
+        server = AgentServer(host="127.0.0.1", port=9999)
         # knowledge_manager is None by default
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        try:
-            status, body = _request(server, "POST", "/knowledge/ingest", {
+        with TestClient(server.app) as client:
+            status, body = _request(client, "POST", "/knowledge/ingest", {
                 "title": "t", "content": "c",
             })
             assert status == 503
             assert body["error"] == "knowledge_not_configured"
-        finally:
-            server.shutdown()
 
 
 class TestKnowledgeIngestStructured:
     """Test POST /knowledge/ingest-structured."""
 
     def test_ingest_structured_creates_graph_nodes(
-        self, live_server: AgentServer, graph: LongTermMemoryGraph,
+        self, live_server: TestClient, graph: LongTermMemoryGraph,
     ) -> None:
         """Ingesting structured facts creates graph nodes."""
         status, body = _request(live_server, "POST", "/knowledge/ingest-structured", {
@@ -149,7 +141,7 @@ class TestKnowledgeQuery:
     """Test GET /knowledge/query."""
 
     def test_query_returns_results(
-        self, live_server: AgentServer, km: KnowledgeManager,
+        self, live_server: TestClient, km: KnowledgeManager,
     ) -> None:
         """Query returns results after ingesting content."""
         km.ingest_text("Revenue Report", "Q4 revenue was strong.", ["finance"])
@@ -161,7 +153,7 @@ class TestKnowledgeQuery:
         assert body["total_results"] >= 1
         assert "context" in body
 
-    def test_query_missing_q_returns_400(self, live_server: AgentServer) -> None:
+    def test_query_missing_q_returns_400(self, live_server: TestClient) -> None:
         """Query without q param returns 400."""
         status, body = _request(live_server, "GET", "/knowledge/query")
         assert status == 400
@@ -172,7 +164,7 @@ class TestKnowledgeStatus:
     """Test GET /knowledge/status."""
 
     def test_status_returns_counts(
-        self, live_server: AgentServer, km: KnowledgeManager,
+        self, live_server: TestClient, km: KnowledgeManager,
     ) -> None:
         """Status returns wiki_pages, graph_nodes, etc."""
         km.ingest_text("Test Page", "Some content", ["test"])
@@ -188,7 +180,7 @@ class TestKnowledgeStatus:
 class TestKnowledgeLint:
     """Test POST /knowledge/lint."""
 
-    def test_lint_returns_issues_list(self, live_server: AgentServer) -> None:
+    def test_lint_returns_issues_list(self, live_server: TestClient) -> None:
         """Lint returns a list of issues (possibly empty)."""
         status, body = _request(live_server, "POST", "/knowledge/lint")
         assert status == 200
@@ -201,7 +193,7 @@ class TestKnowledgeSync:
     """Test POST /knowledge/sync."""
 
     def test_sync_transfers_graph_to_wiki(
-        self, live_server: AgentServer, graph: LongTermMemoryGraph,
+        self, live_server: TestClient, graph: LongTermMemoryGraph,
         wiki: KnowledgeWiki,
     ) -> None:
         """Sync creates wiki pages from graph nodes."""
@@ -277,12 +269,11 @@ class TestSystemBuilderKnowledge:
         config = TraceConfig(
             episodic_storage_dir=str(tmp_path / "episodes"),
             server_host="127.0.0.1",
-            server_port=0,
+            server_port=9999,
         )
         builder = SystemBuilder(config)
         server = builder.build_server()
         assert server.knowledge_manager is not None
-        server.server_close()
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +285,7 @@ class TestKnowledgeFullLifecycle:
     """End-to-end: ingest text -> query -> ingest structured -> query -> sync -> verify."""
 
     def test_full_lifecycle(
-        self, live_server: AgentServer, km: KnowledgeManager,
+        self, live_server: TestClient, km: KnowledgeManager,
         graph: LongTermMemoryGraph, wiki: KnowledgeWiki,
     ) -> None:
         """Full lifecycle: ingest, query, structured ingest, sync, verify."""

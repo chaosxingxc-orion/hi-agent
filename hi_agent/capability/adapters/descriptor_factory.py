@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 
 @dataclass(frozen=True)
@@ -33,7 +34,7 @@ class CapabilityDescriptorFactory:
     """Auto-generates CapabilityDescriptor metadata using naming heuristics."""
 
     # Effect class heuristics based on tool name prefixes / leading verbs.
-    EFFECT_HEURISTICS: dict[str, str] = {
+    EFFECT_HEURISTICS: ClassVar[dict[str, str]] = {
         "read": "read_only",
         "search": "read_only",
         "query": "read_only",

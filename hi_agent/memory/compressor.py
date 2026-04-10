@@ -124,7 +124,7 @@ class MemoryCompressor:
                     len(result.findings) + len(result.decisions),
                 )
                 return result
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass  # fall through to fallback
 
         result = self._fallback_truncate(stage_id, records)
@@ -162,7 +162,7 @@ class MemoryCompressor:
                     len(result.findings) + len(result.decisions),
                 )
                 return result
-            except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+            except (TimeoutError, Exception):
                 result = self._fallback_truncate(stage_id, records)
                 self.metrics.record(
                     "fallback",
@@ -183,7 +183,7 @@ class MemoryCompressor:
                     len(result.findings) + len(result.decisions),
                 )
                 return result
-            except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+            except (TimeoutError, Exception):
                 result = self._fallback_truncate(stage_id, records)
                 self.metrics.record(
                     "fallback",
@@ -192,7 +192,7 @@ class MemoryCompressor:
                 )
                 return result
 
-        # No gateway and no llm_fn – deterministic fallback
+        # No gateway and no llm_fn - deterministic fallback
         result = self._fallback_truncate(stage_id, records)
         self.metrics.record(
             "fallback",

@@ -10,7 +10,7 @@ import threading
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
@@ -51,6 +51,7 @@ class CircuitOpenError(Exception):
     """Raised when the circuit breaker is open and rejects calls."""
 
     def __init__(self, reset_at: float) -> None:
+        """Initialize CircuitOpenError."""
         remaining = max(0.0, reset_at - time.monotonic())
         super().__init__(
             f"Circuit breaker is open; retry after {remaining:.1f}s"
@@ -273,14 +274,13 @@ class ResilientKernelAdapter:
     def circuit_state(self) -> str:
         """Return circuit breaker state: 'closed', 'open', or 'half_open'."""
         with self._cb_lock:
-            if self._cb_state == "open":
-                # Check if reset period has elapsed
-                if (
-                    self._cb_open_since is not None
-                    and time.monotonic() - self._cb_open_since
-                    >= self._cb_reset_seconds
-                ):
-                    return "half_open"
+            if (
+                self._cb_state == "open"
+                and self._cb_open_since is not None
+                and time.monotonic() - self._cb_open_since
+                >= self._cb_reset_seconds
+            ):
+                return "half_open"
             return self._cb_state
 
     @property

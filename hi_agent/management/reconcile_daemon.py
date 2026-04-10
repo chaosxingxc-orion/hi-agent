@@ -158,6 +158,7 @@ class ReconcileDaemon:
         return report
 
     def _run_loop(self) -> None:
+        """Run _run_loop."""
         while not self._stop_event.is_set():
             self.run_once_tick()
             self._sleeper(self._interval_seconds)

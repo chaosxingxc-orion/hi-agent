@@ -132,6 +132,8 @@ class TraceConfig:
     harness_backoff_base_ms: int = 1000
     harness_backoff_max_ms: int = 30000
     harness_action_default_timeout: int = 60
+    evidence_store_backend: str = "memory"
+    evidence_store_path: str = ".hi_agent/evidence.db"
 
     # --- Task Budget defaults (NEW) ---
     task_budget_max_llm_calls: int = 100
@@ -154,6 +156,10 @@ class TraceConfig:
 
     # --- Gate (NEW) ---
     gate_default_timeout_seconds: float = 300.0
+
+    # --- Memory auto-consolidation (NEW) ---
+    auto_dream_interval: int = 5     # trigger dream every N runs (0=disabled)
+    auto_consolidate_interval: int = 20  # trigger LTM consolidation every N runs (0=disabled)
 
     # --- Async scheduler (NEW) ---
     max_concurrency: int = 64        # AsyncTaskScheduler Semaphore limit

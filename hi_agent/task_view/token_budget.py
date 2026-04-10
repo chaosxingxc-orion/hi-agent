@@ -24,7 +24,7 @@ def set_token_counter(fn: Callable[[str], int] | None) -> None:
 
     Pass *None* to restore the default heuristic.
     """
-    global _token_counter  # noqa: PLW0603
+    global _token_counter
     _token_counter = fn
 
 

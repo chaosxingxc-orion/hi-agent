@@ -45,6 +45,7 @@ class InMemoryDecisionAuditStore:
         return None
 
     def _normalize_required_str(self, value: object, field: str) -> str:
+        """Run _normalize_required_str."""
         if not isinstance(value, str):
             raise ValueError(f"{field} must be a non-empty string")
         normalized = value.strip()

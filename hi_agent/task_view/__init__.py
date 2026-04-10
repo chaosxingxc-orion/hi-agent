@@ -21,9 +21,9 @@ from hi_agent.task_view.token_budget import (
 )
 
 __all__ = [
-    "AutoCompressTrigger",
     "DEFAULT_BUDGET",
     "LAYER_BUDGETS",
+    "AutoCompressTrigger",
     "TaskView",
     "TaskViewSection",
     "build_run_index",

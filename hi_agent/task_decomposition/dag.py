@@ -62,6 +62,7 @@ class TaskDAG:
     """
 
     def __init__(self) -> None:
+        """Initialize TaskDAG."""
         self._nodes: dict[str, TaskNode] = {}
         self._edges: dict[str, set[str]] = {}  # from -> set(to)
 
@@ -202,8 +203,8 @@ class TaskDAG:
         Raises:
             ValueError: If the DAG contains a cycle.
         """
-        in_degree: dict[str, int] = {nid: 0 for nid in self._nodes}
-        for src, targets in self._edges.items():
+        in_degree: dict[str, int] = dict.fromkeys(self._nodes, 0)
+        for _src, targets in self._edges.items():
             for tgt in targets:
                 in_degree[tgt] += 1
 
@@ -227,24 +228,20 @@ class TaskDAG:
     def has_cycle(self) -> bool:
         """Return True if the DAG contains a cycle."""
         # DFS-based cycle detection.
-        WHITE, GRAY, BLACK = 0, 1, 2
-        color: dict[str, int] = {nid: WHITE for nid in self._nodes}
+        white, gray, black = 0, 1, 2
+        color: dict[str, int] = dict.fromkeys(self._nodes, white)
 
         def _dfs(nid: str) -> bool:
-            color[nid] = GRAY
+            color[nid] = gray
             for tgt in self._edges.get(nid, set()):
-                if color[tgt] == GRAY:
+                if color[tgt] == gray:
                     return True
-                if color[tgt] == WHITE and _dfs(tgt):
+                if color[tgt] == white and _dfs(tgt):
                     return True
-            color[nid] = BLACK
+            color[nid] = black
             return False
 
-        for nid in self._nodes:
-            if color[nid] == WHITE:
-                if _dfs(nid):
-                    return True
-        return False
+        return any(color[nid] == white and _dfs(nid) for nid in self._nodes)
 
     def get_subgraph(self, root_ids: list[str]) -> TaskDAG:
         """Extract a self-contained sub-DAG rooted at given nodes.
@@ -311,8 +308,8 @@ class TaskDAG:
         if not self._nodes:
             return []
 
-        in_degree: dict[str, int] = {nid: 0 for nid in self._nodes}
-        for src, targets in self._edges.items():
+        in_degree: dict[str, int] = dict.fromkeys(self._nodes, 0)
+        for _src, targets in self._edges.items():
             for tgt in targets:
                 in_degree[tgt] += 1
 
@@ -377,7 +374,7 @@ class TaskDAG:
 
         # Check for orphan nodes (connected to nothing, in a multi-node DAG).
         if len(self._nodes) > 1:
-            for nid, node in self._nodes.items():
+            for nid, _node in self._nodes.items():
                 has_incoming = any(
                     nid in targets
                     for targets in self._edges.values()

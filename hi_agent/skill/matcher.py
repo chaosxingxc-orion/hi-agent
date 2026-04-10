@@ -15,6 +15,7 @@ class SkillMatcher:
     """
 
     def __init__(self, registry: SkillRegistry) -> None:
+        """Initialize SkillMatcher."""
         self._registry = registry
 
     def match(
@@ -69,10 +70,7 @@ class SkillMatcher:
         """
         if not context:
             return True
-        for cond in skill.preconditions:
-            if not _evaluate_condition(cond, context):
-                return False
-        return True
+        return all(_evaluate_condition(cond, context) for cond in skill.preconditions)
 
     def check_forbidden(
         self, skill: ManagedSkill, context: dict[str, Any]
@@ -91,10 +89,7 @@ class SkillMatcher:
         """
         if not context:
             return True
-        for cond in skill.forbidden_conditions:
-            if _evaluate_condition(cond, context):
-                return False
-        return True
+        return all(not _evaluate_condition(cond, context) for cond in skill.forbidden_conditions)
 
 
 def _evaluate_condition(condition: str, context: dict[str, Any]) -> bool:

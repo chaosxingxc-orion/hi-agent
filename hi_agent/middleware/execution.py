@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from hi_agent.middleware.protocol import (
     ExecutionResult,
@@ -25,15 +28,25 @@ class ExecutionMiddleware:
         harness_executor: Any | None = None,
         retrieval_engine: Any | None = None,
         skill_loader: Any | None = None,
+        strict: bool = False,
+        model_tier: str = "medium",
     ) -> None:
+        """Initialize ExecutionMiddleware."""
+        if strict and capability_invoker is None:
+            raise RuntimeError(
+                "ExecutionMiddleware requires capability_invoker in strict mode"
+            )
         self._capability_invoker = capability_invoker
         self._harness_executor = harness_executor
         self._retrieval_engine = retrieval_engine
         self._skill_loader = skill_loader
+        self._strict = strict
+        self._model_tier = model_tier
         self._idempotency_cache: dict[str, Any] = {}
 
     @property
     def name(self) -> str:
+        """Return name."""
         return "execution"
 
     def on_create(self, config: dict[str, Any]) -> None:
@@ -184,9 +197,19 @@ class ExecutionMiddleware:
                     error=str(exc),
                 )
 
+        logger.warning(
+            "ExecutionMiddleware: no capability_invoker configured; "
+            "generating synthetic output for node '%s'",
+            node_id,
+        )
+        synthetic_output = {
+            "_synthetic": True,
+            "warning": "no capability_invoker configured",
+            "text": " ".join(output_parts) if output_parts else "executed",
+        }
         return ExecutionResult(
             node_id=node_id,
-            output=" ".join(output_parts) if output_parts else "executed",
+            output=synthetic_output,
             evidence=evidence,
             tokens_used=max(10, len(str(node_payload)) // 4),
             success=True,

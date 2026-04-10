@@ -58,6 +58,7 @@ class LongTermMemoryGraph:
     def __init__(
         self, storage_path: str = ".hi_agent/memory/long_term/graph.json"
     ) -> None:
+        """Initialize LongTermMemoryGraph."""
         self._storage_path = Path(storage_path)
         self._nodes: dict[str, MemoryNode] = {}
         self._edges: list[MemoryEdge] = []
@@ -312,6 +313,7 @@ class LongTermConsolidator:
     def __init__(
         self, mid_term_store: MidTermMemoryStore, graph: LongTermMemoryGraph
     ) -> None:
+        """Initialize LongTermConsolidator."""
         self._mid_term = mid_term_store
         self._graph = graph
 
@@ -390,7 +392,11 @@ class LongTermConsolidator:
                 # Require meaningful overlap (exclude very short common words)
                 meaningful = {w for w in overlap if len(w) > 3}
                 if len(meaningful) >= 2:
-                    relation = "supports" if new_node.node_type == existing_node.node_type else "derived_from"
+                    relation = (
+                        "supports"
+                        if new_node.node_type == existing_node.node_type
+                        else "derived_from"
+                    )
                     edges.append(
                         MemoryEdge(
                             source_id=new_node.node_id,

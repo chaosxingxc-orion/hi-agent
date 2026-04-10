@@ -50,6 +50,7 @@ class OpsSnapshotStore:
         return deepcopy(ordered)
 
     def _normalize_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        """Run _normalize_snapshot."""
         if not isinstance(snapshot, dict):
             raise ValueError("snapshot must be a dict")
         run_id = self._normalize_run_id(snapshot.get("run_id", ""))
@@ -62,6 +63,7 @@ class OpsSnapshotStore:
         return normalized
 
     def _normalize_run_id(self, run_id: str) -> str:
+        """Run _normalize_run_id."""
         if not isinstance(run_id, str):
             raise ValueError("run_id must be a string")
         normalized = run_id.strip()

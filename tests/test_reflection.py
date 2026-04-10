@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import importlib
+import warnings
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-
 from hi_agent.task_mgmt.reflection import ReflectionOrchestrator
 from hi_agent.task_mgmt.reflection_bridge import (
     ReflectionBridge,
@@ -13,8 +15,7 @@ from hi_agent.task_mgmt.reflection_bridge import (
     TaskDescriptor,
     reflection_context_to_recovery_dict,
 )
-from hi_agent.task_mgmt.restart_policy import TaskAttemptRecord, TaskRestartPolicy
-
+from hi_agent.task_mgmt.restart_policy import TaskAttempt, TaskRestartPolicy
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -30,15 +31,27 @@ def _make_descriptor(task_id: str = "t1", goal: str = "do the thing") -> TaskDes
 
 def _make_attempt(
     task_id: str, seq: int, outcome: str = "failed", failure: Any = None
-) -> TaskAttemptRecord:
-    return TaskAttemptRecord(
+) -> TaskAttempt:
+    return TaskAttempt(
         attempt_id=f"att-{seq}",
         task_id=task_id,
         run_id=f"run-{seq}",
         attempt_seq=seq,
+        started_at=datetime(2026, 1, 1, 0, seq, tzinfo=UTC).isoformat(),
         outcome=outcome,
         failure=failure,
     )
+
+
+def _get_task_attempt_record_alias() -> type[TaskAttempt]:
+    """Fetch the deprecated alias and assert it warns."""
+    module = importlib.import_module("hi_agent.task_mgmt.restart_policy")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        alias = module.TaskAttemptRecord
+    assert any(item.category is DeprecationWarning for item in caught)
+    assert alias is TaskAttempt
+    return alias
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +76,7 @@ def test_reflection_bridge_build_context():
     ]
 
     ctx = bridge.build_context(descriptor, attempts)
+    task_attempt_record = _get_task_attempt_record_alias()
 
     assert isinstance(ctx, ReflectionContext)
     assert ctx.task_id == "t1"
@@ -75,6 +89,7 @@ def test_reflection_bridge_build_context():
     assert "force_retry" in ctx.suggested_actions[0]
     assert any("retry_with_modified_parameters" in s for s in ctx.suggested_actions)
     assert "Task 't1'" in ctx.prompt_fragment
+    assert task_attempt_record is TaskAttempt
 
 
 def test_reflection_context_to_recovery_dict():

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 
-class InvalidTransition(Exception):
+class InvalidTransitionError(Exception):
     """Raised when a transition is not allowed by the state machine."""
 
 
@@ -35,6 +35,7 @@ class StateMachine:
         transitions: dict[str, set[str]],
         terminal: set[str] | None = None,
     ) -> None:
+        """Initialize StateMachine."""
         if initial not in states:
             raise ValueError(f"Initial state {initial!r} not in states")
         self._name = name
@@ -80,9 +81,9 @@ class StateMachine:
         return set(self._transitions.get(self._current, frozenset()))
 
     def transition(self, to_state: str) -> None:
-        """Move to *to_state*, raising :class:`InvalidTransition` on failure."""
+        """Move to *to_state*, raising :class:`InvalidTransitionError` on failure."""
         if not self.can_transition(to_state):
-            raise InvalidTransition(
+            raise InvalidTransitionError(
                 f"[{self._name}] Cannot transition from "
                 f"{self._current!r} to {to_state!r}"
             )
@@ -102,3 +103,7 @@ class StateMachine:
         The callback receives ``(from_state, to_state)``.
         """
         self._callbacks.append(callback)
+
+
+# Backward-compatible alias.
+InvalidTransition = InvalidTransitionError

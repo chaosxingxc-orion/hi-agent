@@ -18,6 +18,7 @@ class ResultAggregator:
     """
 
     def __init__(self) -> None:
+        """Initialize ResultAggregator."""
         self._results: dict[str, SubTaskResult] = {}
 
     def record(self, node_id: str, result: SubTaskResult) -> None:

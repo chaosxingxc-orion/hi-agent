@@ -106,6 +106,7 @@ class RunContextManager:
     """
 
     def __init__(self) -> None:
+        """Initialize RunContextManager."""
         self._contexts: dict[str, RunContext] = {}
 
     def create(self, run_id: str, **kwargs: Any) -> RunContext:

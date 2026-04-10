@@ -26,9 +26,11 @@ class _IssueListJournal:
     """In-memory journal adapter backed by an issue list snapshot."""
 
     def __init__(self, issues: list[ConsistencyIssue]) -> None:
+        """Initialize _IssueListJournal."""
         self._issues = issues
 
     def list_issues(self) -> list[ConsistencyIssue]:
+        """Run list_issues."""
         return list(self._issues)
 
 
@@ -155,12 +157,14 @@ class ReconcileLoop:
         )
 
     def _backoff_for_round(self, round_index: int) -> float:
+        """Run _backoff_for_round."""
         delay = self._backoff_base_seconds * (self._backoff_multiplier ** (round_index - 1))
         if self._max_backoff_seconds is not None:
             return min(delay, self._max_backoff_seconds)
         return delay
 
     def _actionable_issues(self) -> list[ConsistencyIssue]:
+        """Run _actionable_issues."""
         issues = self._journal.list_issues()
         actionable: list[ConsistencyIssue] = []
         for issue in issues:
@@ -174,5 +178,6 @@ class ReconcileLoop:
 
     @staticmethod
     def _issue_key(issue: ConsistencyIssue) -> str:
+        """Run _issue_key."""
         context = json.dumps(issue.context, sort_keys=True, separators=(",", ":"))
         return f"{issue.operation}|{context}|{issue.error}"

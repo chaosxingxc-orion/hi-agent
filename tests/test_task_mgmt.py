@@ -13,7 +13,7 @@ from hi_agent.task_mgmt.notification import (
     TaskNotification,
     TaskSignal,
 )
-from hi_agent.task_mgmt.monitor import TaskMonitor
+from hi_agent.task_mgmt.monitor import RecoveryReport, TaskMonitor
 from hi_agent.task_mgmt.scheduler import ScheduleResult, TaskScheduler
 from hi_agent.trajectory.graph import (
     TrajectoryGraph,
@@ -557,6 +557,134 @@ class TestTaskMonitor:
         events = mon.get_timeline("t1")
         assert len(events) == 1
         assert events[0]["payload"] == {"key": "value"}
+
+
+# ======================================================================
+# Recovery tests
+# ======================================================================
+
+class TestTaskMonitorRecovery:
+    """Tests for check_and_recover, callbacks, and auto-recovery."""
+
+    def test_on_stuck_callback_fires(self) -> None:
+        """on_stuck callback is invoked for each stuck task."""
+        fired: list[tuple[str, str]] = []
+        mon = TaskMonitor(
+            heartbeat_timeout_seconds=0,
+            on_stuck=lambda tid, reason: fired.append((tid, reason)),
+        )
+        mon.heartbeat("t1")
+        mon.heartbeat("t2")
+        time.sleep(0.01)
+        tasks: dict[str, TaskHandle] = {}  # no tasks needed for stuck detection
+        report = mon.check_and_recover(tasks)
+        assert len(fired) == 2
+        stuck_ids = {f[0] for f in fired}
+        assert stuck_ids == {"t1", "t2"}
+        assert report.stuck_recovered == 2
+        assert report.deadlocks_broken == 0
+
+    def test_on_deadlock_callback_fires(self) -> None:
+        """on_deadlock callback is invoked for each deadlock cycle."""
+        fired: list[list[str]] = []
+        mon = TaskMonitor(
+            heartbeat_timeout_seconds=9999,
+            on_deadlock=lambda cycle: fired.append(cycle),
+        )
+        tasks = {
+            "A": TaskHandle(
+                task_id="A", node_id="A",
+                status=TaskStatus.BLOCKED, blocked_by=["B"],
+            ),
+            "B": TaskHandle(
+                task_id="B", node_id="B",
+                status=TaskStatus.BLOCKED, blocked_by=["A"],
+            ),
+        }
+        report = mon.check_and_recover(tasks)
+        assert len(fired) >= 1
+        assert report.deadlocks_broken >= 1
+        # Callback receives deduplicated cycle containing both tasks
+        cycle_set = set(fired[0])
+        assert "A" in cycle_set and "B" in cycle_set
+
+    def test_auto_recover_marks_stuck_as_failed(self) -> None:
+        """auto_recover marks stuck tasks as FAILED when no callback set."""
+        mon = TaskMonitor(heartbeat_timeout_seconds=0, auto_recover=True)
+        mon.heartbeat("t1")
+        time.sleep(0.01)
+        tasks = {
+            "t1": TaskHandle(
+                task_id="t1", node_id="t1", status=TaskStatus.RUNNING,
+            ),
+        }
+        report = mon.check_and_recover(tasks)
+        assert tasks["t1"].status == TaskStatus.FAILED
+        assert tasks["t1"].error is not None
+        assert report.stuck_recovered == 1
+        assert any("auto-failed" in a for a in report.actions_taken)
+
+    def test_auto_recover_breaks_deadlock_by_cancelling_youngest(self) -> None:
+        """auto_recover cancels the youngest task in a deadlock cycle."""
+        mon = TaskMonitor(heartbeat_timeout_seconds=9999, auto_recover=True)
+        tasks = {
+            "A": TaskHandle(
+                task_id="A", node_id="A",
+                status=TaskStatus.BLOCKED, blocked_by=["B"],
+                created_at="2026-01-01T00:00:00",
+            ),
+            "B": TaskHandle(
+                task_id="B", node_id="B",
+                status=TaskStatus.BLOCKED, blocked_by=["A"],
+                created_at="2026-01-02T00:00:00",  # younger
+            ),
+        }
+        report = mon.check_and_recover(tasks)
+        assert tasks["B"].status == TaskStatus.CANCELLED
+        assert tasks["B"].error is not None
+        # A should be unblocked (B removed from blocked_by)
+        assert "B" not in tasks["A"].blocked_by
+        assert report.deadlocks_broken == 1
+        assert any("auto-cancelled" in a for a in report.actions_taken)
+
+    def test_recovery_report_accurate(self) -> None:
+        """RecoveryReport accurately reflects all actions taken."""
+        mon = TaskMonitor(heartbeat_timeout_seconds=0, auto_recover=True)
+        mon.heartbeat("t1")
+        time.sleep(0.01)
+        tasks = {
+            "t1": TaskHandle(
+                task_id="t1", node_id="t1", status=TaskStatus.RUNNING,
+            ),
+            "A": TaskHandle(
+                task_id="A", node_id="A",
+                status=TaskStatus.BLOCKED, blocked_by=["B"],
+                created_at="2026-01-01T00:00:00",
+            ),
+            "B": TaskHandle(
+                task_id="B", node_id="B",
+                status=TaskStatus.BLOCKED, blocked_by=["A"],
+                created_at="2026-01-02T00:00:00",
+            ),
+        }
+        report = mon.check_and_recover(tasks)
+        assert report.stuck_recovered >= 1
+        assert report.deadlocks_broken >= 1
+        assert len(report.actions_taken) >= 2
+
+    def test_no_action_when_no_issues(self) -> None:
+        """No recovery actions when everything is healthy."""
+        mon = TaskMonitor(heartbeat_timeout_seconds=9999, auto_recover=True)
+        mon.heartbeat("t1")
+        tasks = {
+            "t1": TaskHandle(
+                task_id="t1", node_id="t1", status=TaskStatus.RUNNING,
+            ),
+        }
+        report = mon.check_and_recover(tasks)
+        assert report.stuck_recovered == 0
+        assert report.deadlocks_broken == 0
+        assert report.actions_taken == []
 
 
 # ======================================================================

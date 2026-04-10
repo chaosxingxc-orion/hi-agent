@@ -1,47 +1,81 @@
+"""Tests for GraphFactory auto_select."""
+
+from __future__ import annotations
+
 import pytest
-from hi_agent.task_mgmt.graph_factory import GraphFactory, ComplexityScore
-from hi_agent.contracts import TaskContract
+
+from hi_agent.task_mgmt.graph_factory import ComplexityScore, GraphFactory
 
 
-def make_contract(goal: str = "test goal") -> TaskContract:
-    from hi_agent.contracts import deterministic_id
-    return TaskContract(
-        task_id=deterministic_id("task"),
-        goal=goal,
-        task_family="general",
-    )
+class TestGraphFactoryAutoSelect:
+    """GraphFactory.auto_select() template selection tests."""
 
+    def test_simple_goal_selects_simple(self):
+        factory = GraphFactory()
+        template, graph = factory.auto_select("Fix typo", task_family="simple")
+        assert template == "simple"
+        # Simple has 3 nodes: S1, S3, S5
+        assert graph.get_node("S1") is not None
+        assert graph.get_node("S3") is not None
+        assert graph.get_node("S5") is not None
 
-def test_simple_task_builds_chain_without_s2_s4():
-    factory = GraphFactory()
-    graph = factory.build(make_contract(), ComplexityScore(score=0.2))
-    node_ids = set(graph.topological_sort())
-    assert "S1" in node_ids
-    assert "S3" in node_ids
-    assert "S5" in node_ids
-    assert "S2" not in node_ids
-    assert "S4" not in node_ids
+    def test_default_selects_standard(self):
+        factory = GraphFactory()
+        template, graph = factory.auto_select(
+            "Produce a comprehensive quarterly revenue report with detailed charts"
+        )
+        assert template == "standard"
+        # Standard has 5 nodes: S1-S5
+        for sid in ["S1", "S2", "S3", "S4", "S5"]:
+            assert graph.get_node(sid) is not None
 
+    def test_compare_selects_parallel_gather(self):
+        factory = GraphFactory()
+        template, graph = factory.auto_select(
+            "Compare the three pricing options side by side"
+        )
+        assert template == "parallel_gather"
+        assert graph.get_node("S2-a") is not None
 
-def test_medium_task_builds_full_trace_chain():
-    factory = GraphFactory()
-    graph = factory.build(make_contract(), ComplexityScore(score=0.5))
-    node_ids = set(graph.topological_sort())
-    assert node_ids == {"S1", "S2", "S3", "S4", "S5"}
+    def test_explore_selects_speculative(self):
+        factory = GraphFactory()
+        template, graph = factory.auto_select(
+            "Explore alternative approaches to the caching problem"
+        )
+        assert template == "speculative"
+        assert graph.get_node("S3-v1") is not None
+        assert graph.get_node("S3-v2") is not None
 
+    def test_hints_override_speculative(self):
+        factory = GraphFactory()
+        template, graph = factory.auto_select(
+            "Simple task", hints={"speculative": True}
+        )
+        assert template == "speculative"
 
-def test_complex_parallel_task_has_multiple_s2_nodes():
-    factory = GraphFactory()
-    score = ComplexityScore(score=0.8, needs_parallel_gather=True)
-    graph = factory.build(make_contract(), score)
-    node_ids = set(graph.topological_sort())
-    parallel_nodes = [n for n in node_ids if n.startswith("S2")]
-    assert len(parallel_nodes) >= 2
+    def test_hints_override_parallel(self):
+        factory = GraphFactory()
+        template, graph = factory.auto_select(
+            "Simple task", hints={"parallel": True}
+        )
+        assert template == "parallel_gather"
 
+    def test_long_goal_defaults_to_standard(self):
+        factory = GraphFactory()
+        long_goal = "Please analyze this complex dataset " * 5
+        template, graph = factory.auto_select(long_goal)
+        assert template == "standard"
 
-def test_graph_is_a_dag_no_cycles():
-    factory = GraphFactory()
-    for score_val in [0.2, 0.5, 0.8]:
-        graph = factory.build(make_contract(), ComplexityScore(score=score_val))
-        order = graph.topological_sort()
-        assert len(order) > 0
+    def test_build_with_explicit_complexity(self):
+        factory = GraphFactory()
+        score = ComplexityScore(score=0.1)
+        graph = factory.build(None, score)
+        # Low score -> simple
+        assert graph.get_node("S1") is not None
+        assert graph.get_node("S3") is not None
+
+    def test_build_parallel_gather_explicit(self):
+        factory = GraphFactory()
+        score = ComplexityScore(score=0.8, needs_parallel_gather=True)
+        graph = factory.build(None, score)
+        assert graph.get_node("S2-a") is not None

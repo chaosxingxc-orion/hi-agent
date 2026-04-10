@@ -6,13 +6,34 @@ Nodes are added dynamically during execution via add_node().
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
 
+# Keywords that signal parallel/gather intent
+_PARALLEL_KEYWORDS = re.compile(
+    r"\b(compare|multiple|parallel|gather|versus|vs\.?|side.by.side)\b",
+    re.IGNORECASE,
+)
+_PARALLEL_AND_PATTERN = re.compile(
+    r"\b(analyze|evaluate|review|assess|examine|check)\b.+\band\b",
+    re.IGNORECASE,
+)
+
+# Keywords that signal speculative/exploratory intent
+_SPECULATIVE_KEYWORDS = re.compile(
+    r"\b(explore|alternative|speculative|try.different|brainstorm|what.if|experiment)\b",
+    re.IGNORECASE,
+)
+
+# Task families considered simple
+_SIMPLE_FAMILIES = frozenset({"quick_task", "simple", ""})
+
 
 @dataclass
 class ComplexityScore:
+    """ComplexityScore class."""
     score: float                        # 0.0 (trivial) → 1.0 (very complex)
     needs_parallel_gather: bool = False
     needs_speculative: bool = False
@@ -20,6 +41,7 @@ class ComplexityScore:
 
 
 def _make_node(node_id: str, description: str) -> TrajNode:
+    """Run _make_node."""
     return TrajNode(
         node_id=node_id,
         node_type="task",
@@ -30,7 +52,11 @@ def _make_node(node_id: str, description: str) -> TrajNode:
 class GraphFactory:
     """Builds initial TrajectoryGraph based on task complexity."""
 
+    # Ordered template names for external reference
+    TEMPLATES = ("simple", "standard", "parallel_gather", "speculative")
+
     def build(self, contract, complexity: ComplexityScore) -> TrajectoryGraph:
+        """Build a graph from an explicit ComplexityScore (original API)."""
         if complexity.score < 0.3:
             return self._build_simple()
         elif complexity.needs_parallel_gather:
@@ -39,6 +65,66 @@ class GraphFactory:
             return self._build_speculative()
         else:
             return self._build_standard()
+
+    # ------------------------------------------------------------------
+    # Auto-select: analyse goal text to pick the right template
+    # ------------------------------------------------------------------
+
+    def auto_select(
+        self,
+        goal: str,
+        task_family: str = "",
+        hints: dict | None = None,
+    ) -> tuple[str, TrajectoryGraph]:
+        """Choose a template by analysing *goal* text and optional *hints*.
+
+        Returns ``(template_name, graph)`` so callers know which template
+        was selected.
+        """
+        template = self._estimate_complexity(goal, task_family, hints)
+        graph = self._build_by_name(template)
+        return template, graph
+
+    def _estimate_complexity(
+        self,
+        goal: str,
+        task_family: str,
+        hints: dict | None,
+    ) -> str:
+        """Return the template name best matching the inputs."""
+        hints = hints or {}
+
+        # Explicit hint overrides take priority
+        if hints.get("speculative"):
+            return "speculative"
+        if hints.get("parallel"):
+            return "parallel_gather"
+
+        # Keyword matching on goal text
+        if _SPECULATIVE_KEYWORDS.search(goal):
+            return "speculative"
+        if _PARALLEL_KEYWORDS.search(goal) or _PARALLEL_AND_PATTERN.search(goal):
+            return "parallel_gather"
+
+        # Short, simple goals
+        if len(goal) < 50 and task_family in _SIMPLE_FAMILIES:
+            return "simple"
+
+        # Default
+        return "standard"
+
+    def _build_by_name(self, name: str) -> TrajectoryGraph:
+        """Dispatch to the named builder."""
+        builders = {
+            "simple": self._build_simple,
+            "standard": self._build_standard,
+            "parallel_gather": self._build_parallel_gather,
+            "speculative": self._build_speculative,
+        }
+        builder = builders.get(name)
+        if builder is None:
+            raise ValueError(f"Unknown template: {name!r}")
+        return builder()
 
     def _build_simple(self) -> TrajectoryGraph:
         """S1 → S3 → S5, light models throughout."""
@@ -62,7 +148,7 @@ class GraphFactory:
             "Understand task", "Gather information",
             "Build / analyze", "Synthesize", "Review output",
         ]
-        nodes = [_make_node(sid, desc) for sid, desc in zip(stage_ids, descriptions)]
+        nodes = [_make_node(sid, desc) for sid, desc in zip(stage_ids, descriptions, strict=False)]
         for n in nodes:
             g.add_node(n)
         for i in range(len(nodes) - 1):

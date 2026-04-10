@@ -11,6 +11,7 @@ from hi_agent.management.runbook import build_incident_runbook
 
 
 def _validate_mapping(name: str, value: object) -> Mapping[str, object]:
+    """Run _validate_mapping."""
     if not isinstance(value, Mapping):
         raise TypeError(f"{name} must be a mapping")
     return value

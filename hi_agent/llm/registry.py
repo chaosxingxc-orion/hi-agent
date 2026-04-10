@@ -53,6 +53,7 @@ class ModelRegistry:
     """
 
     def __init__(self) -> None:
+        """Initialize ModelRegistry."""
         self._models: dict[str, RegisteredModel] = {}
 
     def register(self, model: RegisteredModel) -> None:

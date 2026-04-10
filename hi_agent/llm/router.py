@@ -13,6 +13,7 @@ class ModelRouter:
     """
 
     def __init__(self) -> None:
+        """Initialize ModelRouter."""
         self._gateways: dict[str, LLMGateway] = {}
         self._model_patterns: list[tuple[str, str]] = []  # (prefix, gateway_name)
 

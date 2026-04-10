@@ -14,6 +14,7 @@ class MockLLMGateway:
     """
 
     def __init__(self, default_response: str = "mock response") -> None:
+        """Initialize MockLLMGateway."""
         self._default_response = default_response
         self._conditional: list[tuple[str, str]] = []
         self._call_count = 0
@@ -37,7 +38,7 @@ class MockLLMGateway:
             ),
         )
 
-    def supports_model(self, model: str) -> bool:  # noqa: ARG002
+    def supports_model(self, model: str) -> bool:
         """Mock gateway claims support for every model."""
         return True
 

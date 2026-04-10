@@ -57,12 +57,15 @@ class MidTermMemoryStore:
     """File-based store for daily summaries."""
 
     def __init__(self, storage_dir: str = ".hi_agent/memory/mid_term") -> None:
+        """Initialize MidTermMemoryStore."""
         self._storage_dir = Path(storage_dir)
 
     def _ensure_dir(self) -> None:
+        """Run _ensure_dir."""
         self._storage_dir.mkdir(parents=True, exist_ok=True)
 
     def _summary_path(self, date: str) -> Path:
+        """Run _summary_path."""
         return self._storage_dir / f"{date}.json"
 
     def save(self, summary: DailySummary) -> None:
@@ -114,6 +117,7 @@ class DreamConsolidator:
         short_term_store: ShortTermMemoryStore,
         mid_term_store: MidTermMemoryStore,
     ) -> None:
+        """Initialize DreamConsolidator."""
         self._short_term = short_term_store
         self._mid_term = mid_term_store
 

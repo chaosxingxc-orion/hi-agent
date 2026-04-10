@@ -10,7 +10,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Data types
 # ---------------------------------------------------------------------------
@@ -66,6 +65,7 @@ class ConditionalRouter:
     """
 
     def __init__(self) -> None:
+        """Initialize ConditionalRouter."""
         self._routes: list[ConditionalRoute] = []
         self._default: str | None = None
 

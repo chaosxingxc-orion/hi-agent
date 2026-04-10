@@ -2,9 +2,17 @@
 
 Receives standardized PerceptionResult, decomposes into executable
 TrajectoryGraph with per-node resource bindings.
+
+When an LLM gateway is available the decomposition is driven by the
+model -- the gateway receives the task description and returns a
+JSON array of stages.  On any failure (missing gateway, parse error,
+LLM exception) the middleware falls back to the deterministic
+``_DEFAULT_STAGES`` five-stage plan.
 """
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
 
 from hi_agent.middleware.protocol import (
@@ -12,8 +20,8 @@ from hi_agent.middleware.protocol import (
     MiddlewareMessage,
     PerceptionResult,
 )
-from hi_agent.trajectory.graph import TrajNode, TrajectoryGraph
 
+logger = logging.getLogger(__name__)
 
 # Default TRACE stage sequence
 _DEFAULT_STAGES = [
@@ -34,14 +42,18 @@ class ControlMiddleware:
         knowledge_manager: Any | None = None,
         llm_gateway: Any | None = None,
         max_plan_nodes: int = 20,
+        model_tier: str = "medium",
     ) -> None:
+        """Initialize ControlMiddleware."""
         self._skill_loader = skill_loader
         self._knowledge_manager = knowledge_manager
         self._llm_gateway = llm_gateway
         self._max_plan_nodes = max_plan_nodes
+        self._model_tier = model_tier
 
     @property
     def name(self) -> str:
+        """Return name."""
         return "control"
 
     def on_create(self, config: dict[str, Any]) -> None:
@@ -96,14 +108,108 @@ class ControlMiddleware:
             metadata=message.metadata,
         )
 
+    # ------------------------------------------------------------------
+    # LLM-driven adaptive decomposition
+    # ------------------------------------------------------------------
+
+    _DECOMPOSE_PROMPT_TEMPLATE = (
+        "Given this task, decompose it into ordered stages for execution.\n"
+        "Return ONLY a JSON array of objects, each with:\n"
+        '  - "stage_id": a short snake_case identifier\n'
+        '  - "stage_name": a human-readable name\n'
+        '  - "description": what this stage does\n'
+        '  - "depends_on": list of stage_ids this stage depends on '
+        "(empty list for the first stage)\n\n"
+        "Task: {task}\n\n"
+        "Context: {context}\n\n"
+        "Return the JSON array and nothing else."
+    )
+
+    def _llm_decompose(
+        self, task_description: str, context: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Ask the LLM to decompose *task_description* into stages.
+
+        Returns a list of stage dicts on success.
+        Raises ``ValueError`` on parse / validation failure so the
+        caller can fall back to the default stages.
+        """
+        from hi_agent.llm.protocol import LLMRequest
+
+        prompt = self._DECOMPOSE_PROMPT_TEMPLATE.format(
+            task=task_description,
+            context=json.dumps(context) if context else "{}",
+        )
+        request = LLMRequest(
+            messages=[{"role": "user", "content": prompt}],
+            model="default",
+            temperature=0.3,
+            max_tokens=2048,
+            metadata={"purpose": self._model_tier},
+        )
+        response = self._llm_gateway.complete(request)  # type: ignore[union-attr]
+        raw = response.content.strip()
+
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            lines = raw.splitlines()
+            # Remove opening fence (and optional language tag) and closing fence
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            raw = "\n".join(lines)
+
+        stages: list[dict[str, Any]] = json.loads(raw)
+
+        # --- validation ---
+        if not isinstance(stages, list) or len(stages) < 2:
+            raise ValueError(
+                f"LLM returned {type(stages).__name__} with "
+                f"{len(stages) if isinstance(stages, list) else 0} items; "
+                "need a list of >= 2 stages"
+            )
+        for s in stages:
+            if "stage_id" not in s or "stage_name" not in s:
+                raise ValueError(
+                    f"Stage missing required keys (stage_id, stage_name): {s}"
+                )
+        return stages
+
+    # ------------------------------------------------------------------
+
     def _decompose(self, perception: PerceptionResult) -> dict[str, Any]:
-        """Decompose into TrajectoryGraph JSON.
-        With LLM: ask model to plan steps.
-        Without LLM: heuristic decomposition (linear 5-stage TRACE)."""
-        # Heuristic: create a linear TRACE chain
+        """Decompose perception result into TrajectoryGraph JSON.
+
+        Attempts LLM-driven decomposition when a gateway is available,
+        falling back to the deterministic ``_DEFAULT_STAGES`` on any failure.
+        """
+        stages: list[tuple[str, str]] | None = None
+
+        if self._llm_gateway is not None:
+            try:
+                llm_stages = self._llm_decompose(
+                    perception.raw_text,
+                    perception.metadata,
+                )
+                # Convert to the (stage_id, description) tuple format
+                stages = [
+                    (s["stage_id"], s.get("description", s["stage_name"]))
+                    for s in llm_stages
+                ]
+            except Exception:
+                logger.warning(
+                    "LLM decomposition failed, falling back to default stages",
+                    exc_info=True,
+                )
+
+        if stages is None:
+            stages = list(_DEFAULT_STAGES)
+
+        # Build the graph JSON
         nodes = []
         edges = []
-        for i, (stage_id, desc) in enumerate(_DEFAULT_STAGES):
+        for i, (stage_id, desc) in enumerate(stages):
             nodes.append({
                 "node_id": stage_id,
                 "node_type": "stage",
@@ -114,7 +220,7 @@ class ControlMiddleware:
             })
             if i > 0:
                 edges.append({
-                    "source": _DEFAULT_STAGES[i - 1][0],
+                    "source": stages[i - 1][0],
                     "target": stage_id,
                     "edge_type": "sequence",
                 })
@@ -128,9 +234,7 @@ class ControlMiddleware:
     def _bind_resources(
         self, graph_json: dict[str, Any], perception: PerceptionResult,
     ) -> dict[str, dict[str, Any]]:
-        """For each node, determine: which skill, what memory query,
-        what knowledge query, what tools.
-        Returns: {node_id: {skill_id, memory_query, knowledge_query, tools[]}}"""
+        """Resolve skill, memory, knowledge, and tool resources per node."""
         resources: dict[str, dict[str, Any]] = {}
         for node in graph_json.get("nodes", []):
             node_id = node["node_id"]
@@ -157,8 +261,7 @@ class ControlMiddleware:
     def _validate_executability(
         self, graph_json: dict[str, Any], resources: dict[str, dict[str, Any]],
     ) -> list[str]:
-        """Check each node is executable (skill exists, tools available).
-        Returns list of issues (empty = all good)."""
+        """Validate node executability and return issue list."""
         issues: list[str] = []
         for node in graph_json.get("nodes", []):
             node_id = node["node_id"]

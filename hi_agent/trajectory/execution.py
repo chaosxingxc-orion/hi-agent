@@ -5,14 +5,15 @@ collects results, updates state, evaluates conditional edges, repeats.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from hi_agent.trajectory.graph import (
     EdgeType,
     NodeState,
-    TrajNode,
     TrajectoryGraph,
+    TrajNode,
 )
 
 
@@ -52,6 +53,7 @@ class GraphExecutor:
         on_step: Callable[[StepResult], None] | None = None,
         max_retries: int = 2,
     ) -> None:
+        """Initialize GraphExecutor."""
         self.graph = graph
         self.execute_fn = execute_fn
         self.on_step = on_step

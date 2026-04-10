@@ -7,7 +7,8 @@ of a ReasoningLoop, making it usable with any LLM backend.
 from __future__ import annotations
 
 import logging
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from hi_agent.task_mgmt.reflection_bridge import (
     ReflectionBridge,
@@ -15,7 +16,7 @@ from hi_agent.task_mgmt.reflection_bridge import (
     TaskDescriptor,
     reflection_context_to_recovery_dict,
 )
-from hi_agent.task_mgmt.restart_policy import TaskAttemptRecord
+from hi_agent.task_mgmt.restart_policy import TaskAttempt
 
 _logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class ReflectionOrchestrator:
         bridge: ReflectionBridge,
         inference_fn: Callable[..., Awaitable[Any]],
     ) -> None:
+        """Initialize ReflectionOrchestrator."""
         self._bridge = bridge
         self._inference_fn = inference_fn
 
@@ -44,7 +46,7 @@ class ReflectionOrchestrator:
         self,
         *,
         descriptor: TaskDescriptor,
-        attempts: list[TaskAttemptRecord],
+        attempts: list[TaskAttempt],
         run_id: str,
         **extra_kwargs: Any,
     ) -> Any:

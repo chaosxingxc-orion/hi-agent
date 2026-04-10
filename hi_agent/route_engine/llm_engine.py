@@ -194,6 +194,7 @@ class LLMRouteEngine:
         return response.content
 
     def _parse_payload(self, raw: Any) -> dict[str, Any]:
+        """Run _parse_payload."""
         if isinstance(raw, dict):
             return raw
         if isinstance(raw, str):
@@ -207,6 +208,7 @@ class LLMRouteEngine:
         raise LLMRouteParseError("llm output must be dict or JSON string")
 
     def _validate_payload(self, payload: dict[str, Any]) -> LLMRouteDecision:
+        """Run _validate_payload."""
         next_stage = payload.get("next_stage")
         confidence = payload.get("confidence")
         rationale = payload.get("rationale")

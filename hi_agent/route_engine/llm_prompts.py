@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Context-aware routing prompt template
 # ---------------------------------------------------------------------------
@@ -32,7 +31,8 @@ sequence: {seq}
 
 Based on the evidence gathered so far and the current stage, propose the best next action.
 
-Return JSON: {{"next_stage": "...", "confidence": 0.0-1.0, "rationale": "...", "action_kind": "..."}}\
+Return JSON:
+{{"next_stage": "...", "confidence": 0.0-1.0, "rationale": "...", "action_kind": "..."}}\
 """
 
 

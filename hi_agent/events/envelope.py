@@ -14,13 +14,27 @@ class EventEnvelope:
     run_id: str
     payload: dict
     timestamp: str
+    trace_id: str = ""
+    span_id: str = ""
+    parent_span_id: str = ""
 
 
-def make_envelope(event_type: str, run_id: str, payload: dict) -> EventEnvelope:
-    """Create envelope with UTC timestamp."""
+def make_envelope(
+    event_type: str,
+    run_id: str,
+    payload: dict,
+    *,
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = "",
+) -> EventEnvelope:
+    """Create envelope with UTC timestamp and optional trace context."""
     return EventEnvelope(
         event_type=event_type,
         run_id=run_id,
         payload=payload,
         timestamp=datetime.now(UTC).isoformat(),
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id,
     )

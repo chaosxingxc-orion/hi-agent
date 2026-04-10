@@ -13,8 +13,6 @@ import os
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-
 
 _MAX_SUMMARY_LEN = 500
 
@@ -79,6 +77,7 @@ class SkillObserver:
     """
 
     def __init__(self, storage_dir: str = ".hi_agent/skill_observations") -> None:
+        """Initialize SkillObserver."""
         self._storage_dir = storage_dir
         self._lock = threading.Lock()
 

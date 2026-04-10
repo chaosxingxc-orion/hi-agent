@@ -6,11 +6,12 @@ Uses threading for concurrent run execution (stdlib only).
 
 from __future__ import annotations
 
+import queue
 import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -29,17 +30,44 @@ class ManagedRun:
 
 
 class RunManager:
-    """Thread-safe run lifecycle manager."""
+    """Thread-safe run lifecycle manager with bounded queue and backoff.
 
-    def __init__(self, max_concurrent: int = 4) -> None:
+    When all concurrency slots are occupied, incoming runs are placed in a
+    bounded queue instead of being rejected immediately.  A background worker
+    thread drains the queue, acquires the semaphore, and dispatches each run.
+    Only when the queue itself is full does the manager reject with
+    ``queue_full``.
+    """
+
+    def __init__(
+        self,
+        max_concurrent: int = 4,
+        queue_size: int = 16,
+        queue_timeout_s: float = 30.0,
+    ) -> None:
         """Initialize the run manager.
 
         Args:
             max_concurrent: Maximum number of concurrently executing runs.
+            queue_size: Maximum number of runs waiting in the queue.
+            queue_timeout_s: Seconds a queued run waits for a concurrency slot
+                before being marked as timed-out.
         """
         self._runs: dict[str, ManagedRun] = {}
         self._lock = threading.Lock()
         self._semaphore = threading.Semaphore(max_concurrent)
+        self._max_concurrent = max_concurrent
+        self._queue: queue.Queue[
+            tuple[ManagedRun, Callable[[ManagedRun], Any]]
+        ] = queue.Queue(maxsize=queue_size)
+        self._queue_size = queue_size
+        self._queue_timeout_s = queue_timeout_s
+        self._active_count = 0  # guarded by _lock
+        self._shutdown = False
+
+        # Background worker that drains the queue.
+        self._worker = threading.Thread(target=self._queue_worker, daemon=True)
+        self._worker.start()
 
     def create_run(self, task_contract_dict: dict[str, Any]) -> str:
         """Create a new run from task contract dict.
@@ -51,7 +79,7 @@ class RunManager:
             The new run_id.
         """
         run_id = task_contract_dict.get("task_id") or uuid.uuid4().hex[:12]
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         run = ManagedRun(
             run_id=run_id,
             task_contract=task_contract_dict,
@@ -62,8 +90,66 @@ class RunManager:
             self._runs[run_id] = run
         return run_id
 
+    # -- internal helpers -----------------------------------------------------
+
+    def _queue_worker(self) -> None:
+        """Background worker: drain queue, acquire semaphore, dispatch."""
+        while not self._shutdown:
+            try:
+                item = self._queue.get(timeout=0.25)
+            except queue.Empty:
+                continue
+            run, executor_fn = item
+            # Wait for a concurrency slot (with timeout).
+            acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
+            if not acquired:
+                with self._lock:
+                    run.state = "failed"
+                    run.error = "queue_timeout"
+                    run.updated_at = datetime.now(UTC).isoformat()
+                self._queue.task_done()
+                continue
+            # Dispatch in a new thread so the worker can process the next item.
+            thread = threading.Thread(
+                target=self._execute_run, args=(run, executor_fn), daemon=True
+            )
+            thread.start()
+            with self._lock:
+                run.thread = thread
+            self._queue.task_done()
+
+    def _execute_run(
+        self, run: ManagedRun, executor_fn: Callable[[ManagedRun], Any]
+    ) -> None:
+        """Execute a single run under the semaphore (already acquired)."""
+        with self._lock:
+            self._active_count += 1
+            run.state = "running"
+            run.updated_at = datetime.now(UTC).isoformat()
+        try:
+            result = executor_fn(run)
+            with self._lock:
+                run.state = "completed"
+                run.result = result
+                run.updated_at = datetime.now(UTC).isoformat()
+        except Exception as exc:
+            with self._lock:
+                run.state = "failed"
+                run.error = str(exc)
+                run.updated_at = datetime.now(UTC).isoformat()
+        finally:
+            with self._lock:
+                self._active_count -= 1
+            self._semaphore.release()
+
+    # -- public API ---------------------------------------------------------
+
     def start_run(self, run_id: str, executor_fn: Callable[[ManagedRun], Any]) -> None:
         """Start run execution in a background thread.
+
+        If all concurrency slots are occupied the run is placed in a bounded
+        queue.  Only when the queue is also full is the run rejected with
+        ``queue_full``.
 
         Args:
             run_id: Identifier of a previously created run.
@@ -76,35 +162,36 @@ class RunManager:
             if run.state != "created":
                 return
 
-        def _target() -> None:
-            acquired = self._semaphore.acquire(timeout=0)
-            if not acquired:
-                with self._lock:
-                    run.state = "failed"
-                    run.error = "max_concurrent_exceeded"
-                    run.updated_at = datetime.now(timezone.utc).isoformat()
-                return
-            try:
-                with self._lock:
-                    run.state = "running"
-                    run.updated_at = datetime.now(timezone.utc).isoformat()
-                result = executor_fn(run)
-                with self._lock:
-                    run.state = "completed"
-                    run.result = result
-                    run.updated_at = datetime.now(timezone.utc).isoformat()
-            except Exception as exc:  # noqa: BLE001
-                with self._lock:
-                    run.state = "failed"
-                    run.error = str(exc)
-                    run.updated_at = datetime.now(timezone.utc).isoformat()
-            finally:
-                self._semaphore.release()
+        # Try to enqueue (non-blocking).
+        try:
+            self._queue.put_nowait((run, executor_fn))
+        except queue.Full:
+            with self._lock:
+                run.state = "failed"
+                run.error = "queue_full"
+                run.updated_at = datetime.now(UTC).isoformat()
 
-        thread = threading.Thread(target=_target, daemon=True)
+    @property
+    def pending_count(self) -> int:
+        """Return the number of runs currently waiting in the queue."""
+        return self._queue.qsize()
+
+    def get_status(self) -> dict[str, Any]:
+        """Return a snapshot of manager capacity and utilisation.
+
+        Returns:
+            Dictionary with ``active_runs``, ``queued_runs``,
+            ``total_capacity``, and ``queue_utilization`` (0.0-1.0).
+        """
         with self._lock:
-            run.thread = thread
-        thread.start()
+            active = self._active_count
+        queued = self._queue.qsize()
+        return {
+            "active_runs": active,
+            "queued_runs": queued,
+            "total_capacity": self._max_concurrent,
+            "queue_utilization": queued / self._queue_size if self._queue_size else 0.0,
+        }
 
     def get_run(self, run_id: str) -> ManagedRun | None:
         """Retrieve a run by id.
@@ -146,7 +233,7 @@ class RunManager:
                 return False
             if run.state in ("created", "running"):
                 run.state = "cancelled"
-                run.updated_at = datetime.now(timezone.utc).isoformat()
+                run.updated_at = datetime.now(UTC).isoformat()
                 return True
             return False
 

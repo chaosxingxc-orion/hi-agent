@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -69,6 +69,7 @@ class RunSession:
         policy_versions: Any | None = None,  # PolicyVersionSet
         storage_dir: str | None = None,  # for L0 persistence
     ) -> None:
+        """Initialize RunSession."""
         self.run_id = run_id
         self.task_contract = task_contract
         self.policy_versions = policy_versions
@@ -114,7 +115,7 @@ class RunSession:
             "event_type": event_type,
             "payload": payload,
             "stage_id": stage_id or self.current_stage,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         self.l0_records.append(record)
         if self._storage_dir:
@@ -153,7 +154,7 @@ class RunSession:
         boundary = CompactBoundary(
             stage_id=stage_id,
             event_offset=len(self.l0_records) - 1,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             summary_ref=summary_ref,
         )
         self._compact_boundaries.append(boundary)
@@ -200,7 +201,7 @@ class RunSession:
             "event_type": event_type,
             "run_id": self.run_id,
             "payload": payload,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         self.events.append(event)
         return event
@@ -231,7 +232,7 @@ class RunSession:
                 }
                 for b in self._compact_boundaries
             ],
-            "checkpoint_timestamp": datetime.now(timezone.utc).isoformat(),
+            "checkpoint_timestamp": datetime.now(UTC).isoformat(),
         }
 
     @classmethod

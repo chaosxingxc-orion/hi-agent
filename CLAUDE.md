@@ -58,7 +58,7 @@ This repository is in **active implementation — production engineering phase**
 |---|---|
 | `hi_agent/harness/` | Dual-dimension governance (EffectClass + SideEffectClass), approval enforcement, evidence store |
 | `hi_agent/evolve/` | Postmortem analyzer, LLM skill extraction, regression detector, champion/challenger |
-| `hi_agent/failures/` | 10 frozen failure codes (enum), FailureCollector, ProgressWatchdog, typed exceptions |
+| `hi_agent/failures/` | FailureCode re-exported from agent-kernel TraceFailureCode (11 codes), FAILURE_RECOVERY_MAP/GATE_MAP (hi-agent mappings), FailureCollector, ProgressWatchdog, typed exceptions |
 | `hi_agent/state_machine/` | Generic StateMachine + 6 TRACE definitions (Run/Stage/Branch/Action/Wait/Review) |
 
 ### Infrastructure
@@ -102,7 +102,7 @@ python -m pytest tests/ -v
 
 ## Test Coverage
 
-2067 tests, all passing. Zero external dependencies. 252 source modules, ~34k lines.
+2067 tests, all passing. One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
 
 ## System Overview
 
@@ -167,7 +167,9 @@ Execution Modes
 
 ## Standard Failure Codes
 
-`missing_evidence`, `invalid_context`, `harness_denied`, `model_output_invalid`, `model_refusal`, `callback_timeout`, `no_progress`, `contradictory_evidence`, `unsafe_action_blocked`, `budget_exhausted`
+`missing_evidence`, `invalid_context`, `harness_denied`, `model_output_invalid`, `model_refusal`, `callback_timeout`, `no_progress`, `contradictory_evidence`, `unsafe_action_blocked`, `exploration_budget_exhausted`, `execution_budget_exhausted`
+
+Defined in agent-kernel as `TraceFailureCode` (StrEnum), re-exported by `hi_agent.failures.taxonomy` as `FailureCode`.
 
 ## Engineering Gates (all passed)
 

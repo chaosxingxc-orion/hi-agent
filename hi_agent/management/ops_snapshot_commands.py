@@ -39,5 +39,6 @@ def cmd_ops_snapshot_list(store: OpsSnapshotStore, run_id: str) -> dict[str, Any
 
 
 def _validate_store(store: object) -> None:
+    """Run _validate_store."""
     if not isinstance(store, OpsSnapshotStore):
         raise TypeError("store must be an OpsSnapshotStore")

@@ -13,7 +13,6 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-
 _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
 
@@ -50,6 +49,7 @@ class KnowledgeWiki:
     """
 
     def __init__(self, wiki_dir: str = ".hi_agent/knowledge/wiki") -> None:
+        """Initialize KnowledgeWiki."""
         self._wiki_dir = Path(wiki_dir)
         self._pages: dict[str, WikiPage] = {}
 
@@ -154,7 +154,10 @@ class KnowledgeWiki:
         lines = ["# Knowledge Wiki Index", ""]
         for page in sorted(self._pages.values(), key=lambda p: p.page_id):
             tags_str = ", ".join(page.tags) if page.tags else "none"
-            lines.append(f"- **[{page.title}]({page.page_id}.md)** ({page.page_type}) — tags: {tags_str}")
+            lines.append(
+                f"- **[{page.title}]({page.page_id}.md)** "
+                f"({page.page_type}) - tags: {tags_str}"
+            )
         lines.append("")
         index_content = "\n".join(lines)
         return index_content
@@ -171,12 +174,11 @@ class KnowledgeWiki:
     # ------------------------------------------------------------------ Lint
 
     def lint(self) -> list[str]:
-        """Check for: orphan pages (no incoming links), broken links,
-        stale pages (not updated in 30 days). Return list of issues."""
+        """Lint wiki pages and return orphan, broken-link, and stale issues."""
         issues: list[str] = []
 
         # Build incoming link map
-        incoming: dict[str, int] = {pid: 0 for pid in self._pages}
+        incoming: dict[str, int] = dict.fromkeys(self._pages, 0)
         for page in self._pages.values():
             for link_id in page.outgoing_links:
                 if link_id in incoming:

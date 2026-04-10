@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from hi_agent.task_mgmt.restart_policy import TaskAttemptRecord, TaskRestartPolicy
+from hi_agent.task_mgmt.restart_policy import TaskAttempt, TaskRestartPolicy
 
 _logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class ReflectionBridge:
     def build_context(
         self,
         descriptor: TaskDescriptor,
-        attempts: list[TaskAttemptRecord],
+        attempts: list[TaskAttempt],
     ) -> ReflectionContext:
         """Construct a ReflectionContext for a fully-failed task."""
         failure_details = self._extract_failure_details(attempts)
@@ -92,8 +92,9 @@ class ReflectionBridge:
     # ------------------------------------------------------------------
 
     def _extract_failure_details(
-        self, attempts: list[TaskAttemptRecord]
+        self, attempts: list[TaskAttempt]
     ) -> list[dict[str, Any]]:
+        """Run _extract_failure_details."""
         details: list[dict[str, Any]] = []
         for a in attempts:
             entry: dict[str, Any] = {
@@ -116,6 +117,7 @@ class ReflectionBridge:
         return details
 
     def _summarize_failures(self, details: list[dict[str, Any]]) -> str:
+        """Run _summarize_failures."""
         if not details:
             return "No attempts recorded."
         codes = [
@@ -134,8 +136,9 @@ class ReflectionBridge:
     def _suggest_actions(
         self,
         descriptor: TaskDescriptor,
-        attempts: list[TaskAttemptRecord],
+        attempts: list[TaskAttempt],
     ) -> list[str]:
+        """Run _suggest_actions."""
         suggestions = [
             "retry_with_modified_parameters: adjust input or timeout and retry",
             "spawn_alternative_task: replace this task with a different approach",
@@ -152,6 +155,7 @@ class ReflectionBridge:
         failure_summary: str,
         suggested_actions: list[str],
     ) -> str:
+        """Run _build_prompt."""
         actions_text = "\n".join(f"  - {a}" for a in suggested_actions)
         return (
             f"Task '{descriptor.task_id}' has failed after {attempt_count} attempt(s).\n"

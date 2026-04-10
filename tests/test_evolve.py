@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import pytest
+
 from hi_agent.evolve.champion_challenger import ChampionChallenger
 from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.evolve.postmortem import PostmortemAnalyzer
 from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
+from hi_agent.skill.evolver import SkillEvolver
+from hi_agent.skill.observer import SkillMetrics
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +51,25 @@ def _make_postmortem(
     )
 
 
+class _FakeObserver:
+    def __init__(self, metrics: SkillMetrics) -> None:
+        self._metrics = metrics
+
+    def get_metrics(self, skill_id: str) -> SkillMetrics:
+        return self._metrics
+
+    def get_all_metrics(self) -> dict[str, SkillMetrics]:
+        return {self._metrics.skill_id: self._metrics}
+
+    def get_observations(self, skill_id: str, limit: int = 100) -> list[object]:
+        return []
+
+
+class _FakeVersionManager:
+    def get_champion(self, skill_id: str):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # PostmortemAnalyzer
 # ---------------------------------------------------------------------------
@@ -84,7 +107,7 @@ class TestPostmortemAnalyzer:
         analyzer = PostmortemAnalyzer()
         pm = _make_postmortem(
             outcome="failed",
-            failure_codes=["budget_exhausted", "unsafe_action_blocked"],
+            failure_codes=["exploration_budget_exhausted", "unsafe_action_blocked"],
         )
         result = analyzer.analyze(pm)
 
@@ -93,6 +116,22 @@ class TestPostmortemAnalyzer:
             if "high-risk" in c.description.lower()
         ]
         assert len(high_risk_changes) >= 1
+
+    def test_legacy_budget_failure_code_detected(self) -> None:
+        """Legacy budget_exhausted should still trigger the budget guard path."""
+        analyzer = PostmortemAnalyzer()
+        pm = _make_postmortem(
+            outcome="failed",
+            failure_codes=["budget_exhausted"],
+        )
+        result = analyzer.analyze(pm)
+
+        high_risk_changes = [
+            c for c in result.changes
+            if c.change_type == "routing_heuristic"
+            and "budget_exhausted" in c.target_id
+        ]
+        assert len(high_risk_changes) == 1
 
     def test_high_prune_ratio_detected(self) -> None:
         """High branch prune ratio should suggest tighter pre-filtering."""
@@ -180,6 +219,45 @@ class TestSkillExtractor:
 
         merged = extractor.merge_candidates(c1, c2)
         assert len(merged) >= 2
+
+
+# ---------------------------------------------------------------------------
+# SkillEvolver
+# ---------------------------------------------------------------------------
+
+class TestSkillEvolver:
+    """Tests for budget-aware skill evolution heuristics."""
+
+    @pytest.mark.parametrize(
+        "failure_code",
+        [
+            "budget_exhausted",
+            "exploration_budget_exhausted",
+            "execution_budget_exhausted",
+        ],
+    )
+    def test_budget_failure_codes_map_to_same_suggestion(
+        self, failure_code: str
+    ) -> None:
+        metrics = SkillMetrics(
+            skill_id="skill_abc",
+            total_executions=10,
+            success_count=4,
+            failure_count=6,
+            success_rate=0.4,
+            avg_quality=0.6,
+            avg_tokens=0.0,
+            avg_latency_ms=0.0,
+            failure_patterns=[failure_code],
+        )
+        evolver = SkillEvolver(_FakeObserver(metrics), _FakeVersionManager())
+
+        analysis = evolver.analyze_skill("skill_abc")
+
+        assert any(
+            "token-efficiency instructions" in suggestion
+            for suggestion in analysis.suggestions
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,6 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from typing import Any
 
 from hi_agent.knowledge.granularity import KnowledgeItem
 
@@ -20,6 +19,7 @@ class TFIDFIndex:
     """In-memory TF-IDF index for fast text ranking."""
 
     def __init__(self) -> None:
+        """Initialize TFIDFIndex."""
         self._docs: dict[str, str] = {}  # doc_id -> text
         self._doc_tokens: dict[str, list[str]] = {}
         self._idf: dict[str, float] = {}
@@ -44,8 +44,8 @@ class TFIDFIndex:
 
     def _rebuild_idf(self) -> None:
         """Rebuild IDF scores from all documents."""
-        N = len(self._docs)
-        if N == 0:
+        doc_count = len(self._docs)
+        if doc_count == 0:
             self._idf = {}
             self._dirty = False
             return
@@ -54,7 +54,7 @@ class TFIDFIndex:
             for unique_token in set(tokens):
                 df[unique_token] += 1
         self._idf = {
-            term: math.log((N - freq + 0.5) / (freq + 0.5) + 1)
+            term: math.log((doc_count - freq + 0.5) / (freq + 0.5) + 1)
             for term, freq in df.items()
         }
         self._dirty = False
@@ -159,6 +159,7 @@ class HybridRanker:
     """
 
     def __init__(self, tfidf: TFIDFIndex) -> None:
+        """Initialize HybridRanker."""
         self._tfidf = tfidf
 
     def rank(

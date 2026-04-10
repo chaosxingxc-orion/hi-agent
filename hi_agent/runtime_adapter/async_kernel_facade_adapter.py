@@ -21,6 +21,7 @@ class AsyncKernelFacadeAdapter:
     """
 
     def __init__(self, facade: object) -> None:
+        """Initialize AsyncKernelFacadeAdapter."""
         self._sync = KernelFacadeAdapter(facade)
         self._facade = facade
 
@@ -29,14 +30,17 @@ class AsyncKernelFacadeAdapter:
     # ------------------------------------------------------------------
 
     async def open_stage(self, stage_id: str) -> None:
+        """Run open_stage."""
         await asyncio.to_thread(self._sync.open_stage, stage_id)
 
     async def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+        """Run mark_stage_state."""
         await asyncio.to_thread(self._sync.mark_stage_state, stage_id, target)
 
     async def record_task_view(
         self, task_view_id: str, content: dict[str, Any]
     ) -> str:
+        """Run record_task_view."""
         return await asyncio.to_thread(
             self._sync.record_task_view, task_view_id, content
         )
@@ -44,6 +48,7 @@ class AsyncKernelFacadeAdapter:
     async def bind_task_view_to_decision(
         self, task_view_id: str, decision_ref: str
     ) -> None:
+        """Run bind_task_view_to_decision."""
         await asyncio.to_thread(
             self._sync.bind_task_view_to_decision, task_view_id, decision_ref
         )
@@ -64,12 +69,15 @@ class AsyncKernelFacadeAdapter:
         return await asyncio.to_thread(self._sync.start_run, run_id)
 
     async def query_run(self, run_id: str) -> dict[str, Any]:
+        """Run query_run."""
         return await asyncio.to_thread(self._sync.query_run, run_id)
 
     async def cancel_run(self, run_id: str, reason: str) -> None:
+        """Run cancel_run."""
         await asyncio.to_thread(self._sync.cancel_run, run_id, reason)
 
     async def resume_run(self, run_id: str) -> None:
+        """Run resume_run."""
         await asyncio.to_thread(self._sync.resume_run, run_id)
 
     async def signal_run(
@@ -78,11 +86,13 @@ class AsyncKernelFacadeAdapter:
         signal: str,
         payload: dict[str, Any] | None = None,
     ) -> None:
+        """Run signal_run."""
         await asyncio.to_thread(
             self._sync.signal_run, run_id, signal, payload
         )
 
     async def query_trace_runtime(self, run_id: str) -> dict[str, Any]:
+        """Run query_trace_runtime."""
         return await asyncio.to_thread(
             self._sync.query_trace_runtime, run_id
         )
@@ -90,12 +100,14 @@ class AsyncKernelFacadeAdapter:
     async def stream_run_events(
         self, run_id: str
     ) -> AsyncIterator[dict[str, Any]]:
+        """Run stream_run_events."""
         async for event in self._sync.stream_run_events(run_id):
             yield event
 
     async def open_branch(
         self, run_id: str, stage_id: str, branch_id: str
     ) -> None:
+        """Run open_branch."""
         await asyncio.to_thread(
             self._sync.open_branch, run_id, stage_id, branch_id
         )
@@ -108,6 +120,7 @@ class AsyncKernelFacadeAdapter:
         state: str,
         failure_code: str | None = None,
     ) -> None:
+        """Run mark_branch_state."""
         await asyncio.to_thread(
             self._sync.mark_branch_state,
             run_id,
@@ -118,15 +131,19 @@ class AsyncKernelFacadeAdapter:
         )
 
     async def open_human_gate(self, request: HumanGateRequest) -> None:
+        """Run open_human_gate."""
         await asyncio.to_thread(self._sync.open_human_gate, request)
 
     async def submit_approval(self, request: ApprovalRequest) -> None:
+        """Run submit_approval."""
         await asyncio.to_thread(self._sync.submit_approval, request)
 
     async def get_manifest(self) -> dict[str, Any]:
+        """Return manifest."""
         return await asyncio.to_thread(self._sync.get_manifest)
 
     async def submit_plan(self, run_id: str, plan: dict[str, Any]) -> None:
+        """Run submit_plan."""
         await asyncio.to_thread(self._sync.submit_plan, run_id, plan)
 
     # ------------------------------------------------------------------

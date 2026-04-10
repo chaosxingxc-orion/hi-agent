@@ -6,11 +6,11 @@ Tracks per-run cost and enforces budget limits.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
-from hi_agent.llm.tier_router import TierRouter, _TIER_ORDER, _tier_index
+from hi_agent.llm.tier_router import _TIER_ORDER, TierRouter, _tier_index
 
 
 @dataclass
@@ -35,6 +35,7 @@ class ModelSelector:
         tier_router: TierRouter,
         budget_usd: float = 10.0,
     ) -> None:
+        """Initialize ModelSelector."""
         self._registry = registry
         self._router = tier_router
         self._budget = budget_usd

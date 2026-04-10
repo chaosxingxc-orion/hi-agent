@@ -27,7 +27,6 @@ from dataclasses import dataclass, field
 
 from hi_agent.skill.definition import SkillDefinition, _estimate_tokens
 
-
 # ---------------------------------------------------------------------------
 # SkillPrompt — token-optimised prompt ready for LLM injection
 # ---------------------------------------------------------------------------
@@ -82,6 +81,7 @@ class SkillLoader:
         max_skills_in_prompt: int = 50,
         max_prompt_tokens: int = 10_000,
     ) -> None:
+        """Initialize SkillLoader."""
         self._search_dirs = search_dirs or []
         self._skills: dict[str, SkillDefinition] = {}
         self._max_skills = max_skills_in_prompt

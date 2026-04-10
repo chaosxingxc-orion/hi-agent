@@ -6,37 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-
-class EffectClass(Enum):
-    """Recovery-dimension classification of actions.
-
-    Determines retry and compensation semantics:
-    - READ_ONLY: safe to retry freely
-    - IDEMPOTENT_WRITE: safe to retry (same result)
-    - COMPENSATABLE_WRITE: can be undone via compensation handler
-    - IRREVERSIBLE_WRITE: cannot be undone, requires approval
-    """
-
-    READ_ONLY = "read_only"
-    IDEMPOTENT_WRITE = "idempotent_write"
-    COMPENSATABLE_WRITE = "compensatable_write"
-    IRREVERSIBLE_WRITE = "irreversible_write"
-
-
-class SideEffectClass(Enum):
-    """Operational-impact classification of actions.
-
-    Determines governance strictness:
-    - READ_ONLY: no side effects
-    - LOCAL_WRITE: writes confined to local system
-    - EXTERNAL_WRITE: writes to external systems (requires idempotency_key)
-    - IRREVERSIBLE_SUBMIT: permanent external submission (requires approval)
-    """
-
-    READ_ONLY = "read_only"
-    LOCAL_WRITE = "local_write"
-    EXTERNAL_WRITE = "external_write"
-    IRREVERSIBLE_SUBMIT = "irreversible_submit"
+from agent_kernel.kernel.contracts import EffectClass, SideEffectClass
 
 
 class ActionState(Enum):

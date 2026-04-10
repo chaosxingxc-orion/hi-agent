@@ -44,6 +44,7 @@ class AnthropicLLMGateway:
         default_model: str = "claude-sonnet-4-20250514",
         timeout_seconds: int = 120,
     ) -> None:
+        """Initialize AnthropicLLMGateway."""
         self._api_key_env = api_key_env
         self._default_model = default_model
         self._timeout = timeout_seconds
@@ -102,6 +103,7 @@ class AnthropicLLMGateway:
         return body
 
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Run _post."""
         api_key = os.environ.get(self._api_key_env, "")
         url = f"{_ANTHROPIC_BASE_URL}/v1/messages"
         headers = {

@@ -96,7 +96,11 @@ class HybridRouteEngine:
         context: dict[str, Any] | None = None,
     ) -> HybridRouteOutcome:
         """Return proposals and the source that produced them."""
-        rule_proposals = self._rule_engine.propose(stage_id=stage_id, run_id=run_id, seq=seq)
+        rule_proposals = self._rule_engine.propose(
+            stage_id=stage_id,
+            run_id=run_id,
+            seq=seq,
+        )
         rule_confidence = self._estimate_rule_confidence(rule_proposals)
         if rule_proposals and rule_confidence >= self._confidence_threshold:
             return HybridRouteOutcome(
@@ -127,7 +131,10 @@ class HybridRouteEngine:
         llm_proposals = [
             BranchProposal(
                 branch_id=deterministic_id(run_id, stage_id, str(seq), "llm"),
-                rationale=f"llm(conf={llm_decision.confidence:.2f}): {llm_decision.rationale}{skill_annotation}",
+                rationale=(
+                    f"llm(conf={llm_decision.confidence:.2f}): "
+                    f"{llm_decision.rationale}{skill_annotation}"
+                ),
                 action_kind=llm_decision.action_kind,
             )
         ]
@@ -138,6 +145,7 @@ class HybridRouteEngine:
         )
 
     def _estimate_rule_confidence(self, proposals: list[BranchProposal]) -> float:
+        """Run _estimate_rule_confidence."""
         if not proposals:
             return 0.0
         # In the baseline rule engine, "unknown" means no reliable deterministic route.

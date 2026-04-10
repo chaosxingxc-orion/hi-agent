@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,12 +36,15 @@ class EpisodicMemoryStore:
     """
 
     def __init__(self, storage_dir: str = ".hi_agent/episodes") -> None:
+        """Initialize EpisodicMemoryStore."""
         self._storage_dir = Path(storage_dir)
 
     def _ensure_dir(self) -> None:
+        """Run _ensure_dir."""
         self._storage_dir.mkdir(parents=True, exist_ok=True)
 
     def _episode_path(self, run_id: str) -> Path:
+        """Run _episode_path."""
         return self._storage_dir / f"{run_id}.json"
 
     def store(self, episode: EpisodeRecord) -> None:

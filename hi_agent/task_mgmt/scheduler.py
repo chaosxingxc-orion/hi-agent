@@ -19,19 +19,19 @@ from __future__ import annotations
 
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, Future, as_completed
+from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from hi_agent.task_mgmt.handle import TaskHandle, TaskStatus
+from hi_agent.task_mgmt.monitor import TaskMonitor
 from hi_agent.task_mgmt.notification import (
     TaskCommunicator,
     TaskNotification,
-    TaskSignal,
 )
-from hi_agent.task_mgmt.monitor import TaskMonitor
-from hi_agent.trajectory.graph import TrajectoryGraph, EdgeType
+from hi_agent.trajectory.graph import EdgeType, TrajectoryGraph
 
 
 @dataclass
@@ -57,6 +57,7 @@ class TaskScheduler:
         communicator: TaskCommunicator | None = None,
         monitor: TaskMonitor | None = None,
     ) -> None:
+        """Initialize TaskScheduler."""
         self._tasks: dict[str, TaskHandle] = {}
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._communicator = communicator or TaskCommunicator()
@@ -90,7 +91,7 @@ class TaskScheduler:
                 node_id=node_id,
                 status=TaskStatus.PENDING,
                 max_retries=node.max_retries,
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
             )
             self._tasks[node_id] = task
 
@@ -223,7 +224,7 @@ class TaskScheduler:
                 return
             task.status = TaskStatus.CANCELLED
             task.error = reason
-            task.completed_at = datetime.now(timezone.utc).isoformat()
+            task.completed_at = datetime.now(UTC).isoformat()
 
         self._communicator.notify(TaskNotification(
             task_id=task_id, event="cancelled",
@@ -271,7 +272,7 @@ class TaskScheduler:
         """Execute task in thread pool. Returns the Future."""
         with self._lock:
             task.status = TaskStatus.RUNNING
-            task.started_at = datetime.now(timezone.utc).isoformat()
+            task.started_at = datetime.now(UTC).isoformat()
 
         self._communicator.notify(TaskNotification(
             task_id=task.task_id, event="started",
@@ -293,7 +294,7 @@ class TaskScheduler:
             task = self._tasks.get(task_id)
             if task is None:
                 return
-            now_iso = datetime.now(timezone.utc).isoformat()
+            now_iso = datetime.now(UTC).isoformat()
             if error is not None:
                 if task.retry_count < task.max_retries:
                     task.retry_count += 1

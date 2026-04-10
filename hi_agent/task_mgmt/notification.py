@@ -6,9 +6,10 @@ Inspired by:
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -39,6 +40,7 @@ class TaskCommunicator:
     """Task-to-task communication hub."""
 
     def __init__(self) -> None:
+        """Initialize TaskCommunicator."""
         self._subscribers: dict[str, list[Callable]] = {}       # event_type -> [callbacks]
         self._task_subscribers: dict[str, list[Callable]] = {}  # task_id -> [callbacks]
         self._message_log: list[TaskNotification | TaskSignal] = []
@@ -50,7 +52,7 @@ class TaskCommunicator:
         All subscribers for event type and task_id are called.
         """
         if not notification.timestamp:
-            notification.timestamp = datetime.now(timezone.utc).isoformat()
+            notification.timestamp = datetime.now(UTC).isoformat()
         self._message_log.append(notification)
 
         # Fire event-type subscribers
@@ -85,7 +87,7 @@ class TaskCommunicator:
             task_id=source_task_id,
             event=event,
             payload=payload,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
         self._message_log.append(notification)
 
@@ -94,7 +96,7 @@ class TaskCommunicator:
             cb(notification)
 
         # Fire ALL task subscribers (broadcast reaches everyone)
-        for task_id, callbacks in self._task_subscribers.items():
+        for _task_id, callbacks in self._task_subscribers.items():
             for cb in callbacks:
                 cb(notification)
 

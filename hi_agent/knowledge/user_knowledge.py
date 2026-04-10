@@ -29,6 +29,7 @@ class UserKnowledgeStore:
     """Manages user knowledge with file persistence."""
 
     def __init__(self, storage_dir: str = ".hi_agent/knowledge/user") -> None:
+        """Initialize UserKnowledgeStore."""
         self._storage_dir = Path(storage_dir)
         self._profiles: dict[str, UserProfile] = {}
 

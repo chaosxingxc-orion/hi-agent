@@ -18,6 +18,7 @@ class ContextMonitor:
     """
 
     def __init__(self) -> None:
+        """Initialize ContextMonitor."""
         self._snapshots: list[dict[str, Any]] = []
         self._compression_events: list[dict[str, Any]] = []
 
@@ -34,7 +35,11 @@ class ContextMonitor:
             "total_tokens": snapshot.total_tokens,
             "budget_tokens": snapshot.budget_tokens,
             "utilization_pct": snapshot.utilization_pct,
-            "health": snapshot.health.value if hasattr(snapshot.health, "value") else str(snapshot.health),
+            "health": (
+                snapshot.health.value
+                if hasattr(snapshot.health, "value")
+                else str(snapshot.health)
+            ),
             "compressions_applied": snapshot.compressions_applied,
             "purpose": snapshot.purpose,
             "section_tokens": {
@@ -92,10 +97,7 @@ class ContextMonitor:
         avg_util = sum(utilizations) / len(utilizations)
 
         # Growth rate: change in utilization between first and last
-        if len(utilizations) >= 2:
-            growth_rate = utilizations[-1] - utilizations[0]
-        else:
-            growth_rate = 0.0
+        growth_rate = utilizations[-1] - utilizations[0] if len(utilizations) >= 2 else 0.0
 
         # Compression frequency: fraction of snapshots that had compression
         compressions = sum(

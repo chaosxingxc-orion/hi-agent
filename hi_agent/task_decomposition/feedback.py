@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from hi_agent.task_decomposition.executor import DAGResult
@@ -43,6 +43,7 @@ class DecompositionFeedback:
     """
 
     def __init__(self) -> None:
+        """Initialize DecompositionFeedback."""
         self._records: list[FeedbackRecord] = []
 
     def record(
@@ -71,7 +72,7 @@ class DecompositionFeedback:
             parallelism_ratio=parallelism_ratio,
             total_steps=result.total_steps,
             failure_rate=failure_rate,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
         self._records.append(rec)
 

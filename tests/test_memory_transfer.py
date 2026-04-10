@@ -234,67 +234,42 @@ def _make_handler(server, request_bytes: bytes):
 
 class TestAPIEndpoints:
     @pytest.fixture()
-    def server(self, manager_all):
-        """Minimal AgentServer-like object with memory_manager."""
-        srv = MagicMock()
-        srv.memory_manager = manager_all
-        return srv
+    def test_server(self, manager_all):
+        """AgentServer with memory_manager wired, returning TestClient."""
+        from starlette.testclient import TestClient
+        from hi_agent.server.app import AgentServer
 
-    def test_post_memory_dream(self, server):
-        req = _build_request("POST", "/memory/dream", {"date": "2026-04-07"})
-        handler = _make_handler(server, req)
-        handler.do_POST()
-        output = handler.wfile.getvalue().decode()
-        # Find JSON body after headers
-        body_start = output.find("\r\n\r\n")
-        if body_start == -1:
-            body_start = output.find("{")
-        else:
-            body_start += 4
-        result = json.loads(output[body_start:])
-        assert result["status"] == "completed"
+        server = AgentServer(host="127.0.0.1", port=9999)
+        server.memory_manager = manager_all
+        return TestClient(server.app)
 
-    def test_post_memory_consolidate(self, server):
-        req = _build_request("POST", "/memory/consolidate", {"days": 7})
-        handler = _make_handler(server, req)
-        handler.do_POST()
-        output = handler.wfile.getvalue().decode()
-        body_start = output.find("\r\n\r\n")
-        if body_start == -1:
-            body_start = output.find("{")
-        else:
-            body_start += 4
-        result = json.loads(output[body_start:])
-        assert result["status"] == "completed"
+    def test_post_memory_dream(self, test_server):
+        resp = test_server.post("/memory/dream", json={"date": "2026-04-07"})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "completed"
 
-    def test_get_memory_status(self, server):
-        req = _build_request("GET", "/memory/status")
-        handler = _make_handler(server, req)
-        handler.do_GET()
-        output = handler.wfile.getvalue().decode()
-        body_start = output.find("\r\n\r\n")
-        if body_start == -1:
-            body_start = output.find("{")
-        else:
-            body_start += 4
-        result = json.loads(output[body_start:])
+    def test_post_memory_consolidate(self, test_server):
+        resp = test_server.post("/memory/consolidate", json={"days": 7})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "completed"
+
+    def test_get_memory_status(self, test_server):
+        resp = test_server.get("/memory/status")
+        assert resp.status_code == 200
+        result = resp.json()
         assert "short_term" in result
         assert "mid_term" in result
         assert "long_term" in result
 
     def test_memory_not_configured(self):
-        srv = MagicMock()
-        srv.memory_manager = None
-        req = _build_request("GET", "/memory/status")
-        handler = _make_handler(srv, req)
-        handler.do_GET()
-        output = handler.wfile.getvalue().decode()
-        body_start = output.find("\r\n\r\n")
-        if body_start == -1:
-            body_start = output.find("{")
-        else:
-            body_start += 4
-        result = json.loads(output[body_start:])
+        from starlette.testclient import TestClient
+        from hi_agent.server.app import AgentServer
+
+        server = AgentServer(host="127.0.0.1", port=9999)
+        server.memory_manager = None
+        client = TestClient(server.app)
+        resp = client.get("/memory/status")
+        result = resp.json()
         assert result["error"] == "memory_not_configured"
 
 

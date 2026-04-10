@@ -14,6 +14,7 @@ class SkillUsageRecorder:
     """
 
     def __init__(self, registry: SkillRegistry) -> None:
+        """Initialize SkillUsageRecorder."""
         self._registry = registry
         # run_id -> list of skill_ids used in that run
         self._run_skills: dict[str, list[str]] = {}

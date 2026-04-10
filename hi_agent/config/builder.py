@@ -13,6 +13,7 @@ from hi_agent.events import EventEmitter
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.failures.collector import FailureCollector
 from hi_agent.failures.watchdog import ProgressWatchdog
+from hi_agent.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine
 from hi_agent.llm.http_gateway import HttpLLMGateway
@@ -33,6 +34,7 @@ from hi_agent.server.run_manager import RunManager
 from hi_agent.skill.matcher import SkillMatcher
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry
+from hi_agent.observability.collector import MetricsCollector
 from hi_agent.state import RunStateStore
 
 
@@ -44,14 +46,22 @@ class SystemBuilder:
     """
 
     def __init__(self, config: TraceConfig) -> None:
+        """Initialize SystemBuilder."""
         self._config = config
         # Cache built singletons so repeated calls return the same instance.
         self._kernel: RuntimeAdapter | None = None
         self._llm_gateway: LLMGateway | None = None
+        self._metrics_collector: MetricsCollector | None = None
 
     # ------------------------------------------------------------------
     # Individual builders
     # ------------------------------------------------------------------
+
+    def build_metrics_collector(self) -> MetricsCollector:
+        """Build or return the shared MetricsCollector singleton."""
+        if self._metrics_collector is None:
+            self._metrics_collector = MetricsCollector()
+        return self._metrics_collector
 
     def build_kernel(self) -> RuntimeAdapter:
         """Build kernel adapter.
@@ -108,6 +118,7 @@ class SystemBuilder:
 
     def build_evolve_engine(self) -> EvolveEngine:
         """Build EvolveEngine with config-driven parameters."""
+        from hi_agent.evolve.champion_challenger import ChampionChallenger
         from hi_agent.evolve.regression_detector import RegressionDetector
         from hi_agent.evolve.skill_extractor import SkillExtractor
 
@@ -122,13 +133,22 @@ class SystemBuilder:
                 baseline_window=self._config.evolve_regression_window,
                 threshold=self._config.evolve_regression_threshold,
             ),
+            champion_challenger=ChampionChallenger(),
+            version_manager=self.build_skill_version_manager(),
         )
 
     def build_harness(self) -> HarnessExecutor:
         """Build HarnessExecutor with config-driven governance."""
         governance = GovernanceEngine()
+        if self._config.evidence_store_backend == "sqlite":
+            evidence_store: EvidenceStore | SqliteEvidenceStore = (
+                SqliteEvidenceStore(db_path=self._config.evidence_store_path)
+            )
+        else:
+            evidence_store = EvidenceStore()
         return HarnessExecutor(
             governance=governance,
+            evidence_store=evidence_store,
         )
 
     def build_skill_registry(self) -> SkillRegistry:
@@ -160,6 +180,7 @@ class SystemBuilder:
 
     def build_skill_evolver(self) -> Any:
         """Build SkillEvolver for observation-driven skill optimization."""
+        from hi_agent.evolve.champion_challenger import ChampionChallenger
         from hi_agent.skill.evolver import SkillEvolver
 
         observer = self.build_skill_observer()
@@ -169,6 +190,7 @@ class SystemBuilder:
             observer=observer,
             version_manager=version_mgr,
             llm_gateway=gateway,
+            champion_challenger=ChampionChallenger(),
         )
 
     def build_episodic_store(self) -> EpisodicMemoryStore:
@@ -258,8 +280,8 @@ class SystemBuilder:
 
     def build_knowledge_manager(self) -> Any:
         """Build KnowledgeManager wiring wiki, user store, graph, and renderer."""
-        from hi_agent.knowledge.knowledge_manager import KnowledgeManager
         from hi_agent.knowledge.graph_renderer import GraphRenderer
+        from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 
         wiki = self.build_knowledge_wiki()
         user_store = self.build_user_knowledge_store()
@@ -317,6 +339,14 @@ class SystemBuilder:
             compressor=self._build_compressor(),
         )
 
+    def build_budget_guard(self) -> Any:
+        """Build BudgetGuard with config-driven total token budget."""
+        from hi_agent.task_mgmt.budget_guard import BudgetGuard
+
+        return BudgetGuard(
+            total_budget_tokens=self._config.llm_budget_max_tokens,
+        )
+
     def build_executor(self, contract: TaskContract) -> RunExecutor:
         """Build a fully-wired RunExecutor for a given task contract."""
         km = self.build_knowledge_manager()
@@ -344,6 +374,8 @@ class SystemBuilder:
             short_term_store=self.build_short_term_store(),
             knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
             context_manager=self.build_context_manager(),
+            budget_guard=self.build_budget_guard(),
+            metrics_collector=self.build_metrics_collector(),
         )
 
     def build_executor_from_checkpoint(
@@ -407,4 +439,5 @@ class SystemBuilder:
         server.knowledge_manager = self.build_knowledge_manager()
         server.skill_evolver = self.build_skill_evolver()
         server.skill_loader = self.build_skill_loader()
+        server.metrics_collector = self.build_metrics_collector()
         return server

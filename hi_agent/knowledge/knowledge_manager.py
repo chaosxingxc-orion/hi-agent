@@ -75,6 +75,7 @@ class KnowledgeManager:
         renderer: GraphRenderer | None = None,
         storage_dir: str = ".hi_agent/knowledge",
     ) -> None:
+        """Initialize KnowledgeManager."""
         self._storage_dir = storage_dir
         self._wiki = wiki or KnowledgeWiki(f"{storage_dir}/wiki")
         self._user_store = user_store or UserKnowledgeStore(f"{storage_dir}/user")
@@ -83,26 +84,28 @@ class KnowledgeManager:
 
     @property
     def wiki(self) -> KnowledgeWiki:
+        """Return wiki."""
         return self._wiki
 
     @property
     def user_store(self) -> UserKnowledgeStore:
+        """Return user_store."""
         return self._user_store
 
     @property
     def graph(self) -> LongTermMemoryGraph:
+        """Return graph."""
         return self._graph
 
     @property
     def renderer(self) -> GraphRenderer:
+        """Return renderer."""
         return self._renderer
 
     # ------------------------------------------------------------------ Ingest
 
     def ingest_from_session(self, session: Any) -> int:
-        """Extract knowledge from a completed session.
-        Creates wiki pages for key findings, updates user profile,
-        adds facts to graph. Returns items ingested."""
+        """Extract knowledge from a completed session and return ingest count."""
         count = 0
         # Session is expected to have: findings, user_feedback, facts
         findings: list[str] = getattr(session, "findings", [])
@@ -145,9 +148,7 @@ class KnowledgeManager:
         return page_id
 
     def ingest_structured(self, facts: list[dict[str, Any]]) -> int:
-        """Ingest structured facts into graph.
-        Each fact: {"content": "...", "type": "fact|method|rule", "tags": [...]}
-        Returns nodes created."""
+        """Ingest structured facts into graph and return created node count."""
         count = 0
         for fact in facts:
             content = fact.get("content", "")
@@ -166,8 +167,7 @@ class KnowledgeManager:
     # ------------------------------------------------------------------ Query
 
     def query(self, query: str, limit: int = 10) -> KnowledgeResult:
-        """Search across wiki, graph, and user knowledge.
-        Returns ranked results from all sources."""
+        """Search across wiki, graph, and user knowledge."""
         wiki_pages = self._wiki.search(query, limit=limit)
         graph_nodes = self._graph.search(query, limit=limit)
         user_context = self._user_store.to_context_string()
@@ -180,8 +180,7 @@ class KnowledgeManager:
         )
 
     def query_for_context(self, query: str, budget_tokens: int = 1500) -> str:
-        """Query and format results for direct LLM context injection.
-        Combines: user profile + relevant wiki pages + graph nodes."""
+        """Query and format results for direct LLM context injection."""
         result = self.query(query)
         return result.to_context_string(max_tokens=budget_tokens)
 

@@ -33,6 +33,8 @@ def create_default_orchestrator(
             context_manager=context_manager,
             summary_threshold=summary_threshold,
             max_entities=max_entities,
+            llm_gateway=llm_gateway,
+            model_tier="light",
         ),
     )
     orchestrator.register_middleware(
@@ -42,6 +44,7 @@ def create_default_orchestrator(
             knowledge_manager=knowledge_manager,
             llm_gateway=llm_gateway,
             max_plan_nodes=max_plan_nodes,
+            model_tier="medium",
         ),
     )
     orchestrator.register_middleware(
@@ -51,6 +54,7 @@ def create_default_orchestrator(
             harness_executor=harness_executor,
             retrieval_engine=retrieval_engine,
             skill_loader=skill_loader,
+            model_tier="medium",
         ),
     )
     orchestrator.register_middleware(
@@ -59,6 +63,7 @@ def create_default_orchestrator(
             quality_threshold=quality_threshold,
             max_retries=max_retries,
             llm_gateway=llm_gateway,
+            model_tier="light",
         ),
     )
 

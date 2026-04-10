@@ -9,11 +9,10 @@ from typing import Any
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
-from hi_agent.task_decomposition.dag import TaskDAG, TaskNode, TaskNodeState
+from hi_agent.task_decomposition.dag import TaskNode, TaskNodeState
 from hi_agent.task_decomposition.decomposer import TaskDecomposer
 from hi_agent.task_decomposition.executor import DAGExecutor
 from hi_agent.task_decomposition.feedback import DecompositionFeedback
-
 
 # ---------------------------------------------------------------------------
 # Result data classes
@@ -95,6 +94,7 @@ class TaskOrchestrator:
         max_parallel: int = 4,
         on_subtask_complete: Callable[[SubTaskResult], None] | None = None,
     ) -> None:
+        """Initialize TaskOrchestrator."""
         self._kernel = kernel
         self._decomposer = decomposer or TaskDecomposer()
         self._feedback = feedback
@@ -120,7 +120,7 @@ class TaskOrchestrator:
                 result = self._execute_simple(contract)
             else:
                 result = self._execute_decomposed(contract)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             result = OrchestratorResult(
                 success=False,
                 task_id=contract.task_id,

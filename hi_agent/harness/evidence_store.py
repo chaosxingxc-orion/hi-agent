@@ -2,7 +2,23 @@
 
 from __future__ import annotations
 
+import json
+import sqlite3
+import threading
+from pathlib import Path
+from typing import Protocol, runtime_checkable
+
 from hi_agent.harness.contracts import EvidenceRecord
+
+
+@runtime_checkable
+class EvidenceStoreProtocol(Protocol):
+    """Common interface for evidence stores."""
+
+    def store(self, record: EvidenceRecord) -> str: ...
+    def get(self, evidence_ref: str) -> EvidenceRecord | None: ...
+    def get_by_action(self, action_id: str) -> list[EvidenceRecord]: ...
+    def count(self) -> int: ...
 
 
 class EvidenceStore:
@@ -63,3 +79,132 @@ class EvidenceStore:
     def count(self) -> int:
         """Return total number of stored evidence records."""
         return len(self._records)
+
+    def get_all(self) -> list[EvidenceRecord]:
+        """Return all stored evidence records."""
+        return list(self._records.values())
+
+
+class SqliteEvidenceStore:
+    """SQLite-backed evidence store for durable audit trails.
+
+    Persists evidence records to a SQLite database so they survive
+    process restarts.  Thread-safe via ``check_same_thread=False``.
+    """
+
+    _CREATE_TABLE = """\
+CREATE TABLE IF NOT EXISTS evidence (
+    evidence_ref  TEXT PRIMARY KEY,
+    action_id     TEXT NOT NULL,
+    evidence_type TEXT NOT NULL,
+    content       TEXT NOT NULL,
+    timestamp     TEXT NOT NULL
+)
+"""
+    _CREATE_INDEX = """\
+CREATE INDEX IF NOT EXISTS idx_evidence_action_id
+ON evidence (action_id)
+"""
+
+    def __init__(self, db_path: str | Path = ".hi_agent/evidence.db") -> None:
+        """Open (or create) the evidence database.
+
+        Args:
+            db_path: Filesystem path for the SQLite file.  Parent
+                directories are created automatically.
+        """
+        self._db_path = Path(db_path)
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._conn = sqlite3.connect(
+            str(self._db_path), check_same_thread=False,
+        )
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute(self._CREATE_TABLE)
+        self._conn.execute(self._CREATE_INDEX)
+        self._conn.commit()
+
+    # -- write -----------------------------------------------------------
+
+    def store(self, record: EvidenceRecord) -> str:
+        """Persist an evidence record (INSERT OR REPLACE).
+
+        Args:
+            record: The evidence record to store.
+
+        Returns:
+            The evidence_ref of the stored record.
+
+        Raises:
+            ValueError: If evidence_ref is empty.
+        """
+        if not record.evidence_ref:
+            raise ValueError("evidence_ref must not be empty")
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO evidence "
+                "(evidence_ref, action_id, evidence_type, content, timestamp) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    record.evidence_ref,
+                    record.action_id,
+                    record.evidence_type,
+                    json.dumps(record.content),
+                    record.timestamp,
+                ),
+            )
+            self._conn.commit()
+        return record.evidence_ref
+
+    # -- read ------------------------------------------------------------
+
+    def _row_to_record(self, row: tuple) -> EvidenceRecord:
+        return EvidenceRecord(
+            evidence_ref=row[0],
+            action_id=row[1],
+            evidence_type=row[2],
+            content=json.loads(row[3]),
+            timestamp=row[4],
+        )
+
+    def get(self, evidence_ref: str) -> EvidenceRecord | None:
+        """Retrieve a single evidence record by ref."""
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT evidence_ref, action_id, evidence_type, content, timestamp "
+                "FROM evidence WHERE evidence_ref = ?",
+                (evidence_ref,),
+            )
+            row = cur.fetchone()
+        return self._row_to_record(row) if row else None
+
+    def get_by_action(self, action_id: str) -> list[EvidenceRecord]:
+        """Retrieve all evidence records for an action."""
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT evidence_ref, action_id, evidence_type, content, timestamp "
+                "FROM evidence WHERE action_id = ?",
+                (action_id,),
+            )
+            rows = cur.fetchall()
+        return [self._row_to_record(r) for r in rows]
+
+    def get_all(self) -> list[EvidenceRecord]:
+        """Return all stored evidence records."""
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT evidence_ref, action_id, evidence_type, content, timestamp "
+                "FROM evidence",
+            )
+            rows = cur.fetchall()
+        return [self._row_to_record(r) for r in rows]
+
+    def count(self) -> int:
+        """Return total number of stored evidence records."""
+        with self._lock:
+            cur = self._conn.execute("SELECT COUNT(*) FROM evidence")
+            return cur.fetchone()[0]
+
+    def close(self) -> None:
+        """Close the underlying database connection."""
+        self._conn.close()

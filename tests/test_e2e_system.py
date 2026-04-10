@@ -870,46 +870,29 @@ class TestBudgetEnforcement:
 
 
 class TestHTTPAPIRoundTrip:
-    """Start AgentServer on port 0, POST/GET runs, health check."""
-
-    @staticmethod
-    def _http(server: AgentServer, method: str, path: str,
-              body: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
-        """Issue an HTTP request to the live server and return (status, json)."""
-        import http.client
-
-        host, port = server.server_address
-        conn = http.client.HTTPConnection(host, port, timeout=5)
-        headers = {"Content-Type": "application/json"}
-        data = json.dumps(body).encode() if body else None
-        conn.request(method, path, body=data, headers=headers)
-        resp = conn.getresponse()
-        raw = resp.read()
-        return resp.status, json.loads(raw) if raw else {}
+    """Test AgentServer HTTP routes using Starlette TestClient."""
 
     def test_health_and_list_runs(self) -> None:
         """GET /health and GET /runs work on a fresh server."""
-        server = AgentServer(host="127.0.0.1", port=0)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+        from starlette.testclient import TestClient
 
-        try:
+        server = AgentServer(host="127.0.0.1", port=9999)
+        with TestClient(server.app) as client:
             # GET /health
-            status, body = self._http(server, "GET", "/health")
-            assert status == 200
-            assert body["status"] == "ok"
+            resp = client.get("/health")
+            assert resp.status_code == 200
+            assert resp.json()["status"] in ("ok", "degraded")
 
             # GET /runs (empty initially)
-            status, body = self._http(server, "GET", "/runs")
-            assert status == 200
-            assert body["runs"] == []
-
-        finally:
-            server.shutdown()
+            resp = client.get("/runs")
+            assert resp.status_code == 200
+            assert resp.json()["runs"] == []
 
     def test_post_and_query_run(self) -> None:
         """POST /runs creates a run, GET /runs lists it, GET /runs/{id} returns it."""
-        server = AgentServer(host="127.0.0.1", port=0)
+        from starlette.testclient import TestClient
+
+        server = AgentServer(host="127.0.0.1", port=9999)
 
         def executor_factory(run_data: dict[str, Any]) -> Any:
             def _run() -> str:
@@ -924,40 +907,35 @@ class TestHTTPAPIRoundTrip:
             return _run
 
         server.executor_factory = executor_factory
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
 
-        try:
+        with TestClient(server.app) as client:
             # POST /runs -- create a new run
-            status, create_data = self._http(
-                server, "POST", "/runs",
-                {"task_id": "http-e2e-001", "goal": "HTTP round-trip test", "task_family": "quick_task"},
+            resp = client.post(
+                "/runs",
+                json={"task_id": "http-e2e-001", "goal": "HTTP round-trip test", "task_family": "quick_task"},
             )
-            assert status == 201
-            run_id = create_data["run_id"]
+            assert resp.status_code == 201
+            run_id = resp.json()["run_id"]
             assert run_id == "http-e2e-001"
 
             # Wait for the run to complete
             deadline = time.monotonic() + 10.0
             final_state = None
             while time.monotonic() < deadline:
-                status, query_data = self._http(server, "GET", f"/runs/{run_id}")
-                assert status == 200
-                final_state = query_data["state"]
+                resp = client.get(f"/runs/{run_id}")
+                assert resp.status_code == 200
+                final_state = resp.json()["state"]
                 if final_state in ("completed", "failed"):
                     break
                 time.sleep(0.2)
             assert final_state == "completed"
 
             # GET /runs -- list runs
-            status, list_data = self._http(server, "GET", "/runs")
-            assert status == 200
-            assert len(list_data["runs"]) >= 1
+            resp = client.get("/runs")
+            assert resp.status_code == 200
+            assert len(resp.json()["runs"]) >= 1
 
             # GET /health
-            status, health_data = self._http(server, "GET", "/health")
-            assert status == 200
-            assert health_data["status"] == "ok"
-
-        finally:
-            server.shutdown()
+            resp = client.get("/health")
+            assert resp.status_code == 200
+            assert resp.json()["status"] in ("ok", "degraded")

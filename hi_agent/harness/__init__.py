@@ -8,7 +8,11 @@ from hi_agent.harness.contracts import (
     EvidenceRecord,
     SideEffectClass,
 )
-from hi_agent.harness.evidence_store import EvidenceStore
+from hi_agent.harness.evidence_store import (
+    EvidenceStore,
+    EvidenceStoreProtocol,
+    SqliteEvidenceStore,
+)
 from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine, RetryPolicy
 
@@ -19,8 +23,10 @@ __all__ = [
     "EffectClass",
     "EvidenceRecord",
     "EvidenceStore",
+    "EvidenceStoreProtocol",
     "GovernanceEngine",
     "HarnessExecutor",
     "RetryPolicy",
     "SideEffectClass",
+    "SqliteEvidenceStore",
 ]

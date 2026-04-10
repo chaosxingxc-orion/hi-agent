@@ -8,7 +8,6 @@ Stored as JSON file, participates in context building.
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -64,12 +63,15 @@ class ShortTermMemoryStore:
     """File-based store for short-term memories."""
 
     def __init__(self, storage_dir: str = ".hi_agent/memory/short_term") -> None:
+        """Initialize ShortTermMemoryStore."""
         self._storage_dir = Path(storage_dir)
 
     def _ensure_dir(self) -> None:
+        """Run _ensure_dir."""
         self._storage_dir.mkdir(parents=True, exist_ok=True)
 
     def _memory_path(self, session_id: str) -> Path:
+        """Run _memory_path."""
         return self._storage_dir / f"{session_id}.json"
 
     def save(self, memory: ShortTermMemory) -> None:

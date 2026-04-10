@@ -8,9 +8,9 @@ from hi_agent.trajectory.execution import (
 from hi_agent.trajectory.graph import (
     EdgeType,
     NodeState,
+    TrajectoryGraph,
     TrajEdge,
     TrajNode,
-    TrajectoryGraph,
 )
 from hi_agent.trajectory.greedy import GreedyOptimizer
 from hi_agent.trajectory.stage_graph import (

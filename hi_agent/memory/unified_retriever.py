@@ -59,6 +59,7 @@ class UnifiedMemoryRetriever:
         long_term: LongTermMemoryGraph | None = None,
         budget_tokens: int = 2000,
     ) -> None:
+        """Initialize UnifiedMemoryRetriever."""
         self._short_term = short_term
         self._mid_term = mid_term
         self._long_term = long_term

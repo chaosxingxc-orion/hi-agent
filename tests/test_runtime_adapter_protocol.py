@@ -345,10 +345,10 @@ class TestBranchLifecycle:
         run_id = _start_run(k)
         _open_branch(k, run_id)
         k.mark_branch_state(
-            run_id, "S1", "b-1", "failed", failure_code="budget_exhausted"
+            run_id, "S1", "b-1", "failed", failure_code="exploration_budget_exhausted"
         )
         key = (run_id, "S1", "b-1")
-        assert k.branches[key]["failure_code"] == "budget_exhausted"
+        assert k.branches[key]["failure_code"] == "exploration_budget_exhausted"
 
     def test_mark_branch_not_found(self) -> None:
         k = _make_kernel()

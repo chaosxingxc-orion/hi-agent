@@ -151,7 +151,7 @@ class TestEpisodicMemoryStoreQuery:
 
 class TestGetSimilarFailures:
     def test_finds_matching_failures(self, store: EpisodicMemoryStore) -> None:
-        store.store(_make_episode("r1", failure_codes=["missing_evidence", "budget_exhausted"]))
+        store.store(_make_episode("r1", failure_codes=["missing_evidence", "exploration_budget_exhausted"]))
         store.store(_make_episode("r2", failure_codes=["model_refusal"]))
         store.store(_make_episode("r3", failure_codes=["missing_evidence", "no_progress"]))
         results = store.get_similar_failures(["missing_evidence"])

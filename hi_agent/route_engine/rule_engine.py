@@ -28,7 +28,7 @@ class RuleRouteEngine:
         "S5_review": "evaluate_acceptance",
     }
 
-    # Priority constants – lower numeric value = higher priority.
+    # Priority constants - lower numeric value = higher priority.
     _SKILL_BASE_PRIORITY: ClassVar[int] = 10
     _SKILL_PRECONDITION_BOOST: ClassVar[int] = 5
     _RULE_PRIORITY: ClassVar[int] = 50
@@ -81,7 +81,7 @@ class RuleRouteEngine:
                 stage_id=stage_id,
                 context=self._context,
             )
-            for idx, skill in enumerate(matched):
+            for _idx, skill in enumerate(matched):
                 skill_branch_id = deterministic_id(
                     run_id, stage_id, str(seq), "skill", skill.skill_id,
                 )

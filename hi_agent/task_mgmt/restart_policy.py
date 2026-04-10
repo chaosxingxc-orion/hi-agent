@@ -1,6 +1,8 @@
 """RestartPolicyEngine: decides whether to retry or escalate a failed task.
 
-Migrated from agent-kernel. All types are hi-agent native -- no kernel imports.
+TaskRestartPolicy and TaskAttempt are imported from agent-kernel
+(single source of truth). TaskAttemptRecord remains as a compatibility alias.
+RestartDecision and RestartPolicyEngine are hi-agent's orchestration layer.
 """
 
 from __future__ import annotations
@@ -8,23 +10,30 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+import warnings
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
-from typing import Any, Awaitable, Callable, Literal
+from datetime import UTC, datetime
+from typing import Any, Literal
+
+from agent_kernel.kernel.task_manager.contracts import (  # noqa: F401
+    ExhaustedPolicy,
+    TaskAttempt,
+    TaskRestartPolicy,
+)
 
 _logger = logging.getLogger(__name__)
 
+__all__ = [
+    "RestartAction",
+    "RestartDecision",
+    "RestartPolicyEngine",
+    "TaskAttempt",
+    "TaskAttemptRecord",
+    "TaskRestartPolicy",
+]
+
 RestartAction = Literal["retry", "reflect", "escalate", "abort"]
-ExhaustedPolicy = Literal["reflect", "escalate", "abort"]
-
-
-@dataclass(frozen=True)
-class TaskRestartPolicy:
-    """Configures how many retries a task gets and what happens at exhaustion."""
-
-    max_attempts: int = 3
-    backoff_base_ms: int = 2000
-    max_backoff_ms: int = 30_000
-    on_exhausted: ExhaustedPolicy = "reflect"
 
 
 @dataclass(frozen=True)
@@ -37,16 +46,16 @@ class RestartDecision:
     reason: str
 
 
-@dataclass
-class TaskAttemptRecord:
-    """Lightweight attempt record for restart policy tracking."""
-
-    attempt_id: str
-    task_id: str
-    run_id: str
-    attempt_seq: int
-    outcome: str | None = None
-    failure: Any = None
+def __getattr__(name: str) -> Any:
+    """Provide compatibility aliases with explicit deprecation warnings."""
+    if name == "TaskAttemptRecord":
+        warnings.warn(
+            "TaskAttemptRecord is deprecated; use TaskAttempt instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return TaskAttempt
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class RestartPolicyEngine:
@@ -58,13 +67,14 @@ class RestartPolicyEngine:
 
     def __init__(
         self,
-        get_attempts: Callable[[str], list[TaskAttemptRecord]],
+        get_attempts: Callable[[str], list[TaskAttempt]],
         get_policy: Callable[[str], TaskRestartPolicy | None],
         update_state: Callable[[str, str], None],
-        record_attempt: Callable[[TaskAttemptRecord], None],
+        record_attempt: Callable[[TaskAttempt], None],
         retry_launcher: Callable[[str, int], Awaitable[str | None]] | None = None,
         reflection_handler: Callable[..., Awaitable[Any]] | None = None,
     ) -> None:
+        """Initialize RestartPolicyEngine."""
         self._get_attempts = get_attempts
         self._get_policy = get_policy
         self._update_state = update_state
@@ -158,14 +168,21 @@ class RestartPolicyEngine:
         failure: Any | None,
     ) -> RestartDecision:
         """Pure decision logic -- no side effects."""
-        retryability = getattr(failure, "retryability", "unknown") if failure else "unknown"
+        retryability = (
+            getattr(failure, "retryability", "unknown")
+            if failure
+            else "unknown"
+        )
         if retryability == "non_retryable":
             action: RestartAction = policy.on_exhausted  # type: ignore[assignment]
             return RestartDecision(
                 task_id=task_id,
                 action=action,
                 next_attempt_seq=None,
-                reason=f"failure marked non_retryable: {getattr(failure, 'failure_code', 'unknown')}",
+                reason=(
+                    "failure marked non_retryable: "
+                    f"{getattr(failure, 'failure_code', 'unknown')}"
+                ),
             )
 
         if attempt_seq < policy.max_attempts:
@@ -218,11 +235,12 @@ class RestartPolicyEngine:
         if new_run_id is None:
             return False
 
-        attempt = TaskAttemptRecord(
+        attempt = TaskAttempt(
             attempt_id=uuid.uuid4().hex,
             task_id=task_id,
             run_id=new_run_id,
             attempt_seq=next_seq,
+            started_at=datetime.now(UTC).isoformat(),
         )
         self._record_attempt(attempt)
         self._update_state(task_id, "restarting")

@@ -15,6 +15,7 @@ class LLMBudgetTracker:
     """
 
     def __init__(self, max_calls: int = 100, max_tokens: int = 500_000) -> None:
+        """Initialize LLMBudgetTracker."""
         self._max_calls = max_calls
         self._max_tokens = max_tokens
         self._total_calls = 0

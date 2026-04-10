@@ -9,16 +9,16 @@ Three output formats:
 from __future__ import annotations
 
 import re
-from typing import Any
 
-from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryEdge, MemoryNode
 from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
+from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
 
 
 class GraphRenderer:
     """Render LongTermMemoryGraph in various formats."""
 
     def __init__(self, graph: LongTermMemoryGraph) -> None:
+        """Initialize GraphRenderer."""
         self._graph = graph
 
     def to_mermaid(
@@ -111,8 +111,7 @@ class GraphRenderer:
         return "\n".join(lines)
 
     def to_wiki_pages(self, wiki: KnowledgeWiki) -> int:
-        """Convert graph nodes to wiki pages with [[wikilinks]] for edges.
-        Returns number of pages created/updated."""
+        """Convert graph nodes to wiki pages with wikilinks and return count."""
         count = 0
         for node in self._graph._nodes.values():
             # Build content with wikilinks to neighbors

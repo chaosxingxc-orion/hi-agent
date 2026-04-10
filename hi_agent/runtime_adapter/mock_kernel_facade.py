@@ -4,14 +4,8 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 from collections.abc import AsyncIterator, Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
-import sys
-import pathlib
-_ak = pathlib.Path(__file__).parent.parent.parent.parent / "agent-kernel"
-if _ak.exists() and str(_ak) not in sys.path:
-    sys.path.insert(0, str(_ak))
 
 from agent_kernel.kernel.contracts import Action, RuntimeEvent
 from agent_kernel.kernel.turn_engine import TurnResult
@@ -20,7 +14,8 @@ AsyncActionHandler = Callable[[Action, str | None], Awaitable[Any]]
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    """Run _now."""
+    return datetime.now(UTC).isoformat()
 
 
 class MockKernelFacade:
@@ -31,6 +26,7 @@ class MockKernelFacade:
     """
 
     def __init__(self) -> None:
+        """Initialize MockKernelFacade."""
         self._events: dict[str, list[RuntimeEvent]] = defaultdict(list)
         self._subscribers: dict[str, list[asyncio.Queue]] = defaultdict(list)
         self._dedupe: dict[str, TurnResult] = {}
@@ -38,6 +34,7 @@ class MockKernelFacade:
 
     async def start_run(self, run_id: str, session_id: str, metadata: dict) -> None:
         # Ensure keys exist
+        """Run start_run."""
         _ = self._events[run_id]
         _ = self._subscribers[run_id]
 
@@ -50,6 +47,7 @@ class MockKernelFacade:
         idempotency_key: str,
     ) -> TurnResult:
         # Dedupe: return cached result if already executed
+        """Run execute_turn."""
         if idempotency_key in self._dedupe:
             return self._dedupe[idempotency_key]
 
@@ -92,12 +90,15 @@ class MockKernelFacade:
         return result
 
     async def signal_run(self, run_id: str, signal: str, payload: dict) -> None:
+        """Run signal_run."""
         pass
 
     async def terminate_run(self, run_id: str, reason: str) -> None:
+        """Run terminate_run."""
         pass
 
     async def subscribe_events(self, run_id: str) -> AsyncIterator[RuntimeEvent]:
+        """Run subscribe_events."""
         q: asyncio.Queue[RuntimeEvent] = asyncio.Queue()
         self._subscribers[run_id].append(q)
         try:

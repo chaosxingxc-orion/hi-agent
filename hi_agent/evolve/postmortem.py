@@ -11,6 +11,7 @@ from hi_agent.evolve.contracts import (
     EvolveResult,
     RunPostmortem,
 )
+from hi_agent.failures.taxonomy import is_budget_exhausted_failure_code
 
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
@@ -61,7 +62,7 @@ class PostmortemAnalyzer:
             changes=changes,
             metrics=metrics,
             run_ids_analyzed=[postmortem.run_id],
-            timestamp=datetime.datetime.now(tz=datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(tz=datetime.UTC).isoformat(),
         )
 
     # ------------------------------------------------------------------
@@ -110,16 +111,33 @@ class PostmortemAnalyzer:
             )
 
         # Specific high-risk failure codes.
-        high_risk = {"unsafe_action_blocked", "budget_exhausted", "model_refusal"}
+        high_risk = {
+            "unsafe_action_blocked",
+            "model_refusal",
+        }
         detected = high_risk & set(postmortem.failure_codes)
+        budget_failure_codes = sorted(
+            {
+                code
+                for code in postmortem.failure_codes
+                if is_budget_exhausted_failure_code(code)
+            }
+        )
+        if budget_failure_codes:
+            detected.add("budget_exhausted")
         if detected:
+            budget_note = (
+                f" Budget codes observed: {budget_failure_codes}."
+                if budget_failure_codes
+                else ""
+            )
             changes.append(
                 EvolveChange(
                     change_type="routing_heuristic",
                     target_id=f"failure_codes:{','.join(sorted(detected))}",
                     description=(
-                        f"High-risk failure codes detected: {sorted(detected)}. "
-                        f"Routing should add guards for these scenarios."
+                        f"High-risk failure codes detected: {sorted(detected)}."
+                        f"{budget_note} Routing should add guards for these scenarios."
                     ),
                     confidence=0.8,
                     evidence_refs=[postmortem.run_id],

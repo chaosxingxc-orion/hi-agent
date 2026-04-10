@@ -13,14 +13,14 @@ The evolution loop:
 from __future__ import annotations
 
 import hashlib
-import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from hi_agent.skill.definition import SkillDefinition
-from hi_agent.skill.observer import SkillMetrics, SkillObservation, SkillObserver
+from hi_agent.skill.observer import SkillObserver
 from hi_agent.skill.version import SkillVersionManager, SkillVersionRecord
+from hi_agent.failures.taxonomy import is_budget_exhausted_failure_code
 
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
@@ -90,10 +90,11 @@ _FAILURE_FIXES: dict[str, str] = {
     "no_progress": (
         "Add a fallback strategy section for when the primary approach stalls."
     ),
-    "budget_exhausted": (
-        "Add token-efficiency instructions: be concise, avoid repetition."
-    ),
 }
+
+_BUDGET_FAILURE_FIX = (
+    "Add token-efficiency instructions: be concise, avoid repetition."
+)
 
 _SUCCESS_THRESHOLD = 0.7
 _MIN_PATTERN_OCCURRENCES = 3
@@ -112,10 +113,21 @@ class SkillEvolver:
         observer: SkillObserver,
         version_manager: SkillVersionManager,
         llm_gateway: Any | None = None,
+        champion_challenger: Any | None = None,
     ) -> None:
+        """Initialize SkillEvolver.
+
+        Args:
+            observer: Skill observation telemetry source.
+            version_manager: Manages skill version records.
+            llm_gateway: Optional LLM gateway for deeper optimization.
+            champion_challenger: Optional ChampionChallenger instance to
+                register newly deployed challengers for A/B comparison.
+        """
         self._observer = observer
         self._version_manager = version_manager
         self._llm: LLMGateway | None = llm_gateway
+        self._champion_challenger = champion_challenger
 
     # --- Analyze ---
 
@@ -126,8 +138,9 @@ class SkillEvolver:
 
         suggestions: list[str] = []
         for code in top_failures:
-            if code in _FAILURE_FIXES:
-                suggestions.append(_FAILURE_FIXES[code])
+            fix = self._suggestion_for_failure_code(code)
+            if fix and fix not in suggestions:
+                suggestions.append(fix)
 
         if metrics.avg_quality > 0 and metrics.avg_quality < 0.5:
             suggestions.append(
@@ -223,7 +236,7 @@ class SkillEvolver:
         """Apply heuristic fixes based on failure patterns."""
         additions: list[str] = []
         for code in analysis.top_failures:
-            fix = _FAILURE_FIXES.get(code)
+            fix = self._suggestion_for_failure_code(code)
             if fix:
                 additions.append(f"- {fix}")
 
@@ -242,6 +255,13 @@ class SkillEvolver:
         )
         return current_prompt + improvement_block
 
+    @staticmethod
+    def _suggestion_for_failure_code(code: str) -> str | None:
+        """Map a failure code to a prompt improvement suggestion."""
+        if is_budget_exhausted_failure_code(code):
+            return _BUDGET_FAILURE_FIX
+        return _FAILURE_FIXES.get(code)
+
     def deploy_optimization(
         self, skill_id: str, new_prompt: str
     ) -> SkillVersionRecord:
@@ -251,6 +271,26 @@ class SkillEvolver:
             prompt_content=new_prompt,
         )
         self._version_manager.set_challenger(skill_id, record.version)
+
+        # Register the new challenger (and current champion) with
+        # ChampionChallenger so the evolve engine can track A/B metrics.
+        if self._champion_challenger is not None:
+            try:
+                champion = self._version_manager.get_champion(skill_id)
+                if champion is not None:
+                    self._champion_challenger.register_champion(
+                        scope=skill_id,
+                        version=champion.version,
+                        metrics={},
+                    )
+                self._champion_challenger.register_challenger(
+                    scope=skill_id,
+                    version=record.version,
+                    metrics={},
+                )
+            except Exception:
+                pass  # Never crash the deploy path
+
         return record
 
     # --- Discover patterns ---
@@ -272,7 +312,7 @@ class SkillEvolver:
         # Group observations by task_family + stage
         family_stage_counts: dict[str, dict[str, Any]] = {}
 
-        for skill_id, metrics in all_metrics.items():
+        for skill_id, _metrics in all_metrics.items():
             observations = self._observer.get_observations(skill_id, limit=1000)
             for obs in observations:
                 if not obs.success:
@@ -375,7 +415,7 @@ class SkillEvolver:
         )
         response = self._llm.complete(request)
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         skill_id = f"evolved_{pattern.pattern_id}"
         name = f"pattern-{pattern.pattern_id[:8]}"
         scope = pattern.task_families[0] if pattern.task_families else "*"
@@ -397,7 +437,7 @@ class SkillEvolver:
 
     def _template_create_skill(self, pattern: SkillPattern) -> SkillDefinition:
         """Create a skill definition using templates."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         skill_id = f"evolved_{pattern.pattern_id}"
         name = f"pattern-{pattern.pattern_id[:8]}"
         scope = pattern.task_families[0] if pattern.task_families else "*"
@@ -405,14 +445,14 @@ class SkillEvolver:
         prompt_lines: list[str] = [
             f"# {name}",
             "",
-            f"## Description",
+            "## Description",
             f"{pattern.description}",
             "",
-            f"## Applicable Context",
+            "## Applicable Context",
             f"- Task families: {', '.join(pattern.task_families)}",
             f"- Stages: {', '.join(pattern.stages)}",
             "",
-            f"## Procedure",
+            "## Procedure",
         ]
 
         for i, tool in enumerate(pattern.tool_sequence, 1):

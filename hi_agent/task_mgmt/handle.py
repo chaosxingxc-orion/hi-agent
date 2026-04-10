@@ -7,10 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-from datetime import datetime, timezone
 
 
 class TaskStatus(Enum):
+    """TaskStatus class."""
     PENDING = "pending"
     READY = "ready"
     RUNNING = "running"

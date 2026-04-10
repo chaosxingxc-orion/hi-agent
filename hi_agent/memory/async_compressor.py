@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from hi_agent.llm.protocol import LLMRequest, LLMResponse
+from hi_agent.llm.protocol import LLMRequest
 
 
 @dataclass
@@ -32,6 +32,7 @@ class AsyncMemoryCompressor:
         model: str = "default",
         max_summary_tokens: int = 512,
     ) -> None:
+        """Initialize AsyncMemoryCompressor."""
         self._gateway = gateway
         self._model = model
         self._max_summary_tokens = max_summary_tokens
@@ -107,6 +108,7 @@ class AsyncMemoryCompressor:
         )
 
     def _system_prompt(self) -> str:
+        """Run _system_prompt."""
         return (
             "You are a memory compression agent. Summarize the following events "
             "into a concise, information-dense summary that preserves key decisions, "
@@ -114,6 +116,7 @@ class AsyncMemoryCompressor:
         )
 
     def _build_input(self, records: list[dict[str, Any]], context: str) -> str:
+        """Run _build_input."""
         parts: list[str] = []
         if context:
             parts.append(f"Context: {context}")

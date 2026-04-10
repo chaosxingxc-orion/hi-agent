@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 TIER_ORDER = ["light", "medium", "strong"]
 
 
 @dataclass(frozen=True)
 class TierDecision:
+    """TierDecision class."""
     tier: str
     skipped: bool = False
 
@@ -24,17 +24,21 @@ class BudgetGuard:
     """Tracks token budget and decides tier/skip per node."""
 
     def __init__(self, total_budget_tokens: int) -> None:
+        """Initialize BudgetGuard."""
         self._total = total_budget_tokens
         self._consumed = 0
 
     def consume(self, tokens: int) -> None:
+        """Run consume."""
         self._consumed += tokens
 
     @property
     def remaining_fraction(self) -> float:
+        """Return remaining_fraction."""
         return max(0.0, 1.0 - self._consumed / self._total)
 
     def can_afford(self, estimated_cost: int) -> bool:
+        """Run can_afford."""
         return self._consumed + estimated_cost <= self._total
 
     def decide_tier(
@@ -43,6 +47,7 @@ class BudgetGuard:
         estimated_cost: int = 0,
         is_optional: bool = False,
     ) -> TierDecision:
+        """Run decide_tier."""
         frac = self.remaining_fraction
 
         if frac < 0.10:
@@ -66,5 +71,6 @@ class BudgetGuard:
 
 
 def _downgrade(tier: str) -> str:
+    """Run _downgrade."""
     idx = TIER_ORDER.index(tier) if tier in TIER_ORDER else 1
     return TIER_ORDER[max(0, idx - 1)]

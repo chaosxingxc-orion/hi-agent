@@ -49,6 +49,7 @@ def cmd_decision_audit_list_run(store: object, run_id: str) -> dict[str, Any]:
 
 
 def _non_empty(value: str, field: str) -> str:
+    """Run _non_empty."""
     if not isinstance(value, str):
         raise TypeError(f"{field} must be a string")
     normalized = value.strip()

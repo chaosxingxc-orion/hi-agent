@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from typing import Any, Callable
+from typing import Any
 
 
 class ParallelDispatcher:
@@ -15,6 +16,7 @@ class ParallelDispatcher:
     """
 
     def __init__(self, max_workers: int = 4) -> None:
+        """Initialize ParallelDispatcher."""
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._futures: dict[str, Future[Any]] = {}
         self._lock = threading.Lock()
@@ -53,7 +55,7 @@ class ParallelDispatcher:
             )
             try:
                 results.append((node_id, future.result(timeout=0)))
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 results.append((node_id, exc))
 
             with self._lock:
@@ -81,7 +83,7 @@ class ParallelDispatcher:
             )
             try:
                 results[node_id] = future.result(timeout=0)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 results[node_id] = exc
 
         with self._lock:

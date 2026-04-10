@@ -16,12 +16,14 @@ Hook actions (inspired by agent-core's FilterAction):
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 
 class HookAction(Enum):
+    """HookAction class."""
     CONTINUE = "continue"
     MODIFY = "modify"
     SKIP = "skip"
@@ -30,6 +32,7 @@ class HookAction(Enum):
 
 
 class LifecyclePhase(Enum):
+    """LifecyclePhase class."""
     PRE_CREATE = "pre_create"
     PRE_EXECUTE = "pre_execute"
     EXECUTE = "execute"
@@ -138,9 +141,13 @@ class Middleware(Protocol):
     """Protocol for all middlewares."""
 
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """Return middleware name."""
+        ...
 
-    def process(self, message: MiddlewareMessage) -> MiddlewareMessage: ...
+    def process(self, message: MiddlewareMessage) -> MiddlewareMessage:
+        """Process one middleware message."""
+        ...
 
     def on_create(self, config: dict[str, Any]) -> None:
         """Called during pre_create phase. Override for custom init."""

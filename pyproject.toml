@@ -2,13 +2,20 @@
 name = "hi-agent"
 version = "0.1.0"
 description = "TRACE enterprise agent implementation"
-readme = "ARCHITECTURE.md"
-requires-python = ">=3.11"
-dependencies = []
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "agent-kernel @ git+https://github.com/chaosxingxc-orion/agent-kernel.git@47b6e52b2c5a0f50dfd41051aa26724f1680f7cc",
+  "httpx>=0.28",
+  "starlette>=0.37",
+  "uvicorn[standard]>=0.29",
+]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
+  "pytest-asyncio>=1.0",
+  "respx>=0.23",
   "ruff>=0.8",
 ]
 
@@ -18,7 +25,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 src = ["hi_agent", "tests"]
 
 [tool.ruff.lint]

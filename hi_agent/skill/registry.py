@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from hi_agent.evolve.skill_extractor import SkillCandidate
 from hi_agent.skill.validator import SkillValidator
@@ -57,6 +57,7 @@ class SkillRegistry:
     """
 
     def __init__(self, storage_dir: str = ".hi_agent/skills") -> None:
+        """Initialize SkillRegistry."""
         self._skills: dict[str, ManagedSkill] = {}
         self._storage_dir = storage_dir
         self._validator = SkillValidator()
@@ -72,7 +73,7 @@ class SkillRegistry:
         Returns:
             The registered or updated ManagedSkill.
         """
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         if candidate.skill_id in self._skills:
             existing = self._skills[candidate.skill_id]
@@ -131,7 +132,7 @@ class SkillRegistry:
                 f"to '{to_stage}': {reason}"
             )
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         record = PromotionRecord(
             from_stage=skill.lifecycle_stage,
             to_stage=to_stage,
@@ -164,7 +165,7 @@ class SkillRegistry:
                 f"'{skill_id}' is '{skill.lifecycle_stage}'"
             )
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         record = PromotionRecord(
             from_stage="certified",
             to_stage="deprecated",
@@ -197,7 +198,7 @@ class SkillRegistry:
                 f"'{skill_id}' is '{skill.lifecycle_stage}'"
             )
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         record = PromotionRecord(
             from_stage="deprecated",
             to_stage="retired",

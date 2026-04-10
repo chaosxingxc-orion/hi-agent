@@ -16,6 +16,7 @@ class MemoryRetriever:
         self,
         episodic_store: EpisodicMemoryStore | None = None,
     ) -> None:
+        """Initialize MemoryRetriever."""
         self._episodic = episodic_store
 
     def retrieve_for_stage(

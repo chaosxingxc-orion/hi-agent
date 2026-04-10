@@ -20,6 +20,7 @@ from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
 from hi_agent.memory.unified_retriever import MemoryContext, UnifiedMemoryRetriever
 
 __all__ = [
+    "STAGE_COMPRESSION_PROMPT",
     "AsyncMemoryCompressor",
     "CompressedStageMemory",
     "CompressionMetrics",
@@ -36,13 +37,12 @@ __all__ = [
     "MemoryEdge",
     "MemoryNode",
     "MemoryRetriever",
+    "MidTermMemoryStore",
     "RawEventRecord",
     "RawMemoryStore",
     "RunMemoryIndex",
-    "STAGE_COMPRESSION_PROMPT",
     "ShortTermMemory",
     "ShortTermMemoryStore",
     "StagePointer",
-    "MidTermMemoryStore",
     "UnifiedMemoryRetriever",
 ]

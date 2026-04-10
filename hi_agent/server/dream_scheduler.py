@@ -2,14 +2,19 @@
 
 Called by:
 - Runner: automatic short-term creation after each run (handled separately)
+- Runner: on_run_completed() auto-triggers dream/consolidation based on intervals
 - API: POST /memory/dream, POST /memory/consolidate, GET /memory/status
 - Cron/manual: trigger_full_cycle()
 """
 
 from __future__ import annotations
 
+import logging
 import threading
+from datetime import UTC, datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryLifecycleManager:
@@ -21,7 +26,19 @@ class MemoryLifecycleManager:
         mid_term_store: Any | None = None,
         long_term_graph: Any | None = None,
         retrieval_engine: Any | None = None,
+        auto_dream_interval: int = 5,
+        auto_consolidate_interval: int = 20,
     ) -> None:
+        """Initialize MemoryLifecycleManager.
+
+        Args:
+            short_term_store: Short-term memory store.
+            mid_term_store: Mid-term memory store.
+            long_term_graph: Long-term knowledge graph.
+            retrieval_engine: Retrieval engine for index rebuilds.
+            auto_dream_interval: Trigger dream every N runs (0=disabled).
+            auto_consolidate_interval: Trigger LTM consolidation every N runs (0=disabled).
+        """
         self._short = short_term_store
         self._mid = mid_term_store
         self._graph = long_term_graph
@@ -29,6 +46,9 @@ class MemoryLifecycleManager:
         self._dream = None
         self._consolidator = None
         self._lock = threading.Lock()
+        self._run_count: int = 0
+        self.auto_dream_interval: int = auto_dream_interval
+        self.auto_consolidate_interval: int = auto_consolidate_interval
         # Lazy init
         if self._short and self._mid:
             from hi_agent.memory.mid_term import DreamConsolidator
@@ -82,6 +102,34 @@ class MemoryLifecycleManager:
         dream = self.trigger_dream(date)
         consolidation = self.trigger_consolidation(days)
         return {"dream": dream, "consolidation": consolidation}
+
+    def on_run_completed(self) -> None:
+        """Called after each run completes to auto-trigger consolidation.
+
+        Increments internal run counter and triggers dream (STM->MTM) or
+        long-term consolidation (MTM->LTM) when the configured interval
+        thresholds are reached.  Thread-safe.  Never raises.
+        """
+        with self._lock:
+            self._run_count += 1
+            count = self._run_count
+
+        # Dream consolidation check
+        if self.auto_dream_interval > 0 and count % self.auto_dream_interval == 0:
+            try:
+                today = datetime.now(UTC).strftime("%Y-%m-%d")
+                result = self.trigger_dream(today)
+                logger.info("Auto dream consolidation (run %d): %s", count, result.get("status"))
+            except Exception:
+                logger.exception("Auto dream consolidation failed (run %d)", count)
+
+        # Long-term consolidation check
+        if self.auto_consolidate_interval > 0 and count % self.auto_consolidate_interval == 0:
+            try:
+                result = self.trigger_consolidation()
+                logger.info("Auto LTM consolidation (run %d): %s", count, result.get("status"))
+            except Exception:
+                logger.exception("Auto LTM consolidation failed (run %d)", count)
 
     def rebuild_index(self) -> int:
         """Rebuild retrieval engine index."""

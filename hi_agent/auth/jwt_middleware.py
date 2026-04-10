@@ -27,6 +27,7 @@ class TokenExpiredError(JWTValidationError):
 
 
 def _require_non_empty_string(claims: Mapping[str, object], key: str) -> str:
+    """Run _require_non_empty_string."""
     value = claims.get(key)
     if not isinstance(value, str) or not value.strip():
         raise MissingClaimError(f"missing required claim: {key}")
@@ -34,6 +35,7 @@ def _require_non_empty_string(claims: Mapping[str, object], key: str) -> str:
 
 
 def _extract_audience_values(value: object) -> tuple[str, ...]:
+    """Run _extract_audience_values."""
     if isinstance(value, str):
         return (value,)
     if isinstance(value, Sequence):

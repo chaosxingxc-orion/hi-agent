@@ -35,6 +35,7 @@ class SkillValidator:
         min_certified_evidence: int = 5,
         min_certified_success_rate: float = 0.8,
     ) -> None:
+        """Initialize SkillValidator."""
         self._min_provisional_evidence = min_provisional_evidence
         self._min_certified_evidence = min_certified_evidence
         self._min_certified_success_rate = min_certified_success_rate
@@ -58,12 +59,15 @@ class SkillValidator:
                 f"'{to_stage}' is not a legal lifecycle transition"
             )
 
-        if skill.lifecycle_stage == "candidate" and to_stage == "provisional":
-            if skill.evidence_count < self._min_provisional_evidence:
-                return False, (
-                    f"Need at least {self._min_provisional_evidence} evidence "
-                    f"runs, have {skill.evidence_count}"
-                )
+        if (
+            skill.lifecycle_stage == "candidate"
+            and to_stage == "provisional"
+            and skill.evidence_count < self._min_provisional_evidence
+        ):
+            return False, (
+                f"Need at least {self._min_provisional_evidence} evidence "
+                f"runs, have {skill.evidence_count}"
+            )
 
         if skill.lifecycle_stage == "provisional" and to_stage == "certified":
             if skill.evidence_count < self._min_certified_evidence:

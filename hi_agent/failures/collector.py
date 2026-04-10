@@ -3,9 +3,9 @@
 from typing import Any
 
 from hi_agent.failures.taxonomy import (
+    FAILURE_GATE_MAP,
     FailureCode,
     FailureRecord,
-    FAILURE_GATE_MAP,
 )
 
 
@@ -13,6 +13,7 @@ class FailureCollector:
     """Collects failures during run execution for analysis and evolve feedback."""
 
     def __init__(self) -> None:
+        """Initialize FailureCollector."""
         self._records: list[FailureRecord] = []
 
     def record(self, failure: FailureRecord) -> None:

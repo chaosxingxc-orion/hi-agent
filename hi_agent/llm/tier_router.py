@@ -13,7 +13,6 @@ from dataclasses import dataclass
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
 
-
 # Tier ordering for upgrade/downgrade logic
 _TIER_ORDER = [ModelTier.LIGHT, ModelTier.MEDIUM, ModelTier.STRONG]
 
@@ -40,6 +39,7 @@ class TierRouter:
     """Routes requests to models based on tier + complexity + budget."""
 
     def __init__(self, registry: ModelRegistry) -> None:
+        """Initialize TierRouter."""
         self._registry = registry
         self._tier_map: dict[str, TierMapping] = {}
         self._complexity_overrides: dict[str, str] = {
@@ -97,9 +97,7 @@ class TierRouter:
             if complexity_tier is not None:
                 ci = _tier_index(complexity_tier)
                 bi = _tier_index(base_tier)
-                if ci > bi and allow_upgrade:
-                    base_tier = complexity_tier
-                elif ci < bi and allow_downgrade:
+                if (ci > bi and allow_upgrade) or (ci < bi and allow_downgrade):
                     base_tier = complexity_tier
 
         # Budget pressure: if budget is low, try to downgrade

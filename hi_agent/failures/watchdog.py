@@ -18,6 +18,7 @@ class ProgressWatchdog:
         min_success_rate: float = 0.2,
         max_consecutive_failures: int = 5,
     ) -> None:
+        """Initialize ProgressWatchdog."""
         self._window_size = window_size
         self._min_success_rate = min_success_rate
         self._max_consecutive_failures = max_consecutive_failures

@@ -47,6 +47,51 @@ class ChampionChallenger:
         """Initialize the champion/challenger registry."""
         self._champions: dict[str, _Entry] = {}
         self._challengers: dict[str, _Entry] = {}
+        self._run_counts: dict[str, int] = {}
+
+    def record(
+        self,
+        scope: str,
+        version: str,
+        metrics: dict[str, float],
+        is_challenger: bool = False,
+    ) -> None:
+        """Record run metrics for a champion or challenger version.
+
+        Accumulates metrics by averaging with previously recorded values
+        and increments the per-scope run counter.
+
+        Args:
+            scope: Scope identifier (e.g. skill ID).
+            version: Version string of the entity.
+            metrics: Performance metrics from this run.
+            is_challenger: If True, record as challenger; otherwise as champion.
+        """
+        target = self._challengers if is_challenger else self._champions
+        existing = target.get(scope)
+        if existing is None:
+            target[scope] = _Entry(version=version, metrics=dict(metrics))
+        else:
+            # Running average of shared keys, add new keys
+            for k, v in metrics.items():
+                if k in existing.metrics:
+                    existing.metrics[k] = (existing.metrics[k] + v) / 2.0
+                else:
+                    existing.metrics[k] = v
+            existing.version = version
+        self._run_counts[scope] = self._run_counts.get(scope, 0) + 1
+
+    def get_run_count(self, scope: str) -> int:
+        """Return the number of runs recorded for a scope."""
+        return self._run_counts.get(scope, 0)
+
+    def has_challenger(self, scope: str) -> bool:
+        """Return True if a challenger is registered for the scope."""
+        return scope in self._challengers
+
+    def scopes_with_challenger(self) -> list[str]:
+        """Return all scopes that have both champion and challenger."""
+        return [s for s in self._challengers if s in self._champions]
 
     def register_champion(
         self,

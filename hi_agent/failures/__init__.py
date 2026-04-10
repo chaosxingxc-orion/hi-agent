@@ -1,43 +1,43 @@
 """Failure taxonomy and structured error system for the TRACE framework."""
 
-from hi_agent.failures.taxonomy import (
-    FailureCode,
-    FailureRecord,
-    FAILURE_RECOVERY_MAP,
-    FAILURE_GATE_MAP,
-)
 from hi_agent.failures.collector import FailureCollector
-from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.failures.exceptions import (
-    TraceFailure,
-    MissingEvidenceError,
-    InvalidContextError,
+    BudgetExhaustedError,
+    CallbackTimeoutError,
+    ContradictoryEvidenceError,
     HarnessDeniedError,
+    InvalidContextError,
+    MissingEvidenceError,
     ModelOutputInvalidError,
     ModelRefusalError,
-    CallbackTimeoutError,
     NoProgressError,
-    ContradictoryEvidenceError,
+    TraceFailure,
     UnsafeActionBlockedError,
-    BudgetExhaustedError,
 )
+from hi_agent.failures.taxonomy import (
+    FAILURE_GATE_MAP,
+    FAILURE_RECOVERY_MAP,
+    FailureCode,
+    FailureRecord,
+)
+from hi_agent.failures.watchdog import ProgressWatchdog
 
 __all__ = [
-    "FailureCode",
-    "FailureRecord",
-    "FAILURE_RECOVERY_MAP",
     "FAILURE_GATE_MAP",
+    "FAILURE_RECOVERY_MAP",
+    "BudgetExhaustedError",
+    "CallbackTimeoutError",
+    "ContradictoryEvidenceError",
+    "FailureCode",
     "FailureCollector",
-    "ProgressWatchdog",
-    "TraceFailure",
-    "MissingEvidenceError",
-    "InvalidContextError",
+    "FailureRecord",
     "HarnessDeniedError",
+    "InvalidContextError",
+    "MissingEvidenceError",
     "ModelOutputInvalidError",
     "ModelRefusalError",
-    "CallbackTimeoutError",
     "NoProgressError",
-    "ContradictoryEvidenceError",
+    "ProgressWatchdog",
+    "TraceFailure",
     "UnsafeActionBlockedError",
-    "BudgetExhaustedError",
 ]

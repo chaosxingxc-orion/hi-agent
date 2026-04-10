@@ -17,14 +17,12 @@ Key responsibilities:
 
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 from hi_agent.task_view.token_budget import count_tokens
-
 
 # ---------------------------------------------------------------------------
 # Enums and data classes
@@ -162,6 +160,7 @@ class ContextManager:
         diminishing_window: int = 3,         # consecutive low-output iterations
         diminishing_threshold: int = 100,    # minimum tokens per iteration
     ) -> None:
+        """Initialize ContextManager."""
         self._budget = budget or ContextBudget()
         self._session = session
         self._memory_retriever = memory_retriever

@@ -90,12 +90,14 @@ class GovernanceEngine:
             )
 
         # Rule 3: Compensatable writes need registered handler
-        if spec.effect_class == EffectClass.COMPENSATABLE_WRITE:
-            if spec.action_type not in self._compensation_handlers:
-                violations.append(
-                    f"COMPENSATABLE_WRITE requires a registered compensation "
-                    f"handler for action_type {spec.action_type!r}"
-                )
+        if (
+            spec.effect_class == EffectClass.COMPENSATABLE_WRITE
+            and spec.action_type not in self._compensation_handlers
+        ):
+            violations.append(
+                f"COMPENSATABLE_WRITE requires a registered compensation "
+                f"handler for action_type {spec.action_type!r}"
+            )
 
         return violations
 

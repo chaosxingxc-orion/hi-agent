@@ -12,15 +12,57 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
+
+
+_DEFAULT_API_TIMEOUT_SECONDS = 15.0
+
+
+def _resolve_api_timeout() -> float:
+    """Return a safe API timeout from the environment.
+
+    Invalid, missing, or non-positive values fall back to the default so the
+    CLI stays usable even when the environment is misconfigured.
+    """
+    raw_value = os.getenv("HI_AGENT_API_TIMEOUT_SECONDS")
+    if raw_value is None or raw_value == "":
+        return _DEFAULT_API_TIMEOUT_SECONDS
+
+    try:
+        timeout = float(raw_value)
+    except ValueError:
+        print(
+            (
+                "Warning: invalid HI_AGENT_API_TIMEOUT_SECONDS="
+                f"{raw_value!r}; using default {_DEFAULT_API_TIMEOUT_SECONDS:.0f}s"
+            ),
+            file=sys.stderr,
+        )
+        return _DEFAULT_API_TIMEOUT_SECONDS
+
+    if timeout <= 0:
+        print(
+            (
+                "Warning: HI_AGENT_API_TIMEOUT_SECONDS must be positive; "
+                f"got {raw_value!r}. Using default "
+                f"{_DEFAULT_API_TIMEOUT_SECONDS:.0f}s"
+            ),
+            file=sys.stderr,
+        )
+        return _DEFAULT_API_TIMEOUT_SECONDS
+
+    return timeout
 
 
 def _api_request(
     method: str,
     url: str,
     body: dict | None = None,
+    *,
+    timeout_seconds: float | None = None,
 ) -> tuple[int, dict]:
     """Make a JSON HTTP request using stdlib.
 
@@ -28,20 +70,56 @@ def _api_request(
         method: HTTP method.
         url: Full URL.
         body: Optional JSON-serializable body.
+        timeout_seconds: Request timeout. If omitted, reads from
+            ``HI_AGENT_API_TIMEOUT_SECONDS`` (default: 15).
 
     Returns:
         Tuple of (status_code, parsed_json_body).
     """
     data = json.dumps(body).encode("utf-8") if body else None
+    timeout = timeout_seconds
+    if timeout is None:
+        timeout = _resolve_api_timeout()
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req) as resp:
-            return resp.status, json.loads(resp.read())
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, _decode_response_body(resp.read())
     except urllib.error.HTTPError as exc:
-        return exc.code, json.loads(exc.read())
+        payload = _decode_response_body(exc.read())
+        if "error" not in payload:
+            payload["error"] = "http_error"
+        payload.setdefault("status_code", exc.code)
+        return exc.code, payload
     except urllib.error.URLError as exc:
         return 0, {"error": f"connection_failed: {exc.reason}"}
+
+
+def _decode_response_body(raw: bytes) -> dict:
+    """Decode an HTTP response body into a dictionary.
+
+    Tries JSON first. If the body is empty or not valid JSON, returns a
+    structured fallback dict so CLI commands can always render safely.
+
+    Args:
+        raw: Raw response bytes from urllib.
+
+    Returns:
+        Parsed JSON object, or a fallback dict containing error metadata.
+    """
+    if not raw:
+        return {"error": "empty_response_body"}
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+        return {"data": parsed}
+    except json.JSONDecodeError:
+        text = raw.decode("utf-8", errors="replace").strip()
+        if not text:
+            return {"error": "empty_response_body"}
+        preview = text[:500]
+        return {"error": "non_json_response", "raw_body": preview}
 
 
 def _cmd_serve(args: argparse.Namespace) -> None:
@@ -74,9 +152,9 @@ def _cmd_run(args: argparse.Namespace) -> None:
         executor = builder.build_executor(contract)
         result = executor.execute()
         if args.json:
-            print(json.dumps({"result": str(result)}, indent=2))  # noqa: T201
+            print(json.dumps({"result": str(result)}, indent=2))
         else:
-            print(f"Run completed: {result}")  # noqa: T201
+            print(f"Run completed: {result}")
         return
 
     # Remote execution: submit to API server.
@@ -88,12 +166,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
     }
     status, data = _api_request("POST", f"{base}/runs", body)
     if args.json:
-        print(json.dumps(data, indent=2))  # noqa: T201
+        print(json.dumps(data, indent=2))
+        if status != 201:
+            sys.exit(1)
     else:
         if status == 201:
-            print(f"Run created: {data.get('run_id')} (state={data.get('state')})")  # noqa: T201
+            print(f"Run created: {data.get('run_id')} (state={data.get('state')})")
         else:
-            print(f"Error ({status}): {data}", file=sys.stderr)  # noqa: T201
+            print(f"Error ({status}): {data}", file=sys.stderr)
             sys.exit(1)
 
 
@@ -104,7 +184,19 @@ def _cmd_status(args: argparse.Namespace) -> None:
         status, data = _api_request("GET", f"{base}/runs/{args.run_id}")
     else:
         status, data = _api_request("GET", f"{base}/runs")
-    print(json.dumps(data, indent=2))  # noqa: T201
+    if getattr(args, "json", False):
+        print(json.dumps(data, indent=2))
+    else:
+        if status >= 400:
+            print(f"Error ({status}): {data}", file=sys.stderr)
+        else:
+            if args.run_id:
+                print(
+                    f"Run status: {data.get('run_id', args.run_id)} "
+                    f"(state={data.get('state', 'unknown')})"
+                )
+            else:
+                print(f"Runs: {data}")
     if status >= 400:
         sys.exit(1)
 
@@ -113,7 +205,13 @@ def _cmd_health(args: argparse.Namespace) -> None:
     """Check server health."""
     base = f"http://{args.api_host}:{args.api_port}"
     status, data = _api_request("GET", f"{base}/health")
-    print(json.dumps(data, indent=2))  # noqa: T201
+    if getattr(args, "json", False):
+        print(json.dumps(data, indent=2))
+    else:
+        if status >= 400:
+            print(f"Error ({status}): {data}", file=sys.stderr)
+        else:
+            print(f"Health: {data}")
     if status != 200:
         sys.exit(1)
 
@@ -132,7 +230,7 @@ def _cmd_resume(args: argparse.Namespace) -> None:
     if not checkpoint_path:
         run_id = getattr(args, "run_id", None)
         if not run_id:
-            print("Error: must specify --checkpoint or --run-id", file=sys.stderr)  # noqa: T201
+            print("Error: must specify --checkpoint or --run-id", file=sys.stderr)
             sys.exit(1)
         # Search common locations
         candidates = [
@@ -144,14 +242,14 @@ def _cmd_resume(args: argparse.Namespace) -> None:
                 checkpoint_path = candidate
                 break
         if not checkpoint_path:
-            print(  # noqa: T201
+            print(
                 f"Error: checkpoint not found for run {run_id}",
                 file=sys.stderr,
             )
             sys.exit(1)
 
     if not os.path.exists(checkpoint_path):
-        print(  # noqa: T201
+        print(
             f"Error: checkpoint file not found: {checkpoint_path}",
             file=sys.stderr,
         )
@@ -173,9 +271,9 @@ def _cmd_resume(args: argparse.Namespace) -> None:
     )
 
     if getattr(args, "json", False):
-        print(json.dumps({"result": str(result)}, indent=2))  # noqa: T201
+        print(json.dumps({"result": str(result)}, indent=2))
     else:
-        print(f"Resume completed: {result}")  # noqa: T201
+        print(f"Resume completed: {result}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -218,9 +316,11 @@ def build_parser() -> argparse.ArgumentParser:
     # status
     status_parser = subparsers.add_parser("status", help="Check run status")
     status_parser.add_argument("--run-id", required=False)
+    status_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     # health
-    subparsers.add_parser("health", help="Check system health")
+    health_parser = subparsers.add_parser("health", help="Check system health")
+    health_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     # resume
     resume_parser = subparsers.add_parser(

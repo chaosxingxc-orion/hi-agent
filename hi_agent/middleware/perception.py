@@ -10,16 +10,19 @@ Only does standard NLP-style processing:
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
+
+from hi_agent.llm.protocol import LLMGateway, LLMRequest
+
+logger = logging.getLogger(__name__)
 
 from hi_agent.middleware.protocol import (
     Entity,
     MiddlewareMessage,
     PerceptionResult,
 )
-from typing import Any
-
 
 # Regex patterns for entity extraction
 _DATE_ISO = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
@@ -41,18 +44,27 @@ _AUDIO_MARKERS = ("[audio:", "data:audio/", "<audio ")
 class PerceptionMiddleware:
     """Standard input processing middleware."""
 
+    # Minimum character length to consider LLM summarization worthwhile.
+    _LLM_SUMMARIZE_CHAR_THRESHOLD = 500
+
     def __init__(
         self,
         context_manager: Any | None = None,
         summary_threshold: int = 2000,  # tokens above which to summarize
         max_entities: int = 50,
+        llm_gateway: LLMGateway | None = None,
+        model_tier: str = "light",
     ) -> None:
+        """Initialize PerceptionMiddleware."""
         self._context_manager = context_manager
         self._summary_threshold = summary_threshold
         self._max_entities = max_entities
+        self._llm_gateway = llm_gateway
+        self._model_tier = model_tier
 
     @property
     def name(self) -> str:
+        """Return name."""
         return "perception"
 
     def on_create(self, config: dict[str, Any]) -> None:
@@ -72,7 +84,7 @@ class PerceptionMiddleware:
 
         text, modality = self._parse_input(raw_input)
         entities = self._extract_entities(text)
-        summary = self._summarize_if_needed(text, self._summary_threshold)
+        summary, summarization_method = self._summarize_if_needed(text, self._summary_threshold)
         context = self._assemble_context(text, entities)
 
         # Estimate token count (~4 chars per token)
@@ -99,6 +111,7 @@ class PerceptionMiddleware:
                     for e in result.entities
                 ],
                 "summary": result.summary,
+                "summarization_method": summarization_method,
                 "modality": result.modality,
                 "context": result.context,
                 "token_count": result.token_count,
@@ -127,8 +140,7 @@ class PerceptionMiddleware:
         return raw_input, modality
 
     def _extract_entities(self, text: str) -> list[Entity]:
-        """Extract entities using regex patterns.
-        Patterns: dates (ISO/natural), numbers, URLs, code blocks, emails."""
+        """Extract entities using regex patterns."""
         if not text:
             return []
 
@@ -181,18 +193,53 @@ class PerceptionMiddleware:
         entities.sort(key=lambda e: e.position)
         return entities[: self._max_entities]
 
-    def _summarize_if_needed(self, text: str, threshold: int) -> str | None:
-        """Summarize text if it exceeds token threshold.
-        Without LLM: extractive (first + last paragraphs + key sentences).
-        With LLM: abstractive via ContextManager's compressor."""
+    def _summarize_if_needed(self, text: str, threshold: int) -> tuple[str | None, str]:
+        """Summarize text when it exceeds token threshold.
+
+        Returns:
+            Tuple of (summary_text, method) where method is "llm", "extractive", or "none".
+        """
         if not text:
-            return None
+            return None, "none"
 
         estimated_tokens = len(text) // 4
         if estimated_tokens <= threshold:
+            return None, "none"
+
+        # Try LLM-based abstractive summarization for long text when gateway is available
+        if self._llm_gateway is not None and len(text) > self._LLM_SUMMARIZE_CHAR_THRESHOLD:
+            llm_result = self._llm_summarize(text)
+            if llm_result is not None:
+                return llm_result, "llm"
+            # Fall through to extractive on LLM failure
+
+        return self._extractive_summarize(text, threshold), "extractive"
+
+    def _llm_summarize(self, text: str, max_tokens: int = 200) -> str | None:
+        """Attempt LLM-based abstractive summarization.
+
+        Returns the summary string on success, or None on any failure.
+        """
+        prompt = (
+            f"Summarize the following input concisely in under {max_tokens} tokens, "
+            f"preserving key entities, intent, and constraints:\n\n{text}"
+        )
+        request = LLMRequest(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=0.3,
+            metadata={"purpose": self._model_tier},
+        )
+        try:
+            response = self._llm_gateway.complete(request)  # type: ignore[union-attr]
+            return response.content
+        except Exception:
+            logger.warning("LLM summarization failed, falling back to extractive", exc_info=True)
             return None
 
-        # Extractive summarization: first paragraph + last paragraph
+    @staticmethod
+    def _extractive_summarize(text: str, threshold: int) -> str:
+        """Extractive summarization: first paragraph + last paragraph."""
         paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
         if not paragraphs:
             return text[:threshold * 4]

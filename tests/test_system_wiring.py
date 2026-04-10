@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import os
-import threading
 import time
-from io import BytesIO
 from typing import Any
 from unittest.mock import patch
 
@@ -115,46 +112,34 @@ class TestAgentServerFactory:
     def test_executor_factory_not_none(self) -> None:
         from hi_agent.server.app import AgentServer
 
-        server = AgentServer(host="127.0.0.1", port=0)
-        try:
-            assert server.executor_factory is not None
-            assert callable(server.executor_factory)
-        finally:
-            server.server_close()
+        server = AgentServer(host="127.0.0.1", port=9999)
+        assert server.executor_factory is not None
+        assert callable(server.executor_factory)
 
     def test_default_executor_factory_returns_callable(self) -> None:
         from hi_agent.server.app import AgentServer
 
-        server = AgentServer(host="127.0.0.1", port=0)
-        try:
-            run_data = {"goal": "test", "task_family": "quick_task", "risk_level": "low"}
-            factory_result = server._default_executor_factory(run_data)
-            assert callable(factory_result)
-        finally:
-            server.server_close()
+        server = AgentServer(host="127.0.0.1", port=9999)
+        run_data = {"goal": "test", "task_family": "quick_task", "risk_level": "low"}
+        factory_result = server._default_executor_factory(run_data)
+        assert callable(factory_result)
 
     def test_factory_run_executes(self) -> None:
         from hi_agent.server.app import AgentServer
 
-        server = AgentServer(host="127.0.0.1", port=0)
-        try:
-            run_data = {"goal": "greet the world", "task_family": "quick_task"}
-            task_runner = server._default_executor_factory(run_data)
-            result = task_runner()
-            # Should complete without error and return a result dict
-            assert result is not None
-        finally:
-            server.server_close()
+        server = AgentServer(host="127.0.0.1", port=9999)
+        run_data = {"goal": "greet the world", "task_family": "quick_task"}
+        task_runner = server._default_executor_factory(run_data)
+        result = task_runner()
+        # Should complete without error and return a result dict
+        assert result is not None
 
     def test_server_accepts_config(self) -> None:
         from hi_agent.server.app import AgentServer
 
-        config = TraceConfig(server_host="127.0.0.1", server_port=0)
-        server = AgentServer(host="127.0.0.1", port=0, config=config)
-        try:
-            assert server._config is config
-        finally:
-            server.server_close()
+        config = TraceConfig(server_host="127.0.0.1", server_port=9999)
+        server = AgentServer(host="127.0.0.1", port=9999, config=config)
+        assert server._config is config
 
 
 # ------------------------------------------------------------------
@@ -242,28 +227,18 @@ class TestServerRoundTrip:
     """Full round-trip: create server, POST /runs, verify run executes."""
 
     def test_post_run_creates_and_starts(self) -> None:
-        import http.client
+        from starlette.testclient import TestClient
 
         from hi_agent.server.app import AgentServer
 
-        server = AgentServer(host="127.0.0.1", port=0)
-        port = server.server_address[1]
-        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
-        server_thread.start()
+        server = AgentServer(host="127.0.0.1", port=9999)
 
-        try:
+        with TestClient(server.app) as client:
             # POST /runs
-            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-            body = json.dumps({"goal": "test round trip"}).encode()
-            conn.request("POST", "/runs", body=body, headers={
-                "Content-Type": "application/json",
-                "Content-Length": str(len(body)),
-            })
-            resp = conn.getresponse()
-            data = json.loads(resp.read())
-            conn.close()
+            resp = client.post("/runs", json={"goal": "test round trip"})
+            data = resp.json()
 
-            assert resp.status == 201
+            assert resp.status_code == 201
             assert "run_id" in data
 
             # Wait briefly for the background thread to finish
@@ -277,6 +252,3 @@ class TestServerRoundTrip:
             run = server.run_manager.get_run(run_id)
             assert run is not None
             assert run.state in ("completed", "failed", "running")
-        finally:
-            server.shutdown()
-            server.server_close()

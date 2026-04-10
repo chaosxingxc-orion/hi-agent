@@ -8,6 +8,7 @@ longer a pure "always success" simulation.
 from __future__ import annotations
 
 import inspect
+import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -16,18 +17,15 @@ if TYPE_CHECKING:
     from hi_agent.evolve.contracts import RunPostmortem
     from hi_agent.evolve.engine import EvolveEngine
     from hi_agent.failures.collector import FailureCollector
-    from hi_agent.failures.taxonomy import FailureCode, FailureRecord
     from hi_agent.failures.watchdog import ProgressWatchdog
-    from hi_agent.harness.contracts import ActionSpec
     from hi_agent.harness.executor import HarnessExecutor
     from hi_agent.memory.episode_builder import EpisodeBuilder
     from hi_agent.memory.episodic import EpisodicMemoryStore
     from hi_agent.memory.short_term import ShortTermMemoryStore
-    from hi_agent.session.run_session import LLMCallRecord, RunSession
-    from hi_agent.skill.loader import SkillLoader
-    from hi_agent.skill.observer import SkillObserver
+    from hi_agent.session.run_session import RunSession
     from hi_agent.skill.recorder import SkillUsageRecorder
-    from hi_agent.skill.version import SkillVersionManager
+
+from datetime import UTC
 
 from hi_agent.capability import (
     CapabilityInvoker,
@@ -60,11 +58,15 @@ from hi_agent.task_view.builder import (
     build_run_index,
     build_task_view_with_knowledge_query,
 )
+from hi_agent.runner_lifecycle import RunLifecycle
+from hi_agent.runner_stage import StageExecutor
+from hi_agent.runner_telemetry import RunTelemetry
 from hi_agent.trajectory.dead_end import detect_dead_end
 from hi_agent.trajectory.optimizers import GreedyOptimizer
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
 
 STAGES = default_trace_stage_graph().trace_order("S1_understand")
+_logger = logging.getLogger(__name__)
 
 
 class RunExecutor:
@@ -118,6 +120,11 @@ class RunExecutor:
         knowledge_manager: Any | None = None,  # KnowledgeManager
         context_manager: Any | None = None,  # ContextManager
         run_context: RunContext | None = None,
+        budget_guard: Any | None = None,  # BudgetGuard
+        optional_stages: set[str] | None = None,
+        metrics_collector: Any | None = None,  # MetricsCollector
+        memory_lifecycle_manager: Any | None = None,  # MemoryLifecycleManager
+        replay_recorder: Any | None = None,  # ReplayRecorder
     ) -> None:
         """Initialize run executor state.
 
@@ -149,6 +156,23 @@ class RunExecutor:
               harness instead of direct capability invocation.
           human_gate_quality_threshold: Quality score threshold below which
               Gate C (artifact_review) is auto-triggered. Defaults to 0.5.
+          policy_versions: Optional policy version set recorded in trace data.
+          failure_collector: Optional failure collector for structured errors.
+          watchdog: Optional progress watchdog for no-progress detection.
+          episode_builder: Optional episode builder for episodic memory output.
+          episodic_store: Optional episodic memory persistence store.
+          skill_recorder: Optional skill usage recorder.
+          skill_observer: Optional skill observer sink.
+          skill_version_mgr: Optional skill version manager.
+          skill_loader: Optional skill loader used for dynamic skill routing.
+          short_term_store: Optional short-term memory store.
+          session: Optional run session state container.
+          retrieval_engine: Optional retrieval engine for memory lookup.
+          knowledge_manager: Optional knowledge manager integration.
+          context_manager: Optional context manager integration.
+          run_context: Optional run context override.
+          budget_guard: Optional BudgetGuard for tier decisions per stage.
+          optional_stages: Set of stage IDs considered optional (skippable).
         """
         self.contract = contract
         self.kernel = kernel
@@ -205,18 +229,32 @@ class RunExecutor:
         self.failure_collector = failure_collector
         if self.failure_collector is None:
             try:
-                from hi_agent.failures.collector import FailureCollector as _FC
-                self.failure_collector = _FC()
-            except Exception:
-                pass
+                from hi_agent.failures.collector import FailureCollector
+
+                self.failure_collector = FailureCollector()
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.failure_collector_init_failed",
+                    exc,
+                    run_id=self.run_id,
+                    task_id=contract.task_id,
+                )
 
         self.watchdog = watchdog
         if self.watchdog is None:
             try:
-                from hi_agent.failures.watchdog import ProgressWatchdog as _PW
-                self.watchdog = _PW()
-            except Exception:
-                pass
+                from hi_agent.failures.watchdog import ProgressWatchdog
+
+                self.watchdog = ProgressWatchdog()
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.watchdog_init_failed",
+                    exc,
+                    run_id=self.run_id,
+                    task_id=contract.task_id,
+                )
 
         self.episode_builder = episode_builder
         self.episodic_store = episodic_store
@@ -232,12 +270,20 @@ class RunExecutor:
             self.session = session
         else:
             try:
-                from hi_agent.session.run_session import RunSession as _RS
-                self.session: RunSession | None = _RS(
+                from hi_agent.session.run_session import RunSession
+
+                self.session: RunSession | None = RunSession(
                     run_id=self._run_id_fallback,
                     task_contract=contract,
                 )
-            except Exception:
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.WARNING,
+                    "runner.session_init_failed",
+                    exc,
+                    run_id=self.run_id,
+                    task_id=contract.task_id,
+                )
                 self.session = None
 
         # --- Retrieval engine for knowledge loading ---
@@ -248,6 +294,19 @@ class RunExecutor:
 
         # --- Context manager: unified context orchestration (additive) ---
         self.context_manager = context_manager
+
+        # --- BudgetGuard: budget-aware tier decisions (additive) ---
+        self.budget_guard = budget_guard
+        self.optional_stages: set[str] = optional_stages or set()
+
+        # --- MetricsCollector: structured observability (additive) ---
+        self.metrics_collector = metrics_collector
+
+        # --- MemoryLifecycleManager: auto dream/consolidation (additive) ---
+        self.memory_lifecycle_manager = memory_lifecycle_manager
+
+        # --- ReplayRecorder: optional JSONL event recording (additive) ---
+        self.replay_recorder = replay_recorder
 
         # --- RunContext: per-run state container (additive) ---
         self.run_context = run_context
@@ -276,16 +335,24 @@ class RunExecutor:
                     )
                 # 2. Create auto-compress trigger
                 from hi_agent.task_view.auto_compress import (
-                    AutoCompressTrigger as _ACT,
+                    AutoCompressTrigger,
                 )
-                self._auto_compress = _ACT(compressor=self.compressor)
+                self._auto_compress = AutoCompressTrigger(
+                    compressor=self.compressor
+                )
                 # 3. Create cost calculator
                 from hi_agent.session.cost_tracker import (
-                    CostCalculator as _CC,
+                    CostCalculator,
                 )
-                self._cost_calculator = _CC()
-            except Exception:
-                pass
+                self._cost_calculator = CostCalculator()
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.session_wiring_failed",
+                    exc,
+                    run_id=self.run_id,
+                    task_id=contract.task_id,
+                )
 
         # If retrieval_engine available, create enriched context provider
         if self.retrieval_engine is not None and self.session is not None:
@@ -294,12 +361,23 @@ class RunExecutor:
             def _enriched_context():
                 ctx = _session.build_context_for_llm("routing")
                 try:
-                    query = getattr(_session.task_contract, 'goal', '') + " " + _session.current_stage
+                    query = (
+                        getattr(_session.task_contract, "goal", "")
+                        + " "
+                        + _session.current_stage
+                    )
                     r = _retrieval.retrieve(query.strip(), budget_tokens=500)
                     if r.items:
-                        ctx["retrieved_knowledge"] = [i.content[:200] for i in r.items[:3]]
-                except Exception:
-                    pass
+                        ctx["retrieved_knowledge"] = [
+                            i.content[:200] for i in r.items[:3]
+                        ]
+                except Exception as exc:
+                    _logger.debug(
+                        "runner.routing_context_enrichment_failed run_id=%s stage_id=%s error=%s",
+                        _session.run_id,
+                        _session.current_stage,
+                        exc,
+                    )
                 return ctx
             if hasattr(self.route_engine, '_context_provider'):
                 self.route_engine._context_provider = _enriched_context
@@ -316,21 +394,38 @@ class RunExecutor:
                     if _prev_provider is not None:
                         try:
                             ctx = _prev_provider()
-                        except Exception:
+                        except Exception as exc:
+                            _logger.debug(
+                                "runner.skill_prev_context_failed run_id=%s stage_id=%s error=%s",
+                                self.run_id,
+                                self.current_stage,
+                                exc,
+                            )
                             ctx = {}
                     try:
                         prompt = _skill_loader.build_prompt()
                         skill_text = prompt.to_prompt_string()
                         if skill_text:
                             ctx["skill_prompt"] = skill_text
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        _logger.debug(
+                            "runner.skill_context_enrichment_failed run_id=%s stage_id=%s error=%s",
+                            self.run_id,
+                            self.current_stage,
+                            exc,
+                        )
                     return ctx
 
                 if hasattr(self.route_engine, '_context_provider'):
                     self.route_engine._context_provider = _skill_enriched_context
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.skill_context_provider_setup_failed",
+                    exc,
+                    run_id=self.run_id,
+                    task_id=contract.task_id,
+                )
 
         # --- ContextManager: override context provider if provided ---
         if self.context_manager is not None:
@@ -347,13 +442,58 @@ class RunExecutor:
                     ctx["health"] = snapshot.health.value
                     ctx["utilization_pct"] = snapshot.utilization_pct
                     return ctx
-                except Exception:
+                except Exception as exc:
+                    _logger.debug(
+                        "runner.context_manager_fallback_failed run_id=%s stage_id=%s error=%s",
+                        self.run_id,
+                        self.current_stage,
+                        exc,
+                    )
                     if _session_fallback is not None:
                         return _session_fallback.build_context_for_llm("routing")
                     return {}
 
             if hasattr(self.route_engine, '_context_provider'):
                 self.route_engine._context_provider = _managed_context
+
+        # --- Delegate instances for extracted logic ---
+        self._telemetry = RunTelemetry(
+            event_emitter=self.event_emitter,
+            raw_memory=self.raw_memory,
+            observability_hook=self.observability_hook,
+            metrics_collector=self.metrics_collector,
+            skill_observer=self.skill_observer,
+            skill_recorder=self.skill_recorder,
+            session=self.session,
+            context_manager=self.context_manager,
+        )
+        self._lifecycle = RunLifecycle(
+            session=self.session,
+            short_term_store=self.short_term_store,
+            knowledge_manager=self.knowledge_manager,
+            evolve_engine=self.evolve_engine,
+            memory_lifecycle_manager=self.memory_lifecycle_manager,
+            budget_guard=self.budget_guard,
+            episode_builder=self.episode_builder,
+            episodic_store=self.episodic_store,
+            failure_collector=self.failure_collector,
+            raw_memory=self.raw_memory,
+            cts_budget=self.cts_budget,
+        )
+        self._stage_executor = StageExecutor(
+            kernel=self.kernel,
+            route_engine=self.route_engine,
+            context_manager=self.context_manager,
+            budget_guard=self.budget_guard,
+            optional_stages=self.optional_stages,
+            acceptance_policy=self.acceptance_policy,
+            policy_versions=self.policy_versions,
+            knowledge_query_fn=self.knowledge_query_fn,
+            knowledge_query_text_builder=self.knowledge_query_text_builder,
+            retrieval_engine=self.retrieval_engine,
+            auto_compress=self._auto_compress,
+            cost_calculator=self._cost_calculator,
+        )
 
     @property
     def run_id(self) -> str:
@@ -362,6 +502,7 @@ class RunExecutor:
 
     @run_id.setter
     def run_id(self, value: str) -> None:
+        """Run run_id."""
         self._run_id = value
 
     def _sync_to_context(self) -> None:
@@ -378,6 +519,24 @@ class RunExecutor:
         self.run_context.stage_active_branches = self._stage_active_branches
         self.run_context.gate_seq = self._gate_seq
         self.run_context.skill_ids_used = self._skill_ids_used
+
+    def _log_best_effort_exception(
+        self,
+        level: int,
+        message: str,
+        exc: Exception,
+        **context: object,
+    ) -> None:
+        """Log a best-effort exception without changing control flow."""
+        context_bits = " ".join(
+            f"{key}={value}"
+            for key, value in context.items()
+            if value is not None
+        )
+        if context_bits:
+            _logger.log(level, "%s %s error=%s", message, context_bits, exc)
+        else:
+            _logger.log(level, "%s error=%s", message, exc)
 
     def _track_llm_cost(self, response: Any, purpose: str = "action") -> None:
         """Record LLM call cost from response if cost tracking is available."""
@@ -407,8 +566,14 @@ class RunExecutor:
                 cost_usd=cost,
             )
             self.session.record_llm_call(record)
-        except Exception:
-            pass
+        except Exception as exc:
+            self._log_best_effort_exception(
+                logging.DEBUG,
+                "runner.llm_cost_tracking_failed",
+                exc,
+                run_id=self.run_id,
+                stage_id=self.current_stage,
+            )
 
     def _make_branch_id(self, stage_id: str) -> str:
         """Generate deterministic branch ID and increment counter."""
@@ -428,13 +593,13 @@ class RunExecutor:
         self, name: str, payload: dict[str, object]
     ) -> None:
         """Emit one observability callback event without impacting run success."""
-        if self.observability_hook is None:
-            return
-        try:
-            self.observability_hook(name, payload)
-        except Exception:
-            # Telemetry callbacks are best-effort and must never break execution.
-            return
+        self._telemetry.emit_observability(name, payload)
+
+    def _record_metric(
+        self, name: str, payload: dict[str, object]
+    ) -> None:
+        """Translate observability events to structured metric recordings."""
+        self._telemetry.record_metric(name, payload)
 
     def _resolve_route_engine(self, route_engine: Any | None) -> Any:
         """Return validated route engine instance.
@@ -460,11 +625,12 @@ class RunExecutor:
         result: dict[str, object] | None,
     ) -> str:
         """Resolve query text for knowledge retrieval hooks."""
-        if self.knowledge_query_text_builder is not None:
-            return self.knowledge_query_text_builder(
-                stage_id, action_kind, result
-            )
-        return f"{self.contract.goal} {stage_id} {action_kind}".strip()
+        return self._stage_executor._resolve_knowledge_query_text(
+            stage_id=stage_id,
+            action_kind=action_kind,
+            result=result,
+            contract_goal=self.contract.goal,
+        )
 
     def _build_task_view_knowledge(
         self,
@@ -474,31 +640,14 @@ class RunExecutor:
         result: dict[str, object] | None,
     ) -> list[str]:
         """Best-effort knowledge extraction for task-view payloads."""
-        if self.knowledge_query_fn is None:
-            return []
-        try:
-            run_index = build_run_index(self.run_id, self.stage_summaries)
-            run_index.current_stage = stage_id
-            built = build_task_view_with_knowledge_query(
-                run_index=run_index,
-                stage_summaries=self.stage_summaries,
-                episodes=[],
-                query_text=self._resolve_knowledge_query_text(
-                    stage_id=stage_id,
-                    action_kind=action_kind,
-                    result=result,
-                ),
-                knowledge_query_fn=self.knowledge_query_fn,
-                top_k=3,
-                budget=12,
-            )
-            knowledge = built.get("knowledge", [])
-            if isinstance(knowledge, list):
-                return [str(item) for item in knowledge]
-            return []
-        except Exception:
-            # Knowledge enrichment is optional and must never break execution.
-            return []
+        return self._stage_executor.build_task_view_knowledge(
+            stage_id=stage_id,
+            action_kind=action_kind,
+            result=result,
+            run_id=self.run_id,
+            stage_summaries=self.stage_summaries,
+            contract_goal=self.contract.goal,
+        )
 
     def _supports_optional_invoke_arguments(
         self, invoke_callable: object
@@ -638,33 +787,29 @@ class RunExecutor:
         return 0
 
     def _record_event(self, event_type: str, payload: dict) -> None:
-        """Record event to both emitter and raw memory store."""
-        self.event_emitter.emit(
-            event_type=event_type, run_id=self.run_id, payload=payload
+        """Record event to both emitter and raw memory store.
+
+        When a :class:`ReplayRecorder` is attached, each event is also
+        written to the replay JSONL log.
+        """
+        self._telemetry.record_event(
+            event_type, payload,
+            run_id=self.run_id,
+            current_stage=self.current_stage,
         )
-        self.raw_memory.append(
-            RawEventRecord(event_type=event_type, payload=payload)
-        )
-        # Delegate to session (additive — never break core execution)
-        if self.session is not None:
+        if self.replay_recorder is not None:
+            # The last emitted envelope is the one we just recorded.
             try:
-                self.session.append_record(
-                    event_type, payload, stage_id=self.current_stage
+                latest = self.event_emitter.events[-1]
+                self.replay_recorder.record(latest)
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.replay_record_failed",
+                    exc,
+                    run_id=self.run_id,
+                    stage_id=self.current_stage,
                 )
-                self.session.emit_event(event_type, payload)
-            except Exception:
-                pass
-        # ContextManager: add history entry for context window tracking
-        if self.context_manager is not None:
-            try:
-                import json as _json_mod
-                self.context_manager.add_history_entry(
-                    role="system",
-                    content=f"[{event_type}] {_json_mod.dumps(payload, default=str)[:500]}",
-                    metadata={"stage_id": self.current_stage},
-                )
-            except Exception:
-                pass
 
     def _compress_stage_summary(self, stage_id: str) -> StageSummary:
         """Build StageSummary from stage-scoped raw memory records."""
@@ -693,8 +838,14 @@ class RunExecutor:
                 self.session.mark_compact_boundary(
                     stage_id, summary_ref=stage_id
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.stage_summary_persist_failed",
+                    exc,
+                    run_id=self.run_id,
+                    stage_id=stage_id,
+                )
         return summary
 
     def _execute_action_with_retry(
@@ -788,8 +939,14 @@ class RunExecutor:
                 }
                 self.session.action_seq = self.action_seq
                 self.session.save_checkpoint()
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.session_checkpoint_failed",
+                    exc,
+                    run_id=self.run_id,
+                    stage_id=stage_id,
+                )
 
         # ContextManager: emit context health at stage boundaries
         if self.context_manager is not None:
@@ -802,8 +959,14 @@ class RunExecutor:
                     "circuit_breaker_open": report.circuit_breaker_open,
                     "diminishing_returns": report.diminishing_returns,
                 })
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.context_health_failed",
+                    exc,
+                    run_id=self.run_id,
+                    stage_id=stage_id,
+                )
 
         if self.state_store is None:
             return
@@ -887,8 +1050,15 @@ class RunExecutor:
             else:
                 report = self.recovery_executor(consumed_events)
             success = self._resolve_recovery_success(report)
-        except Exception:
+        except Exception as exc:
             success = False
+            self._log_best_effort_exception(
+                logging.WARNING,
+                "runner.recovery_failed",
+                exc,
+                run_id=self.run_id,
+                stage_id=stage_id,
+            )
 
         payload: dict[str, object] = {
             "stage_id": stage_id,
@@ -911,10 +1081,16 @@ class RunExecutor:
         self, signal: str, payload: dict[str, Any] | None = None
     ) -> None:
         """Send signal_run to kernel, ignoring errors for robustness."""
-        import contextlib
-
-        with contextlib.suppress(Exception):
+        try:
             self.kernel.signal_run(self.run_id, signal, payload)
+        except Exception as exc:
+            self._log_best_effort_exception(
+                logging.DEBUG,
+                "runner.signal_run_failed",
+                exc,
+                run_id=self.run_id,
+                signal=signal,
+            )
 
     def _make_gate_ref(self, gate_type: str) -> str:
         """Generate a deterministic gate reference."""
@@ -931,63 +1107,15 @@ class RunExecutor:
         Returns:
             A populated RunPostmortem dataclass.
         """
-        from hi_agent.evolve.contracts import RunPostmortem
-
-        stages_completed: list[str] = []
-        stages_failed: list[str] = []
-        for sid in self.stage_summaries:
-            stage_state = self.kernel.stages.get(sid) if hasattr(self.kernel, "stages") else None
-            if stage_state == StageState.FAILED:
-                stages_failed.append(sid)
-            elif stage_state == StageState.COMPLETED:
-                stages_completed.append(sid)
-            else:
-                # Fallback: check summary outcome
-                if self.stage_summaries[sid].outcome == "failed":
-                    stages_failed.append(sid)
-                else:
-                    stages_completed.append(sid)
-
-        branches_explored = 0
-        branches_pruned = 0
-        for node in self.dag.values():
-            branches_explored += 1
-            if node.state == NodeState.PRUNED:
-                branches_pruned += 1
-
-        failure_codes: list[str] = []
-        # Prefer structured failure collector when available
-        if self.failure_collector is not None:
-            try:
-                failure_codes = self.failure_collector.get_failure_codes()
-            except Exception:
-                failure_codes = []
-        if not failure_codes:
-            for record in self.raw_memory.list_all():
-                code = record.payload.get("failure_code")
-                if code and code not in failure_codes:
-                    failure_codes.append(code)
-
-        return RunPostmortem(
+        return self._lifecycle.build_postmortem(
+            outcome,
             run_id=self.run_id,
-            task_id=self.contract.task_id,
-            task_family=self.contract.task_family,
-            outcome=outcome,
-            stages_completed=stages_completed,
-            stages_failed=stages_failed,
-            branches_explored=branches_explored,
-            branches_pruned=branches_pruned,
-            total_actions=self.action_seq,
-            failure_codes=failure_codes,
-            duration_seconds=0.0,
-            policy_versions={
-                "route_policy": self.policy_versions.route_policy,
-                "acceptance_policy": self.policy_versions.acceptance_policy,
-                "memory_policy": self.policy_versions.memory_policy,
-                "evaluation_policy": self.policy_versions.evaluation_policy,
-                "task_view_policy": self.policy_versions.task_view_policy,
-                "skill_policy": self.policy_versions.skill_policy,
-            },
+            contract=self.contract,
+            stage_summaries=self.stage_summaries,
+            dag=self.dag,
+            action_seq=self.action_seq,
+            policy_versions=self.policy_versions,
+            kernel=self.kernel,
         )
 
     def _invoke_via_harness(
@@ -1130,21 +1258,13 @@ class RunExecutor:
             A standard failure code string, or ``None`` if all budgets
             are within limits.
         """
-        # --- Task-level action budget ---
-        task_budget = self.contract.budget
-        if task_budget is not None and self.action_seq >= task_budget.max_actions:
-            return "budget_exhausted"
-
-        # --- CTS branch-per-stage limit ---
-        active_in_stage = self._stage_active_branches.get(stage_id, 0)
-        if active_in_stage >= self.cts_budget.max_active_branches_per_stage:
-            return "budget_exhausted"
-
-        # --- CTS total branches across run ---
-        if self._total_branches_opened >= self.cts_budget.max_total_branches_per_run:
-            return "budget_exhausted"
-
-        return None
+        return self._lifecycle.check_budget_exceeded(
+            stage_id,
+            action_seq=self.action_seq,
+            contract=self.contract,
+            stage_active_branches=self._stage_active_branches,
+            total_branches_opened=self._total_branches_opened,
+        )
 
     def _record_failure(
         self,
@@ -1172,8 +1292,15 @@ class RunExecutor:
                 context=context or {},
             )
             self.failure_collector.record(record)
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning(
+                "failure.record_failed run_id=%s stage_id=%s branch_id=%s action_id=%s error=%s",
+                self.run_id,
+                stage_id,
+                branch_id,
+                action_id,
+                exc,
+            )
 
     def _watchdog_record_and_check(
         self, success: bool, stage_id: str
@@ -1206,8 +1333,13 @@ class RunExecutor:
                         },
                     )
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning(
+                "watchdog.record_or_gate_failed run_id=%s stage_id=%s error=%s",
+                self.run_id,
+                stage_id,
+                exc,
+            )
 
     def _watchdog_reset(self) -> None:
         """Reset watchdog state at stage transitions (best-effort)."""
@@ -1215,38 +1347,30 @@ class RunExecutor:
             return
         try:
             self.watchdog.reset()
-        except Exception:
-            pass
+        except Exception as exc:
+            self._log_best_effort_exception(
+                logging.DEBUG,
+                "runner.watchdog_reset_failed",
+                exc,
+                run_id=self.run_id,
+                stage_id=self.current_stage,
+            )
 
     def _record_skill_usage_from_proposal(
         self, proposal: object, stage_id: str
     ) -> None:
         """If proposal has skill_id metadata, record skill usage (best-effort)."""
-        if self.skill_recorder is None:
-            return
-        try:
-            skill_id = getattr(proposal, "skill_id", None)
-            if skill_id:
-                self.skill_recorder.record_usage(
-                    skill_id=skill_id, run_id=self.run_id, success=True
-                )
-                if skill_id not in self._skill_ids_used:
-                    self._skill_ids_used.append(skill_id)
-        except Exception:
-            pass
+        self._telemetry.record_skill_usage_from_proposal(
+            proposal, stage_id,
+            run_id=self.run_id,
+            skill_ids_used=self._skill_ids_used,
+        )
 
     def _finalize_skill_outcomes(self, outcome: str) -> None:
         """After run completes, record final outcome per skill used (best-effort)."""
-        if self.skill_recorder is None or not self._skill_ids_used:
-            return
-        try:
-            success = outcome == "completed"
-            for skill_id in self._skill_ids_used:
-                self.skill_recorder.record_usage(
-                    skill_id=skill_id, run_id=self.run_id, success=success
-                )
-        except Exception:
-            pass
+        self._telemetry.finalize_skill_outcomes(
+            outcome, run_id=self.run_id, skill_ids_used=self._skill_ids_used,
+        )
 
     def _observe_skill_execution(
         self,
@@ -1257,62 +1381,21 @@ class RunExecutor:
         result: dict | None,
     ) -> None:
         """Record skill execution observation (best-effort, non-blocking)."""
-        if self.skill_observer is None:
-            return
-        try:
-            from datetime import datetime, timezone
-            from hi_agent.skill.observer import SkillObservation
-
-            skill_id = getattr(proposal, 'skill_id', '') or getattr(proposal, 'action_kind', 'unknown')
-            skill_version = getattr(proposal, 'version', '0.1.0')
-            quality_score = None
-            tokens_used = 0
-            if isinstance(result, dict):
-                quality_score = result.get("score")
-                if quality_score is not None:
-                    try:
-                        quality_score = float(quality_score)
-                    except (ValueError, TypeError):
-                        quality_score = None
-                tokens_used = int(result.get("tokens_used", 0))
-
-            obs = SkillObservation(
-                observation_id=f"{self.run_id}:{stage_id}:{self.action_seq}",
-                skill_id=skill_id,
-                skill_version=skill_version,
-                run_id=self.run_id,
-                stage_id=stage_id,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                success=action_succeeded,
-                input_summary=str(payload)[:500],
-                output_summary=str(result)[:500] if result else "",
-                quality_score=quality_score,
-                tokens_used=tokens_used,
-                task_family=self.contract.task_family,
-            )
-            self.skill_observer.observe(obs)
-        except Exception:
-            pass
+        self._telemetry.observe_skill_execution(
+            proposal, stage_id, action_succeeded, payload, result,
+            run_id=self.run_id,
+            action_seq=self.action_seq,
+            task_family=self.contract.task_family,
+        )
 
     def _build_and_store_episode(self, outcome: str) -> None:
         """Build and store episode after run completes (best-effort)."""
-        if self.episode_builder is None or self.episodic_store is None:
-            return
-        try:
-            failure_codes: list[str] = []
-            if self.failure_collector is not None:
-                failure_codes = self.failure_collector.get_failure_codes()
-
-            episode = self.episode_builder.build(
-                run_id=self.run_id,
-                task_contract=self.contract,
-                stage_summaries=self.stage_summaries,
-                outcome=outcome,
-                failure_codes=failure_codes,
-            )
-            self.episodic_store.store(episode)
-        except Exception:
-            pass
+        self._lifecycle.build_and_store_episode(
+            outcome,
+            run_id=self.run_id,
+            contract=self.contract,
+            stage_summaries=self.stage_summaries,
+        )
 
     def _execute_stage(self, stage_id: str) -> str | None:
         """Execute a single stage.
@@ -1322,353 +1405,7 @@ class RunExecutor:
             or ``None`` if the stage completed successfully and execution
             should continue to the next stage.
         """
-        self.current_stage = stage_id
-        self.kernel.open_stage(stage_id)
-        self.kernel.mark_stage_state(stage_id, StageState.ACTIVE)
-        self._record_event(
-            "StageStateChanged",
-            {"stage_id": stage_id, "to_state": "active"},
-        )
-        self._emit_observability(
-            "stage_started",
-            {"run_id": self.run_id, "stage_id": stage_id},
-        )
-        self._persist_snapshot(stage_id=stage_id)
-        self._watchdog_reset()
-
-        # --- Auto-compress before routing (lazy compaction) ---
-        if self._auto_compress is not None and self.session is not None:
-            try:
-                fresh = self.session.get_records_after_boundary()
-                filtered, summary = self._auto_compress.check_and_compress(
-                    fresh, stage_id, budget_tokens=8192
-                )
-                if summary is not None:
-                    self.session.set_stage_summary(
-                        f"{stage_id}_auto", summary
-                    )
-                    self.session.mark_compact_boundary(
-                        stage_id, summary_ref=f"{stage_id}_auto"
-                    )
-            except Exception:
-                pass
-
-        # --- Knowledge retrieval: inject event into session ---
-        if self.retrieval_engine is not None and self.session is not None:
-            try:
-                query = f"{self.contract.goal} {stage_id}"
-                result = self.retrieval_engine.retrieve(query, budget_tokens=800)
-                if result.items:
-                    self.session.append_record(
-                        "knowledge_retrieved",
-                        {"stage_id": stage_id, "items": len(result.items),
-                         "tokens": result.total_tokens},
-                        stage_id=stage_id,
-                    )
-            except Exception:
-                pass
-
-        proposals = self.route_engine.propose(
-            stage_id, self.run_id, self.action_seq
-        )
-        # Session: record routing LLM call with cost (best-effort)
-        if self.session is not None:
-            try:
-                from hi_agent.session.run_session import LLMCallRecord
-                cost = 0.0
-                if self._cost_calculator is not None:
-                    cost = self._cost_calculator.calculate(
-                        "default", 500, 200
-                    )
-                record = LLMCallRecord(
-                    call_id=f"{self.run_id}:llm:route:{stage_id}",
-                    purpose="routing",
-                    stage_id=stage_id,
-                    model="default",
-                    input_tokens=500,
-                    output_tokens=200,
-                    cost_usd=cost,
-                )
-                self.session.record_llm_call(record)
-            except Exception:
-                pass
-        # ContextManager: record LLM response after routing call
-        if self.context_manager is not None:
-            try:
-                self.context_manager.record_response(output_tokens=200)
-            except Exception:
-                pass
-        for proposal in proposals:
-            # --- CTS / Task budget enforcement ---
-            budget_code = self._check_budget_exceeded(stage_id)
-            if budget_code is not None:
-                self._record_event(
-                    "BudgetExhausted",
-                    {
-                        "run_id": self.run_id,
-                        "stage_id": stage_id,
-                        "failure_code": budget_code,
-                    },
-                )
-                self._emit_observability(
-                    "budget_exhausted",
-                    {
-                        "run_id": self.run_id,
-                        "stage_id": stage_id,
-                        "failure_code": budget_code,
-                    },
-                )
-                break
-
-            # --- Branch lifecycle: open ---
-            branch_id = self._make_branch_id(stage_id)
-            self._total_branches_opened += 1
-            self._stage_active_branches[stage_id] = (
-                self._stage_active_branches.get(stage_id, 0) + 1
-            )
-            self.kernel.open_branch(
-                self.run_id, stage_id, branch_id
-            )
-            self._record_event(
-                "BranchProposed",
-                {
-                    "run_id": self.run_id,
-                    "stage_id": stage_id,
-                    "branch_id": branch_id,
-                    "rationale": proposal.rationale,
-                },
-            )
-            self.kernel.mark_branch_state(
-                self.run_id, stage_id, branch_id, BranchState.ACTIVE
-            )
-            self._record_skill_usage_from_proposal(proposal, stage_id)
-
-            node = TrajectoryNode(
-                node_id=deterministic_id(
-                    self.run_id,
-                    stage_id,
-                    proposal.branch_id,
-                    str(self.action_seq),
-                ),
-                node_type=NodeType.ACTION,
-                stage_id=stage_id,
-                branch_id=proposal.branch_id,
-                description=proposal.rationale,
-            )
-            self.dag[node.node_id] = node
-
-            success = False
-            result: dict | None = None
-            try:
-                self._record_event(
-                    "ActionDispatched",
-                    {
-                        "run_id": self.run_id,
-                        "stage_id": stage_id,
-                        "branch_id": branch_id,
-                        "action_kind": proposal.action_kind,
-                    },
-                )
-                success, result, final_attempt = (
-                    self._execute_action_with_retry(stage_id, proposal)
-                )
-                node.local_score = (
-                    float(result.get("score", 0.0)) if result else 0.0
-                )
-                node.propagated_score = node.local_score
-                node.state = (
-                    NodeState.SUCCEEDED
-                    if success
-                    else NodeState.FAILED
-                )
-
-                if success:
-                    self._record_event(
-                        "ActionSucceeded",
-                        {
-                            "run_id": self.run_id,
-                            "stage_id": stage_id,
-                            "branch_id": branch_id,
-                            "action_kind": proposal.action_kind,
-                        },
-                    )
-                    acceptance = self.acceptance_policy.evaluate(
-                        self.contract, node
-                    )
-                    if not acceptance.accepted:
-                        node.state = NodeState.FAILED
-                        self._record_event(
-                            "AcceptanceRejected",
-                            {
-                                "stage_id": stage_id,
-                                "attempt": final_attempt,
-                                "reason": acceptance.reason,
-                            },
-                        )
-                        # Mark branch as failed after rejection
-                        self.kernel.mark_branch_state(
-                            self.run_id,
-                            stage_id,
-                            branch_id,
-                            BranchState.FAILED,
-                            "acceptance_rejected",
-                        )
-                    else:
-                        task_view_id = deterministic_id(
-                            self.run_id,
-                            stage_id,
-                            proposal.branch_id,
-                            str(self.action_seq),
-                            str(
-                                result.get(
-                                    "evidence_hash", "ev_missing"
-                                )
-                            ),
-                            self.policy_version,
-                        )
-                        knowledge_items = (
-                            self._build_task_view_knowledge(
-                                stage_id=stage_id,
-                                action_kind=proposal.action_kind,
-                                result=(
-                                    result
-                                    if isinstance(result, dict)
-                                    else None
-                                ),
-                            )
-                        )
-                        tv_id = self.kernel.record_task_view(
-                            task_view_id,
-                            {
-                                "stage_id": stage_id,
-                                "action_kind": proposal.action_kind,
-                                "local_score": node.local_score,
-                                "knowledge": knowledge_items,
-                                "policy_versions": {
-                                    "route_policy": self.policy_versions.route_policy,
-                                    "acceptance_policy": self.policy_versions.acceptance_policy,
-                                    "memory_policy": self.policy_versions.memory_policy,
-                                    "evaluation_policy": self.policy_versions.evaluation_policy,
-                                    "task_view_policy": self.policy_versions.task_view_policy,
-                                    "skill_policy": self.policy_versions.skill_policy,
-                                },
-                            },
-                        )
-                        # Bind task view to decision reference
-                        decision_ref = self._make_decision_ref(
-                            stage_id, branch_id
-                        )
-                        self.kernel.bind_task_view_to_decision(
-                            tv_id, decision_ref
-                        )
-                        self._record_event(
-                            "TaskViewRecorded",
-                            {
-                                "stage_id": stage_id,
-                                "attempt": final_attempt,
-                                "task_view_id": tv_id,
-                                "decision_ref": decision_ref,
-                            },
-                        )
-                        # Mark branch succeeded
-                        self.kernel.mark_branch_state(
-                            self.run_id,
-                            stage_id,
-                            branch_id,
-                            BranchState.SUCCEEDED,
-                        )
-                        self._record_event(
-                            "BranchSucceeded",
-                            {
-                                "run_id": self.run_id,
-                                "stage_id": stage_id,
-                                "branch_id": branch_id,
-                            },
-                        )
-                else:
-                    # Action failed
-                    self.kernel.mark_branch_state(
-                        self.run_id,
-                        stage_id,
-                        branch_id,
-                        BranchState.FAILED,
-                        "harness_denied",
-                    )
-                    self._record_event(
-                        "BranchFailed",
-                        {
-                            "run_id": self.run_id,
-                            "stage_id": stage_id,
-                            "branch_id": branch_id,
-                            "failure_code": "harness_denied",
-                        },
-                    )
-            finally:
-                # Check human gate triggers after each action
-                action_result_for_gate = result if result else {}
-                failure_code_for_gate: str | None = None
-                if not success:
-                    failure_code_for_gate = (
-                        action_result_for_gate.get("failure_code")
-                        or "harness_denied"
-                    )
-                    # Record structured failure
-                    self._record_failure(
-                        failure_code_str=failure_code_for_gate,
-                        message=f"Action {getattr(proposal, 'action_kind', '?')} failed at stage {stage_id}",
-                        stage_id=stage_id,
-                        branch_id=branch_id,
-                    )
-                self._check_human_gate_triggers(
-                    stage_id, action_result_for_gate, failure_code_for_gate
-                )
-                # Watchdog: track action outcome and check for no-progress
-                self._watchdog_record_and_check(success, stage_id)
-                # Skill observation: record execution telemetry
-                self._observe_skill_execution(
-                    proposal, stage_id, success,
-                    {"action_kind": getattr(proposal, "action_kind", ""),
-                     "branch_id": branch_id},
-                    result,
-                )
-                self.action_seq += 1
-                self.optimizer.backpropagate(node, self.dag)
-
-        if detect_dead_end(stage_id, self.dag):
-            self.kernel.mark_stage_state(stage_id, StageState.FAILED)
-            self._record_event(
-                "StageStateChanged",
-                {"stage_id": stage_id, "to_state": "failed"},
-            )
-            self._trigger_recovery(stage_id)
-            self.stage_summaries[stage_id] = (
-                self._compress_stage_summary(stage_id)
-            )
-            self._persist_snapshot(
-                stage_id=stage_id, result="failed"
-            )
-            self._signal_run_safe(
-                "recovery_failed",
-                {"stage_id": stage_id},
-            )
-            self._sync_to_context()
-            return "failed"
-
-        self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
-        self._record_event(
-            "StageStateChanged",
-            {"stage_id": stage_id, "to_state": "completed"},
-        )
-        self.stage_summaries[stage_id] = (
-            self._compress_stage_summary(stage_id)
-        )
-        self._persist_snapshot(stage_id=stage_id)
-        self._emit_observability(
-            "stage_completed",
-            {"run_id": self.run_id, "stage_id": stage_id},
-        )
-        self._sync_to_context()
-        return None  # stage completed OK, continue
+        return self._stage_executor.execute_stage(stage_id, executor=self)
 
     def _finalize_run(self, outcome: str) -> str:
         """Run post-execution finalization for a given outcome.
@@ -1679,59 +1416,22 @@ class RunExecutor:
         Returns:
             The *outcome* string unchanged.
         """
-        if outcome == "failed":
-            self._emit_observability(
-                "run_failed",
-                {"run_id": self.run_id, "stage_id": self.current_stage},
-            )
-        else:
-            self._persist_snapshot(
-                stage_id=self.current_stage, result="completed"
-            )
-            self._emit_observability(
-                "run_completed",
-                {"run_id": self.run_id, "stage_id": self.current_stage},
-            )
-
-        if self.evolve_engine is not None:
-            try:
-                postmortem = self._build_postmortem(outcome)
-                self.evolve_engine.on_run_completed(postmortem)
-            except Exception:
-                pass
-        self._finalize_skill_outcomes(outcome)
-        self._build_and_store_episode(outcome)
-        # Session: emit cost summary at run end
-        if self.session is not None:
-            try:
-                cost = self.session.get_cost_summary()
-                cost["run_id"] = self.run_id
-                self._emit_observability("run_cost_summary", cost)
-            except Exception:
-                pass
-        # Build and store short-term memory from session
-        if self.short_term_store is not None and self.session is not None:
-            try:
-                stm = self.short_term_store.build_from_session(self.session)
-                self.short_term_store.save(stm)
-                self._emit_observability("short_term_memory_saved", {
-                    "run_id": self.run_id,
-                    "session_id": stm.session_id,
-                    "outcome": stm.outcome,
-                })
-            except Exception:
-                pass
-        # Auto-ingest session knowledge
-        if self.knowledge_manager is not None and self.session is not None:
-            try:
-                count = self.knowledge_manager.ingest_from_session(self.session)
-                self._emit_observability("knowledge_ingested", {
-                    "run_id": self.run_id, "items_ingested": count,
-                })
-            except Exception:
-                pass
-        self._sync_to_context()
-        return outcome
+        return self._lifecycle.finalize_run(
+            outcome,
+            run_id=self.run_id,
+            current_stage=self.current_stage,
+            contract=self.contract,
+            stage_summaries=self.stage_summaries,
+            dag=self.dag,
+            action_seq=self.action_seq,
+            policy_versions=self.policy_versions,
+            kernel=self.kernel,
+            skill_ids_used=self._skill_ids_used,
+            emit_observability_fn=self._emit_observability,
+            persist_snapshot_fn=self._persist_snapshot,
+            finalize_skill_outcomes_fn=self._finalize_skill_outcomes,
+            sync_to_context_fn=self._sync_to_context,
+        )
 
     def execute(self) -> str:
         """Execute all stages with deterministic routing and capability dispatch.
@@ -1745,8 +1445,14 @@ class RunExecutor:
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.session_run_id_sync_failed",
+                    exc,
+                    run_id=self.run_id,
+                    task_id=self.contract.task_id,
+                )
         self._record_event(
             "RunStarted",
             {
@@ -1762,6 +1468,18 @@ class RunExecutor:
                 },
             },
         )
+        # --- MetricsCollector: mark run as active ---
+        if self.metrics_collector is not None:
+            try:
+                self.metrics_collector.increment("runs_active", 1.0)
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.metrics_increment_failed",
+                    exc,
+                    run_id=self.run_id,
+                    stage_id=self.current_stage,
+                )
 
         try:
             for stage_id in self.stage_graph.trace_order():
@@ -1769,6 +1487,13 @@ class RunExecutor:
                 if stage_result == "failed":
                     return self._finalize_run("failed")
         except Exception as exc:
+            self._log_best_effort_exception(
+                logging.WARNING,
+                "runner.execute_failed",
+                exc,
+                run_id=self.run_id,
+                stage_id=self.current_stage,
+            )
             self._record_event("RunError", {"error": str(exc), "run_id": self.run_id})
             return self._finalize_run("failed")
 
@@ -1785,8 +1510,14 @@ class RunExecutor:
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.session_run_id_sync_failed",
+                    exc,
+                    run_id=self.run_id,
+                    task_id=self.contract.task_id,
+                )
         self._record_event(
             "RunStarted",
             {
@@ -1802,6 +1533,18 @@ class RunExecutor:
                 },
             },
         )
+        # --- MetricsCollector: mark run as active ---
+        if self.metrics_collector is not None:
+            try:
+                self.metrics_collector.increment("runs_active", 1.0)
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.metrics_increment_failed",
+                    exc,
+                    run_id=self.run_id,
+                    stage_id=self.current_stage,
+                )
 
         # Find start stage (zero indegree)
         current_stage = self._find_start_stage()
@@ -1855,7 +1598,7 @@ class RunExecutor:
         otherwise picks the lexicographically first candidate.
         """
         if hasattr(self.route_engine, "select_stage") and callable(
-            getattr(self.route_engine, "select_stage")
+            self.route_engine.select_stage
         ):
             try:
                 return self.route_engine.select_stage(
@@ -1863,8 +1606,14 @@ class RunExecutor:
                     run_id=self.run_id,
                     completed_stages=list(self.stage_summaries.keys()),
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.select_next_stage_failed",
+                    exc,
+                    run_id=self.run_id,
+                    stage_id=self.current_stage,
+                )
         return sorted(candidates)[0]
 
     def _execute_remaining(self) -> str:
@@ -1967,7 +1716,12 @@ class RunExecutor:
         # 5. Register run with kernel (so kernel tracks it)
         try:
             kernel_run_id = kernel.start_run(contract.task_id)
-        except Exception:
+        except Exception as exc:
+            _logger.warning(
+                "runner.resume_start_run_failed task_id=%s error=%s",
+                contract.task_id,
+                exc,
+            )
             kernel_run_id = session.run_id
 
         # 6. Restore internal state from session (override kernel run_id)
@@ -1983,8 +1737,13 @@ class RunExecutor:
                 if run_data is not None:
                     run_data["run_id"] = session.run_id
                     kernel.runs[session.run_id] = run_data
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.debug(
+                "runner.resume_kernel_remap_failed run_id=%s task_id=%s error=%s",
+                session.run_id,
+                contract.task_id,
+                exc,
+            )
 
         # 7. Restore stage_summaries from session L1
         for stage_id, summary_data in session.l1_summaries.items():
@@ -2009,6 +1768,7 @@ class RunExecutor:
 
 @dataclass
 class RunResult:
+    """RunResult class."""
     run_id: str
     success: bool
     completed_nodes: list[str] = field(default_factory=list)
@@ -2027,14 +1787,17 @@ async def execute_async(
         result = await execute_async(executor, max_concurrency=8)
     """
     from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
-    from hi_agent.task_mgmt.graph_factory import GraphFactory, ComplexityScore
+    from hi_agent.task_mgmt.graph_factory import GraphFactory
 
     scheduler = AsyncTaskScheduler(
         kernel=executor.kernel, max_concurrency=max_concurrency
     )
 
-    complexity = ComplexityScore(score=0.5)
-    graph = GraphFactory().build(executor.contract, complexity)
+    factory = GraphFactory()
+    _template_name, graph = factory.auto_select(
+        goal=executor.contract.goal,
+        task_family=getattr(executor.contract, "task_family", ""),
+    )
 
     run_id = deterministic_id(executor.contract.task_id, "run")
     await executor.kernel.start_run(

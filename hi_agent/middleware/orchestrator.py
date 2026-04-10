@@ -12,7 +12,8 @@ Default flow: perception -> control -> execution -> evaluation
 """
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from hi_agent.middleware.protocol import (
     HookAction,
@@ -23,9 +24,9 @@ from hi_agent.middleware.protocol import (
 )
 from hi_agent.trajectory.graph import (
     EdgeType,
+    TrajectoryGraph,
     TrajEdge,
     TrajNode,
-    TrajectoryGraph,
 )
 
 
@@ -36,7 +37,15 @@ class PipelineBlockedError(Exception):
 class MiddlewareOrchestrator:
     """Extensible middleware orchestrator with 5-phase lifecycle hooks."""
 
+    # Cost-per-million-token estimates by tier for savings calculations.
+    _TIER_COST_PER_MTOK: dict[str, float] = {
+        "strong": 15.0,
+        "medium": 3.0,
+        "light": 0.25,
+    }
+
     def __init__(self) -> None:
+        """Initialize MiddlewareOrchestrator."""
         self._middlewares: dict[str, Any] = {}  # name -> middleware instance
         self._hooks: dict[str, list[LifecycleHook]] = {}  # middleware_name -> hooks
         self._global_hooks: dict[LifecyclePhase, list[LifecycleHook]] = {
@@ -47,12 +56,13 @@ class MiddlewareOrchestrator:
         self._message_log: list[MiddlewareMessage] = []
         self._middleware_metrics: dict[str, dict[str, Any]] = {}
         self._middleware_configs: dict[str, dict[str, Any]] = {}
+        self._tier_usage: dict[str, dict[str, Any]] = {}
         self._setup_default_flow()
 
     # --- Default flow ---
 
     def _setup_default_flow(self) -> None:
-        """perception -> control -> execution -> evaluation + feedback loops."""
+        """Perception -> control -> execution -> evaluation + feedback loops."""
         default_names = ["perception", "control", "execution", "evaluation"]
         for name in default_names:
             node = TrajNode(node_id=name, node_type="middleware")
@@ -88,6 +98,13 @@ class MiddlewareOrchestrator:
             self._middleware_metrics[name] = {
                 "calls": 0, "tokens": 0, "errors": 0,
             }
+        # Track per-middleware tier usage for cost analysis
+        tier = getattr(mw, "_model_tier", "medium")
+        self._tier_usage[name] = {
+            "tier": tier,
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
 
     def replace_middleware(self, name: str, mw: Any) -> None:
         """Replace an existing middleware instance."""
@@ -130,7 +147,11 @@ class MiddlewareOrchestrator:
                 self._flow_graph.add_sequence(after, name)
 
             # Update flow order
-            idx = self._flow_order.index(after) if after in self._flow_order else len(self._flow_order)
+            idx = (
+                self._flow_order.index(after)
+                if after in self._flow_order
+                else len(self._flow_order)
+            )
             self._flow_order.insert(idx + 1, name)
 
         elif before is not None:
@@ -244,7 +265,12 @@ class MiddlewareOrchestrator:
         edge_type: str = "sequence",
     ) -> None:
         """Add a custom route edge between middlewares."""
-        etype = EdgeType(edge_type) if edge_type in [e.value for e in EdgeType] else EdgeType.SEQUENCE
+        edge_types = [e.value for e in EdgeType]
+        etype = (
+            EdgeType(edge_type)
+            if edge_type in edge_types
+            else EdgeType.SEQUENCE
+        )
         edge = TrajEdge(
             source=source,
             target=target,
@@ -390,6 +416,10 @@ class MiddlewareOrchestrator:
             mw.on_destroy()
 
         self._middleware_metrics[name] = metrics
+        # Accumulate token usage for tier cost tracking
+        if name in self._tier_usage:
+            self._tier_usage[name]["input_tokens"] += result.token_cost
+            self._tier_usage[name]["output_tokens"] += max(1, result.token_cost // 2)
         return result
 
     def _run_hooks(
@@ -522,3 +552,54 @@ class MiddlewareOrchestrator:
     def get_metrics(self) -> dict[str, dict[str, Any]]:
         """Return all middleware metrics."""
         return dict(self._middleware_metrics)
+
+    def get_cost_breakdown(self) -> dict[str, dict[str, Any]]:
+        """Return per-middleware cost estimate based on tier and token usage.
+
+        Returns a dict keyed by middleware name, each containing:
+        - tier: the model tier used
+        - input_tokens: total input tokens consumed
+        - output_tokens: estimated output tokens consumed
+        - estimated_cost_usd: estimated cost in USD
+        """
+        breakdown: dict[str, dict[str, Any]] = {}
+        for name, usage in self._tier_usage.items():
+            tier = usage["tier"]
+            input_tok = usage["input_tokens"]
+            output_tok = usage["output_tokens"]
+            cost_per_mtok = self._TIER_COST_PER_MTOK.get(tier, 3.0)
+            estimated_cost = ((input_tok + output_tok) / 1_000_000) * cost_per_mtok
+            breakdown[name] = {
+                "tier": tier,
+                "input_tokens": input_tok,
+                "output_tokens": output_tok,
+                "estimated_cost_usd": estimated_cost,
+            }
+        return breakdown
+
+    def get_cost_savings_estimate(self) -> dict[str, Any]:
+        """Compare actual tiered cost vs hypothetical all-strong baseline.
+
+        Returns:
+            - actual_cost_usd: estimated cost using per-middleware tiers
+            - baseline_cost_usd: estimated cost if all middlewares used "strong"
+            - savings_usd: baseline - actual
+            - savings_pct: percentage saved (0-100)
+        """
+        strong_cost_per_mtok = self._TIER_COST_PER_MTOK["strong"]
+        actual_total = 0.0
+        baseline_total = 0.0
+        for usage in self._tier_usage.values():
+            tier = usage["tier"]
+            total_tok = usage["input_tokens"] + usage["output_tokens"]
+            cost_per_mtok = self._TIER_COST_PER_MTOK.get(tier, 3.0)
+            actual_total += (total_tok / 1_000_000) * cost_per_mtok
+            baseline_total += (total_tok / 1_000_000) * strong_cost_per_mtok
+        savings = baseline_total - actual_total
+        savings_pct = (savings / baseline_total * 100.0) if baseline_total > 0 else 0.0
+        return {
+            "actual_cost_usd": actual_total,
+            "baseline_cost_usd": baseline_total,
+            "savings_usd": savings,
+            "savings_pct": savings_pct,
+        }

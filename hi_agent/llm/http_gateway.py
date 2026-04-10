@@ -34,6 +34,7 @@ class HttpLLMGateway:
         default_model: str = "gpt-4o",
         timeout_seconds: int = 120,
     ) -> None:
+        """Initialize HttpLLMGateway."""
         self._base_url = base_url.rstrip("/")
         self._api_key_env = api_key_env
         self._default_model = default_model
@@ -53,13 +54,14 @@ class HttpLLMGateway:
         raw = self._post(payload)
         return self._parse_response(raw, model)
 
-    def supports_model(self, model: str) -> bool:  # noqa: ARG002
+    def supports_model(self, model: str) -> bool:
         """Return ``True``; the HTTP gateway delegates model validation to the provider."""
         return True
 
     # -- internals -------------------------------------------------------------
 
     def _build_payload(self, request: LLMRequest, model: str) -> dict[str, Any]:
+        """Run _build_payload."""
         body: dict[str, Any] = {
             "model": model,
             "messages": request.messages,
@@ -71,6 +73,7 @@ class HttpLLMGateway:
         return body
 
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Run _post."""
         api_key = os.environ.get(self._api_key_env, "")
         url = f"{self._base_url}/chat/completions"
         headers = {
@@ -100,6 +103,7 @@ class HttpLLMGateway:
 
     @staticmethod
     def _parse_response(raw: dict[str, Any], model: str) -> LLMResponse:
+        """Run _parse_response."""
         choices = raw.get("choices", [])
         if not choices:
             raise LLMProviderError("Empty choices in provider response")
@@ -132,6 +136,7 @@ class HTTPGateway:
         timeout: float = 120.0,
         default_model: str = "gpt-4o",
     ) -> None:
+        """Initialize HTTPGateway."""
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._default_model = default_model
@@ -165,7 +170,7 @@ class HTTPGateway:
         raw = response.json()
         return HttpLLMGateway._parse_response(raw, model)
 
-    def supports_model(self, model: str) -> bool:  # noqa: ARG002
+    def supports_model(self, model: str) -> bool:
         """Return ``True``; the HTTP gateway delegates model validation to the provider."""
         return True
 
@@ -179,4 +184,5 @@ class HTTPGateway:
         return response.json()
 
     async def aclose(self) -> None:
+        """Run aclose."""
         await self._client.aclose()

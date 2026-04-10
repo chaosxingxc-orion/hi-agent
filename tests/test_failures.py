@@ -7,6 +7,7 @@ from hi_agent.failures.taxonomy import (
     FailureRecord,
     FAILURE_RECOVERY_MAP,
     FAILURE_GATE_MAP,
+    is_budget_exhausted_failure_code,
 )
 from hi_agent.failures.collector import FailureCollector
 from hi_agent.failures.watchdog import ProgressWatchdog
@@ -30,8 +31,9 @@ from hi_agent.failures.exceptions import (
 # ---------------------------------------------------------------------------
 
 class TestFailureCode:
-    def test_exactly_10_values(self) -> None:
-        assert len(FailureCode) == 10
+    def test_at_least_11_values(self) -> None:
+        """TraceFailureCode from agent-kernel defines 11 codes (9 original + 2 budget variants)."""
+        assert len(FailureCode) >= 11
 
     def test_all_values_are_strings(self) -> None:
         for code in FailureCode:
@@ -48,10 +50,24 @@ class TestFailureCode:
             "no_progress",
             "contradictory_evidence",
             "unsafe_action_blocked",
-            "budget_exhausted",
+            "exploration_budget_exhausted",
+            "execution_budget_exhausted",
         }
         actual = {code.value for code in FailureCode}
-        assert actual == expected
+        assert expected.issubset(actual)
+
+    @pytest.mark.parametrize(
+        ("code", "expected"),
+        [
+            (FailureCode.EXPLORATION_BUDGET_EXHAUSTED, True),
+            (FailureCode.EXECUTION_BUDGET_EXHAUSTED, True),
+            ("budget_exhausted", True),
+            ("missing_evidence", False),
+            ("not_a_real_code", False),
+        ],
+    )
+    def test_is_budget_exhausted_failure_code(self, code, expected) -> None:
+        assert is_budget_exhausted_failure_code(code) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +110,7 @@ class TestFailureRecord:
 
     def test_creation_full(self) -> None:
         rec = FailureRecord(
-            failure_code=FailureCode.BUDGET_EXHAUSTED,
+            failure_code=FailureCode.EXPLORATION_BUDGET_EXHAUSTED,
             message="out of tokens",
             run_id="run-1",
             stage_id="s3",
@@ -144,7 +160,7 @@ class TestFailureCollector:
         c.record(self._make_record(FailureCode.MISSING_EVIDENCE))
         assert len(c.get_by_code(FailureCode.MISSING_EVIDENCE)) == 2
         assert len(c.get_by_code(FailureCode.NO_PROGRESS)) == 1
-        assert len(c.get_by_code(FailureCode.BUDGET_EXHAUSTED)) == 0
+        assert len(c.get_by_code(FailureCode.EXPLORATION_BUDGET_EXHAUSTED)) == 0
 
     def test_get_by_stage(self) -> None:
         c = FailureCollector()
@@ -181,7 +197,7 @@ class TestFailureCollector:
         c = FailureCollector()
         c.record(self._make_record(FailureCode.NO_PROGRESS, stage_id="s1"))
         c.record(self._make_record(FailureCode.NO_PROGRESS, stage_id="s2"))
-        c.record(self._make_record(FailureCode.BUDGET_EXHAUSTED, stage_id="s2"))
+        c.record(self._make_record(FailureCode.EXPLORATION_BUDGET_EXHAUSTED, stage_id="s2"))
         c.mark_resolved(0)
 
         summary = c.get_summary()
@@ -190,7 +206,7 @@ class TestFailureCollector:
         assert summary["unresolved"] == 2
         assert summary["resolution_rate"] == pytest.approx(1 / 3)
         assert summary["counts_by_code"]["no_progress"] == 2
-        assert summary["counts_by_code"]["budget_exhausted"] == 1
+        assert summary["counts_by_code"]["exploration_budget_exhausted"] == 1
         assert summary["stage_distribution"]["s1"] == 1
         assert summary["stage_distribution"]["s2"] == 2
 
@@ -308,9 +324,9 @@ class TestExceptions:
         assert "[missing_evidence]" in str(err)
 
     def test_trace_failure_to_record(self) -> None:
-        err = TraceFailure(FailureCode.BUDGET_EXHAUSTED, "over limit", tokens=999)
+        err = TraceFailure(FailureCode.EXPLORATION_BUDGET_EXHAUSTED, "over limit", tokens=999)
         rec = err.to_record(run_id="r1", stage_id="s2")
-        assert rec.failure_code == FailureCode.BUDGET_EXHAUSTED
+        assert rec.failure_code == FailureCode.EXPLORATION_BUDGET_EXHAUSTED
         assert rec.message == "over limit"
         assert rec.run_id == "r1"
         assert rec.stage_id == "s2"
@@ -357,7 +373,7 @@ class TestExceptions:
         assert UnsafeActionBlockedError().code == FailureCode.UNSAFE_ACTION_BLOCKED
 
     def test_subclass_budget_exhausted(self) -> None:
-        assert BudgetExhaustedError().code == FailureCode.BUDGET_EXHAUSTED
+        assert BudgetExhaustedError().code == FailureCode.EXPLORATION_BUDGET_EXHAUSTED
 
     def test_all_subclass_trace_failure(self) -> None:
         """All specific exceptions must subclass TraceFailure."""

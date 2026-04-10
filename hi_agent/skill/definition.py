@@ -30,8 +30,7 @@ import os
 import re
 import shutil
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 # ---------------------------------------------------------------------------
 # Lightweight YAML-subset parser (no external deps)
@@ -69,7 +68,7 @@ def _parse_yaml_value(raw: str) -> str | int | float | bool | list[str]:
     except ValueError:
         pass
 
-    # Plain string – strip quotes
+    # Plain string - strip quotes
     return val.strip("\"'")
 
 
@@ -260,7 +259,7 @@ class SkillDefinition:
             except (ValueError, TypeError):
                 return default
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         return cls(
             skill_id=skill_id,

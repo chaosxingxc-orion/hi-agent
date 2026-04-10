@@ -26,6 +26,7 @@ class InMemoryNotificationBackend:
 
 
 def _normalize_severity(severity: str) -> str:
+    """Run _normalize_severity."""
     normalized = severity.strip().lower()
     if normalized in {"warn", "warning"}:
         return "warning"

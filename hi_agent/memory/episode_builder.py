@@ -47,7 +47,7 @@ class EpisodeBuilder:
         duration_seconds:
             Total wall-clock duration of the run.
 
-        Returns
+        Returns:
         -------
         EpisodeRecord
             A self-contained episode ready for persistent storage.

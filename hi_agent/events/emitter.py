@@ -12,8 +12,24 @@ class EventEmitter:
         """Initialize in-memory event buffer."""
         self.events: list[EventEnvelope] = []
 
-    def emit(self, event_type: str, run_id: str, payload: dict) -> EventEnvelope:
+    def emit(
+        self,
+        event_type: str,
+        run_id: str,
+        payload: dict,
+        *,
+        trace_id: str = "",
+        span_id: str = "",
+        parent_span_id: str = "",
+    ) -> EventEnvelope:
         """Emit one event and return envelope."""
-        envelope = make_envelope(event_type=event_type, run_id=run_id, payload=payload)
+        envelope = make_envelope(
+            event_type=event_type,
+            run_id=run_id,
+            payload=payload,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
+        )
         self.events.append(envelope)
         return envelope
