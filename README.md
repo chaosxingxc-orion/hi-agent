@@ -81,6 +81,7 @@ docs/
 ## 快速开始
 
 ```bash
+git submodule update --init --recursive
 python -m pip install -e ".[dev]"
 python -m hi_agent run --goal "Analyze quarterly revenue data" --local
 python -m hi_agent serve --host 127.0.0.1 --port 8080
