@@ -36,9 +36,7 @@ from hi_agent.runtime_adapter.kernel_facade_adapter import (
 )
 from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
-from hi_agent.server.app import AgentServer
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
-from hi_agent.server.run_manager import RunManager
 from hi_agent.skill.matcher import SkillMatcher
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry
@@ -111,6 +109,54 @@ class SystemBuilder:
                     exc,
                 )
         return self._middleware_orchestrator
+
+    def _inject_middleware_dependencies(self, orchestrator: Any) -> None:
+        """Post-inject subsystem dependencies into orchestrator's middleware instances.
+
+        The orchestrator is created early — before context_manager, skill_loader,
+        knowledge_manager, capability_invoker, and retrieval_engine are built — so
+        those deps are None at construction time.  This method is called once all
+        subsystems are available and patches the live middleware instances in-place.
+
+        Only sets an attribute when it is currently None to avoid overwriting an
+        intentionally injected value.
+        """
+        try:
+            middlewares: dict[str, Any] = getattr(orchestrator, "_middlewares", {})
+            if not middlewares:
+                return
+
+            # Resolve subsystems (cached: these methods return the same instance).
+            context_mgr = self.build_context_manager()
+            skill_ldr = self.build_skill_loader()
+            knowledge_mgr = self.build_knowledge_manager()
+            retrieval_eng = self.build_retrieval_engine()
+            harness = self.build_harness()
+
+            _ATTR_SUBSYSTEMS: list[tuple[str, Any]] = [
+                ("_context_manager", context_mgr),
+                ("_skill_loader", skill_ldr),
+                ("_knowledge_manager", knowledge_mgr),
+                ("_retrieval_engine", retrieval_eng),
+                ("_harness_executor", harness),
+            ]
+
+            injected: list[str] = []
+            for mw_name, mw in middlewares.items():
+                for attr, value in _ATTR_SUBSYSTEMS:
+                    if hasattr(mw, attr) and getattr(mw, attr) is None and value is not None:
+                        setattr(mw, attr, value)
+                        injected.append(f"{mw_name}.{attr}")
+
+            if injected:
+                logger.info(
+                    "_inject_middleware_dependencies: injected into [%s].",
+                    ", ".join(injected),
+                )
+        except Exception as exc:
+            logger.warning(
+                "_inject_middleware_dependencies: failed, middleware may run degraded: %s", exc
+            )
 
     def _build_llm_budget_tracker(self) -> Any:
         """Build LLMBudgetTracker with config-driven limits."""
@@ -888,6 +934,11 @@ class SystemBuilder:
                 logger.info(
                     "build_executor: MiddlewareOrchestrator wired into StageExecutor."
                 )
+                # Post-inject subsystem dependencies into middleware instances.
+                # The orchestrator is built early (before all subsystems exist) so
+                # dependencies are None at construction time.  We fill them here
+                # after all subsystems have been built, avoiding circular deps.
+                self._inject_middleware_dependencies(mw)
         except Exception as exc:
             logger.warning(
                 "build_executor: failed to wire MiddlewareOrchestrator, "
@@ -971,8 +1022,11 @@ class SystemBuilder:
         kernel = self.build_kernel()
         return TaskOrchestrator(kernel=kernel)
 
-    def build_server(self) -> AgentServer:
+    def build_server(self) -> "Any":
         """Build API server with all subsystems connected."""
+        from hi_agent.server.app import AgentServer  # noqa: PLC0415
+        from hi_agent.server.run_manager import RunManager  # noqa: PLC0415
+
         server = AgentServer(
             host=self._config.server_host,
             port=self._config.server_port,
