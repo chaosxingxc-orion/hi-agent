@@ -201,6 +201,9 @@ class ContextManager:
         self._compact_offset: int = 0  # entries before this index are compressed
         self._compact_summary: str = ""  # summary of compressed entries
 
+        # Knowledge content injected from retrieval (set via set_knowledge_context)
+        self._knowledge_content: str = ""
+
     @classmethod
     def from_config(
         cls,
@@ -394,14 +397,38 @@ class ContextManager:
             source="memory_retriever",
         )
 
+    def set_knowledge_context(self, content: str) -> None:
+        """Inject retrieved knowledge content into the context assembly.
+
+        Called by the stage executor after retrieval_engine.retrieve() so
+        that the content appears in the 'knowledge' section of every
+        subsequent prepare_context() call for this stage.
+
+        Args:
+            content: Formatted knowledge text (e.g. from
+                     RetrievalResult.to_context_string()).
+        """
+        self._knowledge_content = content or ""
+
     def _assemble_knowledge(self) -> ContextSection:
-        """Use knowledge retrieval with knowledge budget."""
+        """Use knowledge retrieval with knowledge budget.
+
+        Returns knowledge previously injected via set_knowledge_context().
+        Truncates to the allocated budget if necessary.
+        """
         budget = self._budget.knowledge_context
-        # Knowledge retrieval is typically done by the same retriever or
-        # a separate RetrievalEngine.  For simplicity, this section is
-        # populated via extra_context or by subclasses.
+        content = self._knowledge_content
+        tokens = count_tokens(content) if content else 0
+        if tokens > budget and content:
+            max_chars = budget * 4
+            content = content[:max_chars]
+            tokens = count_tokens(content)
         return ContextSection(
-            name="knowledge", content="", tokens=0, budget=budget, source="none"
+            name="knowledge",
+            content=content,
+            tokens=tokens,
+            budget=budget,
+            source="retrieval_engine" if content else "none",
         )
 
     def _assemble_history(self) -> ContextSection:

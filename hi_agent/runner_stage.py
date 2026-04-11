@@ -219,18 +219,30 @@ class StageExecutor:
                     exc,
                 )
 
-        # --- Knowledge retrieval: inject event into session ---
-        if self.retrieval_engine is not None and executor.session is not None:
+        # --- Knowledge retrieval: inject content into ContextManager ---
+        if self.retrieval_engine is not None:
             try:
                 query = f"{executor.contract.goal} {stage_id}"
                 result = self.retrieval_engine.retrieve(query, budget_tokens=800)
                 if result.items:
-                    executor.session.append_record(
-                        "knowledge_retrieved",
-                        {"stage_id": stage_id, "items": len(result.items),
-                         "tokens": result.total_tokens},
-                        stage_id=stage_id,
-                    )
+                    # Inject retrieved content so it appears in the LLM context window
+                    if self.context_manager is not None and hasattr(
+                        self.context_manager, "set_knowledge_context"
+                    ):
+                        self.context_manager.set_knowledge_context(
+                            result.to_context_string()
+                        )
+                    # Also record the retrieval event in the session (metadata only)
+                    if executor.session is not None:
+                        executor.session.append_record(
+                            "knowledge_retrieved",
+                            {
+                                "stage_id": stage_id,
+                                "items": len(result.items),
+                                "tokens": result.total_tokens,
+                            },
+                            stage_id=stage_id,
+                        )
             except Exception as exc:
                 _logger.debug(
                     "stage.knowledge_retrieval_failed run_id=%s stage_id=%s error=%s",
