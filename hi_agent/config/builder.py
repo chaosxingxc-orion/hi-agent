@@ -681,13 +681,12 @@ class SystemBuilder:
             compressor=compressor,
         )
 
-    def build_budget_guard(self) -> Any:
+    def build_budget_guard(self, total_budget_tokens: int | None = None) -> Any:
         """Build BudgetGuard with config-driven total token budget."""
         from hi_agent.task_mgmt.budget_guard import BudgetGuard
 
-        return BudgetGuard(
-            total_budget_tokens=self._config.llm_budget_max_tokens,
-        )
+        budget = total_budget_tokens or self._config.llm_budget_max_tokens
+        return BudgetGuard.from_config(self._config, total_budget_tokens=budget)
 
     def _wire_cost_optimizer(
         self,

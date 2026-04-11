@@ -23,10 +23,19 @@ class TierDecision:
 class BudgetGuard:
     """Tracks token budget and decides tier/skip per node."""
 
-    def __init__(self, total_budget_tokens: int) -> None:
+    def __init__(
+        self,
+        total_budget_tokens: int,
+        low_threshold: float = 0.10,
+        mid_threshold: float = 0.30,
+        high_threshold: float = 0.70,
+    ) -> None:
         """Initialize BudgetGuard."""
         self._total = total_budget_tokens
         self._consumed = 0
+        self._low = low_threshold
+        self._mid = mid_threshold
+        self._high = high_threshold
 
     def consume(self, tokens: int) -> None:
         """Run consume."""
@@ -50,24 +59,34 @@ class BudgetGuard:
         """Run decide_tier."""
         frac = self.remaining_fraction
 
-        if frac < 0.10:
+        if frac < self._low:
             # Critical: skip optional, force light for required
             if is_optional:
                 return TierDecision(tier=requested_tier, skipped=True)
             return TierDecision(tier="light")
 
-        if frac < 0.30:
+        if frac < self._mid:
             # Very low: skip optional, force light for required
             if is_optional:
                 return TierDecision(tier=requested_tier, skipped=True)
             return TierDecision(tier="light")
 
-        if frac < 0.70:
+        if frac < self._high:
             # Low: downgrade one level
             tier = _downgrade(requested_tier)
             return TierDecision(tier=tier)
 
         return TierDecision(tier=requested_tier)
+
+    @classmethod
+    def from_config(cls, cfg: object, total_budget_tokens: int) -> "BudgetGuard":
+        """Construct BudgetGuard from a TraceConfig instance."""
+        return cls(
+            total_budget_tokens=total_budget_tokens,
+            low_threshold=cfg.budget_guard_low_threshold,
+            mid_threshold=cfg.budget_guard_mid_threshold,
+            high_threshold=cfg.budget_guard_high_threshold,
+        )
 
 
 def _downgrade(tier: str) -> str:
