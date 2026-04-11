@@ -136,20 +136,28 @@ def _cmd_run(args: argparse.Namespace) -> None:
     """Execute a task -- locally via SystemBuilder, or via the API server."""
     if getattr(args, "local", False):
         # Local execution: build executor directly, no server needed.
+        import json as _json
+        import uuid
         from hi_agent.config.builder import SystemBuilder
+        from hi_agent.config.stack import ConfigStack
         from hi_agent.config.trace_config import TraceConfig
         from hi_agent.contracts import TaskContract
 
-        config = TraceConfig()
-        builder = SystemBuilder(config)
-        import uuid
+        config_file = getattr(args, "config", None) or os.getenv("HI_AGENT_CONFIG_FILE")
+        profile = getattr(args, "profile", None)
+        config_patch_str = getattr(args, "config_patch", None)
+        config_patch = _json.loads(config_patch_str) if config_patch_str else None
+
+        stack = ConfigStack(base_config_path=config_file, profile=profile)
+        config = stack.resolve()
+        builder = SystemBuilder(config=config, config_stack=stack)
         contract = TaskContract(
             task_id=uuid.uuid4().hex[:12],
             goal=args.goal,
             task_family=args.task_family,
             risk_level=args.risk_level,
         )
-        executor = builder.build_executor(contract)
+        executor = builder.build_executor(contract, config_patch=config_patch)
         result = executor.execute()
         if args.json:
             print(json.dumps({"result": str(result)}, indent=2))
@@ -234,7 +242,7 @@ def _cmd_resume(args: argparse.Namespace) -> None:
             sys.exit(1)
         # Search common locations
         candidates = [
-            f"checkpoint_{run_id}.json",
+            os.path.join(".checkpoint", f"checkpoint_{run_id}.json"),
             os.path.join(".hi_agent", f"checkpoint_{run_id}.json"),
         ]
         for candidate in candidates:
@@ -312,6 +320,26 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Execute locally via SystemBuilder (no server needed)",
     )
+    run_parser.add_argument(
+        "--profile",
+        required=False,
+        default=None,
+        help="Config profile to activate (e.g. 'prod', 'dev'). "
+             "Loads config.<profile>.json next to --config file.",
+    )
+    run_parser.add_argument(
+        "--config",
+        required=False,
+        default=None,
+        help="Path to base config JSON file. Defaults to HI_AGENT_CONFIG_FILE env var.",
+    )
+    run_parser.add_argument(
+        "--config-patch",
+        dest="config_patch",
+        required=False,
+        default=None,
+        help="JSON string of per-run config overrides, e.g. '{\"max_stages\": 5}'.",
+    )
 
     # status
     status_parser = subparsers.add_parser("status", help="Check run status")
@@ -334,6 +362,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.add_argument(
         "--json", action="store_true", help="Output as JSON"
+    )
+    resume_parser.add_argument(
+        "--profile",
+        required=False,
+        default=None,
+        help="Config profile to activate (e.g. 'prod', 'dev'). "
+             "Loads config.<profile>.json next to --config file.",
+    )
+    resume_parser.add_argument(
+        "--config",
+        required=False,
+        default=None,
+        help="Path to base config JSON file. Defaults to HI_AGENT_CONFIG_FILE env var.",
+    )
+    resume_parser.add_argument(
+        "--config-patch",
+        dest="config_patch",
+        required=False,
+        default=None,
+        help="JSON string of per-run config overrides, e.g. '{\"max_stages\": 5}'.",
     )
 
     return parser
