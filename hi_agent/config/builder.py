@@ -818,7 +818,16 @@ class SystemBuilder:
             )
             return None
 
-    def build_executor(self, contract: TaskContract) -> RunExecutor:
+    def _resolve_with_patch(self, patch: dict) -> "TraceConfig":
+        """Return a new TraceConfig with *patch* merged over self._config."""
+        from dataclasses import asdict, fields as dc_fields
+        from hi_agent.config.profile import deep_merge
+        base = asdict(self._config)
+        merged = deep_merge(base, patch)
+        known = {f.name for f in dc_fields(TraceConfig)}
+        return TraceConfig(**{k: v for k, v in merged.items() if k in known})
+
+    def _build_executor_impl(self, contract: TaskContract) -> RunExecutor:
         """Build a fully-wired RunExecutor for a given task contract."""
         km = self.build_knowledge_manager()
         executor = RunExecutor(
@@ -888,6 +897,17 @@ class SystemBuilder:
                 exc,
             )
         return executor
+
+    def build_executor(
+        self,
+        contract: TaskContract,
+        config_patch: dict | None = None,
+    ) -> RunExecutor:
+        """Build a RunExecutor. If config_patch provided, creates isolated per-run config."""
+        if config_patch:
+            run_cfg = self._resolve_with_patch(config_patch)
+            return SystemBuilder(config=run_cfg)._build_executor_impl(contract)
+        return self._build_executor_impl(contract)
 
     def build_executor_from_checkpoint(
         self, checkpoint_path: str
