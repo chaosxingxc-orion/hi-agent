@@ -14,9 +14,6 @@ import threading
 import uuid
 from dataclasses import asdict, dataclass, field
 
-_MAX_SUMMARY_LEN = 500
-
-
 @dataclass
 class SkillObservation:
     """A single skill execution observation."""
@@ -39,7 +36,7 @@ class SkillObservation:
     task_family: str = ""
     tags: list[str] = field(default_factory=list)
     # Summary truncation limit (configurable per-observation)
-    max_summary_len: int = _MAX_SUMMARY_LEN
+    max_summary_len: int = 500
 
     def __post_init__(self) -> None:
         """Truncate summaries to max length."""
