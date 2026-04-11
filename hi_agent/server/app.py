@@ -50,6 +50,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
+from hi_agent.config.stack import ConfigStack
+from hi_agent.config.watcher import ConfigFileWatcher
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
@@ -305,7 +307,7 @@ async def handle_resume_run(request: Request) -> JSONResponse:
     checkpoint_path = body.get("checkpoint_path")
     if not checkpoint_path:
         candidates = [
-            f"checkpoint_{run_id}.json",
+            os.path.join(".checkpoint", f"checkpoint_{run_id}.json"),
             os.path.join(".hi_agent", f"checkpoint_{run_id}.json"),
         ]
         for candidate in candidates:
@@ -1063,11 +1065,24 @@ def build_app(agent_server: AgentServer) -> Starlette:
         mm: MemoryLifecycleManager | None = agent_server.memory_manager
         if mm is not None:
             await mm.start()
+        if agent_server._config_stack._base_path:
+            agent_server._watcher = ConfigFileWatcher(
+                stack=agent_server._config_stack,
+                on_reload=agent_server._on_config_reload,
+                poll_interval_seconds=2.0,
+            )
+            asyncio.create_task(agent_server._watcher.start())
+            logger.info(
+                "ConfigFileWatcher started for %s",
+                agent_server._config_stack._base_path,
+            )
         try:
             yield
         finally:
             if mm is not None:
                 await mm.stop()
+            if agent_server._watcher is not None:
+                agent_server._watcher.stop()
 
     app = Starlette(routes=routes, lifespan=lifespan)
 
@@ -1146,14 +1161,28 @@ class AgentServer:
         self.run_context_manager: Any | None = None
         self.capacity_advisor: Any | None = None
 
+        import os
+
         # Lazy import to avoid circular dependency at module level.
         from hi_agent.config.trace_config import TraceConfig
 
         self._config = config if config is not None else TraceConfig()
 
+        # Config stack for hot-reload and per-run overrides.
+        base_config_path = os.environ.get("HI_AGENT_CONFIG_FILE")
+        self._config_stack = ConfigStack(
+            base_config_path=base_config_path,
+            profile=os.environ.get("HI_AGENT_PROFILE"),
+            env=os.environ.get("HI_AGENT_ENV", "prod"),
+        )
+        if base_config_path:
+            # Use stack-resolved config (incorporates file + profile + env).
+            self._config = self._config_stack.resolve()
+        self._watcher: ConfigFileWatcher | None = None
+
         from hi_agent.config.builder import SystemBuilder
 
-        self._builder = SystemBuilder(self._config)
+        self._builder = SystemBuilder(self._config, config_stack=self._config_stack)
         self.executor_factory: Callable[..., Callable[..., Any]] | None = (
             self._default_executor_factory
         )
@@ -1194,7 +1223,8 @@ class AgentServer:
             task_family=run_data.get("task_family", "quick_task"),
             risk_level=run_data.get("risk_level", "low"),
         )
-        executor = self._builder.build_executor(contract)
+        config_patch = run_data.get("config_patch")  # optional dict, may be None
+        executor = self._builder.build_executor(contract, config_patch=config_patch)
 
         def run() -> Any:
             return executor.execute()
@@ -1225,6 +1255,16 @@ class AgentServer:
 
     def shutdown(self) -> None:
         """No-op for backward compatibility with stdlib HTTPServer."""
+
+    async def _on_config_reload(self, new_cfg: Any) -> None:
+        """Called by ConfigFileWatcher when config files change."""
+        self._config = new_cfg
+        from hi_agent.config.builder import SystemBuilder
+        self._builder = SystemBuilder(config=new_cfg, config_stack=self._config_stack)
+        logger.info(
+            "Config reloaded. New server_port=%s",
+            getattr(new_cfg, "server_port", None),
+        )
 
 
 # ------------------------------------------------------------------

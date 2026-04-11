@@ -53,9 +53,14 @@ class SystemBuilder:
     instances of all subsystems and wires them together.
     """
 
-    def __init__(self, config: TraceConfig) -> None:
+    def __init__(
+        self,
+        config: TraceConfig | None = None,
+        config_stack: Any | None = None,
+    ) -> None:
         """Initialize SystemBuilder."""
-        self._config = config
+        self._config = config if config is not None else TraceConfig()
+        self._stack = config_stack
         # Cache built singletons so repeated calls return the same instance.
         self._kernel: RuntimeAdapter | None = None
         self._llm_gateway: LLMGateway | None = None
@@ -819,7 +824,15 @@ class SystemBuilder:
             return None
 
     def _resolve_with_patch(self, patch: dict) -> "TraceConfig":
-        """Return a new TraceConfig with *patch* merged over self._config."""
+        """Return a new TraceConfig with *patch* merged over self._config.
+
+        When a ConfigStack is available, delegates to it so that all five
+        config layers (defaults → file → profile → env → run patch) are
+        honoured.  Falls back to a simple merge over the cached config
+        otherwise.
+        """
+        if self._stack is not None:
+            return self._stack.resolve(run_patch=patch)
         from dataclasses import asdict, fields as dc_fields
         from hi_agent.config.profile import deep_merge
         base = asdict(self._config)
