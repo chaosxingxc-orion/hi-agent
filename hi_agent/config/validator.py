@@ -55,7 +55,6 @@ _FRACTION_FIELDS = {
     "budget_guard_mid_threshold",
     "budget_guard_high_threshold",
     "skill_evolver_success_threshold",
-    "perception_summarize_temperature",
     "task_view_l1_budget_fraction",
     "task_view_evidence_budget_fraction",
 }

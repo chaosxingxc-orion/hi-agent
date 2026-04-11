@@ -263,12 +263,19 @@ def _cmd_resume(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
+    import json as _json
     from hi_agent.config.builder import SystemBuilder
-    from hi_agent.config.trace_config import TraceConfig
+    from hi_agent.config.stack import ConfigStack
     from hi_agent.runner import RunExecutor
 
-    config = TraceConfig()
-    builder = SystemBuilder(config)
+    config_file = getattr(args, "config", None) or os.getenv("HI_AGENT_CONFIG_FILE")
+    profile = getattr(args, "profile", None)
+    config_patch_str = getattr(args, "config_patch", None)
+    config_patch = _json.loads(config_patch_str) if config_patch_str else None
+
+    stack = ConfigStack(base_config_path=config_file, profile=profile)
+    config = stack.resolve(run_patch=config_patch) if config_patch else stack.resolve()
+    builder = SystemBuilder(config=config, config_stack=stack)
     kernel = builder.build_kernel()
 
     result = RunExecutor.resume_from_checkpoint(
