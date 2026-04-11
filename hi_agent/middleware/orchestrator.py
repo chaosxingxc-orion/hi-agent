@@ -12,6 +12,7 @@ Default flow: perception -> control -> execution -> evaluation
 """
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -57,6 +58,7 @@ class MiddlewareOrchestrator:
         self._middleware_metrics: dict[str, dict[str, Any]] = {}
         self._middleware_configs: dict[str, dict[str, Any]] = {}
         self._tier_usage: dict[str, dict[str, Any]] = {}
+        self._lock = threading.Lock()
         self._setup_default_flow()
 
     # --- Default flow ---
@@ -91,20 +93,21 @@ class MiddlewareOrchestrator:
 
     def register_middleware(self, name: str, mw: Any) -> None:
         """Register a middleware. Does not change flow graph (assumes node exists)."""
-        self._middlewares[name] = mw
-        if name not in self._hooks:
-            self._hooks[name] = []
-        if name not in self._middleware_metrics:
-            self._middleware_metrics[name] = {
-                "calls": 0, "tokens": 0, "errors": 0,
-            }
-        # Track per-middleware tier usage for cost analysis
         tier = getattr(mw, "_model_tier", "medium")
-        self._tier_usage[name] = {
-            "tier": tier,
-            "input_tokens": 0,
-            "output_tokens": 0,
-        }
+        with self._lock:
+            self._middlewares[name] = mw
+            if name not in self._hooks:
+                self._hooks[name] = []
+            if name not in self._middleware_metrics:
+                self._middleware_metrics[name] = {
+                    "calls": 0, "tokens": 0, "errors": 0,
+                }
+            # Track per-middleware tier usage for cost analysis
+            self._tier_usage[name] = {
+                "tier": tier,
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
 
     def replace_middleware(self, name: str, mw: Any) -> None:
         """Replace an existing middleware instance."""
@@ -303,7 +306,8 @@ class MiddlewareOrchestrator:
             payload={"user_input": user_input},
             metadata=meta,
         )
-        self._message_log.append(message)
+        with self._lock:
+            self._message_log.append(message)
 
         current = "perception"
         max_iterations = 50  # safety limit
@@ -322,7 +326,8 @@ class MiddlewareOrchestrator:
             except PipelineBlockedError:
                 break
 
-            self._message_log.append(message)
+            with self._lock:
+                self._message_log.append(message)
 
             # Route to next middleware
             current = self._route_next(current, message)
@@ -361,7 +366,8 @@ class MiddlewareOrchestrator:
         if hook_result.action == HookAction.SKIP:
             # Skip this middleware, pass message through
             metrics["calls"] += 1
-            self._middleware_metrics[name] = metrics
+            with self._lock:
+                self._middleware_metrics[name] = metrics
             # Phase 5: PRE_DESTROY even on skip
             self._run_hooks(name, LifecyclePhase.PRE_DESTROY, message)
             if hasattr(mw, "on_destroy"):
@@ -415,11 +421,12 @@ class MiddlewareOrchestrator:
         if hasattr(mw, "on_destroy"):
             mw.on_destroy()
 
-        self._middleware_metrics[name] = metrics
-        # Accumulate token usage for tier cost tracking
-        if name in self._tier_usage:
-            self._tier_usage[name]["input_tokens"] += result.token_cost
-            self._tier_usage[name]["output_tokens"] += max(1, result.token_cost // 2)
+        with self._lock:
+            self._middleware_metrics[name] = metrics
+            # Accumulate token usage for tier cost tracking
+            if name in self._tier_usage:
+                self._tier_usage[name]["input_tokens"] += result.token_cost
+                self._tier_usage[name]["output_tokens"] += max(1, result.token_cost // 2)
         return result
 
     def _run_hooks(
@@ -534,13 +541,16 @@ class MiddlewareOrchestrator:
 
     def get_message_log(self) -> list[MiddlewareMessage]:
         """Return all messages exchanged during execution."""
-        return list(self._message_log)
+        with self._lock:
+            return list(self._message_log)
 
     def get_cost_summary(self) -> dict[str, Any]:
         """Return per-middleware cost summary."""
+        with self._lock:
+            metrics_snapshot = {k: dict(v) for k, v in self._middleware_metrics.items()}
         total_tokens = 0
         per_middleware: dict[str, int] = {}
-        for name, metrics in self._middleware_metrics.items():
+        for name, metrics in metrics_snapshot.items():
             tokens = metrics.get("tokens", 0)
             per_middleware[name] = tokens
             total_tokens += tokens
@@ -551,7 +561,8 @@ class MiddlewareOrchestrator:
 
     def get_metrics(self) -> dict[str, dict[str, Any]]:
         """Return all middleware metrics."""
-        return dict(self._middleware_metrics)
+        with self._lock:
+            return {k: dict(v) for k, v in self._middleware_metrics.items()}
 
     def get_cost_breakdown(self) -> dict[str, dict[str, Any]]:
         """Return per-middleware cost estimate based on tier and token usage.
@@ -562,8 +573,10 @@ class MiddlewareOrchestrator:
         - output_tokens: estimated output tokens consumed
         - estimated_cost_usd: estimated cost in USD
         """
+        with self._lock:
+            tier_snapshot = {k: dict(v) for k, v in self._tier_usage.items()}
         breakdown: dict[str, dict[str, Any]] = {}
-        for name, usage in self._tier_usage.items():
+        for name, usage in tier_snapshot.items():
             tier = usage["tier"]
             input_tok = usage["input_tokens"]
             output_tok = usage["output_tokens"]
@@ -586,10 +599,12 @@ class MiddlewareOrchestrator:
             - savings_usd: baseline - actual
             - savings_pct: percentage saved (0-100)
         """
+        with self._lock:
+            tier_snapshot = {k: dict(v) for k, v in self._tier_usage.items()}
         strong_cost_per_mtok = self._TIER_COST_PER_MTOK["strong"]
         actual_total = 0.0
         baseline_total = 0.0
-        for usage in self._tier_usage.values():
+        for usage in tier_snapshot.values():
             tier = usage["tier"]
             total_tok = usage["input_tokens"] + usage["output_tokens"]
             cost_per_mtok = self._TIER_COST_PER_MTOK.get(tier, 3.0)

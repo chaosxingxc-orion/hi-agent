@@ -9,6 +9,7 @@ Quality failure can force upgrade: light->medium->strong.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
@@ -47,6 +48,7 @@ class TierRouter:
             "moderate": ModelTier.MEDIUM,
             "complex": ModelTier.STRONG,
         }
+        self._lock = threading.Lock()
         self._setup_defaults()
 
     def _setup_defaults(self) -> None:
@@ -71,12 +73,13 @@ class TierRouter:
         allow_downgrade: bool = True,
     ) -> None:
         """Override the tier for a purpose."""
-        self._tier_map[purpose] = TierMapping(
-            purpose=purpose,
-            default_tier=tier,
-            allow_upgrade=allow_upgrade,
-            allow_downgrade=allow_downgrade,
-        )
+        with self._lock:
+            self._tier_map[purpose] = TierMapping(
+                purpose=purpose,
+                default_tier=tier,
+                allow_upgrade=allow_upgrade,
+                allow_downgrade=allow_downgrade,
+            )
 
     def _resolve_tier(
         self,
@@ -85,7 +88,8 @@ class TierRouter:
         budget_remaining_usd: float | None,
     ) -> str:
         """Determine effective tier considering purpose, complexity, and budget."""
-        mapping = self._tier_map.get(purpose)
+        with self._lock:
+            mapping = self._tier_map.get(purpose)
         base_tier = mapping.default_tier if mapping else ModelTier.MEDIUM
         allow_upgrade = mapping.allow_upgrade if mapping else True
         allow_downgrade = mapping.allow_downgrade if mapping else True
@@ -246,7 +250,8 @@ class TierRouter:
 
     def get_tier_for_purpose(self, purpose: str) -> str:
         """Get the configured tier for a purpose."""
-        mapping = self._tier_map.get(purpose)
+        with self._lock:
+            mapping = self._tier_map.get(purpose)
         return mapping.default_tier if mapping else ModelTier.MEDIUM
 
     def apply_overrides(self, overrides: dict[str, str]) -> None:
@@ -256,16 +261,17 @@ class TierRouter:
         the target tier string ("light", "medium", "strong").  Existing
         allow_upgrade/allow_downgrade flags are preserved.
         """
-        for purpose, tier in overrides.items():
-            existing = self._tier_map.get(purpose)
-            allow_upgrade = existing.allow_upgrade if existing else True
-            allow_downgrade = existing.allow_downgrade if existing else True
-            self._tier_map[purpose] = TierMapping(
-                purpose=purpose,
-                default_tier=tier,
-                allow_upgrade=allow_upgrade,
-                allow_downgrade=allow_downgrade,
-            )
+        with self._lock:
+            for purpose, tier in overrides.items():
+                existing = self._tier_map.get(purpose)
+                allow_upgrade = existing.allow_upgrade if existing else True
+                allow_downgrade = existing.allow_downgrade if existing else True
+                self._tier_map[purpose] = TierMapping(
+                    purpose=purpose,
+                    default_tier=tier,
+                    allow_upgrade=allow_upgrade,
+                    allow_downgrade=allow_downgrade,
+                )
 
     def apply_cost_overrides(self, overrides: dict[str, str]) -> None:
         """Apply cost optimization tier overrides dynamically.
@@ -285,7 +291,8 @@ class TierRouter:
 
     def list_mappings(self) -> list[TierMapping]:
         """List all purpose -> tier mappings."""
-        return list(self._tier_map.values())
+        with self._lock:
+            return list(self._tier_map.values())
 
 
 class TierAwareLLMGateway:
