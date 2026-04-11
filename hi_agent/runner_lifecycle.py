@@ -416,8 +416,16 @@ class RunLifecycle:
                     recommend_cost_optimizations,
                 )
                 summary = self.session.get_cost_summary()
+                # Get cumulative run count from metrics collector so that
+                # historical-trend thresholds in cost_optimizer can trigger.
+                run_count = 1  # default for first/isolated run
+                if (
+                    hasattr(self, "metrics_collector")
+                    and self.metrics_collector is not None
+                ):
+                    run_count = max(1, self.metrics_collector.completed_run_count)
                 hints = recommend_cost_optimizations(
-                    run_count=1,
+                    run_count=run_count,
                     avg_cost_per_run=summary.get("total_usd", 0.0),
                     per_model_breakdown=summary.get("per_model", {}),
                 )
