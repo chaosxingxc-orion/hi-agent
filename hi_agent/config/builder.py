@@ -464,7 +464,11 @@ class SystemBuilder:
         from hi_agent.skill.loader import SkillLoader
 
         dirs = [self._config.skill_storage_dir]
-        return SkillLoader(search_dirs=dirs)
+        return SkillLoader(
+            search_dirs=dirs,
+            max_skills_in_prompt=self._config.skill_loader_max_skills_in_prompt,
+            max_prompt_tokens=self._config.skill_loader_max_prompt_tokens,
+        )
 
     def build_skill_observer(self) -> Any:
         """Build SkillObserver for execution telemetry."""
@@ -495,11 +499,11 @@ class SystemBuilder:
         observer = self.build_skill_observer()
         version_mgr = self.build_skill_version_manager()
         gateway = self.build_llm_gateway()
-        return SkillEvolver(
+        return SkillEvolver.from_config(
+            cfg=self._config,
+            llm_gateway=gateway,
             observer=observer,
             version_manager=version_mgr,
-            llm_gateway=gateway,
-            champion_challenger=ChampionChallenger(),
         )
 
     def build_episodic_store(self) -> EpisodicMemoryStore:

@@ -38,13 +38,15 @@ class SkillObservation:
     # Context
     task_family: str = ""
     tags: list[str] = field(default_factory=list)
+    # Summary truncation limit (configurable per-observation)
+    max_summary_len: int = _MAX_SUMMARY_LEN
 
     def __post_init__(self) -> None:
         """Truncate summaries to max length."""
-        if len(self.input_summary) > _MAX_SUMMARY_LEN:
-            self.input_summary = self.input_summary[:_MAX_SUMMARY_LEN]
-        if len(self.output_summary) > _MAX_SUMMARY_LEN:
-            self.output_summary = self.output_summary[:_MAX_SUMMARY_LEN]
+        if len(self.input_summary) > self.max_summary_len:
+            self.input_summary = self.input_summary[:self.max_summary_len]
+        if len(self.output_summary) > self.max_summary_len:
+            self.output_summary = self.output_summary[:self.max_summary_len]
 
 
 @dataclass

@@ -96,10 +96,6 @@ _BUDGET_FAILURE_FIX = (
     "Add token-efficiency instructions: be concise, avoid repetition."
 )
 
-_SUCCESS_THRESHOLD = 0.7
-_MIN_PATTERN_OCCURRENCES = 3
-
-
 # ---------------------------------------------------------------------------
 # SkillEvolver
 # ---------------------------------------------------------------------------
@@ -110,10 +106,12 @@ class SkillEvolver:
 
     def __init__(
         self,
-        observer: SkillObserver,
-        version_manager: SkillVersionManager,
+        observer: SkillObserver | None = None,
+        version_manager: SkillVersionManager | None = None,
         llm_gateway: Any | None = None,
         champion_challenger: Any | None = None,
+        success_threshold: float = 0.70,
+        min_pattern_occurrences: int = 3,
     ) -> None:
         """Initialize SkillEvolver.
 
@@ -123,11 +121,32 @@ class SkillEvolver:
             llm_gateway: Optional LLM gateway for deeper optimization.
             champion_challenger: Optional ChampionChallenger instance to
                 register newly deployed challengers for A/B comparison.
+            success_threshold: Success rate below which optimization is triggered.
+            min_pattern_occurrences: Minimum occurrences for a pattern to be reported.
         """
         self._observer = observer
         self._version_manager = version_manager
         self._llm: LLMGateway | None = llm_gateway
         self._champion_challenger = champion_challenger
+        self._success_threshold = success_threshold
+        self._min_pattern_occurrences = min_pattern_occurrences
+
+    @classmethod
+    def from_config(
+        cls,
+        cfg: Any,
+        llm_gateway: Any | None = None,
+        observer: Any | None = None,
+        version_manager: Any | None = None,
+    ) -> "SkillEvolver":
+        """Create a SkillEvolver from a TraceConfig."""
+        return cls(
+            observer=observer,
+            version_manager=version_manager,
+            llm_gateway=llm_gateway,
+            success_threshold=cfg.skill_evolver_success_threshold,
+            min_pattern_occurrences=cfg.skill_evolver_min_pattern_occurrences,
+        )
 
     # --- Analyze ---
 
@@ -147,7 +166,7 @@ class SkillEvolver:
                 "Quality score is low — consider adding more detailed instructions."
             )
 
-        optimization_needed = metrics.success_rate < _SUCCESS_THRESHOLD
+        optimization_needed = metrics.success_rate < self._success_threshold
 
         return SkillAnalysis(
             skill_id=skill_id,
@@ -296,7 +315,7 @@ class SkillEvolver:
     # --- Discover patterns ---
 
     def discover_patterns(
-        self, min_occurrences: int = _MIN_PATTERN_OCCURRENCES
+        self, min_occurrences: int | None = None
     ) -> list[SkillPattern]:
         """Analyze observation history to find recurring patterns.
 
@@ -305,6 +324,8 @@ class SkillEvolver:
         - Repeated tag sequences
         - Successful strategies across multiple sessions
         """
+        if min_occurrences is None:
+            min_occurrences = self._min_pattern_occurrences
         all_metrics = self._observer.get_all_metrics()
         if not all_metrics:
             return []
