@@ -654,24 +654,26 @@ class SystemBuilder:
         """Create SkillUsageRecorder with the skill registry."""
         return SkillUsageRecorder(registry=self.build_skill_registry())
 
-    def build_context_manager(self) -> Any:
-        """Build ContextManager with config-driven budget allocation."""
-        from hi_agent.context.manager import ContextBudget, ContextManager
+    def build_context_manager(
+        self,
+        session: Any = None,
+        memory_retriever: Any = None,
+        skill_loader: Any = None,
+        compressor: Any = None,
+    ) -> Any:
+        """Build ContextManager with config-driven budget and threshold wiring."""
+        from hi_agent.context.manager import ContextManager
 
-        budget = ContextBudget(
-            total_window=200_000,
-            output_reserve=self._config.llm_default_max_output_tokens,
-            system_prompt=2000,
-            tool_definitions=3000,
-            skill_prompts=self._config.compress_default_budget_tokens,
-            memory_context=self._config.memory_retriever_default_budget,
-        )
-        return ContextManager(
-            budget=budget,
-            session=None,  # Will be set per-executor
-            memory_retriever=None,  # Will be set per-executor
-            skill_loader=self.build_skill_loader() if hasattr(self, 'build_skill_loader') else None,
-            compressor=self._build_compressor(),
+        if compressor is None:
+            compressor = self._build_compressor()
+        if skill_loader is None and hasattr(self, "build_skill_loader"):
+            skill_loader = self.build_skill_loader()
+        return ContextManager.from_config(
+            self._config,
+            session=session,
+            memory_retriever=memory_retriever,
+            skill_loader=skill_loader,
+            compressor=compressor,
         )
 
     def build_budget_guard(self) -> Any:

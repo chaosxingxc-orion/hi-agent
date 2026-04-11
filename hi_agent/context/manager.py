@@ -71,6 +71,19 @@ class ContextBudget:
         """Remaining tokens for conversation history."""
         return max(0, self.effective_window - self.fixed_overhead)
 
+    @classmethod
+    def from_config(cls, cfg: Any) -> "ContextBudget":
+        """Build ContextBudget from a TraceConfig instance."""
+        return cls(
+            total_window=cfg.context_total_window,
+            output_reserve=cfg.context_output_reserve,
+            system_prompt=cfg.context_system_prompt_budget,
+            tool_definitions=cfg.context_tool_definitions_budget,
+            skill_prompts=cfg.compress_default_budget_tokens,
+            memory_context=cfg.memory_retriever_default_budget,
+            knowledge_context=cfg.context_knowledge_context_budget,
+        )
+
 
 @dataclass
 class ContextSection:
@@ -168,9 +181,9 @@ class ContextManager:
         self._compressor = compressor
 
         # Thresholds
-        self._green = green_threshold
-        self._yellow = yellow_threshold
-        self._orange = orange_threshold
+        self._green_threshold = green_threshold
+        self._yellow_threshold = yellow_threshold
+        self._orange_threshold = orange_threshold
 
         # Circuit breaker
         self._max_compression_failures = max_compression_failures
@@ -187,6 +200,30 @@ class ContextManager:
         self._history_entries: list[dict[str, Any]] = []
         self._compact_offset: int = 0  # entries before this index are compressed
         self._compact_summary: str = ""  # summary of compressed entries
+
+    @classmethod
+    def from_config(
+        cls,
+        cfg: Any,
+        session: Any = None,
+        memory_retriever: Any = None,
+        skill_loader: Any = None,
+        compressor: Any = None,
+    ) -> "ContextManager":
+        """Instantiate ContextManager from a TraceConfig."""
+        return cls(
+            budget=ContextBudget.from_config(cfg),
+            session=session,
+            memory_retriever=memory_retriever,
+            skill_loader=skill_loader,
+            compressor=compressor,
+            green_threshold=cfg.context_health_green_threshold,
+            yellow_threshold=cfg.context_health_yellow_threshold,
+            orange_threshold=cfg.context_health_orange_threshold,
+            max_compression_failures=cfg.context_max_compression_failures,
+            diminishing_window=cfg.context_diminishing_window,
+            diminishing_threshold=cfg.context_diminishing_threshold,
+        )
 
     # ------------------------------------------------------------------
     # Main entry point
@@ -411,11 +448,11 @@ class ContextManager:
         if effective <= 0:
             return ContextHealth.RED
         pct = total_tokens / effective
-        if pct >= self._orange:
+        if pct >= self._orange_threshold:
             return ContextHealth.RED
-        if pct >= self._yellow:
+        if pct >= self._yellow_threshold:
             return ContextHealth.ORANGE
-        if pct >= self._green:
+        if pct >= self._green_threshold:
             return ContextHealth.YELLOW
         return ContextHealth.GREEN
 
@@ -438,7 +475,7 @@ class ContextManager:
 
         Circuit breaker: skip auto-compression after N consecutive failures.
         """
-        target = int(self._budget.effective_window * self._yellow)
+        target = int(self._budget.effective_window * self._yellow_threshold)
 
         if self._circuit_breaker_open:
             # Skip LLM compression but still try snip + trim
