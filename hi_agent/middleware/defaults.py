@@ -23,6 +23,9 @@ def create_default_orchestrator(
     summary_threshold: int = 2000,
     max_entities: int = 50,
     max_plan_nodes: int = 20,
+    llm_summarize_char_threshold: int = 500,
+    summarize_temperature: float = 0.3,
+    summarize_max_tokens: int = 200,
 ) -> MiddlewareOrchestrator:
     """Create orchestrator with all four default middlewares."""
     orchestrator = MiddlewareOrchestrator()
@@ -35,6 +38,9 @@ def create_default_orchestrator(
             max_entities=max_entities,
             llm_gateway=llm_gateway,
             model_tier="light",
+            llm_summarize_char_threshold=llm_summarize_char_threshold,
+            summarize_temperature=summarize_temperature,
+            summarize_max_tokens=summarize_max_tokens,
         ),
     )
     orchestrator.register_middleware(

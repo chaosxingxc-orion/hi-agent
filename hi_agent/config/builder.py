@@ -91,6 +91,11 @@ class SystemBuilder:
                 self._middleware_orchestrator = create_default_orchestrator(
                     llm_gateway=gateway,
                     quality_threshold=getattr(self._config, "gate_quality_threshold", 0.7),
+                    summary_threshold=getattr(self._config, "perception_summary_threshold_tokens", 2000),
+                    max_entities=getattr(self._config, "perception_max_entities", 50),
+                    llm_summarize_char_threshold=getattr(self._config, "perception_summarize_char_threshold", 500),
+                    summarize_temperature=getattr(self._config, "perception_summarize_temperature", 0.3),
+                    summarize_max_tokens=getattr(self._config, "perception_summarize_max_tokens", 200),
                 )
                 logger.info(
                     "_build_middleware_orchestrator: MiddlewareOrchestrator created."

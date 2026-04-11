@@ -44,9 +44,6 @@ _AUDIO_MARKERS = ("[audio:", "data:audio/", "<audio ")
 class PerceptionMiddleware:
     """Standard input processing middleware."""
 
-    # Minimum character length to consider LLM summarization worthwhile.
-    _LLM_SUMMARIZE_CHAR_THRESHOLD = 500
-
     def __init__(
         self,
         context_manager: Any | None = None,
@@ -54,6 +51,9 @@ class PerceptionMiddleware:
         max_entities: int = 50,
         llm_gateway: LLMGateway | None = None,
         model_tier: str = "light",
+        llm_summarize_char_threshold: int = 500,
+        summarize_temperature: float = 0.3,
+        summarize_max_tokens: int = 200,
     ) -> None:
         """Initialize PerceptionMiddleware."""
         self._context_manager = context_manager
@@ -61,6 +61,27 @@ class PerceptionMiddleware:
         self._max_entities = max_entities
         self._llm_gateway = llm_gateway
         self._model_tier = model_tier
+        self._llm_summarize_char_threshold = llm_summarize_char_threshold
+        self._summarize_temperature = summarize_temperature
+        self._summarize_max_tokens = summarize_max_tokens
+
+    @classmethod
+    def from_config(
+        cls,
+        cfg: Any,
+        context_manager: Any | None = None,
+        llm_gateway: LLMGateway | None = None,
+    ) -> "PerceptionMiddleware":
+        """Construct from a TraceConfig instance."""
+        return cls(
+            context_manager=context_manager,
+            summary_threshold=cfg.perception_summary_threshold_tokens,
+            max_entities=cfg.perception_max_entities,
+            llm_gateway=llm_gateway,
+            llm_summarize_char_threshold=cfg.perception_summarize_char_threshold,
+            summarize_temperature=cfg.perception_summarize_temperature,
+            summarize_max_tokens=cfg.perception_summarize_max_tokens,
+        )
 
     @property
     def name(self) -> str:
@@ -207,7 +228,7 @@ class PerceptionMiddleware:
             return None, "none"
 
         # Try LLM-based abstractive summarization for long text when gateway is available
-        if self._llm_gateway is not None and len(text) > self._LLM_SUMMARIZE_CHAR_THRESHOLD:
+        if self._llm_gateway is not None and len(text) > self._llm_summarize_char_threshold:
             llm_result = self._llm_summarize(text)
             if llm_result is not None:
                 return llm_result, "llm"
@@ -215,11 +236,12 @@ class PerceptionMiddleware:
 
         return self._extractive_summarize(text, threshold), "extractive"
 
-    def _llm_summarize(self, text: str, max_tokens: int = 200) -> str | None:
+    def _llm_summarize(self, text: str) -> str | None:
         """Attempt LLM-based abstractive summarization.
 
         Returns the summary string on success, or None on any failure.
         """
+        max_tokens = self._summarize_max_tokens
         prompt = (
             f"Summarize the following input concisely in under {max_tokens} tokens, "
             f"preserving key entities, intent, and constraints:\n\n{text}"
@@ -227,7 +249,7 @@ class PerceptionMiddleware:
         request = LLMRequest(
             messages=[{"role": "user", "content": prompt}],
             max_tokens=max_tokens,
-            temperature=0.3,
+            temperature=self._summarize_temperature,
             metadata={"purpose": self._model_tier},
         )
         try:
