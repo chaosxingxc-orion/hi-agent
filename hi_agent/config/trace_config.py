@@ -196,6 +196,41 @@ class TraceConfig:
     trajectory_export_enabled: bool = False   # 默认关闭，避免生产环境磁盘爆满
     trajectory_export_dir: str = ".hi_agent/trajectories"
 
+    # --- Context window budget (新增) ---
+    context_total_window: int = 200_000
+    context_output_reserve: int = 8_000
+    context_system_prompt_budget: int = 2_000
+    context_tool_definitions_budget: int = 3_000
+    context_knowledge_context_budget: int = 1_500
+    context_health_green_threshold: float = 0.70
+    context_health_yellow_threshold: float = 0.85
+    context_health_orange_threshold: float = 0.95
+    context_max_compression_failures: int = 3
+    context_diminishing_window: int = 3
+    context_diminishing_threshold: int = 100
+
+    # --- Perception middleware (新增) ---
+    perception_summary_threshold_tokens: int = 2_000
+    perception_summarize_char_threshold: int = 500
+    perception_max_entities: int = 50
+    perception_summarize_temperature: float = 0.3
+    perception_summarize_max_tokens: int = 200
+
+    # --- BudgetGuard thresholds (新增) ---
+    budget_guard_low_threshold: float = 0.10
+    budget_guard_mid_threshold: float = 0.30
+    budget_guard_high_threshold: float = 0.70
+
+    # --- Skill evolver / loader / observer (新增) ---
+    skill_evolver_success_threshold: float = 0.70
+    skill_evolver_min_pattern_occurrences: int = 3
+    skill_loader_max_skills_in_prompt: int = 50
+    skill_loader_max_prompt_tokens: int = 10_000
+    skill_observer_max_summary_len: int = 500
+
+    # --- LLM retry (新增) ---
+    llm_retry_base_seconds: float = 1.0
+
     # ------------------------------------------------------------------
     # Factory methods
     # ------------------------------------------------------------------
