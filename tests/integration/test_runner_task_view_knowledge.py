@@ -2,7 +2,7 @@
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def test_runner_calls_knowledge_query_and_records_knowledge_in_task_view() -> None:

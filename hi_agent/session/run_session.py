@@ -270,7 +270,7 @@ class RunSession:
                     self._storage_dir, f"checkpoint_{self.run_id}.json"
                 )
             else:
-                path = f"checkpoint_{self.run_id}.json"
+                path = os.path.join(".checkpoint", f"checkpoint_{self.run_id}.json")
         parent = os.path.dirname(path)
         if parent:
             os.makedirs(parent, exist_ok=True)

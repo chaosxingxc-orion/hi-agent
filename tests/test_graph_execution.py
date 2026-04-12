@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
 
 

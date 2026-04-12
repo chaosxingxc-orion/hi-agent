@@ -54,12 +54,14 @@ class ExecutionMiddleware:
         pass
 
     def on_destroy(self) -> None:
-        """Cleanup resources."""
+        """Cleanup per-run resources.
+
+        Only clears per-invocation state (idempotency cache).  Injected platform
+        dependencies (_capability_invoker, _harness_executor, _retrieval_engine,
+        _skill_loader) are intentionally preserved so they remain available across
+        multiple stage executions within the same run.
+        """
         self._idempotency_cache.clear()
-        self._capability_invoker = None
-        self._harness_executor = None
-        self._retrieval_engine = None
-        self._skill_loader = None
 
     def process(self, message: MiddlewareMessage) -> MiddlewareMessage:
         """Execute all nodes in the plan graph."""
@@ -157,17 +159,6 @@ class ExecutionMiddleware:
         """Execute a single node with minimal context."""
         node_id = node_payload.get("node_id", "node")
         description = node_payload.get("description", "")
-        input_text = node_payload.get("input_text", "")
-        perception_text = node_payload.get("perception_text", "")
-
-        # Build output from available information
-        output_parts: list[str] = []
-        if description:
-            output_parts.append(f"Completed: {description}")
-        if input_text:
-            output_parts.append(f"Input processed: {input_text[:200]}")
-        elif perception_text:
-            output_parts.append(f"Input processed: {perception_text[:200]}")
 
         evidence: list[str] = []
         if description:
@@ -197,22 +188,40 @@ class ExecutionMiddleware:
                     error=str(exc),
                 )
 
+        if self._strict:
+            error_msg = (
+                "ExecutionMiddleware misconfigured: capability_invoker is required "
+                "for real execution (strict mode)"
+            )
+            logger.error("%s; node_id=%s", error_msg, node_id)
+            return ExecutionResult(
+                node_id=node_id,
+                output=None,
+                evidence=evidence,
+                tokens_used=0,
+                success=False,
+                error=error_msg,
+            )
+        # Non-strict: no invoker configured — return a degraded-but-passing result
+        # so the pipeline can continue. The _degraded flag lets downstream layers
+        # distinguish this from a real result.
         logger.warning(
-            "ExecutionMiddleware: no capability_invoker configured; "
-            "generating synthetic output for node '%s'",
+            "ExecutionMiddleware: no capability_invoker configured, "
+            "returning degraded result for node_id=%s",
             node_id,
         )
-        synthetic_output = {
-            "_synthetic": True,
-            "warning": "no capability_invoker configured",
-            "text": " ".join(output_parts) if output_parts else "executed",
-        }
         return ExecutionResult(
             node_id=node_id,
-            output=synthetic_output,
+            output={
+                "_degraded": True,
+                "description": description,
+                "output": f"[degraded] {description}",
+                "score": 0.5,
+            },
             evidence=evidence,
-            tokens_used=max(10, len(str(node_payload)) // 4),
+            tokens_used=0,
             success=True,
+            error=None,
         )
 
     def _make_idempotency_key(

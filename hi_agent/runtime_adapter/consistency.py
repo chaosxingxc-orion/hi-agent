@@ -1,4 +1,4 @@
-﻿"""Consistency compensation journals for local-success/backend-failure writes."""
+"""Consistency compensation journals for local-success/backend-failure writes."""
 
 from __future__ import annotations
 

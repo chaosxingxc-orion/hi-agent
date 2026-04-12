@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from hi_agent.llm.mock_gateway import MockLLMGateway
+from tests.helpers.llm_gateway_fixture import MockLLMGateway
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.route_engine.llm_engine import LLMRouteEngine

@@ -1,4 +1,4 @@
-﻿"""Spike 3: verify dead-end detection behavior."""
+"""Spike 3: verify dead-end detection behavior."""
 
 from hi_agent.contracts import NodeState, NodeType, TrajectoryNode
 from hi_agent.trajectory.dead_end import detect_dead_end

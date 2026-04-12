@@ -163,7 +163,6 @@ class TraceConfig:
 
     # --- Async scheduler (NEW) ---
     max_concurrency: int = 64        # AsyncTaskScheduler Semaphore limit
-    kernel_backend: str = "local"     # "local" | "postgres"
 
     # --- Prompt caching (Track C) ---
     prompt_cache_enabled: bool = True

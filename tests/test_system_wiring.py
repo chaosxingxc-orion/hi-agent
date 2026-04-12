@@ -158,7 +158,7 @@ class TestLLMGatewayActivation:
         )
         builder = SystemBuilder(config)
         # Ensure no API keys leak from the real env
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {"HI_AGENT_ENV": "dev"}, clear=True):
             # Reset cached gateway
             builder._llm_gateway = None
             gateway = builder.build_llm_gateway()

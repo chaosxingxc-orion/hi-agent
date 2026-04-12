@@ -1,4 +1,4 @@
-﻿"""Spike 2: verify deterministic identity generation."""
+"""Spike 2: verify deterministic identity generation."""
 
 from hi_agent.contracts import deterministic_id
 

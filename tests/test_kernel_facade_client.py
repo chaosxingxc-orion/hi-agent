@@ -551,17 +551,14 @@ class TestModeValidation:
 class TestBuilderIntegration:
     """Verify SystemBuilder creates the right adapter based on config."""
 
-    def test_local_adapter_when_url_is_mock(self) -> None:
+    def test_mock_url_is_rejected(self) -> None:
         from hi_agent.config.builder import SystemBuilder
         from hi_agent.config.trace_config import TraceConfig
-        from hi_agent.runtime_adapter.kernel_facade_adapter import KernelFacadeAdapter
 
-        # "mock" is treated as a legacy alias for "local" — both use the
-        # in-process LocalFSM adapter, not MockKernel.
         config = TraceConfig(kernel_base_url="mock")
         builder = SystemBuilder(config)
-        kernel = builder.build_kernel()
-        assert isinstance(kernel, KernelFacadeAdapter)
+        with pytest.raises(ValueError, match="no longer supported"):
+            builder.build_kernel()
 
     def test_facade_client_when_url_is_set(self) -> None:
         from hi_agent.config.builder import SystemBuilder
@@ -575,60 +572,3 @@ class TestBuilderIntegration:
         assert kernel._base_url == "http://kernel:9090"
 
 
-# ---------------------------------------------------------------------------
-# spawn_child_run / query_child_runs tests
-# ---------------------------------------------------------------------------
-
-
-class TestChildRunMethods:
-    """Verify spawn_child_run and query_child_runs on KernelFacadeAdapter."""
-
-    @pytest.fixture()
-    def facade(self) -> FakeFacade:
-        return FakeFacade()
-
-    @pytest.fixture()
-    def adapter(self, facade: FakeFacade):
-        from hi_agent.runtime_adapter.kernel_facade_adapter import KernelFacadeAdapter
-
-        return KernelFacadeAdapter(facade)
-
-    def test_spawn_child_run_returns_child_run_id(
-        self, adapter, facade: FakeFacade
-    ) -> None:
-        """spawn_child_run must return a non-empty child run_id string."""
-        child_id = adapter.spawn_child_run("run-parent", "task-child")
-        assert isinstance(child_id, str)
-        assert child_id.strip() != ""
-        assert child_id == "child-run-of-run-parent"
-
-    def test_query_child_runs_returns_list(
-        self, adapter, facade: FakeFacade
-    ) -> None:
-        """query_child_runs must return a list of dicts."""
-        results = adapter.query_child_runs("run-parent")
-        assert isinstance(results, list)
-        assert len(results) == 1
-        first = results[0]
-        assert isinstance(first, dict)
-        assert first["child_run_id"] == "child-run-of-run-parent"
-        assert first["child_kind"] == "delegate"
-        assert first["task_id"] == "t-child"
-        assert first["lifecycle_state"] == "running"
-        assert first["outcome"] is None
-        assert "created_at" in first
-        assert "completed_at" in first
-
-    def test_spawn_child_run_passes_correct_args(
-        self, adapter, facade: FakeFacade
-    ) -> None:
-        """spawn_child_run must pass parent_run_id, task_id, and config to facade."""
-        cfg = {"timeout": 60, "priority": "high"}
-        adapter.spawn_child_run("run-parent-42", "task-xyz", config=cfg)
-        # The mock facade records calls as (name, args)
-        call = next(c for c in facade.calls if c[0] == "spawn_child_run")
-        _name, call_args = call
-        # args are (parent_run_id, task_id, config)
-        assert call_args[0] == "run-parent-42"
-        assert call_args[1] == "task-xyz"
-        assert call_args[2] == cfg

@@ -1,12 +1,9 @@
-﻿"""Spike 1: verify Run S1->S5 completes with greedy optimizer."""
+"""Spike 1: verify Run S1->S5 completes with greedy optimizer."""
 
 import pytest
 from hi_agent.contracts import StageState, TaskContract
 from hi_agent.runner import STAGES, RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import (
-    IllegalStateTransition,
-    MockKernel,
-)
+from tests.helpers.kernel_adapter_fixture import IllegalStateTransition, MockKernel
 
 
 def test_run_s1_to_s5_completes() -> None:

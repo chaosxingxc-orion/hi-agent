@@ -10,6 +10,23 @@ This repository is in **active implementation — production engineering phase**
 
 - **P1**: The agent must continuously evolve
 - **P2**: The cost of driving the agent must continuously decrease
+- **P3**: No Mock implementations allowed — production integrity constraint
+
+## Production Integrity Constraint (P3)
+
+本项目已进入生产态。**严禁使用任何 Mock 实现来规避问题以达到测试通过的标准。**
+
+具体要求：
+
+| 规则 | 说明 |
+|------|------|
+| **禁止 Mock 绕过** | 不得通过 Mock/Stub/Fake 实现来掩盖真实组件缺失、接口未对齐、依赖未连通等问题 |
+| **测试必须反映真实** | 测试通过必须代表真实执行路径可用，而非 Mock 路径可用 |
+| **缺失即暴露** | 如果某个组件尚未实现（如真实工具后端、MCP transport），测试应明确标记为 `@pytest.mark.skip(reason="awaiting real implementation")` 或 `xfail`，而非用 Mock 伪装通过 |
+| **Mock 的合法用途** | 仅限于：(1) 隔离外部网络服务（如 HTTP API 调用）的单元测试 (2) 测试错误处理路径时注入故障 (3) 性能基准测试中的受控替身。这些场景必须在测试 docstring 中标注 Mock 理由 |
+| **集成测试零 Mock** | 集成测试和端到端测试必须使用真实组件，不得 Mock 任何内部模块 |
+
+> **原则**：Mock 通过的测试 ≠ 系统可用。只有真实路径跑通，才算通过。
 
 ## Current Implementation
 
@@ -85,7 +102,7 @@ python -m hi_agent run --goal "Analyze quarterly revenue data" --local
 python -m hi_agent serve --port 8080
 
 # Resume a run from checkpoint
-python -m hi_agent resume --checkpoint checkpoint_run-001.json
+python -m hi_agent resume --checkpoint .checkpoint/checkpoint_run-001.json
 
 # Trigger memory Dream consolidation
 curl -X POST http://localhost:8080/memory/dream
@@ -170,6 +187,57 @@ Execution Modes
 `missing_evidence`, `invalid_context`, `harness_denied`, `model_output_invalid`, `model_refusal`, `callback_timeout`, `no_progress`, `contradictory_evidence`, `unsafe_action_blocked`, `exploration_budget_exhausted`, `execution_budget_exhausted`
 
 Defined in agent-kernel as `TraceFailureCode` (StrEnum), re-exported by `hi_agent.failures.taxonomy` as `FailureCode`.
+
+## Release Quality Protocol
+
+每个版本完成后，工程工艺验证（单元测试、语法检查、接口对齐）只是必要条件，不是充分条件。还必须完成**客户视角端到端验证**，才能认定版本可用。
+
+### 验证顺序
+
+1. **工程工艺门** — 单元测试全绿、语法检查无误、接口协议对齐
+2. **客户视角门** — 站在真实使用者的立场，设计端到端使用场景并跑通
+
+### 客户视角门的标准做法
+
+设计场景时必须问：**"一个刚拿到这个系统的人，第一件事会怎么做？"**
+
+最小验证路径（每次发版必跑）：
+
+```bash
+# 1. 启动服务
+python -m hi_agent serve --port 8080
+
+# 2. 提交一个真实任务
+curl -s -X POST http://localhost:8080/runs \
+  -H "Content-Type: application/json" \
+  -d '{"goal": "Summarize the TRACE framework in one paragraph"}' \
+  | jq .run_id
+
+# 3. 轮询直到 state=done（或 failed）
+curl -s http://localhost:8080/runs/{run_id} | jq '{state, result}'
+
+# 4. 验证结果可读、无崩溃、无脏状态残留
+
+# 5. 第二次提交同一任务（验证无 duplicate run_id、无状态污染）
+```
+
+扩展场景（按功能模块按需选跑）：
+
+- **失败恢复**：提交一个必然失败的任务，确认 retry/abort 路径正常，服务不崩
+- **并发**：同时提交 3 个任务，确认彼此隔离、互不干扰
+- **Memory/Knowledge**：提交任务后查询 `/memory/dream`、`/knowledge/query`，确认数据落盘
+- **Skill 演化**：调用 `/skills/evolve`，确认无异常
+
+### 判定标准
+
+| 现象 | 判定 |
+|------|------|
+| POST /runs → 200，GET /runs/{id} → state=done | ✅ 通过 |
+| 任意一步返回 5xx 或进程崩溃 | ❌ 不通过，不得发版 |
+| 第二次同任务触发 duplicate run_id | ❌ 不通过 |
+| 日志出现未捕获异常 | ❌ 不通过 |
+
+> **原则**：boot 测试通过 ≠ 可用。只有真实执行路径跑通，才算通过。
 
 ## Engineering Gates (all passed)
 

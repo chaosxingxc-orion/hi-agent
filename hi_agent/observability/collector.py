@@ -388,6 +388,26 @@ class MetricsCollector:
         with self._lock:
             return list(self._alert_history)
 
+    @property
+    def completed_run_count(self) -> int:
+        """Return the cumulative number of completed runs recorded so far.
+
+        Reads the ``runs_total`` counter filtered to ``status=completed``
+        label entries and returns their sum as an integer.  Falls back to
+        summing all ``runs_total`` label buckets when no completed-specific
+        entry is present.
+        """
+        with self._lock:
+            bucket = self._counters.get("runs_total", {})
+            if not bucket:
+                return 0
+            # Prefer the explicit completed-status bucket.
+            for lk, val in bucket.items():
+                if 'status="completed"' in lk or "status=completed" in lk:
+                    return int(val)
+            # Fall back to total across all statuses.
+            return int(sum(bucket.values()))
+
     # ------------------------------------------------------------------
     # Alert internals
     # ------------------------------------------------------------------

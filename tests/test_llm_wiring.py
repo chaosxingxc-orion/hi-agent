@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from hi_agent.llm.mock_gateway import MockLLMGateway
+from tests.helpers.llm_gateway_fixture import MockLLMGateway
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
@@ -80,7 +80,7 @@ def _make_records(n: int, stage_id: str = "S1") -> list[RawEventRecord]:
 
 
 # =========================================================================== #
-# 1. LLM Route Engine — gateway mode
+# 1. LLM Route Engine �?gateway mode
 # =========================================================================== #
 
 
@@ -141,7 +141,7 @@ class TestLLMRouteEngineGateway:
 
 
 # =========================================================================== #
-# 2. LLM Route Engine — fallback when no gateway
+# 2. LLM Route Engine �?fallback when no gateway
 # =========================================================================== #
 
 
@@ -168,7 +168,7 @@ class TestLLMRouteEngineFallback:
 
 
 # =========================================================================== #
-# 3. HybridRouteEngine — gateway passthrough
+# 3. HybridRouteEngine �?gateway passthrough
 # =========================================================================== #
 
 
@@ -220,7 +220,7 @@ class TestHybridRouteEngineGateway:
 
 
 # =========================================================================== #
-# 4. MemoryCompressor — gateway mode
+# 4. MemoryCompressor �?gateway mode
 # =========================================================================== #
 
 
@@ -302,7 +302,7 @@ class TestMemoryCompressorGateway:
 
 
 # =========================================================================== #
-# 5. MemoryCompressor — fallback without gateway
+# 5. MemoryCompressor �?fallback without gateway
 # =========================================================================== #
 
 

@@ -10,4 +10,8 @@ build/
 venv/
 .env
 .hi_agent/
-checkpoint_*.json
+.checkpoint/
+.claude/settings.local.json
+docs/reports/
+docs/superpowers/plans/
+docs/superpowers/specs/

@@ -17,7 +17,7 @@ from hi_agent.orchestrator.task_orchestrator import (
     SubTaskResult,
     TaskOrchestrator,
 )
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.task_decomposition.dag import TaskDAG, TaskNode, TaskNodeState
 from hi_agent.task_decomposition.decomposer import TaskDecomposer
 from hi_agent.task_decomposition.feedback import DecompositionFeedback
@@ -43,7 +43,7 @@ def _simple_contract(task_id: str = "task-1", **kwargs: Any) -> TaskContract:
 
 
 # ---------------------------------------------------------------------------
-# TaskOrchestrator — simple (no decomposition)
+# TaskOrchestrator �?simple (no decomposition)
 # ---------------------------------------------------------------------------
 
 
@@ -85,7 +85,7 @@ class TestSimpleExecution:
 
 
 # ---------------------------------------------------------------------------
-# TaskOrchestrator — decomposed execution
+# TaskOrchestrator �?decomposed execution
 # ---------------------------------------------------------------------------
 
 
@@ -188,7 +188,7 @@ class TestDecomposedExecution:
 
 
 # ---------------------------------------------------------------------------
-# TaskOrchestrator — rollback on failure
+# TaskOrchestrator �?rollback on failure
 # ---------------------------------------------------------------------------
 
 

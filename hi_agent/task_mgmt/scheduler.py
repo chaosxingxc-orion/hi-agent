@@ -121,6 +121,14 @@ class TaskScheduler:
         5. handle_completions() -> notify dependents, unblock waiting tasks
         6. check_terminal() -> all done?
         """
+        if self._tasks and self._default_execute_fn is None:
+            has_per_task_fn = any(t._execute_fn is not None for t in self._tasks.values())
+            if not has_per_task_fn:
+                raise RuntimeError(
+                    "TaskScheduler requires execute_fn before schedule(); "
+                    "no executable task handlers configured."
+                )
+
         start_ms = _now_ms()
         for _ in range(max_steps):
             self._step_count += 1
@@ -280,11 +288,8 @@ class TaskScheduler:
         self._monitor.heartbeat(task.task_id)
 
         fn = task._execute_fn or self._default_execute_fn
-        if fn is not None:
-            return self._executor.submit(fn, task)
-        else:
-            # Default: no-op execution
-            return self._executor.submit(lambda t: None, task)
+        assert fn is not None, "execute_fn must be configured before task dispatch"
+        return self._executor.submit(fn, task)
 
     def _on_task_done(
         self, task_id: str, result: Any, error: str | None,

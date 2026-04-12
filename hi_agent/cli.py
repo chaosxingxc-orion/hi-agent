@@ -136,6 +136,10 @@ def _cmd_run(args: argparse.Namespace) -> None:
     """Execute a task -- locally via SystemBuilder, or via the API server."""
     if getattr(args, "local", False):
         # Local execution: build executor directly, no server needed.
+        # --local implies dev mode so heuristic fallback and in-process kernel
+        # are allowed even when no API key or real kernel endpoint is set.
+        os.environ.setdefault("HI_AGENT_ENV", "dev")
+
         import json as _json
         import uuid
         from hi_agent.config.builder import SystemBuilder
@@ -148,17 +152,28 @@ def _cmd_run(args: argparse.Namespace) -> None:
         config_patch_str = getattr(args, "config_patch", None)
         config_patch = _json.loads(config_patch_str) if config_patch_str else None
 
-        stack = ConfigStack(base_config_path=config_file, profile=profile)
-        config = stack.resolve()
-        builder = SystemBuilder(config=config, config_stack=stack)
-        contract = TaskContract(
-            task_id=uuid.uuid4().hex[:12],
-            goal=args.goal,
-            task_family=args.task_family,
-            risk_level=args.risk_level,
-        )
-        executor = builder.build_executor(contract, config_patch=config_patch)
-        result = executor.execute()
+        try:
+            stack = ConfigStack(base_config_path=config_file, profile=profile)
+            config = stack.resolve()
+            builder = SystemBuilder(config=config, config_stack=stack)
+            contract = TaskContract(
+                task_id=uuid.uuid4().hex[:12],
+                goal=args.goal,
+                task_family=args.task_family,
+                risk_level=args.risk_level,
+            )
+            executor = builder.build_executor(contract, config_patch=config_patch)
+            result = executor.execute()
+        except Exception as exc:
+            print(
+                f"Error: local run failed — {exc}\n"
+                "Tip: check HI_AGENT_ENV, API keys, or run with --json for details.",
+                file=sys.stderr,
+            )
+            if args.json:
+                print(json.dumps({"error": str(exc)}, indent=2))
+            sys.exit(1)
+
         if args.json:
             print(json.dumps({"result": str(result)}, indent=2))
         else:
@@ -221,6 +236,55 @@ def _cmd_health(args: argparse.Namespace) -> None:
         else:
             print(f"Health: {data}")
     if status != 200:
+        sys.exit(1)
+
+
+def _cmd_readiness(args: argparse.Namespace) -> None:
+    """Show platform readiness — models, skills, capabilities, MCP, plugins."""
+    if getattr(args, "local", False):
+        # Local readiness check without a running server.
+        os.environ.setdefault("HI_AGENT_ENV", "dev")
+        try:
+            from hi_agent.config.builder import SystemBuilder  # noqa: PLC0415
+            from hi_agent.config.stack import ConfigStack  # noqa: PLC0415
+
+            config_file = getattr(args, "config", None) or os.getenv("HI_AGENT_CONFIG_FILE")
+            profile = getattr(args, "profile", None)
+            stack = ConfigStack(base_config_path=config_file, profile=profile)
+            config = stack.resolve()
+            builder = SystemBuilder(config=config, config_stack=stack)
+            snapshot = builder.readiness()
+        except Exception as exc:
+            snapshot = {"ready": False, "health": "error", "error": str(exc)}
+
+        if getattr(args, "json", False):
+            print(json.dumps(snapshot, indent=2))
+        else:
+            ready_str = "READY" if snapshot.get("ready") else "NOT READY"
+            health = snapshot.get("health", "unknown")
+            print(f"Platform: {ready_str} (health={health})")
+            for key in ("models", "skills", "capabilities", "mcp_servers", "plugins"):
+                items = snapshot.get(key, [])
+                print(f"  {key}: {len(items)} configured")
+            subsystems = snapshot.get("subsystems", {})
+            for name, info in subsystems.items():
+                status = info.get("status", "unknown")
+                print(f"  subsystem/{name}: {status}")
+        if not snapshot.get("ready"):
+            sys.exit(1)
+        return
+
+    # Remote: query /ready endpoint
+    base = f"http://{args.api_host}:{args.api_port}"
+    status, data = _api_request("GET", f"{base}/ready")
+    if getattr(args, "json", False):
+        print(json.dumps(data, indent=2))
+    else:
+        ready = data.get("ready", False) if isinstance(data, dict) else False
+        print(f"Platform: {'READY' if ready else 'NOT READY'}")
+    if status not in (200, 503):
+        sys.exit(1)
+    if status == 503:
         sys.exit(1)
 
 
@@ -291,6 +355,36 @@ def _cmd_resume(args: argparse.Namespace) -> None:
         print(f"Resume completed: {result}")
 
 
+def _cmd_tools(args: argparse.Namespace) -> None:
+    """List and call registered tools via the API server."""
+    base = f"http://{args.api_host}:{args.api_port}"
+    if args.tools_action == "list":
+        status, data = _api_request("GET", f"{base}/tools")
+        if getattr(args, "json", False):
+            print(json.dumps(data, indent=2))
+        else:
+            tools = data.get("tools", [])
+            for t in tools:
+                print(f"  {t['name']}: {t.get('description', '')}")
+        if status >= 400:
+            sys.exit(1)
+    elif args.tools_action == "call":
+        import json as _json
+        arguments = _json.loads(args.args)
+        status, data = _api_request(
+            "POST", f"{base}/tools/call", {"name": args.name, "arguments": arguments}
+        )
+        if getattr(args, "json", False):
+            print(json.dumps(data, indent=2))
+        else:
+            print(data)
+        if status >= 400:
+            sys.exit(1)
+    else:
+        print("Usage: hi_agent tools [list|call]")
+        sys.exit(1)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser.
 
@@ -357,6 +451,43 @@ def build_parser() -> argparse.ArgumentParser:
     health_parser = subparsers.add_parser("health", help="Check system health")
     health_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # readiness
+    readiness_parser = subparsers.add_parser(
+        "readiness", help="Show platform readiness: models, skills, capabilities, MCP, plugins"
+    )
+    readiness_parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Check readiness locally (no server needed)",
+    )
+    readiness_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    readiness_parser.add_argument(
+        "--config",
+        required=False,
+        default=None,
+        help="Path to config JSON file.",
+    )
+    readiness_parser.add_argument(
+        "--profile",
+        required=False,
+        default=None,
+        help="Config profile to activate.",
+    )
+
+    # tools
+    tools_parser = subparsers.add_parser("tools", help="List and call registered tools")
+    tools_sub = tools_parser.add_subparsers(dest="tools_action")
+
+    tools_list_parser = tools_sub.add_parser("list", help="List registered tools")
+    tools_list_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+    tools_call_parser = tools_sub.add_parser("call", help="Call a tool")
+    tools_call_parser.add_argument("--name", required=True, help="Tool name")
+    tools_call_parser.add_argument(
+        "--args", default="{}", help="JSON arguments"
+    )
+    tools_call_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
     # resume
     resume_parser = subparsers.add_parser(
         "resume", help="Resume a run from checkpoint"
@@ -405,6 +536,8 @@ def main() -> None:
         "status": _cmd_status,
         "health": _cmd_health,
         "resume": _cmd_resume,
+        "readiness": _cmd_readiness,
+        "tools": _cmd_tools,
     }
 
     handler = handlers.get(args.command)

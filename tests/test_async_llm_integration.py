@@ -209,7 +209,7 @@ def test_runner_track_llm_cost():
     from hi_agent.contracts import TaskContract
     from hi_agent.runner import RunExecutor
 
-    from hi_agent.runtime_adapter.mock_kernel import MockKernel
+    from tests.helpers.kernel_adapter_fixture import MockKernel
 
     contract = TaskContract(task_id="t-001", goal="test goal")
     kernel = MockKernel()
@@ -255,7 +255,7 @@ def test_hybrid_engine_with_gateway():
     """HybridRouteEngine should fall through to LLM when rules are weak."""
     import json
 
-    from hi_agent.llm.mock_gateway import MockLLMGateway
+    from tests.helpers.llm_gateway_fixture import MockLLMGateway
     from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
 
     # MockLLMGateway returns plain text by default; LLMRouteEngine expects JSON.
@@ -274,6 +274,6 @@ def test_hybrid_engine_with_gateway():
         seq=0,
     )
 
-    # Rule engine should return "unknown" → confidence 0 → LLM fallback
+    # Rule engine should return "unknown" �?confidence 0 �?LLM fallback
     assert len(proposals) >= 1
     assert "llm" in proposals[0].rationale.lower()

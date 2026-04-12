@@ -1,1 +1,1 @@
-﻿"""Tests for hi-agent."""
+"""Tests for hi-agent."""

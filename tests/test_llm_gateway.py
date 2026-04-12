@@ -15,10 +15,10 @@ from hi_agent.llm import (
     LLMProviderError,
     LLMRequest,
     LLMTimeoutError,
-    MockLLMGateway,
     ModelRouter,
     TokenUsage,
 )
+from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
 
 # ---------------------------------------------------------------------------

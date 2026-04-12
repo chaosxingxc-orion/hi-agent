@@ -219,18 +219,30 @@ class StageExecutor:
                     exc,
                 )
 
-        # --- Knowledge retrieval: inject event into session ---
-        if self.retrieval_engine is not None and executor.session is not None:
+        # --- Knowledge retrieval: inject content into ContextManager ---
+        if self.retrieval_engine is not None:
             try:
                 query = f"{executor.contract.goal} {stage_id}"
                 result = self.retrieval_engine.retrieve(query, budget_tokens=800)
                 if result.items:
-                    executor.session.append_record(
-                        "knowledge_retrieved",
-                        {"stage_id": stage_id, "items": len(result.items),
-                         "tokens": result.total_tokens},
-                        stage_id=stage_id,
-                    )
+                    # Inject retrieved content so it appears in the LLM context window
+                    if self.context_manager is not None and hasattr(
+                        self.context_manager, "set_knowledge_context"
+                    ):
+                        self.context_manager.set_knowledge_context(
+                            result.to_context_string()
+                        )
+                    # Also record the retrieval event in the session (metadata only)
+                    if executor.session is not None:
+                        executor.session.append_record(
+                            "knowledge_retrieved",
+                            {
+                                "stage_id": stage_id,
+                                "items": len(result.items),
+                                "tokens": result.total_tokens,
+                            },
+                            stage_id=stage_id,
+                        )
             except Exception as exc:
                 _logger.debug(
                     "stage.knowledge_retrieval_failed run_id=%s stage_id=%s error=%s",
@@ -242,10 +254,19 @@ class StageExecutor:
         # --- Fix-A: MiddlewareOrchestrator pre_execute lifecycle hook ---
         if self._middleware_orchestrator is not None:
             try:
-                self._middleware_orchestrator.run(
+                mw_pre_result = self._middleware_orchestrator.run(
                     stage_id,
                     {"stage_id": stage_id, "run_id": executor.run_id, "phase": "pre_execute"},
                 )
+                # Inject perception summary into context if available.
+                # The final message payload may carry 'summary' or 'context'
+                # from the perception middleware when it is the last stage reached.
+                if mw_pre_result is not None:
+                    payload = mw_pre_result.payload or {}
+                    perception_summary = payload.get("summary") or payload.get("context")
+                    if perception_summary and hasattr(executor, "context_manager") and executor.context_manager is not None:
+                        if hasattr(executor.context_manager, "set_knowledge_context"):
+                            executor.context_manager.set_knowledge_context(perception_summary)
             except Exception as exc:
                 _logger.debug(
                     "stage.middleware_pre_execute_failed run_id=%s stage_id=%s error=%s",
@@ -589,10 +610,39 @@ class StageExecutor:
         # --- Fix-A: MiddlewareOrchestrator post_execute lifecycle hook ---
         if self._middleware_orchestrator is not None:
             try:
-                self._middleware_orchestrator.run(
+                mw_post_result = self._middleware_orchestrator.run(
                     stage_id,
                     {"stage_id": stage_id, "run_id": executor.run_id, "phase": "post_execute"},
                 )
+                # Check if evaluation middleware flagged quality issues.
+                # The final returned message from the pipeline carries the
+                # evaluation payload with 'overall_score' and 'evaluations'.
+                if mw_post_result is not None:
+                    payload = mw_post_result.payload or {}
+                    overall_score = payload.get("overall_score")
+                    evaluations = payload.get("evaluations", [])
+                    overall_verdict = payload.get("overall_verdict", "pass")
+                    if (
+                        overall_score is not None
+                        and overall_score < 0.5
+                        and evaluations
+                        and executor.session is not None
+                    ):
+                        issues = [
+                            e.get("feedback", "")
+                            for e in evaluations
+                            if e.get("verdict") not in ("pass",)
+                        ]
+                        executor.session.append_record(
+                            "middleware_evaluation",
+                            {
+                                "stage_id": stage_id,
+                                "overall_score": overall_score,
+                                "overall_verdict": overall_verdict,
+                                "issues": issues,
+                            },
+                            stage_id=stage_id,
+                        )
             except Exception as exc:
                 _logger.debug(
                     "stage.middleware_post_execute_failed run_id=%s stage_id=%s error=%s",

@@ -1,4 +1,4 @@
-"""Tests for session resume — restoring RunExecutor from checkpoint and
+"""Tests for session resume �?restoring RunExecutor from checkpoint and
 continuing execution.
 
 Validates that:
@@ -26,7 +26,7 @@ from unittest.mock import MagicMock, patch
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.session.run_session import CompactBoundary, LLMCallRecord, RunSession
 
 
@@ -360,11 +360,11 @@ class TestLLMCostContinuation:
 
 
 # ---------------------------------------------------------------------------
-# Test: resume from S3 failure — completes S3-S5
+# Test: resume from S3 failure �?completes S3-S5
 # ---------------------------------------------------------------------------
 
 class TestResumeFromS3:
-    """Resume a run that failed at S3 — should complete S3-S5."""
+    """Resume a run that failed at S3 �?should complete S3-S5."""
 
     def test_resume_from_s3(self) -> None:
         """S1 and S2 completed, S3 not completed -> resume runs S3,S4,S5."""
@@ -389,7 +389,7 @@ class TestResumeFromS3:
 
 
 # ---------------------------------------------------------------------------
-# Test: resume of a fully completed run — returns immediately
+# Test: resume of a fully completed run �?returns immediately
 # ---------------------------------------------------------------------------
 
 class TestResumeFullyCompleted:
@@ -530,7 +530,7 @@ class TestCLIResume:
 
 
 # ---------------------------------------------------------------------------
-# Test: backward compat — existing execute() flow unchanged
+# Test: backward compat �?existing execute() flow unchanged
 # ---------------------------------------------------------------------------
 
 class TestBackwardCompat:
@@ -582,7 +582,7 @@ class TestBackwardCompat:
         executor = RunExecutor(contract, kernel)
         result = executor.execute()
         # With default capabilities, forced failures lead to dead-ends
-        # which can result in "failed" — the exact result depends on
+        # which can result in "failed" �?the exact result depends on
         # capability registration, so just ensure it returns a valid status.
         assert result in ("completed", "failed")
 
@@ -628,7 +628,7 @@ class TestBuilderCheckpoint:
                 assert callable(resume_fn)
 
                 result = resume_fn()
-                # Result depends on full subsystem wiring — either outcome is valid
+                # Result depends on full subsystem wiring �?either outcome is valid
                 # as long as the resume function actually ran
                 assert result in ("completed", "failed")
         finally:

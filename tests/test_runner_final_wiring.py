@@ -22,7 +22,7 @@ from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import ManagedSkill, SkillRegistry
 

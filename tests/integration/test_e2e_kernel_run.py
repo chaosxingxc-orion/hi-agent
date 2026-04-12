@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from hi_agent.contracts import BranchState, StageState, TaskContract
 from hi_agent.runner import STAGES, RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _run_quick_task(

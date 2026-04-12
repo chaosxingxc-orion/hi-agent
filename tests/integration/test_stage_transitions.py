@@ -2,10 +2,8 @@
 
 import pytest
 from hi_agent.contracts import StageState
-from hi_agent.runtime_adapter.mock_kernel import (
-    IllegalStateTransitionError,
-    MockKernel,
-)
+from hi_agent.runtime_adapter.errors import IllegalStateTransitionError
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def test_legal_stage_transition_path() -> None:

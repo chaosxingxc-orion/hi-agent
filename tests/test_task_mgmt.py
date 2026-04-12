@@ -246,6 +246,13 @@ class TestSchedulerReadyTasks:
 
 
 class TestSchedulerExecution:
+    def test_schedule_without_execute_fn_raises(self) -> None:
+        g = _make_chain_graph()
+        sched = TaskScheduler()
+        sched.load_graph(g)
+        with pytest.raises(RuntimeError, match="requires execute_fn"):
+            sched.schedule()
+
     def test_linear_chain_executes_in_order(self) -> None:
         g = _make_chain_graph()
         order: list[str] = []

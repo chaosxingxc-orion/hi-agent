@@ -1,4 +1,4 @@
-﻿"""Integration tests for durable consistency journal persistence."""
+"""Integration tests for durable consistency journal persistence."""
 
 from __future__ import annotations
 

@@ -5,7 +5,7 @@ from typing import ClassVar
 from hi_agent.contracts import TaskContract
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 class FakeHybridRouteEngine:

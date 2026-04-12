@@ -9,6 +9,7 @@ Quality failure can force upgrade: light->medium->strong.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
@@ -47,6 +48,7 @@ class TierRouter:
             "moderate": ModelTier.MEDIUM,
             "complex": ModelTier.STRONG,
         }
+        self._lock = threading.Lock()
         self._setup_defaults()
 
     def _setup_defaults(self) -> None:
@@ -71,21 +73,24 @@ class TierRouter:
         allow_downgrade: bool = True,
     ) -> None:
         """Override the tier for a purpose."""
-        self._tier_map[purpose] = TierMapping(
-            purpose=purpose,
-            default_tier=tier,
-            allow_upgrade=allow_upgrade,
-            allow_downgrade=allow_downgrade,
-        )
+        with self._lock:
+            self._tier_map[purpose] = TierMapping(
+                purpose=purpose,
+                default_tier=tier,
+                allow_upgrade=allow_upgrade,
+                allow_downgrade=allow_downgrade,
+            )
 
     def _resolve_tier(
         self,
         purpose: str,
         complexity: str,
         budget_remaining_usd: float | None,
+        skill_confidence: float | None = None,
     ) -> str:
-        """Determine effective tier considering purpose, complexity, and budget."""
-        mapping = self._tier_map.get(purpose)
+        """Determine effective tier considering purpose, complexity, budget, and skill confidence."""
+        with self._lock:
+            mapping = self._tier_map.get(purpose)
         base_tier = mapping.default_tier if mapping else ModelTier.MEDIUM
         allow_upgrade = mapping.allow_upgrade if mapping else True
         allow_downgrade = mapping.allow_downgrade if mapping else True
@@ -109,6 +114,13 @@ class TierRouter:
                 if idx > 0:
                     base_tier = _TIER_ORDER[idx - 1]
 
+        # Skill confidence downgrade: if a proven high-confidence skill handles
+        # this purpose, a cheaper model tier is sufficient (one step down).
+        if skill_confidence is not None and skill_confidence >= 0.85 and allow_downgrade:
+            idx = _tier_index(base_tier)
+            if idx > 0:
+                base_tier = _TIER_ORDER[idx - 1]
+
         return base_tier
 
     def select_model(
@@ -118,6 +130,7 @@ class TierRouter:
         required_capabilities: list[str] | None = None,
         budget_remaining_usd: float | None = None,
         min_context_window: int = 0,
+        skill_confidence: float | None = None,
     ) -> RegisteredModel:
         """Select the best model for a given request.
 
@@ -125,14 +138,15 @@ class TierRouter:
         1. Determine tier from purpose mapping
         2. Override tier based on complexity (simple->light, complex->strong)
         3. If budget_remaining is low, downgrade tier
-        4. Filter by required_capabilities and min_context_window
-        5. From matching models, pick cheapest available
-        6. If no match in target tier, try adjacent tier
+        4. If skill_confidence >= 0.85, downgrade one additional tier
+        5. Filter by required_capabilities and min_context_window
+        6. From matching models, pick cheapest available
+        7. If no match in target tier, try adjacent tier
 
         Raises:
             KeyError: If no suitable model can be found.
         """
-        target_tier = self._resolve_tier(purpose, complexity, budget_remaining_usd)
+        target_tier = self._resolve_tier(purpose, complexity, budget_remaining_usd, skill_confidence)
         model = self._find_in_tier(
             target_tier, required_capabilities, min_context_window
         )
@@ -198,11 +212,13 @@ class TierRouter:
         """Select model with fallback chain. Returns (model, actual_tier).
 
         Fallback: target_tier -> one tier down -> one tier up -> any available.
+        Supports skill_confidence kwarg: if >= 0.85, allows one additional tier downgrade.
         """
         target_tier = self._resolve_tier(
             purpose,
             complexity,
             kwargs.get("budget_remaining_usd"),  # type: ignore[arg-type]
+            kwargs.get("skill_confidence"),  # type: ignore[arg-type]
         )
         required_caps: list[str] | None = kwargs.get("required_capabilities")  # type: ignore[assignment]
         min_ctx: int = kwargs.get("min_context_window", 0)  # type: ignore[assignment]
@@ -246,7 +262,8 @@ class TierRouter:
 
     def get_tier_for_purpose(self, purpose: str) -> str:
         """Get the configured tier for a purpose."""
-        mapping = self._tier_map.get(purpose)
+        with self._lock:
+            mapping = self._tier_map.get(purpose)
         return mapping.default_tier if mapping else ModelTier.MEDIUM
 
     def apply_overrides(self, overrides: dict[str, str]) -> None:
@@ -256,16 +273,17 @@ class TierRouter:
         the target tier string ("light", "medium", "strong").  Existing
         allow_upgrade/allow_downgrade flags are preserved.
         """
-        for purpose, tier in overrides.items():
-            existing = self._tier_map.get(purpose)
-            allow_upgrade = existing.allow_upgrade if existing else True
-            allow_downgrade = existing.allow_downgrade if existing else True
-            self._tier_map[purpose] = TierMapping(
-                purpose=purpose,
-                default_tier=tier,
-                allow_upgrade=allow_upgrade,
-                allow_downgrade=allow_downgrade,
-            )
+        with self._lock:
+            for purpose, tier in overrides.items():
+                existing = self._tier_map.get(purpose)
+                allow_upgrade = existing.allow_upgrade if existing else True
+                allow_downgrade = existing.allow_downgrade if existing else True
+                self._tier_map[purpose] = TierMapping(
+                    purpose=purpose,
+                    default_tier=tier,
+                    allow_upgrade=allow_upgrade,
+                    allow_downgrade=allow_downgrade,
+                )
 
     def apply_cost_overrides(self, overrides: dict[str, str]) -> None:
         """Apply cost optimization tier overrides dynamically.
@@ -285,7 +303,8 @@ class TierRouter:
 
     def list_mappings(self) -> list[TierMapping]:
         """List all purpose -> tier mappings."""
-        return list(self._tier_map.values())
+        with self._lock:
+            return list(self._tier_map.values())
 
 
 class TierAwareLLMGateway:
@@ -326,11 +345,16 @@ class TierAwareLLMGateway:
             budget_fraction: float = float(meta.get("budget_remaining", 1.0))
             budget_usd: float = budget_fraction  # 1:1 mapping, fraction acts as proxy
             complexity: str = meta.get("complexity", "moderate")
+            # skill_confidence: optional float from SkillObserver.get_metrics().success_rate.
+            # If >= 0.85, the proven skill handles this well, so a cheaper tier suffices.
+            raw_sc = meta.get("skill_confidence")
+            skill_confidence: float | None = float(raw_sc) if raw_sc is not None else None
             try:
                 result = self._tier_router.select_model(
                     purpose=purpose,
                     budget_remaining_usd=budget_usd,
                     complexity=complexity,
+                    skill_confidence=skill_confidence,
                 )
                 request = LLMRequest(
                     messages=getattr(request, "messages", []),

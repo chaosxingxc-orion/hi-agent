@@ -2,7 +2,7 @@
 
 from hi_agent.contracts import NodeState, NodeType, TaskContract, TrajectoryNode
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.trajectory.dead_end import detect_dead_end
 
 

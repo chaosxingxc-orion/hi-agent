@@ -9,7 +9,7 @@ import pytest
 from hi_agent.contracts import TaskContract
 from hi_agent.memory.short_term import ShortTermMemoryStore
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _make_executor(

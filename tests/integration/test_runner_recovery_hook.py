@@ -4,7 +4,7 @@ from hi_agent.contracts import TaskContract
 from hi_agent.recovery import RecoveryOrchestrationResult
 from hi_agent.recovery.compensator import CompensationExecutionReport, CompensationPlan
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _latest_event_payload(executor: RunExecutor, event_type: str) -> dict:

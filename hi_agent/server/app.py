@@ -9,7 +9,8 @@ Endpoints:
     POST /runs/{run_id}/resume -- Resume run from checkpoint
     GET  /runs/{run_id}/events -- SSE stream of run events
     GET  /health        -- Health check
-    GET  /manifest      -- System capabilities manifest
+    GET  /ready         -- Platform readiness contract (200=ready, 503=not ready)
+    GET  /manifest      -- System capabilities manifest (dynamic)
     GET  /metrics       -- Prometheus metrics
     GET  /metrics/json  -- Metrics as JSON
     GET  /cost          -- LLM cost breakdown
@@ -33,6 +34,10 @@ Endpoints:
     POST /replay/{run_id}            -- Trigger replay of a recorded run
     GET  /replay/{run_id}/status     -- Check replay file availability
     GET  /management/capacity        -- Capacity tuning recommendations
+    GET  /tools                      -- List registered capabilities
+    POST /tools/call                 -- Invoke a registered capability by name
+    POST /mcp/tools/list             -- MCP tools/list (enumerate tools with schemas)
+    POST /mcp/tools/call             -- MCP tools/call (invoke a tool by name)
 """
 
 from __future__ import annotations
@@ -171,8 +176,45 @@ async def handle_health(request: Request) -> JSONResponse:
     })
 
 
+async def handle_ready(request: Request) -> JSONResponse:
+    """Return platform readiness contract.
+
+    200 means ready (kernel + capabilities functional).
+    503 means not ready (one or more blocking subsystems failed).
+    """
+    server: AgentServer = request.app.state.agent_server
+    try:
+        from hi_agent.config.builder import SystemBuilder  # noqa: PLC0415
+        builder = SystemBuilder(config=server.config if hasattr(server, "config") else None)
+        snapshot = builder.readiness()
+    except Exception as exc:
+        snapshot = {
+            "ready": False,
+            "health": "error",
+            "error": str(exc),
+        }
+    status_code = 200 if snapshot.get("ready") else 503
+    return JSONResponse(snapshot, status_code=status_code)
+
+
 async def handle_manifest(request: Request) -> JSONResponse:
-    """Return system capabilities manifest."""
+    """Return dynamic system capabilities manifest."""
+    server: AgentServer = request.app.state.agent_server
+    # Build capability list from the server's wired invoker/registry if available
+    capabilities: list[str] = []
+    skills: list[dict] = []
+    models: list[dict] = []
+    try:
+        skill_loader = getattr(server, "skill_loader", None)
+        if skill_loader is not None and hasattr(skill_loader, "discover"):
+            discovered = skill_loader.discover()
+            skills = [
+                {"name": getattr(s, "name", str(s)), "source": getattr(s, "source", "unknown")}
+                for s in discovered
+            ]
+    except Exception:
+        pass
+
     return JSONResponse({
         "name": "hi-agent",
         "version": "0.1.0",
@@ -184,12 +226,18 @@ async def handle_manifest(request: Request) -> JSONResponse:
             "S4_synthesize",
             "S5_review_finalize",
         ],
+        "capabilities": capabilities,
+        "skills": skills,
+        "models": models,
+        "mcp_servers": [],
+        "plugins": [],
         "endpoints": [
             "POST /runs",
             "GET /runs",
             "GET /runs/{run_id}",
             "POST /runs/{run_id}/signal",
             "GET /health",
+            "GET /ready",
             "GET /manifest",
         ],
     })
@@ -980,12 +1028,208 @@ async def handle_capacity_advice(request: Request) -> JSONResponse:
 
 
 # ------------------------------------------------------------------
+# Tools (capability registry) endpoints
+# ------------------------------------------------------------------
+
+async def handle_tools_list(request: Request) -> JSONResponse:
+    """Return all registered capabilities as a tool list.
+
+    Response shape::
+
+        {"tools": [{"name": "file_read", "description": "...", "parameters": {...}}, ...]}
+    """
+    server: AgentServer = request.app.state.agent_server
+    try:
+        invoker = server._builder.build_invoker()
+        registry = invoker.registry
+        tools = []
+        for name in registry.list_names():
+            spec = registry.get(name)
+            tools.append({
+                "name": name,
+                "description": getattr(spec, "description", ""),
+                "parameters": getattr(spec, "parameters", {}),
+            })
+        return JSONResponse({"tools": tools, "count": len(tools)})
+    except Exception as exc:
+        logger.warning("handle_tools_list error: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+async def handle_tools_call(request: Request) -> JSONResponse:
+    """Invoke a registered capability by name.
+
+    Request body::
+
+        {"name": "file_read", "arguments": {"path": "CLAUDE.md"}}
+
+    Response shape::
+
+        {"success": bool, "result": {...}}
+    """
+    try:
+        body = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+
+    name = body.get("name")
+    if not name:
+        return JSONResponse({"error": "missing_name"}, status_code=400)
+    arguments = body.get("arguments", {})
+
+    server: AgentServer = request.app.state.agent_server
+    try:
+        invoker = server._builder.build_invoker()
+        result = invoker.invoke(name, arguments)
+        return JSONResponse({"success": True, "result": result})
+    except KeyError:
+        return JSONResponse(
+            {"success": False, "error": f"unknown_tool: {name}"}, status_code=404,
+        )
+    except Exception as exc:
+        logger.warning("handle_tools_call error for %r: %s", name, exc)
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=500)
+
+
+# ------------------------------------------------------------------
 # Catch-all for 404
 # ------------------------------------------------------------------
 
 async def handle_not_found(request: Request) -> JSONResponse:
     """Return 404 for unmatched routes."""
     return JSONResponse({"error": "not_found"}, status_code=404)
+
+
+# ------------------------------------------------------------------
+# MCP endpoints
+# ------------------------------------------------------------------
+
+async def handle_mcp_status(request: Request) -> JSONResponse:
+    """Return MCP server registry status."""
+    try:
+        from hi_agent.mcp.registry import MCPRegistry  # noqa: PLC0415
+        from hi_agent.mcp.health import MCPHealth  # noqa: PLC0415
+        server: AgentServer = request.app.state.agent_server
+        mcp_reg = getattr(server, "mcp_registry", None) or MCPRegistry()
+        health = MCPHealth(mcp_reg)
+        return JSONResponse({
+            "servers": mcp_reg.list_servers(),
+            "health": health.snapshot(),
+            "count": len(mcp_reg),
+        })
+    except Exception as exc:
+        return JSONResponse({"error": str(exc), "servers": [], "count": 0}, status_code=500)
+
+
+async def handle_mcp_tools(request: Request) -> JSONResponse:
+    """Return all tools across registered MCP servers."""
+    try:
+        from hi_agent.mcp.registry import MCPRegistry  # noqa: PLC0415
+        server: AgentServer = request.app.state.agent_server
+        mcp_reg = getattr(server, "mcp_registry", None) or MCPRegistry()
+        tools: list[dict] = []
+        for srv in mcp_reg.list_servers():
+            for tool_name in srv.get("tools", []):
+                tools.append({
+                    "server_id": srv["server_id"],
+                    "tool": tool_name,
+                    "capability_name": f"mcp.{srv['server_id']}.{tool_name}",
+                })
+        return JSONResponse({"tools": tools, "count": len(tools)})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc), "tools": [], "count": 0}, status_code=500)
+
+
+async def handle_mcp_tools_list(request: Request) -> JSONResponse:
+    """MCP tools/list — enumerate all registered tools with their input schemas.
+
+    Returns an MCP-compatible response:
+    {"tools": [{"name": str, "description": str, "inputSchema": {...}}]}
+    """
+    server: AgentServer = request.app.state.agent_server
+    mcp_server = getattr(server, "_mcp_server", None)
+    if mcp_server is None:
+        return JSONResponse({"error": "mcp_server_not_configured"}, status_code=503)
+    try:
+        return JSONResponse(mcp_server.list_tools())
+    except Exception as exc:
+        logger.exception("handle_mcp_tools_list failed")
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+async def handle_mcp_tools_call(request: Request) -> JSONResponse:
+    """MCP tools/call — invoke a named tool with arguments.
+
+    Request body (flat form):
+        {"name": "file_read", "arguments": {"path": "CLAUDE.md"}}
+
+    Or JSON-RPC params envelope:
+        {"params": {"name": "file_read", "arguments": {"path": "CLAUDE.md"}}}
+
+    Returns an MCP-compatible content response:
+        {"content": [{"type": "text", "text": str}], "isError": bool}
+    """
+    server: AgentServer = request.app.state.agent_server
+    mcp_server = getattr(server, "_mcp_server", None)
+    if mcp_server is None:
+        return JSONResponse({"error": "mcp_server_not_configured"}, status_code=503)
+    try:
+        body = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+    params = body.get("params", {})
+    name = body.get("name") or params.get("name")
+    arguments = body.get("arguments", params.get("arguments", {}))
+    if not name:
+        return JSONResponse({"error": "missing_tool_name"}, status_code=400)
+    try:
+        result = mcp_server.call_tool(name, arguments or {})
+        return JSONResponse(result)
+    except Exception as exc:
+        logger.exception("handle_mcp_tools_call failed for tool %r", name)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+# ------------------------------------------------------------------
+# Plugin endpoints
+# ------------------------------------------------------------------
+
+async def handle_plugins_list(request: Request) -> JSONResponse:
+    """Return list of loaded plugins."""
+    try:
+        from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
+        server: AgentServer = request.app.state.agent_server
+        plugin_loader = getattr(server, "plugin_loader", None)
+        if plugin_loader is None:
+            plugin_loader = PluginLoader()
+            plugin_loader.load_all()
+        return JSONResponse({
+            "plugins": plugin_loader.list_loaded(),
+            "count": len(plugin_loader),
+        })
+    except Exception as exc:
+        return JSONResponse({"error": str(exc), "plugins": [], "count": 0}, status_code=500)
+
+
+async def handle_plugins_status(request: Request) -> JSONResponse:
+    """Return plugin system status summary."""
+    try:
+        from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
+        server: AgentServer = request.app.state.agent_server
+        plugin_loader = getattr(server, "plugin_loader", None)
+        if plugin_loader is None:
+            plugin_loader = PluginLoader()
+            plugin_loader.load_all()
+        plugins = plugin_loader.list_loaded()
+        active = sum(1 for p in plugins if p.get("status") == "active")
+        return JSONResponse({
+            "total": len(plugins),
+            "active": active,
+            "inactive": len(plugins) - active,
+            "plugins": [{"name": p["name"], "status": p.get("status", "loaded")} for p in plugins],
+        })
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
 
 
 # ------------------------------------------------------------------
@@ -1004,6 +1248,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
     routes = [
         # Core
         Route("/health", handle_health, methods=["GET"]),
+        Route("/ready", handle_ready, methods=["GET"]),
         Route("/manifest", handle_manifest, methods=["GET"]),
 
         # Runs
@@ -1051,12 +1296,26 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # Context
         Route("/context/health", handle_context_health, methods=["GET"]),
 
+        # MCP
+        Route("/mcp/status", handle_mcp_status, methods=["GET"]),
+        Route("/mcp/tools", handle_mcp_tools, methods=["GET"]),
+        Route("/mcp/tools/list", handle_mcp_tools_list, methods=["POST"]),
+        Route("/mcp/tools/call", handle_mcp_tools_call, methods=["POST"]),
+
+        # Plugins
+        Route("/plugins/list", handle_plugins_list, methods=["GET"]),
+        Route("/plugins/status", handle_plugins_status, methods=["GET"]),
+
         # Replay
         Route("/replay/{run_id}", handle_replay_trigger, methods=["POST"]),
         Route("/replay/{run_id}/status", handle_replay_status, methods=["GET"]),
 
         # Management
         Route("/management/capacity", handle_capacity_advice, methods=["GET"]),
+
+        # Tools (capability registry)
+        Route("/tools", handle_tools_list, methods=["GET"]),
+        Route("/tools/call", handle_tools_call, methods=["POST"]),
     ]
 
     @contextlib.asynccontextmanager
@@ -1187,6 +1446,18 @@ class AgentServer:
             self._default_executor_factory
         )
 
+        # Build a shared CapabilityInvoker and wire MCPServer.
+        try:
+            from hi_agent.server.mcp import MCPServer  # noqa: PLC0415
+            _invoker = self._builder.build_invoker()
+            self._mcp_server: Any | None = MCPServer(
+                registry=_invoker.registry,
+                invoker=_invoker,
+            )
+        except Exception:
+            logger.warning("MCPServer initialization failed; /mcp/tools/* endpoints will be unavailable.")
+            self._mcp_server = None
+
         # Build the Starlette app.
         self._app = build_app(self)
 
@@ -1276,7 +1547,7 @@ class AgentAPIHandler:
 
     This class preserves the interface used by existing tests that
     construct handler instances directly via ``__new__`` and call
-    handler methods with a mock ``server`` attribute.  The ``_send_json``
+    handler methods with a test ``server`` attribute.  The ``_send_json``
     and ``_send_text`` methods are available for monkey-patching in
     tests.
     """
