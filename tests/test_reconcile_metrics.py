@@ -1,4 +1,4 @@
-﻿"""Unit tests for reconcile metrics snapshot helper."""
+"""Unit tests for reconcile metrics snapshot helper."""
 
 from __future__ import annotations
 

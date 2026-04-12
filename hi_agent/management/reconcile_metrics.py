@@ -1,4 +1,4 @@
-﻿"""Helpers for reconcile runtime metrics snapshots."""
+"""Helpers for reconcile runtime metrics snapshots."""
 
 from __future__ import annotations
 

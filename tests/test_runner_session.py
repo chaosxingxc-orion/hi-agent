@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.session.run_session import LLMCallRecord, RunSession
 
 

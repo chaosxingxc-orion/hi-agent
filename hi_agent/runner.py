@@ -1814,12 +1814,26 @@ class RunExecutor:
 
             policy_task_id = self.contract.task_id
 
-            decision = self._restart_policy._decide(
-                self._restart_policy._get_policy(policy_task_id),  # type: ignore[arg-type]
-                policy_task_id,
-                attempt,
-                _StageFail(),
-            )
+            _policy = self._restart_policy._get_policy(policy_task_id)
+            if _policy is None:
+                _logger.warning(
+                    "runner: no restart policy for task_id=%s, defaulting to abort",
+                    policy_task_id,
+                )
+                from hi_agent.task_mgmt.restart_policy import RestartDecision  # noqa: PLC0415
+                decision = RestartDecision(
+                    task_id=policy_task_id,
+                    action="abort",
+                    next_attempt_seq=None,
+                    reason="no restart policy configured",
+                )
+            else:
+                decision = self._restart_policy._decide(
+                    _policy,
+                    policy_task_id,
+                    attempt,
+                    _StageFail(),
+                )
 
             _logger.info(
                 "runner.restart_decision stage_id=%s attempt=%d action=%s reason=%s",

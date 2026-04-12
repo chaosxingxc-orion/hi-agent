@@ -10,7 +10,7 @@ import pytest
 from hi_agent.contracts import TaskContract
 from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +149,7 @@ def test_backward_compat_no_session(tmp_path) -> None:
     # a knowledge_manager but no session object.
     executor = RunExecutor(contract, kernel, knowledge_manager=km)
     # Session is auto-created in __init__; the ingest will just find
-    # no findings/facts/user_feedback → count=0, no error.
+    # no findings/facts/user_feedback �?count=0, no error.
     result = executor.execute()
     assert result == "completed"
     # Should have ingested 0 items (auto-created session has no findings).

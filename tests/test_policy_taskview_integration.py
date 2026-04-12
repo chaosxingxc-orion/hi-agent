@@ -101,7 +101,7 @@ class TestPolicyVersionSetFrozen:
         """RunExecutor stores policy_versions and it is frozen."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
-        from hi_agent.runtime_adapter.mock_kernel import MockKernel
+        from tests.helpers.kernel_adapter_fixture import MockKernel
 
         contract = TaskContract(
             task_id="t1",
@@ -122,7 +122,7 @@ class TestPolicyVersionSetFrozen:
         """RunExecutor defaults to PolicyVersionSet() when none provided."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
-        from hi_agent.runtime_adapter.mock_kernel import MockKernel
+        from tests.helpers.kernel_adapter_fixture import MockKernel
 
         contract = TaskContract(
             task_id="t2",
@@ -143,7 +143,7 @@ class TestPolicyVersionsInPostmortem:
     def test_postmortem_includes_policy_versions(self) -> None:
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
-        from hi_agent.runtime_adapter.mock_kernel import MockKernel
+        from tests.helpers.kernel_adapter_fixture import MockKernel
 
         pvs = PolicyVersionSet(route_policy="route_v5", skill_policy="skill_v3")
         contract = TaskContract(
@@ -386,7 +386,7 @@ class TestBackwardCompatibility:
     def test_runner_without_policy_versions(self) -> None:
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
-        from hi_agent.runtime_adapter.mock_kernel import MockKernel
+        from tests.helpers.kernel_adapter_fixture import MockKernel
 
         contract = TaskContract(
             task_id="t-compat",

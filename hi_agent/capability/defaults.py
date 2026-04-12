@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec
 
@@ -15,12 +16,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _allow_heuristic_fallback() -> bool:
+    """Whether heuristic capability fallback is allowed in current env."""
+    override = os.environ.get("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "").strip().lower()
+    if override in {"1", "true", "yes", "on"}:
+        return True
+    return os.environ.get("HI_AGENT_ENV", "prod").lower() != "prod"
+
+
 def _make_llm_handler(
     capability_name: str,
     system_prompt: str,
     gateway: "LLMGateway | None",
 ) -> Callable[[dict], dict]:
-    """Build a capability handler that calls LLM when available, falls back to heuristic."""
+    """Build a capability handler that requires real LLM in prod mode."""
 
     def handler(payload: dict) -> dict:
         # Honour explicit forced-failure flag injected by the runner for testing.
@@ -30,10 +39,12 @@ def _make_llm_handler(
         goal = payload.get("goal", payload.get("description", ""))
         stage_id = payload.get("stage_id", capability_name)
         context = payload.get("context", "")
+        allow_fallback = _allow_heuristic_fallback()
 
         if gateway is not None:
             try:
                 from hi_agent.llm.protocol import LLMRequest
+
                 user_msg = (
                     f"Stage: {stage_id}\nGoal: {goal}\nContext: {context}\n\n"
                     "Respond in JSON: {\"output\": \"...\", \"evidence\": [\"...\"], "
@@ -58,7 +69,6 @@ def _make_llm_handler(
                         "stage_id": stage_id,
                     }
                 except (json.JSONDecodeError, ValueError, KeyError):
-                    # LLM returned non-JSON — treat as text output
                     return {
                         "success": True,
                         "score": 0.6,
@@ -67,16 +77,31 @@ def _make_llm_handler(
                         "stage_id": stage_id,
                     }
             except Exception as exc:
+                if not allow_fallback:
+                    return {
+                        "success": False,
+                        "score": 0.0,
+                        "output": "",
+                        "evidence": [f"{capability_name}:llm_error:{stage_id}"],
+                        "stage_id": stage_id,
+                        "error": f"LLM call failed: {exc}",
+                    }
                 logger.warning(
                     "Capability %r: LLM call failed (%s), falling back to heuristic",
                     capability_name,
                     exc,
                 )
+        elif not allow_fallback:
+            return {
+                "success": False,
+                "score": 0.0,
+                "output": "",
+                "evidence": [f"{capability_name}:missing_llm_gateway:{stage_id}"],
+                "stage_id": stage_id,
+                "error": "LLM gateway is required in prod mode",
+            }
 
-        # Heuristic fallback — produce a minimal but non-fake result.
-        # When no goal is available in the payload (e.g. the runner omits it),
-        # fall back to the action_kind or a generic label so we still return
-        # success=True and allow the run to progress.
+        # Non-prod fallback path only.
         label = goal or payload.get("action_kind", capability_name) or capability_name
         return {
             "success": True,
@@ -122,21 +147,16 @@ def register_default_capabilities(
     *,
     llm_gateway: "LLMGateway | None" = None,
 ) -> None:
-    """Register TRACE stage capability handlers.
-
-    When *llm_gateway* is provided, each handler calls the LLM for real
-    execution and falls back to a heuristic on failure.  Without a gateway,
-    handlers use the heuristic path only.
-
-    Args:
-        registry: Capability registry to populate.
-        llm_gateway: Optional LLM gateway for model-backed execution.
-    """
+    """Register TRACE stage capability handlers."""
     if llm_gateway is None:
+        if not _allow_heuristic_fallback():
+            raise RuntimeError(
+                "register_default_capabilities requires llm_gateway in prod mode. "
+                "Set real LLM credentials or set HI_AGENT_ALLOW_HEURISTIC_FALLBACK=1."
+            )
         logger.warning(
-            "register_default_capabilities: no llm_gateway provided — "
-            "all TRACE capabilities will use heuristic-only execution. "
-            "Set OPENAI_API_KEY or ANTHROPIC_API_KEY for real LLM calls."
+            "register_default_capabilities: no llm_gateway provided; "
+            "all TRACE capabilities will use heuristic-only execution in non-prod mode."
         )
     for name, system_prompt in _CAPABILITY_PROMPTS.items():
         handler = _make_llm_handler(name, system_prompt, llm_gateway)

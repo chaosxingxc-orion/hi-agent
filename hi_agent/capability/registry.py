@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,8 @@ class CapabilitySpec:
 
     name: str
     handler: Callable[[dict], dict]
+    description: str = ""
+    parameters: dict = field(default_factory=dict)  # JSON Schema dict
 
 
 class CapabilityRegistry:
@@ -34,3 +37,14 @@ class CapabilityRegistry:
     def list_names(self) -> list[str]:
         """List registered capability names."""
         return sorted(self._capabilities.keys())
+
+    def register_bundle(self, bundle: "Any") -> int:
+        """Register all capabilities from a CapabilityBundle.
+
+        Args:
+            bundle: A CapabilityBundle instance with a register(registry) method.
+
+        Returns:
+            Number of capabilities registered by the bundle.
+        """
+        return bundle.register(self)

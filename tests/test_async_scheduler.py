@@ -2,7 +2,7 @@
 import asyncio
 import pytest
 from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler, ScheduleResult
-from hi_agent.runtime_adapter.mock_kernel_facade import MockKernelFacade
+from tests.helpers.kernel_facade_fixture import MockKernelFacade
 from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
 
 
@@ -60,7 +60,7 @@ async def test_parallel_nodes_execute_concurrently():
             return {}
         return _h
 
-    # A, B, C with no deps → all run in parallel
+    # A, B, C with no deps �?all run in parallel
     g = TrajectoryGraph()
     for nid in ["A", "B", "C"]:
         g.add_node(make_node(nid))

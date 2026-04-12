@@ -16,7 +16,7 @@ from hi_agent.contracts import StageState, TaskContract
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
 from hi_agent.runner import STAGES, RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _make_evidence_records(

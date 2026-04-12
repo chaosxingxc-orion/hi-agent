@@ -13,8 +13,8 @@ import pytest
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor, RunResult, execute_async
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
-from hi_agent.runtime_adapter.mock_kernel_facade import MockKernelFacade
+from tests.helpers.kernel_adapter_fixture import MockKernel
+from tests.helpers.kernel_facade_fixture import MockKernelFacade
 from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
 from hi_agent.task_mgmt.budget_guard import BudgetGuard
 from hi_agent.task_mgmt.graph_factory import GraphFactory
@@ -44,7 +44,7 @@ def _make_executor(
     # to the facade so execute_async() can call start_run / execute_turn.
     mock_kernel = MockKernel(strict_mode=False)
     executor = RunExecutor(contract=contract, kernel=mock_kernel, **kwargs)
-    # execute_async reads executor.kernel — replace with the async facade.
+    # execute_async reads executor.kernel �?replace with the async facade.
     executor.kernel = facade  # type: ignore[assignment]
     return executor, facade
 

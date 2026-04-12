@@ -132,6 +132,7 @@ class SystemBuilder:
             knowledge_mgr = self.build_knowledge_manager()
             retrieval_eng = self.build_retrieval_engine()
             harness = self.build_harness()
+            capability_inv = self.build_invoker()
 
             _ATTR_SUBSYSTEMS: list[tuple[str, Any]] = [
                 ("_context_manager", context_mgr),
@@ -139,6 +140,7 @@ class SystemBuilder:
                 ("_knowledge_manager", knowledge_mgr),
                 ("_retrieval_engine", retrieval_eng),
                 ("_harness_executor", harness),
+                ("_capability_invoker", capability_inv),
             ]
 
             injected: list[str] = []
@@ -187,15 +189,20 @@ class SystemBuilder:
         task registry implementation.
         """
         try:
-            from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine
+            from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskRestartPolicy
 
+            _default_policy = TaskRestartPolicy(
+                max_attempts=2,
+                backoff_base_ms=2000,
+                on_exhausted="escalate",
+            )
             engine = RestartPolicyEngine(
                 get_attempts=lambda task_id: [],
-                get_policy=lambda task_id: None,
+                get_policy=lambda task_id: _default_policy,
                 update_state=lambda task_id, state: None,
                 record_attempt=lambda attempt: None,
             )
-            logger.info("_build_restart_policy_engine: RestartPolicyEngine created.")
+            logger.info("_build_restart_policy_engine: RestartPolicyEngine created with default policy (max_attempts=2, on_exhausted=escalate).")
             return engine
         except Exception as exc:
             logger.warning(
@@ -294,7 +301,19 @@ class SystemBuilder:
         """
         if self._kernel is None:
             base_url = self._config.kernel_base_url
-            if base_url and base_url.lower() not in ("local", "mock"):
+            env = os.environ.get("HI_AGENT_ENV", "prod").lower()
+            if base_url and base_url.lower() == "mock":
+                raise ValueError(
+                    "kernel_base_url='mock' is no longer supported. "
+                    "Use 'local' for in-process agent-kernel LocalFSM, "
+                    "or set a real http(s) agent-kernel endpoint."
+                )
+            if env == "prod" and (not base_url or base_url.lower() == "local"):
+                raise RuntimeError(
+                    "Production mode requires a real agent-kernel HTTP endpoint. "
+                    "Set kernel_base_url to http(s)://... and do not use 'local'."
+                )
+            if base_url and base_url.lower() != "local":
                 self._kernel = KernelFacadeClient(
                     mode="http",
                     base_url=base_url,
@@ -442,9 +461,15 @@ class SystemBuilder:
                 )
                 return self._llm_gateway
 
+        is_prod = os.environ.get("HI_AGENT_ENV", "prod").lower() == "prod"
+        if is_prod:
+            raise RuntimeError(
+                "Production mode requires real LLM credentials. "
+                "Set OPENAI_API_KEY or ANTHROPIC_API_KEY."
+            )
         logger.warning(
             "build_llm_gateway: no API key found in environment "
-            "(checked %s). LLM features will use heuristic fallback. "
+            "(checked %s). LLM features will use heuristic fallback in non-prod mode. "
             "Set OPENAI_API_KEY or ANTHROPIC_API_KEY to enable real LLM calls.",
             ", ".join([self._config.openai_api_key_env, self._config.anthropic_api_key_env]),
         )
@@ -486,8 +511,38 @@ class SystemBuilder:
             version_manager=self.build_skill_version_manager(),
         )
 
-    def build_harness(self) -> HarnessExecutor:
-        """Build HarnessExecutor with config-driven governance."""
+    def build_invoker(self) -> Any:
+        """Build a real CapabilityInvoker wired with default capabilities."""
+        from hi_agent.capability.circuit_breaker import CircuitBreaker
+        from hi_agent.capability.defaults import register_default_capabilities
+        from hi_agent.capability.invoker import CapabilityInvoker
+        from hi_agent.capability.registry import CapabilityRegistry
+
+        registry = CapabilityRegistry()
+        gateway = self.build_llm_gateway()
+        try:
+            register_default_capabilities(registry, llm_gateway=gateway)
+        except Exception as exc:
+            logger.warning(
+                "build_invoker: register_default_capabilities failed (%s); "
+                "invoker will have no pre-registered capabilities.",
+                exc,
+            )
+        from hi_agent.capability.tools import register_builtin_tools
+        register_builtin_tools(registry)
+        breaker = CircuitBreaker()
+        invoker = CapabilityInvoker(registry=registry, breaker=breaker)
+        logger.info("build_invoker: CapabilityInvoker created with %d capabilities.", len(registry.list_names()))
+        return invoker
+
+    def build_harness(self, capability_invoker: Any | None = None) -> HarnessExecutor:
+        """Build HarnessExecutor with config-driven governance.
+
+        Args:
+            capability_invoker: Optional pre-built CapabilityInvoker. When None,
+                a real invoker is created via :meth:`build_invoker` so that
+                ``HarnessExecutor._dispatch()`` never raises ``RuntimeError``.
+        """
         governance = GovernanceEngine()
         if self._config.evidence_store_backend == "sqlite":
             evidence_store: EvidenceStore | SqliteEvidenceStore = (
@@ -501,9 +556,12 @@ class SystemBuilder:
                 self._config.evidence_store_backend,
             )
             evidence_store = EvidenceStore()
+        if capability_invoker is None:
+            capability_invoker = self.build_invoker()
         return HarnessExecutor(
             governance=governance,
             evidence_store=evidence_store,
+            capability_invoker=capability_invoker,
         )
 
     def build_skill_registry(self) -> SkillRegistry:
@@ -511,10 +569,28 @@ class SystemBuilder:
         return SkillRegistry(storage_dir=self._config.skill_storage_dir)
 
     def build_skill_loader(self) -> Any:
-        """Build SkillLoader for multi-source skill discovery."""
+        """Build SkillLoader for multi-source skill discovery.
+
+        Search order (highest to lowest priority):
+        1. Built-in skills bundled with hi-agent (hi_agent/skills/builtin/)
+        2. User-global skills (~/.hi_agent/skills/)
+        3. Project-local skills (config.skill_storage_dir, default .hi_agent/skills/)
+        """
+        import pathlib
         from hi_agent.skill.loader import SkillLoader
 
-        dirs = [self._config.skill_storage_dir]
+        builtin_dir = str(pathlib.Path(__file__).parent.parent / "skills" / "builtin")
+        user_global_dir = str(pathlib.Path.home() / ".hi_agent" / "skills")
+        project_dir = self._config.skill_storage_dir
+
+        # Deduplicate while preserving order
+        seen: set[str] = set()
+        dirs: list[str] = []
+        for d in [builtin_dir, user_global_dir, project_dir]:
+            if d not in seen:
+                seen.add(d)
+                dirs.append(d)
+
         return SkillLoader(
             search_dirs=dirs,
             max_skills_in_prompt=self._config.skill_loader_max_skills_in_prompt,
@@ -889,11 +965,12 @@ class SystemBuilder:
     def _build_executor_impl(self, contract: TaskContract) -> RunExecutor:
         """Build a fully-wired RunExecutor for a given task contract."""
         km = self.build_knowledge_manager()
+        invoker = self.build_invoker()
         executor = RunExecutor(
             contract=contract,
             kernel=self.build_kernel(),
             evolve_engine=self.build_evolve_engine(),
-            harness_executor=self.build_harness(),
+            harness_executor=self.build_harness(capability_invoker=invoker),
             human_gate_quality_threshold=self._config.gate_quality_threshold,
             event_emitter=EventEmitter(),
             raw_memory=RawMemoryStore(),
@@ -1041,3 +1118,145 @@ class SystemBuilder:
         server.metrics_collector = self.build_metrics_collector()
         server.run_context_manager = self._build_run_context_manager()
         return server
+
+    def readiness(self) -> dict[str, Any]:
+        """Return a live readiness snapshot of all platform subsystems.
+
+        This method probes each subsystem and returns a structured dict that
+        downstream integrators can use to verify platform state without reading
+        source code.  It never raises — failures are captured as status entries.
+
+        Returns a dict matching the platform manifest contract::
+
+            {
+              "ready": bool,
+              "health": "ok" | "degraded",
+              "execution_mode": str,
+              "models": [...],
+              "skills": [...],
+              "mcp_servers": [...],
+              "plugins": [...],
+              "capabilities": [...],
+              "subsystems": {...}
+            }
+        """
+        result: dict[str, Any] = {
+            "ready": False,
+            "health": "ok",
+            "execution_mode": "unknown",
+            "models": [],
+            "skills": [],
+            "mcp_servers": [],
+            "plugins": [],
+            "capabilities": [],
+            "subsystems": {},
+        }
+        issues: list[str] = []
+
+        # --- kernel ---
+        try:
+            kernel = self.build_kernel()
+            base_url = getattr(self._config, "kernel_base_url", "local") or "local"
+            mode = "http" if base_url.lower() not in ("", "local") else "local"
+            result["execution_mode"] = mode
+            result["subsystems"]["kernel"] = {"status": "ok", "mode": mode}
+        except Exception as exc:
+            result["subsystems"]["kernel"] = {"status": "error", "error": str(exc)}
+            result["health"] = "degraded"
+            issues.append(f"kernel: {exc}")
+
+        # --- LLM / models ---
+        try:
+            gateway = self.build_llm_gateway()
+            if gateway is None:
+                result["subsystems"]["llm"] = {"status": "not_configured"}
+                result["models"] = []
+            else:
+                # Best-effort: list models from registry if tier router available
+                model_names: list[str] = []
+                if self._tier_router is not None:
+                    try:
+                        registry = getattr(self._tier_router, "_registry", None)
+                        if registry is not None:
+                            model_names = [
+                                m if isinstance(m, str) else getattr(m, "name", str(m))
+                                for m in registry.list_models()
+                            ]
+                    except Exception:
+                        pass
+                result["models"] = [{"name": n, "status": "configured"} for n in model_names]
+                result["subsystems"]["llm"] = {"status": "ok", "models": len(model_names)}
+        except Exception as exc:
+            result["subsystems"]["llm"] = {"status": "error", "error": str(exc)}
+            result["health"] = "degraded"
+            issues.append(f"llm: {exc}")
+
+        # --- capabilities ---
+        try:
+            invoker = self.build_invoker()
+            registry = getattr(invoker, "_registry", None)
+            cap_names: list[str] = []
+            if registry is not None:
+                cap_names = registry.list_names()
+            result["capabilities"] = cap_names
+            result["subsystems"]["capabilities"] = {"status": "ok", "count": len(cap_names)}
+        except Exception as exc:
+            result["subsystems"]["capabilities"] = {"status": "error", "error": str(exc)}
+            result["health"] = "degraded"
+            issues.append(f"capabilities: {exc}")
+
+        # --- skills ---
+        try:
+            loader = self.build_skill_loader()
+            # Attempt discovery without a real context budget
+            discovered: list[Any] = []
+            try:
+                discovered = loader.discover() if hasattr(loader, "discover") else []
+            except Exception:
+                pass
+            result["skills"] = [
+                {
+                    "name": getattr(s, "name", str(s)),
+                    "source": getattr(s, "source", "unknown"),
+                    "status": "loaded",
+                }
+                for s in discovered
+            ]
+            result["subsystems"]["skills"] = {"status": "ok", "discovered": len(discovered)}
+        except Exception as exc:
+            result["subsystems"]["skills"] = {"status": "error", "error": str(exc)}
+            issues.append(f"skills: {exc}")
+
+        # --- MCP (future: hi_agent.mcp module) ---
+        try:
+            from hi_agent.mcp.registry import MCPRegistry  # noqa: PLC0415
+            mcp_reg = MCPRegistry()
+            result["mcp_servers"] = mcp_reg.list_servers()
+            result["subsystems"]["mcp"] = {"status": "ok", "servers": len(result["mcp_servers"])}
+        except ImportError:
+            result["mcp_servers"] = []
+            result["subsystems"]["mcp"] = {"status": "not_configured"}
+        except Exception as exc:
+            result["subsystems"]["mcp"] = {"status": "error", "error": str(exc)}
+
+        # --- plugins (future: hi_agent.plugin module) ---
+        try:
+            from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
+            pl = PluginLoader()
+            loaded = pl.list_loaded()
+            result["plugins"] = loaded
+            result["subsystems"]["plugins"] = {"status": "ok", "count": len(loaded)}
+        except ImportError:
+            result["plugins"] = []
+            result["subsystems"]["plugins"] = {"status": "not_configured"}
+        except Exception as exc:
+            result["subsystems"]["plugins"] = {"status": "error", "error": str(exc)}
+
+        # --- readiness decision ---
+        kernel_ok = result["subsystems"].get("kernel", {}).get("status") == "ok"
+        cap_ok = result["subsystems"].get("capabilities", {}).get("status") == "ok"
+        result["ready"] = kernel_ok and cap_ok
+        if issues:
+            logger.warning("readiness: %d issue(s): %s", len(issues), "; ".join(issues))
+
+        return result

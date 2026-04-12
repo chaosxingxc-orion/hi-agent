@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
 from hi_agent.contracts import StageState
@@ -121,29 +121,4 @@ class RuntimeAdapter(Protocol):
     ) -> list[dict[str, Any]]:
         """Async version of query_child_runs."""
 
-
-class RuntimeAdapterBackend(Protocol):
-    """Optional backend hooks consumed by :class:`KernelAdapter`."""
-
-    open_stage: Callable[[str], None] | None
-    mark_stage_state: Callable[[str, StageState], None] | None
-    record_task_view: Callable[[str, dict[str, Any]], str | None] | None
-    start_run: Callable[[str], str | None] | None
-    query_run: Callable[[str], dict[str, Any] | None] | None
-    cancel_run: Callable[[str, str], None] | None
-    signal_run: Callable[[str, str, dict[str, Any] | None], None] | None
-    query_trace_runtime: Callable[[str], dict[str, Any] | None] | None
-    bind_task_view_to_decision: Callable[[str, str], None] | None
-    open_branch: Callable[[str, str, str], None] | None
-    mark_branch_state: (
-        Callable[[str, str, str, str, str | None], None] | None
-    )
-    resume_run: Callable[[str], None] | None
-    get_manifest: Callable[[], dict[str, Any] | None] | None
-    submit_plan: Callable[[str, dict[str, Any]], None] | None
-    open_human_gate: Callable[[HumanGateRequest], None] | None
-    submit_approval: Callable[[ApprovalRequest], None] | None
-    stream_run_events: (
-        Callable[[str], AsyncIterator[dict[str, Any]]] | None
-    )
 

@@ -20,7 +20,7 @@ from hi_agent.contracts import (
     TrajectoryNode,
 )
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _make_contract(

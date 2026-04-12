@@ -1,1 +1,1 @@
-﻿"""hi-agent package."""
+"""hi-agent package."""

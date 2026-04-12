@@ -7,7 +7,7 @@ from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
 from hi_agent.knowledge.graph_renderer import GraphRenderer
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _make_wiki() -> KnowledgeWiki:

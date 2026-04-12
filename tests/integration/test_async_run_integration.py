@@ -4,7 +4,7 @@ import pytest
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.contracts import TaskContract, deterministic_id
 from hi_agent.runner import RunExecutor, execute_async
-from hi_agent.runtime_adapter.mock_kernel_facade import MockKernelFacade
+from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 
 @pytest.fixture

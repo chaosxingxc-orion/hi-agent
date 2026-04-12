@@ -17,7 +17,7 @@ from hi_agent.events import EventEmitter
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 # ---------------------------------------------------------------------------

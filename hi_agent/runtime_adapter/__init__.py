@@ -1,4 +1,4 @@
-﻿"""Runtime adapter package."""
+"""Runtime adapter package."""
 
 from hi_agent.runtime_adapter.async_kernel_facade_adapter import (
     AsyncKernelFacadeAdapter,
@@ -22,30 +22,17 @@ from hi_agent.runtime_adapter.event_summary_commands import (
 )
 from hi_agent.runtime_adapter.event_summary_store import EventSummaryStore
 from hi_agent.runtime_adapter.health import AdapterHealthMonitor
-from hi_agent.runtime_adapter.kernel_adapter import KernelAdapter
-from hi_agent.runtime_adapter.kernel_backend import KernelBackend
-from hi_agent.runtime_adapter.kernel_client import (
-    HttpKernelClient,
-    KernelClient,
-    SimpleKernelClient,
-)
 from hi_agent.runtime_adapter.kernel_facade_adapter import (
     KernelFacadeAdapter,
     create_local_adapter,
 )
 from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
-from hi_agent.runtime_adapter.protocol import RuntimeAdapter, RuntimeAdapterBackend
+from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 from hi_agent.runtime_adapter.reconcile_loop import ReconcileLoop, ReconcileLoopReport
 from hi_agent.runtime_adapter.reconciler import (
     ConsistencyIssueStatus,
     ConsistencyReconciler,
     ConsistencyReconcileReport,
-)
-from hi_agent.runtime_adapter.resilient_adapter import (
-    AdapterMetrics,
-    CircuitOpenError,
-    ResilientKernelAdapter,
 )
 from hi_agent.runtime_adapter.temporal_health import (
     SubstrateHealthChecker,
@@ -60,9 +47,7 @@ from hi_agent.runtime_adapter.temporal_health import (
 
 __all__ = [
     "AdapterHealthMonitor",
-    "AdapterMetrics",
     "AsyncKernelFacadeAdapter",
-    "CircuitOpenError",
     "ConsistencyIssue",
     "ConsistencyIssueStatus",
     "ConsistencyReconcileReport",
@@ -70,23 +55,15 @@ __all__ = [
     "EventBuffer",
     "EventSummaryStore",
     "FileBackedConsistencyJournal",
-    "HttpKernelClient",
     "IllegalStateTransitionError",
     "InMemoryConsistencyJournal",
-    "KernelAdapter",
-    "KernelBackend",
-    "KernelClient",
     "KernelFacadeAdapter",
     "KernelFacadeClient",
-    "MockKernel",
     "ReconcileLoop",
     "ReconcileLoopReport",
-    "ResilientKernelAdapter",
     "RuntimeAdapter",
-    "RuntimeAdapterBackend",
     "RuntimeAdapterBackendError",
     "RuntimeAdapterError",
-    "SimpleKernelClient",
     "SubstrateHealthChecker",
     "SubstrateHealthReport",
     "SubstrateNetworkState",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def test_runner_emits_observability_signals() -> None:

@@ -73,11 +73,11 @@ class StructuredSummary:
 
             [CONTEXT COMPACTION - 2026-04-10T12:00:00+00:00]
             目标: Refactor the LLM gateway
-            进度: Completed protocol definition and mock gateway
+            进度: Completed protocol definition and HTTP gateway
             关键决策: Chose httpx for async transport; pinned to Python 3.12+
             已修改文件:
               hi_agent/llm/protocol.py
-              hi_agent/llm/mock_gateway.py
+              hi_agent/llm/http_gateway.py
             下一步: Wire up TierRouter to HttpGateway
             [END COMPACTION - 压缩自 42 条消息]
         """

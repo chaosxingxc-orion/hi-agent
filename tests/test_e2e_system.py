@@ -45,7 +45,7 @@ from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
 from hi_agent.runner import STAGES, RunExecutor
-from hi_agent.runtime_adapter.mock_kernel import MockKernel
+from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.server.app import AgentServer
 from hi_agent.server.run_manager import RunManager
 from hi_agent.skill.recorder import SkillUsageRecorder

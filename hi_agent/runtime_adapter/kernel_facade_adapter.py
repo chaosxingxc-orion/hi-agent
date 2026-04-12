@@ -1,7 +1,7 @@
-"""RuntimeAdapter implementation backed by a KernelFacade-like object.
+﻿"""RuntimeAdapter implementation backed by agent-kernel's KernelFacade.
 
-Maps the 17-method RuntimeAdapter Protocol surface to calls on a
-``KernelFacade``-compatible object.  The adapter keeps a thin translation
+Maps the 17-method RuntimeAdapter Protocol surface to calls on
+``agent_kernel.adapters.facade.KernelFacade``. The adapter keeps a thin translation
 layer: it normalises hi-agent DTO shapes into the arguments the facade
 expects and wraps all errors uniformly in ``RuntimeAdapterBackendError``.
 
@@ -13,56 +13,52 @@ For development use without a Temporal server, see
 from __future__ import annotations
 
 import asyncio
+import datetime
+import uuid
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from typing import Any
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
 
-
-@dataclass
-class _SimpleTurnResult:
-    """Fallback result for execute_turn when facade lacks the method."""
-
-    outcome_kind: str
-    result: Any = None
-
-
 class KernelFacadeAdapter:
-    """Forward RuntimeAdapter Protocol calls to a KernelFacade instance.
+    """Forward RuntimeAdapter Protocol calls to an agent-kernel KernelFacade.
 
     Each of the 17 Protocol methods is mapped to its KernelFacade
     counterpart.  Where the facade uses typed request DTOs (e.g.
     ``StartRunRequest``), this adapter constructs them from the simpler
     positional arguments defined in the Protocol.
 
-    The facade object is typed as ``object`` so that tests can inject
-    a lightweight mock without importing ``agent-kernel``.
+    Only a real ``agent_kernel.adapters.facade.KernelFacade`` instance is
+    accepted.
     """
 
     def __init__(self, facade: object) -> None:
         """Store facade instance used for forwarding calls.
 
         Args:
-            facade: An instance of ``agent_kernel.adapters.facade.KernelFacade``
-                or any object that exposes the same method signatures.
+            facade: A real ``agent_kernel.adapters.facade.KernelFacade``
+                instance.
         """
         self._facade = facade
         # Tracks the active run_id after start_run(); required by open_stage
         # and mark_stage_state when the real KernelFacade needs it.
         self._current_run_id: str | None = None
-        # True when facade is a real KernelFacade that expects DTO request
-        # objects.  False for lightweight mock/test facades that accept
-        # positional string arguments (old protocol surface).
         try:
             from agent_kernel.adapters.facade.kernel_facade import (  # noqa: PLC0415
                 KernelFacade as _KernelFacade,
             )
-            self._use_kernel_dtos: bool = isinstance(facade, _KernelFacade)
-        except ImportError:
-            self._use_kernel_dtos = False
+        except ImportError as exc:
+            raise ImportError(
+                "agent-kernel is required for KernelFacadeAdapter."
+            ) from exc
+
+        if not isinstance(facade, _KernelFacade):
+            raise RuntimeError(
+                "KernelFacadeAdapter requires a real "
+                "agent_kernel.adapters.facade.KernelFacade instance."
+            )
 
     # ------------------------------------------------------------------
     # Stage lifecycle
@@ -73,39 +69,40 @@ class KernelFacadeAdapter:
 
         The real KernelFacade requires ``open_stage(stage_id, run_id)``.
         The ``run_id`` is taken from the value stored by the most recent
-        ``start_run()`` call.  When no run_id is available (e.g. test
-        facades that accept a single positional arg), it falls back to
-        calling with stage_id only.
+        ``start_run()`` call.
         """
         normalized = self._non_empty(stage_id, "stage_id")
-        if self._use_kernel_dtos and self._current_run_id is not None:
-            self._call("open_stage", normalized, self._current_run_id)
-        else:
-            self._call("open_stage", normalized)
+        if self._current_run_id is None:
+            raise RuntimeAdapterBackendError(
+                "open_stage",
+                cause=ValueError("open_stage requires run context; call start_run() first"),
+            )
+        self._call("open_stage", normalized, self._current_run_id)
 
     def mark_stage_state(self, stage_id: str, target: StageState) -> None:
         """Mark stage state in facade runtime.
 
         The real KernelFacade signature is
-        ``mark_stage_state(run_id, stage_id, new_state, failure_code=None)``.
-        ``run_id`` is taken from the value stored by ``start_run()``.
-        Falls back to ``(stage_id, new_state)`` for mock/old facades.
+        `mark_stage_state(run_id, stage_id, new_state, failure_code=None)`.
+        `run_id` is taken from the value stored by `start_run()`.
         """
         normalized_stage = self._non_empty(stage_id, "stage_id")
         normalized_target = (
             target.value if isinstance(target, StageState) else str(target)
         )
-        if self._use_kernel_dtos and self._current_run_id is not None:
-            # Real KernelFacade signature: (run_id, stage_id, new_state, failure_code=None)
-            # new_state is a TraceStageState Literal — pass the string value directly.
-            self._call(
+        if self._current_run_id is None:
+            raise RuntimeAdapterBackendError(
                 "mark_stage_state",
-                self._current_run_id,
-                normalized_stage,
-                normalized_target,
+                cause=ValueError(
+                    "mark_stage_state requires run context; call start_run() first"
+                ),
             )
-        else:
-            self._call("mark_stage_state", normalized_stage, normalized_target)
+        self._call(
+            "mark_stage_state",
+            self._current_run_id,
+            normalized_stage,
+            normalized_target,
+        )
 
     # ------------------------------------------------------------------
     # Task view
@@ -118,8 +115,37 @@ class KernelFacadeAdapter:
         normalized_task_view = self._non_empty(task_view_id, "task_view_id")
         if not isinstance(content, dict):
             raise ValueError("content must be a dict")
+        from agent_kernel.kernel.contracts import TaskViewRecord  # noqa: PLC0415
+
+        if self._current_run_id is None:
+            raise RuntimeAdapterBackendError(
+                "record_task_view",
+                cause=ValueError(
+                    "record_task_view requires run context; call start_run() first"
+                ),
+            )
         result = self._call(
-            "record_task_view", normalized_task_view, dict(content)
+            "record_task_view",
+            TaskViewRecord(
+                task_view_id=normalized_task_view,
+                run_id=self._current_run_id,
+                selected_model_role=str(
+                    content.get("selected_model_role", "heavy_reasoning")
+                ),
+                assembled_at=str(
+                    content.get(
+                        "assembled_at",
+                        datetime.datetime.now(datetime.UTC).isoformat(),
+                    )
+                ),
+                decision_ref=content.get("decision_ref"),
+                stage_id=content.get("stage_id"),
+                branch_id=content.get("branch_id"),
+                task_contract_ref=content.get("task_contract_ref"),
+                evidence_refs=list(content.get("evidence_refs", [])),
+                memory_refs=list(content.get("memory_refs", [])),
+                knowledge_refs=list(content.get("knowledge_refs", [])),
+            ),
         )
         if isinstance(result, str) and result.strip():
             return result
@@ -142,28 +168,24 @@ class KernelFacadeAdapter:
     def start_run(self, task_id: str) -> str:
         """Start one run and return run ID.
 
-        Constructs a ``StartRunRequest`` DTO for the real KernelFacade
-        and extracts ``run_id`` from the ``StartRunResponse``.
-        Falls back to passing ``task_id`` as a positional string for
-        mock/test facades that accept that simpler signature.
+        Constructs a ``StartRunRequest`` DTO for KernelFacade and extracts
+        ``run_id`` from the ``StartRunResponse``.
         """
         normalized_task = self._non_empty(task_id, "task_id")
-        if self._use_kernel_dtos:
-            from agent_kernel.adapters.facade.kernel_facade import (  # noqa: PLC0415
-                StartRunRequest,
-            )
-            request = StartRunRequest(
-                initiator="agent_core_runner",
-                run_kind="trace",
-                input_json={"task_id": normalized_task},
-            )
-            result = self._call("start_run", request)
-            if hasattr(result, "run_id"):
-                run_id: str = result.run_id
-                self._current_run_id = run_id
-                return run_id
-        else:
-            result = self._call("start_run", normalized_task)
+        from agent_kernel.adapters.facade.kernel_facade import (  # noqa: PLC0415
+            StartRunRequest,
+        )
+        unique_run_id = f"{normalized_task[:48]}-{uuid.uuid4().hex[:8]}"
+        request = StartRunRequest(
+            initiator="agent_core_runner",
+            run_kind="trace",
+            input_json={"task_id": normalized_task, "run_id": unique_run_id},
+        )
+        result = self._call("start_run", request)
+        if hasattr(result, "run_id"):
+            run_id: str = result.run_id
+            self._current_run_id = run_id
+            return run_id
 
         if not isinstance(result, str) or not result.strip():
             error = ValueError(
@@ -178,11 +200,8 @@ class KernelFacadeAdapter:
     def query_run(self, run_id: str) -> dict[str, Any]:
         """Query one run snapshot."""
         normalized_run = self._non_empty(run_id, "run_id")
-        if self._use_kernel_dtos:
-            from agent_kernel.adapters.facade.kernel_facade import QueryRunRequest  # noqa: PLC0415
-            result = self._call("query_run", QueryRunRequest(run_id=normalized_run))
-        else:
-            result = self._call("query_run", normalized_run)
+        from agent_kernel.adapters.facade.kernel_facade import QueryRunRequest  # noqa: PLC0415
+        result = self._call("query_run", QueryRunRequest(run_id=normalized_run))
         if isinstance(result, dict):
             return dict(result)
         if hasattr(result, "__dict__"):
@@ -194,20 +213,14 @@ class KernelFacadeAdapter:
         """Cancel one run with reason."""
         normalized_run = self._non_empty(run_id, "run_id")
         normalized_reason = self._non_empty(reason, "reason")
-        if self._use_kernel_dtos:
-            from agent_kernel.adapters.facade.kernel_facade import CancelRunRequest  # noqa: PLC0415
-            self._call("cancel_run", CancelRunRequest(run_id=normalized_run, reason=normalized_reason))
-        else:
-            self._call("cancel_run", normalized_run, normalized_reason)
+        from agent_kernel.adapters.facade.kernel_facade import CancelRunRequest  # noqa: PLC0415
+        self._call("cancel_run", CancelRunRequest(run_id=normalized_run, reason=normalized_reason))
 
     def resume_run(self, run_id: str) -> None:
         """Resume a waiting or paused run."""
         normalized_run = self._non_empty(run_id, "run_id")
-        if self._use_kernel_dtos:
-            from agent_kernel.adapters.facade.kernel_facade import ResumeRunRequest  # noqa: PLC0415
-            self._call("resume_run", ResumeRunRequest(run_id=normalized_run))
-        else:
-            self._call("resume_run", normalized_run)
+        from agent_kernel.adapters.facade.kernel_facade import ResumeRunRequest  # noqa: PLC0415
+        self._call("resume_run", ResumeRunRequest(run_id=normalized_run))
 
     def signal_run(
         self,
@@ -221,15 +234,12 @@ class KernelFacadeAdapter:
         normalized_payload = payload or {}
         if not isinstance(normalized_payload, dict):
             raise ValueError("payload must be a dict when provided")
-        if self._use_kernel_dtos:
-            from agent_kernel.adapters.facade.kernel_facade import SignalRunRequest  # noqa: PLC0415
-            self._call("signal_run", SignalRunRequest(
-                run_id=normalized_run,
-                signal_type=normalized_signal,
-                signal_payload=dict(normalized_payload),
-            ))
-        else:
-            self._call("signal_run", normalized_run, normalized_signal, dict(normalized_payload))
+        from agent_kernel.adapters.facade.kernel_facade import SignalRunRequest  # noqa: PLC0415
+        self._call("signal_run", SignalRunRequest(
+            run_id=normalized_run,
+            signal_type=normalized_signal,
+            signal_payload=dict(normalized_payload),
+        ))
 
     # ------------------------------------------------------------------
     # Trace runtime
@@ -297,15 +307,12 @@ class KernelFacadeAdapter:
         normalized_run = self._non_empty(run_id, "run_id")
         normalized_stage = self._non_empty(stage_id, "stage_id")
         normalized_branch = self._non_empty(branch_id, "branch_id")
-        if self._use_kernel_dtos:
-            from agent_kernel.adapters.facade.kernel_facade import OpenBranchRequest  # noqa: PLC0415
-            self._call("open_branch", OpenBranchRequest(
-                run_id=normalized_run,
-                branch_id=normalized_branch,
-                stage_id=normalized_stage,
-            ))
-        else:
-            self._call("open_branch", normalized_run, normalized_stage, normalized_branch)
+        from agent_kernel.adapters.facade.kernel_facade import OpenBranchRequest  # noqa: PLC0415
+        self._call("open_branch", OpenBranchRequest(
+            run_id=normalized_run,
+            branch_id=normalized_branch,
+            stage_id=normalized_stage,
+        ))
 
     def mark_branch_state(
         self,
@@ -323,31 +330,20 @@ class KernelFacadeAdapter:
             None if failure_code is None
             else self._non_empty(failure_code, "failure_code")
         )
-        if self._use_kernel_dtos:
-            from agent_kernel.adapters.facade.kernel_facade import BranchStateUpdateRequest  # noqa: PLC0415
-            from agent_kernel.kernel.contracts import TraceFailureCode  # noqa: PLC0415
-            # TraceBranchState is a Literal type — pass the string value directly.
-            failure_val = None
-            if normalized_failure is not None:
-                try:
-                    failure_val = TraceFailureCode(normalized_failure)
-                except (ValueError, TypeError):
-                    failure_val = normalized_failure  # type: ignore[assignment]
-            self._call("mark_branch_state", BranchStateUpdateRequest(
-                run_id=normalized_run,
-                branch_id=normalized_branch,
-                new_state=normalized_state,  # type: ignore[arg-type]
-                failure_code=failure_val,
-            ))
-        else:
-            self._call(
-                "mark_branch_state",
-                normalized_run,
-                self._non_empty(stage_id, "stage_id"),
-                normalized_branch,
-                normalized_state,
-                normalized_failure,
-            )
+        from agent_kernel.adapters.facade.kernel_facade import BranchStateUpdateRequest  # noqa: PLC0415
+        from agent_kernel.kernel.contracts import TraceFailureCode  # noqa: PLC0415
+        failure_val = None
+        if normalized_failure is not None:
+            try:
+                failure_val = TraceFailureCode(normalized_failure)
+            except (ValueError, TypeError):
+                failure_val = normalized_failure  # type: ignore[assignment]
+        self._call("mark_branch_state", BranchStateUpdateRequest(
+            run_id=normalized_run,
+            branch_id=normalized_branch,
+            new_state=normalized_state,  # type: ignore[arg-type]
+            failure_code=failure_val,
+        ))
 
     # ------------------------------------------------------------------
     # Human gate
@@ -356,20 +352,61 @@ class KernelFacadeAdapter:
     def open_human_gate(self, request: HumanGateRequest) -> None:
         """Open a human gate and block until resolved or timed out.
 
-        Delegates to ``facade.open_human_gate(request)``.
-        The real KernelFacade expects an ``agent_kernel`` HumanGateRequest;
-        since the hi-agent DTO has compatible fields, it is passed through
-        directly.  When the facade uses a different DTO shape, this method
-        constructs the appropriate object.
+        Converts hi-agent request DTO to agent-kernel ``HumanGateRequest``.
         """
-        self._call("open_human_gate", request)
+        from agent_kernel.adapters.facade.kernel_facade import (  # noqa: PLC0415
+            HumanGateRequest as KernelHumanGateRequest,
+        )
+
+        context = dict(getattr(request, "context", {}) or {})
+        self._call(
+            "open_human_gate",
+            KernelHumanGateRequest(
+                gate_ref=self._non_empty(request.gate_ref, "gate_ref"),
+                gate_type=self._non_empty(request.gate_type, "gate_type"),  # type: ignore[arg-type]
+                run_id=self._non_empty(request.run_id, "run_id"),
+                trigger_reason=str(
+                    context.get("trigger_reason")
+                    or context.get("reason")
+                    or "human_gate_requested"
+                ),
+                trigger_source=str(context.get("trigger_source") or "system"),  # type: ignore[arg-type]
+                stage_id=context.get("stage_id"),
+                branch_id=context.get("branch_id"),
+                artifact_ref=context.get("artifact_ref"),
+                caused_by=context.get("caused_by"),
+            ),
+        )
 
     def submit_approval(self, request: ApprovalRequest) -> None:
         """Submit an approval or rejection for a pending human gate.
 
-        Delegates to ``facade.submit_approval(request)``.
+        Converts hi-agent request DTO to agent-kernel ``ApprovalRequest``.
         """
-        self._call("submit_approval", request)
+        from agent_kernel.adapters.facade.kernel_facade import (  # noqa: PLC0415
+            ApprovalRequest as KernelApprovalRequest,
+        )
+
+        decision = self._non_empty(request.decision, "decision").lower()
+        if decision not in {"approved", "rejected"}:
+            raise ValueError("decision must be 'approved' or 'rejected'")
+        run_id = getattr(request, "run_id", None) or self._current_run_id
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise RuntimeAdapterBackendError(
+                "submit_approval",
+                cause=ValueError("submit_approval requires run context"),
+            )
+
+        self._call(
+            "submit_approval",
+            KernelApprovalRequest(
+                run_id=run_id.strip(),
+                approval_ref=self._non_empty(request.gate_ref, "gate_ref"),
+                approved=(decision == "approved"),
+                reviewer_id=(request.reviewer_id or "unknown_reviewer"),
+                reason=(request.comment or None),
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Turn execution
@@ -385,21 +422,20 @@ class KernelFacadeAdapter:
     ) -> Any:
         """Forward execute_turn to facade.
 
-        Falls back to a simple handler call if the facade doesn't
-        implement execute_turn.
+        Requires KernelFacade ``execute_turn`` support.
         """
         method = getattr(self._facade, "execute_turn", None)
-        if callable(method):
-            return await method(
-                run_id=run_id,
-                action=action,
-                handler=handler,
-                idempotency_key=idempotency_key,
+        if not callable(method):
+            raise RuntimeAdapterBackendError(
+                "execute_turn",
+                cause=NotImplementedError("KernelFacade does not implement execute_turn"),
             )
-        # Fallback: just call handler directly (for facades without execute_turn)
-        result = await handler(action, None)
-        # Return a simple result object
-        return _SimpleTurnResult(outcome_kind="dispatched", result=result)
+        return await method(
+            run_id=run_id,
+            action=action,
+            handler=handler,
+            idempotency_key=idempotency_key,
+        )
 
     # ------------------------------------------------------------------
     # Plan & manifest
@@ -437,9 +473,8 @@ class KernelFacadeAdapter:
     ) -> str:
         """Spawn a child run under parent_run_id.
 
-        Constructs a ``SpawnChildRunRequest`` DTO for the real KernelFacade
-        and extracts ``child_run_id`` from the ``SpawnChildRunResponse``.
-        Falls back to passing positional args for mock/test facades.
+        Constructs a ``SpawnChildRunRequest`` DTO for KernelFacade and
+        extracts ``child_run_id`` from the ``SpawnChildRunResponse``.
 
         Args:
             parent_run_id: The parent run identifier under which to spawn.
@@ -456,33 +491,20 @@ class KernelFacadeAdapter:
         normalized_parent = self._non_empty(parent_run_id, "parent_run_id")
         normalized_task = self._non_empty(task_id, "task_id")
         normalized_config: dict[str, Any] = config or {}
-        if self._use_kernel_dtos:
-            try:
-                from agent_kernel.kernel.contracts import (  # noqa: PLC0415
-                    SpawnChildRunRequest,
-                )
-            except ImportError:
-                SpawnChildRunRequest = None  # type: ignore[assignment,misc]
-            if SpawnChildRunRequest is not None:
-                request = SpawnChildRunRequest(
-                    parent_run_id=normalized_parent,
-                    child_kind="delegate",
-                    task_id=normalized_task,
-                    input_json=normalized_config if normalized_config else None,
-                )
-                result = self._call("spawn_child_run", request)
-                if hasattr(result, "child_run_id"):
-                    child_run_id: str = result.child_run_id
-                    if child_run_id and child_run_id.strip():
-                        return child_run_id
-            # Fallback path if DTO import failed
-            result = self._call(
-                "spawn_child_run", normalized_parent, normalized_task, normalized_config
-            )
-        else:
-            result = self._call(
-                "spawn_child_run", normalized_parent, normalized_task, normalized_config
-            )
+        from agent_kernel.kernel.contracts import (  # noqa: PLC0415
+            SpawnChildRunRequest,
+        )
+        request = SpawnChildRunRequest(
+            parent_run_id=normalized_parent,
+            child_kind="delegate",
+            task_id=normalized_task,
+            input_json=normalized_config if normalized_config else None,
+        )
+        result = self._call("spawn_child_run", request)
+        if hasattr(result, "child_run_id"):
+            child_run_id: str = result.child_run_id
+            if child_run_id and child_run_id.strip():
+                return child_run_id
         if isinstance(result, str) and result.strip():
             return result
         error = ValueError("spawn_child_run must return a non-empty child run_id string")
@@ -554,27 +576,22 @@ class KernelFacadeAdapter:
                 except RuntimeError:
                     loop = None
                 if loop is not None and loop.is_running():
-                    # We are inside an event loop; create a task-based
-                    # bridge.  Callers in async contexts should prefer
-                    # the async facade directly.
-                    import concurrent.futures
+                    import threading
 
-                    future: concurrent.futures.Future[Any] = (
-                        concurrent.futures.Future()
-                    )
+                    holder: dict[str, Any] = {}
 
-                    async def _bridge() -> None:
+                    def _runner() -> None:
                         try:
-                            res = await result
-                            future.set_result(res)
-                        except Exception as exc:
-                            future.set_exception(exc)
+                            holder["result"] = asyncio.run(result)
+                        except Exception as exc:  # noqa: BLE001
+                            holder["error"] = exc
 
-                    loop.create_task(_bridge())
-                    # Cannot block here; return the future result placeholder.
-                    # In practice, facade methods that are truly async should
-                    # be called through an async adapter variant.
-                    return None
+                    thread = threading.Thread(target=_runner, daemon=True)
+                    thread.start()
+                    thread.join()
+                    if "error" in holder:
+                        raise holder["error"]
+                    return holder.get("result")
                 else:
                     return asyncio.run(result)
             return result
@@ -638,6 +655,31 @@ def create_local_adapter() -> KernelFacadeAdapter:
         substrate=LocalSubstrateConfig(),
         event_log_backend="in_memory",
     )
+
+    class _InMemoryTaskViewLog:
+        """Minimal in-memory TaskViewLog required by KernelFacade.record_task_view()."""
+
+        def __init__(self) -> None:
+            self._by_id: dict = {}
+            self._by_decision: dict = {}
+
+        def write(self, record: Any) -> None:
+            tv_id = getattr(record, "task_view_id", None) or str(id(record))
+            self._by_id[tv_id] = record
+
+        def get_by_id(self, task_view_id: str) -> Any:
+            return self._by_id.get(task_view_id)
+
+        def get_by_decision(self, run_id: str, decision_ref: Any) -> Any:
+            key = str(decision_ref)
+            return self._by_decision.get(key)
+
+        def bind_to_decision(self, task_view_id: str, decision_ref: Any) -> None:
+            key = str(decision_ref)
+            self._by_decision[key] = self._by_id.get(task_view_id)
+
+    _task_view_log = _InMemoryTaskViewLog()
+
     # KernelRuntime.start() is async. If a running event loop is detected
     # (e.g. inside a Starlette/FastAPI test or server context), we spin up
     # a dedicated daemon thread so asyncio.run() gets a fresh event loop.
@@ -659,7 +701,10 @@ def create_local_adapter() -> KernelFacadeAdapter:
         t.join()
         if exc_holder:
             raise exc_holder[0]
-        return KernelFacadeAdapter(result[0].facade)
+        facade = result[0].facade
+        if getattr(facade, "_task_view_log", None) is None:
+            facade._task_view_log = _task_view_log
+        return KernelFacadeAdapter(facade)
 
     try:
         asyncio.get_running_loop()
@@ -668,4 +713,8 @@ def create_local_adapter() -> KernelFacadeAdapter:
     except RuntimeError:
         # No running loop — safe to call asyncio.run() directly.
         runtime = asyncio.run(KernelRuntime.start(config))
-        return KernelFacadeAdapter(runtime.facade)
+        facade = runtime.facade
+        if getattr(facade, "_task_view_log", None) is None:
+            facade._task_view_log = _task_view_log
+        return KernelFacadeAdapter(facade)
+
