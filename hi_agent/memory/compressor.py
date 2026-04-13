@@ -8,10 +8,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+import logging
+
 from hi_agent.llm.protocol import LLMGateway, LLMRequest
 from hi_agent.memory.compress_prompts import STAGE_COMPRESSION_PROMPT
 from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.memory.l1_compressed import CompressedStageMemory
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -124,8 +128,11 @@ class MemoryCompressor:
                     len(result.findings) + len(result.decisions),
                 )
                 return result
-            except Exception:
-                pass  # fall through to fallback
+            except Exception as exc:
+                logger.warning(
+                    "MemoryCompressor: sync LLM compression failed, using fallback: %s", exc
+                )
+                # fall through to fallback
 
         result = self._fallback_truncate(stage_id, records)
         self.metrics.record(
@@ -162,7 +169,10 @@ class MemoryCompressor:
                     len(result.findings) + len(result.decisions),
                 )
                 return result
-            except (TimeoutError, Exception):
+            except (TimeoutError, Exception) as exc:
+                logger.warning(
+                    "MemoryCompressor: gateway async compression failed, using fallback: %s", exc
+                )
                 result = self._fallback_truncate(stage_id, records)
                 self.metrics.record(
                     "fallback",
@@ -183,7 +193,10 @@ class MemoryCompressor:
                     len(result.findings) + len(result.decisions),
                 )
                 return result
-            except (TimeoutError, Exception):
+            except (TimeoutError, Exception) as exc:
+                logger.warning(
+                    "MemoryCompressor: llm_fn async compression failed, using fallback: %s", exc
+                )
                 result = self._fallback_truncate(stage_id, records)
                 self.metrics.record(
                     "fallback",

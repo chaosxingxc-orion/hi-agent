@@ -265,8 +265,10 @@ class HarnessExecutor:
                 ):
                     self._artifact_registry.store(artifact)
                     artifact_ids.append(artifact.artifact_id)
-            except Exception:
-                pass  # artifact persistence is best-effort; never break evidence flow
+            except Exception as exc:
+                logger.warning(
+                    "HarnessExecutor._collect_evidence: artifact persistence failed: %s", exc
+                )
 
         return evidence_ref, artifact_ids
 

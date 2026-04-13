@@ -30,6 +30,12 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
+# Routing LLM call cost estimates — used when route_engine.propose() does not
+# return token metadata.  Named constants so the magic numbers are explicit.
+_ROUTING_ESTIMATED_INPUT_TOKENS: int = 500
+_ROUTING_ESTIMATED_OUTPUT_TOKENS: int = 200
+_ROUTING_ESTIMATED_TOTAL_TOKENS: int = _ROUTING_ESTIMATED_INPUT_TOKENS + _ROUTING_ESTIMATED_OUTPUT_TOKENS
+
 
 class StageExecutor:
     """Encapsulates per-stage execution logic."""
@@ -164,7 +170,7 @@ class StageExecutor:
             is_optional = stage_id in self.optional_stages
             decision = self.budget_guard.decide_tier(
                 requested_tier="strong",
-                estimated_cost=500,
+                estimated_cost=_ROUTING_ESTIMATED_TOTAL_TOKENS,
                 is_optional=is_optional,
             )
             if decision.skipped:
@@ -285,15 +291,15 @@ class StageExecutor:
                 cost = 0.0
                 if self.cost_calculator is not None:
                     cost = self.cost_calculator.calculate(
-                        "default", 500, 200
+                        "routing_estimate", _ROUTING_ESTIMATED_INPUT_TOKENS, _ROUTING_ESTIMATED_OUTPUT_TOKENS
                     )
                 record = LLMCallRecord(
                     call_id=f"{executor.run_id}:llm:route:{stage_id}",
                     purpose="routing",
                     stage_id=stage_id,
-                    model="default",
-                    input_tokens=500,
-                    output_tokens=200,
+                    model="routing_estimate",
+                    input_tokens=_ROUTING_ESTIMATED_INPUT_TOKENS,
+                    output_tokens=_ROUTING_ESTIMATED_OUTPUT_TOKENS,
                     cost_usd=cost,
                 )
                 executor.session.record_llm_call(record)
@@ -306,7 +312,7 @@ class StageExecutor:
                 )
         # BudgetGuard: consume tokens from the routing LLM call
         if self.budget_guard is not None:
-            self.budget_guard.consume(700)
+            self.budget_guard.consume(_ROUTING_ESTIMATED_TOTAL_TOKENS)
             _bg_tier = (
                 executor._budget_tier_decision.tier
                 if hasattr(executor, "_budget_tier_decision")
@@ -324,7 +330,7 @@ class StageExecutor:
         # ContextManager: record LLM response after routing call
         if self.context_manager is not None:
             try:
-                self.context_manager.record_response(output_tokens=200)
+                self.context_manager.record_response(output_tokens=_ROUTING_ESTIMATED_OUTPUT_TOKENS)
             except Exception as exc:
                 _logger.debug(
                     "stage.context_response_record_failed run_id=%s stage_id=%s error=%s",

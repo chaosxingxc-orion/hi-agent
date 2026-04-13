@@ -2087,8 +2087,11 @@ class RunExecutor:
                                 TaskDescriptor,
                             )
                             descriptor_cls = TaskDescriptor
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            _logger.warning(
+                                "runner: task_descriptor import failed, reflection skipped: %s",
+                                exc,
+                            )
 
                         if descriptor_cls is not None:
                             descriptor = descriptor_cls(
@@ -2099,8 +2102,11 @@ class RunExecutor:
                             loop = None
                             try:
                                 loop = asyncio.get_event_loop()
-                            except RuntimeError:
-                                pass
+                            except RuntimeError as exc:
+                                _logger.warning(
+                                    "runner: no event loop available, sync reflection only: %s",
+                                    exc,
+                                )
 
                             if loop is not None and loop.is_running():
                                 _logger.info(
@@ -2144,8 +2150,10 @@ class RunExecutor:
                             "reason": decision.reason,
                         },
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _logger.warning(
+                        "runner: StageEscalated event recording failed, continuing: %s", exc
+                    )
                 return "failed"
 
             # action == "abort" or unknown

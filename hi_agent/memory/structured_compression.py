@@ -522,6 +522,10 @@ class StructuredCompressor:
         Extracts the first user message as the *goal* and concatenates all
         assistant messages as a rough *progress* indicator.
         """
+        logger.warning(
+            "structured_compression: LLM unavailable, using minimal fallback summary for section %r",
+            getattr(self, "section_id", "unknown"),
+        )
         goal = ""
         progress_parts: list[str] = []
         for msg in messages:
@@ -539,11 +543,11 @@ class StructuredCompressor:
                 progress_parts.append(content_str)
 
         return StructuredSummary(
-            goal=goal or "(目标未知)",
-            progress="; ".join(progress_parts[:3]) or "(无进度)",
-            decisions="(无决策记录)",
+            goal=goal or "(goal_unknown)",
+            progress="; ".join(progress_parts[:3]) or "(no_progress_recorded)",
+            decisions="(no_decisions_recorded)",
             modified_files=[],
-            next_steps="(待确认)",
+            next_steps="(pending_confirmation)",
             compressed_at=datetime.now(UTC).isoformat(),
             source_message_count=len(messages),
         )

@@ -627,8 +627,8 @@ class TestExecutionMiddleware:
         result = em.process(msg)
         results = result.payload.get("results", [])
         assert len(results) > 0
-        # Non-strict mode: degraded result passes with success=True
-        assert results[0].get("success") is True
+        # Non-strict mode: degraded result signals failure with success=False and _degraded flag
+        assert results[0].get("success") is False
         assert results[0].get("output", {}).get("_degraded") is True
 
     def test_idempotency_check(self):
@@ -914,15 +914,15 @@ class TestExecutionMiddlewareMisconfiguration:
             ExecutionMiddleware(strict=True)
 
     def test_non_strict_without_invoker_returns_failure(self):
-        """strict=False without invoker returns degraded (passing) execution results."""
+        """strict=False without invoker returns degraded execution results with success=False."""
         em = ExecutionMiddleware()
         msg = _make_control_msg("test task")
         result = em.process(msg)
         results = result.payload.get("results", [])
         assert len(results) > 0
         for r in results:
-            # Non-strict degraded mode: success=True with _degraded flag so pipeline continues
-            assert r["success"] is True
+            # Non-strict degraded mode: success=False with _degraded flag signals real failure
+            assert r["success"] is False
             assert r["output"] is not None
             assert r["output"].get("_degraded") is True
 
@@ -956,13 +956,13 @@ class TestExecutionMiddlewareMisconfiguration:
 
     def test_evaluation_scores_missing_invoker_result_as_zero(self):
         """Execution without invoker produces degraded results; evaluation passes them through."""
-        em = ExecutionMiddleware()  # no invoker -> degraded result (success=True, _degraded=True)
+        em = ExecutionMiddleware()  # no invoker -> degraded result (success=False, _degraded=True)
         ev = EvaluationMiddleware(quality_threshold=0.5, max_retries=0)
         exec_msg = em.process(_make_control_msg("test task"))
         eval_msg = ev.process(exec_msg)
         evaluations = eval_msg.payload.get("evaluations", [])
         assert len(evaluations) > 0
-        # Degraded results are passing (success=True) so evaluation scores them > 0
+        # Degraded results (success=False) are still scored by evaluation layer
         for e in evaluations:
             assert e["quality_score"] >= 0.0
 

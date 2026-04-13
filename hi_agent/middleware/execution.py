@@ -230,8 +230,8 @@ class ExecutionMiddleware:
             },
             evidence=evidence,
             tokens_used=0,
-            success=True,
-            error=None,
+            success=False,
+            error="degraded_execution_no_invoker",
         )
 
     def _make_idempotency_key(

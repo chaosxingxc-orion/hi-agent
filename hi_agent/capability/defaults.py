@@ -142,6 +142,7 @@ def make_llm_capability_handler(
             "output": f"[{capability_name}] processed: {label[:200]}",
             "evidence": [f"{capability_name}:heuristic:{stage_id}"],
             "stage_id": stage_id,
+            "_heuristic": True,   # marks as non-real execution
         }
 
     handler.__name__ = f"{capability_name}_handler"
