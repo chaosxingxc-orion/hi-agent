@@ -239,11 +239,12 @@ class MemoryCompressor:
                 if tag.startswith("contradiction:"):
                     contradiction_refs.append(tag)
 
-        outcome = (
-            "succeeded"
-            if any("completed" in item for item in findings)
-            else "active"
-        )
+        if any("failed" in item for item in findings):
+            outcome = "failed"
+        elif any("completed" in item for item in findings):
+            outcome = "succeeded"
+        else:
+            outcome = "active"
 
         return CompressedStageMemory(
             stage_id=stage_id,

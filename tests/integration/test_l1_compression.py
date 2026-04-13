@@ -95,6 +95,45 @@ class TestCompressionOf30PlusRecords:
 
         assert result.outcome == "succeeded"
 
+    def test_compression_outcome_reflects_failed(self) -> None:
+        """Outcome should be 'failed' when records contain a 'failed' StageStateChanged event.
+
+        This covers the fix for A-1: _heuristic_compress must derive 'failed'
+        from event records so callers don't need to override outcome post-hoc.
+        """
+        records = [
+            RawEventRecord(
+                event_type="StageStateChanged",
+                payload={"stage_id": "S2_gather", "to_state": "active"},
+            ),
+            RawEventRecord(
+                event_type="StageStateChanged",
+                payload={"stage_id": "S2_gather", "to_state": "failed"},
+            ),
+        ]
+        compressor = MemoryCompressor(compress_threshold=25)
+
+        result = compressor.compress_stage("S2_gather", records)
+
+        assert result.outcome == "failed", (
+            f"Compressor must derive 'failed' outcome from StageStateChanged:failed records, "
+            f"got {result.outcome!r}"
+        )
+
+    def test_compression_outcome_active_when_no_terminal_state(self) -> None:
+        """Outcome should be 'active' when no terminal StageStateChanged event exists."""
+        records = [
+            RawEventRecord(
+                event_type="StageStateChanged",
+                payload={"stage_id": "S1_understand", "to_state": "active"},
+            ),
+        ]
+        compressor = MemoryCompressor(compress_threshold=25)
+
+        result = compressor.compress_stage("S1_understand", records)
+
+        assert result.outcome == "active"
+
     def test_async_compression_above_threshold_no_llm(self) -> None:
         """Async compression without LLM should use fallback path."""
         records = _make_evidence_records("S3_build", 30)

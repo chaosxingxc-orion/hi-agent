@@ -243,7 +243,7 @@ python -m pytest tests/ -v
 
 ## Test Coverage
 
-2814 tests, all passing. One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
+2801 tests, all passing. One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
 
 ## System Overview
 

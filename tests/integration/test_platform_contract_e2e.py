@@ -491,3 +491,44 @@ def test_pc06_invalid_result_status_maps_to_failed() -> None:
     assert run.state == "failed", (
         f"Unknown result status should map to 'failed', got run.state={run.state!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# PC-07: Failed stage outcome is set at source, not patched post-hoc
+# ---------------------------------------------------------------------------
+
+def test_pc07_failed_stage_outcome_is_failed_not_active() -> None:
+    """A stage that triggers a dead-end must have outcome='failed' in RunResult.stages.
+
+    Root cause fix (A-1): runner_stage.py sets _failed_summary.outcome='failed'
+    immediately after compress — compressor defaults to 'active'/'succeeded'.
+    This test proves the outcome reaches the caller without post-hoc patching.
+    """
+    from hi_agent.contracts.requests import RunResult
+    from tests.helpers.kernel_adapter_fixture import MockKernel
+
+    # fail_action uses capability name (action_kind), not stage_id.
+    # Default rule engine maps S1_understand → analyze_goal.
+    contract = TaskContract(
+        task_id="pc07test",
+        goal="Verify failed stage outcome",
+        constraints=["fail_action:analyze_goal"],
+    )
+    kernel = MockKernel()
+    executor = RunExecutor(contract, kernel)
+    result = executor.execute()
+
+    assert isinstance(result, RunResult)
+    assert result.status == "failed", f"Run with forced failure must fail, got {result.status!r}"
+
+    # Find the stage that was forced to fail
+    stage_summaries = result.stages
+    assert stage_summaries, "Failed run must have at least one stage summary"
+
+    failed_stages = [s for s in stage_summaries if s.get("stage_id") == "S1_understand"]
+    if failed_stages:
+        outcome = failed_stages[0].get("outcome")
+        assert outcome == "failed", (
+            f"Stage forced to fail must have outcome='failed', got {outcome!r}. "
+            "This would indicate the post-hoc correction was needed (A-1 not fixed at source)."
+        )

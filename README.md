@@ -164,7 +164,7 @@ hi_agent/
   runner_stage.py      # StageExecutor 阶段执行委托
   runner_lifecycle.py  # 结束流程、postmortem、知识摄入、进化触发
   runner_telemetry.py  # 事件与指标记录
-tests/                 # 2814 个测试，全部通过
+tests/                 # 2801 个测试，全部通过
 docs/                  # 架构、规格、研究文档
 ```
 
@@ -263,7 +263,7 @@ python -m hi_agent --api-port 8080 health --json
 
 ```bash
 python -m ruff check .       # lint
-python -m pytest -q           # 2814 tests
+python -m pytest -q           # 2801 tests
 
 # 触发 Dream 记忆整合
 curl -X POST http://localhost:8080/memory/dream

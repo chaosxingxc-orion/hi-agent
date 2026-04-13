@@ -679,6 +679,7 @@ class StageExecutor:
                             self.kernel.mark_stage_state(stage_id, StageState.FAILED)
                             executor._trigger_recovery(stage_id)
                             _failed_summary = executor._compress_stage_summary(stage_id)
+                            _failed_summary.outcome = "failed"  # set at source — compressor doesn't know stage failed
                             _failed_summary.artifact_ids = list(stage_artifact_ids)
                             executor.stage_summaries[stage_id] = _failed_summary
                             executor._persist_snapshot(stage_id=stage_id, result="failed")
@@ -700,6 +701,7 @@ class StageExecutor:
             )
             executor._trigger_recovery(stage_id)
             _failed_summary = executor._compress_stage_summary(stage_id)
+            _failed_summary.outcome = "failed"  # set at source — dead end confirmed, compressor doesn't know
             _failed_summary.artifact_ids = list(stage_artifact_ids)
             executor.stage_summaries[stage_id] = _failed_summary
             executor._persist_snapshot(
