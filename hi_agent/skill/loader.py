@@ -185,6 +185,10 @@ class SkillLoader:
         budget = budget_tokens if budget_tokens is not None else self._max_tokens
 
         eligible = [s for s in self._skills.values() if s.check_eligibility()[0]]
+        # Exclude retired and deprecated skills — they must not execute in production.
+        # candidate and provisional are allowed (provisional for A/B; candidate for
+        # controlled testing only).
+        eligible = [s for s in eligible if s.lifecycle_stage not in ("deprecated", "retired")]
         # Sort by confidence descending, then by name for stability
         eligible.sort(key=lambda s: (-s.confidence, s.name))
 
@@ -278,6 +282,43 @@ class SkillLoader:
     def skill_count(self) -> int:
         """Number of discovered skills."""
         return len(self._skills)
+
+    def sync_to_registry(self, registry: Any) -> int:
+        """Sync file-discovered skills into a SkillRegistry as ManagedSkills.
+
+        Bridges the file-based SkillLoader and the lifecycle-managed
+        SkillRegistry so discovered SKILL.md skills are queryable through
+        both subsystems.
+
+        Args:
+            registry: A SkillRegistry instance.
+
+        Returns:
+            Number of skills synced.
+        """
+        from datetime import UTC, datetime  # noqa: PLC0415
+        from hi_agent.skill.registry import ManagedSkill  # noqa: PLC0415
+        synced = 0
+        now = datetime.now(UTC).isoformat()
+        for skill in self._skills.values():
+            if skill.name in registry._skills:
+                continue  # already present, skip
+            managed = ManagedSkill(
+                skill_id=skill.name,
+                name=skill.name,
+                description=skill.description,
+                version=skill.version,
+                lifecycle_stage=getattr(skill, "lifecycle_stage", "certified"),
+                created_at=now,
+                updated_at=now,
+            )
+            registry._skills[managed.skill_id] = managed
+            synced += 1
+        import logging as _logging  # noqa: PLC0415
+        _logging.getLogger(__name__).info(
+            "SkillLoader.sync_to_registry: synced %d skill(s).", synced
+        )
+        return synced
 
     # ------------------------------------------------------------------
     # Internal

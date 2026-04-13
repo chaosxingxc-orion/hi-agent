@@ -292,20 +292,22 @@ class StageGraph:
 
 
 def default_trace_stage_graph() -> StageGraph:
-    """Build default linear TRACE stage graph (S1->S5)."""
-    return build_default_trace_graph()
+    """Return the sample TRACE S1→S5 stage graph.
+
+    .. deprecated::
+        This is a *sample* configuration that lives in
+        ``hi_agent.samples.trace_pipeline``.  Business agents should build
+        and inject their own :class:`StageGraph` rather than relying on this
+        default.  This function is kept for backward compatibility only.
+    """
+    from hi_agent.samples.trace_pipeline import build_trace_stage_graph  # noqa: PLC0415
+    return build_trace_stage_graph()
 
 
 def build_default_trace_graph() -> StageGraph:
-    """S1(Understand) -> S2(Gather) -> S3(Build/Analyze) -> S4(Synthesize) -> S5(Review/Finalize).
+    """Alias for :func:`default_trace_stage_graph`.
 
-    The returned graph passes all formal validations with
-    ``initial_stage="S1_understand"`` and
-    ``terminal_stages={"S5_review"}``.
+    .. deprecated::
+        Use ``hi_agent.samples.trace_pipeline.build_trace_stage_graph`` directly.
     """
-    graph = StageGraph()
-    graph.add_edge("S1_understand", "S2_gather")
-    graph.add_edge("S2_gather", "S3_build")
-    graph.add_edge("S3_build", "S4_synthesize")
-    graph.add_edge("S4_synthesize", "S5_review")
-    return graph
+    return default_trace_stage_graph()

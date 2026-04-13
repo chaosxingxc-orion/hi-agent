@@ -44,6 +44,10 @@ from hi_agent.observability.collector import MetricsCollector
 from hi_agent.state import RunStateStore
 
 
+class MissingCapabilityError(RuntimeError):
+    """Raised when a profile's required capabilities are not registered."""
+
+
 class SystemBuilder:
     """Factory that creates all TRACE subsystems from a single TraceConfig.
 
@@ -55,10 +59,31 @@ class SystemBuilder:
         self,
         config: TraceConfig | None = None,
         config_stack: Any | None = None,
+        *,
+        profile_registry: Any | None = None,
+        capability_registry: Any | None = None,
+        artifact_registry: Any | None = None,
     ) -> None:
-        """Initialize SystemBuilder."""
+        """Initialize SystemBuilder.
+
+        Args:
+            config: Optional TraceConfig. Defaults to a new TraceConfig().
+            config_stack: Optional config stack (used by server wiring).
+            profile_registry: Optional pre-built ProfileRegistry. When provided,
+                build_profile_registry() returns it directly without creating a new one.
+            capability_registry: Optional pre-built CapabilityRegistry. When provided,
+                build_capability_registry() returns it directly without creating a new one.
+            artifact_registry: Optional pre-built ArtifactRegistry. When provided,
+                build_artifact_registry() returns it directly without creating a new one.
+        """
+        import threading as _threading
         self._config = config if config is not None else TraceConfig()
         self._stack = config_stack
+        # Protects lazy singleton cache against concurrent build_executor() calls.
+        # RLock (re-entrant) is required because several build_* methods acquire
+        # this lock and then call other build_* methods that also acquire it
+        # (e.g. build_capability_registry -> build_llm_gateway).
+        self._singleton_lock = _threading.RLock()
         # Cache built singletons so repeated calls return the same instance.
         self._kernel: RuntimeAdapter | None = None
         self._llm_gateway: LLMGateway | None = None
@@ -67,6 +92,54 @@ class SystemBuilder:
         self._run_context_manager: Any | None = None
         self._middleware_orchestrator: Any | None = None
         self._llm_budget_tracker: Any | None = None
+        # Subsystem singletons — cached so readiness() and manifest reflect the
+        # same instances used by actual run execution.
+        self._skill_loader: Any | None = None
+        self._mcp_registry: Any | None = None
+        self._mcp_transport: Any | None = None
+        self._plugin_loader: Any | None = None
+        # Pre-inject registries if provided (allows derived builders to inherit state).
+        # The build_*_registry() methods all use hasattr/is-None checks before creating
+        # new instances, so pre-assigned values will be respected automatically.
+        if profile_registry is not None:
+            self._profile_registry = profile_registry
+        if capability_registry is not None:
+            self._capability_registry = capability_registry
+        if artifact_registry is not None:
+            self._artifact_registry = artifact_registry
+
+        # Redirect deprecated TraceConfig fields to their successors before any
+        # subsystem is built, so callers that set legacy fields get expected behavior.
+        self._redirect_deprecated_config()
+        # Warn about deprecated fields that have no successor (dead fields).
+        self._config.validate_no_deprecated()
+
+    def _redirect_deprecated_config(self) -> None:
+        """Forward deprecated TraceConfig fields to their active successors.
+
+        This preserves backward compatibility for callers that still set the old
+        field names.  Only redirects when the successor field still holds its
+        default value — explicit successor values always win.
+        """
+        cfg = self._config
+        # default_model → openai_default_model (when successor is still the package default)
+        if cfg.default_model != "gpt-4o" and cfg.openai_default_model == "gpt-4o":
+            cfg.openai_default_model = cfg.default_model
+        # llm_max_retries → llm_failover_max_retries
+        if cfg.llm_max_retries != 2 and cfg.llm_failover_max_retries == 3:
+            cfg.llm_failover_max_retries = cfg.llm_max_retries
+        # harness_default_timeout → harness_action_default_timeout
+        if cfg.harness_default_timeout != 60 and cfg.harness_action_default_timeout == 60:
+            cfg.harness_action_default_timeout = cfg.harness_default_timeout
+        # max_actions_per_run → task_budget_max_actions
+        if cfg.max_actions_per_run != 100 and cfg.task_budget_max_actions == 50:
+            cfg.task_budget_max_actions = cfg.max_actions_per_run
+        # max_total_branches → cts_max_total_branches
+        if cfg.max_total_branches != 20 and cfg.cts_max_total_branches == 20:
+            cfg.cts_max_total_branches = cfg.max_total_branches
+        # max_branches_per_stage → cts_max_active_branches_per_stage
+        if cfg.max_branches_per_stage != 5 and cfg.cts_max_active_branches_per_stage == 3:
+            cfg.cts_max_active_branches_per_stage = cfg.max_branches_per_stage
 
     # ------------------------------------------------------------------
     # Individual builders
@@ -74,15 +147,16 @@ class SystemBuilder:
 
     def _build_run_context_manager(self) -> Any:
         """Build or return the shared RunContextManager singleton."""
-        if self._run_context_manager is None:
-            try:
-                from hi_agent.context.run_context import RunContextManager
-                self._run_context_manager = RunContextManager()
-                logger.info("_build_run_context_manager: RunContextManager created.")
-            except Exception as exc:
-                logger.warning(
-                    "_build_run_context_manager: failed to create RunContextManager: %s", exc
-                )
+        with self._singleton_lock:
+            if self._run_context_manager is None:
+                try:
+                    from hi_agent.context.run_context import RunContextManager
+                    self._run_context_manager = RunContextManager()
+                    logger.info("_build_run_context_manager: RunContextManager created.")
+                except Exception as exc:
+                    logger.warning(
+                        "_build_run_context_manager: failed to create RunContextManager: %s", exc
+                    )
         return self._run_context_manager
 
     def _build_middleware_orchestrator(self) -> Any:
@@ -196,11 +270,17 @@ class SystemBuilder:
                 backoff_base_ms=2000,
                 on_exhausted="escalate",
             )
+            # In-memory attempt store so the engine can actually track attempt history
+            # and enforce max_attempts. Replaced by a persistent store when wired to
+            # a real task registry.
+            _attempt_store: dict[str, list[Any]] = {}
             engine = RestartPolicyEngine(
-                get_attempts=lambda task_id: [],
+                get_attempts=lambda task_id: list(_attempt_store.get(task_id, [])),
                 get_policy=lambda task_id: _default_policy,
                 update_state=lambda task_id, state: None,
-                record_attempt=lambda attempt: None,
+                record_attempt=lambda attempt: _attempt_store.setdefault(
+                    getattr(attempt, "task_id", ""), []
+                ).append(attempt),
             )
             logger.info("_build_restart_policy_engine: RestartPolicyEngine created with default policy (max_attempts=2, on_exhausted=escalate).")
             return engine
@@ -220,12 +300,17 @@ class SystemBuilder:
 
             async def _inference_fn(**kwargs: Any) -> str:
                 """LLM-backed or heuristic reflection inference."""
+                import json as _json
+                run_id = kwargs.get("run_id", "unknown")
                 if gateway is None:
-                    return "reflect: no LLM gateway available"
+                    return _json.dumps({
+                        "action": "retry_with_default",
+                        "reason": "no LLM gateway available",
+                        "run_id": run_id,
+                    })
                 try:
                     from hi_agent.llm.protocol import LLMRequest
                     recovery_context = kwargs.get("recovery_context", {})
-                    run_id = kwargs.get("run_id", "unknown")
                     prompt = (
                         f"Reflection for run {run_id}.\n"
                         f"Recovery context: {recovery_context}\n"
@@ -239,7 +324,11 @@ class SystemBuilder:
                     return resp.content
                 except Exception as exc:
                     logger.warning("_reflection_orchestrator inference_fn error: %s", exc)
-                    return "reflect: inference failed"
+                    return _json.dumps({
+                        "action": "retry_with_default",
+                        "reason": f"inference failed: {exc}",
+                        "run_id": run_id,
+                    })
 
             bridge = ReflectionBridge()
             orchestrator = ReflectionOrchestrator(
@@ -257,39 +346,40 @@ class SystemBuilder:
 
     def build_metrics_collector(self) -> MetricsCollector:
         """Build or return the shared MetricsCollector singleton."""
-        if self._metrics_collector is None:
-            from hi_agent.observability.collector import default_alert_rules
-            self._metrics_collector = MetricsCollector()
-            for rule in default_alert_rules():
-                self._metrics_collector.add_alert_rule(rule)
-            _webhook_url = os.environ.get("WEBHOOK_URL", "")
-            if _webhook_url:
-                from hi_agent.observability.notification import (
-                    build_notification_backend,
-                    send_notification,
-                )
-                import time as _time
-                _backend = build_notification_backend(_webhook_url)
-
-                def _alert_cb(alert: object) -> None:
-                    # alert is an Alert dataclass: rule_name, metric_name, current_value
-                    _alert_name = getattr(alert, "rule_name", str(alert))
-                    _metric_name = getattr(alert, "metric_name", "")
-                    _value = getattr(alert, "current_value", 0.0)
-                    send_notification(
-                        backend=_backend,
-                        event=f"alert.{_alert_name}",
-                        severity="warning",
-                        message=f"Alert {_alert_name}: {_metric_name}={_value:.3f}",
-                        context={
-                            "alert_name": _alert_name,
-                            "metric_name": _metric_name,
-                            "value": _value,
-                        },
-                        timestamp=_time.time(),
+        with self._singleton_lock:
+            if self._metrics_collector is None:
+                from hi_agent.observability.collector import default_alert_rules
+                self._metrics_collector = MetricsCollector()
+                for rule in default_alert_rules():
+                    self._metrics_collector.add_alert_rule(rule)
+                _webhook_url = os.environ.get("WEBHOOK_URL", "")
+                if _webhook_url:
+                    from hi_agent.observability.notification import (
+                        build_notification_backend,
+                        send_notification,
                     )
+                    import time as _time
+                    _backend = build_notification_backend(_webhook_url)
 
-                self._metrics_collector.set_alert_callback(_alert_cb)
+                    def _alert_cb(alert: object) -> None:
+                        # alert is an Alert dataclass: rule_name, metric_name, current_value
+                        _alert_name = getattr(alert, "rule_name", str(alert))
+                        _metric_name = getattr(alert, "metric_name", "")
+                        _value = getattr(alert, "current_value", 0.0)
+                        send_notification(
+                            backend=_backend,
+                            event=f"alert.{_alert_name}",
+                            severity="warning",
+                            message=f"Alert {_alert_name}: {_metric_name}={_value:.3f}",
+                            context={
+                                "alert_name": _alert_name,
+                                "metric_name": _metric_name,
+                                "value": _value,
+                            },
+                            timestamp=_time.time(),
+                        )
+
+                    self._metrics_collector.set_alert_callback(_alert_cb)
         return self._metrics_collector
 
     def build_kernel(self) -> RuntimeAdapter:
@@ -299,33 +389,40 @@ class SystemBuilder:
         creates a :class:`KernelFacadeClient` in HTTP mode.
         Otherwise falls back to :func:`create_local_adapter` (in-process LocalFSM).
         """
-        if self._kernel is None:
-            base_url = self._config.kernel_base_url
-            env = os.environ.get("HI_AGENT_ENV", "prod").lower()
-            if base_url and base_url.lower() == "mock":
-                raise ValueError(
-                    "kernel_base_url='mock' is no longer supported. "
-                    "Use 'local' for in-process agent-kernel LocalFSM, "
-                    "or set a real http(s) agent-kernel endpoint."
+        with self._singleton_lock:
+            if self._kernel is None:
+                base_url = self._config.kernel_base_url
+                env = os.environ.get("HI_AGENT_ENV", "dev").lower()
+                if base_url and base_url.lower() == "mock":
+                    raise ValueError(
+                        "kernel_base_url='mock' is no longer supported. "
+                        "Use 'local' for in-process agent-kernel LocalFSM, "
+                        "or set a real http(s) agent-kernel endpoint."
+                    )
+                if env == "prod" and (not base_url or base_url.lower() == "local"):
+                    raise RuntimeError(
+                        "Production mode requires a real agent-kernel HTTP endpoint. "
+                        "Set kernel_base_url to http(s)://... and do not use 'local'."
+                    )
+                if base_url and base_url.lower() != "local":
+                    self._kernel = KernelFacadeClient(
+                        mode="http",
+                        base_url=base_url,
+                        timeout_seconds=30,
+                    )
+                else:
+                    logger.warning(
+                        "build_kernel: kernel_base_url=%r — using in-process LocalFSM. "
+                        "Set kernel_base_url to a real agent-kernel HTTP endpoint for production.",
+                        base_url,
+                    )
+                    self._kernel = create_local_adapter()
+                # Wrap with resilience layer (retry + circuit breaker + event buffer).
+                from hi_agent.runtime_adapter import ResilientKernelAdapter  # noqa: PLC0415
+                self._kernel = ResilientKernelAdapter(
+                    self._kernel,
+                    max_retries=self._config.kernel_max_retries,
                 )
-            if env == "prod" and (not base_url or base_url.lower() == "local"):
-                raise RuntimeError(
-                    "Production mode requires a real agent-kernel HTTP endpoint. "
-                    "Set kernel_base_url to http(s)://... and do not use 'local'."
-                )
-            if base_url and base_url.lower() != "local":
-                self._kernel = KernelFacadeClient(
-                    mode="http",
-                    base_url=base_url,
-                    timeout_seconds=30,
-                )
-            else:
-                logger.warning(
-                    "build_kernel: kernel_base_url=%r — using in-process LocalFSM. "
-                    "Set kernel_base_url to a real agent-kernel HTTP endpoint for production.",
-                    base_url,
-                )
-                self._kernel = create_local_adapter()
         return self._kernel
 
     def _build_cache_injector(self) -> "Any | None":
@@ -415,53 +512,54 @@ class SystemBuilder:
         Returns ``None`` when no key is configured, which lets
         downstream subsystems fall back to heuristic behaviour.
         """
-        if self._llm_gateway is not None:
-            return self._llm_gateway
-
-        for env_var, base_url, default_model in [
-            (
-                self._config.openai_api_key_env,
-                self._config.openai_base_url,
-                self._config.openai_default_model,
-            ),
-            (
-                self._config.anthropic_api_key_env,
-                self._config.anthropic_base_url + "/v1",
-                self._config.anthropic_default_model,
-            ),
-        ]:
-            if os.environ.get(env_var):
-                # Build optional cache injector and failover chain.
-                cache_injector = self._build_cache_injector()
-                failover_chain = self._build_failover_chain(base_url, default_model)
-
-                if self._llm_budget_tracker is None:
-                    self._llm_budget_tracker = self._build_llm_budget_tracker()
-                raw_gateway: LLMGateway = HttpLLMGateway(
-                    base_url=base_url,
-                    api_key_env=env_var,
-                    default_model=default_model,
-                    timeout_seconds=self._config.llm_timeout_seconds,
-                    failover_chain=failover_chain,
-                    cache_injector=cache_injector,
-                    budget_tracker=self._llm_budget_tracker,
-                )
-                registry = ModelRegistry()
-                registry.register_defaults()
-                tier_router = TierRouter(registry)
-                self._tier_router = tier_router
-                # Best-effort: apply cost-optimization overrides from any
-                # run history that the config exposes at startup time.
-                startup_history: list[dict[str, Any]] | None = getattr(
-                    self._config, "startup_cost_history", None
-                )
-                self._wire_cost_optimizer(tier_router, startup_history)
-                self._llm_gateway = TierAwareLLMGateway(  # type: ignore[assignment]
-                    raw_gateway, tier_router, registry
-                )
+        with self._singleton_lock:
+            if self._llm_gateway is not None:
                 return self._llm_gateway
 
-        is_prod = os.environ.get("HI_AGENT_ENV", "prod").lower() == "prod"
+            for env_var, base_url, default_model in [
+                (
+                    self._config.openai_api_key_env,
+                    self._config.openai_base_url,
+                    self._config.openai_default_model,
+                ),
+                (
+                    self._config.anthropic_api_key_env,
+                    self._config.anthropic_base_url + "/v1",
+                    self._config.anthropic_default_model,
+                ),
+            ]:
+                if os.environ.get(env_var):
+                    # Build optional cache injector and failover chain.
+                    cache_injector = self._build_cache_injector()
+                    failover_chain = self._build_failover_chain(base_url, default_model)
+
+                    if self._llm_budget_tracker is None:
+                        self._llm_budget_tracker = self._build_llm_budget_tracker()
+                    raw_gateway: LLMGateway = HttpLLMGateway(
+                        base_url=base_url,
+                        api_key_env=env_var,
+                        default_model=default_model,
+                        timeout_seconds=self._config.llm_timeout_seconds,
+                        failover_chain=failover_chain,
+                        cache_injector=cache_injector,
+                        budget_tracker=self._llm_budget_tracker,
+                    )
+                    registry = ModelRegistry()
+                    registry.register_defaults()
+                    tier_router = TierRouter(registry)
+                    self._tier_router = tier_router
+                    # Best-effort: apply cost-optimization overrides from any
+                    # run history that the config exposes at startup time.
+                    startup_history: list[dict[str, Any]] | None = getattr(
+                        self._config, "startup_cost_history", None
+                    )
+                    self._wire_cost_optimizer(tier_router, startup_history)
+                    self._llm_gateway = TierAwareLLMGateway(  # type: ignore[assignment]
+                        raw_gateway, tier_router, registry
+                    )
+                    return self._llm_gateway
+
+        is_prod = os.environ.get("HI_AGENT_ENV", "dev").lower() == "prod"
         if is_prod:
             raise RuntimeError(
                 "Production mode requires real LLM credentials. "
@@ -512,28 +610,122 @@ class SystemBuilder:
         )
 
     def build_invoker(self) -> Any:
-        """Build a real CapabilityInvoker wired with default capabilities."""
-        from hi_agent.capability.circuit_breaker import CircuitBreaker
-        from hi_agent.capability.defaults import register_default_capabilities
-        from hi_agent.capability.invoker import CapabilityInvoker
-        from hi_agent.capability.registry import CapabilityRegistry
+        """Build a CapabilityInvoker using the SHARED capability registry singleton.
 
-        registry = CapabilityRegistry()
-        gateway = self.build_llm_gateway()
-        try:
-            register_default_capabilities(registry, llm_gateway=gateway)
-        except Exception as exc:
-            logger.warning(
-                "build_invoker: register_default_capabilities failed (%s); "
-                "invoker will have no pre-registered capabilities.",
-                exc,
-            )
-        from hi_agent.capability.tools import register_builtin_tools
-        register_builtin_tools(registry)
+        IMPORTANT: Uses self.build_capability_registry() — the same registry instance
+        that _validate_required_capabilities() checks. Any capability registered via
+        builder.build_capability_registry().register(...) is immediately available
+        to the harness executor.
+        """
+        from hi_agent.capability.circuit_breaker import CircuitBreaker  # noqa: PLC0415
+        from hi_agent.capability.invoker import CapabilityInvoker  # noqa: PLC0415
+
+        registry = self.build_capability_registry()  # shared singleton — NOT a fresh CapabilityRegistry()
+        if registry is None:
+            # Registry construction failed — create a minimal empty registry so
+            # the invoker is never constructed with None, preventing AttributeError
+            # downstream. The invoker will be usable but have no capabilities.
+            from hi_agent.capability.registry import CapabilityRegistry  # noqa: PLC0415
+            registry = CapabilityRegistry()
+            logger.warning("build_invoker: registry is None, using empty fallback registry.")
         breaker = CircuitBreaker()
         invoker = CapabilityInvoker(registry=registry, breaker=breaker)
-        logger.info("build_invoker: CapabilityInvoker created with %d capabilities.", len(registry.list_names()))
+        logger.info(
+            "build_invoker: using shared registry with %d capabilities.",
+            len(registry.list_names()),
+        )
         return invoker
+
+    def build_capability_registry(self) -> Any:
+        """Build or return the shared CapabilityRegistry singleton.
+
+        Business agents can register capabilities into this registry before
+        calling :meth:`build_executor`.  The same registry instance is used
+        by :meth:`_validate_required_capabilities` and :meth:`build_invoker`.
+        """
+        with self._singleton_lock:
+            if not hasattr(self, "_capability_registry") or self._capability_registry is None:
+                try:
+                    from hi_agent.capability.defaults import register_default_capabilities  # noqa: PLC0415
+                    from hi_agent.capability.registry import CapabilityRegistry  # noqa: PLC0415
+                    from hi_agent.capability.tools import register_builtin_tools  # noqa: PLC0415
+                    registry = CapabilityRegistry()
+                    gateway = self.build_llm_gateway()
+                    try:
+                        register_default_capabilities(registry, llm_gateway=gateway)
+                    except Exception as exc:
+                        logger.warning(
+                            "build_capability_registry: register_default_capabilities failed (%s); "
+                            "registry will have no pre-registered capabilities.",
+                            exc,
+                        )
+                    register_builtin_tools(registry)
+                    self._capability_registry = registry
+                    logger.info(
+                        "build_capability_registry: CapabilityRegistry created with %d capabilities.",
+                        len(registry.list_names()),
+                    )
+                except Exception as exc:
+                    logger.warning("build_capability_registry: failed: %s", exc)
+                    self._capability_registry = None
+        return self._capability_registry
+
+    def build_artifact_registry(self) -> Any:
+        """Build or return the shared ArtifactRegistry singleton."""
+        if not hasattr(self, "_artifact_registry") or self._artifact_registry is None:
+            try:
+                from hi_agent.artifacts.registry import ArtifactRegistry  # noqa: PLC0415
+                self._artifact_registry = ArtifactRegistry()
+                logger.info("build_artifact_registry: ArtifactRegistry created.")
+            except Exception as exc:
+                logger.warning("build_artifact_registry: failed: %s", exc)
+                self._artifact_registry = None
+        return self._artifact_registry
+
+    def build_mcp_registry(self) -> Any:
+        """Build or return the shared MCPRegistry singleton."""
+        with self._singleton_lock:
+            if self._mcp_registry is None:
+                try:
+                    from hi_agent.mcp.registry import MCPRegistry  # noqa: PLC0415
+                    self._mcp_registry = MCPRegistry()
+                    logger.info("build_mcp_registry: MCPRegistry created.")
+                except Exception as exc:
+                    logger.warning("build_mcp_registry: failed: %s", exc)
+                    self._mcp_registry = None
+        return self._mcp_registry
+
+    def build_mcp_transport(self) -> Any:
+        """Build or return the shared MultiStdioTransport singleton.
+
+        Returns a ``MultiStdioTransport`` when MCP servers are registered with
+        ``transport="stdio"``, otherwise returns ``None``.  The transport is
+        passed to ``MCPBinding`` so that registered tools become invokable.
+        """
+        with self._singleton_lock:
+            if self._mcp_transport is not None:
+                return self._mcp_transport
+            registry = self.build_mcp_registry()
+            if registry is None:
+                return None
+            stdio_servers = [
+                s for s in registry.list_servers()
+                if s.get("transport") == "stdio"
+            ]
+            if not stdio_servers:
+                logger.debug("build_mcp_transport: no stdio MCP servers registered; transport not created.")
+                return None
+            try:
+                from hi_agent.mcp.transport import MultiStdioTransport  # noqa: PLC0415
+                self._mcp_transport = MultiStdioTransport(mcp_registry=registry)
+                logger.info(
+                    "build_mcp_transport: MultiStdioTransport created for %d stdio server(s).",
+                    len(stdio_servers),
+                )
+            except Exception as exc:
+                logger.warning("build_mcp_transport: failed: %s", exc)
+                self._mcp_transport = None
+        return self._mcp_transport
 
     def build_harness(self, capability_invoker: Any | None = None) -> HarnessExecutor:
         """Build HarnessExecutor with config-driven governance.
@@ -562,6 +754,7 @@ class SystemBuilder:
             governance=governance,
             evidence_store=evidence_store,
             capability_invoker=capability_invoker,
+            artifact_registry=self.build_artifact_registry(),
         )
 
     def build_skill_registry(self) -> SkillRegistry:
@@ -569,13 +762,16 @@ class SystemBuilder:
         return SkillRegistry(storage_dir=self._config.skill_storage_dir)
 
     def build_skill_loader(self) -> Any:
-        """Build SkillLoader for multi-source skill discovery.
+        """Build or return the shared SkillLoader singleton.
 
         Search order (highest to lowest priority):
         1. Built-in skills bundled with hi-agent (hi_agent/skills/builtin/)
         2. User-global skills (~/.hi_agent/skills/)
         3. Project-local skills (config.skill_storage_dir, default .hi_agent/skills/)
         """
+        if self._skill_loader is not None:
+            return self._skill_loader
+
         import pathlib
         from hi_agent.skill.loader import SkillLoader
 
@@ -591,11 +787,126 @@ class SystemBuilder:
                 seen.add(d)
                 dirs.append(d)
 
-        return SkillLoader(
+        self._skill_loader = SkillLoader(
             search_dirs=dirs,
             max_skills_in_prompt=self._config.skill_loader_max_skills_in_prompt,
             max_prompt_tokens=self._config.skill_loader_max_prompt_tokens,
         )
+        return self._skill_loader
+
+    def build_plugin_loader(self) -> Any:
+        """Build or return the shared PluginLoader singleton.
+
+        Loads and activates plugins from the default plugin directories
+        (.hi_agent/plugins, ~/.hi_agent/plugins). Returns the cached singleton
+        on subsequent calls so the same instance is shared across server
+        endpoints and executor builds.
+        """
+        if self._plugin_loader is None:
+            from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
+            self._plugin_loader = PluginLoader()
+            self._plugin_loader.load_all()
+            activated = self._plugin_loader.activate_all()
+            if activated:
+                logger.info("build_plugin_loader: activated %d plugin(s).", activated)
+        return self._plugin_loader
+
+    def _wire_plugin_contributions(self) -> None:
+        """Wire plugin manifest declarations (skill_dirs, mcp_servers) into live subsystems.
+
+        Called once after all subsystems are built so plugins can extend the
+        platform without requiring restart. Capability declarations are logged
+        but not auto-registered (require entry_point execution).
+        """
+        if self._plugin_loader is None:
+            return
+        for manifest in self._plugin_loader._loaded.values():
+            if manifest.status != "active":
+                continue
+            plugin_dir = manifest.plugin_dir or ""
+
+            # Wire skill_dirs into the SkillLoader search paths.
+            if manifest.skill_dirs and self._skill_loader is not None:
+                import os  # noqa: PLC0415
+                for skill_dir in manifest.skill_dirs:
+                    resolved = os.path.join(plugin_dir, skill_dir) if plugin_dir else skill_dir
+                    search_dirs = getattr(self._skill_loader, "_search_dirs", [])
+                    if resolved not in search_dirs:
+                        try:
+                            search_dirs.append(resolved)
+                            self._skill_loader.load_dir(resolved, source=f"plugin:{manifest.name}")
+                            logger.info(
+                                "_wire_plugin_contributions: loaded skills from %r (plugin %r).",
+                                resolved, manifest.name,
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "_wire_plugin_contributions: could not load skill_dir %r: %s",
+                                resolved, exc,
+                            )
+
+            # Register mcp_servers into MCPRegistry.
+            if manifest.mcp_servers and self._mcp_registry is not None:
+                for srv_cfg in manifest.mcp_servers:
+                    srv_name = srv_cfg.get("name", manifest.name)
+                    srv_id = srv_cfg.get("id", f"{manifest.name}:{srv_name}")
+                    try:
+                        self._mcp_registry.register(
+                            server_id=srv_id,
+                            name=srv_name,
+                            transport=srv_cfg.get("transport", "stdio"),
+                            endpoint=srv_cfg.get("endpoint", ""),
+                            tools=srv_cfg.get("tools"),
+                        )
+                        logger.info(
+                            "_wire_plugin_contributions: registered MCP server %r from plugin %r.",
+                            srv_name, manifest.name,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "_wire_plugin_contributions: failed to register MCP server %r: %s",
+                            srv_name, exc,
+                        )
+
+            # Log declared capabilities (actual handler registration requires entry_point).
+            if manifest.capabilities:
+                logger.info(
+                    "_wire_plugin_contributions: plugin %r declares capabilities %s; "
+                    "set entry_point to auto-register handlers.",
+                    manifest.name, manifest.capabilities,
+                )
+
+        # After all plugin MCP servers are registered, (re-)build the transport
+        # and close the provider circuit by calling MCPBinding.bind_all().
+        if self._mcp_registry is not None:
+            stdio_count = sum(
+                1 for s in self._mcp_registry.list_servers()
+                if s.get("transport") == "stdio"
+            )
+            if stdio_count > 0 and self._mcp_transport is None:
+                self.build_mcp_transport()
+            # Wire external MCP tools into CapabilityRegistry so they are
+            # invokable as standard capabilities.  This closes the circuit:
+            # register → transport → bind → capability.
+            if self._mcp_transport is not None:
+                try:
+                    from hi_agent.mcp.binding import MCPBinding  # noqa: PLC0415
+                    cap_registry = self.build_capability_registry()
+                    mcp_reg = self.build_mcp_registry()
+                    _binding = MCPBinding(
+                        registry=cap_registry,
+                        mcp_registry=mcp_reg,
+                        transport=self._mcp_transport,
+                    )
+                    _bound = _binding.bind_all()
+                    logger.info(
+                        "_wire_plugin_contributions: MCPBinding.bind_all() registered %d MCP tool(s).",
+                        _bound,
+                    )
+                except Exception as _mcp_exc:
+                    logger.warning(
+                        "_wire_plugin_contributions: MCPBinding.bind_all() failed: %s", _mcp_exc
+                    )
 
     def build_skill_observer(self) -> Any:
         """Build SkillObserver for execution telemetry."""
@@ -614,8 +925,8 @@ class SystemBuilder:
         )
         try:
             mgr.load()
-        except Exception:
-            pass  # no prior state on first run
+        except (FileNotFoundError, KeyError, ValueError):
+            pass  # no prior state on first run — expected on fresh installs
         return mgr
 
     def build_skill_evolver(self) -> Any:
@@ -680,8 +991,8 @@ class SystemBuilder:
         )
         try:
             graph.load()
-        except Exception:
-            pass  # no prior state on first run
+        except (FileNotFoundError, KeyError, ValueError):
+            pass  # no prior state on first run — expected on fresh installs
         return graph
 
     def build_retrieval_engine(self) -> Any:
@@ -775,12 +1086,85 @@ class SystemBuilder:
             fallback_items=self._config.memory_compress_fallback_items,
         )
 
-    def _build_route_engine(self) -> HybridRouteEngine:
-        """Create HybridRouteEngine with LLM gateway + SkillMatcher if available."""
+    def build_profile_registry(self) -> Any:
+        """Build or return the platform ProfileRegistry singleton.
+
+        Business agents register their ProfileSpec instances into this registry
+        before submitting runs.  The SystemBuilder reads from it during
+        executor construction when a ``profile_id`` is present on the contract.
+        """
+        if not hasattr(self, "_profile_registry") or self._profile_registry is None:
+            try:
+                from hi_agent.profiles.registry import ProfileRegistry  # noqa: PLC0415
+                self._profile_registry = ProfileRegistry()
+                logger.info("build_profile_registry: ProfileRegistry created.")
+            except Exception as exc:
+                logger.warning("build_profile_registry: failed: %s", exc)
+                self._profile_registry = None
+        return self._profile_registry
+
+    def register_profile(self, spec: Any) -> None:
+        """Register a ProfileSpec with this builder's ProfileRegistry.
+
+        Upper-layer packages should call this to register profiles without
+        relying on builder internals::
+
+            builder = SystemBuilder()
+            builder.register_profile(build_rnd_profile_spec())
+            executor = builder.build_executor(contract)
+        """
+        self.build_profile_registry().register(spec)
+
+    def _validate_required_capabilities(self, resolved_profile: Any) -> None:
+        """Raise MissingCapabilityError if required capabilities are not registered."""
+        try:
+            registry = self.build_capability_registry()
+            registered = set(registry.list_names()) if hasattr(registry, "list_names") else set()
+        except Exception:
+            registered = set()
+
+        required = set(resolved_profile.required_capabilities)
+        missing = required - registered
+        if missing:
+            raise MissingCapabilityError(
+                f"Profile '{resolved_profile.profile_id}' requires capabilities that are not "
+                f"registered: {sorted(missing)}. "
+                f"Register them via CapabilityRegistry before building the executor."
+            )
+
+    def _resolve_profile(self, profile_id: str | None) -> Any:
+        """Resolve a profile_id to a ResolvedProfile, or None for TRACE defaults."""
+        if not profile_id:
+            return None
+        try:
+            from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver  # noqa: PLC0415
+            registry = self.build_profile_registry()
+            if registry is None:
+                return None
+            return ProfileRuntimeResolver(registry).resolve(profile_id)
+        except Exception as exc:
+            logger.warning("_resolve_profile: failed for %r: %s", profile_id, exc)
+            return None
+
+    def _build_route_engine(self, stage_actions: dict | None = None) -> HybridRouteEngine:
+        """Create HybridRouteEngine with LLM gateway + SkillMatcher if available.
+
+        Args:
+            stage_actions: Optional stage→capability mapping from a profile.
+                When provided, the internal RuleRouteEngine uses these actions
+                instead of the TRACE sample defaults.
+        """
+        from hi_agent.route_engine.rule_engine import RuleRouteEngine  # noqa: PLC0415
+
         registry = self.build_skill_registry()
         gateway = self.build_llm_gateway()
         matcher = SkillMatcher(registry=registry) if registry else None
+        rule_engine = RuleRouteEngine(
+            skill_matcher=matcher,
+            stage_actions=stage_actions,  # None → TRACE ClassVar defaults
+        )
         return HybridRouteEngine(
+            rule_engine=rule_engine,
             gateway=gateway,
             skill_matcher=matcher,
             confidence_threshold=self._config.route_confidence_threshold,
@@ -962,10 +1346,53 @@ class SystemBuilder:
         known = {f.name for f in dc_fields(TraceConfig)}
         return TraceConfig(**{k: v for k, v in merged.items() if k in known})
 
-    def _build_executor_impl(self, contract: TaskContract) -> RunExecutor:
-        """Build a fully-wired RunExecutor for a given task contract."""
+    def _build_executor_impl(
+        self, contract: TaskContract, resolved_profile: Any = None
+    ) -> RunExecutor:
+        """Build a fully-wired RunExecutor for a given task contract.
+
+        Args:
+            contract: Task contract.
+            resolved_profile: Optional ``ResolvedProfile`` from the platform
+                ProfileRegistry.  When provided, its stage_graph, stage_actions,
+                and evaluator override the TRACE sample defaults.
+        """
         km = self.build_knowledge_manager()
         invoker = self.build_invoker()
+
+        # Determine stage_graph and stage_actions from profile, falling back to
+        # TRACE sample defaults.
+        stage_graph: Any | None = None
+        stage_actions: dict | None = None
+        if resolved_profile is not None:
+            if resolved_profile.has_custom_graph:
+                stage_graph = resolved_profile.stage_graph
+                logger.info(
+                    "_build_executor_impl: using profile %r stage_graph.",
+                    resolved_profile.profile_id,
+                )
+            if resolved_profile.has_custom_actions:
+                stage_actions = resolved_profile.stage_actions
+                logger.info(
+                    "_build_executor_impl: using profile %r stage_actions: %s.",
+                    resolved_profile.profile_id,
+                    list(stage_actions.keys()),
+                )
+
+        if resolved_profile is not None and (resolved_profile.has_custom_graph or resolved_profile.has_custom_actions):
+            logger.info(
+                "runtime mode=profile-runtime profile_id=%s has_custom_graph=%s has_custom_actions=%s",
+                resolved_profile.profile_id,
+                resolved_profile.has_custom_graph,
+                resolved_profile.has_custom_actions,
+            )
+        else:
+            logger.info("runtime mode=trace-sample-fallback (no resolved profile or profile has no custom topology)")
+
+        # Validate required capabilities are available before building executor.
+        if resolved_profile is not None and resolved_profile.required_capabilities:
+            self._validate_required_capabilities(resolved_profile)
+
         executor = RunExecutor(
             contract=contract,
             kernel=self.build_kernel(),
@@ -985,7 +1412,7 @@ class SystemBuilder:
             skill_loader=self.build_skill_loader(),
             state_store=RunStateStore(),
             policy_versions=PolicyVersionSet(),
-            route_engine=self._build_route_engine(),
+            route_engine=self._build_route_engine(stage_actions=stage_actions),
             acceptance_policy=AcceptancePolicy(),
             short_term_store=self.build_short_term_store(),
             knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
@@ -999,6 +1426,7 @@ class SystemBuilder:
             restart_policy_engine=self._build_restart_policy_engine(),
             reflection_orchestrator=self._build_reflection_orchestrator(),
             delegation_manager=self._build_delegation_manager(),
+            stage_graph=stage_graph,  # None → RunExecutor defaults to TRACE graph
         )
         # Wire middleware orchestrator into the StageExecutor that RunExecutor
         # already created during __init__.  RunExecutor does not yet accept
@@ -1016,6 +1444,10 @@ class SystemBuilder:
                 # dependencies are None at construction time.  We fill them here
                 # after all subsystems have been built, avoiding circular deps.
                 self._inject_middleware_dependencies(mw)
+                # Inject profile evaluator into EvaluationMiddleware when profile
+                # provides a custom evaluator factory.
+                if resolved_profile is not None and resolved_profile.has_evaluator:
+                    self._inject_evaluator(mw, resolved_profile)
         except Exception as exc:
             logger.warning(
                 "build_executor: failed to wire MiddlewareOrchestrator, "
@@ -1037,18 +1469,97 @@ class SystemBuilder:
                 "auto evolve_cycle will be inactive: %s",
                 exc,
             )
+        # Wire JsonFileTraceExporter when trace_export_dir is configured.
+        try:
+            export_dir = getattr(self._config, "trace_export_dir", "")
+            if export_dir and hasattr(executor, "_telemetry"):
+                from hi_agent.observability.tracing import (  # noqa: PLC0415
+                    JsonFileTraceExporter,
+                    Tracer,
+                )
+                executor._telemetry.tracer = Tracer(
+                    exporters=[JsonFileTraceExporter(export_dir)]
+                )
+                logger.info(
+                    "build_executor: JsonFileTraceExporter wired (dir=%r).", export_dir
+                )
+        except Exception as exc:
+            logger.warning(
+                "build_executor: failed to wire JsonFileTraceExporter: %s", exc
+            )
         return executor
+
+    def _inject_evaluator(self, orchestrator: Any, resolved_profile: Any) -> None:
+        """Inject profile evaluator into EvaluationMiddleware within the orchestrator."""
+        try:
+            from hi_agent.evaluation.runtime import EvaluatorRuntime  # noqa: PLC0415
+
+            runtime = EvaluatorRuntime.from_resolved_profile(resolved_profile)
+            middlewares: dict[str, Any] = getattr(orchestrator, "_middlewares", {})
+            injected = False
+            for mw in middlewares.values():
+                if hasattr(mw, "_evaluator"):
+                    mw._evaluator = runtime.evaluator
+                    injected = True
+            if injected:
+                logger.info(
+                    "_inject_evaluator: evaluator from profile %r injected into "
+                    "EvaluationMiddleware.",
+                    resolved_profile.profile_id,
+                )
+        except Exception as exc:
+            logger.warning("_inject_evaluator: failed: %s", exc)
 
     def build_executor(
         self,
         contract: TaskContract,
         config_patch: dict | None = None,
     ) -> RunExecutor:
-        """Build a RunExecutor. If config_patch provided, creates isolated per-run config."""
+        """Build a RunExecutor.
+
+        Resolves ``contract.profile_id`` against the platform ProfileRegistry
+        and injects profile-derived stage_graph, stage_actions, and evaluator
+        into the executor.  If config_patch provided, creates isolated per-run
+        config.
+        """
+        resolved_profile = self._resolve_profile(getattr(contract, "profile_id", None))
         if config_patch:
-            run_cfg = self._resolve_with_patch(config_patch)
-            return SystemBuilder(config=run_cfg)._build_executor_impl(contract)
-        return self._build_executor_impl(contract)
+            # Merge profile config_overrides into config_patch so profile
+            # settings are respected even when the caller also passes a patch.
+            if resolved_profile is not None and resolved_profile.config_overrides:
+                merged = {**resolved_profile.config_overrides, **config_patch}
+            else:
+                merged = config_patch
+            run_cfg = self._resolve_with_patch(merged)
+            derived = SystemBuilder(
+                config=run_cfg,
+                profile_registry=self.build_profile_registry(),
+                capability_registry=self.build_capability_registry(),
+                artifact_registry=self.build_artifact_registry(),
+            )
+            # Inherit cached subsystem singletons so derived builders share
+            # the same SkillLoader, MCPRegistry, MCPTransport, and PluginLoader instances
+            # as the parent — avoids stale or empty subsystems for patched runs.
+            derived._skill_loader = self._skill_loader
+            derived._mcp_registry = self._mcp_registry
+            derived._mcp_transport = self._mcp_transport
+            derived._plugin_loader = self._plugin_loader
+            return derived._build_executor_impl(contract, resolved_profile=resolved_profile)
+        elif resolved_profile is not None and resolved_profile.config_overrides:
+            run_cfg = self._resolve_with_patch(resolved_profile.config_overrides)
+            derived = SystemBuilder(
+                config=run_cfg,
+                profile_registry=self.build_profile_registry(),
+                capability_registry=self.build_capability_registry(),
+                artifact_registry=self.build_artifact_registry(),
+            )
+            # Inherit cached subsystem singletons — same reasoning as above.
+            derived._skill_loader = self._skill_loader
+            derived._mcp_registry = self._mcp_registry
+            derived._mcp_transport = self._mcp_transport
+            derived._plugin_loader = self._plugin_loader
+            return derived._build_executor_impl(contract, resolved_profile=resolved_profile)
+        return self._build_executor_impl(contract, resolved_profile=resolved_profile)
 
     def build_executor_from_checkpoint(
         self, checkpoint_path: str
@@ -1115,8 +1626,18 @@ class SystemBuilder:
         server.knowledge_manager = self.build_knowledge_manager()
         server.skill_evolver = self.build_skill_evolver()
         server.skill_loader = self.build_skill_loader()
-        server.metrics_collector = self.build_metrics_collector()
+        metrics = self.build_metrics_collector()
+        server.metrics_collector = metrics
         server.run_context_manager = self._build_run_context_manager()
+
+        # Wire SLOMonitor so lifespan.start()/stop() activates continuous
+        # SLO evaluation rather than leaving it as a point-in-time snapshot.
+        try:
+            from hi_agent.management.slo import SLOMonitor  # noqa: PLC0415
+            server.slo_monitor = SLOMonitor(metrics)
+        except Exception:
+            logger.warning("SLOMonitor initialization failed; SLO monitoring disabled.")
+
         return server
 
     def readiness(self) -> dict[str, Any]:
@@ -1194,7 +1715,8 @@ class SystemBuilder:
         # --- capabilities ---
         try:
             invoker = self.build_invoker()
-            registry = getattr(invoker, "_registry", None)
+            # CapabilityInvoker exposes registry as public `registry` attribute.
+            registry = getattr(invoker, "registry", None) or getattr(invoker, "_registry", None)
             cap_names: list[str] = []
             if registry is not None:
                 cap_names = registry.list_names()
@@ -1208,10 +1730,17 @@ class SystemBuilder:
         # --- skills ---
         try:
             loader = self.build_skill_loader()
-            # Attempt discovery without a real context budget
-            discovered: list[Any] = []
+            # discover() triggers loading and returns the count (int), not a list.
+            # Use list_skills() to get the actual SkillDefinition objects.
+            skill_count = 0
+            skill_list: list[Any] = []
             try:
-                discovered = loader.discover() if hasattr(loader, "discover") else []
+                if hasattr(loader, "discover"):
+                    skill_count = loader.discover()
+                if hasattr(loader, "list_skills"):
+                    skill_list = loader.list_skills()
+                elif isinstance(skill_count, int):
+                    skill_count = skill_count  # just the count, no list available
             except Exception:
                 pass
             result["skills"] = [
@@ -1220,30 +1749,60 @@ class SystemBuilder:
                     "source": getattr(s, "source", "unknown"),
                     "status": "loaded",
                 }
-                for s in discovered
+                for s in skill_list
             ]
-            result["subsystems"]["skills"] = {"status": "ok", "discovered": len(discovered)}
+            result["subsystems"]["skills"] = {"status": "ok", "discovered": len(result["skills"])}
         except Exception as exc:
             result["subsystems"]["skills"] = {"status": "error", "error": str(exc)}
             issues.append(f"skills: {exc}")
 
-        # --- MCP (future: hi_agent.mcp module) ---
+        # --- MCP: use cached singleton so readiness reflects same state as runs ---
         try:
             from hi_agent.mcp.registry import MCPRegistry  # noqa: PLC0415
-            mcp_reg = MCPRegistry()
-            result["mcp_servers"] = mcp_reg.list_servers()
-            result["subsystems"]["mcp"] = {"status": "ok", "servers": len(result["mcp_servers"])}
+            if self._mcp_registry is None:
+                self._mcp_registry = MCPRegistry()
+            servers = self._mcp_registry.list_servers()
+            # Annotate each server with transport availability so integrators know
+            # whether tools are actually invokable vs just registered.
+            for srv in servers:
+                srv_status = srv.get("status", "registered")
+                if srv_status == "healthy":
+                    srv["availability"] = "available"
+                elif srv_status in ("registered",):
+                    srv["availability"] = "registered_but_no_transport"
+                else:
+                    srv["availability"] = srv_status
+            result["mcp_servers"] = servers
+            connected = sum(1 for s in servers if s.get("status") == "healthy")
+            result["subsystems"]["mcp"] = {
+                "status": "ok",
+                "servers": len(servers),
+                "connected": connected,
+                "registered_only": len(servers) - connected,
+                # Honest transport status for integrators.
+                "transport_status": "not_wired",
+                "capability_mode": "infrastructure_only",
+                "note": (
+                    "External MCP transport (stdio/SSE/HTTP) not yet implemented. "
+                    "Platform tools are available via /mcp/tools/list as MCP-compatible "
+                    "endpoints. External server registration and forwarding are deferred."
+                ),
+            }
         except ImportError:
             result["mcp_servers"] = []
             result["subsystems"]["mcp"] = {"status": "not_configured"}
         except Exception as exc:
             result["subsystems"]["mcp"] = {"status": "error", "error": str(exc)}
 
-        # --- plugins (future: hi_agent.plugin module) ---
+        # --- plugins: use cached singleton so readiness reflects same state as runs ---
         try:
             from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
-            pl = PluginLoader()
-            loaded = pl.list_loaded()
+            if self._plugin_loader is None:
+                self._plugin_loader = PluginLoader()
+                # load_all() triggers actual discovery from plugin directories.
+                # Without this, list_loaded() always returns [] on a fresh loader.
+                self._plugin_loader.load_all()
+            loaded = self._plugin_loader.list_loaded()
             result["plugins"] = loaded
             result["subsystems"]["plugins"] = {"status": "ok", "count": len(loaded)}
         except ImportError:
@@ -1255,8 +1814,38 @@ class SystemBuilder:
         # --- readiness decision ---
         kernel_ok = result["subsystems"].get("kernel", {}).get("status") == "ok"
         cap_ok = result["subsystems"].get("capabilities", {}).get("status") == "ok"
-        result["ready"] = kernel_ok and cap_ok
+        # LLM error means prod mode requires credentials not present.
+        # "not_configured" (dev fallback) is acceptable; "error" (missing prod creds) blocks.
+        llm_status = result["subsystems"].get("llm", {}).get("status", "not_configured")
+        llm_ok = llm_status != "error"
+        result["ready"] = kernel_ok and cap_ok and llm_ok
+        if not llm_ok:
+            result["health"] = "degraded"
+            issues.append("llm: credentials required for prod mode")
         if issues:
             logger.warning("readiness: %d issue(s): %s", len(issues), "; ".join(issues))
+
+        # --- prerequisites transparency ---
+        # Emit explicit prerequisites so integrators know exactly what is needed
+        # when ready=false, without having to read source code.
+        import os as _os
+        env_mode = _os.environ.get("HI_AGENT_ENV", "dev").lower()
+        result["runtime_mode"] = env_mode
+        if env_mode == "prod":
+            result["prerequisites"] = {
+                "required_for_prod_mode": [
+                    "OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable",
+                    "kernel_base_url set to a real agent-kernel HTTP endpoint",
+                ],
+                "hint": (
+                    "Run with HI_AGENT_ENV=dev (or use `serve` default) for "
+                    "heuristic fallback without external dependencies."
+                ),
+            }
+        else:
+            result["prerequisites"] = {
+                "mode": "dev — heuristic fallback active, no external dependencies required",
+                "hint": "Use HI_AGENT_ENV=prod or `serve --prod` to require real credentials.",
+            }
 
         return result

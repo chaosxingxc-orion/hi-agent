@@ -74,6 +74,58 @@ class PluginLoader:
                     )
         return None
 
+    def activate(
+        self,
+        name: str,
+        context: dict[str, Any] | None = None,
+    ) -> bool:
+        """Activate a single plugin by name, running its lifecycle hooks.
+
+        Args:
+            name: Name of the plugin to activate (must be loaded first).
+            context: Optional platform context dict passed to plugin hooks
+                (e.g. capability registry, builder).
+
+        Returns:
+            True if the plugin was successfully activated, False otherwise.
+        """
+        manifest = self._loaded.get(name)
+        if manifest is None:
+            logger.warning("PluginLoader.activate: plugin %r is not loaded.", name)
+            return False
+        from hi_agent.plugin.lifecycle import PluginLifecycle
+        lifecycle = PluginLifecycle(context=context)
+        if lifecycle.on_load(manifest) and lifecycle.on_activate(manifest):
+            manifest.status = "active"
+            logger.info("PluginLoader.activate: plugin %r is now active.", name)
+            return True
+        return False
+
+    def activate_all(
+        self,
+        context: dict[str, Any] | None = None,
+    ) -> int:
+        """Activate all loaded plugins, running their lifecycle hooks.
+
+        Args:
+            context: Optional platform context dict passed to each plugin's
+                lifecycle hooks (e.g. capability registry, builder).
+
+        Returns:
+            Number of plugins successfully activated.
+        """
+        from hi_agent.plugin.lifecycle import PluginLifecycle
+        lifecycle = PluginLifecycle(context=context)
+        activated = 0
+        for manifest in list(self._loaded.values()):
+            if lifecycle.on_load(manifest) and lifecycle.on_activate(manifest):
+                manifest.status = "active"
+                activated += 1
+                logger.info(
+                    "PluginLoader.activate_all: plugin %r is now active.", manifest.name
+                )
+        return activated
+
     def list_loaded(self) -> list[dict[str, Any]]:
         """Return serializable list of loaded plugin manifests."""
         return [m.to_dict() for m in self._loaded.values()]

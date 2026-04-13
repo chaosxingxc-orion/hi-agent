@@ -29,12 +29,26 @@ class EvaluationMiddleware:
         max_retries: int = 3,
         llm_gateway: Any | None = None,
         model_tier: str = "light",
+        evaluator: Any | None = None,
     ) -> None:
-        """Initialize EvaluationMiddleware."""
+        """Initialize EvaluationMiddleware.
+
+        Args:
+            quality_threshold: Score threshold for pass verdict.
+            max_retries: Max retry attempts before escalation.
+            llm_gateway: Optional LLM gateway for LLM-based scoring.
+            model_tier: Model tier to use for LLM evaluation.
+            evaluator: Optional pluggable Evaluator (satisfies the
+                ``hi_agent.evaluation.contracts.Evaluator`` protocol).
+                When provided, overrides both heuristic and LLM scoring.
+                Use ``EvaluatorRuntime`` to wrap a custom evaluator alongside
+                the platform DefaultEvaluator.
+        """
         self._quality_threshold = quality_threshold
         self._max_retries = max_retries
         self._llm_gateway = llm_gateway
         self._model_tier = model_tier
+        self._evaluator = evaluator  # pluggable; overrides heuristic/LLM scoring
         self._retry_counts: dict[str, int] = {}  # node_id -> count
 
     @property
@@ -78,11 +92,13 @@ class EvaluationMiddleware:
             if not success:
                 score = 0.0
                 scoring_mode = "heuristic"
+                evaluator_meta: dict = {"evaluator_id": "heuristic", "fallback_reason": ""}
             elif is_synthetic:
                 score = 0.0
                 scoring_mode = "heuristic"
+                evaluator_meta = {"evaluator_id": "heuristic", "fallback_reason": ""}
             else:
-                score, scoring_mode = self._assess_quality(
+                score, scoring_mode, evaluator_meta = self._assess_quality(
                     node_id=node_id,
                     output=output,
                     evidence=result.get("evidence", []),
@@ -131,6 +147,8 @@ class EvaluationMiddleware:
                 "max_retries": eval_result.max_retries,
                 "issues": issues,
                 "scoring_mode": scoring_mode,
+                "evaluator_id": evaluator_meta.get("evaluator_id", "heuristic"),
+                "fallback_reason": evaluator_meta.get("fallback_reason", ""),
             })
 
             overall_score = min(overall_score, score)
@@ -163,20 +181,56 @@ class EvaluationMiddleware:
     def _assess_quality(
         self, node_id: str, output: Any, evidence: list[str],
         task_goal: str = "",
-    ) -> tuple[float, str]:
+    ) -> tuple[float, str, dict]:
         """Assess quality of execution output.
 
         Returns:
-            Tuple of (score 0.0-1.0, scoring_mode "llm" or "heuristic").
+            Tuple of (score 0.0-1.0, scoring_mode, evaluator_meta).
+            evaluator_meta contains:
+              - evaluator_id: class name of the evaluator used, or "heuristic"
+              - fallback_reason: why fallback happened, or empty string
         """
         if output is None:
-            return 0.0, "heuristic"
+            return 0.0, "heuristic", {"evaluator_id": "heuristic", "fallback_reason": ""}
+
+        # Pluggable evaluator takes highest priority.
+        if self._evaluator is not None:
+            try:
+                from hi_agent.evaluation.contracts import EvaluationContext  # noqa: PLC0415
+                output_dict = output if isinstance(output, dict) else {"output": output, "evidence": evidence}
+                ctx = EvaluationContext(
+                    goal=task_goal,
+                    stage_id=node_id,
+                    evidence=[{"raw": e} for e in evidence] if evidence else [],
+                )
+                result = self._evaluator.evaluate(ctx, output_dict)
+                evaluator_meta = {
+                    "evaluator_id": type(self._evaluator).__name__,
+                    "fallback_reason": "",
+                }
+                return result.score, "evaluator", evaluator_meta
+            except Exception as exc:
+                logger.warning(
+                    "Pluggable evaluator failed for node '%s', "
+                    "falling back to heuristic scoring",
+                    node_id,
+                    exc_info=True,
+                )
+                fallback_meta = {
+                    "evaluator_id": type(self._evaluator).__name__,
+                    "fallback_reason": str(exc),
+                }
+                return (
+                    self._heuristic_score(output, evidence),
+                    "heuristic",
+                    fallback_meta,
+                )
 
         # Try LLM-based scoring when gateway is available
         if self._llm_gateway is not None:
             try:
                 score, _issues = self._llm_evaluate(task_goal, str(output))
-                return score, "llm"
+                return score, "llm", {"evaluator_id": "llm", "fallback_reason": ""}
             except Exception:
                 logger.warning(
                     "LLM evaluation failed for node '%s', "
@@ -185,7 +239,11 @@ class EvaluationMiddleware:
                     exc_info=True,
                 )
 
-        return self._heuristic_score(output, evidence), "heuristic"
+        return (
+            self._heuristic_score(output, evidence),
+            "heuristic",
+            {"evaluator_id": "heuristic", "fallback_reason": ""},
+        )
 
     def _heuristic_score(self, output: Any, evidence: list[str]) -> float:
         """Heuristic quality scoring. Returns 0.0-1.0."""

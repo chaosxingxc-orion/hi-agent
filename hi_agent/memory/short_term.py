@@ -62,11 +62,30 @@ class ShortTermMemory:
 
 
 class ShortTermMemoryStore:
-    """File-based store for short-term memories."""
+    """File-based store for short-term memories.
 
-    def __init__(self, storage_dir: str = ".hi_agent/memory/short_term") -> None:
-        """Initialize ShortTermMemoryStore."""
+    Eviction
+    --------
+    When *max_sessions* is set (default 500), saving a new session evicts the
+    oldest entries so the store never exceeds that ceiling.  This prevents
+    unbounded disk growth during long-running deployments.
+    """
+
+    def __init__(
+        self,
+        storage_dir: str = ".hi_agent/memory/short_term",
+        max_sessions: int = 500,
+    ) -> None:
+        """Initialize ShortTermMemoryStore.
+
+        Args:
+            storage_dir: Directory for JSON files.
+            max_sessions: Maximum number of sessions to retain.  Oldest
+                sessions (by ``created_at``) are deleted when the limit is
+                exceeded.  Set to 0 to disable eviction.
+        """
         self._storage_dir = Path(storage_dir)
+        self._max_sessions = max_sessions
 
     def _ensure_dir(self) -> None:
         """Run _ensure_dir."""
@@ -77,7 +96,11 @@ class ShortTermMemoryStore:
         return self._storage_dir / f"{session_id}.json"
 
     def save(self, memory: ShortTermMemory) -> None:
-        """Save to JSON file named by session_id (atomic write)."""
+        """Save to JSON file named by session_id (atomic write).
+
+        After a successful write, evicts the oldest sessions if
+        ``max_sessions`` would be exceeded.
+        """
         self._ensure_dir()
         if not memory.created_at:
             memory.created_at = datetime.now(UTC).isoformat()
@@ -95,6 +118,36 @@ class ShortTermMemoryStore:
             except OSError:
                 pass
             raise
+        if self._max_sessions > 0:
+            self._evict_oldest(keep=self._max_sessions)
+
+    def _evict_oldest(self, keep: int) -> int:
+        """Delete oldest sessions so at most *keep* remain.
+
+        Returns the number of sessions deleted.
+        """
+        if not self._storage_dir.exists():
+            return 0
+        entries: list[tuple[str, Path]] = []
+        for fpath in self._storage_dir.glob("*.json"):
+            try:
+                data = json.loads(fpath.read_text(encoding="utf-8"))
+                entries.append((data.get("created_at", ""), fpath))
+            except (json.JSONDecodeError, KeyError, OSError):
+                continue
+        if len(entries) <= keep:
+            return 0
+        # Sort ascending (oldest first) and delete the excess
+        entries.sort(key=lambda t: t[0])
+        to_delete = entries[: len(entries) - keep]
+        deleted = 0
+        for _, fpath in to_delete:
+            try:
+                fpath.unlink(missing_ok=True)
+                deleted += 1
+            except OSError:
+                pass
+        return deleted
 
     def load(self, session_id: str) -> ShortTermMemory | None:
         """Load a short-term memory by session_id."""

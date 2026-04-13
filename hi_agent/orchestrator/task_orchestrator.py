@@ -143,16 +143,19 @@ class TaskOrchestrator:
         from hi_agent.runner import RunExecutor
 
         runner = RunExecutor(contract, self._kernel)
-        status = runner.execute()
+        run_result = runner.execute()
+        succeeded = run_result.status == "completed"
         sub = SubTaskResult(
             node_id=contract.task_id,
             task_id=contract.task_id,
-            outcome="completed" if status == "completed" else "failed",
-            result={"status": status},
-            error=None if status == "completed" else f"Run finished with status: {status}",
+            outcome="completed" if succeeded else "failed",
+            result=run_result.to_dict(),
+            error=None if succeeded else (
+                run_result.error or f"Run finished with status: {run_result.status}"
+            ),
         )
         return OrchestratorResult(
-            success=(status == "completed"),
+            success=succeeded,
             task_id=contract.task_id,
             strategy=None,
             sub_results=[sub],

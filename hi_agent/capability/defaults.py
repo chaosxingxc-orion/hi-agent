@@ -1,4 +1,13 @@
-"""Default LLM-backed capability handlers for TRACE stage actions."""
+"""Generic LLM-backed capability handler factory.
+
+Public API:
+    make_llm_capability_handler — build a capability handler backed by an LLM
+        gateway, with graceful heuristic fallback in non-prod environments.
+
+Deprecated:
+    register_default_capabilities — TRACE-specific wiring; moved to
+        hi_agent.samples.trace_pipeline.register_trace_capabilities.
+"""
 
 from __future__ import annotations
 
@@ -24,12 +33,36 @@ def _allow_heuristic_fallback() -> bool:
     return os.environ.get("HI_AGENT_ENV", "prod").lower() != "prod"
 
 
-def _make_llm_handler(
+def make_llm_capability_handler(
     capability_name: str,
     system_prompt: str,
     gateway: "LLMGateway | None",
 ) -> Callable[[dict], dict]:
-    """Build a capability handler that requires real LLM in prod mode."""
+    """Build a generic LLM-backed capability handler.
+
+    Business agents use this factory to create handlers for any capability
+    name and system prompt — not just the TRACE S1-S5 set::
+
+        from hi_agent.capability.defaults import make_llm_capability_handler
+        from hi_agent.capability.registry import CapabilitySpec
+
+        handler = make_llm_capability_handler(
+            "classify_intent",
+            "You are an intent classifier. Return JSON: {intent: str, confidence: float}",
+            llm_gateway,
+        )
+        registry.register(CapabilitySpec(name="classify_intent", handler=handler))
+
+    Args:
+        capability_name: Name used in logs and error payloads.
+        system_prompt: System-level instruction for the LLM.
+        gateway: LLM gateway instance. When None, falls back to heuristic in
+            non-prod mode and returns a failure response in prod mode.
+
+    Returns:
+        A callable ``handler(payload: dict) -> dict`` compatible with
+        :class:`~hi_agent.capability.registry.CapabilitySpec`.
+    """
 
     def handler(payload: dict) -> dict:
         # Honour explicit forced-failure flag injected by the runner for testing.
@@ -115,31 +148,8 @@ def _make_llm_handler(
     return handler
 
 
-_CAPABILITY_PROMPTS: dict[str, str] = {
-    "analyze_goal": (
-        "You are a goal analysis engine. Given a task goal and context, "
-        "extract key requirements, constraints, and success criteria. "
-        "Be precise and structured."
-    ),
-    "search_evidence": (
-        "You are an evidence search engine. Given a goal, identify what "
-        "evidence or information is needed and summarize the key findings. "
-        "Focus on facts relevant to the goal."
-    ),
-    "build_draft": (
-        "You are a solution builder. Given the goal and gathered evidence, "
-        "construct a draft solution or analysis. Be concrete and actionable."
-    ),
-    "synthesize": (
-        "You are a synthesis engine. Combine the goal, evidence, and draft "
-        "into a coherent final output. Ensure completeness and quality."
-    ),
-    "evaluate_acceptance": (
-        "You are an acceptance evaluator. Given the task goal and the produced "
-        "output, assess whether the result meets the acceptance criteria. "
-        "Return a score from 0.0 (fail) to 1.0 (pass) and justify your assessment."
-    ),
-}
+# Backward-compat alias used internally by samples/trace_pipeline.py and tests.
+_make_llm_handler = make_llm_capability_handler
 
 
 def register_default_capabilities(
@@ -147,17 +157,14 @@ def register_default_capabilities(
     *,
     llm_gateway: "LLMGateway | None" = None,
 ) -> None:
-    """Register TRACE stage capability handlers."""
-    if llm_gateway is None:
-        if not _allow_heuristic_fallback():
-            raise RuntimeError(
-                "register_default_capabilities requires llm_gateway in prod mode. "
-                "Set real LLM credentials or set HI_AGENT_ALLOW_HEURISTIC_FALLBACK=1."
-            )
-        logger.warning(
-            "register_default_capabilities: no llm_gateway provided; "
-            "all TRACE capabilities will use heuristic-only execution in non-prod mode."
-        )
-    for name, system_prompt in _CAPABILITY_PROMPTS.items():
-        handler = _make_llm_handler(name, system_prompt, llm_gateway)
-        registry.register(CapabilitySpec(name=name, handler=handler))
+    """Register TRACE stage capability handlers.
+
+    .. deprecated::
+        This is a *sample* wiring for the S1-S5 TRACE pipeline.  The
+        implementation now lives in
+        ``hi_agent.samples.trace_pipeline.register_trace_capabilities``.
+        Business agents with different stage topologies should register their
+        own handlers.  This function is kept for backward compatibility only.
+    """
+    from hi_agent.samples.trace_pipeline import register_trace_capabilities  # noqa: PLC0415
+    register_trace_capabilities(registry, llm_gateway=llm_gateway)

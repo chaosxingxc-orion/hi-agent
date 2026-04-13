@@ -1,4 +1,24 @@
-"""MCPBinding: bind MCP server tools into hi-agent's capability registry."""
+"""MCPBinding: bind MCP server tools into hi-agent's capability registry.
+
+Transport availability policy — Path A: Deferred
+--------------------------------------------------
+MCP transport is **Path A — Deferred**.  When no transport is configured,
+tools are enumerated from the MCP registry and tracked in ``_unavailable``
+but are NOT registered to CapabilityRegistry.  Upper-layer agents should
+use provider adapters as the primary integration path.  To enable MCP
+tools, pass a real transport instance:
+``MCPBinding(registry, mcp_registry, transport=YourTransport())``.
+
+This prevents the old behaviour where broken stubs were silently registered
+as if they were runtime-usable.
+
+To add real transport support:
+
+1. Implement an ``MCPTransport`` class with
+   ``invoke(server_id, tool_name, payload) -> dict``.
+2. Pass the transport instance to ``MCPBinding.__init__``.
+3. ``bind_all()`` will now register working handlers.
+"""
 
 from __future__ import annotations
 
@@ -7,38 +27,80 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+MCP_UNAVAILABLE_MSG = (
+    "MCP transport not configured — use provider adapters or pass transport= "
+    "to MCPBinding to enable MCP tools."
+)
+
 
 class MCPBinding:
     """Bind tools from registered MCP servers into a CapabilityRegistry.
 
-    Each MCP tool becomes a named capability that the capability invoker
-    can call.  The binding creates a closure that delegates invocation to
-    the MCP server's transport.
+    Only tools that have a live transport are registered as invokable
+    capabilities.  Tools without transport are tracked separately so the
+    manifest can report them as ``available=False``.
     """
 
-    def __init__(self, registry: Any, mcp_registry: Any) -> None:
-        """Initialize with a CapabilityRegistry and MCPRegistry.
+    def __init__(self, registry: Any, mcp_registry: Any, transport: Any = None) -> None:
+        """Initialize with a CapabilityRegistry, MCPRegistry, and optional transport.
 
         Args:
             registry: hi-agent CapabilityRegistry instance.
             mcp_registry: MCPRegistry instance to source tools from.
+            transport: Optional MCPTransport.  When None, tools are NOT
+                registered as invokable capabilities.
         """
         self._registry = registry
         self._mcp_registry = mcp_registry
+        self._transport = transport
+        # Tracks tools that exist in registered servers but have no transport.
+        self._unavailable: list[str] = []
 
     def bind_all(self) -> int:
         """Bind all tools from all registered healthy MCP servers.
 
+        MCP transport is **Path A — Deferred**.  When no transport is
+        configured, tools are enumerated from the MCP registry and tracked in
+        ``_unavailable`` but are NOT registered to CapabilityRegistry.
+        Upper-layer agents should use provider adapters as the primary
+        integration path.  To enable MCP tools, pass a real transport
+        instance: ``MCPBinding(registry, mcp_registry, transport=YourTransport())``.
+
         Returns:
-            Number of tools successfully bound.
+            Number of tools successfully bound (0 when no transport).
         """
+        self._unavailable.clear()
+
+        if self._transport is None:
+            # Enumerate tools for discovery purposes but do NOT register them.
+            for server in self._mcp_registry.list_servers():
+                server_id = server["server_id"]
+                if server["status"] not in ("registered", "healthy"):
+                    continue
+                for tool_name in server.get("tools", []):
+                    cap_name = f"mcp.{server_id}.{tool_name}"
+                    self._unavailable.append(cap_name)
+            if self._unavailable:
+                logger.info(
+                    "MCPBinding.bind_all: transport not configured — %d MCP tool(s) are "
+                    "known but NOT registered as capabilities: %s. "
+                    "Provide an MCPTransport to enable invocation.",
+                    len(self._unavailable),
+                    self._unavailable,
+                )
+            return 0
+
         from hi_agent.capability.registry import CapabilitySpec  # noqa: PLC0415
 
         bound = 0
         for server in self._mcp_registry.list_servers():
             server_id = server["server_id"]
             if server["status"] not in ("registered", "healthy"):
-                logger.debug("MCPBinding.bind_all: skipping server %r (status=%r)", server_id, server["status"])
+                logger.debug(
+                    "MCPBinding.bind_all: skipping server %r (status=%r)",
+                    server_id,
+                    server["status"],
+                )
                 continue
             for tool_name in server.get("tools", []):
                 cap_name = f"mcp.{server_id}.{tool_name}"
@@ -50,24 +112,19 @@ class MCPBinding:
         logger.info("MCPBinding.bind_all: bound %d MCP tools.", bound)
         return bound
 
+    def list_unavailable(self) -> list[str]:
+        """Return capability names that exist but have no transport.
+
+        Populated after ``bind_all()`` is called without a transport.
+        """
+        return list(self._unavailable)
+
     def _make_handler(self, server_id: str, tool_name: str):
-        """Return a capability handler that forwards calls to the MCP tool."""
+        """Return a capability handler that forwards calls to the MCP transport."""
+        transport = self._transport
 
         def handler(payload: dict) -> dict:
-            # Placeholder: real implementation would invoke the MCP transport.
-            # This stub returns a structured response so the pipeline does not crash
-            # before a real MCP transport is wired.
-            logger.warning(
-                "MCPBinding: MCP tool %r on server %r called but no transport is wired. "
-                "Register an MCP transport to enable real invocations.",
-                tool_name,
-                server_id,
-            )
-            return {
-                "success": False,
-                "error": f"MCP tool {tool_name!r} on server {server_id!r}: transport not configured",
-                "score": 0.0,
-            }
+            return transport.invoke(server_id, tool_name, payload)
 
         handler.__name__ = f"mcp_{server_id}_{tool_name}"
         return handler

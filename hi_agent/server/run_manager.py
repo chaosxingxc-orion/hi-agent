@@ -14,6 +14,11 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from hi_agent.contracts.run import RunState
+
+# Valid terminal/operational states that result_status may be mapped to.
+_VALID_RESULT_STATES: frozenset[str] = frozenset(s.value for s in RunState)
+
 
 @dataclass
 class ManagedRun:
@@ -57,9 +62,13 @@ class RunManager:
         self._lock = threading.Lock()
         self._semaphore = threading.Semaphore(max_concurrent)
         self._max_concurrent = max_concurrent
-        self._queue: queue.Queue[
-            tuple[ManagedRun, Callable[[ManagedRun], Any]]
-        ] = queue.Queue(maxsize=queue_size)
+        # PriorityQueue: items are (priority, sequence, run, executor_fn).
+        # Lower priority integer = higher urgency (1 executes before 5).
+        # sequence is a monotonic counter that breaks priority ties (FIFO within tier).
+        self._queue: queue.PriorityQueue[
+            tuple[int, int, ManagedRun, Callable[[ManagedRun], Any]]
+        ] = queue.PriorityQueue(maxsize=queue_size)
+        self._queue_seq: int = 0  # monotonic counter for tie-breaking
         self._queue_size = queue_size
         self._queue_timeout_s = queue_timeout_s
         self._active_count = 0  # guarded by _lock
@@ -99,7 +108,7 @@ class RunManager:
                 item = self._queue.get(timeout=0.25)
             except queue.Empty:
                 continue
-            run, executor_fn = item
+            _priority, _seq, run, executor_fn = item
             # Wait for a concurrency slot (with timeout).
             acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
             if not acquired:
@@ -129,7 +138,20 @@ class RunManager:
         try:
             result = executor_fn(run)
             with self._lock:
-                run.state = "completed"
+                # Derive run state from the result's own status if available.
+                # RunResult(status="failed") must NOT be surfaced as state="completed".
+                result_status = getattr(result, "status", None)
+                if result_status is not None and result_status != "completed":
+                    # Guard: only accept known RunState values to prevent inconsistent state.
+                    if result_status in _VALID_RESULT_STATES:
+                        run.state = result_status  # e.g. "failed"
+                    else:
+                        # Unknown status string — treat as failure rather than silently
+                        # accepting an invalid state that would confuse downstream consumers.
+                        run.state = RunState.FAILED
+                    run.error = getattr(result, "error", None) or result_status
+                else:
+                    run.state = "completed"
                 run.result = result
                 run.updated_at = datetime.now(UTC).isoformat()
         except Exception as exc:
@@ -162,9 +184,13 @@ class RunManager:
             if run.state != "created":
                 return
 
-        # Try to enqueue (non-blocking).
+        # Try to enqueue (non-blocking). Priority from task_contract (1=highest).
+        priority = int(run.task_contract.get("priority", 5))
+        with self._lock:
+            seq = self._queue_seq
+            self._queue_seq += 1
         try:
-            self._queue.put_nowait((run, executor_fn))
+            self._queue.put_nowait((priority, seq, run, executor_fn))
         except queue.Full:
             with self._lock:
                 run.state = "failed"
@@ -246,11 +272,17 @@ class RunManager:
         Returns:
             A dictionary suitable for JSON serialization.
         """
+        # Serialize result: use to_dict() if RunResult, else stringify for backward compat.
+        result_payload: Any
+        try:
+            result_payload = run.result.to_dict()
+        except AttributeError:
+            result_payload = run.result
         return {
             "run_id": run.run_id,
             "task_contract": run.task_contract,
             "state": run.state,
-            "result": run.result,
+            "result": result_payload,
             "error": run.error,
             "created_at": run.created_at,
             "updated_at": run.updated_at,

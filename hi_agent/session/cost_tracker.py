@@ -5,6 +5,7 @@ Pricing tiers for major LLM providers. Tracks cost across a session.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
 
@@ -48,6 +49,7 @@ class CostCalculator:
         self._per_model: dict[str, float] = {}
         self._per_tier: dict[str, float] = {}
         self._call_count: int = 0
+        self._lock = threading.Lock()
 
     def calculate(
         self,
@@ -70,17 +72,19 @@ class CostCalculator:
             + (cache_read_tokens / 1_000_000) * pricing.cache_read_per_mtok
             + (cache_creation_tokens / 1_000_000) * pricing.cache_write_per_mtok
         )
-        # Track cumulative state
-        self._total_cost += cost
-        self._per_model[model] = self._per_model.get(model, 0.0) + cost
-        tier = self._resolve_tier(model)
-        self._per_tier[tier] = self._per_tier.get(tier, 0.0) + cost
-        self._call_count += 1
+        # Track cumulative state (lock guards concurrent LLM calls)
+        with self._lock:
+            self._total_cost += cost
+            self._per_model[model] = self._per_model.get(model, 0.0) + cost
+            tier = self._resolve_tier(model)
+            self._per_tier[tier] = self._per_tier.get(tier, 0.0) + cost
+            self._call_count += 1
         return cost
 
     def get_total_cost(self) -> float:
         """Return the cumulative USD cost across all tracked calls."""
-        return self._total_cost
+        with self._lock:
+            return self._total_cost
 
     def get_breakdown(self) -> dict[str, object]:
         """Return a cost breakdown by model and tier.
@@ -89,12 +93,13 @@ class CostCalculator:
             Dictionary with ``total_usd``, ``per_model``, ``per_tier``,
             and ``call_count``.
         """
-        return {
-            "total_usd": self._total_cost,
-            "per_model": dict(self._per_model),
-            "per_tier": dict(self._per_tier),
-            "call_count": self._call_count,
-        }
+        with self._lock:
+            return {
+                "total_usd": self._total_cost,
+                "per_model": dict(self._per_model),
+                "per_tier": dict(self._per_tier),
+                "call_count": self._call_count,
+            }
 
     def _resolve_tier(self, model: str) -> str:
         """Map a model name to its pricing tier (strong/medium/light)."""

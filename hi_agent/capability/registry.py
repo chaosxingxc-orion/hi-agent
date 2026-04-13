@@ -31,7 +31,10 @@ class CapabilityRegistry:
     def get(self, name: str) -> CapabilitySpec:
         """Get capability by name."""
         if name not in self._capabilities:
-            raise KeyError(f"Unknown capability: {name}")
+            available = list(self._capabilities.keys())
+            raise KeyError(
+                f"Unknown capability: {name!r}. Available: {available}"
+            )
         return self._capabilities[name]
 
     def list_names(self) -> list[str]:

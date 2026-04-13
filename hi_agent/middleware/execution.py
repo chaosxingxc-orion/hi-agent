@@ -51,7 +51,10 @@ class ExecutionMiddleware:
 
     def on_create(self, config: dict[str, Any]) -> None:
         """Configure from external config dict."""
-        pass
+        if "strict" in config:
+            self._strict = bool(config["strict"])
+        if "model_tier" in config:
+            self._model_tier = str(config["model_tier"])
 
     def on_destroy(self) -> None:
         """Cleanup per-run resources.
@@ -171,11 +174,18 @@ class ExecutionMiddleware:
                     result = self._capability_invoker.invoke(
                         node_payload, resources
                     )
+                    # Extract real token count from the invoke result when available;
+                    # fall back to a conservative estimate only when unavailable.
+                    tokens = (
+                        getattr(result, "tokens_used", None)
+                        or getattr(result, "usage", {}).get("total_tokens") if hasattr(result, "__getitem__") or hasattr(result, "get") else None
+                        or 50
+                    )
                     return ExecutionResult(
                         node_id=node_id,
                         output=result,
                         evidence=evidence,
-                        tokens_used=50,
+                        tokens_used=int(tokens) if tokens is not None else 50,
                         success=True,
                     )
             except Exception as exc:

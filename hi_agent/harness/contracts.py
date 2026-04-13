@@ -51,6 +51,7 @@ class ActionSpec:
     timeout_seconds: int = 60
     max_retries: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
+    upstream_artifact_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -62,7 +63,7 @@ class ActionResult:
         state: Current lifecycle state.
         output: Output data from the capability handler.
         evidence_ref: First-class evidence reference for traceability.
-        callback_ref: Reference for async callback-based operations.
+        callback_ref: Reserved for future async callback-based operations; not yet consumed.
         error_code: Structured error code on failure.
         error_message: Human-readable error description.
         duration_ms: Wall-clock execution time in milliseconds.
@@ -78,6 +79,7 @@ class ActionResult:
     error_message: str | None = None
     duration_ms: int = 0
     attempt: int = 1
+    artifact_ids: list[str] = field(default_factory=list)
 
 
 @dataclass

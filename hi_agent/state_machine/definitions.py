@@ -10,13 +10,13 @@ def run_state_machine() -> StateMachine:
 
     created -> active -> waiting -> recovering -> completed / failed / aborted
     """
-    states = {"created", "active", "waiting", "recovering", "completed", "failed", "aborted"}
-    terminal = {"completed", "failed", "aborted"}
+    states = {"created", "active", "waiting", "recovering", "completed", "failed", "aborted", "cancelled"}
+    terminal = {"completed", "failed", "aborted", "cancelled"}
     transitions = {
-        "created": {"active"},
-        "active": {"waiting", "completed", "failed", "aborted"},
-        "waiting": {"active", "recovering", "aborted"},
-        "recovering": {"active", "failed", "aborted"},
+        "created": {"active", "cancelled"},
+        "active": {"waiting", "completed", "failed", "aborted", "cancelled"},
+        "waiting": {"active", "recovering", "aborted", "cancelled"},
+        "recovering": {"active", "failed", "aborted", "cancelled"},
     }
     return StateMachine(
         name="run",

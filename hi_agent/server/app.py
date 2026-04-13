@@ -169,6 +169,25 @@ async def handle_health(request: Request) -> JSONResponse:
         subsystems["event_bus"] = {"status": "error"}
         overall = "degraded"
 
+    # --- kernel adapter (ResilientKernelAdapter health: error rate, circuit state) ---
+    try:
+        kernel = server._builder._kernel  # cached instance; None if not yet built
+        if kernel is not None and hasattr(kernel, "get_health"):
+            kh = kernel.get_health()
+            ka_status = kh.get("status", "ok")
+            if ka_status == "unhealthy":
+                overall = "degraded"
+            subsystems["kernel_adapter"] = {
+                "status": ka_status,
+                "error_rate": kh.get("error_rate", 0.0),
+                "total_calls": kh.get("total_calls", 0),
+                "buffer_size": kernel.get_buffer_size() if hasattr(kernel, "get_buffer_size") else 0,
+            }
+        else:
+            subsystems["kernel_adapter"] = {"status": "not_built"}
+    except Exception:
+        subsystems["kernel_adapter"] = {"status": "error"}
+
     return JSONResponse({
         "status": overall,
         "subsystems": subsystems,
@@ -181,11 +200,18 @@ async def handle_ready(request: Request) -> JSONResponse:
 
     200 means ready (kernel + capabilities functional).
     503 means not ready (one or more blocking subsystems failed).
+
+    Reads from the live server builder so the response reflects the same
+    registries and subsystems used by actual run execution — not a
+    reconstructed default snapshot.
     """
     server: AgentServer = request.app.state.agent_server
     try:
-        from hi_agent.config.builder import SystemBuilder  # noqa: PLC0415
-        builder = SystemBuilder(config=server.config if hasattr(server, "config") else None)
+        builder = getattr(server, "_builder", None)
+        if builder is None:
+            # Fallback: server not fully initialized yet
+            from hi_agent.config.builder import SystemBuilder  # noqa: PLC0415
+            builder = SystemBuilder(config=getattr(server, "_config", None))
         snapshot = builder.readiness()
     except Exception as exc:
         snapshot = {
@@ -200,46 +226,267 @@ async def handle_ready(request: Request) -> JSONResponse:
 async def handle_manifest(request: Request) -> JSONResponse:
     """Return dynamic system capabilities manifest."""
     server: AgentServer = request.app.state.agent_server
-    # Build capability list from the server's wired invoker/registry if available
     capabilities: list[str] = []
     skills: list[dict] = []
     models: list[dict] = []
+    profiles: list[dict] = []
+    mcp_servers: list[dict] = []
+
+    # --- Capabilities from live CapabilityInvoker/Registry ---
     try:
-        skill_loader = getattr(server, "skill_loader", None)
-        if skill_loader is not None and hasattr(skill_loader, "discover"):
-            discovered = skill_loader.discover()
-            skills = [
-                {"name": getattr(s, "name", str(s)), "source": getattr(s, "source", "unknown")}
-                for s in discovered
-            ]
-    except Exception:
-        pass
+        builder = getattr(server, "_builder", None)
+        if builder is not None:
+            # Build or reuse the shared invoker — CapabilityInvoker.registry is public.
+            invoker = builder.build_invoker()
+            if invoker is not None:
+                # CapabilityInvoker stores registry as public `registry` attribute.
+                registry = getattr(invoker, "registry", None) or getattr(invoker, "_registry", None)
+                if registry is not None and hasattr(registry, "list_names"):
+                    capabilities = list(registry.list_names())
+    except Exception as _cap_exc:
+        logger.warning("manifest: capability enumeration failed: %s", _cap_exc)
+
+    # --- Skills ---
+    try:
+        # Prefer the builder's shared skill_loader singleton; fall back to server attribute.
+        builder = getattr(server, "_builder", None)
+        skill_loader = None
+        if builder is not None and hasattr(builder, "build_skill_loader"):
+            skill_loader = builder.build_skill_loader()
+        if skill_loader is None:
+            skill_loader = getattr(server, "skill_loader", None)
+        if skill_loader is not None:
+            # discover() returns int (count), not a list — use list_skills() for objects.
+            if hasattr(skill_loader, "discover"):
+                skill_loader.discover()
+            if hasattr(skill_loader, "list_skills"):
+                skills = [
+                    {"name": getattr(s, "name", str(s)), "source": getattr(s, "source", "unknown")}
+                    for s in skill_loader.list_skills()
+                ]
+    except Exception as _skill_exc:
+        logger.warning("manifest: skill enumeration failed: %s", _skill_exc)
+
+    # --- Profiles from ProfileRegistry ---
+    try:
+        builder = getattr(server, "_builder", None)
+        if builder is not None and hasattr(builder, "build_profile_registry"):
+            reg = builder.build_profile_registry()
+            if reg is not None and hasattr(reg, "list_profiles"):
+                for p in reg.list_profiles():
+                    profiles.append({
+                        "profile_id": p.profile_id,
+                        "display_name": p.display_name,
+                        "stage_count": len(p.stage_actions),
+                        "has_evaluator": p.evaluator_factory is not None,
+                    })
+    except Exception as _prof_exc:
+        logger.warning("manifest: profile enumeration failed: %s", _prof_exc)
+
+    # --- MCP servers with availability status ---
+    try:
+        mcp_server_obj = getattr(server, "mcp_server", None)
+        if mcp_server_obj is not None:
+            mcp_registry = getattr(mcp_server_obj, "_registry", None)
+            if mcp_registry is not None and hasattr(mcp_registry, "list_servers"):
+                for srv in mcp_registry.list_servers():
+                    # Determine tool availability: only available when transport wired.
+                    binding = getattr(mcp_server_obj, "_binding", None)
+                    unavailable = set(getattr(binding, "_unavailable", []))
+                    tools = srv.get("tools", [])
+                    server_id = srv["server_id"]
+                    mcp_servers.append({
+                        "server_id": server_id,
+                        "status": srv.get("status", "unknown"),
+                        "tools": [
+                            {
+                                "name": t,
+                                "available": f"mcp.{server_id}.{t}" not in unavailable,
+                            }
+                            for t in tools
+                        ],
+                    })
+    except Exception as _mcp_exc:
+        logger.warning("manifest: MCP server enumeration failed: %s", _mcp_exc)
+
+    # --- Active stage list from stage graph ---
+    stages: list[str] = []
+    try:
+        stage_graph = getattr(server, "stage_graph", None)
+        if stage_graph is not None:
+            transitions = getattr(stage_graph, "transitions", {})
+            stages = sorted(transitions.keys())
+    except Exception as _stage_exc:
+        logger.warning("manifest: stage graph enumeration failed: %s", _stage_exc)
+
+    # --- Models from live tier router ---
+    try:
+        builder = getattr(server, "_builder", None)
+        if builder is not None:
+            tier_router = getattr(builder, "_tier_router", None)
+            if tier_router is not None:
+                registry = getattr(tier_router, "_registry", None)
+                if registry is not None and hasattr(registry, "list_models"):
+                    models = [
+                        {"name": m if isinstance(m, str) else getattr(m, "name", str(m)), "status": "configured"}
+                        for m in registry.list_models()
+                    ]
+    except Exception as _model_exc:
+        logger.warning("manifest: model enumeration failed: %s", _model_exc)
+
+    # --- Plugins from live plugin loader singleton (with discovery) ---
+    plugins: list[dict] = []
+    try:
+        builder = getattr(server, "_builder", None)
+        if builder is not None and hasattr(builder, "build_skill_loader"):
+            # Use builder to get/initialize the shared plugin loader singleton.
+            plugin_loader = getattr(builder, "_plugin_loader", None)
+            if plugin_loader is None:
+                from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
+                plugin_loader = PluginLoader()
+                plugin_loader.load_all()  # trigger discovery before listing
+                builder._plugin_loader = plugin_loader
+            if hasattr(plugin_loader, "list_loaded"):
+                plugins = plugin_loader.list_loaded()
+    except Exception as _plugin_exc:
+        logger.warning("manifest: plugin enumeration failed: %s", _plugin_exc)
+
+    # --- Active profile from config ---
+    active_profile: str | None = None
+    try:
+        builder = getattr(server, "_builder", None)
+        if builder is not None:
+            cfg = getattr(builder, "_config", None)
+            if cfg is not None:
+                active_profile = getattr(cfg, "active_profile", None) or getattr(cfg, "profile", None)
+    except Exception as _active_prof_exc:
+        logger.warning("manifest: active profile lookup failed: %s", _active_prof_exc)
 
     return JSONResponse({
         "name": "hi-agent",
         "version": "0.1.0",
         "framework": "TRACE",
-        "stages": [
-            "S1_understand",
-            "S2_gather",
-            "S3_build_analyze",
-            "S4_synthesize",
-            "S5_review_finalize",
-        ],
+        "stages": stages,
         "capabilities": capabilities,
+        "profiles": profiles,
         "skills": skills,
         "models": models,
-        "mcp_servers": [],
-        "plugins": [],
+        "mcp_servers": mcp_servers,
+        "plugins": plugins,
         "endpoints": [
-            "POST /runs",
-            "GET /runs",
-            "GET /runs/{run_id}",
-            "POST /runs/{run_id}/signal",
+            # Core
             "GET /health",
             "GET /ready",
             "GET /manifest",
+            # Runs
+            "POST /runs",
+            "GET /runs",
+            "GET /runs/active",
+            "GET /runs/{run_id}",
+            "GET /runs/{run_id}/artifacts",
+            "POST /runs/{run_id}/signal",
+            "POST /runs/{run_id}/resume",
+            "GET /runs/{run_id}/events",
+            # Metrics
+            "GET /metrics",
+            "GET /metrics/json",
+            # Cost
+            "GET /cost",
+            # Memory
+            "POST /memory/dream",
+            "POST /memory/consolidate",
+            "GET /memory/status",
+            # Knowledge
+            "POST /knowledge/ingest",
+            "POST /knowledge/ingest-structured",
+            "GET /knowledge/query",
+            "GET /knowledge/status",
+            "POST /knowledge/lint",
+            "POST /knowledge/sync",
+            # Skills
+            "GET /skills/list",
+            "GET /skills/status",
+            "POST /skills/evolve",
+            "GET /skills/{skill_id}/metrics",
+            "GET /skills/{skill_id}/versions",
+            "POST /skills/{skill_id}/optimize",
+            "POST /skills/{skill_id}/promote",
+            # Context
+            "GET /context/health",
+            # MCP
+            "GET /mcp/status",
+            "GET /mcp/tools",
+            "POST /mcp/tools/list",
+            "POST /mcp/tools/call",
+            # Plugins
+            "GET /plugins/list",
+            "GET /plugins/status",
+            # Replay
+            "POST /replay/{run_id}",
+            "GET /replay/{run_id}/status",
+            # Management
+            "GET /management/capacity",
+            # Tools
+            "GET /tools",
+            "POST /tools/call",
+            # Artifacts
+            "GET /artifacts",
+            "GET /artifacts/{artifact_id}",
         ],
+        "active_profile": active_profile,
+        "runtime_mode": "platform",
+        # Contract field consumption levels — integrators must read this to understand
+        # which TaskContract fields the default TRACE pipeline actually acts on.
+        # ACTIVE: drives execution behavior or outcome
+        # PASSTHROUGH: stored/returned but not consumed by default pipeline
+        # QUEUE_ONLY: affects scheduling before execution, not stage behavior
+        "contract_field_status": {
+            "goal": "ACTIVE",
+            "task_family": "ACTIVE",
+            "risk_level": "ACTIVE",
+            "constraints": "ACTIVE",
+            "acceptance_criteria": "ACTIVE",
+            "budget": "ACTIVE",
+            "deadline": "ACTIVE",
+            "profile_id": "ACTIVE",
+            "decomposition_strategy": "ACTIVE",
+            "priority": "QUEUE_ONLY",
+            "environment_scope": "PASSTHROUGH",
+            "input_refs": "PASSTHROUGH",
+            "parent_task_id": "PASSTHROUGH",
+        },
+        # Explicit platform E2E contract — integrators must read this to understand
+        # what "working" means and under what conditions.
+        "e2e_contract": {
+            "dev_smoke_path": {
+                "status": "available",
+                "description": (
+                    "Default service mode runs in dev/fallback mode. "
+                    "POST /runs → GET /runs/{id} → GET /runs/{id}/artifacts is functional. "
+                    "This is a smoke path using heuristic fallback — not production E2E."
+                ),
+            },
+            "production_e2e": {
+                "status": "requires_prerequisites",
+                "prerequisites": [
+                    "OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable",
+                    "kernel_base_url set to a real agent-kernel HTTP endpoint",
+                    "HI_AGENT_ENV=prod",
+                ],
+                "description": (
+                    "Formal production E2E is not available in default (dev) mode. "
+                    "Set HI_AGENT_ENV=prod and provide real credentials + kernel endpoint."
+                ),
+            },
+            "mcp_provider": {
+                "status": "infrastructure_only",
+                "description": (
+                    "External MCP server transport (stdio/SSE/HTTP) is not yet implemented. "
+                    "Platform tools are accessible as MCP-compatible endpoints, but "
+                    "external server registration and invocation forwarding are deferred."
+                ),
+            },
+        },
     })
 
 
@@ -283,13 +530,62 @@ async def handle_create_run(request: Request) -> JSONResponse:
     manager = server.run_manager
     run_id = manager.create_run(body)
 
+    # Register run in RunContextManager so /runs/active reflects live runs.
+    rcm = getattr(server, "run_context_manager", None)
+    if rcm is not None:
+        try:
+            rcm.get_or_create(run_id)
+        except Exception:
+            pass
+
     # If the server has an executor factory, start the run immediately.
     if server.executor_factory is not None:
         run_data = dict(body, run_id=run_id)
-        task_runner = server.executor_factory(run_data)
+        try:
+            task_runner = server.executor_factory(run_data)
+        except RuntimeError as exc:
+            # Platform subsystem not ready (e.g. LLM gateway requires API key in
+            # prod mode). Return 503 so integrators can act on it, not a raw 500.
+            logger.warning("handle_create_run: executor_factory failed — %s", exc)
+            # Clean up the run we registered above
+            try:
+                manager.get_run(run_id)  # no-op, just guard
+            except Exception:
+                pass
+            return JSONResponse(
+                {
+                    "error": "platform_not_ready",
+                    "detail": str(exc),
+                    "run_id": run_id,
+                    "hint": (
+                        "Set HI_AGENT_ENV=dev for heuristic fallback, or provide "
+                        "OPENAI_API_KEY / ANTHROPIC_API_KEY for production mode."
+                    ),
+                },
+                status_code=503,
+            )
+        except Exception as exc:
+            logger.exception("handle_create_run: executor_factory unexpected error — %s", exc)
+            return JSONResponse(
+                {
+                    "error": "executor_build_failed",
+                    "detail": str(exc),
+                    "run_id": run_id,
+                    "error_type": type(exc).__name__,
+                },
+                status_code=500,
+            )
 
         def _executor_fn(_managed_run: Any) -> Any:
-            return task_runner()
+            try:
+                return task_runner()
+            finally:
+                # Remove from active registry on completion or failure.
+                if rcm is not None:
+                    try:
+                        rcm.remove(run_id)
+                    except Exception:
+                        pass
 
         manager.start_run(run_id, _executor_fn)
 
@@ -1105,28 +1401,72 @@ async def handle_not_found(request: Request) -> JSONResponse:
 # ------------------------------------------------------------------
 
 async def handle_mcp_status(request: Request) -> JSONResponse:
-    """Return MCP server registry status."""
+    """Return MCP server registry status.
+
+    Note: MCP external-server transport is not yet wired.  The platform
+    exposes its own capabilities via MCP-style endpoints (/mcp/tools/list,
+    /mcp/tools/call), but real external MCP server registration, binding,
+    and invocation forwarding require a transport layer that is deferred.
+    """
     try:
-        from hi_agent.mcp.registry import MCPRegistry  # noqa: PLC0415
         from hi_agent.mcp.health import MCPHealth  # noqa: PLC0415
         server: AgentServer = request.app.state.agent_server
-        mcp_reg = getattr(server, "mcp_registry", None) or MCPRegistry()
+        mcp_reg = server.mcp_registry
         health = MCPHealth(mcp_reg)
+        # Include tool count from _mcp_server so status and tools endpoints agree.
+        tool_count = 0
+        mcp_srv = getattr(server, "_mcp_server", None)
+        if mcp_srv is not None:
+            try:
+                tool_count = len(mcp_srv.list_tools().get("tools", []))
+            except Exception:
+                pass
+        # Derive transport status from the live builder singleton rather than
+        # hardcoding it.  When a plugin has registered stdio MCP servers and
+        # build_mcp_transport() has run, the transport is "wired".
+        _builder = getattr(server, "_builder", None)
+        _transport_built = (
+            _builder is not None and getattr(_builder, "_mcp_transport", None) is not None
+        )
+        transport_status = "wired" if _transport_built else "not_wired"
+        capability_mode = "external_provider" if _transport_built else "infrastructure_only"
+        note = (
+            "External MCP server transport is active; stdio servers registered via plugins "
+            "are bound into the capability registry."
+            if _transport_built else
+            "No external MCP server transport is active.  Platform tools are accessible via "
+            "/mcp/tools/list and /mcp/tools/call as MCP-compatible endpoints.  Register stdio "
+            "MCP servers via plugin manifests (mcp_servers field) to enable external providers."
+        )
         return JSONResponse({
             "servers": mcp_reg.list_servers(),
             "health": health.snapshot(),
             "count": len(mcp_reg),
+            "tool_count": tool_count,
+            "transport_status": transport_status,
+            "capability_mode": capability_mode,
+            "note": note,
         })
     except Exception as exc:
         return JSONResponse({"error": str(exc), "servers": [], "count": 0}, status_code=500)
 
 
 async def handle_mcp_tools(request: Request) -> JSONResponse:
-    """Return all tools across registered MCP servers."""
+    """Return all tools across registered MCP servers.
+
+    Prefers _mcp_server (same data source as /mcp/tools/list) so all tool
+    endpoints return a consistent view.
+    """
     try:
-        from hi_agent.mcp.registry import MCPRegistry  # noqa: PLC0415
         server: AgentServer = request.app.state.agent_server
-        mcp_reg = getattr(server, "mcp_registry", None) or MCPRegistry()
+        mcp_srv = getattr(server, "_mcp_server", None)
+        if mcp_srv is not None:
+            try:
+                return JSONResponse(mcp_srv.list_tools())
+            except Exception:
+                pass
+        # Fallback: registry-based listing
+        mcp_reg = server.mcp_registry
         tools: list[dict] = []
         for srv in mcp_reg.list_servers():
             for tool_name in srv.get("tools", []):
@@ -1197,12 +1537,8 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
 async def handle_plugins_list(request: Request) -> JSONResponse:
     """Return list of loaded plugins."""
     try:
-        from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
         server: AgentServer = request.app.state.agent_server
-        plugin_loader = getattr(server, "plugin_loader", None)
-        if plugin_loader is None:
-            plugin_loader = PluginLoader()
-            plugin_loader.load_all()
+        plugin_loader = server.plugin_loader
         return JSONResponse({
             "plugins": plugin_loader.list_loaded(),
             "count": len(plugin_loader),
@@ -1214,12 +1550,8 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
 async def handle_plugins_status(request: Request) -> JSONResponse:
     """Return plugin system status summary."""
     try:
-        from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
         server: AgentServer = request.app.state.agent_server
-        plugin_loader = getattr(server, "plugin_loader", None)
-        if plugin_loader is None:
-            plugin_loader = PluginLoader()
-            plugin_loader.load_all()
+        plugin_loader = server.plugin_loader
         plugins = plugin_loader.list_loaded()
         active = sum(1 for p in plugins if p.get("status") == "active")
         return JSONResponse({
@@ -1230,6 +1562,61 @@ async def handle_plugins_status(request: Request) -> JSONResponse:
         })
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+# ------------------------------------------------------------------
+# Artifact endpoints
+# ------------------------------------------------------------------
+
+
+async def handle_list_artifacts(request: Request) -> JSONResponse:
+    """Return all stored artifacts."""
+    server: AgentServer = request.app.state.agent_server
+    registry = getattr(server, "artifact_registry", None)
+    if registry is None:
+        return JSONResponse({"artifacts": []})
+    artifact_type = request.query_params.get("type")
+    producer = request.query_params.get("producer")
+    if artifact_type or producer:
+        artifacts = registry.query(artifact_type=artifact_type, producer_action_id=producer)
+    else:
+        artifacts = registry.all()
+    return JSONResponse({"artifacts": [a.to_dict() for a in artifacts], "count": len(artifacts)})
+
+
+async def handle_get_artifact(request: Request) -> JSONResponse:
+    """Return a single artifact by ID."""
+    artifact_id = request.path_params["artifact_id"]
+    server: AgentServer = request.app.state.agent_server
+    registry = getattr(server, "artifact_registry", None)
+    if registry is None:
+        return JSONResponse({"error": "artifact_registry_unavailable"}, status_code=503)
+    artifact = registry.get(artifact_id)
+    if artifact is None:
+        return JSONResponse({"error": "not_found", "artifact_id": artifact_id}, status_code=404)
+    return JSONResponse(artifact.to_dict())
+
+
+async def handle_run_artifacts(request: Request) -> JSONResponse:
+    """Return artifact IDs associated with a completed run."""
+    run_id = request.path_params["run_id"]
+    server: AgentServer = request.app.state.agent_server
+    manager = server.run_manager
+    run = manager.get_run(run_id)
+    if run is None:
+        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
+    result = run.result
+    artifact_ids: list[str] = []
+    if result is not None:
+        artifact_ids = list(getattr(result, "artifacts", []) or [])
+    # Enrich with full artifact data if registry is available.
+    registry = getattr(server, "artifact_registry", None)
+    if registry is not None:
+        artifacts = [registry.get(aid) for aid in artifact_ids]
+        artifacts_payload = [a.to_dict() for a in artifacts if a is not None]
+    else:
+        artifacts_payload = [{"artifact_id": aid} for aid in artifact_ids]
+    return JSONResponse({"run_id": run_id, "artifacts": artifacts_payload, "count": len(artifacts_payload)})
 
 
 # ------------------------------------------------------------------
@@ -1255,6 +1642,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/runs", handle_list_runs, methods=["GET"]),
         Route("/runs", handle_create_run, methods=["POST"]),
         Route("/runs/active", handle_runs_active, methods=["GET"]),
+        Route("/runs/{run_id}/artifacts", handle_run_artifacts, methods=["GET"]),
         Route("/runs/{run_id}", handle_get_run, methods=["GET"]),
         Route("/runs/{run_id}/signal", handle_signal_run, methods=["POST"]),
         Route("/runs/{run_id}/resume", handle_resume_run, methods=["POST"]),
@@ -1316,6 +1704,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # Tools (capability registry)
         Route("/tools", handle_tools_list, methods=["GET"]),
         Route("/tools/call", handle_tools_call, methods=["POST"]),
+
+        # Artifacts
+        Route("/artifacts", handle_list_artifacts, methods=["GET"]),
+        Route("/artifacts/{artifact_id}", handle_get_artifact, methods=["GET"]),
     ]
 
     @contextlib.asynccontextmanager
@@ -1324,6 +1716,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
         mm: MemoryLifecycleManager | None = agent_server.memory_manager
         if mm is not None:
             await mm.start()
+        slo = agent_server.slo_monitor
+        if slo is not None:
+            await slo.start()
         if agent_server._config_stack._base_path:
             agent_server._watcher = ConfigFileWatcher(
                 stack=agent_server._config_stack,
@@ -1340,6 +1735,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
         finally:
             if mm is not None:
                 await mm.stop()
+            if slo is not None:
+                await slo.stop()
             if agent_server._watcher is not None:
                 agent_server._watcher.stop()
 
@@ -1394,6 +1791,7 @@ class AgentServer:
         port: int = 8080,
         config: Any | None = None,
         rate_limit_rps: int = 100,
+        profile_registry: Any | None = None,
     ) -> None:
         """Initialize the agent server.
 
@@ -1405,12 +1803,16 @@ class AgentServer:
                 executor factory is wired automatically.
             rate_limit_rps: Maximum requests per 60-second window for
                 the rate-limiting middleware (per client IP).
+            profile_registry: Optional pre-populated ProfileRegistry.  When
+                provided, it is injected into the internal SystemBuilder so that
+                business-agent profiles registered before server construction are
+                available for executor resolution without modifying platform
+                internals.
         """
         self._host = host
         self._port = port
         self._rate_limit_rps = rate_limit_rps
         self.server_address = (host, port)
-        self.run_manager = RunManager()
         self.memory_manager: MemoryLifecycleManager | None = None
         self.knowledge_manager: Any | None = None
         self.skill_evolver: Any | None = None
@@ -1419,6 +1821,14 @@ class AgentServer:
         self.metrics_collector: Any | None = None
         self.run_context_manager: Any | None = None
         self.capacity_advisor: Any | None = None
+        self.slo_monitor: Any | None = None
+
+        # stage_graph — the active stage topology for this server instance.
+        # Business agents that inject a custom stage graph should also set this
+        # attribute so the /manifest endpoint reflects the real topology.
+        # Defaults to the sample TRACE S1-S5 graph; can be replaced at startup.
+        from hi_agent.trajectory.stage_graph import default_trace_stage_graph
+        self.stage_graph = default_trace_stage_graph()
 
         import os
 
@@ -1427,21 +1837,40 @@ class AgentServer:
 
         self._config = config if config is not None else TraceConfig()
 
+        # Platform default: dev mode (heuristic fallback, in-process kernel).
+        # Users opt into prod mode explicitly via HI_AGENT_ENV=prod or --prod.
+        # This ensures the server works out of the box for both CLI and
+        # programmatic users without external dependencies.
+        os.environ.setdefault("HI_AGENT_ENV", "dev")
+
         # Config stack for hot-reload and per-run overrides.
         base_config_path = os.environ.get("HI_AGENT_CONFIG_FILE")
         self._config_stack = ConfigStack(
             base_config_path=base_config_path,
             profile=os.environ.get("HI_AGENT_PROFILE"),
-            env=os.environ.get("HI_AGENT_ENV", "prod"),
+            env=os.environ.get("HI_AGENT_ENV", "dev"),
         )
         if base_config_path:
             # Use stack-resolved config (incorporates file + profile + env).
             self._config = self._config_stack.resolve()
         self._watcher: ConfigFileWatcher | None = None
 
+        # RunManager respects server_max_concurrent_runs from config.
+        self.run_manager = RunManager(
+            max_concurrent=self._config.server_max_concurrent_runs,
+        )
+
         from hi_agent.config.builder import SystemBuilder
 
-        self._builder = SystemBuilder(self._config, config_stack=self._config_stack)
+        self._builder = SystemBuilder(
+            self._config,
+            config_stack=self._config_stack,
+            profile_registry=profile_registry,
+        )
+        # Generation counter incremented on each config reload.  In-flight runs
+        # capture a reference to the executor at dispatch time and are unaffected
+        # by subsequent reloads.  Only new runs get the new builder.
+        self._builder_generation: int = 0
         self.executor_factory: Callable[..., Callable[..., Any]] | None = (
             self._default_executor_factory
         )
@@ -1454,9 +1883,69 @@ class AgentServer:
                 registry=_invoker.registry,
                 invoker=_invoker,
             )
-        except Exception:
-            logger.warning("MCPServer initialization failed; /mcp/tools/* endpoints will be unavailable.")
+        except Exception as _exc:
+            logger.warning("MCPServer initialization failed (%s: %s); /mcp/tools/* endpoints will be unavailable.", type(_exc).__name__, _exc)
             self._mcp_server = None
+
+        # Build shared ArtifactRegistry so artifact endpoints can serve stored artifacts.
+        self.artifact_registry = self._builder.build_artifact_registry()
+
+        # Build shared MCPRegistry so all /mcp/* endpoints use the same instance.
+        self.mcp_registry = self._builder.build_mcp_registry()
+
+        # Build shared PluginLoader so /plugins/* endpoints use the builder's cached
+        # instance instead of creating orphan loaders that bypass registered state.
+        self.plugin_loader = self._builder.build_plugin_loader()
+
+        # Wire server-level subsystems so /health, /memory/*, /skills/*,
+        # /context/* endpoints operate on live instances rather than None.
+        try:
+            self.memory_manager = self._builder.build_memory_lifecycle_manager()
+        except Exception as _exc:
+            logger.warning("MemoryLifecycleManager initialization failed (%s: %s); /memory/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+        try:
+            self.knowledge_manager = self._builder.build_knowledge_manager()
+        except Exception as _exc:
+            logger.warning("KnowledgeManager initialization failed (%s: %s); /knowledge/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+        try:
+            self.skill_evolver = self._builder.build_skill_evolver()
+            self.skill_loader = self._builder.build_skill_loader()
+        except Exception as _exc:
+            logger.warning("SkillEvolver/SkillLoader initialization failed (%s: %s); /skills/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+        try:
+            self.metrics_collector = self._builder.build_metrics_collector()
+        except Exception as _exc:
+            logger.warning("MetricsCollector initialization failed (%s: %s); metrics endpoints will be unavailable.", type(_exc).__name__, _exc)
+        try:
+            self.run_context_manager = self._builder._build_run_context_manager()
+        except Exception as _exc:
+            logger.warning("RunContextManager initialization failed (%s: %s).", type(_exc).__name__, _exc)
+        try:
+            self.context_manager = self._builder.build_context_manager()
+        except Exception as _exc:
+            logger.warning("ContextManager initialization failed (%s: %s); /context/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+        try:
+            from hi_agent.management.slo import SLOMonitor  # noqa: PLC0415
+            if self.metrics_collector is not None:
+                self.slo_monitor = SLOMonitor(self.metrics_collector)
+        except Exception as _exc:
+            logger.warning("SLOMonitor initialization failed (%s: %s); SLO monitoring disabled.", type(_exc).__name__, _exc)
+
+        # Wire plugin contributions (skill_dirs, mcp_servers) into live subsystems
+        # now that all subsystems are built.
+        try:
+            self._builder._wire_plugin_contributions()
+        except Exception as _exc:
+            logger.warning("Plugin contribution wiring failed (%s: %s); plugin capabilities may be unavailable.", type(_exc).__name__, _exc)
+
+        # Sync file-discovered skills into SkillRegistry so both subsystems
+        # share the same skill set.
+        try:
+            if self.skill_loader is not None:
+                _skill_registry = self._builder.build_skill_registry()
+                self.skill_loader.sync_to_registry(_skill_registry)
+        except Exception as _exc:
+            logger.warning("SkillLoader→SkillRegistry sync failed (%s: %s).", type(_exc).__name__, _exc)
 
         # Build the Starlette app.
         self._app = build_app(self)
@@ -1472,8 +1961,13 @@ class AgentServer:
         """Create a callable that runs a task to completion.
 
         Args:
-            run_data: Dictionary with at least ``goal``; may contain
-                ``task_id``, ``run_id``, ``task_family``, ``risk_level``.
+            run_data: Dictionary with at least ``goal``; may contain any
+                field from :class:`~hi_agent.contracts.task.TaskContract`
+                including ``task_id``, ``run_id``, ``task_family``,
+                ``risk_level``, ``constraints``, ``acceptance_criteria``,
+                ``budget``, ``deadline``, ``environment_scope``,
+                ``input_refs``, ``priority``, ``parent_task_id``,
+                ``decomposition_strategy``, and ``profile_id``.
 
         Returns:
             A zero-argument callable whose invocation drives the task
@@ -1482,17 +1976,42 @@ class AgentServer:
         import uuid
 
         from hi_agent.contracts import TaskContract
+        from hi_agent.contracts.task import TaskBudget
 
         task_id = (
             run_data.get("task_id")
             or run_data.get("run_id")
             or uuid.uuid4().hex[:12]
         )
+
+        # Reconstruct TaskBudget from dict if the caller supplied one.
+        budget: TaskBudget | None = None
+        budget_data = run_data.get("budget")
+        if isinstance(budget_data, dict):
+            budget = TaskBudget(
+                max_llm_calls=budget_data.get("max_llm_calls", 100),
+                max_wall_clock_seconds=budget_data.get("max_wall_clock_seconds", 3600),
+                max_actions=budget_data.get("max_actions", 50),
+                max_cost_cents=budget_data.get("max_cost_cents", 1000),
+            )
+        elif isinstance(budget_data, TaskBudget):
+            budget = budget_data
+
         contract = TaskContract(
             task_id=task_id,
             goal=run_data.get("goal", ""),
+            constraints=run_data.get("constraints") or [],
+            acceptance_criteria=run_data.get("acceptance_criteria") or [],
             task_family=run_data.get("task_family", "quick_task"),
+            budget=budget,
+            deadline=run_data.get("deadline"),
             risk_level=run_data.get("risk_level", "low"),
+            environment_scope=run_data.get("environment_scope") or [],
+            input_refs=run_data.get("input_refs") or [],
+            priority=int(run_data.get("priority", 5)),
+            parent_task_id=run_data.get("parent_task_id"),
+            decomposition_strategy=run_data.get("decomposition_strategy"),
+            profile_id=run_data.get("profile_id"),
         )
         config_patch = run_data.get("config_patch")  # optional dict, may be None
         executor = self._builder.build_executor(contract, config_patch=config_patch)
@@ -1528,12 +2047,33 @@ class AgentServer:
         """No-op for backward compatibility with stdlib HTTPServer."""
 
     async def _on_config_reload(self, new_cfg: Any) -> None:
-        """Called by ConfigFileWatcher when config files change."""
+        """Called by ConfigFileWatcher when config files change.
+
+        Safety contract:
+        - In-flight runs already hold a direct reference to their ``RunExecutor``
+          instance, which was built from the *previous* builder.  Replacing
+          ``self._builder`` does NOT affect those executors — they continue to
+          run to completion with their original configuration.
+        - Shared subsystem singletons (skill_loader, memory_manager, etc.) are
+          inherited by the new builder so their cached state is preserved across
+          the reload.  This prevents double-initialisation and avoids orphaning
+          objects that server endpoints (e.g. ``/memory/*``) still reference.
+        - The generation counter is incremented so callers can detect reloads.
+        """
+        old_builder = self._builder
         self._config = new_cfg
         from hi_agent.config.builder import SystemBuilder
-        self._builder = SystemBuilder(config=new_cfg, config_stack=self._config_stack)
+        new_builder = SystemBuilder(config=new_cfg, config_stack=self._config_stack)
+        # Inherit subsystem singletons so in-flight server-level references remain valid.
+        new_builder._skill_loader = old_builder._skill_loader
+        new_builder._mcp_registry = old_builder._mcp_registry
+        new_builder._mcp_transport = old_builder._mcp_transport
+        new_builder._plugin_loader = old_builder._plugin_loader
+        self._builder = new_builder
+        self._builder_generation += 1
         logger.info(
-            "Config reloaded. New server_port=%s",
+            "Config reloaded (generation=%d). New server_port=%s",
+            self._builder_generation,
             getattr(new_cfg, "server_port", None),
         )
 

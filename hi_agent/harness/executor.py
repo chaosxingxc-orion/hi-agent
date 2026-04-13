@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 from hi_agent.harness.contracts import (
     ActionResult,
@@ -33,6 +36,7 @@ class HarnessExecutor:
         capability_invoker: Any | None = None,
         evidence_store: EvidenceStore | None = None,
         permission_gate: "PermissionGate | None" = None,
+        artifact_registry: Any | None = None,
     ) -> None:
         """Initialize executor with governance and optional dependencies.
 
@@ -44,11 +48,14 @@ class HarnessExecutor:
             permission_gate: Optional PermissionGate for fine-grained per-tool
                 permission checks before action dispatch. When provided, DENY
                 decisions short-circuit execution before governance checks.
+            artifact_registry: Optional ArtifactRegistry for typed artifact
+                persistence alongside raw evidence records.
         """
         self._governance = governance
         self._invoker = capability_invoker
         self._evidence_store = evidence_store or EvidenceStore()
         self._permission_gate = permission_gate
+        self._artifact_registry = artifact_registry
         self._action_states: dict[str, ActionState] = {}
         self._action_results: dict[str, ActionResult] = {}
 
@@ -92,9 +99,9 @@ class HarnessExecutor:
                     )
                     self._action_results[spec.action_id] = result
                     return result
-            except Exception:
+            except Exception as _gate_exc:
                 # Permission gate failure must not block execution
-                pass
+                logger.warning("Permission gate check failed: %s", _gate_exc)
 
         # Step 1-2: Governance check
         allowed, reason = self._governance.can_execute(spec)
@@ -141,8 +148,9 @@ class HarnessExecutor:
                 duration = _now_ms() - start_ms
 
                 # Step 5: Collect evidence
-                evidence_ref = self._collect_evidence(
-                    spec.action_id, output
+                evidence_ref, artifact_ids = self._collect_evidence(
+                    spec.action_id, output,
+                    upstream_artifact_ids=spec.upstream_artifact_ids,
                 )
 
                 self._action_states[spec.action_id] = ActionState.SUCCEEDED
@@ -153,6 +161,7 @@ class HarnessExecutor:
                     evidence_ref=evidence_ref,
                     duration_ms=duration,
                     attempt=attempt,
+                    artifact_ids=artifact_ids,
                 )
                 self._action_results[spec.action_id] = result
                 return result
@@ -215,16 +224,24 @@ class HarnessExecutor:
         return self._invoker.invoke(spec.capability_name, spec.payload)
 
     def _collect_evidence(
-        self, action_id: str, output: Any
-    ) -> str:
+        self,
+        action_id: str,
+        output: Any,
+        *,
+        upstream_artifact_ids: list[str] | None = None,
+    ) -> tuple[str, list[str]]:
         """Create and store an evidence record from action output.
 
         Args:
             action_id: The action that produced this output.
             output: Raw output from the capability handler.
+            upstream_artifact_ids: Artifact IDs from prior actions that fed
+                into producing this output.  Passed as ``source_refs`` to
+                the artifact adapter so lineage is recorded on each artifact.
 
         Returns:
-            The evidence_ref for the stored record.
+            A tuple of (evidence_ref, artifact_ids) where artifact_ids is the
+            list of IDs for any typed artifacts persisted during this call.
         """
         evidence_ref = f"ev-{action_id}-{uuid.uuid4().hex[:8]}"
         record = EvidenceRecord(
@@ -235,7 +252,23 @@ class HarnessExecutor:
             timestamp=_iso_now(),
         )
         self._evidence_store.store(record)
-        return evidence_ref
+
+        # Persist typed artifact alongside raw evidence when registry is available.
+        artifact_ids: list[str] = []
+        if self._artifact_registry is not None and output is not None:
+            try:
+                from hi_agent.artifacts.adapters import OutputToArtifactAdapter  # noqa: PLC0415
+                adapter = OutputToArtifactAdapter()
+                for artifact in adapter.adapt(
+                    action_id, output,
+                    source_refs=upstream_artifact_ids or [],
+                ):
+                    self._artifact_registry.store(artifact)
+                    artifact_ids.append(artifact.artifact_id)
+            except Exception:
+                pass  # artifact persistence is best-effort; never break evidence flow
+
+        return evidence_ref, artifact_ids
 
 
 def _now_ms() -> int:

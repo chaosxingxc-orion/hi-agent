@@ -131,7 +131,13 @@ class TestBranchLifecycle:
         assert len(state_changes) == 10  # 5 branches * 2 transitions
 
     def test_branch_id_format(self) -> None:
-        """Branch IDs should contain the :b marker."""
+        """Branch IDs are deterministic hash strings from proposal.branch_id.
+
+        After D3 fix, branch_id is taken from proposal.branch_id (a
+        deterministic hash) rather than the counter-based _make_branch_id().
+        We verify that IDs are non-empty strings; they no longer contain the
+        old ':b' counter marker.
+        """
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
         executor = RunExecutor(contract, kernel)
@@ -140,7 +146,7 @@ class TestBranchLifecycle:
 
         for key in kernel.branches:
             _run_id, _stage_id, branch_id = key
-            assert ":b" in branch_id
+            assert branch_id, "branch_id must be a non-empty string"
 
 
 class TestBranchFailure:

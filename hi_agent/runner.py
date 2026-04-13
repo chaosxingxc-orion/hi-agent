@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine
     from hi_agent.task_mgmt.reflection import ReflectionOrchestrator
 
+import time
 from datetime import UTC
 
 from hi_agent.capability import (
@@ -49,6 +50,7 @@ from hi_agent.contracts import (
     TrajectoryNode,
     deterministic_id,
 )
+from hi_agent.contracts.requests import RunResult
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter, EventEnvelope
 from hi_agent.memory import MemoryCompressor, RawEventRecord, RawMemoryStore
@@ -68,6 +70,12 @@ from hi_agent.trajectory.dead_end import detect_dead_end
 from hi_agent.trajectory.optimizers import GreedyOptimizer
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
 
+# ---------------------------------------------------------------------------
+# Deprecated: STAGES is a sample constant for the TRACE S1-S5 pipeline.
+# Business agents that define custom stage graphs should use their own
+# stage list.  Import from hi_agent.samples.trace_pipeline.TRACE_STAGES
+# for the canonical sample definition.
+# ---------------------------------------------------------------------------
 STAGES = default_trace_stage_graph().trace_order("S1_understand")
 _logger = logging.getLogger(__name__)
 
@@ -400,7 +408,6 @@ class RunExecutor:
         if self.skill_loader is not None:
             try:
                 _skill_loader = self.skill_loader
-                _skill_vmgr = self.skill_version_mgr
                 _prev_provider = getattr(self.route_engine, '_context_provider', None)
 
                 def _skill_enriched_context() -> dict:
@@ -749,7 +756,13 @@ class RunExecutor:
             )
 
     def _make_branch_id(self, stage_id: str) -> str:
-        """Generate deterministic branch ID and increment counter."""
+        """Generate deterministic branch ID and increment counter.
+
+        DEPRECATED: runner_stage.py now uses ``proposal.branch_id`` directly
+        so that all events in a single branch execution share the same ID.
+        This method is retained for backward compatibility but has no
+        remaining callers inside the main execution path.
+        """
         bid = f"{self.run_id}:{stage_id}:b{self.branch_seq:03d}"
         self.branch_seq += 1
         return bid
@@ -1030,9 +1043,20 @@ class RunExecutor:
         return summary
 
     def _execute_action_with_retry(
-        self, stage_id: str, proposal: object
+        self,
+        stage_id: str,
+        proposal: object,
+        *,
+        upstream_artifact_ids: list[str] | None = None,
     ) -> tuple[bool, dict | None, int]:
         """Execute one action with retry semantics.
+
+        Args:
+            stage_id: Current stage identifier.
+            proposal: Route proposal for the action.
+            upstream_artifact_ids: Artifact IDs produced by prior actions in
+                this stage.  Threaded through to the harness so artifact
+                lineage is recorded on outputs.
 
         Returns:
           (success, result_payload_or_none, final_attempt_number)
@@ -1049,6 +1073,7 @@ class RunExecutor:
                 "attempt": attempt,
                 "should_fail": proposal.action_kind
                 in self.force_fail_actions,
+                "upstream_artifact_ids": upstream_artifact_ids or [],
             }
             self._record_event("ActionPlanned", payload)
 
@@ -1339,6 +1364,9 @@ class RunExecutor:
             and proposal.side_effect_class
             in {e.value for e in SideEffectClass}
             else SideEffectClass.READ_ONLY,
+            upstream_artifact_ids=list(
+                payload.get("upstream_artifact_ids") or []
+            ),
         )
 
         result = self.harness_executor.execute(spec)
@@ -1351,6 +1379,7 @@ class RunExecutor:
             "evidence_hash": result.evidence_ref or "ev_missing",
             "action_id": result.action_id,
             "side_effect_class": spec.side_effect_class.value,
+            "artifact_ids": result.artifact_ids,
             **output,
         }
 
@@ -1595,18 +1624,40 @@ class RunExecutor:
             or ``None`` if the stage completed successfully and execution
             should continue to the next stage.
         """
+        # Deadline enforcement: fail fast rather than burning budget past the deadline.
+        if self.contract.deadline:
+            try:
+                from datetime import datetime, timezone  # noqa: PLC0415
+                dl = datetime.fromisoformat(
+                    self.contract.deadline.replace("Z", "+00:00")
+                )
+                if datetime.now(timezone.utc) >= dl:
+                    self._record_failure(
+                        "execution_budget_exhausted",
+                        f"Task deadline exceeded: {self.contract.deadline}",
+                        stage_id=stage_id,
+                    )
+                    logger.warning(
+                        "runner.deadline_exceeded run_id=%s stage_id=%s deadline=%s",
+                        self.run_id, stage_id, self.contract.deadline,
+                    )
+                    return "failed"
+            except (ValueError, TypeError):
+                pass  # malformed deadline string — ignore rather than crash
         return self._stage_executor.execute_stage(stage_id, executor=self)
 
-    def _finalize_run(self, outcome: str) -> str:
+    def _finalize_run(self, outcome: str) -> RunResult:
         """Run post-execution finalization for a given outcome.
 
         Handles observability, evolve engine, skill outcomes, episode
         building, cost summary, short-term memory, and knowledge ingestion.
 
         Returns:
-            The *outcome* string unchanged.
+            A structured :class:`~hi_agent.contracts.requests.RunResult`
+            containing run_id, status, per-stage summaries, and artifact IDs.
+            ``str(result)`` returns the status string for backward compatibility.
         """
-        return self._lifecycle.finalize_run(
+        self._lifecycle.finalize_run(
             outcome,
             run_id=self.run_id,
             current_stage=self.current_stage,
@@ -1622,12 +1673,167 @@ class RunExecutor:
             finalize_skill_outcomes_fn=self._finalize_skill_outcomes,
             sync_to_context_fn=self._sync_to_context,
         )
+        # Build structured result from accumulated stage summaries.
+        stage_dicts: list[dict] = []
+        all_artifact_ids: list[str] = []
+        for stage_id, summary in self.stage_summaries.items():
+            stage_dicts.append({
+                "stage_id": stage_id,
+                "stage_name": getattr(summary, "stage_name", stage_id),
+                "outcome": getattr(summary, "outcome", "unknown"),
+                "findings": list(getattr(summary, "findings", [])),
+                "decisions": list(getattr(summary, "decisions", [])),
+                "artifact_ids": list(getattr(summary, "artifact_ids", [])),
+            })
+            all_artifact_ids.extend(getattr(summary, "artifact_ids", []))
 
-    def execute(self) -> str:
+        # --- Failure attribution ---
+        failed_stage_id: str | None = None
+        error_detail: str | None = None
+        failure_code: str | None = None
+        is_retryable: bool = False
+
+        if outcome != "completed":
+            failed_stage_id = self.current_stage
+            # Prefer exception message captured during execute()
+            exc_msg = getattr(self, "_last_exception_msg", None)
+            if exc_msg:
+                error_detail = exc_msg
+            else:
+                # Fall back to the failed stage's outcome info
+                summary = self.stage_summaries.get(failed_stage_id or "")
+                if summary is not None:
+                    stage_outcome = getattr(summary, "outcome", "")
+                    if stage_outcome and stage_outcome != "succeeded":
+                        error_detail = f"Stage {failed_stage_id!r} outcome: {stage_outcome}"
+            if not error_detail:
+                error_detail = f"Run failed at stage {failed_stage_id!r}"
+            # Precise failure attribution: query FailureCollector for structured record.
+            # Map raw outcome strings to proper FailureCode enum values.
+            _OUTCOME_TO_FAILURE_CODE = {
+                "failed": "no_progress",
+                "aborted": "exploration_budget_exhausted",
+                "timeout": "callback_timeout",
+                "unsafe": "unsafe_action_blocked",
+            }
+            failure_code = _OUTCOME_TO_FAILURE_CODE.get(outcome, outcome)
+            is_retryable = False
+            collector = getattr(self, "failure_collector", None)
+            if collector is not None:
+                try:
+                    from hi_agent.failures.taxonomy import FAILURE_RECOVERY_MAP  # noqa: PLC0415
+                    unresolved = collector.get_unresolved()
+                    last_failure = unresolved[-1] if unresolved else None
+                    if last_failure is None:
+                        all_records = collector.get_all()
+                        last_failure = all_records[-1] if all_records else None
+                    if last_failure is not None:
+                        # Use real FailureCode instead of bare outcome string
+                        fc = last_failure.failure_code
+                        failure_code = fc.value if hasattr(fc, "value") else str(fc)
+                        # Enrich error_detail with FailureRecord message
+                        if last_failure.message:
+                            error_detail = last_failure.message
+                        # Enrich failed_stage_id from FailureRecord
+                        if last_failure.stage_id:
+                            failed_stage_id = last_failure.stage_id
+                        # Determine retryability from FAILURE_RECOVERY_MAP
+                        recovery = FAILURE_RECOVERY_MAP.get(fc, "")
+                        is_retryable = recovery in (
+                            "retry_or_downgrade_model",
+                            "recovery_path",
+                            "task_view_degradation",
+                            "watchdog_handling",
+                        )
+                except Exception as _attr_exc:
+                    logger.debug("Failure attribution enrichment failed: %s", _attr_exc)
+            # Final fallback: retryable if a restart policy engine is wired
+            if not is_retryable:
+                is_retryable = getattr(self, "_restart_policy", None) is not None
+
+        # Cross-validate stage summaries against final outcome.
+        # The failed stage cannot show "succeeded" or "active" — the compressor
+        # may mark it "succeeded" if any branch completed, or "active" if the
+        # stage was interrupted before an explicit completion event was recorded.
+        if outcome != "completed" and failed_stage_id is not None:
+            for sd in stage_dicts:
+                if sd["stage_id"] == failed_stage_id and sd.get("outcome") in ("succeeded", "active", "unknown"):
+                    sd["outcome"] = "failed"
+
+        # --- Acceptance criteria evaluation ---
+        # If outcome is "completed", verify declared acceptance_criteria.
+        # Supported formats:
+        #   "required_stage:<stage_id>"  — stage must have outcome "succeeded"
+        #   "required_artifact:<artifact_id>" — artifact_id must be present
+        # Any failing criterion downgrades outcome to "failed".
+        if outcome == "completed":
+            criteria = getattr(self.contract, "acceptance_criteria", None) or []
+            criteria_failures: list[str] = []
+            completed_stage_ids = {sd["stage_id"] for sd in stage_dicts if sd.get("outcome") == "succeeded"}
+            for criterion in criteria:
+                if not isinstance(criterion, str):
+                    continue
+                if criterion.startswith("required_stage:"):
+                    required_sid = criterion[len("required_stage:"):]
+                    if required_sid not in completed_stage_ids:
+                        criteria_failures.append(criterion)
+                elif criterion.startswith("required_artifact:"):
+                    required_aid = criterion[len("required_artifact:"):]
+                    if required_aid not in all_artifact_ids:
+                        criteria_failures.append(criterion)
+            if criteria_failures:
+                outcome = "failed"
+                failure_code = "invalid_context"
+                error_detail = f"Acceptance criteria not met: {criteria_failures}"
+                _logger.warning(
+                    "runner.acceptance_criteria_failed run_id=%s criteria=%s",
+                    self.run_id, criteria_failures,
+                )
+
+        # --- Exception-type → failure_code improvement (P2-NEW-03) ---
+        # When outcome is failed and failure_code is still the naive default,
+        # use the captured exception type for more precise attribution.
+        if outcome != "completed" and failure_code == "no_progress":
+            exc_type = getattr(self, "_last_exception_type", None)
+            if exc_type:
+                _EXC_TYPE_TO_FAILURE_CODE: dict[str, str] = {
+                    "TimeoutError": "callback_timeout",
+                    "asyncio.TimeoutError": "callback_timeout",
+                    "concurrent.futures.TimeoutError": "callback_timeout",
+                    "MemoryError": "execution_budget_exhausted",
+                    "RecursionError": "execution_budget_exhausted",
+                    "PermissionError": "harness_denied",
+                    "KeyError": "invalid_context",
+                    "ValueError": "invalid_context",
+                    "TypeError": "invalid_context",
+                }
+                mapped = _EXC_TYPE_TO_FAILURE_CODE.get(exc_type)
+                if mapped:
+                    failure_code = mapped
+
+        # --- Wall-clock duration ---
+        _start = getattr(self, "_run_start_monotonic", None)
+        duration_ms = int((time.monotonic() - _start) * 1000) if _start is not None else 0
+
+        return RunResult(
+            run_id=self.run_id,
+            status=outcome,
+            stages=stage_dicts,
+            artifacts=all_artifact_ids,
+            error=error_detail,
+            failure_code=failure_code,
+            failed_stage_id=failed_stage_id,
+            is_retryable=is_retryable,
+            duration_ms=duration_ms,
+        )
+
+    def execute(self) -> RunResult:
         """Execute all stages with deterministic routing and capability dispatch.
 
         Returns:
-          Completion status string (`completed` or `failed`).
+          A structured :class:`~hi_agent.contracts.requests.RunResult`.
+          For backward compatibility, ``str(result)`` returns the status string
+          (``"completed"`` or ``"failed"``).
         """
         # --- Start run lifecycle via adapter ---
         self._run_id = self.kernel.start_run(self.contract.task_id)
@@ -1671,6 +1877,7 @@ class RunExecutor:
                     stage_id=self.current_stage,
                 )
 
+        self._run_start_monotonic: float = time.monotonic()
         try:
             for stage_id in self.stage_graph.trace_order():
                 stage_result = self._execute_stage(stage_id)
@@ -1680,6 +1887,9 @@ class RunExecutor:
                         return self._finalize_run("failed")
                     # "reflected" or any non-failed result: continue to next stage
         except Exception as exc:
+            # Capture exception type and message for failure attribution in RunResult.
+            self._last_exception_msg: str | None = str(exc)
+            self._last_exception_type: str | None = type(exc).__name__
             self._log_best_effort_exception(
                 logging.WARNING,
                 "runner.execute_failed",
@@ -1695,7 +1905,7 @@ class RunExecutor:
 
         return self._finalize_run("completed")
 
-    def execute_graph(self) -> str:
+    def execute_graph(self) -> RunResult:
         """Execute stages using dynamic graph traversal.
 
         Instead of pre-computing trace_order(), follows successors()
@@ -1742,6 +1952,7 @@ class RunExecutor:
                     stage_id=self.current_stage,
                 )
 
+        self._run_start_monotonic = time.monotonic()
         # Find start stage (zero indegree)
         current_stage = self._find_start_stage()
         completed_stages: set[str] = set()
@@ -2143,8 +2354,8 @@ class RunExecutor:
 
 
 @dataclass
-class RunResult:
-    """RunResult class."""
+class AsyncRunResult:
+    """Async execution result from execute_async() (graph/scheduler path)."""
     run_id: str
     success: bool
     completed_nodes: list[str] = field(default_factory=list)
@@ -2154,13 +2365,22 @@ async def execute_async(
     executor: RunExecutor,
     *,
     max_concurrency: int = 64,
-) -> RunResult:
+) -> AsyncRunResult:
     """Execute a RunExecutor using AsyncTaskScheduler and KernelFacade.
 
     This is a standalone async function (not a method) to avoid mutating
     the existing RunExecutor class interface. Call it as::
 
         result = await execute_async(executor, max_concurrency=8)
+
+    .. warning::
+        **Not wired into the server RunManager.** ``POST /runs`` dispatches
+        ``executor.execute()`` (synchronous, linear), not this function.
+        ``execute_async()`` returns :class:`AsyncRunResult` which has no
+        ``status`` or ``stages`` fields and is incompatible with
+        ``RunManager.to_dict()``. Use this function only for direct asyncio
+        callers; do not surface it through the HTTP API without first
+        adapting the result type to :class:`~hi_agent.contracts.requests.RunResult`.
     """
     from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
     from hi_agent.task_mgmt.graph_factory import GraphFactory
@@ -2254,7 +2474,7 @@ async def execute_async(
         make_handler=make_handler,
     )
 
-    return RunResult(
+    return AsyncRunResult(
         run_id=run_id,
         success=schedule_result.success,
         completed_nodes=schedule_result.completed_nodes,

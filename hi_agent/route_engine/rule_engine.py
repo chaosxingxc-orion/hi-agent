@@ -51,6 +51,13 @@ class RuleRouteEngine:
     improvements survive process restarts.
     """
 
+    # ---------------------------------------------------------------------------
+    # Deprecated class-level default.  The TRACE S1-S5 mapping is a *sample*
+    # configuration.  Business agents should pass their own ``stage_actions``
+    # dict to the constructor instead of relying on this class variable.
+    # The instance attribute ``self.STAGE_ACTIONS`` (set in __init__) takes
+    # precedence over this class-level default.
+    # ---------------------------------------------------------------------------
     STAGE_ACTIONS: ClassVar[dict[str, str]] = {
         "S1_understand": "analyze_goal",
         "S2_gather": "search_evidence",
@@ -71,6 +78,7 @@ class RuleRouteEngine:
         task_family: str = "",
         context: dict[str, Any] | None = None,
         evolve_state_path: str | None = None,
+        stage_actions: dict[str, str] | None = None,
     ) -> None:
         """Initialise the rule engine with optional skill matching.
 
@@ -88,7 +96,21 @@ class RuleRouteEngine:
             Optional file path for persisting evolve state (confidence and
             action-weight tables) across process restarts.  When *None*, state
             is kept in-memory only.
+        stage_actions:
+            Optional mapping of stage ID → action kind.  When provided this
+            overrides the class-level ``STAGE_ACTIONS`` default, allowing
+            business agents with custom stage topologies to supply their own
+            routing table without subclassing.  Example::
+
+                engine = RuleRouteEngine(stage_actions={
+                    "intake": "classify_request",
+                    "resolve": "lookup_kb",
+                    "respond": "generate_reply",
+                })
         """
+        # Allow per-instance override of the class-level TRACE defaults.
+        if stage_actions is not None:
+            self.STAGE_ACTIONS = stage_actions
         self._skill_matcher = skill_matcher
         self._task_family = task_family
         self._context: dict[str, Any] = context or {}

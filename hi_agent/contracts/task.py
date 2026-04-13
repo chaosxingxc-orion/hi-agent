@@ -29,25 +29,70 @@ class TaskBudget:
 class TaskContract:
     """Top-level task intent and acceptance boundaries.
 
+    ## Field Consumption Levels
+
+    Fields are annotated with their consumption level so that integrators
+    know exactly what the default TRACE pipeline acts on:
+
+    - **ACTIVE**: field is read by platform execution logic and directly
+      influences run behavior or outcome.
+    - **PASSTHROUGH**: field is accepted, stored, returned in the result,
+      and passed to the executor — but the *default* TRACE pipeline does
+      not consume it.  Business agents that define custom profiles,
+      middleware, or stage graphs are responsible for implementing
+      consumption of these fields.
+    - **QUEUE_ONLY**: field is used for scheduling / prioritization before
+      execution begins, but has no effect once a stage is running.
+
     Attributes:
-        task_id: Unique identifier for this task contract.
-        goal: Natural-language description of the desired outcome.
-        constraints: Free-form constraint strings (e.g. ``"no_internet"``).
-        acceptance_criteria: Conditions that must hold for the task to pass.
-        task_family: Routing hint selecting a task-family config profile.
-        budget: Optional execution budget governing resource consumption.
-        deadline: Optional ISO-8601 datetime string for hard deadline.
-        risk_level: Categorical risk tag (``low``, ``medium``, ``high``,
-            ``critical``).
-        environment_scope: List of environment identifiers the task may
-            touch (e.g. ``["staging"]``).
-        input_refs: URIs or identifiers for input artifacts required by
-            the task.
-        priority: Numeric priority from 1 (highest) to 10 (lowest).
-        parent_task_id: Optional parent task identifier for sub-task
-            hierarchy.
-        decomposition_strategy: Optional hint for how the task should be
-            decomposed (``"dag"``, ``"tree"``, ``"linear"``).
+        task_id: [ACTIVE] Unique identifier for this task contract.
+        goal: [ACTIVE] Natural-language description of the desired outcome.
+            Injected into every stage task-view prompt.
+        constraints: [ACTIVE] Free-form constraint strings parsed by the
+            runner for built-in prefixes: ``"fail_action:<stage>"``,
+            ``"action_max_retries:<n>"``, ``"invoker_role:<role>"``.
+            Unrecognized constraint strings are stored and returned but not
+            acted upon by the default pipeline.
+        acceptance_criteria: [ACTIVE] Post-run acceptance conditions.
+            Supported patterns: ``"required_stage:<stage_id>"`` (stage must
+            have outcome ``"succeeded"``), ``"required_artifact:<id>"``
+            (artifact must be present).  Any unmet criterion downgrades the
+            final outcome from ``"completed"`` to ``"failed"``.  Arbitrary
+            criterion strings beyond these two patterns are stored and
+            returned but are not enforced by the default pipeline.
+        task_family: [ACTIVE] Routing hint selecting a task-family config
+            profile.
+        budget: [ACTIVE] Optional execution budget governing resource
+            consumption (LLM calls, wall-clock time, action count, cost).
+        deadline: [ACTIVE] Optional ISO-8601 datetime string; the runner
+            aborts execution and returns ``"failed"`` when wall-clock time
+            exceeds this value.
+        risk_level: [ACTIVE] Categorical risk tag (``low``, ``medium``,
+            ``high``, ``critical``) used by harness governance to decide
+            approval requirements.
+        profile_id: [ACTIVE] Business agents pass a profile_id to activate
+            a ProfileSpec from the platform's ProfileRegistry, selecting
+            custom stage graphs and capability routes.
+        decomposition_strategy: [ACTIVE] Hint for task decomposition
+            (``"dag"``, ``"tree"``, ``"linear"``).  Read by
+            TaskOrchestrator when orchestrator-mode execution is used.
+        priority: [QUEUE_ONLY] Numeric priority from 1 (highest) to 10
+            (lowest).  Used by RunManager to order queued runs; has no
+            effect once a run is executing.
+        environment_scope: [PASSTHROUGH] List of environment identifiers
+            the task may touch (e.g. ``["staging"]``).  Stored and
+            returned but not consumed by the default TRACE pipeline.
+            Business agents implementing environment-aware execution should
+            read this field from the contract in their custom stage logic.
+        input_refs: [PASSTHROUGH] URIs or identifiers for input artifacts
+            required by the task.  Stored and returned but not consumed by
+            the default TRACE pipeline.  Business agents should read this
+            field to locate pre-existing artifacts before starting work.
+        parent_task_id: [PASSTHROUGH] Optional parent task identifier for
+            sub-task hierarchy.  Stored and returned but not consumed by
+            the default TRACE pipeline.  Business agents building
+            hierarchical task trees should use this for their own lineage
+            tracking.
     """
 
     task_id: str
@@ -64,4 +109,7 @@ class TaskContract:
     priority: int = 5
     parent_task_id: str | None = None
     decomposition_strategy: str | None = None
+    # Runtime profile injection — business agents pass a profile_id to activate
+    # a ProfileSpec from the platform's ProfileRegistry.
+    profile_id: str | None = None
 

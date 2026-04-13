@@ -85,11 +85,19 @@ class ControlMiddleware:
         resources = self._bind_resources(graph_json, perception)
         issues = self._validate_executability(graph_json, resources)
 
+        node_count = len(graph_json.get("nodes", []))
+        # Estimate cost proportional to decomposed node count; default stages have
+        # a known cost of 0 (heuristic path, no LLM calls consumed for planning).
+        is_default_plan = (
+            [(n["node_id"], n["payload"].get("description", "")) for n in graph_json.get("nodes", [])]
+            == [(s[0], s[1]) for s in _DEFAULT_STAGES]
+        )
+        estimated_cost = 0.0 if is_default_plan else float(node_count) * 0.01
         plan = ExecutionPlan(
             graph_json=graph_json,
             node_resources=resources,
-            total_nodes=len(graph_json.get("nodes", [])),
-            estimated_cost=0.0,
+            total_nodes=node_count,
+            estimated_cost=estimated_cost,
         )
 
         return MiddlewareMessage(
@@ -244,6 +252,18 @@ class ControlMiddleware:
                 "knowledge_query": "",
                 "tools": [],
             }
+
+            # Attempt knowledge query if knowledge_manager available
+            if self._knowledge_manager is not None:
+                try:
+                    desc = node.get("payload", {}).get("description", "")
+                    if desc and hasattr(self._knowledge_manager, "query"):
+                        kresult = self._knowledge_manager.query(desc, limit=3)
+                        pages = getattr(kresult, "wiki_pages", []) or []
+                        if pages:
+                            resources[node_id]["knowledge_query"] = desc
+                except Exception as exc:
+                    logger.debug("Control middleware knowledge query failed: %s", exc)
 
             # Attempt skill matching if loader available
             if self._skill_loader is not None:

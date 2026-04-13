@@ -477,8 +477,11 @@ class MiddlewareOrchestrator:
             if result.action == HookAction.SKIP:
                 return result
 
-            # RETRY is returned directly
+            # RETRY is returned directly; propagate hook.max_retries into metadata
+            # so the caller can use the hook's configured retry limit.
             if result.action == HookAction.RETRY:
+                if "max_retries" not in result.metadata:
+                    result.metadata["max_retries"] = hook.max_retries
                 return result
 
             # MODIFY: apply, continue checking other hooks

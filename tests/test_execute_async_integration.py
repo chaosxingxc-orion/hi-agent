@@ -12,7 +12,7 @@ import asyncio
 import pytest
 
 from hi_agent.contracts import TaskContract
-from hi_agent.runner import RunExecutor, RunResult, execute_async
+from hi_agent.runner import AsyncRunResult, RunExecutor, execute_async
 from tests.helpers.kernel_adapter_fixture import MockKernel
 from tests.helpers.kernel_facade_fixture import MockKernelFacade
 from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
@@ -62,7 +62,7 @@ async def test_basic_async_execution_completes():
 
     result = await execute_async(executor)
 
-    assert isinstance(result, RunResult)
+    assert isinstance(result, AsyncRunResult)
     assert result.success is True
     assert len(result.completed_nodes) > 0
     assert result.run_id  # non-empty

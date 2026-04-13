@@ -563,12 +563,16 @@ class TestBuilderIntegration:
     def test_facade_client_when_url_is_set(self) -> None:
         from hi_agent.config.builder import SystemBuilder
         from hi_agent.config.trace_config import TraceConfig
+        from hi_agent.runtime_adapter import ResilientKernelAdapter
 
         config = TraceConfig(kernel_base_url="http://kernel:9090")
         builder = SystemBuilder(config)
         kernel = builder.build_kernel()
-        assert isinstance(kernel, KernelFacadeClient)
-        assert kernel._mode == "http"
-        assert kernel._base_url == "http://kernel:9090"
+        # build_kernel() wraps the raw adapter in ResilientKernelAdapter.
+        assert isinstance(kernel, ResilientKernelAdapter)
+        inner = kernel._inner
+        assert isinstance(inner, KernelFacadeClient)
+        assert inner._mode == "http"
+        assert inner._base_url == "http://kernel:9090"
 
 

@@ -36,7 +36,7 @@ def test_build_executor_without_patch_uses_global():
 
     captured: list[TraceConfig] = []
 
-    def mock_impl(self, contract):
+    def mock_impl(self, contract, **kwargs):
         captured.append(self._config)
         raise RuntimeError("stop")
 
@@ -57,7 +57,7 @@ def test_build_executor_with_patch_uses_patched_config():
 
     captured: list[TraceConfig] = []
 
-    def mock_impl(self, contract):
+    def mock_impl(self, contract, **kwargs):
         captured.append(self._config)
         raise RuntimeError("stop")
 

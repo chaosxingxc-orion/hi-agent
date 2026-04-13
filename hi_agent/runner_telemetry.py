@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import time as _time_module
 from collections.abc import Callable
 from datetime import UTC
 from typing import TYPE_CHECKING, Any
@@ -22,6 +23,7 @@ from hi_agent.memory import RawEventRecord, RawMemoryStore
 from hi_agent.observability.trace_context import TraceContextManager
 
 if TYPE_CHECKING:
+    from hi_agent.observability.tracing import Tracer
     from hi_agent.skill.recorder import SkillUsageRecorder
 
 
@@ -39,6 +41,7 @@ class RunTelemetry:
         skill_recorder: SkillUsageRecorder | None,
         session: Any | None,
         context_manager: Any | None,
+        tracer: "Tracer | None" = None,
     ) -> None:
         self.event_emitter = event_emitter
         self.raw_memory = raw_memory
@@ -49,6 +52,8 @@ class RunTelemetry:
         self.session = session
         self.context_manager = context_manager
         self.trace_ctx_manager = TraceContextManager()
+        self.tracer: "Tracer | None" = tracer
+        self._run_start_time: float = _time_module.monotonic()
 
     # ------------------------------------------------------------------
     # Core event / observability
@@ -87,15 +92,54 @@ class RunTelemetry:
         if name == "run_completed":
             mc.record("runs_total", 1.0, {"status": "completed", **trace_label})
             mc.increment("runs_active", -1.0)
+            self._export_run_span(name="run", error=None, trace_ctx=trace_ctx)
         elif name == "run_failed":
             mc.record("runs_total", 1.0, {"status": "failed", **trace_label})
             mc.increment("runs_active", -1.0)
+            error_msg = str(payload.get("error", "unknown"))
+            self._export_run_span(name="run", error=error_msg, trace_ctx=trace_ctx)
         elif name == "run_cost_summary":
             # Record cumulative cost counter and per-run histogram.
             total_usd = float(payload.get("total_cost_usd", 0.0))
             if total_usd > 0:
                 mc.record("llm_cost_usd_total", total_usd, trace_label or None)
                 mc.record("llm_cost_per_run", total_usd, trace_label or None)
+
+    def _export_run_span(
+        self,
+        name: str,
+        error: str | None,
+        trace_ctx: Any | None,
+    ) -> None:
+        """Export a run-level span record via the configured tracer exporters."""
+        if self.tracer is None:
+            return
+        try:
+            from hi_agent.observability.tracing import SpanRecord  # noqa: PLC0415
+            import time as _t  # noqa: PLC0415
+            end_time = _t.monotonic()
+            duration_ms = (end_time - self._run_start_time) * 1000.0
+            now_wall = _t.time()
+            start_wall = now_wall - (duration_ms / 1000.0)
+            trace_id = trace_ctx.trace_id if trace_ctx is not None else name
+            span_id = trace_ctx.span_id if trace_ctx is not None else name
+            record = SpanRecord(
+                name=name,
+                trace_id=trace_id,
+                span_id=span_id,
+                parent_span_id=None,
+                start_time=start_wall,
+                end_time=now_wall,
+                duration_ms=duration_ms,
+                error=error,
+            )
+            for exporter in self.tracer._exporters:
+                try:
+                    exporter.export(record)
+                except Exception as exc:
+                    logger.warning("TraceExporter.export failed: %s", exc)
+        except Exception as exc:
+            logger.warning("_export_run_span failed: %s", exc)
 
     def record_event(
         self,

@@ -332,6 +332,9 @@ class StageExecutor:
                     stage_id,
                     exc,
                 )
+        # Accumulate artifact_ids produced by all actions in this stage.
+        stage_artifact_ids: list[str] = []
+
         for proposal in proposals:
             # --- CTS / Task budget enforcement ---
             budget_code = executor._check_budget_exceeded(stage_id)
@@ -355,7 +358,7 @@ class StageExecutor:
                 break
 
             # --- Branch lifecycle: open ---
-            branch_id = executor._make_branch_id(stage_id)
+            branch_id = proposal.branch_id
             executor._total_branches_opened += 1
             executor._stage_active_branches[stage_id] = (
                 executor._stage_active_branches.get(stage_id, 0) + 1
@@ -404,8 +407,18 @@ class StageExecutor:
                     },
                 )
                 success, result, final_attempt = (
-                    executor._execute_action_with_retry(stage_id, proposal)
+                    executor._execute_action_with_retry(
+                        stage_id,
+                        proposal,
+                        upstream_artifact_ids=list(stage_artifact_ids),
+                    )
                 )
+
+                # Collect artifact_ids from this action's result.
+                if result is not None and isinstance(result, dict):
+                    _action_artifacts = result.get("artifact_ids")
+                    if isinstance(_action_artifacts, list):
+                        stage_artifact_ids.extend(_action_artifacts)
 
                 # --- Fix-D: ToolResultBudget — truncate oversized tool results ---
                 if result is not None:
@@ -585,14 +598,26 @@ class StageExecutor:
                         action_result_for_gate.get("failure_code")
                         or "harness_denied"
                     )
+                    _action_kind = getattr(proposal, "action_kind", "?")
+                    _original_error = (
+                        action_result_for_gate.get("error_message")
+                        or action_result_for_gate.get("error")
+                        or failure_code_for_gate
+                    )
                     executor._record_failure(
                         failure_code_str=failure_code_for_gate,
                         message=(
-                            f"Action {getattr(proposal, 'action_kind', '?')} "
+                            f"Action {_action_kind} "
                             f"failed at stage {stage_id}"
                         ),
                         stage_id=stage_id,
                         branch_id=branch_id,
+                        context={
+                            "original_error": str(_original_error),
+                            "action_kind": _action_kind,
+                            "stage_id": stage_id,
+                            "branch_id": branch_id,
+                        },
                     )
                 executor._check_human_gate_triggers(
                     stage_id, action_result_for_gate, failure_code_for_gate
@@ -626,23 +651,39 @@ class StageExecutor:
                         overall_score is not None
                         and overall_score < 0.5
                         and evaluations
-                        and executor.session is not None
                     ):
                         issues = [
                             e.get("feedback", "")
                             for e in evaluations
                             if e.get("verdict") not in ("pass",)
                         ]
-                        executor.session.append_record(
-                            "middleware_evaluation",
-                            {
-                                "stage_id": stage_id,
-                                "overall_score": overall_score,
-                                "overall_verdict": overall_verdict,
-                                "issues": issues,
-                            },
-                            stage_id=stage_id,
-                        )
+                        if executor.session is not None:
+                            executor.session.append_record(
+                                "middleware_evaluation",
+                                {
+                                    "stage_id": stage_id,
+                                    "overall_score": overall_score,
+                                    "overall_verdict": overall_verdict,
+                                    "issues": issues,
+                                },
+                                stage_id=stage_id,
+                            )
+                        # Act on verdict: route retry/escalate through recovery
+                        # so the restart policy engine applies retry limits.
+                        if overall_verdict in ("retry", "escalate"):
+                            _logger.info(
+                                "stage.eval_verdict_trigger run_id=%s stage_id=%s "
+                                "verdict=%s score=%.2f",
+                                executor.run_id, stage_id, overall_verdict, overall_score,
+                            )
+                            self.kernel.mark_stage_state(stage_id, StageState.FAILED)
+                            executor._trigger_recovery(stage_id)
+                            _failed_summary = executor._compress_stage_summary(stage_id)
+                            _failed_summary.artifact_ids = list(stage_artifact_ids)
+                            executor.stage_summaries[stage_id] = _failed_summary
+                            executor._persist_snapshot(stage_id=stage_id, result="failed")
+                            executor._sync_to_context()
+                            return "failed"
             except Exception as exc:
                 _logger.debug(
                     "stage.middleware_post_execute_failed run_id=%s stage_id=%s error=%s",
@@ -658,9 +699,9 @@ class StageExecutor:
                 {"stage_id": stage_id, "to_state": "failed"},
             )
             executor._trigger_recovery(stage_id)
-            executor.stage_summaries[stage_id] = (
-                executor._compress_stage_summary(stage_id)
-            )
+            _failed_summary = executor._compress_stage_summary(stage_id)
+            _failed_summary.artifact_ids = list(stage_artifact_ids)
+            executor.stage_summaries[stage_id] = _failed_summary
             executor._persist_snapshot(
                 stage_id=stage_id, result="failed"
             )
@@ -676,9 +717,9 @@ class StageExecutor:
             "StageStateChanged",
             {"stage_id": stage_id, "to_state": "completed"},
         )
-        executor.stage_summaries[stage_id] = (
-            executor._compress_stage_summary(stage_id)
-        )
+        _completed_summary = executor._compress_stage_summary(stage_id)
+        _completed_summary.artifact_ids = list(stage_artifact_ids)
+        executor.stage_summaries[stage_id] = _completed_summary
         executor._persist_snapshot(stage_id=stage_id)
         executor._emit_observability(
             "stage_completed",

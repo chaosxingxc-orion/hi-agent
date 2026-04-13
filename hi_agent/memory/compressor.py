@@ -286,7 +286,7 @@ class MemoryCompressor:
                 },
                 {"role": "user", "content": user_prompt},
             ],
-            model="default",
+            model="light",
             temperature=0.2,
             max_tokens=2048,
             metadata={
@@ -344,7 +344,7 @@ class MemoryCompressor:
                 },
                 {"role": "user", "content": user_prompt},
             ],
-            model="default",
+            model="light",
             temperature=0.2,
             max_tokens=2048,
             metadata={

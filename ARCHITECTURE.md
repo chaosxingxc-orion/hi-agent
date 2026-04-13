@@ -865,7 +865,14 @@ flowchart TD
 | `/skills/{id}/promote` | `POST` | challenger → champion |
 | `/context/health` | `GET` | 上下文预算健康 |
 | `/health` | `GET` | 全系统健康 |
+| `/ready` | `GET` | 平台就绪检查（200=ready，503=not ready，返回 capabilities 列表） |
+| `/manifest` | `GET` | 系统能力清单（`contract_field_status`、MCP 状态、e2e 端点目录） |
+| `/tools` | `GET` | 注册的能力列表 |
+| `/tools/call` | `POST` | 按名称调用能力 |
+| `/mcp/tools/list` | `POST` | MCP 工具枚举（含 JSON Schema） |
+| `/mcp/tools/call` | `POST` | MCP 工具调用 |
 | `/metrics` | `GET` | Prometheus 指标 |
+| `/metrics/json` | `GET` | JSON 指标快照 |
 
 ---
 
@@ -962,12 +969,35 @@ flowchart TD
 - `agent-kernel` 通过固定 commit 引用（git submodule），未来建议切换可发布制品（wheel/index）。
 - `TaskAttemptRecord` 保留兼容入口（带弃用提示），新代码仅使用 `TaskAttempt`。
 - Windows 环境代理绕行依赖运行环境配置（P0）。
+- MCP 传输层（`mcp/transport.py`）当前 `transport_status = not_wired`：MCPServer 包裹能力注册表可正常枚举工具，但外部 JSON-RPC/SSE 传输尚未接入，`/manifest` 中 `capability_mode = infrastructure_only` 明确标注。
+
+## 12.1 TaskContract 字段消费边界
+
+`POST /runs` 接受 13 个 TaskContract 字段，消费级别如下（`/manifest` 的 `contract_field_status` 节动态返回）：
+
+| 字段 | 消费级别 | 说明 |
+|------|---------|------|
+| `goal` | **ACTIVE** | 驱动 TaskView 构建与 LLM prompt |
+| `task_family` | **ACTIVE** | 选择路由配置 |
+| `risk_level` | **ACTIVE** | Harness 治理决策 |
+| `constraints` | **ACTIVE** | 解析 `fail_action:*`、`action_max_retries:*`、`invoker_role:*` 前缀 |
+| `acceptance_criteria` | **ACTIVE** | run 完成后检查 `required_stage:*`、`required_artifact:*` 是否满足 |
+| `budget` | **ACTIVE** | BudgetGuard tier 降级与 deadline 执行 |
+| `deadline` | **ACTIVE** | wall-clock deadline 检查（过期立即失败） |
+| `profile_id` | **ACTIVE** | SystemBuilder profile 解析 |
+| `decomposition_strategy` | **ACTIVE** | TaskOrchestrator 分解模式 |
+| `priority` | **QUEUE_ONLY** | RunManager 队列排序，不进入 stage 执行 |
+| `environment_scope` | **PASSTHROUGH** | 存储并回传，执行层不消费 |
+| `input_refs` | **PASSTHROUGH** | 存储并回传，执行层不消费 |
+| `parent_task_id` | **PASSTHROUGH** | 存储并回传，执行层不消费 |
+
+PASSTHROUGH 字段的消费由调用层（business agent / profile）负责。
 
 ## 13. 质量门禁
 
 ```bash
 python -m ruff check .
-python -m pytest -q        # 2067 tests, all passing
+python -m pytest -q        # 2814 tests, all passing
 ```
 
 当前文档对应代码形态已通过全量测试回归（2026-04-11）。

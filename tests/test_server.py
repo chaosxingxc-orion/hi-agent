@@ -585,18 +585,24 @@ class TestRunsEndpoints:
 class TestMetricsEndpoints:
     """Test metrics endpoints."""
 
-    def test_metrics_prometheus_no_collector(self, client: TestClient) -> None:
+    def test_metrics_prometheus_no_collector(self) -> None:
         """GET /metrics returns text when no collector configured."""
-        resp = client.get("/metrics")
-        assert resp.status_code == 200
-        assert "text/plain" in resp.headers["content-type"]
-        assert "No metrics collector configured" in resp.text
+        server = AgentServer(host="127.0.0.1", port=9999)
+        server.metrics_collector = None  # Explicitly remove to test unconfigured path
+        with TestClient(server.app) as client:
+            resp = client.get("/metrics")
+            assert resp.status_code == 200
+            assert "text/plain" in resp.headers["content-type"]
+            assert "No metrics collector configured" in resp.text
 
-    def test_metrics_json_no_collector(self, client: TestClient) -> None:
+    def test_metrics_json_no_collector(self) -> None:
         """GET /metrics/json returns empty dict when no collector configured."""
-        resp = client.get("/metrics/json")
-        assert resp.status_code == 200
-        assert resp.json() == {}
+        server = AgentServer(host="127.0.0.1", port=9999)
+        server.metrics_collector = None  # Explicitly remove to test unconfigured path
+        with TestClient(server.app) as client:
+            resp = client.get("/metrics/json")
+            assert resp.status_code == 200
+            assert resp.json() == {}
 
 
 class TestAsyncEndpoint:

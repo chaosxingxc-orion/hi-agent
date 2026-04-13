@@ -128,22 +128,28 @@ graph TB
 
 ```text
 hi_agent/
+  artifacts/           # ArtifactRegistry、OutputToArtifactAdapter（类型化产出物管理）
   capability/          # 能力注册、调用（同步/异步）、熔断器
   config/              # TraceConfig (95+ 参数) + SystemBuilder 装配
   context/             # ContextManager、RunContext、RunContextManager
-  contracts/           # 核心契约与数据模型（Task/Run/Stage/Branch）
+  contracts/           # 核心契约与数据模型（Task/Run/Stage/Branch）；TaskContract 13 字段含消费级别标注
+  evaluation/          # EvaluatorRuntime（运行时评估注入）
   evolve/              # Postmortem、SkillExtractor、RegressionDetector、ChampionChallenger
   failures/            # FailureCode 分类、异常、采集与恢复映射
   harness/             # HarnessExecutor、GovernanceEngine、PermissionGate、EvidenceStore
   knowledge/           # KnowledgeManager、Wiki、Graph、RetrievalEngine、TF-IDF/BM25/Embedding
   llm/                 # TierAwareLLMGateway、FailoverChain、PromptCacheInjector、ModelRegistry
+  mcp/                 # MCPServer、MCPHealth、MCPBinding；transport.py（可选传输层）
   memory/              # L0 Raw → L1 STM → L2 MidTerm → L3 LongTermGraph + Compressor + Retriever
   middleware/          # MiddlewareOrchestrator + 4 Middlewares (Perception/Control/Execution/Evaluation)
   observability/       # MetricsCollector、NotificationService、TrajectoryExporter
+  profiles/            # ProfileRegistry（运行时能力 profile 管理）
   recovery/            # 补偿与恢复编排
   replay/              # 确定性回放引擎
   route_engine/        # Rule/LLM/Hybrid/SkillAware RouteEngine + DecisionAuditStore
-  runtime_adapter/     # RuntimeAdapter Protocol、KernelFacadeAdapter、AsyncKernelFacadeAdapter、ResilientAdapter
+  runtime/             # ProfileRuntimeResolver（profile → 运行时能力绑定）
+  runtime_adapter/     # RuntimeAdapter Protocol、KernelFacadeAdapter、AsyncKernelFacadeAdapter、ResilientKernelAdapter
+  samples/             # TRACE 示例管道（register_trace_capabilities；S1→S5 stage 配置）
   security/            # Auth、RBAC、JWT、SOC Guard
   server/              # HTTP Server（20+ 端点）、RunManager、EventBus、DreamScheduler
   session/             # RunSession、CostCalculator
@@ -153,11 +159,12 @@ hi_agent/
   task_view/           # TaskView Builder、AutoCompress、TokenBudget
   task_decomposition/  # DAG/Tree/Linear 任务分解
   trajectory/          # TrajectoryGraph、StageGraph、GreedyOptimizer、DeadEndDetector
+  workflows/           # WorkflowContracts（工作流契约定义）
   runner.py            # RunExecutor 主入口（execute / execute_graph / execute_async / resume）
   runner_stage.py      # StageExecutor 阶段执行委托
   runner_lifecycle.py  # 结束流程、postmortem、知识摄入、进化触发
   runner_telemetry.py  # 事件与指标记录
-tests/                 # 2067 个测试，全部通过
+tests/                 # 2814 个测试，全部通过
 docs/                  # 架构、规格、研究文档
 ```
 
@@ -172,6 +179,15 @@ python -m pip install -e ".[dev]"
 
 # 本地执行（不依赖 server）
 python -m hi_agent run --goal "Analyze quarterly revenue data" --local
+
+# 携带完整 TaskContract 字段本地执行
+python -m hi_agent run --goal "Analyze data" --local \
+  --risk-level low \
+  --task-family quick_task \
+  --acceptance-criteria '["required_stage:synthesize"]' \
+  --constraints '["no_external_calls"]' \
+  --deadline "2099-12-31T23:59:59Z" \
+  --budget '{"max_llm_calls": 10}'
 
 # 启动 API server
 python -m hi_agent serve --host 127.0.0.1 --port 8080
@@ -206,15 +222,18 @@ python -m hi_agent --api-port 8080 health --json
 
 | 端点 | 方法 | 功能 |
 |------|------|------|
-| `/runs` | POST | 提交任务 |
+| `/runs` | POST | 提交任务（支持 TaskContract 全部 13 字段） |
 | `/runs/{id}/events` | GET | SSE 实时事件流 |
 | `/runs/{id}/resume` | POST | 从 checkpoint 恢复 |
+| `/ready` | GET | 平台就绪检查（200=ready，503=not ready） |
+| `/manifest` | GET | 系统能力清单（含 `contract_field_status`：ACTIVE/PASSTHROUGH/QUEUE_ONLY） |
 | `/knowledge/ingest` | POST | 文本摄取 |
 | `/knowledge/query` | GET | 知识查询 |
 | `/memory/dream` | POST | 触发 Dream 整合 |
 | `/skills/evolve` | POST | 触发技能进化 |
 | `/skills/{id}/promote` | POST | Challenger → Champion |
 | `/context/health` | GET | 上下文预算状态 |
+| `/mcp/tools/list` | POST | MCP 工具枚举 |
 | `/metrics` | GET | Prometheus 格式指标 |
 
 ---
@@ -244,7 +263,7 @@ python -m hi_agent --api-port 8080 health --json
 
 ```bash
 python -m ruff check .       # lint
-python -m pytest -q           # 2067 tests
+python -m pytest -q           # 2814 tests
 
 # 触发 Dream 记忆整合
 curl -X POST http://localhost:8080/memory/dream

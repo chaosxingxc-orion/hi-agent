@@ -2,9 +2,135 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Highest Principle — Language
+
+**Before calling any model, translate all input instructions into English.**
+
+Regardless of the language the user writes in, the instruction passed to the model must be in English. This applies to task goals, prompts, tool arguments, and any text that will be processed by an LLM. Do not pass Chinese, Japanese, or any other non-English text directly into a model call.
+
+---
+
 ## Project Status
 
 This repository is in **active implementation — production engineering phase**. All 6 engineering gates passed. The `architecture-review/` directory contains the full design baseline (V2.0).
+
+## AI Engineering Behavior
+
+Six non-negotiable rules for every task. No exceptions, no shortcuts.
+
+---
+
+### Rule 1 — Think Before Coding
+
+**Surface assumptions. Name confusion. State tradeoffs.**
+
+Before writing a single line:
+- Write down your assumptions explicitly. If uncertain, ask first.
+- If multiple valid interpretations exist, present them — never pick one silently.
+- If a simpler approach exists, propose it and push back when warranted.
+- If the requirement is unclear, stop and name exactly what is confusing.
+
+Diving in without clarity wastes more time than asking upfront.
+
+---
+
+### Rule 2 — Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was explicitly asked.
+- No abstractions for code that is only used once.
+- No added "flexibility" or "configurability" that wasn't requested.
+- No error handling for scenarios that cannot happen.
+- If 50 lines solve it, don't write 200.
+
+Test: would a senior engineer call this overcomplicated? If yes, cut it down.
+
+---
+
+### Rule 3 — Surgical Changes
+
+**Touch only what the task requires. Clean up only your own mess.**
+
+When modifying existing code:
+- Do not improve, reformat, or rename things adjacent to your change.
+- Do not refactor code that isn't broken.
+- Match the surrounding style exactly, even if you'd write it differently.
+- If you spot unrelated dead code, call it out in a comment — don't delete it.
+
+When your changes leave orphans:
+- Remove any import, variable, or function that YOUR change made unused.
+- Leave pre-existing dead code untouched unless removal was explicitly requested.
+
+Test: every changed line must trace directly back to the user's request.
+
+---
+
+### Rule 4 — Goal-Driven Execution
+
+**Translate tasks into verifiable success criteria before starting.**
+
+Convert vague instructions into falsifiable goals:
+- "Add validation" → "Tests for invalid inputs pass; valid inputs still work."
+- "Fix the bug" → "A test that reproduces the bug now passes."
+- "Refactor X" → "All tests pass before and after; behavior is identical."
+
+For multi-step tasks, publish the plan first and confirm before executing:
+```
+1. [Step] → verify: [how you will confirm it worked]
+2. [Step] → verify: [how you will confirm it worked]
+3. [Step] → verify: [how you will confirm it worked]
+```
+
+Do not proceed past a step until its verification passes.
+
+---
+
+### Rule 5 — Pre-Commit Systematic Inspection
+
+**Before every commit, audit the change set for structural defects.**
+
+Run the following six-dimension inspection on every file you touched:
+
+| Dimension | What to check |
+|-----------|--------------|
+| **Contract truth** | Every declared interface, method signature, and protocol method is fully implemented — no `pass`, `raise NotImplementedError`, or stub body masquerading as real logic. |
+| **Orphan config / parameters** | Every constructor parameter, config field, and environment variable is read by at least one downstream consumer. Parameters that are accepted but never used are dead weight and must be removed or wired up. |
+| **Orphan return values** | Every non-`None` return value is consumed by the caller. Functions that compute a result and discard it silently are logic errors waiting to surface. |
+| **Subsystem connectivity** | Trace the call graph from entry point to each subsystem you modified. Confirm there are no broken links — missing wiring, forgotten dependency injection, or components that are instantiated but never attached. |
+| **Driver–result alignment** | For every input parameter or internal computation that drives a decision, verify the decision outcome is actually returned, stored, or acted upon. A field that changes internal state but whose effect is never observable is a silent no-op. |
+| **Error visibility** | Every exception catch either re-raises, logs with full context, or converts to a typed failure. Silent `except: pass` blocks hide bugs. |
+
+If any dimension reveals a defect, fix it before committing. Do not rationalize "I'll fix it later."
+
+---
+
+### Rule 6 — Three-Layer Testing After Every Implementation
+
+**Unit tests are necessary but not sufficient. Run all three layers.**
+
+After implementing any feature or fix, complete the full testing stack in order:
+
+**Layer 1 — Unit tests**
+- Cover the new logic in isolation.
+- Each test targets one function or class method.
+- Mocking is only allowed for external network calls or fault injection. Document the reason in the docstring.
+
+**Layer 2 — Integration tests**
+- Verify that the new code is reachable from its real callers through the real call chain.
+- No mocking of internal modules. Instantiate real components and wire them together.
+- Confirm the feature produces its side effects (state changes, events emitted, records written).
+- If a real dependency is not yet available, mark the test `@pytest.mark.skip(reason="awaiting real implementation")` — never fake it.
+
+**Layer 3 — End-to-end tests**
+- Simulate how a real user or upstream system would invoke this capability.
+- Design the scenario by asking: *"What would someone do the first time they tried to use this?"*
+- Drive the system through its public interface (HTTP endpoints, CLI, or the top-level Python API).
+- Assert on observable outputs: response bodies, persisted state, emitted events — not on internal variables.
+
+A feature that passes only unit tests is not shipped. All three layers must be green.
+
+---
 
 ## First Principles
 
@@ -14,19 +140,17 @@ This repository is in **active implementation — production engineering phase**
 
 ## Production Integrity Constraint (P3)
 
-本项目已进入生产态。**严禁使用任何 Mock 实现来规避问题以达到测试通过的标准。**
+This project is in production. **Using any Mock implementation to bypass real failures in order to make tests pass is strictly forbidden.**
 
-具体要求：
+| Rule | Description |
+|------|-------------|
+| **No mock bypass** | Do not use Mock/Stub/Fake implementations to conceal missing real components, misaligned interfaces, or unconnected dependencies. |
+| **Tests must reflect reality** | A passing test must mean the real execution path works — not that a mocked path works. |
+| **Missing means exposed** | If a component is not yet implemented (e.g. a real tool backend, MCP transport), mark the test `@pytest.mark.skip(reason="awaiting real implementation")` or `xfail` — do not disguise it as passing with a mock. |
+| **Legitimate mock uses** | Only: (1) unit tests isolating external network services (e.g. HTTP API calls); (2) fault injection for error-handling tests; (3) controlled stand-ins in performance benchmarks. All such cases must document the mock reason in the test docstring. |
+| **Zero mocks in integration tests** | Integration and end-to-end tests must use real components. No internal module may be mocked. |
 
-| 规则 | 说明 |
-|------|------|
-| **禁止 Mock 绕过** | 不得通过 Mock/Stub/Fake 实现来掩盖真实组件缺失、接口未对齐、依赖未连通等问题 |
-| **测试必须反映真实** | 测试通过必须代表真实执行路径可用，而非 Mock 路径可用 |
-| **缺失即暴露** | 如果某个组件尚未实现（如真实工具后端、MCP transport），测试应明确标记为 `@pytest.mark.skip(reason="awaiting real implementation")` 或 `xfail`，而非用 Mock 伪装通过 |
-| **Mock 的合法用途** | 仅限于：(1) 隔离外部网络服务（如 HTTP API 调用）的单元测试 (2) 测试错误处理路径时注入故障 (3) 性能基准测试中的受控替身。这些场景必须在测试 docstring 中标注 Mock 理由 |
-| **集成测试零 Mock** | 集成测试和端到端测试必须使用真实组件，不得 Mock 任何内部模块 |
-
-> **原则**：Mock 通过的测试 ≠ 系统可用。只有真实路径跑通，才算通过。
+> **Principle**: A test that passes via mocks does not mean the system works. Only real paths running green counts as passing.
 
 ## Current Implementation
 
@@ -119,7 +243,7 @@ python -m pytest tests/ -v
 
 ## Test Coverage
 
-2067 tests, all passing. One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
+2814 tests, all passing. One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
 
 ## System Overview
 
@@ -190,65 +314,65 @@ Defined in agent-kernel as `TraceFailureCode` (StrEnum), re-exported by `hi_agen
 
 ## Release Quality Protocol
 
-每个版本完成后，工程工艺验证（单元测试、语法检查、接口对齐）只是必要条件，不是充分条件。还必须完成**客户视角端到端验证**，才能认定版本可用。
+After each release, passing engineering-craft checks (unit tests, linting, interface alignment) is a necessary condition but not sufficient. A **customer-perspective end-to-end verification** must also pass before a release is considered ready.
 
-### 验证顺序
+### Verification Order
 
-1. **工程工艺门** — 单元测试全绿、语法检查无误、接口协议对齐
-2. **客户视角门** — 站在真实使用者的立场，设计端到端使用场景并跑通
+1. **Engineering gate** — all unit tests green, no lint errors, interface contracts aligned
+2. **Customer-perspective gate** — stand in the shoes of a real user; design and run end-to-end usage scenarios
 
-### 客户视角门的标准做法
+### Customer-Perspective Gate: Standard Practice
 
-设计场景时必须问：**"一个刚拿到这个系统的人，第一件事会怎么做？"**
+When designing scenarios, always ask: **"What would someone do the very first time they picked up this system?"**
 
-最小验证路径（每次发版必跑）：
+Minimum verification path (must run on every release):
 
 ```bash
-# 1. 启动服务
+# 1. Start the server
 python -m hi_agent serve --port 8080
 
-# 2. 提交一个真实任务
+# 2. Submit a real task
 curl -s -X POST http://localhost:8080/runs \
   -H "Content-Type: application/json" \
   -d '{"goal": "Summarize the TRACE framework in one paragraph"}' \
   | jq .run_id
 
-# 3. 轮询直到 state=done（或 failed）
+# 3. Poll until state=done (or failed)
 curl -s http://localhost:8080/runs/{run_id} | jq '{state, result}'
 
-# 4. 验证结果可读、无崩溃、无脏状态残留
+# 4. Verify: result is readable, no crash, no dirty state left behind
 
-# 5. 第二次提交同一任务（验证无 duplicate run_id、无状态污染）
+# 5. Submit the same task a second time (verify no duplicate run_id, no state pollution)
 ```
 
-扩展场景（按功能模块按需选跑）：
+Extended scenarios (run as needed per module):
 
-- **失败恢复**：提交一个必然失败的任务，确认 retry/abort 路径正常，服务不崩
-- **并发**：同时提交 3 个任务，确认彼此隔离、互不干扰
-- **Memory/Knowledge**：提交任务后查询 `/memory/dream`、`/knowledge/query`，确认数据落盘
-- **Skill 演化**：调用 `/skills/evolve`，确认无异常
+- **Failure recovery**: Submit a task that is guaranteed to fail; confirm the retry/abort path works and the server does not crash.
+- **Concurrency**: Submit 3 tasks simultaneously; confirm they are isolated and do not interfere with each other.
+- **Memory/Knowledge**: After submitting a task, query `/memory/dream` and `/knowledge/query`; confirm data is persisted.
+- **Skill evolution**: Call `/skills/evolve`; confirm no exceptions are raised.
 
-### 判定标准
+### Pass/Fail Criteria
 
-| 现象 | 判定 |
-|------|------|
-| POST /runs → 200，GET /runs/{id} → state=done | ✅ 通过 |
-| 任意一步返回 5xx 或进程崩溃 | ❌ 不通过，不得发版 |
-| 第二次同任务触发 duplicate run_id | ❌ 不通过 |
-| 日志出现未捕获异常 | ❌ 不通过 |
+| Observation | Result |
+|-------------|--------|
+| POST /runs → 200, GET /runs/{id} → state=done | ✅ Pass |
+| Any step returns 5xx or process crashes | ❌ Fail — do not release |
+| Second identical task triggers duplicate run_id | ❌ Fail |
+| Logs contain an uncaught exception | ❌ Fail |
 
-> **原则**：boot 测试通过 ≠ 可用。只有真实执行路径跑通，才算通过。
+> **Principle**: Passing a boot test does not mean the system is usable. Only a real execution path running to completion counts as passing.
 
 ## Engineering Gates (all passed)
 
 | Gate | Description | Key Deliverables |
 |------|-------------|------------------|
-| 1. Async化 | asyncio foundation | AsyncTaskScheduler, EventBus, httpx gateway |
-| 2. Kernel対接 | Real kernel integration | AsyncKernelFacadeAdapter, execute_turn() |
-| 3. LLM接入 | Real LLM wiring | AsyncLLMGateway, HTTPGateway.complete(), AsyncMemoryCompressor |
-| 4. 安全機構 | Safety mechanisms | AsyncCapabilityInvoker, runner exception protection, dead-end detection |
-| 5. Graph駆動 | Graph-driven execution | execute_graph(), backtrack edges, multi-successor routing |
-| 6. 並発隔離 | Concurrent run isolation | RunContext, RunContextManager, per-run state serialization |
+| 1. Async foundation | asyncio foundation | AsyncTaskScheduler, EventBus, httpx gateway |
+| 2. Kernel integration | Real kernel integration | AsyncKernelFacadeAdapter, execute_turn() |
+| 3. LLM wiring | Real LLM wiring | AsyncLLMGateway, HTTPGateway.complete(), AsyncMemoryCompressor |
+| 4. Safety mechanisms | Safety mechanisms | AsyncCapabilityInvoker, runner exception protection, dead-end detection |
+| 5. Graph-driven execution | Graph-driven execution | execute_graph(), backtrack edges, multi-successor routing |
+| 6. Concurrent isolation | Concurrent run isolation | RunContext, RunContextManager, per-run state serialization |
 
 ## Key Design Documents
 

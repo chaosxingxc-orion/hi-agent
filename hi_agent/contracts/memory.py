@@ -15,6 +15,7 @@ class StageSummary:
     decisions: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
     outcome: str = "active"
+    artifact_ids: list[str] = field(default_factory=list)
 
 
 @dataclass

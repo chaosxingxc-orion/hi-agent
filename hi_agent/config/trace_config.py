@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass, fields
-from typing import Any
+from typing import Any, ClassVar
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -60,7 +63,10 @@ class TraceConfig:
     # Server
     server_host: str = "0.0.0.0"
     server_port: int = 8080
-    server_max_concurrent_runs: int = 4
+    server_max_concurrent_runs: int = 32
+
+    # Trace export (empty string = disabled)
+    trace_export_dir: str = ""
 
     # Kernel adapter
     kernel_base_url: str = "local"
@@ -229,6 +235,67 @@ class TraceConfig:
 
     # --- LLM retry (新增) ---
     llm_retry_base_seconds: float = 1.0
+
+    # ------------------------------------------------------------------
+    # Deprecated field registry
+    # ------------------------------------------------------------------
+
+    # Fields that exist for backward compatibility but have no downstream
+    # consumers — setting them produces no runtime effect.  Use the
+    # successor field listed in the comment instead.
+    _DEPRECATED_WITH_SUCCESSOR: ClassVar[dict[str, tuple[Any, str]]] = {
+        # (default_value, successor_field_name)
+        "default_model": ("gpt-4o", "openai_default_model / anthropic_default_model"),
+        "llm_max_retries": (2, "llm_failover_max_retries"),
+        "harness_default_timeout": (60, "harness_action_default_timeout"),
+        "max_stages": (10, "cts_max_active_branches_per_stage (stage count is CTS-driven)"),
+        "max_branches_per_stage": (5, "cts_max_active_branches_per_stage"),
+        "max_total_branches": (20, "cts_max_total_branches"),
+        "max_actions_per_run": (100, "task_budget_max_actions"),
+    }
+
+    _DEPRECATED_DEAD: ClassVar[frozenset[str]] = frozenset({
+        "l1_compression_enabled",
+        "max_episodic_query_results",
+        "route_max_proposals",
+        "skill_min_provisional_evidence",
+        "skill_min_certified_evidence",
+        "skill_min_certified_success_rate",
+        "evolve_enabled",
+        "gate_budget_crisis_threshold",
+        "kernel_circuit_breaker_threshold",
+        "task_default_priority",
+    })
+
+    def validate_no_deprecated(self) -> list[str]:
+        """Log warnings for deprecated fields set to non-default values.
+
+        Returns list of warning messages emitted.  Callers (e.g. SystemBuilder)
+        should call this once at startup to surface configuration drift.
+        """
+        warnings: list[str] = []
+        for field_name, (default_val, successor) in self._DEPRECATED_WITH_SUCCESSOR.items():
+            current = getattr(self, field_name, None)
+            if current != default_val:
+                msg = (
+                    f"TraceConfig: deprecated field '{field_name}' is set to {current!r} "
+                    f"but has no effect — use '{successor}' instead."
+                )
+                logger.warning(msg)
+                warnings.append(msg)
+        for field_name in self._DEPRECATED_DEAD:
+            default_val = next(
+                (f.default for f in fields(self) if f.name == field_name), None
+            )
+            current = getattr(self, field_name, None)
+            if current != default_val:
+                msg = (
+                    f"TraceConfig: deprecated field '{field_name}' is set to {current!r} "
+                    f"but is no longer consumed by any subsystem."
+                )
+                logger.warning(msg)
+                warnings.append(msg)
+        return warnings
 
     # ------------------------------------------------------------------
     # Factory methods

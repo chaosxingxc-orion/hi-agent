@@ -11,7 +11,7 @@ import json
 import os
 import tempfile
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
@@ -56,11 +56,30 @@ class DailySummary:
 
 
 class MidTermMemoryStore:
-    """File-based store for daily summaries."""
+    """File-based store for daily summaries.
 
-    def __init__(self, storage_dir: str = ".hi_agent/memory/mid_term") -> None:
-        """Initialize MidTermMemoryStore."""
+    Eviction
+    --------
+    When *max_days* is set (default 90), saving a new summary evicts daily
+    files older than the retention window.  This prevents unbounded growth
+    while keeping a meaningful working memory horizon.
+    """
+
+    def __init__(
+        self,
+        storage_dir: str = ".hi_agent/memory/mid_term",
+        max_days: int = 90,
+    ) -> None:
+        """Initialize MidTermMemoryStore.
+
+        Args:
+            storage_dir: Directory for JSON files.
+            max_days: Number of days of daily summaries to retain.  Summaries
+                for dates older than this window are deleted after each save.
+                Set to 0 to disable eviction.
+        """
         self._storage_dir = Path(storage_dir)
+        self._max_days = max_days
 
     def _ensure_dir(self) -> None:
         """Run _ensure_dir."""
@@ -71,7 +90,11 @@ class MidTermMemoryStore:
         return self._storage_dir / f"{date}.json"
 
     def save(self, summary: DailySummary) -> None:
-        """Persist daily summary to disk as JSON (atomic write)."""
+        """Persist daily summary to disk as JSON (atomic write).
+
+        After a successful write, evicts summaries outside the ``max_days``
+        retention window.
+        """
         self._ensure_dir()
         if not summary.created_at:
             summary.created_at = datetime.now(UTC).isoformat()
@@ -89,6 +112,28 @@ class MidTermMemoryStore:
             except OSError:
                 pass
             raise
+        if self._max_days > 0:
+            self._evict_older_than(days=self._max_days)
+
+    def _evict_older_than(self, days: int) -> int:
+        """Delete daily summary files older than *days* from today.
+
+        Returns the number of files deleted.
+        """
+        if not self._storage_dir.exists():
+            return 0
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
+        deleted = 0
+        for fpath in self._storage_dir.glob("*.json"):
+            # File names are ISO dates: "2026-01-15.json"
+            date_str = fpath.stem
+            if len(date_str) == 10 and date_str < cutoff:
+                try:
+                    fpath.unlink(missing_ok=True)
+                    deleted += 1
+                except OSError:
+                    pass
+        return deleted
 
     def load(self, date: str) -> DailySummary | None:
         """Load daily summary by date string."""

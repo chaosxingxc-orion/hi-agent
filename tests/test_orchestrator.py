@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from hi_agent.contracts import TaskContract
+from hi_agent.contracts.requests import RunResult
 from hi_agent.orchestrator.parallel_dispatcher import ParallelDispatcher
 from hi_agent.orchestrator.result_aggregator import ResultAggregator
 from hi_agent.orchestrator.task_orchestrator import (
@@ -57,7 +58,7 @@ class TestSimpleExecution:
 
         with patch(_RUNNER_PATCH) as MockRunner:
             instance = MockRunner.return_value
-            instance.execute.return_value = "completed"
+            instance.execute.return_value = RunResult(run_id="run-1", status="completed")
 
             result = orchestrator.execute(contract)
 
@@ -66,6 +67,8 @@ class TestSimpleExecution:
         assert result.task_id == "task-1"
         assert len(result.sub_results) == 1
         assert result.sub_results[0].outcome == "completed"
+        # result payload is now structured RunResult dict
+        assert result.sub_results[0].result["status"] == "completed"
         MockRunner.assert_called_once_with(contract, kernel)
 
     def test_simple_task_failure_propagates(self) -> None:
@@ -75,7 +78,7 @@ class TestSimpleExecution:
 
         with patch(_RUNNER_PATCH) as MockRunner:
             instance = MockRunner.return_value
-            instance.execute.return_value = "failed"
+            instance.execute.return_value = RunResult(run_id="run-1", status="failed", error="stage_failed")
 
             result = orchestrator.execute(contract)
 

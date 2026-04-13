@@ -124,8 +124,28 @@ def _decode_response_body(raw: bytes) -> dict:
 
 def _cmd_serve(args: argparse.Namespace) -> None:
     """Start the API server."""
+    import os
+
     from hi_agent.config.trace_config import TraceConfig
     from hi_agent.server.app import AgentServer
+
+    # Default to dev mode so the server works out of the box without API keys
+    # or real kernel endpoints.  Use --prod to require real credentials.
+    if getattr(args, "prod", False):
+        os.environ.setdefault("HI_AGENT_ENV", "prod")
+        print(
+            "[hi-agent] Starting in PROD mode.\n"
+            "  Formal E2E prerequisites: real API key + real agent-kernel endpoint.\n"
+            "  Without these, POST /runs will return 503."
+        )
+    else:
+        os.environ.setdefault("HI_AGENT_ENV", "dev")
+        print(
+            "[hi-agent] Starting in DEV mode (default).\n"
+            "  Smoke path is available: POST /runs → GET /runs/{id} → artifacts.\n"
+            "  Note: dev mode uses heuristic fallback — NOT formal production E2E.\n"
+            "  For formal E2E, use `serve --prod` with real API key + kernel endpoint."
+        )
 
     config = TraceConfig(server_host=args.host, server_port=args.port)
     server = AgentServer(host=args.host, port=args.port, config=config)
@@ -156,12 +176,46 @@ def _cmd_run(args: argparse.Namespace) -> None:
             stack = ConfigStack(base_config_path=config_file, profile=profile)
             config = stack.resolve()
             builder = SystemBuilder(config=config, config_stack=stack)
-            contract = TaskContract(
-                task_id=uuid.uuid4().hex[:12],
-                goal=args.goal,
-                task_family=args.task_family,
-                risk_level=args.risk_level,
-            )
+            profile_id = getattr(args, "profile_id", None)
+            import json as _json2
+            constraints_raw = getattr(args, "constraints", None)
+            constraints = _json2.loads(constraints_raw) if constraints_raw else []
+            acceptance_criteria_raw = getattr(args, "acceptance_criteria", None)
+            acceptance_criteria = _json2.loads(acceptance_criteria_raw) if acceptance_criteria_raw else []
+            input_refs_raw = getattr(args, "input_refs", None)
+            input_refs = _json2.loads(input_refs_raw) if input_refs_raw else []
+            environment_scope_raw = getattr(args, "environment_scope", None)
+            environment_scope = _json2.loads(environment_scope_raw) if environment_scope_raw else []
+            _contract_kwargs: dict = {
+                "task_id": uuid.uuid4().hex[:12],
+                "goal": args.goal,
+                "task_family": args.task_family,
+                "risk_level": args.risk_level,
+                "profile_id": profile_id,
+                "constraints": constraints,
+                "acceptance_criteria": acceptance_criteria,
+                "input_refs": input_refs,
+                "environment_scope": environment_scope,
+            }
+            if getattr(args, "deadline", None) is not None:
+                _contract_kwargs["deadline"] = args.deadline
+            if getattr(args, "priority", None) is not None:
+                _contract_kwargs["priority"] = args.priority
+            if getattr(args, "decomposition_strategy", None) is not None:
+                _contract_kwargs["decomposition_strategy"] = args.decomposition_strategy
+            if getattr(args, "parent_task_id", None) is not None:
+                _contract_kwargs["parent_task_id"] = args.parent_task_id
+            budget_raw = getattr(args, "budget", None)
+            if budget_raw is not None:
+                from hi_agent.contracts.task import TaskBudget  # noqa: PLC0415
+                budget_data = _json2.loads(budget_raw)
+                _contract_kwargs["budget"] = TaskBudget(
+                    max_llm_calls=budget_data.get("max_llm_calls", 100),
+                    max_wall_clock_seconds=budget_data.get("max_wall_clock_seconds", 3600),
+                    max_actions=budget_data.get("max_actions", 50),
+                    max_cost_cents=budget_data.get("max_cost_cents", 1000),
+                )
+            contract = TaskContract(**_contract_kwargs)
             executor = builder.build_executor(contract, config_patch=config_patch)
             result = executor.execute()
         except Exception as exc:
@@ -175,18 +229,32 @@ def _cmd_run(args: argparse.Namespace) -> None:
             sys.exit(1)
 
         if args.json:
-            print(json.dumps({"result": str(result)}, indent=2))
+            # Serialize structured RunResult if available, else fall back to str.
+            try:
+                result_data = result.to_dict()
+            except AttributeError:
+                result_data = {"result": str(result)}
+            print(json.dumps(result_data, indent=2))
         else:
-            print(f"Run completed: {result}")
+            status = str(result)
+            stage_count = len(getattr(result, "stages", []))
+            artifact_count = len(getattr(result, "artifacts", []))
+            print(
+                f"Run {status}: {stage_count} stage(s) completed, "
+                f"{artifact_count} artifact(s) produced."
+            )
         return
 
     # Remote execution: submit to API server.
     base = f"http://{args.api_host}:{args.api_port}"
-    body = {
+    body: dict = {
         "goal": args.goal,
         "task_family": args.task_family,
         "risk_level": args.risk_level,
     }
+    profile_id = getattr(args, "profile_id", None)
+    if profile_id:
+        body["profile_id"] = profile_id
     status, data = _api_request("POST", f"{base}/runs", body)
     if args.json:
         print(json.dumps(data, indent=2))
@@ -409,6 +477,17 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser = subparsers.add_parser("serve", help="Start API server")
     serve_parser.add_argument("--host", default="0.0.0.0")
     serve_parser.add_argument("--port", type=int, default=8080)
+    serve_parser.add_argument(
+        "--prod",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable prod mode (sets HI_AGENT_ENV=prod). "
+            "Requires real API keys and a real agent-kernel HTTP endpoint. "
+            "Without this flag the server defaults to dev mode (heuristic fallback, "
+            "in-process kernel), which works out of the box without external dependencies."
+        ),
+    )
 
     # run
     run_parser = subparsers.add_parser("run", help="Execute a task")
@@ -440,6 +519,82 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         help="JSON string of per-run config overrides, e.g. '{\"max_stages\": 5}'.",
+    )
+    run_parser.add_argument(
+        "--profile-id",
+        dest="profile_id",
+        required=False,
+        default=None,
+        help="Runtime profile ID to activate (e.g. 'rnd_agent'). "
+             "Selects ProfileSpec from the platform ProfileRegistry.",
+    )
+    run_parser.add_argument(
+        "--deadline",
+        required=False,
+        default=None,
+        help="ISO-8601 deadline (e.g. '2099-01-01T00:00:00Z'). "
+             "Stages started after this timestamp are aborted with execution_budget_exhausted.",
+    )
+    run_parser.add_argument(
+        "--priority",
+        type=int,
+        required=False,
+        default=None,
+        help="Run priority for queue ordering (1=highest, 10=lowest). "
+             "Lower integers are dequeued first.",
+    )
+    run_parser.add_argument(
+        "--constraints",
+        required=False,
+        default=None,
+        help="JSON array of constraint strings, e.g. '[\"no external calls\"]'.",
+    )
+    run_parser.add_argument(
+        "--decomposition-strategy",
+        dest="decomposition_strategy",
+        required=False,
+        default=None,
+        help="Decomposition strategy hint (e.g. 'sequential', 'parallel'). "
+             "Routing hint for TaskOrchestrator; does not change linear execution path.",
+    )
+    run_parser.add_argument(
+        "--acceptance-criteria",
+        dest="acceptance_criteria",
+        required=False,
+        default=None,
+        help="JSON array of acceptance criteria, e.g. '[\"required_stage:S3_build\"]'. "
+             "Supported patterns: required_stage:<id>, required_artifact:<id>.",
+    )
+    run_parser.add_argument(
+        "--input-refs",
+        dest="input_refs",
+        required=False,
+        default=None,
+        help="JSON array of input artifact URIs/IDs, e.g. '[\"artifact://abc\"]'. "
+             "PASSTHROUGH: stored and returned but not consumed by default TRACE pipeline.",
+    )
+    run_parser.add_argument(
+        "--environment-scope",
+        dest="environment_scope",
+        required=False,
+        default=None,
+        help="JSON array of environment identifiers, e.g. '[\"staging\"]'. "
+             "PASSTHROUGH: stored and returned but not consumed by default TRACE pipeline.",
+    )
+    run_parser.add_argument(
+        "--parent-task-id",
+        dest="parent_task_id",
+        required=False,
+        default=None,
+        help="Parent task ID for sub-task hierarchy. "
+             "PASSTHROUGH: stored and returned but not consumed by default TRACE pipeline.",
+    )
+    run_parser.add_argument(
+        "--budget",
+        required=False,
+        default=None,
+        help="JSON object for execution budget, e.g. "
+             "'{\"max_llm_calls\": 10, \"max_wall_clock_seconds\": 300}'.",
     )
 
     # status

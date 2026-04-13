@@ -109,7 +109,7 @@ class TestKnowledgeIngest:
     def test_ingest_no_knowledge_manager_returns_503(self) -> None:
         """Server without knowledge_manager returns 503."""
         server = AgentServer(host="127.0.0.1", port=9999)
-        # knowledge_manager is None by default
+        server.knowledge_manager = None  # Explicitly remove to test unconfigured path
         with TestClient(server.app) as client:
             status, body = _request(client, "POST", "/knowledge/ingest", {
                 "title": "t", "content": "c",

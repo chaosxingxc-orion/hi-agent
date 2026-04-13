@@ -1,3 +1,7 @@
+<!-- DEPRECATED: This skill definition has moved to examples/skills/trace_defaults/analyze_goal.md
+     It is kept here for backward compatibility with SkillLoader's builtin discovery path.
+     The canonical location is examples/skills/trace_defaults/ — copy it to your
+     .hi_agent/skills/ directory to activate it for your business agent. -->
 ---
 name: analyze_goal
 version: 1.0.0

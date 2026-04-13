@@ -29,6 +29,7 @@ from hi_agent.runtime_adapter.kernel_facade_adapter import (
 from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 from hi_agent.runtime_adapter.reconcile_loop import ReconcileLoop, ReconcileLoopReport
+from hi_agent.runtime_adapter.resilient_kernel_adapter import ResilientKernelAdapter
 from hi_agent.runtime_adapter.reconciler import (
     ConsistencyIssueStatus,
     ConsistencyReconciler,
@@ -61,6 +62,7 @@ __all__ = [
     "KernelFacadeClient",
     "ReconcileLoop",
     "ReconcileLoopReport",
+    "ResilientKernelAdapter",
     "RuntimeAdapter",
     "RuntimeAdapterBackendError",
     "RuntimeAdapterError",

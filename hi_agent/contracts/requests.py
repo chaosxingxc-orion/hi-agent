@@ -16,6 +16,7 @@ class StartRunRequest:
     task_contract: dict[str, Any]
     task_family: str = "quick_task"
     config: dict[str, Any] = field(default_factory=dict)
+    profile_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -104,3 +105,58 @@ class KernelManifest:
     version: str = "0.1.0"
     supported_substrates: list[str] = field(default_factory=list)
     capabilities: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RunResult:
+    """Structured result of a completed run — consumable by downstream callers.
+
+    Replaces the bare ``"completed"`` / ``"failed"`` status string. The
+    ``__str__`` implementation returns ``status`` so existing code that
+    compares ``result == "completed"`` continues to work.
+    """
+
+    run_id: str
+    status: str  # "completed" | "failed"
+    stages: list[dict[str, Any]] = field(default_factory=list)
+    """Per-stage summary: stage_id, outcome, findings, decisions, artifact_ids."""
+    artifacts: list[str] = field(default_factory=list)
+    """All artifact IDs collected across all stages."""
+    error: str | None = None
+    """Failure reason when status == "failed". Contains exception message or cause."""
+    duration_ms: int = 0
+    # Failure attribution — populated only when status == "failed"
+    failure_code: str | None = None
+    """Standard failure code (matches TRACE FailureCode taxonomy)."""
+    failed_stage_id: str | None = None
+    """ID of the stage that caused the run to fail."""
+    is_retryable: bool = False
+    """Whether the failure is transient and the run can be safely retried."""
+
+    def __str__(self) -> str:  # noqa: D105
+        return self.status
+
+    def __eq__(self, other: object) -> bool:  # noqa: D105
+        if isinstance(other, str):
+            return self.status == other
+        if isinstance(other, RunResult):
+            return self.status == other.status and self.run_id == other.run_id
+        return NotImplemented
+
+    def __hash__(self) -> int:  # noqa: D105
+        # Hash matches the status string so `result in {"completed", "failed"}` works.
+        return hash(self.status)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable representation."""
+        return {
+            "run_id": self.run_id,
+            "status": self.status,
+            "stages": self.stages,
+            "artifacts": self.artifacts,
+            "error": self.error,
+            "duration_ms": self.duration_ms,
+            "failure_code": self.failure_code,
+            "failed_stage_id": self.failed_stage_id,
+            "is_retryable": self.is_retryable,
+        }
