@@ -166,7 +166,7 @@ Execution Modes
 | Module | Description |
 |--------|-------------|
 | `hi_agent/server/` | HTTP API (20+ endpoints), EventBus, SSE streaming, RunManager, DreamScheduler |
-| `hi_agent/runtime_adapter/` | 17-method RuntimeAdapter protocol; KernelFacadeAdapter (sync); AsyncKernelFacadeAdapter; ResilientKernelAdapter (retry + circuit breaker) |
+| `hi_agent/runtime_adapter/` | 22-method RuntimeAdapter protocol; KernelFacadeAdapter (sync); AsyncKernelFacadeAdapter; ResilientKernelAdapter (retry + circuit breaker) |
 | `hi_agent/capability/` | CapabilityRegistry; CapabilityInvoker (timeout+retry); AsyncCapabilityInvoker; CircuitBreaker |
 | `hi_agent/observability/` | MetricsCollector, tracing, notifications |
 | `hi_agent/auth/` | RBAC, JWT, SOC guard |

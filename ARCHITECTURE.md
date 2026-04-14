@@ -338,14 +338,27 @@ classDiagram
   class RuntimeAdapter {
     <<Protocol>>
     +start_run(task_id) str
+    +query_run(run_id) dict
+    +cancel_run(run_id, reason) void
+    +resume_run(run_id) void
+    +signal_run(run_id, signal, payload) void
     +open_stage(stage_id) void
     +mark_stage_state(stage_id, state) void
     +open_branch(run_id, stage_id, branch_id) void
+    +mark_branch_state(run_id, stage_id, branch_id, state) void
     +record_task_view(task_view_id, content) str
+    +bind_task_view_to_decision(task_view_id, decision_ref) void
     +open_human_gate(request) void
+    +submit_approval(request) void
+    +resolve_escalation(run_id, resolution_notes, caused_by) void
     +stream_run_events(run_id) AsyncIterator
-    +query_run(run_id) RunInfo
-    +close_run(run_id, outcome) void
+    +query_trace_runtime(run_id) dict
+    +query_run_postmortem(run_id) Any
+    +get_manifest() dict
+    +spawn_child_run(parent_run_id, task_id, config) str
+    +query_child_runs(parent_run_id) list
+    +spawn_child_run_async(parent_run_id, task_id, config) str
+    +query_child_runs_async(parent_run_id) list
   }
   class KernelFacadeAdapter {
     +start_run(task_id) str
@@ -822,19 +835,22 @@ flowchart TD
 
 `TierAwareLLMGateway` 同时提供同步 `complete()` 和异步 `acomplete()`；异步路径（`DelegationManager` / `HTTPGateway`）统一经由 `acomplete()` 完成 tier 路由，避免绕过分层策略。
 
-### 9.3 RuntimeAdapter Protocol（17 方法）
+### 9.3 RuntimeAdapter Protocol（22 方法）
 
 | 方法组 | 方法 | 职责 |
 |--------|------|------|
-| Run | `start_run`, `close_run`, `query_run` | run 生命周期 |
-| Stage | `open_stage`, `mark_stage_state` | stage 状态 |
-| Branch | `open_branch`, `mark_branch_state` | branch 状态 |
-| Human Gate | `open_human_gate`, `resolve_human_gate` | 人类审批 |
-| Events | `record_event`, `stream_run_events` | 事件流 |
-| Task View | `record_task_view` | 任务视图持久化 |
-| Planning | `record_plan`, `query_plan` | 计划存储 |
+| Run 生命周期 | `start_run`, `query_run`, `cancel_run`, `resume_run`, `signal_run` | run 全生命周期管理 |
+| Stage | `open_stage`, `mark_stage_state` | stage 状态推进 |
+| Branch | `open_branch`, `mark_branch_state` | branch 状态管理 |
+| Task View | `record_task_view`, `bind_task_view_to_decision` | 任务视图持久化与决策绑定 |
+| Human Gate | `open_human_gate`, `submit_approval`, `resolve_escalation` | 人类审批 + escalation 恢复 |
+| Events / Trace | `stream_run_events`, `query_trace_runtime` | 事件流与 trace 快照 |
+| Diagnostics | `query_run_postmortem`, `get_manifest` | 事后分析与能力清单 |
+| Child Runs | `spawn_child_run`, `query_child_runs`, `spawn_child_run_async`, `query_child_runs_async` | 子 run 管理（同步 + 异步） |
 
-**KernelFacadeClient**（`runtime_adapter/kernel_facade_client.py`）：concrete dual-mode 实现，同时支持 `direct`（in-process KernelFacade）和 `http`（REST over KernelFacade HTTP）两种模式。包含 `query_run_postmortem`、`query_child_runs`（均已实现 direct/http 双分支）和 `spawn_child_run`（完整实现）。
+`resolve_escalation(run_id, *, resolution_notes, caused_by)` — 当 run 因 `human_escalation` 恢复决策进入 `waiting_external` 状态时，通过此方法发送 `recovery_succeeded` 信号令工作流继续执行。对应 agent-kernel `POST /runs/{id}/resolve-escalation`。
+
+**KernelFacadeClient**（`runtime_adapter/kernel_facade_client.py`）：concrete dual-mode 实现，同时支持 `direct`（in-process KernelFacade）和 `http`（REST over KernelFacade HTTP）两种模式。全部 22 个协议方法均实现 direct/http 双分支；`resolve_escalation` 因 keyword-only 参数直接调用 facade，绕过通用 `_direct_call()` 辅助方法。
 
 ### 9.4 Middleware Protocol
 
@@ -1023,6 +1039,17 @@ PASSTHROUGH 字段的消费由调用层（business agent / profile）负责。
 
 ---
 
+## 12.3 2026-04-15 agent-kernel 集成闭环（全部已关闭）
+
+| 缺口 | 来源 | 修复内容 |
+|------|------|---------|
+| `AsyncExecutorService(handler=None)` 缺少 production guard | hi-agent 反馈 P0 | agent-kernel `_enforce_production_safety()` 新增 `enable_activity_backed_executor` 参数；`False` + `"prod"` 环境直接抛 `ValueError` |
+| `resolve_escalation()` 调用方协议缺口 | hi-agent 反馈 P1 | agent-kernel 确认为 Public caller-facing API；hi-agent 在 `RuntimeAdapter`（protocol.py）、`KernelFacadeAdapter`、`KernelFacadeClient` 三处实现，direct/http 双路均完整 |
+| `InMemoryTaskEventLog` 未纳入 production check | hi-agent 反馈 P2 | agent-kernel 改为 `warnings.warn`（非硬拒绝），标注暂无持久化后端；待持久化后端就绪后升为硬拒绝 |
+| RuntimeAdapter 协议方法数文档失实 | 内部发现 | ARCHITECTURE.md Section 9.3 从 17 方法（含错误方法名）修正为 22 方法，逐方法组整理准确 |
+
+---
+
 ## 13. 质量门禁
 
 ```bash
@@ -1030,4 +1057,4 @@ python -m ruff check .
 python -m pytest -q        # 2812 tests, all passing
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-15）。
+当前文档对应代码形态已通过全量测试回归（2026-04-15，2nd pass）。

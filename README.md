@@ -225,6 +225,7 @@ python -m hi_agent --api-port 8080 health --json
 | `/runs` | POST | 提交任务（支持 TaskContract 全部 13 字段） |
 | `/runs/{id}/events` | GET | SSE 实时事件流 |
 | `/runs/{id}/resume` | POST | 从 checkpoint 恢复 |
+| `/runs/{id}/resolve-escalation` | POST | 恢复 human_escalation 挂起的 run |
 | `/ready` | GET | 平台就绪检查（200=ready，503=not ready） |
 | `/manifest` | GET | 系统能力清单（含 `contract_field_status`：ACTIVE/PASSTHROUGH/QUEUE_ONLY） |
 | `/knowledge/ingest` | POST | 文本摄取 |
@@ -255,7 +256,7 @@ python -m hi_agent --api-port 8080 health --json
 每次 run 完成后：`PostmortemAnalyzer` → `SkillExtractor`（提取候选技能）→ `RegressionDetector`（检测退化）→ `ChampionChallenger`（A/B 对比）→ 自动注册/晋升技能。
 
 ### 治理与安全
-`HarnessExecutor` 包裹所有能力调用，`GovernanceEngine` 按 `EffectClass + SideEffectClass` 双维度分级，`PermissionGate` 细粒度工具级授权，`EvidenceStore` 全量审计记录。
+`HarnessExecutor` 包裹所有能力调用，`GovernanceEngine` 按 `EffectClass + SideEffectClass` 双维度分级，`PermissionGate` 细粒度工具级授权，`EvidenceStore` 全量审计记录。Human Gate 支持四类审批（合同修正 / 路由指导 / 产物审阅 / 最终批准）；当恢复决策为 `human_escalation` 时 run 进入 `waiting_external`，通过 `resolve_escalation()` 发送 `recovery_succeeded` 信号恢复执行。
 
 ---
 
