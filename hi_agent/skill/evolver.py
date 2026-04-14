@@ -245,7 +245,15 @@ class SkillEvolver:
             max_tokens=2048,
         )
         response = self._llm.complete(request)
-        return response.content
+        content = response.content
+        if not content or not content.strip():
+            logger.warning(
+                "SkillEvolver._llm_optimize: LLM returned empty prompt for skill %r, "
+                "discarding result",
+                getattr(analysis, "skill_id", "unknown"),
+            )
+            return None
+        return content
 
     def _heuristic_optimize(
         self,
