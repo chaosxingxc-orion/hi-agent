@@ -984,7 +984,9 @@ class RunExecutor:
         """Record event to both emitter and raw memory store.
 
         When a :class:`ReplayRecorder` is attached, each event is also
-        written to the replay JSONL log.
+        written to the replay JSONL log.  Each event is also published to
+        the process-local EventBus so that SSE subscribers receive live
+        updates.
         """
         self._telemetry.record_event(
             event_type, payload,
@@ -1004,6 +1006,31 @@ class RunExecutor:
                     run_id=self.run_id,
                     stage_id=self.current_stage,
                 )
+        # Publish to SSE EventBus so /events subscribers receive live updates.
+        try:
+            import datetime as _dt
+            import uuid as _uuid
+            from agent_kernel.kernel.contracts import RuntimeEvent as _RuntimeEvent
+            from hi_agent.server.event_bus import event_bus as _event_bus
+            _event_bus.publish(_RuntimeEvent(
+                run_id=self.run_id or "",
+                event_id=_uuid.uuid4().hex,
+                commit_offset=len(self.event_emitter.events),
+                event_type=event_type,
+                event_class="derived",
+                event_authority="derived_diagnostic",
+                ordering_key=self.current_stage or "",
+                wake_policy="projection_only",
+                created_at=_dt.datetime.now(_dt.UTC).isoformat(),
+                payload_json=dict(payload),
+            ))
+        except Exception as _exc:
+            self._log_best_effort_exception(
+                logging.DEBUG,
+                "runner.event_bus_publish_failed",
+                _exc,
+                run_id=self.run_id,
+            )
 
     def _compress_stage_summary(self, stage_id: str) -> StageSummary:
         """Build StageSummary from stage-scoped raw memory records."""

@@ -184,6 +184,16 @@ class SkillEvolver:
 
     def analyze_skill(self, skill_id: str) -> SkillAnalysis:
         """Analyze a skill's performance from observations."""
+        if self._observer is None:
+            return SkillAnalysis(
+                skill_id=skill_id,
+                total_executions=0,
+                success_rate=0.0,
+                avg_quality=0.0,
+                top_failures=[],
+                optimization_needed=False,
+                suggestions=[],
+            )
         metrics = self._observer.get_metrics(skill_id)
         top_failures = list(metrics.failure_patterns[:5])
 
@@ -219,6 +229,8 @@ class SkillEvolver:
         Without LLM: heuristic template-based fixes.
         Returns new prompt text, or None if no improvement needed.
         """
+        if self._version_manager is None:
+            return None
         analysis = self.analyze_skill(skill_id)
         if not analysis.optimization_needed:
             return None
@@ -330,6 +342,11 @@ class SkillEvolver:
         self, skill_id: str, new_prompt: str
     ) -> SkillVersionRecord:
         """Deploy optimized prompt as challenger version for A/B testing."""
+        if self._version_manager is None:
+            raise RuntimeError(
+                "deploy_optimization requires a SkillVersionManager; "
+                "pass version_manager= to SkillEvolver.__init__"
+            )
         record = self._version_manager.create_version(
             skill_id=skill_id,
             prompt_content=new_prompt,
@@ -371,6 +388,8 @@ class SkillEvolver:
         """
         if min_occurrences is None:
             min_occurrences = self._min_pattern_occurrences
+        if self._observer is None:
+            return []
         all_metrics = self._observer.get_all_metrics()
         if not all_metrics:
             return []
@@ -559,6 +578,11 @@ class SkillEvolver:
         4. Create skills from strong patterns
         5. Return report of actions taken
         """
+        if self._observer is None:
+            return EvolutionReport(
+                skills_analyzed=0, skills_optimized=0, patterns_discovered=0,
+                skills_created=0, challenger_deployed=0, details=[],
+            )
         all_metrics = self._observer.get_all_metrics()
         details: list[str] = []
         skills_analyzed = 0

@@ -102,7 +102,15 @@ class EvolveEngine:
             # Auto-register candidates in the skill registry if available.
             if self._skill_registry is not None:
                 for candidate in new_skills:
-                    self._skill_registry.register_candidate(candidate)
+                    try:
+                        self._skill_registry.register_candidate(candidate)
+                    except Exception as _reg_exc:
+                        _logger.warning(
+                            "EvolveEngine: failed to register skill candidate %r: %s",
+                            candidate.skill_id,
+                            _reg_exc,
+                            exc_info=True,
+                        )
 
         # 3. Record metrics for regression detection.
         if postmortem.quality_score is not None and postmortem.efficiency_score is not None:

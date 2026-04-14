@@ -346,7 +346,13 @@ class ContextManager:
             prompt = self._skill_loader.build_prompt(budget_tokens=budget)
             content = prompt.to_prompt_string()
             tokens = prompt.total_tokens
-        except Exception:
+        except Exception as _exc:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "ContextManager: skill_loader.build_prompt failed — skills section will be empty: %s",
+                _exc,
+                exc_info=True,
+            )
             content = ""
             tokens = 0
 

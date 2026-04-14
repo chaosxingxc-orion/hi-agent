@@ -61,6 +61,7 @@ class RunLifecycle:
         trajectory_export_enabled: bool = True,
         skill_evolver: "SkillEvolver | None" = None,
         skill_evolve_interval: int = 10,
+        metrics_collector: Any | None = None,
     ) -> None:
         self.session = session
         self.short_term_store = short_term_store
@@ -80,6 +81,7 @@ class RunLifecycle:
         self._trajectory_export_enabled = trajectory_export_enabled
         self.skill_evolver = skill_evolver
         self._skill_evolve_interval = skill_evolve_interval
+        self.metrics_collector = metrics_collector
 
     # ------------------------------------------------------------------
     # Budget checking

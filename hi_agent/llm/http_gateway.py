@@ -396,7 +396,7 @@ class HTTPGateway:
     async def call(self, model_id: str, messages: list[dict], **kwargs) -> dict:
         """Legacy call method for backward compatibility."""
         payload = {"model": model_id, "messages": messages, **kwargs}
-        response = await self._client.post("/v1/messages", json=payload)
+        response = await self._client.post("/v1/chat/completions", json=payload)
         response.raise_for_status()
         return response.json()
 

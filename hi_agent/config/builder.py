@@ -274,10 +274,11 @@ class SystemBuilder:
             # and enforce max_attempts. Replaced by a persistent store when wired to
             # a real task registry.
             _attempt_store: dict[str, list[Any]] = {}
+            _state_store: dict[str, Any] = {}
             engine = RestartPolicyEngine(
                 get_attempts=lambda task_id: list(_attempt_store.get(task_id, [])),
                 get_policy=lambda task_id: _default_policy,
-                update_state=lambda task_id, state: None,
+                update_state=lambda task_id, state: _state_store.update({task_id: state}),
                 record_attempt=lambda attempt: _attempt_store.setdefault(
                     getattr(attempt, "task_id", ""), []
                 ).append(attempt),
@@ -1298,11 +1299,8 @@ class SystemBuilder:
 
             # Attempt to get an async LLM gateway for child-run summarization.
             # Falls back to None (truncation-only mode) when unavailable.
-            # Note: TierAwareLLMGateway is sync-only; this path uses a raw HTTPGateway
-            # so that DelegationManager can await acomplete(). Tier routing is not
-            # applied here because the async gateway interface (AsyncLLMGateway) is
-            # separate from the sync tier-routing wrapper. TODO: extend
-            # TierAwareLLMGateway to implement AsyncLLMGateway to cover this path.
+            # Wraps HTTPGateway with TierAwareLLMGateway.acomplete() so that
+            # async callers also benefit from tier routing and budget management.
             async_llm: Any | None = None
             try:
                 from hi_agent.llm.http_gateway import HTTPGateway as _HTTPGateway
@@ -1321,7 +1319,7 @@ class SystemBuilder:
                     ),
                 ]:
                     if _os.environ.get(env_var):
-                        async_llm = _HTTPGateway(
+                        _http_gw = _HTTPGateway(
                             base_url=base_url,
                             api_key=_os.environ[env_var],
                             default_model=default_model,
@@ -1329,6 +1327,18 @@ class SystemBuilder:
                                 getattr(self._config, "llm_timeout_seconds", 120)
                             ),
                         )
+                        # Wrap with TierAwareLLMGateway so async callers
+                        # go through tier routing (TierAwareLLMGateway now
+                        # implements acomplete() for the AsyncLLMGateway surface).
+                        _sync_gw = self.build_llm_gateway()
+                        if _sync_gw is not None and hasattr(_sync_gw, "_tier_router"):
+                            async_llm = TierAwareLLMGateway(
+                                inner=_http_gw,
+                                tier_router=_sync_gw._tier_router,  # type: ignore[union-attr]
+                                registry=_sync_gw._registry,  # type: ignore[union-attr]
+                            )
+                        else:
+                            async_llm = _http_gw
                         break
             except Exception as _exc:
                 logger.debug(

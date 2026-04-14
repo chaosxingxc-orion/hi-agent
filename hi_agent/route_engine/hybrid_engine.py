@@ -9,6 +9,7 @@ from typing import Any
 from hi_agent.contracts import deterministic_id
 from hi_agent.llm.protocol import LLMGateway
 from hi_agent.route_engine.base import BranchProposal
+from hi_agent.route_engine.decision_audit import persist_route_decision_audit
 from hi_agent.route_engine.llm_engine import LLMRouteEngine
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
 
@@ -36,6 +37,7 @@ class HybridRouteEngine:
         gateway: LLMGateway | None = None,
         skill_matcher: Any | None = None,
         task_family: str = "",
+        audit_store: Any | None = None,
     ) -> None:
         """Initialize hybrid route policy.
 
@@ -73,6 +75,9 @@ class HybridRouteEngine:
         else:
             self._llm_engine = LLMRouteEngine(gateway=gateway)
         self._confidence_threshold = confidence_threshold
+        # In-memory list used as append-only audit log; callers may inject
+        # a persistent store by passing audit_store with an .append() method.
+        self._audit_store: Any = audit_store if audit_store is not None else []
 
     def propose(
         self,
@@ -106,11 +111,13 @@ class HybridRouteEngine:
         )
         rule_confidence = self._estimate_rule_confidence(rule_proposals)
         if rule_proposals and rule_confidence >= self._confidence_threshold:
-            return HybridRouteOutcome(
+            outcome = HybridRouteOutcome(
                 proposals=rule_proposals,
                 source="rule",
                 confidence=rule_confidence,
             )
+            self._persist_audit(run_id, stage_id, outcome, seq)
+            return outcome
 
         llm_decision = self._llm_engine.decide(
             stage_id=stage_id,
@@ -141,11 +148,43 @@ class HybridRouteEngine:
                 action_kind=llm_decision.action_kind,
             )
         ]
-        return HybridRouteOutcome(
+        outcome = HybridRouteOutcome(
             proposals=llm_proposals,
             source="llm",
             confidence=llm_decision.confidence,
         )
+        self._persist_audit(run_id, stage_id, outcome, seq)
+        return outcome
+
+    def _persist_audit(
+        self,
+        run_id: str,
+        stage_id: str,
+        outcome: HybridRouteOutcome,
+        seq: int,
+    ) -> None:
+        """Persist route decision audit record (best-effort)."""
+        try:
+            selected = outcome.proposals[0].branch_id if outcome.proposals else ""
+            candidates = [
+                {"branch_id": p.branch_id, "rationale": p.rationale}
+                for p in outcome.proposals
+            ]
+            persist_route_decision_audit(
+                self._audit_store,
+                run_id=run_id,
+                stage_id=stage_id,
+                engine=outcome.source,
+                provenance=outcome.source,
+                selected_branch=selected,
+                candidates=candidates,
+                confidence=outcome.confidence,
+            )
+        except Exception as _exc:
+            _logger.debug(
+                "HybridRouteEngine: audit persist failed (run_id=%s stage_id=%s): %s",
+                run_id, stage_id, _exc,
+            )
 
     def apply_evolve_changes(self, changes: list) -> None:
         """Apply EvolveResult changes to tune routing thresholds.

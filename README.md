@@ -164,7 +164,7 @@ hi_agent/
   runner_stage.py      # StageExecutor 阶段执行委托
   runner_lifecycle.py  # 结束流程、postmortem、知识摄入、进化触发
   runner_telemetry.py  # 事件与指标记录
-tests/                 # 2801 个测试，全部通过
+tests/                 # 2801 个测试，全部通过（2026-04-14 回归）
 docs/                  # 架构、规格、研究文档
 ```
 
@@ -241,7 +241,7 @@ python -m hi_agent --api-port 8080 health --json
 ## 关键能力
 
 ### 模型分层路由
-`TierAwareLLMGateway` 按任务目的自动路由：`strong`（Claude Opus）/ `medium`（Sonnet）/ `light`（Haiku），配合 `FailoverChain` 凭证轮转与 `PromptCacheInjector` 降低成本。
+`TierAwareLLMGateway` 按任务目的自动路由：`strong`（Claude Opus）/ `medium`（Sonnet）/ `light`（Haiku），配合 `FailoverChain` 凭证轮转与 `PromptCacheInjector` 降低成本。同步 `complete()` 与异步 `acomplete()` 均经由 tier 选择，异步路径不绕过分层策略。
 
 ### 中间件管道
 `Perception → Control → Execution → Evaluation` 四中间件 + 5 阶段生命周期钩子（`pre_create → pre_execute → execute → post_execute → pre_destroy`）。
@@ -263,7 +263,7 @@ python -m hi_agent --api-port 8080 health --json
 
 ```bash
 python -m ruff check .       # lint
-python -m pytest -q           # 2801 tests
+python -m pytest -q           # 2801 tests, all passing
 
 # 触发 Dream 记忆整合
 curl -X POST http://localhost:8080/memory/dream

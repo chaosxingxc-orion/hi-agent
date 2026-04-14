@@ -318,12 +318,55 @@ class KernelFacadeClient:
             return self._http_get("/manifest")
 
     def query_run_postmortem(self, run_id: str) -> Any:
-        """Call query_run_postmortem via HTTP client."""
-        return self._direct_call("query_run_postmortem", run_id)
+        """Call query_run_postmortem via HTTP client or direct facade."""
+        if self._mode == "direct":
+            return self._direct_call("query_run_postmortem", run_id)
+        return self._http_get(f"/runs/{run_id}/postmortem")
 
-    def query_child_runs(self, parent_run_id: str) -> Any:
-        """Call query_child_runs via HTTP client."""
-        return self._direct_call("query_child_runs", parent_run_id)
+    def spawn_child_run(
+        self,
+        parent_run_id: str,
+        task_id: str,
+        config: dict[str, Any] | None = None,
+    ) -> str:
+        """Spawn a child run under parent_run_id."""
+        if self._mode == "direct":
+            result = self._direct_call("spawn_child_run", parent_run_id, task_id, config)
+            if hasattr(result, "child_run_id") and result.child_run_id:
+                return result.child_run_id
+            if isinstance(result, str) and result.strip():
+                return result
+            raise RuntimeAdapterBackendError(
+                "spawn_child_run",
+                cause=ValueError("spawn_child_run returned no child_run_id"),
+            )
+        body: dict[str, Any] = {"parent_run_id": parent_run_id, "task_id": task_id}
+        if config:
+            body["config"] = config
+        resp = self._http_post("/runs/spawn_child", body)
+        child_id = resp.get("child_run_id", "")
+        if not child_id:
+            raise RuntimeAdapterBackendError(
+                "spawn_child_run",
+                cause=ValueError("HTTP spawn_child_run returned no child_run_id"),
+            )
+        return child_id
+
+    def query_child_runs(self, parent_run_id: str) -> list[dict[str, Any]]:
+        """Return child run summaries for the given parent run."""
+        if self._mode == "direct":
+            result = self._direct_call("query_child_runs", parent_run_id)
+            if isinstance(result, list):
+                return [
+                    item if isinstance(item, dict) else (
+                        {k: v for k, v in item.__dict__.items() if not k.startswith("_")}
+                        if hasattr(item, "__dict__") else {"child_run_id": str(item)}
+                    )
+                    for item in result
+                ]
+            return []
+        resp = self._http_get(f"/runs/{parent_run_id}/children")
+        return resp.get("children", []) if isinstance(resp, dict) else []
 
     # ------------------------------------------------------------------
     # Internal: direct mode helpers

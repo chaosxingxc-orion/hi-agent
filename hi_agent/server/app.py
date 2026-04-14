@@ -171,7 +171,7 @@ async def handle_health(request: Request) -> JSONResponse:
 
     # --- kernel adapter (ResilientKernelAdapter health: error rate, circuit state) ---
     try:
-        kernel = server._builder._kernel  # cached instance; None if not yet built
+        kernel = getattr(getattr(server, "_builder", None), "_kernel", None)  # cached adapter; None if not yet built
         if kernel is not None and hasattr(kernel, "get_health"):
             kh = kernel.get_health()
             ka_status = kh.get("status", "ok")

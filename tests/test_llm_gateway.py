@@ -302,10 +302,10 @@ async def test_http_gateway_connection_pool_reused(respx_mock):
     import httpx
     from hi_agent.llm.http_gateway import HTTPGateway
 
-    respx_mock.post("http://test-llm/v1/messages").mock(
+    respx_mock.post("http://test-llm/v1/chat/completions").mock(
         return_value=httpx.Response(200, json={
-            "content": [{"type": "text", "text": "hello"}],
-            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "choices": [{"message": {"content": "hello"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
         })
     )
 

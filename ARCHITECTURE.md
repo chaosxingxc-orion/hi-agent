@@ -310,6 +310,7 @@ classDiagram
   }
   class TierAwareLLMGateway {
     +complete(request) LLMResponse
+    +acomplete(request) Coroutine[LLMResponse]
     +supports_model(model) bool
     -tier_router: TierRouter
     -budget_tracker: LLMBudgetTracker
@@ -819,6 +820,8 @@ flowchart TD
 
 **实现链路**：`TierAwareLLMGateway` → `FailoverChain` → `HttpLLMGateway`（或 `AnthropicGateway`）
 
+`TierAwareLLMGateway` 同时提供同步 `complete()` 和异步 `acomplete()`；异步路径（`DelegationManager` / `HTTPGateway`）统一经由 `acomplete()` 完成 tier 路由，避免绕过分层策略。
+
 ### 9.3 RuntimeAdapter Protocol（17 方法）
 
 | 方法组 | 方法 | 职责 |
@@ -830,6 +833,8 @@ flowchart TD
 | Events | `record_event`, `stream_run_events` | 事件流 |
 | Task View | `record_task_view` | 任务视图持久化 |
 | Planning | `record_plan`, `query_plan` | 计划存储 |
+
+**KernelFacadeClient**（`runtime_adapter/kernel_facade_client.py`）：concrete dual-mode 实现，同时支持 `direct`（in-process KernelFacade）和 `http`（REST over KernelFacade HTTP）两种模式。包含 `query_run_postmortem`、`query_child_runs`（均已实现 direct/http 双分支）和 `spawn_child_run`（完整实现）。
 
 ### 9.4 Middleware Protocol
 
@@ -971,6 +976,17 @@ flowchart TD
 - Windows 环境代理绕行依赖运行环境配置（P0）。
 - MCP 传输层（`mcp/transport.py`）当前 `transport_status = not_wired`：MCPServer 包裹能力注册表可正常枚举工具，但外部 JSON-RPC/SSE 传输尚未接入，`/manifest` 中 `capability_mode = infrastructure_only` 明确标注。
 
+**2026-04-14 自审修复归档（全部已关闭）：**
+
+| 缺口 | 修复内容 |
+|------|---------|
+| SSE 推流断路 | `RunExecutor._record_event()` 现直接调用 `event_bus.publish()`，将运行事件实时推入 SSE 流。 |
+| KernelFacadeClient HTTP 模式不完整 | `query_run_postmortem`、`query_child_runs` 补全 HTTP 分支；新增 `spawn_child_run` 完整实现。 |
+| HybridRouteEngine 审计空转 | `propose_with_provenance()` 两个返回路径均调用 `persist_route_decision_audit()`，决策写入 `DecisionAuditStore`。 |
+| 异步路径绕过 tier 路由 | `TierAwareLLMGateway` 新增 `acomplete()`；`DelegationManager` 异步路径经由该方法统一 tier 选择。 |
+| SkillEvolver 空指针 | `analyze_skill / optimize_prompt / deploy_optimization / discover_patterns / evolve_cycle` 全部加 `_observer` / `_version_manager` 空值守卫。 |
+| RestartPolicyEngine 状态写入空操作 | `update_state` lambda 现写入 `_state_store` 字典，状态持久有效。 |
+
 ## 12.1 TaskContract 字段消费边界
 
 `POST /runs` 接受 13 个 TaskContract 字段，消费级别如下（`/manifest` 的 `contract_field_status` 节动态返回）：
@@ -997,7 +1013,7 @@ PASSTHROUGH 字段的消费由调用层（business agent / profile）负责。
 
 ```bash
 python -m ruff check .
-python -m pytest -q        # 2814 tests, all passing
+python -m pytest -q        # 2801 tests, all passing
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-11）。
+当前文档对应代码形态已通过全量测试回归（2026-04-14）。

@@ -377,6 +377,47 @@ class TierAwareLLMGateway:
 
         return self._inner.complete(request)  # type: ignore[union-attr]
 
+    async def acomplete(self, request: object) -> object:
+        """Async variant: apply tier selection then await inner.complete().
+
+        Enables TierAwareLLMGateway to satisfy the AsyncLLMGateway protocol
+        so that async callers (e.g. DelegationManager) also benefit from
+        tier routing.  The inner gateway must implement async ``complete()``.
+        """
+        from hi_agent.llm.protocol import LLMRequest  # noqa: PLC0415
+
+        if getattr(request, "model", None) == "default":
+            meta = getattr(request, "metadata", None) or {}
+            purpose: str = meta.get("purpose", "routing")
+            budget_usd: float = float(meta.get("budget_remaining", 1.0))
+            complexity: str = meta.get("complexity", "moderate")
+            raw_sc = meta.get("skill_confidence")
+            skill_confidence: float | None = float(raw_sc) if raw_sc is not None else None
+            try:
+                result = self._tier_router.select_model(
+                    purpose=purpose,
+                    budget_remaining_usd=budget_usd,
+                    complexity=complexity,
+                    skill_confidence=skill_confidence,
+                )
+                request = LLMRequest(
+                    messages=getattr(request, "messages", []),
+                    model=result.model_id,
+                    temperature=getattr(request, "temperature", 0.7),
+                    max_tokens=getattr(request, "max_tokens", 4096),
+                    stop_sequences=getattr(request, "stop_sequences", []),
+                    metadata=meta,
+                )
+            except Exception as _tier_exc:
+                _logger.warning(
+                    "TierAwareLLMGateway.acomplete: select_model failed (purpose=%s), "
+                    "falling back with original request. Error: %s",
+                    meta.get("purpose", "unknown"),
+                    _tier_exc,
+                )
+
+        return await self._inner.complete(request)  # type: ignore[union-attr]
+
     def supports_model(self, model: str) -> bool:
         """Delegate to inner gateway."""
         return self._inner.supports_model(model)  # type: ignore[union-attr]
