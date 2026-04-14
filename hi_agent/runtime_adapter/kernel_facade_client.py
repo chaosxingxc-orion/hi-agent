@@ -301,6 +301,59 @@ class KernelFacadeClient:
                 },
             )
 
+    def resolve_escalation(
+        self,
+        run_id: str,
+        *,
+        resolution_notes: str | None = None,
+        caused_by: str | None = None,
+    ) -> None:
+        """Resume a run stuck in waiting_external after human_escalation."""
+        if self._mode == "direct":
+            # keyword-only args: cannot route through _direct_call(); drive coroutine inline
+            import asyncio  # noqa: PLC0415
+
+            try:
+                coro = self._facade.resolve_escalation(
+                    run_id,
+                    resolution_notes=resolution_notes,
+                    caused_by=caused_by,
+                )
+                if asyncio.iscoroutine(coro):
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        loop = None
+                    if loop is not None and loop.is_running():
+                        import threading  # noqa: PLC0415
+
+                        holder: dict[str, Any] = {}
+
+                        def _runner() -> None:
+                            try:
+                                holder["result"] = asyncio.run(coro)
+                            except Exception as exc:  # noqa: BLE001
+                                holder["error"] = exc
+
+                        thread = threading.Thread(target=_runner, daemon=True)
+                        thread.start()
+                        thread.join()
+                        if "error" in holder:
+                            raise holder["error"]  # type: ignore[misc]
+                    else:
+                        asyncio.run(coro)
+            except RuntimeAdapterBackendError:
+                raise
+            except Exception as exc:
+                raise RuntimeAdapterBackendError("resolve_escalation", cause=exc) from exc
+        else:
+            body: dict[str, Any] = {}
+            if resolution_notes:
+                body["resolution_notes"] = resolution_notes
+            if caused_by:
+                body["caused_by"] = caused_by
+            self._http_post(f"/runs/{run_id}/resolve-escalation", body)
+
     # ------------------------------------------------------------------
     # Plan & manifest
     # ------------------------------------------------------------------

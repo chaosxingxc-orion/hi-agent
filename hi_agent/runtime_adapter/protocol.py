@@ -123,4 +123,20 @@ class RuntimeAdapter(Protocol):
     ) -> Any:
         """Async version of query_child_runs."""
 
+    # --- Escalation resolution ---
+
+    def resolve_escalation(
+        self,
+        run_id: str,
+        *,
+        resolution_notes: str | None = None,
+        caused_by: str | None = None,
+    ) -> None:
+        """Resume a run stuck in waiting_external after human_escalation.
+
+        Sends a ``recovery_succeeded`` signal to the workflow so execution
+        can continue.  Corresponds to ``KernelFacade.resolve_escalation``
+        (marked *Public caller-facing API* in agent-kernel).
+        """
+
 
