@@ -13,9 +13,12 @@ The evolution loop:
 from __future__ import annotations
 
 import hashlib
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 from hi_agent.skill.definition import SkillDefinition
 from hi_agent.skill.observer import SkillObserver
@@ -130,6 +133,35 @@ class SkillEvolver:
         self._champion_challenger = champion_challenger
         self._success_threshold = success_threshold
         self._min_pattern_occurrences = min_pattern_occurrences
+        # Cross-run counter: persists across requests when the same SkillEvolver
+        # instance is shared (builder singleton). Allows evolve_cycle() to fire
+        # every N completed runs regardless of per-request RunLifecycle resets.
+        self._runs_since_evolve: int = 0
+
+    def notify_run_completed(self, interval: int = 10) -> EvolutionReport | None:
+        """Increment internal counter and trigger evolve_cycle() when due.
+
+        Call this from RunLifecycle instead of maintaining an external counter.
+        Because SkillEvolver is a builder singleton, this counter survives across
+        per-request RunExecutor instances.
+
+        Args:
+            interval: Number of completed runs between evolve_cycle() calls.
+
+        Returns:
+            EvolutionReport if evolve_cycle() was triggered, else None.
+        """
+        self._runs_since_evolve += 1
+        if interval > 0 and self._runs_since_evolve % interval == 0:
+            try:
+                return self.evolve_cycle()
+            except Exception as _exc:
+                logger.debug(
+                    "skill_evolver: evolve_cycle failed (run_count=%d): %s",
+                    self._runs_since_evolve,
+                    _exc,
+                )
+        return None
 
     @classmethod
     def from_config(

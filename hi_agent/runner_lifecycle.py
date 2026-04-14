@@ -80,7 +80,6 @@ class RunLifecycle:
         self._trajectory_export_enabled = trajectory_export_enabled
         self.skill_evolver = skill_evolver
         self._skill_evolve_interval = skill_evolve_interval
-        self._evolve_run_count: int = 0
 
     # ------------------------------------------------------------------
     # Budget checking
@@ -501,16 +500,18 @@ class RunLifecycle:
                 _logger.debug(
                     "trajectory_export_failed run_id=%s error=%s", run_id, exc
                 )
-        # Auto-trigger skill evolve_cycle every N runs
+        # Auto-trigger skill evolve_cycle every N runs.
+        # Delegates to notify_run_completed() which owns the cross-run counter
+        # on the shared SkillEvolver singleton; the per-request RunLifecycle
+        # must not maintain its own counter (resets to 0 each request).
         if self.skill_evolver is not None:
-            self._evolve_run_count += 1
-            if self._evolve_run_count % self._skill_evolve_interval == 0:
-                try:
-                    result = self.skill_evolver.evolve_cycle()
+            try:
+                report = self.skill_evolver.notify_run_completed(self._skill_evolve_interval)
+                if report is not None:
                     _logger.info(
                         "skill_evolve_cycle completed changes=%d",
-                        len(result.details) if result else 0,
+                        len(report.details),
                     )
-                except Exception as exc:
-                    _logger.debug("skill_evolve_cycle_failed error=%s", exc)
+            except Exception as exc:
+                _logger.debug("skill_evolve_cycle_failed error=%s", exc)
         return outcome

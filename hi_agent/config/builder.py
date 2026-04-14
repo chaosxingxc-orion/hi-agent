@@ -944,19 +944,26 @@ class SystemBuilder:
         return mgr
 
     def build_skill_evolver(self) -> Any:
-        """Build SkillEvolver for observation-driven skill optimization."""
-        from hi_agent.evolve.champion_challenger import ChampionChallenger
+        """Build or return the shared SkillEvolver singleton.
+
+        Cached so that the internal _runs_since_evolve counter persists across
+        per-request RunExecutor instances; otherwise the interval counter resets
+        to 0 on every request and evolve_cycle() never fires.
+        """
+        if getattr(self, "_skill_evolver", None) is not None:
+            return self._skill_evolver
         from hi_agent.skill.evolver import SkillEvolver
 
         observer = self.build_skill_observer()
         version_mgr = self.build_skill_version_manager()
         gateway = self.build_llm_gateway()
-        return SkillEvolver.from_config(
+        self._skill_evolver = SkillEvolver.from_config(
             cfg=self._config,
             llm_gateway=gateway,
             observer=observer,
             version_manager=version_mgr,
         )
+        return self._skill_evolver
 
     def build_episodic_store(self) -> EpisodicMemoryStore:
         """Build EpisodicMemoryStore using configured storage directory."""
