@@ -20,7 +20,23 @@ class _Bucket:
     last_refill: float
 
 
-_EXEMPT_PATHS: frozenset[str] = frozenset({"/health", "/metrics"})
+# Platform status interfaces are exempt from rate limiting.  These endpoints
+# (/ready, /manifest, /mcp/status, /metrics/json) are polled by integrators
+# during run lifecycle monitoring and must remain reachable even when business
+# API traffic has consumed the per-client token bucket.  /runs/{id} GET is
+# NOT listed here — it carries path parameters and is matched by prefix check
+# in the middleware.
+_EXEMPT_PATHS: frozenset[str] = frozenset({
+    "/health",
+    "/metrics",
+    "/metrics/json",
+    "/ready",
+    "/manifest",
+    "/mcp/status",
+})
+
+# Path prefixes whose GET requests are also exempt (e.g. /runs/{id} polling).
+_EXEMPT_GET_PREFIXES: tuple[str, ...] = ("/runs/",)
 
 _STALE_SECONDS: float = 600.0  # 10 minutes
 
@@ -63,7 +79,13 @@ class RateLimiter:
             return
 
         path: str = scope.get("path", "")
+        method: str = scope.get("method", "")
         if path in _EXEMPT_PATHS:
+            await self.app(scope, receive, send)
+            return
+        # GET requests to run-status prefixes are exempt so integrators can
+        # poll /runs/{id} during a run without exhausting their token bucket.
+        if method == "GET" and any(path.startswith(p) for p in _EXEMPT_GET_PREFIXES):
             await self.app(scope, receive, send)
             return
 
