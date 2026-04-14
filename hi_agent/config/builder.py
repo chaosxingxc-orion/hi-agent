@@ -1071,8 +1071,10 @@ class SystemBuilder:
         wiki = KnowledgeWiki(os.path.join(base, "knowledge", "wiki"))
         try:
             wiki.load()
-        except Exception:
-            pass  # no prior state on first run
+        except (FileNotFoundError, KeyError, ValueError):
+            pass  # no prior state on first run — expected on fresh installs
+        except Exception as exc:
+            logger.warning("build_wiki: failed to load prior wiki state: %s", exc)
         return wiki
 
     def build_user_knowledge_store(self) -> Any:

@@ -369,8 +369,8 @@ class SkillEvolver:
                     version=record.version,
                     metrics={},
                 )
-            except Exception:
-                pass  # Never crash the deploy path
+            except Exception as exc:
+                logger.debug("SkillEvolver: champion-challenger registration failed: %s", exc)
 
         return record
 
@@ -466,8 +466,8 @@ class SkillEvolver:
         if self._llm is not None:
             try:
                 return self._llm_create_skill(pattern)
-            except Exception:
-                pass  # fall through to template
+            except Exception as exc:
+                logger.debug("SkillEvolver: LLM skill creation failed, falling back to template: %s", exc)
 
         return self._template_create_skill(pattern)
 

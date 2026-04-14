@@ -1754,6 +1754,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
                 await slo.stop()
             if agent_server._watcher is not None:
                 agent_server._watcher.stop()
+            mcp_transport = getattr(agent_server._builder, "_mcp_transport", None)
+            if mcp_transport is not None and hasattr(mcp_transport, "close_all"):
+                mcp_transport.close_all()
+                logger.info("lifespan: MCP transport subprocesses closed.")
 
     app = Starlette(routes=routes, lifespan=lifespan)
 
