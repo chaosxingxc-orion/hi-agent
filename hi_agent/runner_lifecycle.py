@@ -236,6 +236,25 @@ class RunLifecycle:
             f"branches={branches_explored} actions={action_seq}"
         )
 
+        # Backfill duration_seconds from kernel's authoritative timestamps.
+        # query_run_postmortem() now returns real created_at/completed_at after
+        # the agent-kernel P0 fix (commit a43c9c4a).  Fall back to 0.0 if the
+        # kernel is unavailable or the run hasn't been started via kernel yet.
+        duration_seconds: float = 0.0
+        if kernel is not None and hasattr(kernel, "query_run_postmortem"):
+            try:
+                pv = kernel.query_run_postmortem(run_id)
+                if pv is not None:
+                    raw_ms = getattr(pv, "duration_ms", None)
+                    if raw_ms and raw_ms > 0:
+                        duration_seconds = raw_ms / 1000.0
+            except Exception as exc:
+                _logger.debug(
+                    "run.postmortem_kernel_duration_failed run_id=%s error=%s",
+                    run_id,
+                    exc,
+                )
+
         return RunPostmortem(
             run_id=run_id,
             task_id=contract.task_id,
@@ -247,7 +266,7 @@ class RunLifecycle:
             branches_pruned=branches_pruned,
             total_actions=action_seq,
             failure_codes=failure_codes,
-            duration_seconds=0.0,
+            duration_seconds=duration_seconds,
             quality_score=quality_score,
             efficiency_score=efficiency_score,
             trajectory_summary=trajectory_summary,
