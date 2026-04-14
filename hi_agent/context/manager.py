@@ -79,7 +79,7 @@ class ContextBudget:
             output_reserve=cfg.context_output_reserve,
             system_prompt=cfg.context_system_prompt_budget,
             tool_definitions=cfg.context_tool_definitions_budget,
-            skill_prompts=cfg.compress_default_budget_tokens,
+            skill_prompts=cfg.context_skill_prompts_budget,
             memory_context=cfg.memory_retriever_default_budget,
             knowledge_context=cfg.context_knowledge_context_budget,
         )

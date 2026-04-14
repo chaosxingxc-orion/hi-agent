@@ -206,6 +206,7 @@ class TraceConfig:
     context_output_reserve: int = 8_000
     context_system_prompt_budget: int = 2_000
     context_tool_definitions_budget: int = 3_000
+    context_skill_prompts_budget: int = 2_000
     context_knowledge_context_budget: int = 1_500
     context_health_green_threshold: float = 0.70
     context_health_yellow_threshold: float = 0.85

@@ -846,6 +846,8 @@ flowchart TD
 
 **HookAction**: `CONTINUE` / `MODIFY` / `SKIP` / `BLOCK` / `RETRY`
 
+**线程安全**：`MiddlewareOrchestrator` 的所有结构变更方法（`add/replace/remove_middleware`、`add/remove_hook`、`add_global_hook`）均在 `threading.Lock` 保护下执行。`run()` 入口持锁创建管道快照（`_mw_snapshot`），整个 pipeline 遍历使用快照，消除并发 run 与结构修改之间的竞态条件。
+
 ### 9.5 Server API 端点
 
 | 路径 | 方法 | 职责 |
@@ -911,9 +913,11 @@ flowchart LR
 | Kernel | `kernel_base_url` ("local" / HTTP URL) |
 | LLM | `llm_api_key`, `llm_default_model`, `llm_budget_max_calls` |
 | 缓存 | `prompt_cache_enabled`, `prompt_cache_anchor_messages` |
-| 记忆 | `memory_tier_enabled`, `memory_consolidation_interval_seconds` |
+| 记忆 | `memory_tier_enabled`, `memory_consolidation_interval_seconds`, `memory_compress_max_findings`, `memory_compress_max_decisions`, `memory_compress_max_entities`, `memory_compress_max_tokens` |
 | 知识 | `knowledge_storage_dir` |
 | 技能 | `skill_registry_dir`, `skill_evolution_enabled` |
+| 上下文预算 | `context_skill_prompts_budget`（默认 2000），`context_knowledge_context_budget`，`context_system_prompt_budget` |
+| AutoCompress | `compress_snip_threshold`, `compress_window_threshold`, `compress_compress_threshold`, `compress_default_budget_tokens` |
 | 中间件 | `middleware_enabled`, `gate_quality_threshold` |
 | 服务器 | `server_host`, `server_port`, `server_workers` |
 
@@ -1009,11 +1013,21 @@ flowchart TD
 
 PASSTHROUGH 字段的消费由调用层（business agent / profile）负责。
 
+## 12.2 2026-04-15 自审修复归档（全部已关闭）
+
+| 缺口 | 修复内容 |
+|------|---------|
+| WikiStore 单页损坏崩溃 | `wiki.py` `load()` 对每个 `.json` 文件单独 try-except `(json.JSONDecodeError, KeyError, ValueError)`，跳过损坏页并记录 warning，整体加载不中断。 |
+| `ContextBudget.skill_prompts` 映射错误配置字段 | `context/manager.py` `from_config()` 将 `skill_prompts` 从 `cfg.compress_default_budget_tokens`（task-view 自动压缩预算 8192）修正为专用字段 `cfg.context_skill_prompts_budget`（默认 2000）。 |
+| `context_skill_prompts_budget` 字段缺失 | `trace_config.py` 新增 `context_skill_prompts_budget: int = 2_000`，与 `context_system_prompt_budget`、`context_tool_definitions_budget` 并列管理。 |
+
+---
+
 ## 13. 质量门禁
 
 ```bash
 python -m ruff check .
-python -m pytest -q        # 2801 tests, all passing
+python -m pytest -q        # 2812 tests, all passing
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-14）。
+当前文档对应代码形态已通过全量测试回归（2026-04-15）。

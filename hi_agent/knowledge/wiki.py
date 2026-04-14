@@ -253,19 +253,25 @@ class KnowledgeWiki:
             return
         self._pages.clear()
         for page_file in sorted(pages_dir.glob("*.json")):
-            data = json.loads(page_file.read_text(encoding="utf-8"))
-            page = WikiPage(
-                page_id=data["page_id"],
-                title=data["title"],
-                content=data["content"],
-                page_type=data.get("page_type", "concept"),
-                tags=data.get("tags", []),
-                sources=data.get("sources", []),
-                outgoing_links=data.get("outgoing_links", []),
-                confidence=data.get("confidence", 1.0),
-                created_at=data.get("created_at", ""),
-                updated_at=data.get("updated_at", ""),
-            )
+            try:
+                data = json.loads(page_file.read_text(encoding="utf-8"))
+                page = WikiPage(
+                    page_id=data["page_id"],
+                    title=data["title"],
+                    content=data["content"],
+                    page_type=data.get("page_type", "concept"),
+                    tags=data.get("tags", []),
+                    sources=data.get("sources", []),
+                    outgoing_links=data.get("outgoing_links", []),
+                    confidence=data.get("confidence", 1.0),
+                    created_at=data.get("created_at", ""),
+                    updated_at=data.get("updated_at", ""),
+                )
+            except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                logger.warning(
+                    "WikiStore.load: skipping corrupt page file %s: %s", page_file.name, exc
+                )
+                continue
             self._pages[page.page_id] = page
 
     # ------------------------------------------------------------------ LLM-friendly output

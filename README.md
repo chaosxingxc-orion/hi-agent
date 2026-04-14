@@ -164,7 +164,7 @@ hi_agent/
   runner_stage.py      # StageExecutor 阶段执行委托
   runner_lifecycle.py  # 结束流程、postmortem、知识摄入、进化触发
   runner_telemetry.py  # 事件与指标记录
-tests/                 # 2801 个测试，全部通过（2026-04-14 回归）
+tests/                 # 2812 个测试，全部通过（2026-04-15 回归）
 docs/                  # 架构、规格、研究文档
 ```
 
@@ -244,11 +244,11 @@ python -m hi_agent --api-port 8080 health --json
 `TierAwareLLMGateway` 按任务目的自动路由：`strong`（Claude Opus）/ `medium`（Sonnet）/ `light`（Haiku），配合 `FailoverChain` 凭证轮转与 `PromptCacheInjector` 降低成本。同步 `complete()` 与异步 `acomplete()` 均经由 tier 选择，异步路径不绕过分层策略。
 
 ### 中间件管道
-`Perception → Control → Execution → Evaluation` 四中间件 + 5 阶段生命周期钩子（`pre_create → pre_execute → execute → post_execute → pre_destroy`）。
+`Perception → Control → Execution → Evaluation` 四中间件 + 5 阶段生命周期钩子（`pre_create → pre_execute → execute → post_execute → pre_destroy`）。`MiddlewareOrchestrator` 所有结构变更（`add/replace/remove_middleware`、`add/remove_hook`）均持锁执行；`run()` 入口以快照隔离，消除并发执行与结构修改之间的竞态。
 
 ### 认知三系统
-- **记忆**：L0 原始事件 → L1 短期（会话压缩）→ L2 中期（Dream 整合）→ L3 长期（语义图谱）
-- **知识**：Wiki（`[[wikilinks]]` 风格）+ 知识图谱 + 四层检索（Grep → BM25 → Graph → Embedding）
+- **记忆**：L0 原始事件 → L1 短期（会话压缩）→ L2 中期（Dream 整合）→ L3 长期（语义图谱）。`MemoryCompressor` 压缩上限（`max_findings`/`max_decisions`/`max_entities`/`max_tokens`）可通过 `TraceConfig` 独立配置。
+- **知识**：Wiki（`[[wikilinks]]` 风格）+ 知识图谱 + 四层检索（Grep → BM25 → Graph → Embedding）。`WikiStore.load()` 对单页格式损坏具备容错能力，跳过损坏文件并记录警告，不影响整体加载。
 - **技能**：SKILL.md 定义 + `SkillLoader` token 预算注入 + `ChampionChallenger` A/B 版本管理 + `SkillEvolver` textual gradient 优化
 
 ### 持续进化
@@ -263,7 +263,7 @@ python -m hi_agent --api-port 8080 health --json
 
 ```bash
 python -m ruff check .       # lint
-python -m pytest -q           # 2801 tests, all passing
+python -m pytest -q           # 2812 tests, all passing
 
 # 触发 Dream 记忆整合
 curl -X POST http://localhost:8080/memory/dream
