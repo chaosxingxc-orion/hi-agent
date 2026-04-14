@@ -415,3 +415,191 @@ def test_mi06_unreachable_server_not_reported_wired(mcp_server_command: str) -> 
         f"Unreachable server must yield capability_mode=infrastructure_only, "
         f"got {body['capability_mode']!r}."
     )
+
+
+# ---------------------------------------------------------------------------
+# MI-07: Real plugin.json manifest → PluginLoader → _wire_plugin_contributions
+#         → /mcp/tools/list shows external tool
+# ---------------------------------------------------------------------------
+
+def test_mi07_plugin_manifest_wires_mcp_to_tools_list(
+    mcp_server_script: Path,
+    tmp_path: Path,
+) -> None:
+    """Full plugin-manifest path: plugin.json → PluginLoader → _wire_plugin_contributions
+    → POST /mcp/tools/list shows the external tool.
+
+    This is the platform entry-level test the downstream requires.  It exercises
+    the real code path:
+      PluginLoader.load_all()       ← reads plugin.json from disk
+      PluginLoader.activate_all()   ← sets status=active
+      _wire_plugin_contributions()  ← registers mcp_servers, builds transport,
+                                       runs health check, calls MCPBinding.bind_all()
+      POST /mcp/tools/list          ← MCPServer.list_tools() from CapabilityRegistry
+
+    No internal registry is injected directly — the MCP server enters through
+    the documented plugin.json mcp_servers field.
+    """
+    import json as _json
+    from starlette.testclient import TestClient
+    from hi_agent.server.app import AgentServer
+    from hi_agent.plugin.loader import PluginLoader
+
+    # Write plugin.json describing the test MCP server.
+    plugin_subdir = tmp_path / "echo-mcp-plugin"
+    plugin_subdir.mkdir()
+    manifest_data = {
+        "name": "echo-mcp-plugin",
+        "version": "1.0.0",
+        "description": "Integration-test MCP plugin",
+        "type": "mcp",
+        "mcp_servers": [
+            {
+                "id": "echo_srv",
+                "name": "echo-mcp",
+                "transport": "stdio",
+                "endpoint": f"{sys.executable} {mcp_server_script}",
+                "tools": ["echo_tool"],
+            }
+        ],
+    }
+    (plugin_subdir / "plugin.json").write_text(
+        _json.dumps(manifest_data), encoding="utf-8"
+    )
+
+    # Load via PluginLoader with the temp parent dir — exactly what happens
+    # at startup when a real plugin is installed under .hi_agent/plugins/.
+    loader = PluginLoader(plugin_dirs=[str(tmp_path)])
+    loaded = loader.load_all()
+    assert len(loaded) == 1, f"Expected 1 plugin, got {len(loaded)}: {loaded}"
+    loader.activate_all()
+    assert loader._loaded["echo-mcp-plugin"].status == "active", (
+        "Plugin must be active before _wire_plugin_contributions will wire its servers."
+    )
+
+    # Create server, inject our loader, reset MCP singletons so
+    # _wire_plugin_contributions rebuilds them from the plugin manifest.
+    server = AgentServer()
+    server._builder._plugin_loader = loader
+    # Clear then immediately rebuild MCPRegistry so _wire_plugin_contributions
+    # sees a non-None registry when it checks `self._mcp_registry is not None`
+    # before registering servers from the plugin manifest.
+    server._builder._mcp_registry = None
+    server._builder.build_mcp_registry()
+    server._builder._mcp_transport = None  # transport rebuilt from scratch by _wire
+
+    transport = None
+    try:
+        server._builder._wire_plugin_contributions()
+        transport = server._builder._mcp_transport
+
+        client = TestClient(server.app, raise_server_exceptions=True)
+        resp = client.post("/mcp/tools/list", json={})
+    finally:
+        if transport is not None:
+            transport.close_all()
+
+    assert resp.status_code == 200, (
+        f"POST /mcp/tools/list returned {resp.status_code}: {resp.text}"
+    )
+    tools = resp.json().get("tools", [])
+    tool_names = [t["name"] for t in tools]
+    assert any("echo_tool" in name for name in tool_names), (
+        f"echo_tool must appear in /mcp/tools/list after plugin manifest wiring. "
+        f"Got: {tool_names}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# MI-08: HTTP POST /mcp/tools/call reaches external MCP tool end-to-end
+# ---------------------------------------------------------------------------
+
+def test_mi08_http_tools_call_reaches_external_mcp_tool(
+    mcp_server_script: Path,
+    tmp_path: Path,
+) -> None:
+    """POST /mcp/tools/call must invoke a real external MCP tool and return
+    its output through the full HTTP stack.
+
+    Chain under test:
+      POST /mcp/tools/call
+        → handle_mcp_tools_call (app.py)
+        → MCPServer.call_tool()
+        → CapabilityInvoker.invoke("mcp.echo_srv.echo_tool", ...)
+        → MCPBinding handler (closure over MultiStdioTransport)
+        → real subprocess echo_tool
+        → JSON-RPC response
+        → HTTP response
+
+    This is the HTTP-level positive path verification the downstream requires.
+    MI-04 tests the CapabilityInvoker layer directly; this test proves the
+    full platform HTTP stack routes correctly to an external MCP tool.
+    """
+    import json as _json
+    from starlette.testclient import TestClient
+    from hi_agent.server.app import AgentServer
+    from hi_agent.plugin.loader import PluginLoader
+
+    plugin_subdir = tmp_path / "echo-mcp-plugin"
+    plugin_subdir.mkdir()
+    manifest_data = {
+        "name": "echo-mcp-plugin",
+        "version": "1.0.0",
+        "description": "Integration-test MCP plugin",
+        "type": "mcp",
+        "mcp_servers": [
+            {
+                "id": "echo_srv",
+                "name": "echo-mcp",
+                "transport": "stdio",
+                "endpoint": f"{sys.executable} {mcp_server_script}",
+                "tools": ["echo_tool"],
+            }
+        ],
+    }
+    (plugin_subdir / "plugin.json").write_text(
+        _json.dumps(manifest_data), encoding="utf-8"
+    )
+
+    loader = PluginLoader(plugin_dirs=[str(tmp_path)])
+    loader.load_all()
+    loader.activate_all()
+
+    server = AgentServer()
+    server._builder._plugin_loader = loader
+    server._builder._mcp_registry = None
+    server._builder.build_mcp_registry()   # must be non-None before _wire runs
+    server._builder._mcp_transport = None
+
+    transport = None
+    try:
+        server._builder._wire_plugin_contributions()
+        transport = server._builder._mcp_transport
+
+        client = TestClient(server.app, raise_server_exceptions=True)
+        # Use the canonical capability name: mcp.{server_id}.{tool_name}
+        resp = client.post(
+            "/mcp/tools/call",
+            json={"name": "mcp.echo_srv.echo_tool", "arguments": {"message": "hello platform"}},
+        )
+    finally:
+        if transport is not None:
+            transport.close_all()
+
+    assert resp.status_code == 200, (
+        f"POST /mcp/tools/call returned {resp.status_code}: {resp.text}"
+    )
+    body = resp.json()
+    assert not body.get("isError", False), (
+        f"Tool call returned isError=True: {body}"
+    )
+    content = body.get("content", [])
+    assert isinstance(content, list) and len(content) > 0, (
+        f"Response must have non-empty content list, got: {body}"
+    )
+    # The echo_tool subprocess returns {"content": [{"type": "text", "text": "echo: <message>"}]}
+    # MCPServer wraps this as JSON text inside content[0].text.
+    raw_text = content[0].get("text", "")
+    assert "echo" in raw_text.lower() or "hello platform" in raw_text, (
+        f"Expected echo output to contain echo/message content, got: {raw_text!r}"
+    )
