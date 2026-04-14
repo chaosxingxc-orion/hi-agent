@@ -198,8 +198,13 @@ class SkillEvolver:
         if self._llm is not None:
             try:
                 return self._llm_optimize(skill_id, current_prompt, analysis)
-            except Exception:
-                pass  # fall through to heuristic
+            except Exception as _llm_exc:
+                logger.debug(
+                    "skill_evolver: LLM optimization failed for skill_id=%s, "
+                    "falling back to heuristic. Error: %s",
+                    skill_id,
+                    _llm_exc,
+                )
 
         # Heuristic optimization
         return self._heuristic_optimize(current_prompt, analysis)
