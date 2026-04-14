@@ -204,8 +204,9 @@ class KernelFacadeAdapter:
         result = self._call("query_run", QueryRunRequest(run_id=normalized_run))
         if isinstance(result, dict):
             return dict(result)
-        if hasattr(result, "__dict__"):
-            return {k: v for k, v in result.__dict__.items() if not k.startswith("_")}
+        import dataclasses  # noqa: PLC0415
+        if dataclasses.is_dataclass(result) and not isinstance(result, type):
+            return dataclasses.asdict(result)
         error = ValueError("query_run must return a dict")
         raise RuntimeAdapterBackendError("query_run", cause=error) from error
 
@@ -249,12 +250,15 @@ class KernelFacadeAdapter:
         """Query extended runtime trace payload."""
         normalized_run = self._non_empty(run_id, "run_id")
         result = self._call("query_trace_runtime", normalized_run)
-        if not isinstance(result, dict):
-            error = ValueError("query_trace_runtime must return a dict")
-            raise RuntimeAdapterBackendError(
-                "query_trace_runtime", cause=error
-            ) from error
-        return dict(result)
+        if isinstance(result, dict):
+            return dict(result)
+        import dataclasses  # noqa: PLC0415
+        if dataclasses.is_dataclass(result) and not isinstance(result, type):
+            return dataclasses.asdict(result)
+        error = ValueError("query_trace_runtime must return a dict")
+        raise RuntimeAdapterBackendError(
+            "query_trace_runtime", cause=error
+        ) from error
 
     async def stream_run_events(
         self, run_id: str

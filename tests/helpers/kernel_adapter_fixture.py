@@ -154,11 +154,18 @@ class MockKernel:
             if isinstance(data, dict):
                 data = dict(data)
                 data["run_id"] = run_id
-            return data
+                # Overlay MockKernel-tracked fields so tests can assert on them
+                # alongside real kernel fields (e.g. lifecycle_state).
+                local = self.runs[run_id]
+                for k in ("status", "cancel_reason", "signals", "plan"):
+                    if k in local:
+                        data.setdefault(k, local[k])
+                return data
         except Exception:
-            if run_id in self.runs:
-                return dict(self.runs[run_id])
-            raise
+            pass
+        if run_id in self.runs:
+            return dict(self.runs[run_id])
+        raise ValueError(f"Run {run_id} not found")
 
     def cancel_run(self, run_id: str, reason: str) -> None:
         self._adapter.cancel_run(self._actual_run_id(run_id), reason)

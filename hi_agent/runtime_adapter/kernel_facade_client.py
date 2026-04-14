@@ -140,8 +140,9 @@ class KernelFacadeClient:
             result = self._direct_call("query_run", run_id)
             if isinstance(result, dict):
                 return result
-            if hasattr(result, "__dict__"):
-                return dict(result.__dict__)
+            import dataclasses  # noqa: PLC0415
+            if dataclasses.is_dataclass(result) and not isinstance(result, type):
+                return dataclasses.asdict(result)
             raise RuntimeAdapterBackendError(
                 "query_run",
                 cause=ValueError("query_run did not return a dict"),
@@ -187,8 +188,9 @@ class KernelFacadeClient:
             result = self._direct_call("query_trace_runtime", run_id)
             if isinstance(result, dict):
                 return result
-            if hasattr(result, "__dict__"):
-                return dict(result.__dict__)
+            import dataclasses  # noqa: PLC0415
+            if dataclasses.is_dataclass(result) and not isinstance(result, type):
+                return dataclasses.asdict(result)
             raise RuntimeAdapterBackendError(
                 "query_trace_runtime",
                 cause=ValueError("query_trace_runtime did not return a dict"),
@@ -350,7 +352,22 @@ class KernelFacadeClient:
                 except RuntimeError:
                     loop = None
                 if loop is not None and loop.is_running():
-                    return None
+                    import threading  # noqa: PLC0415
+
+                    holder: dict[str, Any] = {}
+
+                    def _runner() -> None:
+                        try:
+                            holder["result"] = asyncio.run(result)
+                        except Exception as exc:  # noqa: BLE001
+                            holder["error"] = exc
+
+                    thread = threading.Thread(target=_runner, daemon=True)
+                    thread.start()
+                    thread.join()
+                    if "error" in holder:
+                        raise holder["error"]
+                    return holder.get("result")
                 return asyncio.run(result)
             return result
         except RuntimeAdapterBackendError:
