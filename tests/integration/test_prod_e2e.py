@@ -9,10 +9,12 @@ This file IS the official production E2E verification path.
 Prerequisites (all must be set for tests to run):
   - OPENAI_API_KEY or ANTHROPIC_API_KEY  — real model credentials
   - HI_AGENT_ENV=prod                    — disables heuristic fallback
-  - HI_AGENT_KERNEL_URL                  — real agent-kernel HTTP endpoint
+  - HI_AGENT_KERNEL_BASE_URL             — real agent-kernel HTTP endpoint
+                                           (maps to TraceConfig.kernel_base_url via
+                                            the HI_AGENT_<field_upper> env convention)
 
 How to run:
-    OPENAI_API_KEY=sk-... HI_AGENT_ENV=prod HI_AGENT_KERNEL_URL=http://localhost:8001 \\
+    OPENAI_API_KEY=sk-... HI_AGENT_ENV=prod HI_AGENT_KERNEL_BASE_URL=http://localhost:8001 \\
     python -m pytest tests/integration/test_prod_e2e.py -v
 
 All tests auto-skip when prerequisites are absent.  No test may use heuristic
@@ -42,7 +44,10 @@ _has_api_key = bool(
     os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
 )
 _is_prod_env = os.environ.get("HI_AGENT_ENV", "").lower() == "prod"
-_has_kernel_url = bool(os.environ.get("HI_AGENT_KERNEL_URL"))
+# Must use HI_AGENT_KERNEL_BASE_URL — this is the env var that TraceConfig.from_env()
+# reads for the kernel_base_url field (convention: HI_AGENT_<field_name>.upper()).
+# HI_AGENT_KERNEL_URL is WRONG and will not propagate to the runtime.
+_has_kernel_url = bool(os.environ.get("HI_AGENT_KERNEL_BASE_URL"))
 
 _PROD_PREREQS_MET = _has_api_key and _is_prod_env and _has_kernel_url
 
@@ -51,7 +56,7 @@ pytestmark = pytest.mark.skipif(
     reason=(
         "Production E2E prerequisites not met. "
         "Set OPENAI_API_KEY (or ANTHROPIC_API_KEY), HI_AGENT_ENV=prod, "
-        "and HI_AGENT_KERNEL_URL to run these tests."
+        "and HI_AGENT_KERNEL_BASE_URL to run these tests."
     ),
 )
 
@@ -109,11 +114,23 @@ def prod_client():
     """TestClient against a server wired for production mode.
 
     Uses the real SystemBuilder with real LLM gateway.  No MockKernel.
+
+    AgentServer() without a config file defaults to TraceConfig() which ignores
+    environment variables.  We must pass TraceConfig.from_env() explicitly so that
+    HI_AGENT_KERNEL_BASE_URL and other production prerequisites are honoured.
     """
     from starlette.testclient import TestClient
     from hi_agent.server.app import AgentServer
+    from hi_agent.config.trace_config import TraceConfig
 
-    server = AgentServer()
+    # TraceConfig.from_env() reads all HI_AGENT_<field> env vars including
+    # HI_AGENT_KERNEL_BASE_URL → kernel_base_url (the real kernel endpoint).
+    config = TraceConfig.from_env()
+    assert config.kernel_base_url != "local", (
+        f"kernel_base_url is still 'local' — HI_AGENT_KERNEL_BASE_URL must be set "
+        f"to a real agent-kernel endpoint. Got: {config.kernel_base_url!r}"
+    )
+    server = AgentServer(config=config)
     # prod mode: executor_factory=None → server uses SystemBuilder with real LLM
     assert server.executor_factory is None, (
         "In prod E2E, executor_factory must be None so the real SystemBuilder is used."
