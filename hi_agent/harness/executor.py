@@ -100,8 +100,23 @@ class HarnessExecutor:
                     self._action_results[spec.action_id] = result
                     return result
             except Exception as _gate_exc:
-                # Permission gate failure must not block execution
-                logger.warning("Permission gate check failed: %s", _gate_exc)
+                # Permission gate internal error: fail-closed to prevent unguarded execution.
+                logger.error(
+                    "PermissionGate raised an unexpected exception for action_id=%s; "
+                    "treating as DENY. Error: %s",
+                    spec.action_id,
+                    _gate_exc,
+                    exc_info=True,
+                )
+                self._action_states[spec.action_id] = ActionState.FAILED
+                result = ActionResult(
+                    action_id=spec.action_id,
+                    state=ActionState.FAILED,
+                    error_code="permission_gate_error",
+                    error_message=f"Permission gate internal error: {_gate_exc}",
+                )
+                self._action_results[spec.action_id] = result
+                return result
 
         # Step 1-2: Governance check
         allowed, reason = self._governance.can_execute(spec)

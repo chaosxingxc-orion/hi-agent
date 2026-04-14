@@ -358,6 +358,25 @@ class RunLifecycle:
                                 run_id,
                                 exc,
                             )
+                # Check for regression after recording this run's metrics.
+                if contract is not None:
+                    try:
+                        reg = self.evolve_engine.check_regression(contract.task_family)
+                        if reg.is_regression:
+                            _logger.warning(
+                                "run.regression_detected run_id=%s task_family=%s "
+                                "quality_delta=%.3f recommendation=%s",
+                                run_id,
+                                contract.task_family,
+                                reg.quality_delta,
+                                reg.recommendation,
+                            )
+                    except Exception as reg_exc:
+                        _logger.debug(
+                            "run.regression_check_failed run_id=%s error=%s",
+                            run_id,
+                            reg_exc,
+                        )
             except Exception as exc:
                 _logger.warning(
                     "run.evolve_postmortem_failed run_id=%s stage_id=%s error=%s",

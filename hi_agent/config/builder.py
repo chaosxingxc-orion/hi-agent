@@ -1291,6 +1291,11 @@ class SystemBuilder:
 
             # Attempt to get an async LLM gateway for child-run summarization.
             # Falls back to None (truncation-only mode) when unavailable.
+            # Note: TierAwareLLMGateway is sync-only; this path uses a raw HTTPGateway
+            # so that DelegationManager can await acomplete(). Tier routing is not
+            # applied here because the async gateway interface (AsyncLLMGateway) is
+            # separate from the sync tier-routing wrapper. TODO: extend
+            # TierAwareLLMGateway to implement AsyncLLMGateway to cover this path.
             async_llm: Any | None = None
             try:
                 from hi_agent.llm.http_gateway import HTTPGateway as _HTTPGateway

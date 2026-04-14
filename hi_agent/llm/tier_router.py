@@ -9,10 +9,13 @@ Quality failure can force upgrade: light->medium->strong.
 
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
+
+_logger = logging.getLogger(__name__)
 
 # Tier ordering for upgrade/downgrade logic
 _TIER_ORDER = [ModelTier.LIGHT, ModelTier.MEDIUM, ModelTier.STRONG]
@@ -364,8 +367,13 @@ class TierAwareLLMGateway:
                     stop_sequences=getattr(request, "stop_sequences", []),
                     metadata=meta,
                 )
-            except Exception:
-                pass  # fall through to inner gateway with original request
+            except Exception as _tier_exc:
+                _logger.warning(
+                    "TierAwareLLMGateway: select_model failed (purpose=%s), "
+                    "falling back to inner gateway with original request. Error: %s",
+                    meta.get("purpose", "unknown"),
+                    _tier_exc,
+                )
 
         return self._inner.complete(request)  # type: ignore[union-attr]
 
