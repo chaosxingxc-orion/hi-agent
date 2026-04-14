@@ -5,7 +5,7 @@ description = "TRACE enterprise agent implementation"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "agent-kernel @ git+https://github.com/chaosxingxc-orion/agent-kernel.git@1eaf8b44216996c3ba8e2199201156f710d94608",
+  "agent-kernel @ git+https://github.com/chaosxingxc-orion/agent-kernel.git@98bde28b8384c85d2002be8436011fa1771b064e",
   "httpx>=0.28",
   "starlette>=0.37",
   "uvicorn[standard]>=0.29",
