@@ -524,8 +524,9 @@ class KernelFacadeAdapter:
         Returns:
             A list of dicts, each representing one child run summary.
             Keys include ``child_run_id``, ``child_kind``, ``task_id``,
-            ``lifecycle_state``, ``outcome``, ``created_at``, and
-            ``completed_at``.
+            ``lifecycle_state``, ``outcome``, ``created_at``, ``completed_at``,
+            and ``query_error`` (non-None when kernel failed to resolve the
+            child's state; callers should not treat this entry as authoritative).
 
         Raises:
             RuntimeAdapterBackendError: If the facade call fails.
