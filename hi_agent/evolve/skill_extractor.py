@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json as _json
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 from hi_agent.evolve.contracts import RunPostmortem
 
@@ -84,8 +87,10 @@ class SkillExtractor:
                 llm_skills = self._llm_extract(postmortem)
                 if llm_skills:
                     return llm_skills
-            except Exception:
-                pass  # fallback to heuristics
+            except Exception as exc:
+                logger.warning(
+                    "SkillExtractor._llm_extract failed, falling back to heuristics: %s", exc
+                )
 
         return self._heuristic_extract(postmortem)
 
@@ -138,7 +143,13 @@ class SkillExtractor:
         self, content: str, postmortem: RunPostmortem
     ) -> list[SkillCandidate]:
         """Parse JSON response from LLM into SkillCandidate objects."""
-        items = _json.loads(content)
+        try:
+            items = _json.loads(content)
+        except _json.JSONDecodeError as exc:
+            logger.warning(
+                "SkillExtractor._parse_llm_skills: failed to parse LLM response: %s", exc
+            )
+            return []
         if not isinstance(items, list):
             return []
 

@@ -8,10 +8,13 @@ LLMs can both READ and WRITE these pages.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
@@ -150,7 +153,7 @@ class KnowledgeWiki:
     # ------------------------------------------------------------------ Index & Log
 
     def rebuild_index(self) -> str:
-        """Regenerate index.md with all pages listed."""
+        """Regenerate index.md with all pages listed and write it to disk."""
         lines = ["# Knowledge Wiki Index", ""]
         for page in sorted(self._pages.values(), key=lambda p: p.page_id):
             tags_str = ", ".join(page.tags) if page.tags else "none"
@@ -160,6 +163,17 @@ class KnowledgeWiki:
             )
         lines.append("")
         index_content = "\n".join(lines)
+        index_path = self._wiki_dir / "index.md"
+        try:
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+            index_path.write_text(index_content, encoding="utf-8")
+            logger.debug(
+                "wiki.rebuild_index: wrote %d chars to %s",
+                len(index_content),
+                index_path,
+            )
+        except OSError as exc:
+            logger.warning("wiki.rebuild_index: failed to persist index: %s", exc)
         return index_content
 
     def append_log(self, operation: str, details: str) -> None:

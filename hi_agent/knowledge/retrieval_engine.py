@@ -261,7 +261,7 @@ class RetrievalEngine:
         if self._embedding_fn is not None:
             layers.append(4)
 
-        final = self._score_and_trim(enriched, budget_tokens)
+        final = self._score_and_trim(query, enriched, budget_tokens)
         final.layers_used = layers
         return final
 
@@ -451,10 +451,10 @@ class RetrievalEngine:
         )
 
     def _score_and_trim(
-        self, candidates: list[KnowledgeItem], budget_tokens: int
+        self, query: str, candidates: list[KnowledgeItem], budget_tokens: int
     ) -> RetrievalResult:
         """Apply composite scoring, then trim to budget."""
-        scored = self._ranker.rank("", candidates)
+        scored = self._ranker.rank(query, candidates)
 
         # Trim to budget
         selected: list[KnowledgeItem] = []

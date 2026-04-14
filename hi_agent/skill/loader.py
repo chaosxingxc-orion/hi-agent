@@ -22,8 +22,11 @@ Token budget management:
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 from hi_agent.skill.definition import SkillDefinition, _estimate_tokens
 
@@ -301,7 +304,7 @@ class SkillLoader:
         synced = 0
         now = datetime.now(UTC).isoformat()
         for skill in self._skills.values():
-            if skill.name in registry._skills:
+            if registry.get(skill.name) is not None:
                 continue  # already present, skip
             managed = ManagedSkill(
                 skill_id=skill.name,
@@ -329,7 +332,8 @@ class SkillLoader:
         try:
             with open(path, encoding="utf-8") as f:
                 content = f.read()
-        except OSError:
+        except OSError as exc:
+            logger.warning("SkillLoader._load_file: failed to read %r: %s", path, exc)
             return None
 
         skill = SkillDefinition.from_markdown(content, source_path=path)

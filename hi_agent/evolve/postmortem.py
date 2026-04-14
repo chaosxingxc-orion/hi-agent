@@ -67,7 +67,7 @@ class PostmortemAnalyzer:
                                 break
             except Exception:
                 import logging
-                logging.getLogger(__name__).debug(
+                logging.getLogger(__name__).warning(
                     "postmortem._llm_analyze failed for run %s",
                     postmortem.run_id,
                     exc_info=True,
@@ -309,8 +309,8 @@ def _parse_llm_changes(content: str, run_id: str) -> list[EvolveChange]:
 
     try:
         raw = json.loads(content)
-    except json.JSONDecodeError:
-        _logger.debug("postmortem._parse_llm_changes: invalid JSON from LLM")
+    except json.JSONDecodeError as exc:
+        _logger.warning("postmortem._parse_llm_changes: invalid JSON from LLM: %s", exc)
         return []
 
     if not isinstance(raw, list):
