@@ -647,7 +647,8 @@ async def handle_resume_run(request: Request) -> JSONResponse:
     except (ValueError, json.JSONDecodeError):
         body = {}
 
-    # Search for checkpoint file
+    # Search for checkpoint file (run os.path.exists off the event loop)
+    loop = asyncio.get_event_loop()
     checkpoint_path = body.get("checkpoint_path")
     if not checkpoint_path:
         candidates = [
@@ -655,11 +656,11 @@ async def handle_resume_run(request: Request) -> JSONResponse:
             os.path.join(".hi_agent", f"checkpoint_{run_id}.json"),
         ]
         for candidate in candidates:
-            if os.path.exists(candidate):
+            if await loop.run_in_executor(None, os.path.exists, candidate):
                 checkpoint_path = candidate
                 break
 
-    if not checkpoint_path or not os.path.exists(checkpoint_path):
+    if not checkpoint_path or not await loop.run_in_executor(None, os.path.exists, checkpoint_path):
         return JSONResponse(
             {"error": "checkpoint_not_found", "run_id": run_id},
             status_code=404,
@@ -1198,12 +1199,13 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
     if not event_file:
         import os
 
+        _loop = asyncio.get_event_loop()
         candidates = [
             f"replay_{run_id}.jsonl",
             os.path.join(".hi_agent", f"replay_{run_id}.jsonl"),
         ]
         for candidate in candidates:
-            if os.path.exists(candidate):
+            if await _loop.run_in_executor(None, os.path.exists, candidate):
                 event_file = candidate
                 break
 
@@ -1214,9 +1216,11 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
         )
 
     try:
+        import os as _os
         from hi_agent.replay import ReplayEngine, load_event_envelopes_jsonl
 
-        events = load_event_envelopes_jsonl(event_file)
+        _loop2 = asyncio.get_event_loop()
+        events = await _loop2.run_in_executor(None, load_event_envelopes_jsonl, event_file)
         run_events = [e for e in events if e.run_id == run_id]
         if not run_events:
             return JSONResponse(
@@ -1240,12 +1244,13 @@ async def handle_replay_status(request: Request) -> JSONResponse:
     import os
 
     run_id = request.path_params["run_id"]
+    _loop = asyncio.get_event_loop()
     candidates = [
         f"replay_{run_id}.jsonl",
         os.path.join(".hi_agent", f"replay_{run_id}.jsonl"),
     ]
     for candidate in candidates:
-        if os.path.exists(candidate):
+        if await _loop.run_in_executor(None, os.path.exists, candidate):
             return JSONResponse({
                 "run_id": run_id,
                 "replay_available": True,

@@ -111,9 +111,10 @@ class MiddlewareOrchestrator:
 
     def replace_middleware(self, name: str, mw: Any) -> None:
         """Replace an existing middleware instance."""
-        if name not in self._middlewares:
-            raise KeyError(f"Middleware '{name}' not registered")
-        self._middlewares[name] = mw
+        with self._lock:
+            if name not in self._middlewares:
+                raise KeyError(f"Middleware '{name}' not registered")
+            self._middlewares[name] = mw
 
     def add_middleware(
         self,
@@ -123,6 +124,17 @@ class MiddlewareOrchestrator:
         before: str | None = None,
     ) -> None:
         """Insert middleware into flow. Reconnects edges automatically."""
+        with self._lock:
+            self._add_middleware_locked(name, mw, after=after, before=before)
+
+    def _add_middleware_locked(
+        self,
+        name: str,
+        mw: Any,
+        after: str | None = None,
+        before: str | None = None,
+    ) -> None:
+        """Internal: add middleware while caller holds self._lock."""
         # Add the node
         node = TrajNode(node_id=name, node_type="middleware")
         self._flow_graph.add_node(node)
@@ -186,33 +198,34 @@ class MiddlewareOrchestrator:
 
     def remove_middleware(self, name: str) -> None:
         """Remove and reconnect neighbors."""
-        if name not in self._middlewares and self._flow_graph.get_node(name) is None:
-            raise KeyError(f"Middleware '{name}' not found")
+        with self._lock:
+            if name not in self._middlewares and self._flow_graph.get_node(name) is None:
+                raise KeyError(f"Middleware '{name}' not found")
 
-        # Find incoming and outgoing SEQUENCE edges to reconnect
-        incoming_seq = [
-            e for e in self._flow_graph.get_incoming(name)
-            if e.edge_type == EdgeType.SEQUENCE
-        ]
-        outgoing_seq = [
-            e for e in self._flow_graph.get_outgoing(name)
-            if e.edge_type == EdgeType.SEQUENCE
-        ]
+            # Find incoming and outgoing SEQUENCE edges to reconnect
+            incoming_seq = [
+                e for e in self._flow_graph.get_incoming(name)
+                if e.edge_type == EdgeType.SEQUENCE
+            ]
+            outgoing_seq = [
+                e for e in self._flow_graph.get_outgoing(name)
+                if e.edge_type == EdgeType.SEQUENCE
+            ]
 
-        # Remove the node (removes all edges)
-        self._flow_graph.remove_node(name)
+            # Remove the node (removes all edges)
+            self._flow_graph.remove_node(name)
 
-        # Reconnect: each predecessor to each successor
-        for inc in incoming_seq:
-            for out in outgoing_seq:
-                if self._flow_graph.get_node(inc.source) and self._flow_graph.get_node(out.target):
-                    self._flow_graph.add_sequence(inc.source, out.target)
+            # Reconnect: each predecessor to each successor
+            for inc in incoming_seq:
+                for out in outgoing_seq:
+                    if self._flow_graph.get_node(inc.source) and self._flow_graph.get_node(out.target):
+                        self._flow_graph.add_sequence(inc.source, out.target)
 
-        self._middlewares.pop(name, None)
-        self._hooks.pop(name, None)
-        self._middleware_metrics.pop(name, None)
-        if name in self._flow_order:
-            self._flow_order.remove(name)
+            self._middlewares.pop(name, None)
+            self._hooks.pop(name, None)
+            self._middleware_metrics.pop(name, None)
+            if name in self._flow_order:
+                self._flow_order.remove(name)
 
     # --- Lifecycle hooks ---
 
@@ -233,7 +246,8 @@ class MiddlewareOrchestrator:
             name=name,
             once=once,
         )
-        self._hooks.setdefault(middleware_name, []).append(hook)
+        with self._lock:
+            self._hooks.setdefault(middleware_name, []).append(hook)
 
     def add_global_hook(
         self,
@@ -249,14 +263,16 @@ class MiddlewareOrchestrator:
             priority=priority,
             name=name,
         )
-        self._global_hooks[phase].append(hook)
+        with self._lock:
+            self._global_hooks[phase].append(hook)
 
     def remove_hook(self, middleware_name: str, hook_name: str) -> None:
         """Remove a named hook from a middleware."""
-        hooks = self._hooks.get(middleware_name, [])
-        self._hooks[middleware_name] = [
-            h for h in hooks if h.name != hook_name
-        ]
+        with self._lock:
+            hooks = self._hooks.get(middleware_name, [])
+            self._hooks[middleware_name] = [
+                h for h in hooks if h.name != hook_name
+            ]
 
     # --- Flow customization ---
 
@@ -309,6 +325,11 @@ class MiddlewareOrchestrator:
         with self._lock:
             self._message_log.append(message)
 
+        # Snapshot structural state under lock so concurrent add/remove_middleware
+        # calls cannot corrupt this run's view mid-execution.
+        with self._lock:
+            _mw = dict(self._middlewares)
+
         current = "perception"
         max_iterations = 50  # safety limit
         iterations = 0
@@ -316,12 +337,12 @@ class MiddlewareOrchestrator:
         while current is not None and iterations < max_iterations:
             iterations += 1
 
-            if current not in self._middlewares:
+            if current not in _mw:
                 break
 
             try:
                 message = self._execute_middleware_with_lifecycle(
-                    current, message,
+                    current, message, _mw_snapshot=_mw,
                 )
             except PipelineBlockedError:
                 break
@@ -335,7 +356,10 @@ class MiddlewareOrchestrator:
         return message
 
     def _execute_middleware_with_lifecycle(
-        self, name: str, message: MiddlewareMessage,
+        self,
+        name: str,
+        message: MiddlewareMessage,
+        _mw_snapshot: dict[str, Any] | None = None,
     ) -> MiddlewareMessage:
         """Execute one middleware through all 5 lifecycle phases.
 
@@ -347,8 +371,13 @@ class MiddlewareOrchestrator:
 
         Hook execution order: global hooks first, then middleware-specific,
         sorted by priority DESC.
+
+        Args:
+            _mw_snapshot: Snapshot of ``self._middlewares`` taken under lock by
+                ``run()``.  When provided, used instead of reading the live dict
+                so that concurrent structural mutations don't affect this run.
         """
-        mw = self._middlewares[name]
+        mw = (_mw_snapshot or self._middlewares)[name]
         metrics = self._middleware_metrics.get(name, {"calls": 0, "tokens": 0, "errors": 0})
 
         # Phase 1: PRE_CREATE
