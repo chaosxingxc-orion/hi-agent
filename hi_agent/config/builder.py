@@ -98,6 +98,7 @@ class SystemBuilder:
         self._mcp_registry: Any | None = None
         self._mcp_transport: Any | None = None
         self._plugin_loader: Any | None = None
+        self._evidence_store: Any | None = None
         # Pre-inject registries if provided (allows derived builders to inherit state).
         # The build_*_registry() methods all use hasattr/is-None checks before creating
         # new instances, so pre-assigned values will be respected automatically.
@@ -738,9 +739,12 @@ class SystemBuilder:
         """
         governance = GovernanceEngine()
         if self._config.evidence_store_backend == "sqlite":
-            evidence_store: EvidenceStore | SqliteEvidenceStore = (
-                SqliteEvidenceStore(db_path=self._config.evidence_store_path)
-            )
+            with self._singleton_lock:
+                if self._evidence_store is None:
+                    self._evidence_store = SqliteEvidenceStore(
+                        db_path=self._config.evidence_store_path
+                    )
+            evidence_store: EvidenceStore | SqliteEvidenceStore = self._evidence_store
         else:
             logger.warning(
                 "build_harness: evidence_store_backend=%r — using in-memory store. "
@@ -1108,6 +1112,10 @@ class SystemBuilder:
             compress_threshold=self._config.memory_compress_threshold,
             timeout_s=self._config.memory_compress_timeout_seconds,
             fallback_items=self._config.memory_compress_fallback_items,
+            max_findings=self._config.memory_compress_max_findings,
+            max_decisions=self._config.memory_compress_max_decisions,
+            max_entities=self._config.memory_compress_max_entities,
+            max_tokens=self._config.memory_compress_max_tokens,
         )
 
     def build_profile_registry(self) -> Any:
@@ -1465,6 +1473,9 @@ class SystemBuilder:
             reflection_orchestrator=self._build_reflection_orchestrator(),
             delegation_manager=self._build_delegation_manager(),
             stage_graph=stage_graph,  # None → RunExecutor defaults to TRACE graph
+            compress_snip_threshold=self._config.compress_snip_threshold,
+            compress_window_threshold=self._config.compress_window_threshold,
+            compress_compress_threshold=self._config.compress_compress_threshold,
         )
         # Wire middleware orchestrator into the StageExecutor that RunExecutor
         # already created during __init__.  RunExecutor does not yet accept
@@ -1576,12 +1587,14 @@ class SystemBuilder:
                 artifact_registry=self.build_artifact_registry(),
             )
             # Inherit cached subsystem singletons so derived builders share
-            # the same SkillLoader, MCPRegistry, MCPTransport, and PluginLoader instances
-            # as the parent — avoids stale or empty subsystems for patched runs.
+            # the same SkillLoader, MCPRegistry, MCPTransport, PluginLoader, and
+            # EvidenceStore instances as the parent — avoids stale subsystems for
+            # patched runs and prevents opening duplicate SQLite connections.
             derived._skill_loader = self._skill_loader
             derived._mcp_registry = self._mcp_registry
             derived._mcp_transport = self._mcp_transport
             derived._plugin_loader = self._plugin_loader
+            derived._evidence_store = self._evidence_store
             return derived._build_executor_impl(contract, resolved_profile=resolved_profile)
         elif resolved_profile is not None and resolved_profile.config_overrides:
             run_cfg = self._resolve_with_patch(resolved_profile.config_overrides)
@@ -1596,6 +1609,7 @@ class SystemBuilder:
             derived._mcp_registry = self._mcp_registry
             derived._mcp_transport = self._mcp_transport
             derived._plugin_loader = self._plugin_loader
+            derived._evidence_store = self._evidence_store
             return derived._build_executor_impl(contract, resolved_profile=resolved_profile)
         return self._build_executor_impl(contract, resolved_profile=resolved_profile)
 

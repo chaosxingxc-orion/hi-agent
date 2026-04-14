@@ -71,6 +71,10 @@ class MemoryCompressor:
         fallback_items: int = 20,
         *,
         gateway: LLMGateway | None = None,
+        max_findings: int = 8,
+        max_decisions: int = 8,
+        max_entities: int = 10,
+        max_tokens: int = 2048,
     ) -> None:
         """Initialize compression policy controls.
 
@@ -89,12 +93,24 @@ class MemoryCompressor:
         gateway:
             Optional :class:`LLMGateway`.  When provided, takes precedence
             over *llm_fn* for LLM compression calls.
+        max_findings:
+            Maximum findings to keep in direct-path summary (default 8).
+        max_decisions:
+            Maximum decisions to keep in direct-path summary (default 8).
+        max_entities:
+            Maximum key entities to keep in direct-path summary (default 10).
+        max_tokens:
+            Maximum tokens for LLM compression prompt response (default 2048).
         """
         self.llm_fn = llm_fn
         self._gateway = gateway
         self.timeout_s = timeout_s
         self.compress_threshold = compress_threshold
         self.fallback_items = fallback_items
+        self.max_findings = max_findings
+        self.max_decisions = max_decisions
+        self.max_entities = max_entities
+        self.max_tokens = max_tokens
         self.metrics = CompressionMetrics()
 
     # -- public entry points --------------------------------------------------
@@ -261,11 +277,11 @@ class MemoryCompressor:
 
         return CompressedStageMemory(
             stage_id=stage_id,
-            findings=findings[:8],
-            decisions=decisions[:8],
+            findings=findings[:self.max_findings],
+            decisions=decisions[:self.max_decisions],
             outcome=outcome,
             contradiction_refs=contradiction_refs,
-            key_entities=key_entities[:10],
+            key_entities=key_entities[:self.max_entities],
             source_evidence_count=len(records),
             compression_method="direct",
         )
@@ -302,7 +318,7 @@ class MemoryCompressor:
             ],
             model="light",
             temperature=0.2,
-            max_tokens=2048,
+            max_tokens=self.max_tokens,
             metadata={
                 "stage_id": stage_id,
                 "evidence_count": len(records),
@@ -360,7 +376,7 @@ class MemoryCompressor:
             ],
             model="light",
             temperature=0.2,
-            max_tokens=2048,
+            max_tokens=self.max_tokens,
             metadata={
                 "stage_id": stage_id,
                 "evidence_count": len(records),

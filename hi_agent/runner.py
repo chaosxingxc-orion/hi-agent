@@ -141,6 +141,9 @@ class RunExecutor:
         restart_policy_engine: "RestartPolicyEngine | None" = None,
         reflection_orchestrator: "ReflectionOrchestrator | None" = None,
         delegation_manager: "DelegationManager | None" = None,
+        compress_snip_threshold: int | None = None,
+        compress_window_threshold: int | None = None,
+        compress_compress_threshold: int | None = None,
     ) -> None:
         """Initialize run executor state.
 
@@ -238,6 +241,9 @@ class RunExecutor:
         self.cts_budget = cts_budget or CTSExplorationBudget()
         self._total_branches_opened = 0
         self._stage_active_branches: dict[str, int] = {}
+        self._compress_snip_threshold = compress_snip_threshold
+        self._compress_window_threshold = compress_window_threshold
+        self._compress_compress_threshold = compress_compress_threshold
         self.evolve_engine = evolve_engine
         self.harness_executor = harness_executor
         self.human_gate_quality_threshold = human_gate_quality_threshold
@@ -359,9 +365,14 @@ class RunExecutor:
                 from hi_agent.task_view.auto_compress import (
                     AutoCompressTrigger,
                 )
-                self._auto_compress = AutoCompressTrigger(
-                    compressor=self.compressor
-                )
+                act_kwargs: dict[str, Any] = {"compressor": self.compressor}
+                if self._compress_snip_threshold is not None:
+                    act_kwargs["snip_threshold"] = self._compress_snip_threshold
+                if self._compress_window_threshold is not None:
+                    act_kwargs["window_threshold"] = self._compress_window_threshold
+                if self._compress_compress_threshold is not None:
+                    act_kwargs["compress_threshold"] = self._compress_compress_threshold
+                self._auto_compress = AutoCompressTrigger(**act_kwargs)
                 # 3. Create cost calculator
                 from hi_agent.session.cost_tracker import (
                     CostCalculator,

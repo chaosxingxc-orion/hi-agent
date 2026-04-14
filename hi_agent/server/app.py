@@ -1758,6 +1758,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
             if mcp_transport is not None and hasattr(mcp_transport, "close_all"):
                 mcp_transport.close_all()
                 logger.info("lifespan: MCP transport subprocesses closed.")
+            evidence_store = getattr(agent_server._builder, "_evidence_store", None)
+            if evidence_store is not None and hasattr(evidence_store, "close"):
+                evidence_store.close()
+                logger.info("lifespan: SqliteEvidenceStore connection closed.")
 
     app = Starlette(routes=routes, lifespan=lifespan)
 
