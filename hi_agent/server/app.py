@@ -1412,7 +1412,6 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
         from hi_agent.mcp.health import MCPHealth  # noqa: PLC0415
         server: AgentServer = request.app.state.agent_server
         mcp_reg = server.mcp_registry
-        health = MCPHealth(mcp_reg)
         # Include tool count from _mcp_server so status and tools endpoints agree.
         tool_count = 0
         mcp_srv = getattr(server, "_mcp_server", None)
@@ -1421,23 +1420,39 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
                 tool_count = len(mcp_srv.list_tools().get("tools", []))
             except Exception:
                 pass
-        # Derive transport status from the live builder singleton rather than
-        # hardcoding it.  When a plugin has registered stdio MCP servers and
-        # build_mcp_transport() has run, the transport is "wired".
+        # Derive transport status from a real health probe, not merely from
+        # whether the transport object exists.  A server whose subprocess fails
+        # to answer the JSON-RPC initialize handshake must NOT be reported as
+        # "wired" or "external_provider".
         _builder = getattr(server, "_builder", None)
-        _transport_built = (
-            _builder is not None and getattr(_builder, "_mcp_transport", None) is not None
-        )
-        transport_status = "wired" if _transport_built else "not_wired"
-        capability_mode = "external_provider" if _transport_built else "infrastructure_only"
-        note = (
-            "External MCP server transport is active; stdio servers registered via plugins "
-            "are bound into the capability registry."
-            if _transport_built else
-            "No external MCP server transport is active.  Platform tools are accessible via "
-            "/mcp/tools/list and /mcp/tools/call as MCP-compatible endpoints.  Register stdio "
-            "MCP servers via plugin manifests (mcp_servers field) to enable external providers."
-        )
+        _transport = getattr(_builder, "_mcp_transport", None) if _builder is not None else None
+        health = MCPHealth(mcp_reg, transport=_transport)
+        health_results = health.check_all()
+        any_healthy = any(s == "healthy" for s in health_results.values())
+        if any_healthy:
+            transport_status = "wired"
+            capability_mode = "external_provider"
+            note = (
+                "External MCP server transport is active; at least one server passed "
+                "a live health check and its tools are bound into the capability registry."
+            )
+        elif _transport is not None:
+            transport_status = "registered_but_unreachable"
+            capability_mode = "infrastructure_only"
+            note = (
+                "Transport object exists but no external MCP server responded to the "
+                "health check.  Tools are declared but NOT registered as callable "
+                "capabilities.  Verify the server commands in your plugin manifests."
+            )
+        else:
+            transport_status = "not_wired"
+            capability_mode = "infrastructure_only"
+            note = (
+                "No external MCP server transport is active.  Platform tools are accessible "
+                "via /mcp/tools/list and /mcp/tools/call as MCP-compatible endpoints.  "
+                "Register stdio MCP servers via plugin manifests (mcp_servers field) to "
+                "enable external providers."
+            )
         return JSONResponse({
             "servers": mcp_reg.list_servers(),
             "health": health.snapshot(),

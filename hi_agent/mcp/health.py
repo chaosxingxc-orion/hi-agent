@@ -56,12 +56,18 @@ class MCPHealth:
         so downstream callers have a stable, non-empty value.
         """
         if self._transport is not None and hasattr(self._transport, "ping"):
+            server_id = server.get("server_id")
             try:
-                alive = self._transport.ping()
+                # Prefer per-server ping (MultiStdioTransport accepts server_id);
+                # fall back to no-arg ping for single-server transports.
+                try:
+                    alive = self._transport.ping(server_id)
+                except TypeError:
+                    alive = self._transport.ping()
                 status = "healthy" if alive else "error"
                 logger.debug(
                     "MCPHealth._check_one: server=%r ping=%s status=%s",
-                    server.get("server_id"),
+                    server_id,
                     alive,
                     status,
                 )
@@ -69,7 +75,7 @@ class MCPHealth:
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "MCPHealth._check_one: ping failed for server=%r: %s",
-                    server.get("server_id"),
+                    server_id,
                     exc,
                 )
                 return "error"

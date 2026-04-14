@@ -885,9 +885,23 @@ class SystemBuilder:
             )
             if stdio_count > 0 and self._mcp_transport is None:
                 self.build_mcp_transport()
+            # Probe every declared server before binding.  Only servers that
+            # pass a real JSON-RPC initialize handshake are promoted to
+            # "healthy"; unreachable servers stay "registered" and are tracked
+            # as unavailable in MCPBinding.bind_all().
+            if self._mcp_transport is not None:
+                try:
+                    from hi_agent.mcp.health import MCPHealth  # noqa: PLC0415
+                    _hc = MCPHealth(self._mcp_registry, transport=self._mcp_transport)
+                    _hc.check_all()
+                    logger.debug("_wire_plugin_contributions: MCP health probe completed.")
+                except Exception as _hc_exc:
+                    logger.warning(
+                        "_wire_plugin_contributions: MCP health probe failed: %s", _hc_exc
+                    )
             # Wire external MCP tools into CapabilityRegistry so they are
             # invokable as standard capabilities.  This closes the circuit:
-            # register → transport → bind → capability.
+            # register → health-check → bind → capability.
             if self._mcp_transport is not None:
                 try:
                     from hi_agent.mcp.binding import MCPBinding  # noqa: PLC0415

@@ -177,6 +177,37 @@ class TestMCPBindingPolicy:
         # Capability registry must be empty — no broken stubs
         assert len(cap_registry.list_names()) == 0
 
+    def test_bind_all_with_transport_does_not_register_unverified_servers(self):
+        """P0 fix: servers with status='registered' (not yet health-checked) must NOT
+        be bound into the capability registry even when a transport is present.
+        Only 'healthy' servers (those that passed a real health check) are callable."""
+        from unittest.mock import MagicMock
+        from hi_agent.capability.registry import CapabilityRegistry
+        from hi_agent.mcp.binding import MCPBinding
+
+        class FakeTransport:
+            def invoke(self, server_id, tool_name, payload):
+                return {"success": True}
+
+        mock_mcp_registry = MagicMock()
+        mock_mcp_registry.list_servers.return_value = [
+            # "registered" = declared by plugin but NOT yet health-checked
+            {"server_id": "unverified", "status": "registered", "tools": ["echo"]},
+            # "healthy" = passed real health probe
+            {"server_id": "verified", "status": "healthy", "tools": ["ping"]},
+        ]
+
+        cap_registry = CapabilityRegistry()
+        binding = MCPBinding(cap_registry, mock_mcp_registry, transport=FakeTransport())
+        count = binding.bind_all()
+
+        # Only the verified server's tool should be bound
+        assert count == 1
+        assert "mcp.verified.ping" in cap_registry.list_names()
+        assert "mcp.unverified.echo" not in cap_registry.list_names()
+        # Unverified tool must be tracked as unavailable
+        assert "mcp.unverified.echo" in binding.list_unavailable()
+
 
 class TestMCPStatusConsistency:
     """MCP status endpoints must all report the same reality.
@@ -210,10 +241,12 @@ class TestMCPStatusConsistency:
         e2e_mcp = manifest.get("e2e_contract", {}).get("mcp_provider", {})
         manifest_mcp_status = e2e_mcp.get("status")
 
-        # When transport is not wired, both must consistently declare this
-        if status_transport == "not_wired":
+        # When no external server is reachable, both must consistently declare
+        # infrastructure_only.  "registered_but_unreachable" is also a non-wired
+        # state where manifest_mcp_status must stay "infrastructure_only".
+        if status_transport in ("not_wired", "registered_but_unreachable"):
             assert manifest_mcp_status == "infrastructure_only", (
-                f"/mcp/status says transport_status='not_wired' but manifest says "
+                f"/mcp/status says transport_status={status_transport!r} but manifest says "
                 f"mcp_provider.status={manifest_mcp_status!r} — inconsistent"
             )
 

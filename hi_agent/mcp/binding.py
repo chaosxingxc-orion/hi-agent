@@ -95,20 +95,34 @@ class MCPBinding:
         bound = 0
         for server in self._mcp_registry.list_servers():
             server_id = server["server_id"]
-            if server["status"] not in ("registered", "healthy"):
+            status = server["status"]
+            if status == "healthy":
+                for tool_name in server.get("tools", []):
+                    cap_name = f"mcp.{server_id}.{tool_name}"
+                    handler = self._make_handler(server_id, tool_name)
+                    spec = CapabilitySpec(name=cap_name, handler=handler)
+                    self._registry.register(spec)
+                    bound += 1
+                    logger.debug("MCPBinding.bind_all: bound %r", cap_name)
+            elif status == "registered":
+                # Declared but not yet health-checked — track as unavailable,
+                # do NOT register as a callable capability.
+                for tool_name in server.get("tools", []):
+                    cap_name = f"mcp.{server_id}.{tool_name}"
+                    self._unavailable.append(cap_name)
+                logger.info(
+                    "MCPBinding.bind_all: server %r is unverified (status=%r) — "
+                    "%d tool(s) tracked as unavailable, not registered.",
+                    server_id,
+                    status,
+                    len(server.get("tools", [])),
+                )
+            else:
                 logger.debug(
                     "MCPBinding.bind_all: skipping server %r (status=%r)",
                     server_id,
-                    server["status"],
+                    status,
                 )
-                continue
-            for tool_name in server.get("tools", []):
-                cap_name = f"mcp.{server_id}.{tool_name}"
-                handler = self._make_handler(server_id, tool_name)
-                spec = CapabilitySpec(name=cap_name, handler=handler)
-                self._registry.register(spec)
-                bound += 1
-                logger.debug("MCPBinding.bind_all: bound %r", cap_name)
         logger.info("MCPBinding.bind_all: bound %d MCP tools.", bound)
         return bound
 
