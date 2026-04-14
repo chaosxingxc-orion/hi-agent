@@ -142,9 +142,13 @@ class AsyncKernelFacadeAdapter:
         """Return manifest."""
         return await asyncio.to_thread(self._sync.get_manifest)
 
-    async def submit_plan(self, run_id: str, plan: dict[str, Any]) -> None:
-        """Run submit_plan."""
-        await asyncio.to_thread(self._sync.submit_plan, run_id, plan)
+    async def query_run_postmortem(self, run_id: str) -> Any:
+        """Async delegate for query_run_postmortem."""
+        return await asyncio.to_thread(self._sync.query_run_postmortem, run_id)
+
+    async def query_child_runs(self, parent_run_id: str) -> Any:
+        """Async delegate for query_child_runs."""
+        return await asyncio.to_thread(self._sync.query_child_runs, parent_run_id)
 
     # ------------------------------------------------------------------
     # New async-native methods

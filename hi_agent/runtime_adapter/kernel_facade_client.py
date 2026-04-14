@@ -315,14 +315,13 @@ class KernelFacadeClient:
         else:
             return self._http_get("/manifest")
 
-    def submit_plan(self, run_id: str, plan: dict[str, Any]) -> None:
-        """Persist execution plan for run."""
-        if self._mode == "direct":
-            self._direct_call("submit_plan", run_id, plan)
-        else:
-            self._http_post(
-                f"/runs/{run_id}/plan", {"plan": plan}
-            )
+    def query_run_postmortem(self, run_id: str) -> Any:
+        """Call query_run_postmortem via HTTP client."""
+        return self._direct_call("query_run_postmortem", run_id)
+
+    def query_child_runs(self, parent_run_id: str) -> Any:
+        """Call query_child_runs via HTTP client."""
+        return self._direct_call("query_child_runs", parent_run_id)
 
     # ------------------------------------------------------------------
     # Internal: direct mode helpers

@@ -454,12 +454,9 @@ class KernelFacadeAdapter:
             ) from error
         return dict(result)
 
-    def submit_plan(self, run_id: str, plan: dict[str, Any]) -> None:
-        """Submit execution plan for one run."""
-        normalized_run = self._non_empty(run_id, "run_id")
-        if not isinstance(plan, dict):
-            raise ValueError("plan must be a dict")
-        self._call("submit_plan", normalized_run, dict(plan))
+    def query_run_postmortem(self, run_id: str) -> Any:
+        """Delegate query_run_postmortem to kernel facade."""
+        return self._call("query_run_postmortem", self._non_empty(run_id, "run_id"))
 
     # ------------------------------------------------------------------
     # Child run management

@@ -92,8 +92,10 @@ class RuntimeAdapter(Protocol):
     def get_manifest(self) -> dict[str, Any]:
         """Return runtime capabilities/metadata."""
 
-    def submit_plan(self, run_id: str, plan: dict[str, Any]) -> None:
-        """Persist execution plan for run."""
+    # --- Run diagnostics ---
+
+    def query_run_postmortem(self, run_id: str) -> Any:
+        """Return postmortem view for a completed run."""
 
     # --- Child run management ---
 
@@ -105,7 +107,7 @@ class RuntimeAdapter(Protocol):
     ) -> str:
         """Spawn a child run under the given parent run. Returns child run_id."""
 
-    def query_child_runs(self, parent_run_id: str) -> list[dict[str, Any]]:
+    def query_child_runs(self, parent_run_id: str) -> Any:
         """Query all child runs of the given parent run."""
 
     async def spawn_child_run_async(
@@ -118,7 +120,7 @@ class RuntimeAdapter(Protocol):
 
     async def query_child_runs_async(
         self, parent_run_id: str
-    ) -> list[dict[str, Any]]:
+    ) -> Any:
         """Async version of query_child_runs."""
 
 

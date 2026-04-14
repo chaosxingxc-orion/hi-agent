@@ -94,8 +94,10 @@ class FakeFacade:
         self._record("get_manifest")
         return {"name": "fake_facade", "version": "0.1.0"}
 
-    def submit_plan(self, run_id: str, plan: dict[str, Any]) -> None:
-        self._record("submit_plan", run_id, plan)
+    def query_run_postmortem(self, run_id: str) -> dict[str, Any]:
+        self._record("query_run_postmortem", run_id)
+        return {"run_id": run_id, "total_action_count": 0, "failed_action_count": 0,
+                "failure_codes": [], "stage_timings": {}, "completed_at": None}
 
     def query_trace_runtime(self, run_id: str) -> dict[str, Any]:
         self._record("query_trace_runtime", run_id)
@@ -259,14 +261,12 @@ class TestDirectMode:
         result = client.get_manifest()
         assert result["name"] == "fake_facade"
 
-    def test_submit_plan(
+    def test_query_run_postmortem(
         self, client: KernelFacadeClient, facade: FakeFacade
     ) -> None:
-        client.submit_plan("run-0001", {"steps": [1, 2]})
-        assert facade.calls[-1] == (
-            "submit_plan",
-            ("run-0001", {"steps": [1, 2]}),
-        )
+        result = client.query_run_postmortem("run-0001")
+        assert facade.calls[-1] == ("query_run_postmortem", ("run-0001",))
+        assert result["run_id"] == "run-0001"
 
     def test_query_trace_runtime(
         self, client: KernelFacadeClient, facade: FakeFacade
@@ -460,16 +460,6 @@ class TestHTTPMode:
         mock_urlopen.return_value = _FakeHTTPResponse({"name": "kernel", "v": "1"})
         result = client.get_manifest()
         assert result["name"] == "kernel"
-
-    @patch("urllib.request.urlopen")
-    def test_submit_plan_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
-        mock_urlopen.return_value = _FakeHTTPResponse({})
-        client.submit_plan("r1", {"steps": [1]})
-        req = mock_urlopen.call_args[0][0]
-        body = json.loads(req.data.decode("utf-8"))
-        assert body["plan"] == {"steps": [1]}
 
     @patch("urllib.request.urlopen")
     def test_query_trace_runtime_http(

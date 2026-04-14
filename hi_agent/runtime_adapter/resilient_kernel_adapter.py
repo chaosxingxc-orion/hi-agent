@@ -64,7 +64,6 @@ _WRITE_METHODS = frozenset(
         "mark_branch_state",
         "open_human_gate",
         "submit_approval",
-        "submit_plan",
         "spawn_child_run",
         "spawn_child_run_async",
     }
@@ -287,9 +286,9 @@ class ResilientKernelAdapter:
         """Delegate get_manifest with resilience."""
         return self._call("get_manifest", *args, **kwargs)
 
-    def submit_plan(self, *args: Any, **kwargs: Any) -> Any:
-        """Delegate submit_plan with resilience."""
-        return self._call("submit_plan", *args, **kwargs)
+    def query_run_postmortem(self, *args: Any, **kwargs: Any) -> Any:
+        """Delegate query_run_postmortem with resilience."""
+        return self._call("query_run_postmortem", *args, **kwargs)
 
     def spawn_child_run(self, *args: Any, **kwargs: Any) -> Any:
         """Delegate spawn_child_run with resilience."""

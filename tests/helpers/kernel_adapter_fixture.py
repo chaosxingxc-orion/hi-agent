@@ -273,14 +273,8 @@ class MockKernel:
     def get_manifest(self) -> dict[str, Any]:
         return self._adapter.get_manifest()
 
-    def submit_plan(self, run_id: str, plan: dict[str, Any]) -> None:
-        try:
-            self._adapter.submit_plan(self._actual_run_id(run_id), plan)
-        except RuntimeAdapterBackendError:
-            pass
-        if run_id in self.runs:
-            self.runs[run_id]["plan"] = plan
-        self._record("PlanSubmitted", run_id=run_id)
+    def query_run_postmortem(self, run_id: str) -> Any:
+        return self._adapter.query_run_postmortem(self._actual_run_id(run_id))
 
     def spawn_child_run(
         self, parent_run_id: str, task_id: str, config: dict[str, Any] | None = None
