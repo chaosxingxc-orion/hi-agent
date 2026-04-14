@@ -73,10 +73,10 @@ class MCPBinding:
 
         if self._transport is None:
             # Enumerate tools for discovery purposes but do NOT register them.
+            # Include ALL servers regardless of status — every declared tool is
+            # unavailable when there is no transport, including errored ones.
             for server in self._mcp_registry.list_servers():
                 server_id = server["server_id"]
-                if server["status"] not in ("registered", "healthy"):
-                    continue
                 for tool_name in server.get("tools", []):
                     cap_name = f"mcp.{server_id}.{tool_name}"
                     self._unavailable.append(cap_name)
