@@ -133,7 +133,7 @@ Execution Modes
 ### Task Management
 | Module | Description |
 |--------|-------------|
-| `hi_agent/task_mgmt/` | AsyncTaskScheduler, BudgetGuard, RestartPolicyEngine, ReflectionOrchestrator, TaskMonitor, TaskHandle (8-state), PlanTypes (Sequential/Parallel/DAG/Speculative) |
+| `hi_agent/task_mgmt/` | AsyncTaskScheduler, BudgetGuard, RestartPolicyEngine (`reflect(N)` injects reflection prompt before each retry within budget, not just at exhaustion), ReflectionOrchestrator, TaskMonitor, TaskHandle (8-state), PlanTypes (Sequential/Parallel/DAG/Speculative) |
 | `hi_agent/trajectory/` | TrajectoryGraph (chain/tree/DAG/general), StageGraph, Superstep execution, conditional edges, Mermaid export |
 
 ### Context OS
@@ -148,7 +148,7 @@ Execution Modes
 ### TRACE Runtime
 | Module | Description |
 |--------|-------------|
-| `hi_agent/runner.py` | RunExecutor: execute(), execute_graph(), execute_async(), resume(); SubRunHandle, SubRunResult, dispatch_subrun(goal=), await_subrun(), register_gate(); gate blocking (GatePendingError / `_gate_pending`); reflection_prompt injection; `_finalize_run` (L0Summarizer + raw_memory.close()); dead-end detection; checkpoint resume; skill observation; LLM cost tracking |
+| `hi_agent/runner.py` | RunExecutor: execute(), execute_graph(), execute_async(), resume(); SubRunHandle, SubRunResult, dispatch_subrun(goal=), await_subrun(), register_gate(); gate blocking (GatePendingError / `_gate_pending`); reflection_prompt injection; constructor accepts `mid_term_store` and `long_term_consolidator` params; `_finalize_run` triggers full L0→L2→L3 memory chain (L0Summarizer → mid_term_store.store() → long_term_consolidator.consolidate()) + raw_memory.close(); dead-end detection; checkpoint resume; skill observation; LLM cost tracking |
 | `hi_agent/contracts/` | TaskContract (13 fields, ACTIVE/PASSTHROUGH/QUEUE_ONLY annotations), PolicyVersionSet, CTSBudget |
 | `hi_agent/route_engine/` | Rule / LLM / Hybrid / Skill-aware / Conditional routing; DecisionAuditStore |
 | `hi_agent/task_view/` | TaskView builder, token budgets, auto-compress (snip→window→compress) |
@@ -172,7 +172,7 @@ Execution Modes
 | `hi_agent/auth/` | RBAC, JWT, SOC guard |
 | `hi_agent/mcp/` | MCPServer, MCPHealth, MCPBinding; StdioMCPTransport + MultiStdioTransport (transport_status: not_wired until plugin registers mcp_servers) |
 | `hi_agent/executor_facade.py` | RunExecutorFacade (start/run/stop), RunFacadeResult, check_readiness(), ReadinessReport |
-| `hi_agent/gate_protocol.py` | GateEvent dataclass (gate_id, gate_type, phase_name, recommendation, output_summary, opened_at); GatePendingError |
+| `hi_agent/gate_protocol.py` | GateEvent dataclass (gate_id, gate_type, phase_name, recommendation, output_summary, opened_at); GatePendingError (carries `gate_id` attribute for gate identification) |
 | `hi_agent/llm/tier_presets.py` | `apply_research_defaults(tier_router)` — research-optimized TierRouter preset |
 
 ---
@@ -248,7 +248,7 @@ python -m hi_agent serve --port 8080
 python -m hi_agent resume --checkpoint .checkpoint/checkpoint_run-001.json
 
 # Run tests
-python -m pytest tests/ -v          # 2918 tests
+python -m pytest tests/ -v          # 2936 tests
 python -m ruff check .              # lint
 ```
 
@@ -302,7 +302,7 @@ curl -s http://localhost:8080/runs/{run_id} | jq '{state, result}'
 
 ## Test Coverage
 
-**2918 tests, all passing.** One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
+**2936 tests, all passing.** One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
 
 ---
 
