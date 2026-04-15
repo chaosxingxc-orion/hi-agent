@@ -49,6 +49,8 @@ class MemoryLifecycleManager:
         self._consolidator = None
         self._lock = threading.Lock()
         self._run_count: int = 0
+        self._last_dream_at_run_count: int = -1
+        self._last_consolidate_at_run_count: int = -1
         self.auto_dream_interval: int = auto_dream_interval
         self.auto_consolidate_interval: int = auto_consolidate_interval
         # Lazy init
@@ -133,6 +135,34 @@ class MemoryLifecycleManager:
         """
         self.on_run_completed()
 
+    def _should_trigger_dream(self) -> bool:
+        """Return True exactly once per dream interval. Thread-safe."""
+        with self._lock:
+            count = self._run_count
+            if (
+                self.auto_dream_interval > 0
+                and count > 0
+                and count % self.auto_dream_interval == 0
+                and count != self._last_dream_at_run_count
+            ):
+                self._last_dream_at_run_count = count
+                return True
+            return False
+
+    def _should_trigger_consolidate(self) -> bool:
+        """Return True exactly once per consolidation interval. Thread-safe."""
+        with self._lock:
+            count = self._run_count
+            if (
+                self.auto_consolidate_interval > 0
+                and count > 0
+                and count % self.auto_consolidate_interval == 0
+                and count != self._last_consolidate_at_run_count
+            ):
+                self._last_consolidate_at_run_count = count
+                return True
+            return False
+
     async def _maybe_run_dream(self) -> None:
         """Trigger dream consolidation when the run-count threshold is reached.
 
@@ -142,11 +172,10 @@ class MemoryLifecycleManager:
         """
         if self.auto_dream_interval <= 0:
             return
-        with self._lock:
-            count = self._run_count
-        if count > 0 and count % self.auto_dream_interval == 0:
+        if self._should_trigger_dream():
             logger.info(
-                "Scheduler: auto-triggering Dream consolidation (run_count=%d)", count,
+                "Scheduler: auto-triggering Dream consolidation (run_count=%d)",
+                self._last_dream_at_run_count,
             )
             try:
                 today = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -159,11 +188,10 @@ class MemoryLifecycleManager:
         """Trigger LTM consolidation when the run-count threshold is reached."""
         if self.auto_consolidate_interval <= 0:
             return
-        with self._lock:
-            count = self._run_count
-        if count > 0 and count % self.auto_consolidate_interval == 0:
+        if self._should_trigger_consolidate():
             logger.info(
-                "Scheduler: auto-triggering LTM consolidation (run_count=%d)", count,
+                "Scheduler: auto-triggering LTM consolidation (run_count=%d)",
+                self._last_consolidate_at_run_count,
             )
             try:
                 result = self.trigger_consolidation()
@@ -229,7 +257,7 @@ class MemoryLifecycleManager:
             count = self._run_count
 
         # Dream consolidation check
-        if self.auto_dream_interval > 0 and count % self.auto_dream_interval == 0:
+        if self._should_trigger_dream():
             try:
                 today = datetime.now(UTC).strftime("%Y-%m-%d")
                 result = self.trigger_dream(today)
@@ -238,7 +266,7 @@ class MemoryLifecycleManager:
                 logger.exception("Auto dream consolidation failed (run %d)", count)
 
         # Long-term consolidation check
-        if self.auto_consolidate_interval > 0 and count % self.auto_consolidate_interval == 0:
+        if self._should_trigger_consolidate():
             try:
                 result = self.trigger_consolidation()
                 logger.info("Auto LTM consolidation (run %d): %s", count, result.get("status"))

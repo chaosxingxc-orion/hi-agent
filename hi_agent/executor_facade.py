@@ -10,9 +10,12 @@ Provides two public surfaces:
 
 from __future__ import annotations
 
+import logging as _logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+_logger = _logging.getLogger(__name__)
 
 
 @dataclass
@@ -167,16 +170,16 @@ class RunExecutorFacade:
                 finalize_fn = getattr(self._executor, "_finalize_run", None)
                 if callable(finalize_fn):
                     finalize_fn("cancelled")
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.warning("facade.stop: _finalize_run failed: %s", exc)
             try:
                 kernel = getattr(self._executor, "kernel", None)
                 if kernel is not None and self._contract is not None:
                     cancel_fn = getattr(kernel, "cancel_run", None)
                     if callable(cancel_fn):
                         cancel_fn(self._contract.task_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.warning("facade.stop: cancel_run failed: %s", exc)
         self._executor = None
         self._contract = None
 

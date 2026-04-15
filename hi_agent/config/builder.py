@@ -1722,8 +1722,16 @@ class SystemBuilder:
             A zero-argument callable that drives the resumed run to
             completion and returns the outcome string.
         """
+        import json as _json
+        with open(checkpoint_path, encoding="utf-8") as _f:
+            _cp_data = _json.load(_f)
+        _profile_id = _cp_data.get("task_contract", {}).get("profile_id", "") or ""
+
         kernel = self.build_kernel()
-        km = self.build_knowledge_manager()
+        km = self.build_knowledge_manager(
+            profile_id=_profile_id,
+            long_term_graph=self.build_long_term_graph(profile_id=_profile_id),
+        )
 
         def resume() -> str:
             return RunExecutor.resume_from_checkpoint(
@@ -1747,7 +1755,7 @@ class SystemBuilder:
                 policy_versions=PolicyVersionSet(),
                 route_engine=self._build_route_engine(),
                 acceptance_policy=AcceptancePolicy(),
-                short_term_store=self.build_short_term_store(),
+                short_term_store=self.build_short_term_store(profile_id=_profile_id),
                 knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
                 llm_gateway=self.build_llm_gateway(),
             )
