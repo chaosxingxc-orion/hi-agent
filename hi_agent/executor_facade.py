@@ -73,6 +73,7 @@ class RunExecutorFacade:
         """Initialise facade with no active executor."""
         self._executor: Any | None = None
         self._contract: Any | None = None
+        self._last_gate_id: str | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -140,7 +141,12 @@ class RunExecutorFacade:
             )
 
         self._contract.goal = prompt
-        run_result = self._executor.execute()
+        from hi_agent.gate_protocol import GatePendingError
+        try:
+            run_result = self._executor.execute()
+        except GatePendingError as _gate_exc:
+            self._last_gate_id = getattr(_gate_exc, "gate_id", None)
+            raise
         success = str(run_result) == "completed"
         return RunFacadeResult(
             success=success,
@@ -152,11 +158,17 @@ class RunExecutorFacade:
     def stop(self) -> None:
         """Tear down the current executor and clear stored state.
 
-        A best-effort cancel is issued to the kernel adapter when
-        available; failures are silently swallowed so callers do not need
-        to handle cleanup errors.
+        Calls ``_finalize_run("cancelled")`` for resource cleanup before
+        clearing the executor reference.
         """
         if self._executor is not None:
+            # J9-2: finalize before discarding so resources are cleaned up.
+            try:
+                finalize_fn = getattr(self._executor, "_finalize_run", None)
+                if callable(finalize_fn):
+                    finalize_fn("cancelled")
+            except Exception:
+                pass
             try:
                 kernel = getattr(self._executor, "kernel", None)
                 if kernel is not None and self._contract is not None:
@@ -167,6 +179,56 @@ class RunExecutorFacade:
                 pass
         self._executor = None
         self._contract = None
+
+    @property
+    def last_gate_id(self) -> str | None:
+        """The gate_id from the most recent GatePendingError raised by run().
+
+        Returns None if no gate has been raised in the current run.
+        """
+        return self._last_gate_id
+
+    def continue_from_gate(
+        self,
+        gate_id: str,
+        decision: str,
+        rationale: str = "",
+    ) -> RunFacadeResult:
+        """Resume execution after a human gate decision.
+
+        Args:
+            gate_id: Gate identifier — use :attr:`last_gate_id` if unsure.
+            decision: ``"approved"``, ``"override"``, or ``"backtrack"``.
+            rationale: Free-text rationale (optional).
+
+        Returns:
+            :class:`RunFacadeResult` with the post-gate run outcome.
+
+        Raises:
+            RuntimeError: If :meth:`start` has not been called first.
+            GatePendingError: If another gate fires during resumed execution.
+        """
+        if self._executor is None:
+            raise RuntimeError(
+                "RunExecutorFacade.start() must be called before continue_from_gate()."
+            )
+        from hi_agent.gate_protocol import GatePendingError
+        try:
+            run_result = self._executor.continue_from_gate(
+                gate_id=gate_id,
+                decision=decision,
+                rationale=rationale,
+            )
+        except GatePendingError as _gate_exc:
+            self._last_gate_id = getattr(_gate_exc, "gate_id", None)
+            raise
+        success = str(run_result) == "completed"
+        return RunFacadeResult(
+            success=success,
+            output=str(run_result),
+            run_id=run_result.run_id,
+            error=run_result.error if not success else None,
+        )
 
 
 # ---------------------------------------------------------------------------

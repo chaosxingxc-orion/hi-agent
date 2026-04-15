@@ -27,12 +27,12 @@ from hi_agent.llm.tier_router import TierAwareLLMGateway, TierRouter
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
+from hi_agent.observability.collector import MetricsCollector
 from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
 from hi_agent.runner import RunExecutor
 from hi_agent.runtime_adapter.kernel_facade_adapter import (
-    KernelFacadeAdapter,
     create_local_adapter,
 )
 from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
@@ -41,7 +41,6 @@ from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.skill.matcher import SkillMatcher
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry
-from hi_agent.observability.collector import MetricsCollector
 from hi_agent.state import RunStateStore
 
 
@@ -362,11 +361,12 @@ class SystemBuilder:
                     self._metrics_collector.add_alert_rule(rule)
                 _webhook_url = os.environ.get("WEBHOOK_URL", "")
                 if _webhook_url:
+                    import time as _time
+
                     from hi_agent.observability.notification import (
                         build_notification_backend,
                         send_notification,
                     )
-                    import time as _time
                     _backend = build_notification_backend(_webhook_url)
 
                     def _alert_cb(alert: object) -> None:
@@ -426,14 +426,14 @@ class SystemBuilder:
                     )
                     self._kernel = create_local_adapter()
                 # Wrap with resilience layer (retry + circuit breaker + event buffer).
-                from hi_agent.runtime_adapter import ResilientKernelAdapter  # noqa: PLC0415
+                from hi_agent.runtime_adapter import ResilientKernelAdapter
                 self._kernel = ResilientKernelAdapter(
                     self._kernel,
                     max_retries=self._config.kernel_max_retries,
                 )
         return self._kernel
 
-    def _build_cache_injector(self) -> "Any | None":
+    def _build_cache_injector(self) -> Any | None:
         """Build PromptCacheInjector if prompt caching is enabled in config."""
         try:
             if not getattr(self._config, "prompt_cache_enabled", True):
@@ -450,12 +450,11 @@ class SystemBuilder:
             logger.warning("Failed to build PromptCacheInjector, caching disabled: %s", exc)
             return None
 
-    def _build_failover_chain(self, base_url: str, default_model: str) -> "Any | None":
+    def _build_failover_chain(self, base_url: str, default_model: str) -> Any | None:
         """Build FailoverChain from env credential pool if failover is enabled."""
         try:
             if not getattr(self._config, "llm_failover_enabled", True):
                 return None
-            from hi_agent.llm.cache import PromptCacheConfig, PromptCacheInjector
             from hi_agent.llm.failover import (
                 CredentialPool,
                 FailoverChain,
@@ -581,7 +580,7 @@ class SystemBuilder:
         )
         return None  # No API key found, LLM features disabled
 
-    def _build_regression_detector(self) -> "RegressionDetector":
+    def _build_regression_detector(self) -> RegressionDetector:
         """Build RegressionDetector with optional persistent storage."""
         from hi_agent.evolve.regression_detector import RegressionDetector
 
@@ -625,15 +624,15 @@ class SystemBuilder:
         builder.build_capability_registry().register(...) is immediately available
         to the harness executor.
         """
-        from hi_agent.capability.circuit_breaker import CircuitBreaker  # noqa: PLC0415
-        from hi_agent.capability.invoker import CapabilityInvoker  # noqa: PLC0415
+        from hi_agent.capability.circuit_breaker import CircuitBreaker
+        from hi_agent.capability.invoker import CapabilityInvoker
 
         registry = self.build_capability_registry()  # shared singleton — NOT a fresh CapabilityRegistry()
         if registry is None:
             # Registry construction failed — create a minimal empty registry so
             # the invoker is never constructed with None, preventing AttributeError
             # downstream. The invoker will be usable but have no capabilities.
-            from hi_agent.capability.registry import CapabilityRegistry  # noqa: PLC0415
+            from hi_agent.capability.registry import CapabilityRegistry
             registry = CapabilityRegistry()
             logger.warning("build_invoker: registry is None, using empty fallback registry.")
         breaker = CircuitBreaker()
@@ -654,9 +653,11 @@ class SystemBuilder:
         with self._singleton_lock:
             if not hasattr(self, "_capability_registry") or self._capability_registry is None:
                 try:
-                    from hi_agent.capability.defaults import register_default_capabilities  # noqa: PLC0415
-                    from hi_agent.capability.registry import CapabilityRegistry  # noqa: PLC0415
-                    from hi_agent.capability.tools import register_builtin_tools  # noqa: PLC0415
+                    from hi_agent.capability.defaults import (
+                        register_default_capabilities,
+                    )
+                    from hi_agent.capability.registry import CapabilityRegistry
+                    from hi_agent.capability.tools import register_builtin_tools
                     registry = CapabilityRegistry()
                     gateway = self.build_llm_gateway()
                     try:
@@ -682,7 +683,7 @@ class SystemBuilder:
         """Build or return the shared ArtifactRegistry singleton."""
         if not hasattr(self, "_artifact_registry") or self._artifact_registry is None:
             try:
-                from hi_agent.artifacts.registry import ArtifactRegistry  # noqa: PLC0415
+                from hi_agent.artifacts.registry import ArtifactRegistry
                 self._artifact_registry = ArtifactRegistry()
                 logger.info("build_artifact_registry: ArtifactRegistry created.")
             except Exception as exc:
@@ -695,7 +696,7 @@ class SystemBuilder:
         with self._singleton_lock:
             if self._mcp_registry is None:
                 try:
-                    from hi_agent.mcp.registry import MCPRegistry  # noqa: PLC0415
+                    from hi_agent.mcp.registry import MCPRegistry
                     self._mcp_registry = MCPRegistry()
                     logger.info("build_mcp_registry: MCPRegistry created.")
                 except Exception as exc:
@@ -724,7 +725,7 @@ class SystemBuilder:
                 logger.debug("build_mcp_transport: no stdio MCP servers registered; transport not created.")
                 return None
             try:
-                from hi_agent.mcp.transport import MultiStdioTransport  # noqa: PLC0415
+                from hi_agent.mcp.transport import MultiStdioTransport
                 self._mcp_transport = MultiStdioTransport(mcp_registry=registry)
                 logger.info(
                     "build_mcp_transport: MultiStdioTransport created for %d stdio server(s).",
@@ -784,6 +785,7 @@ class SystemBuilder:
             return self._skill_loader
 
         import pathlib
+
         from hi_agent.skill.loader import SkillLoader
 
         builtin_dir = str(pathlib.Path(__file__).parent.parent / "skills" / "builtin")
@@ -814,7 +816,7 @@ class SystemBuilder:
         endpoints and executor builds.
         """
         if self._plugin_loader is None:
-            from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
+            from hi_agent.plugin.loader import PluginLoader
             self._plugin_loader = PluginLoader()
             self._plugin_loader.load_all()
             activated = self._plugin_loader.activate_all()
@@ -838,7 +840,7 @@ class SystemBuilder:
 
             # Wire skill_dirs into the SkillLoader search paths.
             if manifest.skill_dirs and self._skill_loader is not None:
-                import os  # noqa: PLC0415
+                import os
                 for skill_dir in manifest.skill_dirs:
                     resolved = os.path.join(plugin_dir, skill_dir) if plugin_dir else skill_dir
                     search_dirs = getattr(self._skill_loader, "_search_dirs", [])
@@ -902,7 +904,7 @@ class SystemBuilder:
             # as unavailable in MCPBinding.bind_all().
             if self._mcp_transport is not None:
                 try:
-                    from hi_agent.mcp.health import MCPHealth  # noqa: PLC0415
+                    from hi_agent.mcp.health import MCPHealth
                     _hc = MCPHealth(self._mcp_registry, transport=self._mcp_transport)
                     _hc.check_all()
                     logger.debug("_wire_plugin_contributions: MCP health probe completed.")
@@ -915,7 +917,7 @@ class SystemBuilder:
             # register → health-check → bind → capability.
             if self._mcp_transport is not None:
                 try:
-                    from hi_agent.mcp.binding import MCPBinding  # noqa: PLC0415
+                    from hi_agent.mcp.binding import MCPBinding
                     cap_registry = self.build_capability_registry()
                     mcp_reg = self.build_mcp_registry()
                     _binding = MCPBinding(
@@ -1068,11 +1070,11 @@ class SystemBuilder:
 
         # Activate Layer 4 by wiring in a TF-IDF-based embedding function.
         try:
-            from hi_agent.knowledge.embedding import TFIDFEmbeddingProvider  # noqa: PLC0415
+            from hi_agent.knowledge.embedding import TFIDFEmbeddingProvider
 
             provider = TFIDFEmbeddingProvider(engine._tfidf)
             engine._embedding_fn = provider.as_callable()
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Graceful degradation: Layer 4 stays disabled, Layers 1-3 work normally.
             pass
 
@@ -1083,16 +1085,21 @@ class SystemBuilder:
         short_term_store: Any = None,
         mid_term_store: Any = None,
         long_term_graph: Any = None,
+        profile_id: str = "",
     ) -> MemoryLifecycleManager:
         """Build MemoryLifecycleManager wiring all memory tiers.
 
         When store objects are provided, they are used directly (no new
         instances are created), preserving profile-scoped paths built by
-        the caller. When absent, fresh unscoped instances are built.
+        the caller. When absent, fresh instances are built scoped to profile_id.
+
+        Args:
+            profile_id: Profile scope for fallback store construction. Has no
+                effect when all store instances are provided explicitly.
         """
-        short = short_term_store if short_term_store is not None else self.build_short_term_store()
-        mid   = mid_term_store   if mid_term_store   is not None else self.build_mid_term_store()
-        graph = long_term_graph  if long_term_graph  is not None else self.build_long_term_graph()
+        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
+        mid   = mid_term_store   if mid_term_store   is not None else self.build_mid_term_store(profile_id=profile_id)
+        graph = long_term_graph  if long_term_graph  is not None else self.build_long_term_graph(profile_id=profile_id)
         return MemoryLifecycleManager(
             short_term_store=short,
             mid_term_store=mid,
@@ -1129,14 +1136,29 @@ class SystemBuilder:
         base = self._config.episodic_storage_dir.replace("episodes", "")
         return UserKnowledgeStore(os.path.join(base, "knowledge", "user"))
 
-    def build_knowledge_manager(self) -> Any:
-        """Build KnowledgeManager wiring wiki, user store, graph, and renderer."""
+    def build_knowledge_manager(
+        self,
+        profile_id: str = "",
+        long_term_graph: Any = None,
+    ) -> Any:
+        """Build KnowledgeManager wiring wiki, user store, graph, and renderer.
+
+        Args:
+            profile_id: Profile scope for the knowledge graph. When provided,
+                a profile-scoped graph is created if ``long_term_graph`` is None.
+            long_term_graph: Pre-built graph instance to share with the executor.
+                When provided, it is used directly (no new instance created).
+        """
         from hi_agent.knowledge.graph_renderer import GraphRenderer
         from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 
         wiki = self.build_knowledge_wiki()
         user_store = self.build_user_knowledge_store()
-        graph = self.build_long_term_graph()
+        graph = (
+            long_term_graph
+            if long_term_graph is not None
+            else self.build_long_term_graph(profile_id=profile_id)
+        )
         renderer = GraphRenderer(graph)
         return KnowledgeManager(
             wiki=wiki, user_store=user_store, graph=graph, renderer=renderer,
@@ -1168,7 +1190,7 @@ class SystemBuilder:
         """
         if not hasattr(self, "_profile_registry") or self._profile_registry is None:
             try:
-                from hi_agent.profiles.registry import ProfileRegistry  # noqa: PLC0415
+                from hi_agent.profiles.registry import ProfileRegistry
                 self._profile_registry = ProfileRegistry()
                 logger.info("build_profile_registry: ProfileRegistry created.")
             except Exception as exc:
@@ -1210,7 +1232,7 @@ class SystemBuilder:
         if not profile_id:
             return None
         try:
-            from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver  # noqa: PLC0415
+            from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
             registry = self.build_profile_registry()
             if registry is None:
                 return None
@@ -1227,7 +1249,7 @@ class SystemBuilder:
                 When provided, the internal RuleRouteEngine uses these actions
                 instead of the TRACE sample defaults.
         """
-        from hi_agent.route_engine.rule_engine import RuleRouteEngine  # noqa: PLC0415
+        from hi_agent.route_engine.rule_engine import RuleRouteEngine
 
         registry = self.build_skill_registry()
         gateway = self.build_llm_gateway()
@@ -1333,7 +1355,6 @@ class SystemBuilder:
         """
         try:
             from hi_agent.task_mgmt.delegation import DelegationConfig, DelegationManager
-            from hi_agent.llm.http_gateway import HTTPGateway
 
             config = DelegationConfig(
                 max_concurrent=getattr(
@@ -1354,8 +1375,9 @@ class SystemBuilder:
             # async callers also benefit from tier routing and budget management.
             async_llm: Any | None = None
             try:
-                from hi_agent.llm.http_gateway import HTTPGateway as _HTTPGateway
                 import os as _os
+
+                from hi_agent.llm.http_gateway import HTTPGateway as _HTTPGateway
 
                 for env_var, base_url, default_model in [
                     (
@@ -1416,7 +1438,7 @@ class SystemBuilder:
             )
             return None
 
-    def _resolve_with_patch(self, patch: dict) -> "TraceConfig":
+    def _resolve_with_patch(self, patch: dict) -> TraceConfig:
         """Return a new TraceConfig with *patch* merged over self._config.
 
         When a ConfigStack is available, delegates to it so that all five
@@ -1426,7 +1448,9 @@ class SystemBuilder:
         """
         if self._stack is not None:
             return self._stack.resolve(run_patch=patch)
-        from dataclasses import asdict, fields as dc_fields
+        from dataclasses import asdict
+        from dataclasses import fields as dc_fields
+
         from hi_agent.config.profile import deep_merge
         base = asdict(self._config)
         merged = deep_merge(base, patch)
@@ -1444,7 +1468,6 @@ class SystemBuilder:
                 ProfileRegistry.  When provided, its stage_graph, stage_actions,
                 and evaluator override the TRACE sample defaults.
         """
-        km = self.build_knowledge_manager()
         invoker = self.build_invoker()
 
         # Determine stage_graph and stage_actions from profile, falling back to
@@ -1487,8 +1510,13 @@ class SystemBuilder:
         _short_term_store = self.build_short_term_store(profile_id=_profile_id)
         _mid_term_store = self.build_mid_term_store(profile_id=_profile_id)
         _long_term_graph = self.build_long_term_graph(profile_id=_profile_id)
+        # J7-1: share the profile-scoped graph with KnowledgeManager.
+        km = self.build_knowledge_manager(
+            profile_id=_profile_id,
+            long_term_graph=_long_term_graph,
+        )
         try:
-            from hi_agent.memory.long_term import LongTermConsolidator  # noqa: PLC0415
+            from hi_agent.memory.long_term import LongTermConsolidator
             _long_term_consolidator = LongTermConsolidator(
                 mid_term_store=_mid_term_store,
                 graph=_long_term_graph,
@@ -1529,6 +1557,7 @@ class SystemBuilder:
                 short_term_store=_short_term_store,
                 mid_term_store=_mid_term_store,
                 long_term_graph=_long_term_graph,
+                profile_id=_profile_id,
             ),
             retrieval_engine=self.build_retrieval_engine(
                 short_term_store=_short_term_store,
@@ -1590,7 +1619,7 @@ class SystemBuilder:
         try:
             export_dir = getattr(self._config, "trace_export_dir", "")
             if export_dir and hasattr(executor, "_telemetry"):
-                from hi_agent.observability.tracing import (  # noqa: PLC0415
+                from hi_agent.observability.tracing import (
                     JsonFileTraceExporter,
                     Tracer,
                 )
@@ -1609,7 +1638,7 @@ class SystemBuilder:
     def _inject_evaluator(self, orchestrator: Any, resolved_profile: Any) -> None:
         """Inject profile evaluator into EvaluationMiddleware within the orchestrator."""
         try:
-            from hi_agent.evaluation.runtime import EvaluatorRuntime  # noqa: PLC0415
+            from hi_agent.evaluation.runtime import EvaluatorRuntime
 
             runtime = EvaluatorRuntime.from_resolved_profile(resolved_profile)
             middlewares: dict[str, Any] = getattr(orchestrator, "_middlewares", {})
@@ -1730,10 +1759,10 @@ class SystemBuilder:
         kernel = self.build_kernel()
         return TaskOrchestrator(kernel=kernel)
 
-    def build_server(self) -> "Any":
+    def build_server(self) -> Any:
         """Build API server with all subsystems connected."""
-        from hi_agent.server.app import AgentServer  # noqa: PLC0415
-        from hi_agent.server.run_manager import RunManager  # noqa: PLC0415
+        from hi_agent.server.app import AgentServer
+        from hi_agent.server.run_manager import RunManager
 
         server = AgentServer(
             host=self._config.server_host,
@@ -1753,7 +1782,7 @@ class SystemBuilder:
         # Wire SLOMonitor so lifespan.start()/stop() activates continuous
         # SLO evaluation rather than leaving it as a point-in-time snapshot.
         try:
-            from hi_agent.management.slo import SLOMonitor  # noqa: PLC0415
+            from hi_agent.management.slo import SLOMonitor
             server.slo_monitor = SLOMonitor(metrics)
         except Exception:
             logger.warning("SLOMonitor initialization failed; SLO monitoring disabled.")
@@ -1878,7 +1907,7 @@ class SystemBuilder:
 
         # --- MCP: use cached singleton so readiness reflects same state as runs ---
         try:
-            from hi_agent.mcp.registry import MCPRegistry  # noqa: PLC0415
+            from hi_agent.mcp.registry import MCPRegistry
             if self._mcp_registry is None:
                 self._mcp_registry = MCPRegistry()
             servers = self._mcp_registry.list_servers()
@@ -1916,7 +1945,7 @@ class SystemBuilder:
 
         # --- plugins: use cached singleton so readiness reflects same state as runs ---
         try:
-            from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
+            from hi_agent.plugin.loader import PluginLoader
             if self._plugin_loader is None:
                 self._plugin_loader = PluginLoader()
                 # load_all() triggers actual discovery from plugin directories.
