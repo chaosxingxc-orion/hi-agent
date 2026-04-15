@@ -1439,6 +1439,18 @@ class SystemBuilder:
         if resolved_profile is not None and resolved_profile.required_capabilities:
             self._validate_required_capabilities(resolved_profile)
 
+        # --- Build mid-term / long-term memory components for wiring ---
+        _mid_term_store = self.build_mid_term_store()
+        _long_term_graph = self.build_long_term_graph()
+        try:
+            from hi_agent.memory.long_term import LongTermConsolidator  # noqa: PLC0415
+            _long_term_consolidator = LongTermConsolidator(
+                mid_term_store=_mid_term_store,
+                graph=_long_term_graph,
+            )
+        except Exception:
+            _long_term_consolidator = None
+
         executor = RunExecutor(
             contract=contract,
             kernel=self.build_kernel(),
@@ -1461,6 +1473,8 @@ class SystemBuilder:
             route_engine=self._build_route_engine(stage_actions=stage_actions),
             acceptance_policy=AcceptancePolicy(),
             short_term_store=self.build_short_term_store(),
+            mid_term_store=_mid_term_store,
+            long_term_consolidator=_long_term_consolidator,
             knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
             context_manager=self.build_context_manager(),
             budget_guard=self.build_budget_guard(),

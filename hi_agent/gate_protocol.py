@@ -17,6 +17,12 @@ class GatePendingError(Exception):
     gate_id before continuing execution.
     """
 
+    def __init__(self, gate_id: str, message: str = "") -> None:
+        """Initialise with the blocking gate_id and an optional custom message."""
+        default_msg = f"Gate {gate_id!r} is pending — call resume() before continuing"
+        super().__init__(message or default_msg)
+        self.gate_id = gate_id
+
 
 @dataclass
 class GateEvent:

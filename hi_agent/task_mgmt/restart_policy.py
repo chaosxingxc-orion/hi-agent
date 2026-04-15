@@ -167,6 +167,7 @@ class RestartPolicyEngine:
         task_id: str,
         attempt_seq: int,
         failure: Any | None,
+        stage_id: str = "",
     ) -> RestartDecision:
         """Pure decision logic -- no side effects."""
         retryability = (
@@ -186,7 +187,26 @@ class RestartPolicyEngine:
                 ),
             )
 
+        failure_reason = (
+            getattr(failure, "failure_code", None)
+            or getattr(failure, "reason", None)
+            or "unknown"
+        ) if failure else "unknown"
+
         if attempt_seq < policy.max_attempts:
+            if policy.on_exhausted == "reflect":
+                reflection_prompt = (
+                    f"Attempt {attempt_seq} failed: {failure_reason}. "
+                    f"Stage: {stage_id or 'unknown'}. "
+                    f"Identify what went wrong and correct it in the next attempt."
+                )
+                return RestartDecision(
+                    task_id=task_id,
+                    action="reflect",
+                    next_attempt_seq=attempt_seq + 1,
+                    reason=f"attempt {attempt_seq}/{policy.max_attempts} failed; reflecting",
+                    reflection_prompt=reflection_prompt,
+                )
             return RestartDecision(
                 task_id=task_id,
                 action="retry",
@@ -195,16 +215,11 @@ class RestartPolicyEngine:
             )
 
         on_exhausted = policy.on_exhausted
-        failure_reason = (
-            getattr(failure, "failure_code", None)
-            or getattr(failure, "reason", None)
-            or "unknown"
-        ) if failure else "unknown"
-        reflection_prompt: str | None = None
+        reflection_prompt_exhausted: str | None = None
         if on_exhausted == "reflect":
-            reflection_prompt = (
+            reflection_prompt_exhausted = (
                 f"Previous attempt {attempt_seq} failed: {failure_reason}. "
-                f"Stage: unknown. "
+                f"Stage: {stage_id or 'unknown'}. "
                 f"Identify what went wrong and how to correct it in the next attempt."
             )
         return RestartDecision(
@@ -215,7 +230,7 @@ class RestartPolicyEngine:
                 f"retry budget exhausted ({attempt_seq}/{policy.max_attempts}); "
                 f"on_exhausted={on_exhausted}"
             ),
-            reflection_prompt=reflection_prompt,
+            reflection_prompt=reflection_prompt_exhausted,
         )
 
     async def _launch_retry(

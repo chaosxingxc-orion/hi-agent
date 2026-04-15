@@ -208,8 +208,8 @@ class TestReflectPromptPopulated:
         assert "attempt 1" in decision.reflection_prompt.lower()
 
     def test_retry_decision_has_no_prompt(self):
-        """When action is retry, reflection_prompt is None."""
-        engine = self._make_engine(on_exhausted="reflect", max_attempts=5)
+        """When on_exhausted is not 'reflect', reflection_prompt is None mid-budget."""
+        engine = self._make_engine(on_exhausted="escalate", max_attempts=5)
 
         class _Fail:
             retryability = "unknown"
@@ -217,7 +217,7 @@ class TestReflectPromptPopulated:
 
         from agent_kernel.kernel.task_manager.contracts import TaskRestartPolicy
 
-        policy = TaskRestartPolicy(max_attempts=5, on_exhausted="reflect")
+        policy = TaskRestartPolicy(max_attempts=5, on_exhausted="escalate")
         decision = engine._decide(policy, "t-1", attempt_seq=1, failure=_Fail())
 
         assert decision.action == "retry"

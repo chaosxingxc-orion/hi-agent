@@ -148,6 +148,8 @@ class RunExecutor:
         skill_version_mgr: Any | None = None,  # SkillVersionManager
         skill_loader: Any | None = None,  # SkillLoader
         short_term_store: ShortTermMemoryStore | None = None,
+        mid_term_store: "MidTermMemoryStore | None" = None,
+        long_term_consolidator: "LongTermConsolidator | None" = None,
         session: RunSession | None = None,
         retrieval_engine: Any | None = None,  # RetrievalEngine
         knowledge_manager: Any | None = None,  # KnowledgeManager
@@ -318,6 +320,8 @@ class RunExecutor:
         self.skill_version_mgr = skill_version_mgr
         self.skill_loader = skill_loader
         self.short_term_store = short_term_store
+        self.mid_term_store = mid_term_store
+        self.long_term_consolidator = long_term_consolidator
         self._skill_ids_used: list[str] = []
 
         # --- Session: unified state management (additive) ---
@@ -1699,9 +1703,7 @@ class RunExecutor:
         # Human gate enforcement: block stage execution while a gate is pending.
         if self._gate_pending is not None:
             from hi_agent.gate_protocol import GatePendingError  # noqa: PLC0415
-            raise GatePendingError(
-                f"Gate {self._gate_pending!r} is pending — call resume() before continuing"
-            )
+            raise GatePendingError(gate_id=self._gate_pending)
         # Deadline enforcement: fail fast rather than burning budget past the deadline.
         if self.contract.deadline:
             try:
@@ -1906,11 +1908,18 @@ class RunExecutor:
             if _raw_base is not None:
                 from hi_agent.memory.l0_summarizer import L0Summarizer  # noqa: PLC0415
                 _summary = L0Summarizer().summarize_run(self.run_id, _Path(_raw_base))
-                _mid_term = getattr(self, "mid_term_store", None)
-                if _summary is not None and _mid_term is not None:
-                    _mid_term.save(_summary)
+                if _summary is not None and self.mid_term_store is not None:
+                    self.mid_term_store.save(_summary)
         except Exception as _cons_exc:  # consolidation must never crash the run
             logger.debug("L0->L2 consolidation failed: %s", _cons_exc)
+
+        # --- L2 -> L3 consolidation ---
+        _consolidator = self.long_term_consolidator
+        if _consolidator is not None:
+            try:
+                _consolidator.consolidate(days=1)
+            except Exception as _exc:
+                _logger.debug("L2->L3 consolidation failed: %s", _exc)
 
         # --- Wall-clock duration ---
         _start = getattr(self, "_run_start_monotonic", None)
@@ -2145,6 +2154,7 @@ class RunExecutor:
                     policy_task_id,
                     attempt,
                     _StageFail(),
+                    stage_id=stage_id,
                 )
 
             _logger.info(
@@ -2251,7 +2261,20 @@ class RunExecutor:
                         "runner.reflect_no_orchestrator stage_id=%s",
                         stage_id,
                     )
-                # After reflection, continue (do not propagate failure)
+                # If a next attempt is scheduled (reflect-before-retry), run it now.
+                if decision.next_attempt_seq is not None:
+                    _logger.info(
+                        "runner.reflect_retry stage_id=%s next_attempt=%d",
+                        stage_id,
+                        decision.next_attempt_seq,
+                    )
+                    retry_result = self._execute_stage(stage_id)
+                    if retry_result != "failed":
+                        return retry_result
+                    return self._handle_stage_failure(
+                        stage_id, retry_result, max_retries=max_retries
+                    )
+                # Budget exhausted after reflection — do not propagate failure.
                 return "reflected"
 
             if decision.action == "escalate":

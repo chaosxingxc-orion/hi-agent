@@ -77,8 +77,8 @@ def _get_task_attempt_record_alias() -> type[TaskAttempt]:
 
 @pytest.mark.asyncio
 async def test_decide_retry_within_budget():
-    """Returns 'retry' when attempts < max_attempts and launcher is provided."""
-    policy = TaskRestartPolicy(max_attempts=3, backoff_base_ms=0, max_backoff_ms=0)
+    """Returns 'retry' when attempts < max_attempts and on_exhausted != 'reflect'."""
+    policy = TaskRestartPolicy(max_attempts=3, on_exhausted="escalate", backoff_base_ms=0, max_backoff_ms=0)
     attempts = [_make_attempt("t1", 1)]
     task_attempt_record = _get_task_attempt_record_alias()
 
@@ -139,7 +139,7 @@ async def test_decide_abort_on_non_retryable():
 @pytest.mark.asyncio
 async def test_handle_failure_retry_launches_new_run():
     """handle_failure with a retry_launcher actually launches a new run."""
-    policy = TaskRestartPolicy(max_attempts=3, backoff_base_ms=0, max_backoff_ms=0)
+    policy = TaskRestartPolicy(max_attempts=3, on_exhausted="escalate", backoff_base_ms=0, max_backoff_ms=0)
     attempts = [_make_attempt("t1", 1)]
 
     async def launcher(task_id: str, seq: int) -> str:
@@ -160,7 +160,7 @@ async def test_handle_failure_retry_launches_new_run():
 @pytest.mark.asyncio
 async def test_handle_failure_no_launcher():
     """Without a retry_launcher, retry decision degrades to abort."""
-    policy = TaskRestartPolicy(max_attempts=3, backoff_base_ms=0, max_backoff_ms=0)
+    policy = TaskRestartPolicy(max_attempts=3, on_exhausted="escalate", backoff_base_ms=0, max_backoff_ms=0)
     attempts = [_make_attempt("t1", 1)]
 
     engine, _state_log = _build_engine(
