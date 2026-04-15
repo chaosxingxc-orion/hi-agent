@@ -237,6 +237,10 @@ class TraceConfig:
     # --- LLM retry (新增) ---
     llm_retry_base_seconds: float = 1.0
 
+    # --- Restart policy ---
+    restart_max_attempts: int = 3
+    restart_on_exhausted: str = "reflect"   # "reflect" | "escalate" | "abort"
+
     # ------------------------------------------------------------------
     # Deprecated field registry
     # ------------------------------------------------------------------

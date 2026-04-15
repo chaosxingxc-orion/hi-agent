@@ -211,14 +211,19 @@ class TestG2AttemptHistoryFiltersByStageId:
         assert result == [a1], f"Expected only s1 attempt, got {result}"
 
     def test_g2_attempt_history_returns_all_when_no_stage_id_attr(self) -> None:
-        """When attempts do NOT carry stage_id, all attempts are returned (fallback)."""
+        """After I-5, the backward-compat fallback is removed.
+
+        When attempts do NOT carry stage_id, getattr returns None and they are
+        filtered out. Result is always an empty list for such bare attempts.
+        """
         a1 = MagicMock(spec=[])  # spec=[] ensures no attributes by default
         a2 = MagicMock(spec=[])
 
         executor = self._make_executor_with_attempts([a1, a2])
         result = executor._get_attempt_history("s1")
 
-        assert len(result) == 2
+        # I-5: no backward-compat fallback — items without stage_id are excluded
+        assert len(result) == 0
 
 
 # ---------------------------------------------------------------------------

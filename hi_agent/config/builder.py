@@ -268,9 +268,9 @@ class SystemBuilder:
             from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskRestartPolicy
 
             _default_policy = TaskRestartPolicy(
-                max_attempts=2,
+                max_attempts=getattr(self._config, "restart_max_attempts", 3),
                 backoff_base_ms=2000,
-                on_exhausted="escalate",
+                on_exhausted=getattr(self._config, "restart_on_exhausted", "reflect"),
             )
             # In-memory attempt store so the engine can actually track attempt history
             # and enforce max_attempts. Replaced by a persistent store when wired to
@@ -285,7 +285,12 @@ class SystemBuilder:
                     getattr(attempt, "task_id", ""), []
                 ).append(attempt),
             )
-            logger.info("_build_restart_policy_engine: RestartPolicyEngine created with default policy (max_attempts=2, on_exhausted=escalate).")
+            logger.info(
+                "_build_restart_policy_engine: RestartPolicyEngine created "
+                "(max_attempts=%s, on_exhausted=%s).",
+                _default_policy.max_attempts,
+                _default_policy.on_exhausted,
+            )
             return engine
         except Exception as exc:
             logger.warning(
@@ -1073,13 +1078,30 @@ class SystemBuilder:
 
         return engine
 
-    def build_memory_lifecycle_manager(self) -> MemoryLifecycleManager:
-        """Build MemoryLifecycleManager wiring all memory tiers."""
+    def build_memory_lifecycle_manager(
+        self,
+        short_term_store: Any = None,
+        mid_term_store: Any = None,
+        long_term_graph: Any = None,
+    ) -> MemoryLifecycleManager:
+        """Build MemoryLifecycleManager wiring all memory tiers.
+
+        When store objects are provided, they are used directly (no new
+        instances are created), preserving profile-scoped paths built by
+        the caller. When absent, fresh unscoped instances are built.
+        """
+        short = short_term_store if short_term_store is not None else self.build_short_term_store()
+        mid   = mid_term_store   if mid_term_store   is not None else self.build_mid_term_store()
+        graph = long_term_graph  if long_term_graph  is not None else self.build_long_term_graph()
         return MemoryLifecycleManager(
-            short_term_store=self.build_short_term_store(),
-            mid_term_store=self.build_mid_term_store(),
-            long_term_graph=self.build_long_term_graph(),
-            retrieval_engine=self.build_retrieval_engine(),
+            short_term_store=short,
+            mid_term_store=mid,
+            long_term_graph=graph,
+            retrieval_engine=self.build_retrieval_engine(
+                short_term_store=short,
+                mid_term_store=mid,
+                long_term_graph=graph,
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -1503,7 +1525,11 @@ class SystemBuilder:
             budget_guard=self.build_budget_guard(),
             metrics_collector=self.build_metrics_collector(),
             llm_gateway=self.build_llm_gateway(),
-            memory_lifecycle_manager=self.build_memory_lifecycle_manager(),
+            memory_lifecycle_manager=self.build_memory_lifecycle_manager(
+                short_term_store=_short_term_store,
+                mid_term_store=_mid_term_store,
+                long_term_graph=_long_term_graph,
+            ),
             retrieval_engine=self.build_retrieval_engine(
                 short_term_store=_short_term_store,
                 mid_term_store=_mid_term_store,

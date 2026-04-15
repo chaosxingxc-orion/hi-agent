@@ -84,6 +84,7 @@ class ContextBudget:
             skill_prompts=cfg.context_skill_prompts_budget,
             memory_context=cfg.memory_retriever_default_budget,
             knowledge_context=cfg.context_knowledge_context_budget,
+            reflection_context=getattr(cfg, "context_reflection_context_budget", 500),
         )
 
 

@@ -92,8 +92,14 @@ class ShortTermMemoryStore:
         self._storage_dir.mkdir(parents=True, exist_ok=True)
 
     def _memory_path(self, session_id: str) -> Path:
-        """Run _memory_path."""
-        return self._storage_dir / f"{session_id}.json"
+        """Derive the JSON file path for a session_id.
+
+        Replaces path separators so that hierarchical session IDs (e.g.,
+        ``"{run_id}/reflect/{stage_id}/{attempt}"``) are stored as flat files
+        in self._storage_dir, keeping glob("*.json") correct for eviction.
+        """
+        safe_id = session_id.replace("/", "__").replace("\\", "__")
+        return self._storage_dir / f"{safe_id}.json"
 
     def save(self, memory: ShortTermMemory) -> None:
         """Save to JSON file named by session_id (atomic write).

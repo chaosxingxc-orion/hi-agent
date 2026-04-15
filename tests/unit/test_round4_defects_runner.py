@@ -78,17 +78,30 @@ class TestF6GetAttemptHistory:
     """F-6: _get_attempt_history must return data from _restart_policy."""
 
     def test_f6_get_attempt_history_delegates_to_policy(self):
-        """_get_attempt_history returns the list from _restart_policy._get_attempts."""
+        """_get_attempt_history returns filtered list from _restart_policy._get_attempts.
+
+        Updated for I-5: the backward-compat fallback (return all when no stage_id
+        attr) is removed. Attempts must now carry stage_id to be included. A plain
+        string attempt with no stage_id attribute is filtered out, returning [].
+        A proper attempt object with matching stage_id is returned.
+        """
+        import types as _types
+
         executor = _make_executor()
 
+        # Attempt with matching stage_id — must be returned
+        matching = _types.SimpleNamespace(stage_id="stage_a")
+        # Attempt with different stage_id — must be filtered out
+        other = _types.SimpleNamespace(stage_id="stage_b")
+
         fake_policy = types.SimpleNamespace(
-            _get_attempts=lambda task_id: ["attempt1"],
+            _get_attempts=lambda task_id: [matching, other],
         )
         executor._restart_policy = fake_policy
 
         result = executor._get_attempt_history("stage_a")
 
-        assert result == ["attempt1"]
+        assert result == [matching]
 
     def test_f6_get_attempt_history_empty_on_exception(self):
         """_get_attempt_history returns [] when _restart_policy._get_attempts raises."""

@@ -2177,6 +2177,14 @@ class RunExecutor:
         All new logic is wrapped in try/except so any error falls back to the
         original "failed" path.
         """
+        # Honour a backtrack gate decision: run is terminated, no retry or reflect.
+        if getattr(self, "_run_terminated", False):
+            _logger.info(
+                "runner.stage_failure_skipped_terminated stage_id=%s run_id=%s",
+                stage_id, self.run_id,
+            )
+            return "failed"
+
         if self._restart_policy is None:
             return "failed"
 
@@ -2464,12 +2472,10 @@ class RunExecutor:
             return "failed"
 
     def _get_attempt_history(self, stage_id: str) -> list:
-        """Return prior attempt records for the given stage_id from the restart policy."""
+        """Return prior attempt records for the given stage_id."""
         try:
             all_attempts = self._restart_policy._get_attempts(self.contract.task_id)
-            if all_attempts and hasattr(all_attempts[0], "stage_id"):
-                return [a for a in all_attempts if getattr(a, "stage_id", None) == stage_id]
-            return all_attempts  # backward compat: stage_id not on record type
+            return [a for a in all_attempts if getattr(a, "stage_id", None) == stage_id]
         except Exception:
             return []
 
@@ -2509,7 +2515,7 @@ class RunExecutor:
                 )
         return sorted(candidates)[0]
 
-    def _execute_remaining(self) -> str:
+    def _execute_remaining(self) -> "RunResult":
         """Execute stages that haven't been completed yet.
 
         Skips stages that are already ``completed`` in
@@ -2925,17 +2931,28 @@ class RunExecutor:
         # Case 2: future pending (async dispatch path).
         pending = getattr(self, "_pending_subrun_futures", {})
         if subrun_id in pending:
-            future = pending.pop(subrun_id)
-
-            async def _collect():
-                return await future
-
+            future = pending[subrun_id]
             try:
                 asyncio.get_running_loop()
-                import concurrent.futures as _cf
-                with _cf.ThreadPoolExecutor(max_workers=1) as pool:
-                    results = pool.submit(asyncio.run, _collect()).result()
-            except RuntimeError:
+                # A loop is running — this future belongs to it.
+                if hasattr(future, "done") and future.done():
+                    pending.pop(subrun_id)
+                    results = future.result()
+                else:
+                    raise RuntimeError(
+                        f"await_subrun() cannot block on sub-run {subrun_id!r} from "
+                        "an async context while the task is still running. "
+                        "Use `await executor.await_subrun_async(handle)` instead."
+                    )
+            except RuntimeError as _exc:
+                if "await_subrun" in str(_exc):
+                    raise
+                # No running loop — synchronous path.
+                pending.pop(subrun_id)
+
+                async def _collect():
+                    return await future
+
                 results = asyncio.run(_collect())
 
             dr = results[0]
@@ -2962,6 +2979,60 @@ class RunExecutor:
         return SubRunResult(
             success=False,
             output="",
+            error=f"No pending or completed result for subrun_id={subrun_id!r}",
+        )
+
+    async def await_subrun_async(self, handle: SubRunHandle) -> SubRunResult:
+        """Async-safe variant of await_subrun() for use inside execute_async() stages.
+
+        Must be used when dispatch_subrun() was called from within a running
+        event loop. The sync await_subrun() raises RuntimeError in that context
+        when the sub-run is still in progress.
+
+        Args:
+            handle: Handle returned by dispatch_subrun().
+
+        Returns:
+            SubRunResult with completion status and output.
+        """
+        subrun_id = handle.subrun_id
+
+        completed = getattr(self, "_completed_subrun_results", {})
+        if subrun_id in completed:
+            dr = completed.pop(subrun_id)
+            if dr.status == "gate_pending":
+                return SubRunResult(
+                    success=False, output="", error=None,
+                    gate_id=getattr(dr, "gate_id", None), status="gate_pending",
+                )
+            return SubRunResult(
+                success=dr.status == "completed",
+                output=dr.summary or dr.raw_output or "",
+                error=dr.error,
+            )
+
+        pending = getattr(self, "_pending_subrun_futures", {})
+        if subrun_id in pending:
+            future = pending.pop(subrun_id)
+            results = await future  # correct: same event loop
+            dr = results[0]
+            if dr.status == "gate_pending":
+                return SubRunResult(
+                    success=False, output="", error=None,
+                    gate_id=getattr(dr, "gate_id", None), status="gate_pending",
+                )
+            return SubRunResult(
+                success=dr.status == "completed",
+                output=dr.summary or dr.raw_output or "",
+                error=dr.error,
+            )
+
+        _logger.warning(
+            "runner.await_subrun_async_unknown_handle run_id=%s subrun_id=%s",
+            self.run_id, subrun_id,
+        )
+        return SubRunResult(
+            success=False, output="",
             error=f"No pending or completed result for subrun_id={subrun_id!r}",
         )
 
