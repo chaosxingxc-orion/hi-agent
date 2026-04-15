@@ -1754,7 +1754,7 @@ class RunExecutor:
                         f"Task deadline exceeded: {self.contract.deadline}",
                         stage_id=stage_id,
                     )
-                    logger.warning(
+                    _logger.warning(
                         "runner.deadline_exceeded run_id=%s stage_id=%s deadline=%s",
                         self.run_id, stage_id, self.contract.deadline,
                     )
@@ -1911,7 +1911,7 @@ class RunExecutor:
                             "watchdog_handling",
                         )
                 except Exception as _attr_exc:
-                    logger.debug("Failure attribution enrichment failed: %s", _attr_exc)
+                    _logger.debug("Failure attribution enrichment failed: %s", _attr_exc)
             # Final fallback: retryable if a restart policy engine is wired
             if not is_retryable:
                 is_retryable = getattr(self, "_restart_policy", None) is not None
@@ -1992,7 +1992,7 @@ class RunExecutor:
                 if _summary is not None and self.mid_term_store is not None:
                     self.mid_term_store.save(_summary)
         except Exception as _cons_exc:  # consolidation must never crash the run
-            logger.debug("L0->L2 consolidation failed: %s", _cons_exc)
+            _logger.debug("L0->L2 consolidation failed: %s", _cons_exc)
 
         # --- L2 -> L3 consolidation ---
         _consolidator = self.long_term_consolidator
@@ -2226,279 +2226,285 @@ class RunExecutor:
         if self._restart_policy is None:
             return "failed"
 
+        # K-7: hard safety ceiling against unbounded recursion
+        _max_total_attempts = max_retries * 2 + 1
         try:
-            attempt = self._stage_attempt.get(stage_id, 0) + 1
-            self._stage_attempt[stage_id] = attempt
+            for _loop_guard in range(_max_total_attempts):
+                attempt = self._stage_attempt.get(stage_id, 0) + 1
+                self._stage_attempt[stage_id] = attempt
 
-            # Build a lightweight failure object the engine can inspect.
-            class _StageFail:
-                retryability = "unknown"
-                failure_code = stage_result
+                # Build a lightweight failure object the engine can inspect.
+                class _StageFail:
+                    retryability = "unknown"
+                    failure_code = stage_result
 
-            policy_task_id = self.contract.task_id
+                policy_task_id = self.contract.task_id
 
-            # Record this attempt so reflect_and_infer() receives real history.
-            try:
-                from datetime import UTC, datetime
-
-                from hi_agent.task_mgmt.restart_policy import TaskAttempt as _TA
-                _ta_kwargs: dict = dict(
-                    attempt_id=f"{self.run_id}/{stage_id}/{attempt}",
-                    task_id=policy_task_id,
-                    run_id=self.run_id,
-                    attempt_seq=attempt,
-                    started_at=datetime.now(UTC).isoformat(),
-                    outcome="failed",
-                    failure=_StageFail(),
-                )
-                # stage_id was added in H-1; fall back gracefully if absent.
+                # Record this attempt so reflect_and_infer() receives real history.
                 try:
-                    ta_obj = _TA(**_ta_kwargs, stage_id=stage_id)
-                except TypeError:
-                    ta_obj = _TA(**_ta_kwargs)
+                    from datetime import UTC, datetime
+
+                    from hi_agent.task_mgmt.restart_policy import TaskAttempt as _TA
+                    _ta_kwargs: dict = dict(
+                        attempt_id=f"{self.run_id}/{stage_id}/{attempt}",
+                        task_id=policy_task_id,
+                        run_id=self.run_id,
+                        attempt_seq=attempt,
+                        started_at=datetime.now(UTC).isoformat(),
+                        outcome="failed",
+                        failure=_StageFail(),
+                    )
+                    # stage_id was added in H-1; fall back gracefully if absent.
                     try:
-                        object.__setattr__(ta_obj, "stage_id", stage_id)
-                    except (AttributeError, TypeError):
-                        pass
-                self._restart_policy._record_attempt(ta_obj)
-            except Exception as _rec_exc:
-                _logger.debug(
-                    "runner.record_attempt_failed stage_id=%s attempt=%d error=%s",
-                    stage_id, attempt, _rec_exc,
-                )
+                        ta_obj = _TA(**_ta_kwargs, stage_id=stage_id)
+                    except TypeError:
+                        ta_obj = _TA(**_ta_kwargs)
+                        try:
+                            object.__setattr__(ta_obj, "stage_id", stage_id)
+                        except (AttributeError, TypeError):
+                            pass
+                    self._restart_policy._record_attempt(ta_obj)
+                except Exception as _rec_exc:
+                    _logger.debug(
+                        "runner.record_attempt_failed stage_id=%s attempt=%d error=%s",
+                        stage_id, attempt, _rec_exc,
+                    )
 
-            _policy = self._restart_policy._get_policy(policy_task_id)
-            if _policy is None:
-                _logger.warning(
-                    "runner: no restart policy for task_id=%s, defaulting to abort",
-                    policy_task_id,
-                )
-                from hi_agent.task_mgmt.restart_policy import RestartDecision
-                decision = RestartDecision(
-                    task_id=policy_task_id,
-                    action="abort",
-                    next_attempt_seq=None,
-                    reason="no restart policy configured",
-                )
-            else:
-                decision = self._restart_policy._decide(
-                    _policy,
-                    policy_task_id,
-                    attempt,
-                    _StageFail(),
-                    stage_id=stage_id,
-                )
-
-            _logger.info(
-                "runner.restart_decision stage_id=%s attempt=%d action=%s reason=%s",
-                stage_id,
-                attempt,
-                decision.action,
-                decision.reason,
-            )
-
-            if decision.action == "retry":
-                if attempt <= max_retries:
-                    _logger.info(
-                        "runner.stage_retry stage_id=%s attempt=%d/%d",
-                        stage_id,
+                _policy = self._restart_policy._get_policy(policy_task_id)
+                if _policy is None:
+                    _logger.warning(
+                        "runner: no restart policy for task_id=%s, defaulting to abort",
+                        policy_task_id,
+                    )
+                    from hi_agent.task_mgmt.restart_policy import RestartDecision
+                    decision = RestartDecision(
+                        task_id=policy_task_id,
+                        action="abort",
+                        next_attempt_seq=None,
+                        reason="no restart policy configured",
+                    )
+                else:
+                    decision = self._restart_policy._decide(
+                        _policy,
+                        policy_task_id,
                         attempt,
+                        _StageFail(),
+                        stage_id=stage_id,
+                    )
+
+                _logger.info(
+                    "runner.restart_decision stage_id=%s attempt=%d action=%s reason=%s",
+                    stage_id,
+                    attempt,
+                    decision.action,
+                    decision.reason,
+                )
+
+                if decision.action == "retry":
+                    if attempt <= max_retries:
+                        _logger.info(
+                            "runner.stage_retry stage_id=%s attempt=%d/%d",
+                            stage_id,
+                            attempt,
+                            max_retries,
+                        )
+                        retry_result = self._execute_stage(stage_id)
+                        if retry_result != "failed":
+                            return retry_result
+                        stage_result = retry_result
+                        continue  # K-7: loop back instead of recursing
+                    _logger.warning(
+                        "runner.stage_retry_exhausted stage_id=%s max_retries=%d",
+                        stage_id,
                         max_retries,
                     )
-                    retry_result = self._execute_stage(stage_id)
-                    if retry_result != "failed":
-                        return retry_result
-                    # Recursive call: let the engine decide again for the new attempt
-                    return self._handle_stage_failure(
-                        stage_id, retry_result, max_retries=max_retries
-                    )
-                _logger.warning(
-                    "runner.stage_retry_exhausted stage_id=%s max_retries=%d",
-                    stage_id,
-                    max_retries,
-                )
-                return "failed"
+                    return "failed"
 
-            if decision.action == "reflect":
-                # Pinned retrieval: load prior reflection prompt by exact session_id to
-                # bypass list_recent() window limits. Best-effort — retry proceeds if unavailable.
-                if self.short_term_store is not None and attempt > 1:
-                    try:
-                        prior_session = f"{self.run_id}/reflect/{stage_id}/{attempt - 1}"
-                        prior_mem = self.short_term_store.load(prior_session)
-                        if prior_mem is not None and self.context_manager is not None:
-                            self.context_manager.set_reflection_context(
-                                prior_mem.task_goal or ""
+                if decision.action == "reflect":
+                    # Pinned retrieval: load prior reflection prompt by exact session_id to
+                    # bypass list_recent() window limits. Best-effort — retry proceeds if unavailable.
+                    if self.short_term_store is not None and attempt > 1:
+                        try:
+                            prior_session = f"{self.run_id}/reflect/{stage_id}/{attempt - 1}"
+                            prior_mem = self.short_term_store.load(prior_session)
+                            if prior_mem is not None and self.context_manager is not None:
+                                self.context_manager.set_reflection_context(
+                                    prior_mem.task_goal or ""
+                                )
+                        except Exception:
+                            pass  # best-effort
+
+                    # Inject reflection prompt into the run context so the next
+                    # stage attempt has actionable guidance from the failure.
+                    if decision.reflection_prompt is not None:
+                        try:
+                            self._record_event(
+                                "ReflectionPrompt",
+                                {
+                                    "stage_id": stage_id,
+                                    "run_id": self.run_id,
+                                    "reflection_prompt": decision.reflection_prompt,
+                                },
                             )
-                    except Exception:
-                        pass  # best-effort
+                        except Exception as exc:
+                            _logger.warning(
+                                "runner.reflect_prompt_record_failed stage_id=%s error=%s",
+                                stage_id,
+                                exc,
+                            )
+                    if self._reflection_orchestrator is not None:
+                        try:
+                            import asyncio
 
-                # Inject reflection prompt into the run context so the next
-                # stage attempt has actionable guidance from the failure.
-                if decision.reflection_prompt is not None:
+                            descriptor_cls = None
+                            try:
+                                from hi_agent.task_mgmt.reflection_bridge import (
+                                    TaskDescriptor,
+                                )
+                                descriptor_cls = TaskDescriptor
+                            except Exception as exc:
+                                _logger.warning(
+                                    "runner: task_descriptor import failed, reflection skipped: %s",
+                                    exc,
+                                )
+
+                            if descriptor_cls is not None:
+                                descriptor = descriptor_cls(
+                                    task_id=policy_task_id,
+                                    goal=getattr(self.contract, "goal", ""),
+                                    context={},
+                                )
+                                loop = None
+                                try:
+                                    loop = asyncio.get_event_loop()
+                                except RuntimeError as exc:
+                                    _logger.warning(
+                                        "runner: no event loop available, sync reflection only: %s",
+                                        exc,
+                                    )
+
+                                if loop is not None and loop.is_running():
+                                    # Save reflection prompt synchronously — must precede the retry LLM call.
+                                    if decision.reflection_prompt and self.short_term_store is not None:
+                                        try:
+                                            from hi_agent.memory.short_term import (
+                                                ShortTermMemory,
+                                            )
+                                            self.short_term_store.save(
+                                                ShortTermMemory(
+                                                    session_id=f"{self.run_id}/reflect/{stage_id}/{attempt}",
+                                                    run_id=self.run_id,
+                                                    task_goal=decision.reflection_prompt,
+                                                    outcome="reflecting",
+                                                )
+                                            )
+                                        except Exception as _exc:
+                                            _logger.warning(
+                                                "runner.reflect_context_inject_failed "
+                                                "stage_id=%s error=%s",
+                                                stage_id,
+                                                _exc,
+                                            )
+                                    # Fire extended LLM reflection as a background task.
+                                    task = loop.create_task(
+                                        self._reflection_orchestrator.reflect_and_infer(
+                                            descriptor=descriptor,
+                                            attempts=self._get_attempt_history(stage_id),
+                                            run_id=self.run_id,
+                                        )
+                                    )
+                                    task.add_done_callback(_reflect_task_done_callback)
+                                    self._pending_reflection_tasks.append(task)  # J8-1: track for finalization
+                                    _logger.info(
+                                        "runner.reflect_scheduled_async stage_id=%s",
+                                        stage_id,
+                                    )
+                                else:
+                                    asyncio.run(
+                                        self._reflection_orchestrator.reflect_and_infer(
+                                            descriptor=descriptor,
+                                            attempts=self._get_attempt_history(stage_id),
+                                            run_id=self.run_id,
+                                        )
+                                    )
+                                    # Inject reflection prompt into short-term memory so retry LLM sees it.
+                                    if decision.reflection_prompt and self.short_term_store is not None:
+                                        try:
+                                            from hi_agent.memory.short_term import (
+                                                ShortTermMemory,
+                                            )
+                                            self.short_term_store.save(
+                                                ShortTermMemory(
+                                                    session_id=f"{self.run_id}/reflect/{stage_id}/{attempt}",
+                                                    run_id=self.run_id,
+                                                    task_goal=decision.reflection_prompt,
+                                                    outcome="reflecting",
+                                                )
+                                            )
+                                        except Exception as _exc:
+                                            _logger.warning(
+                                                "runner.reflect_context_inject_failed stage_id=%s error=%s",
+                                                stage_id,
+                                                _exc,
+                                            )
+                        except Exception as exc:
+                            _logger.warning(
+                                "runner.reflect_failed stage_id=%s error=%s",
+                                stage_id,
+                                exc,
+                            )
+                    else:
+                        _logger.info(
+                            "runner.reflect_no_orchestrator stage_id=%s",
+                            stage_id,
+                        )
+                    # If a next attempt is scheduled (reflect-before-retry), run it now.
+                    if decision.next_attempt_seq is not None:
+                        _logger.info(
+                            "runner.reflect_retry stage_id=%s next_attempt=%d",
+                            stage_id,
+                            decision.next_attempt_seq,
+                        )
+                        retry_result = self._execute_stage(stage_id)
+                        if retry_result != "failed":
+                            return retry_result
+                        stage_result = retry_result
+                        continue  # K-7: loop back instead of recursing
+                    # Budget exhausted after reflection — do not propagate failure.
+                    return "reflected"
+
+                if decision.action == "escalate":
+                    _logger.warning(
+                        "runner.stage_escalated stage_id=%s run_id=%s",
+                        stage_id,
+                        self.run_id,
+                    )
                     try:
                         self._record_event(
-                            "ReflectionPrompt",
+                            "StageEscalated",
                             {
                                 "stage_id": stage_id,
                                 "run_id": self.run_id,
-                                "reflection_prompt": decision.reflection_prompt,
+                                "reason": decision.reason,
                             },
                         )
                     except Exception as exc:
                         _logger.warning(
-                            "runner.reflect_prompt_record_failed stage_id=%s error=%s",
-                            stage_id,
-                            exc,
+                            "runner: StageEscalated event recording failed, continuing: %s", exc
                         )
-                if self._reflection_orchestrator is not None:
-                    try:
-                        import asyncio
+                    return "failed"
 
-                        descriptor_cls = None
-                        try:
-                            from hi_agent.task_mgmt.reflection_bridge import (
-                                TaskDescriptor,
-                            )
-                            descriptor_cls = TaskDescriptor
-                        except Exception as exc:
-                            _logger.warning(
-                                "runner: task_descriptor import failed, reflection skipped: %s",
-                                exc,
-                            )
-
-                        if descriptor_cls is not None:
-                            descriptor = descriptor_cls(
-                                task_id=policy_task_id,
-                                goal=getattr(self.contract, "goal", ""),
-                                context={},
-                            )
-                            loop = None
-                            try:
-                                loop = asyncio.get_event_loop()
-                            except RuntimeError as exc:
-                                _logger.warning(
-                                    "runner: no event loop available, sync reflection only: %s",
-                                    exc,
-                                )
-
-                            if loop is not None and loop.is_running():
-                                # Save reflection prompt synchronously — must precede the retry LLM call.
-                                if decision.reflection_prompt and self.short_term_store is not None:
-                                    try:
-                                        from hi_agent.memory.short_term import (
-                                            ShortTermMemory,
-                                        )
-                                        self.short_term_store.save(
-                                            ShortTermMemory(
-                                                session_id=f"{self.run_id}/reflect/{stage_id}/{attempt}",
-                                                run_id=self.run_id,
-                                                task_goal=decision.reflection_prompt,
-                                                outcome="reflecting",
-                                            )
-                                        )
-                                    except Exception as _exc:
-                                        _logger.warning(
-                                            "runner.reflect_context_inject_failed "
-                                            "stage_id=%s error=%s",
-                                            stage_id,
-                                            _exc,
-                                        )
-                                # Fire extended LLM reflection as a background task.
-                                task = loop.create_task(
-                                    self._reflection_orchestrator.reflect_and_infer(
-                                        descriptor=descriptor,
-                                        attempts=self._get_attempt_history(stage_id),
-                                        run_id=self.run_id,
-                                    )
-                                )
-                                task.add_done_callback(_reflect_task_done_callback)
-                                self._pending_reflection_tasks.append(task)  # J8-1: track for finalization
-                                _logger.info(
-                                    "runner.reflect_scheduled_async stage_id=%s",
-                                    stage_id,
-                                )
-                            else:
-                                asyncio.run(
-                                    self._reflection_orchestrator.reflect_and_infer(
-                                        descriptor=descriptor,
-                                        attempts=self._get_attempt_history(stage_id),
-                                        run_id=self.run_id,
-                                    )
-                                )
-                                # Inject reflection prompt into short-term memory so retry LLM sees it.
-                                if decision.reflection_prompt and self.short_term_store is not None:
-                                    try:
-                                        from hi_agent.memory.short_term import (
-                                            ShortTermMemory,
-                                        )
-                                        self.short_term_store.save(
-                                            ShortTermMemory(
-                                                session_id=f"{self.run_id}/reflect/{stage_id}/{attempt}",
-                                                run_id=self.run_id,
-                                                task_goal=decision.reflection_prompt,
-                                                outcome="reflecting",
-                                            )
-                                        )
-                                    except Exception as _exc:
-                                        _logger.warning(
-                                            "runner.reflect_context_inject_failed stage_id=%s error=%s",
-                                            stage_id,
-                                            _exc,
-                                        )
-                    except Exception as exc:
-                        _logger.warning(
-                            "runner.reflect_failed stage_id=%s error=%s",
-                            stage_id,
-                            exc,
-                        )
-                else:
-                    _logger.info(
-                        "runner.reflect_no_orchestrator stage_id=%s",
-                        stage_id,
-                    )
-                # If a next attempt is scheduled (reflect-before-retry), run it now.
-                if decision.next_attempt_seq is not None:
-                    _logger.info(
-                        "runner.reflect_retry stage_id=%s next_attempt=%d",
-                        stage_id,
-                        decision.next_attempt_seq,
-                    )
-                    retry_result = self._execute_stage(stage_id)
-                    if retry_result != "failed":
-                        return retry_result
-                    return self._handle_stage_failure(
-                        stage_id, retry_result, max_retries=max_retries
-                    )
-                # Budget exhausted after reflection — do not propagate failure.
-                return "reflected"
-
-            if decision.action == "escalate":
-                _logger.warning(
-                    "runner.stage_escalated stage_id=%s run_id=%s",
+                # action == "abort" or unknown
+                _logger.info(
+                    "runner.stage_aborted stage_id=%s run_id=%s",
                     stage_id,
                     self.run_id,
                 )
-                try:
-                    self._record_event(
-                        "StageEscalated",
-                        {
-                            "stage_id": stage_id,
-                            "run_id": self.run_id,
-                            "reason": decision.reason,
-                        },
-                    )
-                except Exception as exc:
-                    _logger.warning(
-                        "runner: StageEscalated event recording failed, continuing: %s", exc
-                    )
                 return "failed"
 
-            # action == "abort" or unknown
-            _logger.info(
-                "runner.stage_aborted stage_id=%s run_id=%s",
-                stage_id,
-                self.run_id,
+            _logger.warning(
+                "runner.stage_failure_loop_ceiling stage_id=%s run_id=%s ceiling=%d",
+                stage_id, self.run_id, _max_total_attempts,
             )
             return "failed"
 
@@ -2727,19 +2733,21 @@ class RunExecutor:
                 _rm_exc,
             )
 
-        # 9. Restore _gate_pending state: re-raise if a gate was pending at checkpoint.
-        _gate_pending_id: str | None = None
+        # 9. Restore _gate_pending state only if gate was not subsequently resolved.
+        _last_gate_event: dict | None = None
         for ev in reversed(session.events):
-            if isinstance(ev, dict) and ev.get("event") == "gate_registered":
-                _gate_pending_id = ev.get("gate_id")
+            if isinstance(ev, dict) and ev.get("event") in ("gate_registered", "gate_decision"):
+                _last_gate_event = ev
                 break
-        if _gate_pending_id is not None:
-            executor._gate_pending = _gate_pending_id
+
+        if _last_gate_event is not None and _last_gate_event.get("event") == "gate_registered":
+            executor._gate_pending = _last_gate_event.get("gate_id")
             _logger.info(
-                "runner.resume_gate_pending_restored run_id=%s gate_id=%s",
-                session.run_id,
-                _gate_pending_id,
+                "runner.checkpoint_gate_restored run_id=%s gate_id=%s",
+                executor.run_id,
+                _last_gate_event.get("gate_id"),
             )
+        # If last event was gate_decision: gate was resolved; _gate_pending stays None
 
         # 10. Execute remaining stages only
         return executor._execute_remaining()
@@ -3255,11 +3263,16 @@ async def execute_async(
     )
 
     run_id = deterministic_id(executor.contract.task_id, "run")
-    await executor.kernel.start_run(
+    executor._run_id = run_id  # K-2: sync executor's run_id to match kernel registration
+    executor._run_start_monotonic = time.monotonic()  # K-15: enable duration measurement
+    # K-3: handles both sync and async kernels — only await if result is awaitable
+    _start_result = executor.kernel.start_run(
         run_id=run_id,
         session_id=run_id,
         metadata={"goal": executor.contract.goal},
     )
+    if inspect.isawaitable(_start_result):
+        await _start_result
 
     # When the stage kernel (sync) differs from executor.kernel (async facade),
     # pre-register the run_id so open_branch / mark_branch_state can locate it.
