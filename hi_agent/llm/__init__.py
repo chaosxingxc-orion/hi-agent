@@ -37,11 +37,13 @@ from hi_agent.llm.streaming import (
     StreamDelta,
     StreamDeltaType,
 )
+from hi_agent.llm.tier_presets import apply_research_defaults
 from hi_agent.llm.tier_router import TierAwareLLMGateway, TierMapping, TierRouter
 
 __all__ = [
     # Core protocols & types
     "AnthropicLLMGateway",
+    "apply_research_defaults",
     "AsyncLLMGateway",
     "HttpLLMGateway",
     "LLMBudgetExhaustedError",

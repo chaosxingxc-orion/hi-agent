@@ -10,6 +10,14 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 
+class GatePendingError(Exception):
+    """Raised when stage execution is attempted while a human gate is pending.
+
+    Call :meth:`~hi_agent.runner.RunExecutor.resume` with the blocking
+    gate_id before continuing execution.
+    """
+
+
 @dataclass
 class GateEvent:
     """Record of a registered human gate point.

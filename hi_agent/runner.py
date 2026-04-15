@@ -272,6 +272,8 @@ class RunExecutor:
         self._gate_seq = 0
         # Registered human gate events, keyed by gate_id.
         self._registered_gates: dict[str, object] = {}
+        # gate_id of the currently blocking human gate, or None if no gate is pending.
+        self._gate_pending: str | None = None
         # Pending async delegation futures, keyed by task_id.
         self._pending_subrun_futures: dict[str, object] = {}
         # Completed synchronous delegation results, keyed by task_id.
@@ -1689,7 +1691,17 @@ class RunExecutor:
             ``"failed"`` if the stage is a dead end and the run should abort,
             or ``None`` if the stage completed successfully and execution
             should continue to the next stage.
+
+        Raises:
+            GatePendingError: If a human gate is pending. Call
+                :meth:`resume` with the blocking gate_id before continuing.
         """
+        # Human gate enforcement: block stage execution while a gate is pending.
+        if self._gate_pending is not None:
+            from hi_agent.gate_protocol import GatePendingError  # noqa: PLC0415
+            raise GatePendingError(
+                f"Gate {self._gate_pending!r} is pending — call resume() before continuing"
+            )
         # Deadline enforcement: fail fast rather than burning budget past the deadline.
         if self.contract.deadline:
             try:
@@ -1876,6 +1888,29 @@ class RunExecutor:
                 mapped = _EXC_TYPE_TO_FAILURE_CODE.get(exc_type)
                 if mapped:
                     failure_code = mapped
+
+        # --- Close L0 raw memory file handle ---
+        if hasattr(self.raw_memory, "close"):
+            self.raw_memory.close()
+
+        # --- L0 -> L2 consolidation ---
+        try:
+            from pathlib import Path as _Path  # noqa: PLC0415
+            _raw_run_id = getattr(self.raw_memory, "_run_id", "")
+            _raw_file = getattr(self.raw_memory, "_file", None)
+            # Attempt to derive base_dir from the log path stored on the store
+            _raw_base = getattr(self.raw_memory, "_base_dir", None)
+            if _raw_base is None and _raw_run_id:
+                # Fallback: check if RawMemoryStore exposed _base_dir_path
+                _raw_base = getattr(self.raw_memory, "_base_dir_path", None)
+            if _raw_base is not None:
+                from hi_agent.memory.l0_summarizer import L0Summarizer  # noqa: PLC0415
+                _summary = L0Summarizer().summarize_run(self.run_id, _Path(_raw_base))
+                _mid_term = getattr(self, "mid_term_store", None)
+                if _summary is not None and _mid_term is not None:
+                    _mid_term.save(_summary)
+        except Exception as _cons_exc:  # consolidation must never crash the run
+            logger.debug("L0->L2 consolidation failed: %s", _cons_exc)
 
         # --- Wall-clock duration ---
         _start = getattr(self, "_run_start_monotonic", None)
@@ -2143,6 +2178,24 @@ class RunExecutor:
                 return "failed"
 
             if decision.action == "reflect":
+                # Inject reflection prompt into the run context so the next
+                # stage attempt has actionable guidance from the failure.
+                if decision.reflection_prompt is not None:
+                    try:
+                        self._record_event(
+                            "ReflectionPrompt",
+                            {
+                                "stage_id": stage_id,
+                                "run_id": self.run_id,
+                                "reflection_prompt": decision.reflection_prompt,
+                            },
+                        )
+                    except Exception as exc:
+                        _logger.warning(
+                            "runner.reflect_prompt_record_failed stage_id=%s error=%s",
+                            stage_id,
+                            exc,
+                        )
                 if self._reflection_orchestrator is not None:
                     try:
                         import asyncio
@@ -2458,6 +2511,7 @@ class RunExecutor:
             output_summary=output_summary,
         )
         self._registered_gates[gate_id] = event
+        self._gate_pending = gate_id
 
         # Persist gate state into the session checkpoint so it survives
         # a process restart.
@@ -2538,6 +2592,12 @@ class RunExecutor:
                     gate_id=gate_id,
                 )
 
+        # Unblock stage execution now that the human decision has been made.
+        if self._gate_pending == gate_id:
+            self._gate_pending = None
+        if decision == "backtrack":
+            self._run_terminated = True
+
     # -----------------------------------------------------------------------
     # Sub-run delegation public API (Task 3 — P2-3)
     # -----------------------------------------------------------------------
@@ -2548,6 +2608,7 @@ class RunExecutor:
         profile_id: str,
         strategy: str = "sequential",
         restart_policy: str = "reflect(2)",
+        goal: str = "",
     ) -> SubRunHandle:
         """Dispatch a child run via DelegationManager.
 
@@ -2565,6 +2626,8 @@ class RunExecutor:
                 ``"parallel"``).
             restart_policy: Restart policy expression (e.g.
                 ``"reflect(2)"``).
+            goal: Task instruction for the child run. When omitted the
+                agent name is used as a fallback goal.
 
         Returns:
             A :class:`SubRunHandle` with the child run identifier.
@@ -2585,8 +2648,7 @@ class RunExecutor:
 
         task_id = f"{self.run_id}-sub-{uuid.uuid4().hex[:8]}"
         req = DelegationRequest(
-            goal=f"agent={agent} profile={profile_id} strategy={strategy} "
-                 f"restart_policy={restart_policy}",
+            goal=goal or f"agent={agent}",
             task_id=task_id,
             config={
                 "agent": agent,

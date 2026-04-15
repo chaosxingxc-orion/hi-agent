@@ -11,7 +11,9 @@ Loaded on-demand by model via retrieval. Supports:
 from __future__ import annotations
 
 import json
+import math
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,6 +61,7 @@ class LongTermMemoryGraph:
         self,
         storage_path: str = ".hi_agent/memory/long_term/graph.json",
         profile_id: str = "",
+        embedding_fn: Callable[[str], list[float]] | None = None,
     ) -> None:
         """Initialize LongTermMemoryGraph.
 
@@ -68,6 +71,9 @@ class LongTermMemoryGraph:
             profile_id: When non-empty, overrides the storage path to
                 {storage_path_base}/memory/L3/{profile_id}/graph.json where
                 storage_path_base is the parent-of-parent of storage_path.
+            embedding_fn: Optional callable that maps a text string to a
+                float vector.  When provided, ``search()`` uses cosine
+                similarity instead of TF-IDF.
         """
         if profile_id:
             # storage_path default: {base}/memory/long_term/graph.json
@@ -81,6 +87,15 @@ class LongTermMemoryGraph:
         self._nodes: dict[str, MemoryNode] = {}
         self._edges: list[MemoryEdge] = []
         self._adjacency: dict[str, list[str]] = {}  # node_id -> [connected_node_ids]
+        self._embedding_fn = embedding_fn
+        # TF-IDF index (in-memory only, rebuilt on load)
+        self._tf: dict[str, dict[str, float]] = {}   # node_id -> {term: tf}
+        self._df: dict[str, int] = {}                # term -> doc_count
+        # Embedding cache (lazy, in-memory only)
+        self._embeddings: dict[str, list[float]] = {}
+
+        if self._storage_path.exists():
+            self.load()
 
     # ------------------------------------------------------------------ CRUD
 
@@ -94,6 +109,7 @@ class LongTermMemoryGraph:
         self._nodes[node.node_id] = node
         if node.node_id not in self._adjacency:
             self._adjacency[node.node_id] = []
+        self._index_node(node)
 
     def update_node(
         self,
@@ -115,6 +131,7 @@ class LongTermMemoryGraph:
         """Remove a node and all its connected edges."""
         if node_id not in self._nodes:
             return
+        self._unindex_node(node_id)
         del self._nodes[node_id]
         # Remove edges involving this node
         self._edges = [
@@ -128,6 +145,8 @@ class LongTermMemoryGraph:
             self._adjacency[nid] = [
                 n for n in self._adjacency[nid] if n != node_id
             ]
+        # Remove cached embedding
+        self._embeddings.pop(node_id, None)
 
     def add_edge(self, edge: MemoryEdge) -> None:
         """Add an edge between two nodes."""
@@ -160,21 +179,56 @@ class LongTermMemoryGraph:
         return self._nodes.get(node_id)
 
     def search(self, query: str, limit: int = 10) -> list[MemoryNode]:
-        """Search by keyword match on content + tags.
+        """Search nodes by semantic relevance.
 
-        Ranks by relevance (keyword match count) then by access_count.
+        Ranking priority:
+        1. If *embedding_fn* is set: cosine similarity between query and node
+           embeddings (lazy-cached per node).
+        2. If TF-IDF index is populated: TF-IDF weighted term scoring.
+        3. Fallback: keyword hit count + access_count boost (original behaviour).
         """
         if not query.strip():
             return []
-        keywords = query.lower().split()
+
         scored: list[tuple[float, MemoryNode]] = []
-        for node in self._nodes.values():
-            text = (node.content + " " + " ".join(node.tags)).lower()
-            hits = sum(1 for kw in keywords if kw in text)
-            if hits > 0:
-                # Score: keyword hits + small boost from access_count
-                score = hits + node.access_count * 0.01
-                scored.append((score, node))
+
+        if self._embedding_fn is not None:
+            # --- Embedding-based cosine similarity ---
+            query_vec = self._embedding_fn(query)
+            for node in self._nodes.values():
+                if node.node_id not in self._embeddings:
+                    self._embeddings[node.node_id] = self._embedding_fn(node.content)
+                node_vec = self._embeddings[node.node_id]
+                score = _cosine(query_vec, node_vec)
+                if score > 0:
+                    scored.append((score, node))
+        elif self._tf:
+            # --- TF-IDF scoring ---
+            query_terms = query.lower().split()
+            n_docs = len(self._nodes)
+            for node in self._nodes.values():
+                tf = self._tf.get(node.node_id, {})
+                tfidf_score = sum(
+                    tf.get(term, 0.0)
+                    * math.log((n_docs + 1) / (self._df.get(term, 0) + 1))
+                    for term in query_terms
+                )
+                # Keyword hit count as minimum signal when TF-IDF is zero
+                # (can happen when n_docs is small and all docs contain the term)
+                keyword_hits = sum(1 for term in query_terms if term in tf)
+                score = tfidf_score + keyword_hits * 0.001
+                if score > 0:
+                    scored.append((score, node))
+        else:
+            # --- Keyword fallback ---
+            keywords = query.lower().split()
+            for node in self._nodes.values():
+                text = (node.content + " " + " ".join(node.tags)).lower()
+                hits = sum(1 for kw in keywords if kw in text)
+                if hits > 0:
+                    score = hits + node.access_count * 0.01
+                    scored.append((score, node))
+
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return [node for _, node in scored[:limit]]
 
@@ -272,6 +326,9 @@ class LongTermMemoryGraph:
         self._nodes.clear()
         self._edges.clear()
         self._adjacency.clear()
+        self._tf.clear()
+        self._df.clear()
+        self._embeddings.clear()
 
         for nid, ndata in data.get("nodes", {}).items():
             node = MemoryNode(
@@ -299,6 +356,8 @@ class LongTermMemoryGraph:
             self._adjacency.setdefault(edge.source_id, []).append(edge.target_id)
             self._adjacency.setdefault(edge.target_id, []).append(edge.source_id)
 
+        self._rebuild_index()
+
     # ------------------------------------------------------------------ Stats
 
     def node_count(self) -> int:
@@ -316,6 +375,50 @@ class LongTermMemoryGraph:
         node = self._nodes.get(node_id)
         if node is not None:
             node.access_count += 1
+
+    # ------------------------------------------------------------------ TF-IDF index
+
+    def _index_node(self, node: MemoryNode) -> None:
+        """Add node to TF-IDF index."""
+        terms = node.content.lower().split()
+        if not terms:
+            return
+        term_counts: dict[str, int] = {}
+        for term in terms:
+            term_counts[term] = term_counts.get(term, 0) + 1
+        tf: dict[str, float] = {
+            term: count / len(terms) for term, count in term_counts.items()
+        }
+        self._tf[node.node_id] = tf
+        for term in tf:
+            self._df[term] = self._df.get(term, 0) + 1
+
+    def _unindex_node(self, node_id: str) -> None:
+        """Remove node from TF-IDF index."""
+        tf = self._tf.pop(node_id, {})
+        for term in tf:
+            current = self._df.get(term, 0)
+            if current <= 1:
+                self._df.pop(term, None)
+            else:
+                self._df[term] = current - 1
+
+    def _rebuild_index(self) -> None:
+        """Rebuild TF-IDF index from all current nodes."""
+        self._tf.clear()
+        self._df.clear()
+        for node in self._nodes.values():
+            self._index_node(node)
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    """Compute cosine similarity between two vectors. Returns 0 on zero-norm."""
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 
 class LongTermConsolidator:

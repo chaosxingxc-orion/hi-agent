@@ -72,11 +72,28 @@ class RawMemoryStore:
         self.records: list[RawEventRecord] = []
         self._run_id = run_id
         self._file: IO[str] | None = None
+        self._base_dir: Path | None = None
 
         if run_id and base_dir:
-            log_path = Path(base_dir) / "logs" / "memory" / "L0" / f"{run_id}.jsonl"
+            self._base_dir = Path(base_dir)
+            log_path = self._base_dir / "logs" / "memory" / "L0" / f"{run_id}.jsonl"
             log_path.parent.mkdir(parents=True, exist_ok=True)
             self._file = log_path.open("a", encoding="utf-8")
+
+    def close(self) -> None:
+        """Flush and close the JSONL file handle. Safe to call multiple times."""
+        if self._file is not None:
+            self._file.flush()
+            self._file.close()
+            self._file = None
+
+    def __enter__(self) -> RawMemoryStore:
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        """Exit context manager — closes the file handle."""
+        self.close()
 
     def append(
         self,
@@ -85,6 +102,8 @@ class RawMemoryStore:
         stage_id: str | None = None,
     ) -> None:
         """Append one record, auto-tagging contradictions within the same stage."""
+        if self._run_id and self._file is None:
+            raise ValueError("RawMemoryStore is closed")
         if stage_id is not None:
             same_stage = [
                 r

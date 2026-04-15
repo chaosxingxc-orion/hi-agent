@@ -29,7 +29,7 @@ __all__ = [
     "RestartDecision",
     "RestartPolicyEngine",
     "TaskAttempt",
-    "TaskAttemptRecord",
+    "TaskAttemptRecord",  # noqa: F822 — provided via module __getattr__
     "TaskRestartPolicy",
 ]
 
@@ -44,6 +44,7 @@ class RestartDecision:
     action: RestartAction
     next_attempt_seq: int | None
     reason: str
+    reflection_prompt: str | None = None
 
 
 def __getattr__(name: str) -> Any:
@@ -194,6 +195,18 @@ class RestartPolicyEngine:
             )
 
         on_exhausted = policy.on_exhausted
+        failure_reason = (
+            getattr(failure, "failure_code", None)
+            or getattr(failure, "reason", None)
+            or "unknown"
+        ) if failure else "unknown"
+        reflection_prompt: str | None = None
+        if on_exhausted == "reflect":
+            reflection_prompt = (
+                f"Previous attempt {attempt_seq} failed: {failure_reason}. "
+                f"Stage: unknown. "
+                f"Identify what went wrong and how to correct it in the next attempt."
+            )
         return RestartDecision(
             task_id=task_id,
             action=on_exhausted,  # type: ignore[arg-type]
@@ -202,6 +215,7 @@ class RestartPolicyEngine:
                 f"retry budget exhausted ({attempt_seq}/{policy.max_attempts}); "
                 f"on_exhausted={on_exhausted}"
             ),
+            reflection_prompt=reflection_prompt,
         )
 
     async def _launch_retry(
