@@ -209,13 +209,18 @@ class KernelFacadeClient:
                         "facade does not implement 'stream_run_events'"
                     ),
                 )
-            async for event in method(run_id):
-                if isinstance(event, dict):
-                    yield event
-                elif hasattr(event, "__dict__"):
-                    yield dict(event.__dict__)
-                else:
-                    yield {"event": str(event)}
+            try:
+                async for event in method(run_id):
+                    if isinstance(event, dict):
+                        yield event
+                    elif hasattr(event, "__dict__"):
+                        yield dict(event.__dict__)
+                    else:
+                        yield {"event": str(event)}
+            except RuntimeAdapterBackendError:
+                raise
+            except Exception as exc:
+                raise RuntimeAdapterBackendError("stream_run_events", cause=exc) from exc
         else:
             # HTTP mode: single GET request, return events as a list.
             # True streaming would require SSE; for now we fetch all events.
@@ -420,6 +425,21 @@ class KernelFacadeClient:
             return []
         resp = self._http_get(f"/runs/{parent_run_id}/children")
         return resp.get("children", []) if isinstance(resp, dict) else []
+
+    async def spawn_child_run_async(
+        self,
+        parent_run_id: str,
+        task_id: str,
+        config: dict[str, Any] | None = None,
+    ) -> str:
+        """Async version of spawn_child_run via asyncio.to_thread."""
+        import asyncio  # noqa: PLC0415
+        return await asyncio.to_thread(self.spawn_child_run, parent_run_id, task_id, config)
+
+    async def query_child_runs_async(self, parent_run_id: str) -> list[dict[str, Any]]:
+        """Async version of query_child_runs via asyncio.to_thread."""
+        import asyncio  # noqa: PLC0415
+        return await asyncio.to_thread(self.query_child_runs, parent_run_id)
 
     # ------------------------------------------------------------------
     # Internal: direct mode helpers

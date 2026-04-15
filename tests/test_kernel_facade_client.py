@@ -287,6 +287,23 @@ class TestDirectMode:
         assert len(events) == 1
         assert events[0]["event_type"] == "RunStarted"
 
+    def test_spawn_child_run_async(
+        self, client: KernelFacadeClient, facade: FakeFacade
+    ) -> None:
+        child_run_id = asyncio.run(
+            client.spawn_child_run_async("run-0001", "task-child", None)
+        )
+        assert isinstance(child_run_id, str)
+        assert "run-0001" in child_run_id
+        assert facade.calls[-1][0] == "spawn_child_run"
+
+    def test_query_child_runs_async(
+        self, client: KernelFacadeClient, facade: FakeFacade
+    ) -> None:
+        result = asyncio.run(client.query_child_runs_async("run-0001"))
+        assert isinstance(result, list)
+        assert facade.calls[-1] == ("query_child_runs", ("run-0001",))
+
 
 # ---------------------------------------------------------------------------
 # HTTP mode tests
@@ -496,6 +513,26 @@ class TestHTTPMode:
         mock_urlopen.side_effect = urllib.error.URLError("connection refused")
         with pytest.raises(RuntimeAdapterBackendError):
             client.start_run("task-fail")
+
+    @patch("urllib.request.urlopen")
+    def test_spawn_child_run_async_http(
+        self, mock_urlopen, client: KernelFacadeClient
+    ) -> None:
+        mock_urlopen.return_value = _FakeHTTPResponse({"child_run_id": "child-http-1"})
+        child_run_id = asyncio.run(
+            client.spawn_child_run_async("r1", "task-child", None)
+        )
+        assert isinstance(child_run_id, str)
+
+    @patch("urllib.request.urlopen")
+    def test_query_child_runs_async_http(
+        self, mock_urlopen, client: KernelFacadeClient
+    ) -> None:
+        mock_urlopen.return_value = _FakeHTTPResponse(
+            {"children": [{"child_run_id": "c1"}]}
+        )
+        result = asyncio.run(client.query_child_runs_async("r1"))
+        assert isinstance(result, list)
 
 
 # ---------------------------------------------------------------------------

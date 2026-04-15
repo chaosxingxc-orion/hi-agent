@@ -1597,10 +1597,7 @@ async def handle_list_artifacts(request: Request) -> JSONResponse:
         return JSONResponse({"artifacts": []})
     artifact_type = request.query_params.get("type")
     producer = request.query_params.get("producer")
-    if artifact_type or producer:
-        artifacts = registry.query(artifact_type=artifact_type, producer_action_id=producer)
-    else:
-        artifacts = registry.all()
+    artifacts = registry.query(artifact_type=artifact_type, producer_action_id=producer)
     return JSONResponse({"artifacts": [a.to_dict() for a in artifacts], "count": len(artifacts)})
 
 

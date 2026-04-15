@@ -150,6 +150,21 @@ class AsyncKernelFacadeAdapter:
         """Async delegate for query_child_runs."""
         return await asyncio.to_thread(self._sync.query_child_runs, parent_run_id)
 
+    async def resolve_escalation(
+        self,
+        run_id: str,
+        *,
+        resolution_notes: str | None = None,
+        caused_by: str | None = None,
+    ) -> None:
+        """Async delegate for resolve_escalation."""
+        await asyncio.to_thread(
+            self._sync.resolve_escalation,
+            run_id,
+            resolution_notes=resolution_notes,
+            caused_by=caused_by,
+        )
+
     # ------------------------------------------------------------------
     # New async-native methods
     # ------------------------------------------------------------------
@@ -173,6 +188,15 @@ class AsyncKernelFacadeAdapter:
     # ------------------------------------------------------------------
     # Child run management (async versions)
     # ------------------------------------------------------------------
+
+    def spawn_child_run(
+        self,
+        parent_run_id: str,
+        task_id: str,
+        config: dict[str, Any] | None = None,
+    ) -> str:
+        """Sync delegate for spawn_child_run."""
+        return self._sync.spawn_child_run(parent_run_id, task_id, config)
 
     async def spawn_child_run_async(
         self,

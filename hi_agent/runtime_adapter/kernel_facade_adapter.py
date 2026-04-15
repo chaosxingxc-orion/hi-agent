@@ -605,6 +605,19 @@ class KernelFacadeAdapter:
         error = ValueError("query_child_runs must return a list")
         raise RuntimeAdapterBackendError("query_child_runs", cause=error) from error
 
+    async def spawn_child_run_async(
+        self,
+        parent_run_id: str,
+        task_id: str,
+        config: dict[str, Any] | None = None,
+    ) -> str:
+        """Async version of spawn_child_run via asyncio.to_thread."""
+        return await asyncio.to_thread(self.spawn_child_run, parent_run_id, task_id, config)
+
+    async def query_child_runs_async(self, parent_run_id: str) -> list[dict[str, Any]]:
+        """Async version of query_child_runs via asyncio.to_thread."""
+        return await asyncio.to_thread(self.query_child_runs, parent_run_id)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

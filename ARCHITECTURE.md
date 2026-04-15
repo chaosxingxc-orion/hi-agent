@@ -1050,11 +1050,24 @@ PASSTHROUGH 字段的消费由调用层（business agent / profile）负责。
 
 ---
 
+## 12.4 2026-04-15 调用方审计 + agent-kernel 刷新（全部已关闭）
+
+agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
+
+| 缺口 | 来源 | 修复内容 |
+|------|------|---------|
+| `stream_run_events` Temporal 模式静默空流（P1） | hi-agent 调用方审计 | agent-kernel `ae2acc7`：`_stream_run_events()` 从静默返回空 iterator 改为抛 `RuntimeError`（含 actionable message），消除 SSE / reconcile loop 静默数据丢失风险 |
+| `KernelFacadeClient` direct 模式 `stream_run_events` 无异常守卫 | hi-agent 内部发现 | `runtime_adapter/kernel_facade_client.py`：`async for` 循环包裹 `try/except`，将底层 `RuntimeError` 统一转换为 `RuntimeAdapterBackendError`，与 `KernelFacadeAdapter` 行为一致 |
+| `spawn_child_run_async` / `query_child_runs_async` 协议缺口 | hi-agent DelegationManager P0 | `KernelFacadeAdapter` 与 `KernelFacadeClient` 均新增两个 async wrapper（`asyncio.to_thread`）；`AsyncKernelFacadeAdapter` 补全 `resolve_escalation` async 委托与 `spawn_child_run` 同步委托 |
+| agent-kernel submodule pin | 版本对齐 | `pyproject.toml` 固定 commit 从 `43fda27` 升至 `ff4d25c7` |
+
+---
+
 ## 13. 质量门禁
 
 ```bash
 python -m ruff check .
-python -m pytest -q        # 2812 tests, all passing
+python -m pytest -q        # 2826 passed, 5 skipped
 ```
 
 当前文档对应代码形态已通过全量测试回归（2026-04-15，2nd pass）。
