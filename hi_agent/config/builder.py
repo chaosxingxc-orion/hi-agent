@@ -1031,8 +1031,17 @@ class SystemBuilder:
             pass  # no prior state on first run — expected on fresh installs
         return graph
 
-    def build_retrieval_engine(self) -> Any:
+    def build_retrieval_engine(
+        self,
+        short_term_store: Any = None,
+        mid_term_store: Any = None,
+        long_term_graph: Any = None,
+        profile_id: str = "",
+    ) -> Any:
         """Build four-layer retrieval engine across all memory tiers.
+
+        When store objects are provided, they are used directly (no new instances
+        are created). When absent, new instances are built scoped to profile_id.
 
         Layer 4 (semantic embedding re-ranking) is activated by wiring a
         TFIDFEmbeddingProvider against the engine's internal TFIDFIndex.
@@ -1043,9 +1052,9 @@ class SystemBuilder:
         from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 
         wiki = self.build_knowledge_wiki()
-        graph = self.build_long_term_graph()
-        short = self.build_short_term_store()
-        mid = self.build_mid_term_store()
+        graph = long_term_graph if long_term_graph is not None else self.build_long_term_graph(profile_id=profile_id)
+        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
+        mid = mid_term_store if mid_term_store is not None else self.build_mid_term_store(profile_id=profile_id)
 
         # Build the engine first so we can access its internal _tfidf index.
         engine = RetrievalEngine(
@@ -1453,6 +1462,7 @@ class SystemBuilder:
         _profile_id = getattr(contract, "profile_id", "") or ""
         _run_id = uuid.uuid4().hex
         _raw_base = self._config.episodic_storage_dir
+        _short_term_store = self.build_short_term_store(profile_id=_profile_id)
         _mid_term_store = self.build_mid_term_store(profile_id=_profile_id)
         _long_term_graph = self.build_long_term_graph(profile_id=_profile_id)
         try:
@@ -1485,7 +1495,7 @@ class SystemBuilder:
             policy_versions=PolicyVersionSet(),
             route_engine=self._build_route_engine(stage_actions=stage_actions),
             acceptance_policy=AcceptancePolicy(),
-            short_term_store=self.build_short_term_store(profile_id=_profile_id),
+            short_term_store=_short_term_store,
             mid_term_store=_mid_term_store,
             long_term_consolidator=_long_term_consolidator,
             knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
@@ -1494,7 +1504,12 @@ class SystemBuilder:
             metrics_collector=self.build_metrics_collector(),
             llm_gateway=self.build_llm_gateway(),
             memory_lifecycle_manager=self.build_memory_lifecycle_manager(),
-            retrieval_engine=self.build_retrieval_engine(),
+            retrieval_engine=self.build_retrieval_engine(
+                short_term_store=_short_term_store,
+                mid_term_store=_mid_term_store,
+                long_term_graph=_long_term_graph,
+                profile_id=_profile_id,
+            ),
             tier_router=self._tier_router,
             restart_policy_engine=self._build_restart_policy_engine(),
             reflection_orchestrator=self._build_reflection_orchestrator(),

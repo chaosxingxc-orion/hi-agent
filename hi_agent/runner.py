@@ -69,6 +69,7 @@ from hi_agent.runner_telemetry import RunTelemetry
 from hi_agent.trajectory.dead_end import detect_dead_end
 from hi_agent.trajectory.optimizers import GreedyOptimizer
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
+from hi_agent.gate_protocol import GatePendingError
 
 # ---------------------------------------------------------------------------
 # Deprecated: STAGES is a sample constant for the TRACE S1-S5 pipeline.
@@ -100,6 +101,20 @@ class SubRunResult:
     success: bool
     output: str
     error: str | None = None
+
+
+def _reflect_task_done_callback(task: "asyncio.Task[object]") -> None:
+    """Log completion or failure of an async reflection background task."""
+    if task.cancelled():
+        _logger.warning("runner.reflect_async_task_cancelled")
+        return
+    exc = task.exception()
+    if exc is not None:
+        _logger.error(
+            "runner.reflect_async_task_failed error=%s type=%s",
+            exc,
+            type(exc).__name__,
+        )
 
 
 class RunExecutor:
@@ -1702,7 +1717,6 @@ class RunExecutor:
         """
         # Human gate enforcement: block stage execution while a gate is pending.
         if self._gate_pending is not None:
-            from hi_agent.gate_protocol import GatePendingError  # noqa: PLC0415
             raise GatePendingError(gate_id=self._gate_pending)
         # Deadline enforcement: fail fast rather than burning budget past the deadline.
         if self.contract.deadline:
@@ -1996,11 +2010,9 @@ class RunExecutor:
                     if handled == "failed":
                         return self._finalize_run("failed")
                     # "reflected" or any non-failed result: continue to next stage
+        except GatePendingError:
+            raise  # propagate — gate awaits human input, not a run failure
         except Exception as exc:
-            # Re-raise gate-pending errors — they are not run failures.
-            from hi_agent.gate_protocol import GatePendingError  # noqa: PLC0415
-            if isinstance(exc, GatePendingError):
-                raise
             # Capture exception type and message for failure attribution in RunResult.
             self._last_exception_msg: str | None = str(exc)
             self._last_exception_type: str | None = type(exc).__name__
@@ -2242,13 +2254,36 @@ class RunExecutor:
                                 )
 
                             if loop is not None and loop.is_running():
-                                loop.create_task(
+                                # Save reflection prompt synchronously — must precede the retry LLM call.
+                                if decision.reflection_prompt and self.short_term_store is not None:
+                                    try:
+                                        from hi_agent.memory.short_term import (  # noqa: PLC0415
+                                            ShortTermMemory,
+                                        )
+                                        self.short_term_store.save(
+                                            ShortTermMemory(
+                                                session_id=f"{self.run_id}/reflect/{stage_id}/{attempt}",
+                                                run_id=self.run_id,
+                                                task_goal=decision.reflection_prompt,
+                                                outcome="reflecting",
+                                            )
+                                        )
+                                    except Exception as _exc:
+                                        _logger.warning(
+                                            "runner.reflect_context_inject_failed "
+                                            "stage_id=%s error=%s",
+                                            stage_id,
+                                            _exc,
+                                        )
+                                # Fire extended LLM reflection as a background task.
+                                task = loop.create_task(
                                     self._reflection_orchestrator.reflect_and_infer(
                                         descriptor=descriptor,
                                         attempts=self._get_attempt_history(stage_id),
                                         run_id=self.run_id,
                                     )
                                 )
+                                task.add_done_callback(_reflect_task_done_callback)
                                 _logger.info(
                                     "runner.reflect_scheduled_async stage_id=%s",
                                     stage_id,
@@ -2335,6 +2370,9 @@ class RunExecutor:
             )
             return "failed"
 
+        except GatePendingError:
+            raise  # gate must propagate — not a retry failure
+
         except Exception as exc:
             _logger.warning(
                 "runner.handle_stage_failure_error stage_id=%s error=%s — falling back to failed",
@@ -2347,7 +2385,13 @@ class RunExecutor:
         """Return prior attempt records for the given stage_id from the restart policy."""
         try:
             policy_task_id = self.contract.task_id
-            return self._restart_policy._get_attempts(policy_task_id)
+            all_attempts = self._restart_policy._get_attempts(policy_task_id)
+            # If attempt records carry stage_id, return only those matching this stage.
+            # Falls back to the full list if stage_id is not tracked on the records.
+            if all_attempts and hasattr(all_attempts[0], "stage_id"):
+                filtered = [a for a in all_attempts if getattr(a, "stage_id", None) == stage_id]
+                return filtered if filtered else all_attempts
+            return all_attempts
         except Exception:
             return []
 
