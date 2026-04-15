@@ -218,6 +218,22 @@ python -m hi_agent --api-port 8080 health --json
 
 ---
 
+## Public API
+
+Minimal Python usage example:
+
+```python
+from hi_agent import RunExecutorFacade, check_readiness
+
+report = check_readiness()
+facade = RunExecutorFacade()
+facade.start("run-001", profile_id="proj-A", model_tier="medium", skill_dir="skills/")
+result = facade.run("Summarize the TRACE framework in one paragraph")
+facade.stop()
+```
+
+---
+
 ## API 核心端点
 
 | 端点 | 方法 | 功能 |

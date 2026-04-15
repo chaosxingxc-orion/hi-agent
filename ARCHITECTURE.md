@@ -897,6 +897,17 @@ flowchart TD
 | `/metrics` | `GET` | Prometheus 指标 |
 | `/metrics/json` | `GET` | JSON 指标快照 |
 
+### 9.6 Public API Surface
+
+Top-level symbols exported from `hi_agent` for external callers:
+
+| Symbol | Description |
+|--------|-------------|
+| `hi_agent.RunExecutorFacade` | `start(run_id, profile_id, model_tier, skill_dir)` / `run(prompt) → RunFacadeResult` / `stop()` |
+| `hi_agent.check_readiness()` | Returns `ReadinessReport` — per-subsystem health check |
+| `hi_agent.GateEvent` | Human gate lifecycle event dataclass |
+| `hi_agent.SubRunHandle` / `SubRunResult` | Nested sub-run dispatch / collection |
+
 ---
 
 ## 10. 配置与组件装配（SystemBuilder）
