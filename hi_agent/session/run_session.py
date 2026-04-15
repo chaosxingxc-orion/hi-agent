@@ -86,6 +86,7 @@ class RunSession:
         # Stage tracking
         self.current_stage: str = ""
         self.stage_states: dict[str, str] = {}
+        self.stage_attempt: dict[str, int] = {}
         self.action_seq: int = 0
         self.branch_seq: int = 0
 
@@ -214,6 +215,7 @@ class RunSession:
             "task_contract": _serialize_contract(self.task_contract),
             "current_stage": self.current_stage,
             "stage_states": dict(self.stage_states),
+            "stage_attempt": dict(self.stage_attempt),
             "action_seq": self.action_seq,
             "branch_seq": self.branch_seq,
             "l0_records": list(self.l0_records),
@@ -246,6 +248,7 @@ class RunSession:
         )
         session.current_stage = data.get("current_stage", "")
         session.stage_states = data.get("stage_states", {})
+        session.stage_attempt = data.get("stage_attempt", {})
         session.action_seq = data.get("action_seq", 0)
         session.branch_seq = data.get("branch_seq", 0)
         session.l0_records = data.get("l0_records", [])

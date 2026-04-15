@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     from hi_agent.session.run_session import RunSession
     from hi_agent.skill.recorder import SkillUsageRecorder
     from hi_agent.task_mgmt.delegation import DelegationManager
-    from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine
     from hi_agent.task_mgmt.reflection import ReflectionOrchestrator
+    from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine
 
 import time
 from datetime import UTC
@@ -39,37 +39,30 @@ from hi_agent.capability import (
 )
 from hi_agent.context.run_context import RunContext
 from hi_agent.contracts import (
-    BranchState,
     CTSExplorationBudget,
     HumanGateRequest,
     NodeState,
-    NodeType,
     StageState,
     StageSummary,
     TaskContract,
     TrajectoryNode,
     deterministic_id,
 )
-from hi_agent.contracts.requests import RunResult
 from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.contracts.requests import RunResult
 from hi_agent.events import EventEmitter, EventEnvelope
-from hi_agent.memory import MemoryCompressor, RawEventRecord, RawMemoryStore
+from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.recovery import CompensationHandler, orchestrate_recovery
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
-from hi_agent.runtime_adapter.protocol import RuntimeAdapter
-from hi_agent.state import RunStateSnapshot, RunStateStore
-from hi_agent.task_view.builder import (
-    build_run_index,
-    build_task_view_with_knowledge_query,
-)
 from hi_agent.runner_lifecycle import RunLifecycle
 from hi_agent.runner_stage import StageExecutor
 from hi_agent.runner_telemetry import RunTelemetry
-from hi_agent.trajectory.dead_end import detect_dead_end
+from hi_agent.runtime_adapter.protocol import RuntimeAdapter
+from hi_agent.state import RunStateSnapshot, RunStateStore
 from hi_agent.trajectory.optimizers import GreedyOptimizer
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
-from hi_agent.gate_protocol import GatePendingError
 
 # ---------------------------------------------------------------------------
 # Deprecated: STAGES is a sample constant for the TRACE S1-S5 pipeline.
@@ -105,7 +98,7 @@ class SubRunResult:
     status: str = "completed"
 
 
-def _reflect_task_done_callback(task: "asyncio.Task[object]") -> None:
+def _reflect_task_done_callback(task: asyncio.Task[object]) -> None:
     """Log completion or failure of an async reflection background task."""
     if task.cancelled():
         _logger.warning("runner.reflect_async_task_cancelled")
@@ -114,6 +107,20 @@ def _reflect_task_done_callback(task: "asyncio.Task[object]") -> None:
     if exc is not None:
         _logger.error(
             "runner.reflect_async_task_failed error=%s type=%s",
+            exc,
+            type(exc).__name__,
+        )
+
+
+def _subrun_task_done_callback(task: asyncio.Task[object]) -> None:
+    """Log completion or failure of an async sub-run background task."""
+    if task.cancelled():
+        _logger.warning("runner.subrun_async_task_cancelled")
+        return
+    exc = task.exception()
+    if exc is not None:
+        _logger.error(
+            "runner.subrun_async_task_failed error=%s type=%s",
             exc,
             type(exc).__name__,
         )
@@ -165,8 +172,8 @@ class RunExecutor:
         skill_version_mgr: Any | None = None,  # SkillVersionManager
         skill_loader: Any | None = None,  # SkillLoader
         short_term_store: ShortTermMemoryStore | None = None,
-        mid_term_store: "MidTermMemoryStore | None" = None,
-        long_term_consolidator: "LongTermConsolidator | None" = None,
+        mid_term_store: MidTermMemoryStore | None = None,
+        long_term_consolidator: LongTermConsolidator | None = None,
         session: RunSession | None = None,
         retrieval_engine: Any | None = None,  # RetrievalEngine
         knowledge_manager: Any | None = None,  # KnowledgeManager
@@ -179,9 +186,9 @@ class RunExecutor:
         replay_recorder: Any | None = None,  # ReplayRecorder
         llm_gateway: Any | None = None,  # LLMGateway — wired into default invoker
         tier_router: Any | None = None,  # TierRouter — passed to lifecycle for P2 feedback
-        restart_policy_engine: "RestartPolicyEngine | None" = None,
-        reflection_orchestrator: "ReflectionOrchestrator | None" = None,
-        delegation_manager: "DelegationManager | None" = None,
+        restart_policy_engine: RestartPolicyEngine | None = None,
+        reflection_orchestrator: ReflectionOrchestrator | None = None,
+        delegation_manager: DelegationManager | None = None,
         compress_snip_threshold: int | None = None,
         compress_window_threshold: int | None = None,
         compress_compress_threshold: int | None = None,
@@ -297,6 +304,8 @@ class RunExecutor:
         self._pending_subrun_futures: dict[str, object] = {}
         # Completed synchronous delegation results, keyed by task_id.
         self._completed_subrun_results: dict[str, object] = {}
+        # Pending async reflection background tasks, tracked for cancellation on finalize.
+        self._pending_reflection_tasks: list[object] = []
         self.policy_versions = policy_versions or PolicyVersionSet()
 
         # --- Final wiring: FailureCollector, Watchdog, Episode, Skill ---
@@ -586,7 +595,7 @@ class RunExecutor:
             from hi_agent.middleware.hooks import ExecutionHookManager, HookRegistry
             self._hook_registry = HookRegistry()
             self._hook_manager = ExecutionHookManager(self._hook_registry)
-        except Exception as _exc:  # noqa: BLE001
+        except Exception as _exc:
             _logger.debug(
                 "runner.hook_manager_init_failed run_id=%s error=%s",
                 self.run_id, _exc,
@@ -611,7 +620,7 @@ class RunExecutor:
             )
             self._nudge_injector = NudgeInjector(self._nudge_config)
             self._nudge_state = NudgeState()
-        except Exception as _exc:  # noqa: BLE001
+        except Exception as _exc:
             _logger.debug(
                 "runner.nudge_injector_init_failed run_id=%s error=%s",
                 self.run_id, _exc,
@@ -729,8 +738,9 @@ class RunExecutor:
             return self._invoke_capability(proposal, payload)
 
         try:
-            from hi_agent.middleware.hooks import ToolCallContext
             import asyncio
+
+            from hi_agent.middleware.hooks import ToolCallContext
 
             tool_ctx = ToolCallContext(
                 run_id=self.run_id,
@@ -763,7 +773,7 @@ class RunExecutor:
                 )
 
             return _call_fn._last_result  # type: ignore[attr-defined]
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _logger.debug(
                 "runner.hook_wrap_failed run_id=%s stage_id=%s error=%s",
                 self.run_id, payload.get("stage_id", ""), exc,
@@ -811,7 +821,7 @@ class RunExecutor:
                     "runner.nudge_triggered run_id=%s stage_id=%s nudges=%d",
                     self.run_id, stage_id, len(triggers),
                 )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _logger.debug(
                 "runner.nudge_check_failed run_id=%s stage_id=%s error=%s",
                 self.run_id, stage_id, exc,
@@ -1072,7 +1082,9 @@ class RunExecutor:
         try:
             import datetime as _dt
             import uuid as _uuid
+
             from agent_kernel.kernel.contracts import RuntimeEvent as _RuntimeEvent
+
             from hi_agent.server.event_bus import event_bus as _event_bus
             _event_bus.publish(_RuntimeEvent(
                 run_id=self.run_id or "",
@@ -1237,6 +1249,7 @@ class RunExecutor:
                     for key, value in getattr(self.kernel, "stages", {}).items()
                 }
                 self.session.action_seq = self.action_seq
+                self.session.stage_attempt = dict(self._stage_attempt)
                 self.session.save_checkpoint()
             except Exception as exc:
                 self._log_best_effort_exception(
@@ -1731,11 +1744,11 @@ class RunExecutor:
         # Deadline enforcement: fail fast rather than burning budget past the deadline.
         if self.contract.deadline:
             try:
-                from datetime import datetime, timezone  # noqa: PLC0415
+                from datetime import datetime
                 dl = datetime.fromisoformat(
                     self.contract.deadline.replace("Z", "+00:00")
                 )
-                if datetime.now(timezone.utc) >= dl:
+                if datetime.now(UTC) >= dl:
                     self._record_failure(
                         "execution_budget_exhausted",
                         f"Task deadline exceeded: {self.contract.deadline}",
@@ -1751,7 +1764,21 @@ class RunExecutor:
         return self._stage_executor.execute_stage(stage_id, executor=self)
 
     def _cancel_pending_subruns(self, status: str) -> None:
-        """Cancel any sub-run futures that were not collected before finalization."""
+        """Cancel any sub-run futures and reflection tasks not collected before finalization."""
+        # J8-1: Cancel orphaned reflection background tasks.
+        for task in list(getattr(self, "_pending_reflection_tasks", [])):
+            try:
+                if callable(getattr(task, "done", None)) and not task.done():
+                    task.cancel()
+                    _logger.warning(
+                        "runner.reflect_task_cancelled_at_finalization run_id=%s",
+                        self.run_id,
+                    )
+            except Exception as _exc:
+                _logger.debug("runner.reflect_task_cancel_failed error=%s", _exc)
+        _pending_reflect = getattr(self, "_pending_reflection_tasks", [])
+        _pending_reflect.clear()
+
         pending = getattr(self, "_pending_subrun_futures", {})
         for task_id, future in list(pending.items()):
             try:
@@ -1859,7 +1886,7 @@ class RunExecutor:
             collector = getattr(self, "failure_collector", None)
             if collector is not None:
                 try:
-                    from hi_agent.failures.taxonomy import FAILURE_RECOVERY_MAP  # noqa: PLC0415
+                    from hi_agent.failures.taxonomy import FAILURE_RECOVERY_MAP
                     unresolved = collector.get_unresolved()
                     last_failure = unresolved[-1] if unresolved else None
                     if last_failure is None:
@@ -1951,7 +1978,7 @@ class RunExecutor:
 
         # --- L0 -> L2 consolidation ---
         try:
-            from pathlib import Path as _Path  # noqa: PLC0415
+            from pathlib import Path as _Path
             _raw_run_id = getattr(self.raw_memory, "_run_id", "")
             _raw_file = getattr(self.raw_memory, "_file", None)
             # Attempt to derive base_dir from the log path stored on the store
@@ -1960,7 +1987,7 @@ class RunExecutor:
                 # Fallback: check if RawMemoryStore exposed _base_dir_path
                 _raw_base = getattr(self.raw_memory, "_base_dir_path", None)
             if _raw_base is not None:
-                from hi_agent.memory.l0_summarizer import L0Summarizer  # noqa: PLC0415
+                from hi_agent.memory.l0_summarizer import L0Summarizer
                 _summary = L0Summarizer().summarize_run(self.run_id, _Path(_raw_base))
                 if _summary is not None and self.mid_term_store is not None:
                     self.mid_term_store.save(_summary)
@@ -2125,34 +2152,45 @@ class RunExecutor:
         max_steps = len(self.stage_graph.transitions) * 2  # safety limit
         steps = 0
 
-        while current_stage is not None and steps < max_steps:
-            steps += 1
-            result = self._execute_stage(current_stage)
-            if result == "failed":
-                backtrack = self.stage_graph.get_backtrack(current_stage)
-                if backtrack and backtrack not in completed_stages:
-                    # Backtrack: re-execute a previous stage
-                    current_stage = backtrack
-                    continue
-                handled = self._handle_stage_failure(current_stage, result)
-                if handled == "failed":
-                    return self._finalize_run("failed")
-                # "reflected" or non-failed: treat as completed and continue
-            completed_stages.add(current_stage)
+        try:
+            while current_stage is not None and steps < max_steps:
+                steps += 1
+                result = self._execute_stage(current_stage)
+                if result == "failed":
+                    backtrack = self.stage_graph.get_backtrack(current_stage)
+                    if backtrack and backtrack not in completed_stages:
+                        # Backtrack: re-execute a previous stage
+                        current_stage = backtrack
+                        continue
+                    handled = self._handle_stage_failure(current_stage, result)
+                    if handled == "failed":
+                        return self._finalize_run("failed")
+                    # "reflected" or non-failed: treat as completed and continue
+                completed_stages.add(current_stage)
 
-            # Get next stage from graph
-            successors = self.stage_graph.successors(current_stage)
-            candidates = successors - completed_stages
+                # Get next stage from graph
+                successors = self.stage_graph.successors(current_stage)
+                candidates = successors - completed_stages
 
-            if not candidates:
-                # No more stages to run
-                break
+                if not candidates:
+                    # No more stages to run
+                    break
 
-            if len(candidates) == 1:
-                current_stage = next(iter(candidates))
-            else:
-                # Multiple successors: use route engine or pick lexically
-                current_stage = self._select_next_stage(candidates)
+                if len(candidates) == 1:
+                    current_stage = next(iter(candidates))
+                else:
+                    # Multiple successors: use route engine or pick lexically
+                    current_stage = self._select_next_stage(candidates)
+        except GatePendingError:
+            raise  # propagate — gate awaits human input, not a run failure
+        except Exception as exc:
+            self._last_exception_msg = str(exc)
+            self._last_exception_type = type(exc).__name__
+            self._log_best_effort_exception(
+                logging.WARNING, "runner.execute_graph_failed", exc,
+                run_id=self.run_id, stage_id=self.current_stage,
+            )
+            return self._finalize_run("failed")
 
         return self._finalize_run("completed")
 
@@ -2201,8 +2239,9 @@ class RunExecutor:
 
             # Record this attempt so reflect_and_infer() receives real history.
             try:
-                from datetime import UTC, datetime  # noqa: PLC0415
-                from hi_agent.task_mgmt.restart_policy import TaskAttempt as _TA  # noqa: PLC0415
+                from datetime import UTC, datetime
+
+                from hi_agent.task_mgmt.restart_policy import TaskAttempt as _TA
                 _ta_kwargs: dict = dict(
                     attempt_id=f"{self.run_id}/{stage_id}/{attempt}",
                     task_id=policy_task_id,
@@ -2234,7 +2273,7 @@ class RunExecutor:
                     "runner: no restart policy for task_id=%s, defaulting to abort",
                     policy_task_id,
                 )
-                from hi_agent.task_mgmt.restart_policy import RestartDecision  # noqa: PLC0415
+                from hi_agent.task_mgmt.restart_policy import RestartDecision
                 decision = RestartDecision(
                     task_id=policy_task_id,
                     action="abort",
@@ -2347,7 +2386,7 @@ class RunExecutor:
                                 # Save reflection prompt synchronously — must precede the retry LLM call.
                                 if decision.reflection_prompt and self.short_term_store is not None:
                                     try:
-                                        from hi_agent.memory.short_term import (  # noqa: PLC0415
+                                        from hi_agent.memory.short_term import (
                                             ShortTermMemory,
                                         )
                                         self.short_term_store.save(
@@ -2374,6 +2413,7 @@ class RunExecutor:
                                     )
                                 )
                                 task.add_done_callback(_reflect_task_done_callback)
+                                self._pending_reflection_tasks.append(task)  # J8-1: track for finalization
                                 _logger.info(
                                     "runner.reflect_scheduled_async stage_id=%s",
                                     stage_id,
@@ -2389,7 +2429,9 @@ class RunExecutor:
                                 # Inject reflection prompt into short-term memory so retry LLM sees it.
                                 if decision.reflection_prompt and self.short_term_store is not None:
                                     try:
-                                        from hi_agent.memory.short_term import ShortTermMemory  # noqa: PLC0415
+                                        from hi_agent.memory.short_term import (
+                                            ShortTermMemory,
+                                        )
                                         self.short_term_store.save(
                                             ShortTermMemory(
                                                 session_id=f"{self.run_id}/reflect/{stage_id}/{attempt}",
@@ -2515,7 +2557,7 @@ class RunExecutor:
                 )
         return sorted(candidates)[0]
 
-    def _execute_remaining(self) -> "RunResult":
+    def _execute_remaining(self) -> RunResult:
         """Execute stages that haven't been completed yet.
 
         Skips stages that are already ``completed`` in
@@ -2547,20 +2589,23 @@ class RunExecutor:
         })
 
         all_completed = True
-        for stage_id in self.stage_graph.trace_order():
-            if stage_id in completed_stages:
-                self._emit_observability("stage_skipped_resume", {
-                    "run_id": self.run_id, "stage_id": stage_id,
-                })
-                continue
+        try:
+            for stage_id in self.stage_graph.trace_order():
+                if stage_id in completed_stages:
+                    self._emit_observability("stage_skipped_resume", {
+                        "run_id": self.run_id, "stage_id": stage_id,
+                    })
+                    continue
 
-            all_completed = False
-            stage_result = self._execute_stage(stage_id)
-            if stage_result == "failed":
-                handled = self._handle_stage_failure(stage_id, stage_result)
-                if handled == "failed":
-                    return self._finalize_run("failed")
-                # "reflected" or non-failed: continue to next stage
+                all_completed = False
+                stage_result = self._execute_stage(stage_id)
+                if stage_result == "failed":
+                    handled = self._handle_stage_failure(stage_id, stage_result)
+                    if handled == "failed":
+                        return self._finalize_run("failed")
+                    # "reflected" or non-failed: continue to next stage
+        except GatePendingError:
+            raise  # gate must propagate during resume too
 
         if all_completed:
             # All stages were already completed in the checkpoint
@@ -2609,6 +2654,7 @@ class RunExecutor:
             constraints=contract_data.get("constraints", []),
             acceptance_criteria=contract_data.get("acceptance_criteria", []),
             risk_level=contract_data.get("risk_level", "low"),
+            profile_id=contract_data.get("profile_id", ""),  # J5-3: restore profile scoping
         )
 
         # 3. Restore session from checkpoint
@@ -2638,6 +2684,7 @@ class RunExecutor:
         executor.action_seq = session.action_seq
         executor.branch_seq = session.branch_seq
         executor.current_stage = session.current_stage
+        executor._stage_attempt = dict(session.stage_attempt)
 
         # Remap the kernel run entry so it knows about the restored run_id
         try:
@@ -2666,7 +2713,35 @@ class RunExecutor:
                 outcome=summary_data.get("outcome", ""),
             )
 
-        # 8. Execute remaining stages only
+        # 8. Reconstruct raw_memory so L0 events from resumed stages are appended.
+        try:
+            base_dir = kwargs.get("raw_memory_base_dir", ".episodes")
+            executor.raw_memory = RawMemoryStore(
+                run_id=session.run_id,
+                base_dir=base_dir,
+            )
+        except Exception as _rm_exc:
+            _logger.debug(
+                "runner.resume_raw_memory_failed run_id=%s error=%s",
+                session.run_id,
+                _rm_exc,
+            )
+
+        # 9. Restore _gate_pending state: re-raise if a gate was pending at checkpoint.
+        _gate_pending_id: str | None = None
+        for ev in reversed(session.events):
+            if isinstance(ev, dict) and ev.get("event") == "gate_registered":
+                _gate_pending_id = ev.get("gate_id")
+                break
+        if _gate_pending_id is not None:
+            executor._gate_pending = _gate_pending_id
+            _logger.info(
+                "runner.resume_gate_pending_restored run_id=%s gate_id=%s",
+                session.run_id,
+                _gate_pending_id,
+            )
+
+        # 10. Execute remaining stages only
         return executor._execute_remaining()
 
     # -----------------------------------------------------------------------
@@ -2798,7 +2873,7 @@ class RunExecutor:
         gate_id: str,
         decision: str,
         rationale: str = "",
-    ) -> "RunResult":
+    ) -> RunResult:
         """Resume execution after a human gate decision.
 
         This is the correct entry point after a :class:`GatePendingError` has
@@ -2817,6 +2892,100 @@ class RunExecutor:
         """
         self.resume(gate_id=gate_id, decision=decision, rationale=rationale)
         return self._execute_remaining()
+
+    def continue_from_gate_graph(
+        self,
+        gate_id: str,
+        decision: str,
+        rationale: str = "",
+        *,
+        last_stage: str | None = None,
+        completed_stages: set[str] | None = None,
+    ) -> RunResult:
+        """Resume graph execution after a human gate decision.
+
+        Unlike :meth:`continue_from_gate` which uses linear ``trace_order()``,
+        this method resumes graph traversal from the correct position.
+
+        Args:
+            gate_id: Gate identifier from the propagated ``GatePendingError``.
+            decision: Human decision — ``"approved"``, ``"override"``, or
+                ``"backtrack"``.
+            rationale: Free-text rationale for the decision (optional).
+            last_stage: The stage that was executing when the gate fired.
+                When None, uses ``self.current_stage``.
+            completed_stages: Set of stage IDs already completed before the
+                gate fired. When None, inferred from session.stage_states.
+
+        Returns:
+            :class:`RunResult` with run outcome after completion.
+        """
+        self.resume(gate_id=gate_id, decision=decision, rationale=rationale)
+
+        if decision == "backtrack":
+            return self._finalize_run("failed")
+
+        # Determine which stages are already done.
+        if completed_stages is None:
+            if self.session is not None:
+                completed_stages = {
+                    sid for sid, state in self.session.stage_states.items()
+                    if state == "completed"
+                }
+            else:
+                completed_stages = set(self.stage_summaries.keys())
+
+        # Resume graph traversal from last_stage's successors.
+        start_stage = last_stage or self.current_stage
+        if start_stage and start_stage not in completed_stages:
+            # last_stage itself was not completed — retry it.
+            current_stage: str | None = start_stage
+        else:
+            # Advance to successors not yet completed.
+            successors = self.stage_graph.successors(start_stage) if start_stage else set()
+            candidates = successors - completed_stages
+            current_stage = self._select_next_stage(candidates) if candidates else None
+
+        max_steps = len(self.stage_graph.transitions) * 2
+        steps = 0
+        try:
+            while current_stage is not None and steps < max_steps:
+                steps += 1
+                if current_stage in completed_stages:
+                    successors = self.stage_graph.successors(current_stage)
+                    candidates = successors - completed_stages
+                    current_stage = self._select_next_stage(candidates) if candidates else None
+                    continue
+
+                result = self._execute_stage(current_stage)
+                if result == "failed":
+                    backtrack = self.stage_graph.get_backtrack(current_stage)
+                    if backtrack and backtrack not in completed_stages:
+                        current_stage = backtrack
+                        continue
+                    handled = self._handle_stage_failure(current_stage, result)
+                    if handled == "failed":
+                        return self._finalize_run("failed")
+                completed_stages.add(current_stage)
+
+                successors = self.stage_graph.successors(current_stage)
+                candidates = successors - completed_stages
+                if not candidates:
+                    break
+                if len(candidates) > 1:
+                    current_stage = self._select_next_stage(candidates)
+                else:
+                    current_stage = next(iter(candidates))
+        except GatePendingError:
+            raise
+        except Exception as exc:
+            self._log_best_effort_exception(
+                logging.WARNING, "runner.continue_from_gate_graph_failed", exc,
+                run_id=self.run_id, stage_id=self.current_stage,
+            )
+            return self._finalize_run("failed")
+
+        return self._finalize_run("completed")
 
     # -----------------------------------------------------------------------
     # Sub-run delegation public API (Task 3 — P2-3)
@@ -2887,6 +3056,7 @@ class RunExecutor:
             future = loop.create_task(
                 self._delegation_manager.delegate([req], parent_run_id=self.run_id)
             )
+            future.add_done_callback(_subrun_task_done_callback)  # J6-1: log errors
             self._pending_subrun_futures[task_id] = future  # type: ignore[attr-defined]
         except RuntimeError:
             # No running loop — synchronous call path.
@@ -3116,9 +3286,15 @@ async def execute_async(
             )
             if _sync_capable:
                 loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(
-                    None, executor._execute_stage, node_id
-                )
+                try:
+                    result = await loop.run_in_executor(
+                        None, executor._execute_stage, node_id
+                    )
+                except Exception as _stage_exc:
+                    from hi_agent.gate_protocol import GatePendingError as _GatePE
+                    if isinstance(_stage_exc, _GatePE):
+                        raise
+                    result = "failed"
                 status = "failed" if result == "failed" else "completed"
             else:
                 # Async-only kernel (e.g. pure facade) — state is managed by
@@ -3132,8 +3308,8 @@ async def execute_async(
     # this path is safely skipped when the field is absent or empty.
     _sub_goals: list[Any] = getattr(executor.contract, "sub_goals", None) or []
     if _sub_goals and executor._delegation_manager is not None:
+
         from hi_agent.task_mgmt.delegation import DelegationRequest
-        import uuid as _uuid
 
         delegation_requests = [
             DelegationRequest(
@@ -3162,6 +3338,18 @@ async def execute_async(
         run_id=run_id,
         make_handler=make_handler,
     )
+
+    # J3-3: Populate session.stage_states so a resumed run does not re-execute.
+    if executor.session is not None:
+        for node_id in schedule_result.completed_nodes:
+            executor.session.stage_states[node_id] = "completed"
+
+    # J3-2: Call _finalize_run for resource cleanup, L0→L3 memory chain, observability.
+    outcome = "completed" if schedule_result.success else "failed"
+    try:
+        executor._finalize_run(outcome)
+    except Exception as _fin_exc:
+        _logger.warning("execute_async: _finalize_run failed: %s", _fin_exc)
 
     return AsyncRunResult(
         run_id=run_id,
