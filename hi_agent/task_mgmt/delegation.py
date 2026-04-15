@@ -24,6 +24,8 @@ if TYPE_CHECKING:
     from hi_agent.runtime_adapter.protocol import RuntimeAdapter
     from hi_agent.llm.protocol import AsyncLLMGateway
 
+from hi_agent.gate_protocol import GatePendingError
+
 logger = logging.getLogger(__name__)
 
 # Terminal states for a child run lifecycle.
@@ -77,11 +79,12 @@ class DelegationResult:
 
     request: DelegationRequest
     child_run_id: str
-    status: Literal["completed", "failed", "aborted", "timeout"]
+    status: Literal["completed", "failed", "aborted", "timeout", "gate_pending"]
     summary: str
     raw_output: str | None = None
     duration_seconds: float = 0.0
     error: str | None = None
+    gate_id: str | None = None
 
 
 @dataclass
@@ -303,7 +306,17 @@ class DelegationManager:
 
         results: list[DelegationResult] = []
         for req, outcome in zip(requests, raw_results):
-            if isinstance(outcome, BaseException):
+            if isinstance(outcome, GatePendingError):
+                results.append(
+                    DelegationResult(
+                        request=req,
+                        child_run_id="",
+                        status="gate_pending",
+                        summary="",
+                        gate_id=outcome.gate_id,
+                    )
+                )
+            elif isinstance(outcome, BaseException):
                 results.append(
                     DelegationResult(
                         request=req,
@@ -393,6 +406,8 @@ class DelegationManager:
                     duration_seconds=duration,
                 )
 
+            except GatePendingError:
+                raise
             except Exception as exc:  # noqa: BLE001
                 duration = time.monotonic() - start_time
                 logger.exception(

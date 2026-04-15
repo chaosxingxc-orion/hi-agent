@@ -38,6 +38,7 @@ class TestContextBudget:
             skill_prompts=5_000,
             memory_context=2_000,
             knowledge_context=1_500,
+            reflection_context=0,
         )
         assert b.fixed_overhead == 13_500
 
@@ -50,6 +51,7 @@ class TestContextBudget:
             skill_prompts=1_000,
             memory_context=1_000,
             knowledge_context=1_000,
+            reflection_context=0,
         )
         # effective = 45000, overhead = 5000, history = 40000
         assert b.history_budget == 40_000

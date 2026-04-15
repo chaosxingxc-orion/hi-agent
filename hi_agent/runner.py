@@ -101,6 +101,8 @@ class SubRunResult:
     success: bool
     output: str
     error: str | None = None
+    gate_id: str | None = None
+    status: str = "completed"
 
 
 def _reflect_task_done_callback(task: "asyncio.Task[object]") -> None:
@@ -1715,6 +1717,14 @@ class RunExecutor:
             GatePendingError: If a human gate is pending. Call
                 :meth:`resume` with the blocking gate_id before continuing.
         """
+        # Backtrack guard: honour a human reviewer's decision to abort the run.
+        if getattr(self, "_run_terminated", False):
+            _logger.info(
+                "runner.stage_skipped_terminated stage_id=%s run_id=%s",
+                stage_id,
+                self.run_id,
+            )
+            return "failed"
         # Human gate enforcement: block stage execution while a gate is pending.
         if self._gate_pending is not None:
             raise GatePendingError(gate_id=self._gate_pending)
@@ -1740,6 +1750,31 @@ class RunExecutor:
                 pass  # malformed deadline string — ignore rather than crash
         return self._stage_executor.execute_stage(stage_id, executor=self)
 
+    def _cancel_pending_subruns(self, status: str) -> None:
+        """Cancel any sub-run futures that were not collected before finalization."""
+        pending = getattr(self, "_pending_subrun_futures", {})
+        for task_id, future in list(pending.items()):
+            try:
+                if callable(getattr(future, "done", None)) and not future.done():
+                    future.cancel()
+                    _logger.warning(
+                        "runner.subrun_cancelled_at_finalization "
+                        "task_id=%s run_status=%s run_id=%s",
+                        task_id, status, self.run_id,
+                    )
+            except Exception as _exc:
+                _logger.warning(
+                    "runner.subrun_cancel_failed task_id=%s error=%s", task_id, _exc
+                )
+        pending.clear()
+        completed = getattr(self, "_completed_subrun_results", {})
+        if completed:
+            _logger.debug(
+                "runner.subrun_uncollected_results_cleared count=%d run_id=%s",
+                len(completed), self.run_id,
+            )
+            completed.clear()
+
     def _finalize_run(self, outcome: str) -> RunResult:
         """Run post-execution finalization for a given outcome.
 
@@ -1751,6 +1786,15 @@ class RunExecutor:
             containing run_id, status, per-stage summaries, and artifact IDs.
             ``str(result)`` returns the status string for backward compatibility.
         """
+        self._cancel_pending_subruns(outcome)
+
+        # Flush and close L0 JSONL before L0Summarizer reads it.
+        if getattr(self, "raw_memory", None) is not None:
+            try:
+                self.raw_memory.close()
+            except Exception as _exc:
+                _logger.warning("runner.raw_memory_close_failed error=%s", _exc)
+
         self._lifecycle.finalize_run(
             outcome,
             run_id=self.run_id,
@@ -1904,10 +1948,6 @@ class RunExecutor:
                 mapped = _EXC_TYPE_TO_FAILURE_CODE.get(exc_type)
                 if mapped:
                     failure_code = mapped
-
-        # --- Close L0 raw memory file handle ---
-        if hasattr(self.raw_memory, "close"):
-            self.raw_memory.close()
 
         # --- L0 -> L2 consolidation ---
         try:
@@ -2151,6 +2191,35 @@ class RunExecutor:
 
             policy_task_id = self.contract.task_id
 
+            # Record this attempt so reflect_and_infer() receives real history.
+            try:
+                from datetime import UTC, datetime  # noqa: PLC0415
+                from hi_agent.task_mgmt.restart_policy import TaskAttempt as _TA  # noqa: PLC0415
+                _ta_kwargs: dict = dict(
+                    attempt_id=f"{self.run_id}/{stage_id}/{attempt}",
+                    task_id=policy_task_id,
+                    run_id=self.run_id,
+                    attempt_seq=attempt,
+                    started_at=datetime.now(UTC).isoformat(),
+                    outcome="failed",
+                    failure=_StageFail(),
+                )
+                # stage_id was added in H-1; fall back gracefully if absent.
+                try:
+                    ta_obj = _TA(**_ta_kwargs, stage_id=stage_id)
+                except TypeError:
+                    ta_obj = _TA(**_ta_kwargs)
+                    try:
+                        object.__setattr__(ta_obj, "stage_id", stage_id)
+                    except (AttributeError, TypeError):
+                        pass
+                self._restart_policy._record_attempt(ta_obj)
+            except Exception as _rec_exc:
+                _logger.debug(
+                    "runner.record_attempt_failed stage_id=%s attempt=%d error=%s",
+                    stage_id, attempt, _rec_exc,
+                )
+
             _policy = self._restart_policy._get_policy(policy_task_id)
             if _policy is None:
                 _logger.warning(
@@ -2204,6 +2273,19 @@ class RunExecutor:
                 return "failed"
 
             if decision.action == "reflect":
+                # Pinned retrieval: load prior reflection prompt by exact session_id to
+                # bypass list_recent() window limits. Best-effort — retry proceeds if unavailable.
+                if self.short_term_store is not None and attempt > 1:
+                    try:
+                        prior_session = f"{self.run_id}/reflect/{stage_id}/{attempt - 1}"
+                        prior_mem = self.short_term_store.load(prior_session)
+                        if prior_mem is not None and self.context_manager is not None:
+                            self.context_manager.set_reflection_context(
+                                prior_mem.task_goal or ""
+                            )
+                    except Exception:
+                        pass  # best-effort
+
                 # Inject reflection prompt into the run context so the next
                 # stage attempt has actionable guidance from the failure.
                 if decision.reflection_prompt is not None:
@@ -2384,14 +2466,10 @@ class RunExecutor:
     def _get_attempt_history(self, stage_id: str) -> list:
         """Return prior attempt records for the given stage_id from the restart policy."""
         try:
-            policy_task_id = self.contract.task_id
-            all_attempts = self._restart_policy._get_attempts(policy_task_id)
-            # If attempt records carry stage_id, return only those matching this stage.
-            # Falls back to the full list if stage_id is not tracked on the records.
+            all_attempts = self._restart_policy._get_attempts(self.contract.task_id)
             if all_attempts and hasattr(all_attempts[0], "stage_id"):
-                filtered = [a for a in all_attempts if getattr(a, "stage_id", None) == stage_id]
-                return filtered if filtered else all_attempts
-            return all_attempts
+                return [a for a in all_attempts if getattr(a, "stage_id", None) == stage_id]
+            return all_attempts  # backward compat: stage_id not on record type
         except Exception:
             return []
 
@@ -2447,6 +2525,13 @@ class RunExecutor:
                 sid
                 for sid, state in self.session.stage_states.items()
                 if state == "completed"
+            }
+        else:
+            # Fallback: use stage_summaries (populated by _execute_stage on success).
+            completed_stages = {
+                sid
+                for sid, summary in self.stage_summaries.items()
+                if getattr(summary, "outcome", None) in ("completed", "success")
             }
 
         self._emit_observability("run_resumed", {
@@ -2702,6 +2787,31 @@ class RunExecutor:
         if decision == "backtrack":
             self._run_terminated = True
 
+    def continue_from_gate(
+        self,
+        gate_id: str,
+        decision: str,
+        rationale: str = "",
+    ) -> "RunResult":
+        """Resume execution after a human gate decision.
+
+        This is the correct entry point after a :class:`GatePendingError` has
+        been handled and a gate decision has been made. Calling ``execute()``
+        directly after ``resume()`` re-executes all stages from the beginning;
+        this method resumes from the first incomplete stage only.
+
+        Args:
+            gate_id: Gate identifier from the propagated ``GatePendingError``.
+            decision: Human decision — ``"approved"``, ``"override"``, or
+                ``"backtrack"``.
+            rationale: Free-text rationale for the decision (optional).
+
+        Returns:
+            :class:`RunResult` with run outcome after completion.
+        """
+        self.resume(gate_id=gate_id, decision=decision, rationale=rationale)
+        return self._execute_remaining()
+
     # -----------------------------------------------------------------------
     # Sub-run delegation public API (Task 3 — P2-3)
     # -----------------------------------------------------------------------
@@ -2798,6 +2908,14 @@ class RunExecutor:
         completed = getattr(self, "_completed_subrun_results", {})
         if subrun_id in completed:
             dr = completed.pop(subrun_id)
+            if dr.status == "gate_pending":
+                return SubRunResult(
+                    success=False,
+                    output="",
+                    error=None,
+                    gate_id=getattr(dr, "gate_id", None),
+                    status="gate_pending",
+                )
             return SubRunResult(
                 success=dr.status == "completed",
                 output=dr.summary or dr.raw_output or "",
@@ -2821,6 +2939,14 @@ class RunExecutor:
                 results = asyncio.run(_collect())
 
             dr = results[0]
+            if dr.status == "gate_pending":
+                return SubRunResult(
+                    success=False,
+                    output="",
+                    error=None,
+                    gate_id=getattr(dr, "gate_id", None),
+                    status="gate_pending",
+                )
             return SubRunResult(
                 success=dr.status == "completed",
                 output=dr.summary or dr.raw_output or "",

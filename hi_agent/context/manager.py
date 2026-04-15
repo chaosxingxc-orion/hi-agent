@@ -47,8 +47,9 @@ class ContextBudget:
     system_prompt: int = 2_000     # System instructions
     tool_definitions: int = 3_000  # Tool schemas
     skill_prompts: int = 5_000     # Skill descriptions
-    memory_context: int = 2_000    # Memory retrieval results
-    knowledge_context: int = 1_500 # Knowledge retrieval results
+    memory_context: int = 1_500      # Memory retrieval results
+    knowledge_context: int = 1_500   # Knowledge retrieval results
+    reflection_context: int = 500    # Dedicated reflection-prompt partition
 
     @property
     def effective_window(self) -> int:
@@ -63,6 +64,7 @@ class ContextBudget:
             + self.tool_definitions
             + self.skill_prompts
             + self.memory_context
+            + self.reflection_context
             + self.knowledge_context
         )
 
@@ -204,6 +206,9 @@ class ContextManager:
         # Knowledge content injected from retrieval (set via set_knowledge_context)
         self._knowledge_content: str = ""
 
+        # Reflection prompt injected via set_reflection_context (dedicated partition)
+        self._reflection_context: str = ""
+
     @classmethod
     def from_config(
         cls,
@@ -251,6 +256,7 @@ class ContextManager:
             self._assemble_system(system_prompt),
             self._assemble_tools(tool_definitions),
             self._assemble_skills(),
+            self._assemble_reflection(),
             self._assemble_memory(),
             self._assemble_knowledge(),
             self._assemble_history(),
@@ -364,6 +370,24 @@ class ContextManager:
             source="skill_loader",
         )
 
+    def _assemble_reflection(self) -> ContextSection:
+        """Assemble the reflection-prompt partition.
+
+        Returns content previously injected via set_reflection_context().
+        Always appears before general memory content so the LLM receives
+        actionable repair guidance first.
+        """
+        budget = self._budget.reflection_context
+        content = self._reflection_context
+        tokens = count_tokens(content) if content else 0
+        return ContextSection(
+            name="reflection",
+            content=content,
+            tokens=tokens,
+            budget=budget,
+            source="reflection_prompt" if content else "none",
+        )
+
     def _assemble_memory(self) -> ContextSection:
         """Use memory retriever with memory budget."""
         budget = self._budget.memory_context
@@ -415,6 +439,18 @@ class ContextManager:
                      RetrievalResult.to_context_string()).
         """
         self._knowledge_content = content or ""
+
+    def set_reflection_context(self, content: str) -> None:
+        """Write reflection guidance to a dedicated context partition.
+
+        Reflection prompts are NOT subject to memory_context truncation.
+        Rendered before general memory context so the LLM receives
+        actionable repair guidance at the top of its memory section.
+        """
+        tokens = count_tokens(content)
+        if tokens > self._budget.reflection_context:
+            content = content[: self._budget.reflection_context * 4]
+        self._reflection_context = content
 
     def _assemble_knowledge(self) -> ContextSection:
         """Use knowledge retrieval with knowledge budget.
@@ -771,6 +807,7 @@ class ContextManager:
             self._assemble_system(""),
             self._assemble_tools(""),
             self._assemble_skills(),
+            self._assemble_reflection(),
             self._assemble_memory(),
             self._assemble_knowledge(),
             self._assemble_history(),
