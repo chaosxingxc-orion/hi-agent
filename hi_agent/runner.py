@@ -80,6 +80,28 @@ STAGES = default_trace_stage_graph().trace_order("S1_understand")
 _logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Sub-run delegation data types (Task 3 — P2-3)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SubRunHandle:
+    """Identifies a dispatched child run returned by dispatch_subrun()."""
+
+    subrun_id: str
+    agent: str
+
+
+@dataclass
+class SubRunResult:
+    """Result of a completed child run returned by await_subrun()."""
+
+    success: bool
+    output: str
+    error: str | None = None
+
+
 class RunExecutor:
     """Execute TRACE run lifecycle in spike mode."""
 
@@ -248,6 +270,12 @@ class RunExecutor:
         self.harness_executor = harness_executor
         self.human_gate_quality_threshold = human_gate_quality_threshold
         self._gate_seq = 0
+        # Registered human gate events, keyed by gate_id.
+        self._registered_gates: dict[str, object] = {}
+        # Pending async delegation futures, keyed by task_id.
+        self._pending_subrun_futures: dict[str, object] = {}
+        # Completed synchronous delegation results, keyed by task_id.
+        self._completed_subrun_results: dict[str, object] = {}
         self.policy_versions = policy_versions or PolicyVersionSet()
 
         # --- Final wiring: FailureCollector, Watchdog, Episode, Skill ---
@@ -2392,6 +2420,258 @@ class RunExecutor:
 
         # 8. Execute remaining stages only
         return executor._execute_remaining()
+
+    # -----------------------------------------------------------------------
+    # Human Gate public API (Task 1 — P1-5)
+    # -----------------------------------------------------------------------
+
+    def register_gate(
+        self,
+        gate_id: str,
+        gate_type: str = "final_approval",
+        phase_name: str = "",
+        recommendation: str = "",
+        output_summary: str = "",
+    ) -> None:
+        """Register a named human gate point on this run.
+
+        The gate event is stored in ``_registered_gates`` (indexed by
+        *gate_id*) and written into the session checkpoint so that a
+        paused run can survive a process restart.
+
+        Args:
+            gate_id: Caller-assigned identifier for this gate.
+            gate_type: Gate category — one of ``contract_correction``,
+                ``route_direction``, ``artifact_review``,
+                ``final_approval``.
+            phase_name: Stage or phase at which the gate is registered.
+            recommendation: Optional suggestion for the human reviewer.
+            output_summary: Brief description of the work product.
+        """
+        from hi_agent.gate_protocol import GateEvent
+
+        event = GateEvent(
+            gate_id=gate_id,
+            gate_type=gate_type,
+            phase_name=phase_name,
+            recommendation=recommendation,
+            output_summary=output_summary,
+        )
+        self._registered_gates[gate_id] = event
+
+        # Persist gate state into the session checkpoint so it survives
+        # a process restart.
+        if self.session is not None:
+            try:
+                self.session.events.append({
+                    "event": "gate_registered",
+                    "gate_id": gate_id,
+                    "gate_type": gate_type,
+                    "phase_name": phase_name,
+                    "opened_at": event.opened_at,
+                })
+            except Exception as _exc:  # pragma: no cover
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.register_gate_session_failed",
+                    _exc,
+                    run_id=self.run_id,
+                    gate_id=gate_id,
+                )
+
+        _logger.info(
+            "runner.gate_registered run_id=%s gate_id=%s gate_type=%s phase=%s",
+            self.run_id,
+            gate_id,
+            gate_type,
+            phase_name,
+        )
+
+    def resume(
+        self,
+        gate_id: str,
+        decision: str,
+        rationale: str = "",
+    ) -> None:
+        """Resume execution after a human decision on a registered gate.
+
+        Valid decisions: ``approved``, ``override``, ``backtrack``.
+
+        The decision is logged to the run record via the event emitter
+        and the session checkpoint.
+
+        Args:
+            gate_id: Gate to resume (must have been registered via
+                :meth:`register_gate`).
+            decision: Human decision — ``approved``, ``override``, or
+                ``backtrack``.
+            rationale: Free-text rationale for the decision.
+        """
+        _logger.info(
+            "runner.gate_decision run_id=%s gate_id=%s decision=%s",
+            self.run_id,
+            gate_id,
+            decision,
+        )
+
+        self._emit_observability("gate_decision", {
+            "run_id": self.run_id,
+            "gate_id": gate_id,
+            "decision": decision,
+            "rationale": rationale,
+        })
+
+        if self.session is not None:
+            try:
+                self.session.events.append({
+                    "event": "gate_decision",
+                    "gate_id": gate_id,
+                    "decision": decision,
+                    "rationale": rationale,
+                })
+            except Exception as _exc:  # pragma: no cover
+                self._log_best_effort_exception(
+                    logging.DEBUG,
+                    "runner.resume_session_failed",
+                    _exc,
+                    run_id=self.run_id,
+                    gate_id=gate_id,
+                )
+
+    # -----------------------------------------------------------------------
+    # Sub-run delegation public API (Task 3 — P2-3)
+    # -----------------------------------------------------------------------
+
+    def dispatch_subrun(
+        self,
+        agent: str,
+        profile_id: str,
+        strategy: str = "sequential",
+        restart_policy: str = "reflect(2)",
+    ) -> SubRunHandle:
+        """Dispatch a child run via DelegationManager.
+
+        Builds a :class:`~hi_agent.task_mgmt.delegation.DelegationRequest`
+        from the supplied parameters, submits it, and returns a
+        :class:`SubRunHandle` that identifies the spawned sub-run.
+
+        ``profile_id`` must equal the parent run's profile_id to maintain
+        identity continuity.
+
+        Args:
+            agent: Agent role name for the child run.
+            profile_id: Profile that governs the child run.
+            strategy: Execution strategy hint (e.g. ``"sequential"``,
+                ``"parallel"``).
+            restart_policy: Restart policy expression (e.g.
+                ``"reflect(2)"``).
+
+        Returns:
+            A :class:`SubRunHandle` with the child run identifier.
+
+        Raises:
+            RuntimeError: If no DelegationManager is configured.
+        """
+        import asyncio
+        import uuid
+
+        from hi_agent.task_mgmt.delegation import DelegationRequest
+
+        if self._delegation_manager is None:
+            raise RuntimeError(
+                "dispatch_subrun requires a DelegationManager; "
+                "inject one via RunExecutor(delegation_manager=...)"
+            )
+
+        task_id = f"{self.run_id}-sub-{uuid.uuid4().hex[:8]}"
+        req = DelegationRequest(
+            goal=f"agent={agent} profile={profile_id} strategy={strategy} "
+                 f"restart_policy={restart_policy}",
+            task_id=task_id,
+            config={
+                "agent": agent,
+                "profile_id": profile_id,
+                "strategy": strategy,
+                "restart_policy": restart_policy,
+            },
+        )
+
+        # delegate() is async; run it to completion in a new event loop if
+        # we are not already inside one (synchronous call path).
+        try:
+            loop = asyncio.get_running_loop()
+            # We ARE in an async context — create a task and return the handle.
+            # The caller must await_subrun() to collect the result.
+            future = loop.create_task(
+                self._delegation_manager.delegate([req], parent_run_id=self.run_id)
+            )
+            self._pending_subrun_futures[task_id] = future  # type: ignore[attr-defined]
+        except RuntimeError:
+            # No running loop — synchronous call path.
+            results = asyncio.run(
+                self._delegation_manager.delegate([req], parent_run_id=self.run_id)
+            )
+            self._completed_subrun_results[task_id] = results[0]  # type: ignore[attr-defined]
+
+        return SubRunHandle(subrun_id=task_id, agent=agent)
+
+    def await_subrun(self, handle: SubRunHandle) -> SubRunResult:
+        """Wait for a dispatched sub-run and return its result.
+
+        Args:
+            handle: Handle returned by :meth:`dispatch_subrun`.
+
+        Returns:
+            A :class:`SubRunResult` with completion status and output.
+        """
+        import asyncio
+
+        subrun_id = handle.subrun_id
+
+        # Case 1: result already collected (synchronous dispatch path).
+        completed = getattr(self, "_completed_subrun_results", {})
+        if subrun_id in completed:
+            dr = completed.pop(subrun_id)
+            return SubRunResult(
+                success=dr.status == "completed",
+                output=dr.summary or dr.raw_output or "",
+                error=dr.error,
+            )
+
+        # Case 2: future pending (async dispatch path).
+        pending = getattr(self, "_pending_subrun_futures", {})
+        if subrun_id in pending:
+            future = pending.pop(subrun_id)
+
+            async def _collect():
+                return await future
+
+            try:
+                asyncio.get_running_loop()
+                import concurrent.futures as _cf
+                with _cf.ThreadPoolExecutor(max_workers=1) as pool:
+                    results = pool.submit(asyncio.run, _collect()).result()
+            except RuntimeError:
+                results = asyncio.run(_collect())
+
+            dr = results[0]
+            return SubRunResult(
+                success=dr.status == "completed",
+                output=dr.summary or dr.raw_output or "",
+                error=dr.error,
+            )
+
+        # Case 3: unknown handle — return a failure result rather than raising.
+        _logger.warning(
+            "runner.await_subrun_unknown_handle run_id=%s subrun_id=%s",
+            self.run_id,
+            subrun_id,
+        )
+        return SubRunResult(
+            success=False,
+            output="",
+            error=f"No pending or completed result for subrun_id={subrun_id!r}",
+        )
 
 
 # ---------------------------------------------------------------------------

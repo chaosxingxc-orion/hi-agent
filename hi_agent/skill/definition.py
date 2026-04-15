@@ -3,6 +3,24 @@
 Skills are Markdown files with YAML-style frontmatter, matching the
 claude-code and OpenClaw convention::
 
+# ---------------------------------------------------------------------------
+# Execution Strategy & Restart Policy — downstream reference
+# ---------------------------------------------------------------------------
+# Execution strategy is NOT a SkillDefinition or RunExecutor constructor
+# field.  It is selected by the caller choosing which RunExecutor method to
+# invoke:
+#
+#   - Sequential stage traversal  →  RunExecutor.execute()
+#   - Dynamic graph (backtrack + multi-successor)  →  RunExecutor.execute_graph()
+#   - Full asyncio with AsyncTaskScheduler + KernelFacade  →  RunExecutor.execute_async()
+#
+# Restart policy ("reflect(N)", "retry(N)", "retry+escalate") is configured
+# by passing a RestartPolicyEngine instance to the RunExecutor constructor
+# keyword argument `restart_policy_engine: RestartPolicyEngine | None`.
+# The RestartPolicyEngine reads policy from TaskContract fields and from the
+# PolicyVersionSet passed to the constructor.
+# ---------------------------------------------------------------------------
+
     ---
     name: analyze-data
     version: 1.0.0
@@ -155,6 +173,20 @@ class SkillDefinition:
     source_path: str = ""
     created_at: str = ""
     updated_at: str = ""
+
+    # ------------------------------------------------------------------
+    # Downstream-compatible aliases (additive, do not rename source fields)
+    # ------------------------------------------------------------------
+
+    @property
+    def system_prompt_fragment(self) -> str:
+        """Alias for ``prompt_content`` (downstream API compatibility)."""
+        return self.prompt_content
+
+    @property
+    def tool_specs(self) -> list[str]:
+        """Alias for ``allowed_tools`` (downstream API compatibility)."""
+        return self.allowed_tools
 
     # ------------------------------------------------------------------
     # Serialisation helpers

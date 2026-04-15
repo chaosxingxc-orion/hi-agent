@@ -91,7 +91,7 @@ class TierRouter:
         budget_remaining_usd: float | None,
         skill_confidence: float | None = None,
     ) -> str:
-        """Determine effective tier considering purpose, complexity, budget, and skill confidence."""
+        """Determine effective tier considering purpose, complexity, budget, skill confidence."""
         with self._lock:
             mapping = self._tier_map.get(purpose)
         base_tier = mapping.default_tier if mapping else ModelTier.MEDIUM
@@ -149,11 +149,19 @@ class TierRouter:
         Raises:
             KeyError: If no suitable model can be found.
         """
-        target_tier = self._resolve_tier(purpose, complexity, budget_remaining_usd, skill_confidence)
+        target_tier = self._resolve_tier(
+            purpose, complexity, budget_remaining_usd, skill_confidence
+        )
         model = self._find_in_tier(
             target_tier, required_capabilities, min_context_window
         )
         if model is not None:
+            _logger.info(
+                '{"event": "tier_routing", "tier": "%s", "model": "%s", "purpose": "%s"}',
+                target_tier,
+                model.model_id,
+                purpose,
+            )
             return model
 
         # Fallback: try adjacent tiers
@@ -166,15 +174,32 @@ class TierRouter:
                     _TIER_ORDER[adj], required_capabilities, min_context_window
                 )
                 if model is not None:
+                    _logger.info(
+                        '{"event": "tier_routing", "tier": "%s", "model": "%s",'
+                        ' "purpose": "%s", "fallback_from": "%s"}',
+                        _TIER_ORDER[adj],
+                        model.model_id,
+                        purpose,
+                        target_tier,
+                    )
                     return model
 
         # Last resort: any available model
         available = self._registry.list_available()
         if available:
-            return min(
+            best = min(
                 available,
                 key=lambda m: m.cost_input_per_mtok + m.cost_output_per_mtok,
             )
+            _logger.info(
+                '{"event": "tier_routing", "tier": "%s", "model": "%s",'
+                ' "purpose": "%s", "fallback_from": "%s"}',
+                best.tier,
+                best.model_id,
+                purpose,
+                target_tier,
+            )
+            return best
 
         raise KeyError(
             f"No suitable model found for purpose={purpose!r}, "
@@ -229,6 +254,12 @@ class TierRouter:
         # Try target tier
         model = self._find_in_tier(target_tier, required_caps, min_ctx)
         if model is not None:
+            _logger.info(
+                '{"event": "tier_routing", "tier": "%s", "model": "%s", "purpose": "%s"}',
+                target_tier,
+                model.model_id,
+                purpose,
+            )
             return model, target_tier
 
         # Try adjacent tiers
@@ -239,6 +270,14 @@ class TierRouter:
                 adj_tier = _TIER_ORDER[adj]
                 model = self._find_in_tier(adj_tier, required_caps, min_ctx)
                 if model is not None:
+                    _logger.info(
+                        '{"event": "tier_routing", "tier": "%s", "model": "%s",'
+                        ' "purpose": "%s", "fallback_from": "%s"}',
+                        adj_tier,
+                        model.model_id,
+                        purpose,
+                        target_tier,
+                    )
                     return model, adj_tier
 
         # Any available
@@ -247,6 +286,14 @@ class TierRouter:
             best = min(
                 available,
                 key=lambda m: m.cost_input_per_mtok + m.cost_output_per_mtok,
+            )
+            _logger.info(
+                '{"event": "tier_routing", "tier": "%s", "model": "%s",'
+                ' "purpose": "%s", "fallback_from": "%s"}',
+                best.tier,
+                best.model_id,
+                purpose,
+                target_tier,
             )
             return best, best.tier
 
@@ -321,7 +368,7 @@ class TierAwareLLMGateway:
     """
 
     def __init__(
-        self, inner: object, tier_router: "TierRouter", registry: "ModelRegistry"
+        self, inner: object, tier_router: TierRouter, registry: ModelRegistry
     ) -> None:
         """Initialize TierAwareLLMGateway."""
         self._inner = inner
@@ -384,7 +431,7 @@ class TierAwareLLMGateway:
         so that async callers (e.g. DelegationManager) also benefit from
         tier routing.  The inner gateway must implement async ``complete()``.
         """
-        from hi_agent.llm.protocol import LLMRequest  # noqa: PLC0415
+        from hi_agent.llm.protocol import LLMRequest
 
         if getattr(request, "model", None) == "default":
             meta = getattr(request, "metadata", None) or {}

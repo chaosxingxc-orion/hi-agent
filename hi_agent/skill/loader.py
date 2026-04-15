@@ -148,8 +148,30 @@ class SkillLoader:
     # Queries
     # ------------------------------------------------------------------
 
-    def get_skill(self, skill_id: str) -> SkillDefinition | None:
-        """Look up a skill by ID."""
+    def get_skill(self, skill_id: str, version: str = "champion") -> SkillDefinition | None:
+        """Look up a skill by ID, optionally resolving a specific version.
+
+        Args:
+            skill_id: The base skill identifier.
+            version: One of:
+                - ``"champion"`` (default) — returns the plain *skill_id* entry,
+                  which is the current production (champion) version.
+                - ``"challenger"`` — looks up ``{skill_id}@challenger`` first;
+                  falls back to plain *skill_id* if absent.
+                - ``"v{N}"`` (e.g. ``"v2"``) — looks up ``{skill_id}@v{N}``
+                  first; falls back to plain *skill_id* if absent.
+
+        Returns:
+            The matching :class:`SkillDefinition`, or ``None`` if not found.
+        """
+        if version == "champion":
+            return self._skills.get(skill_id)
+        # Version-qualified key convention: "{skill_id}@{version}"
+        qualified = f"{skill_id}@{version}"
+        result = self._skills.get(qualified)
+        if result is not None:
+            return result
+        # Fallback to plain skill_id
         return self._skills.get(skill_id)
 
     def list_skills(self, eligible_only: bool = True) -> list[SkillDefinition]:

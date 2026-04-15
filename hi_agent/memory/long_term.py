@@ -56,10 +56,28 @@ class LongTermMemoryGraph:
     """
 
     def __init__(
-        self, storage_path: str = ".hi_agent/memory/long_term/graph.json"
+        self,
+        storage_path: str = ".hi_agent/memory/long_term/graph.json",
+        profile_id: str = "",
     ) -> None:
-        """Initialize LongTermMemoryGraph."""
-        self._storage_path = Path(storage_path)
+        """Initialize LongTermMemoryGraph.
+
+        Args:
+            storage_path: Default path to graph JSON file. Used as-is when
+                profile_id is empty.
+            profile_id: When non-empty, overrides the storage path to
+                {storage_path_base}/memory/L3/{profile_id}/graph.json where
+                storage_path_base is the parent-of-parent of storage_path.
+        """
+        if profile_id:
+            # storage_path default: {base}/memory/long_term/graph.json
+            # profile_id path:      {base}/memory/L3/{profile_id}/graph.json
+            # So storage_path_base is three levels above graph.json.
+            base = Path(storage_path).parents[2]
+            resolved = base / "memory" / "L3" / profile_id / "graph.json"
+        else:
+            resolved = Path(storage_path)
+        self._storage_path = resolved
         self._nodes: dict[str, MemoryNode] = {}
         self._edges: list[MemoryEdge] = []
         self._adjacency: dict[str, list[str]] = {}  # node_id -> [connected_node_ids]

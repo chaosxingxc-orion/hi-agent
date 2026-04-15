@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import IO
 
 # Simple negation indicators used for contradiction heuristic.
 _NEGATION_PAIRS: list[tuple[str, str]] = [
@@ -52,11 +55,28 @@ def _check_contradiction(
 
 
 class RawMemoryStore:
-    """In-memory L0 event store."""
+    """In-memory L0 event store with optional JSONL file persistence."""
 
-    def __init__(self) -> None:
-        """Initialize empty raw-memory record list."""
+    def __init__(
+        self,
+        run_id: str = "",
+        base_dir: str | Path = "",
+    ) -> None:
+        """Initialize raw-memory record list.
+
+        Args:
+            run_id: Run identifier. When non-empty (with base_dir), enables
+                file persistence to {base_dir}/logs/memory/L0/{run_id}.jsonl.
+            base_dir: Base directory for JSONL output. Ignored when run_id is empty.
+        """
         self.records: list[RawEventRecord] = []
+        self._run_id = run_id
+        self._file: IO[str] | None = None
+
+        if run_id and base_dir:
+            log_path = Path(base_dir) / "logs" / "memory" / "L0" / f"{run_id}.jsonl"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            self._file = log_path.open("a", encoding="utf-8")
 
     def append(
         self,
@@ -74,6 +94,23 @@ class RawMemoryStore:
             contradiction_tags = _check_contradiction(record, same_stage)
             record.tags.extend(contradiction_tags)
         self.records.append(record)
+
+        if self._file is not None:
+            line = json.dumps(
+                {
+                    "timestamp": record.timestamp,
+                    "run_id": self._run_id,
+                    "content": record.payload,
+                    "metadata": {"event_type": record.event_type, "tags": record.tags},
+                },
+                ensure_ascii=False,
+            )
+            self._file.write(line + "\n")
+
+    def flush(self) -> None:
+        """Flush the JSONL file handle to disk. No-op when file persistence is off."""
+        if self._file is not None:
+            self._file.flush()
 
     def list_all(self) -> list[RawEventRecord]:
         """Return all records in insertion order."""
