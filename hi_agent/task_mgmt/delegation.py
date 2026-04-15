@@ -1,5 +1,4 @@
-"""
-DelegationManager for hi-agent.
+"""DelegationManager for hi-agent.
 
 Enables the Runner to spawn isolated child agent runs for parallel
 task decomposition. Built on top of agent-kernel's spawn_child_run,
@@ -17,12 +16,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from hi_agent.runtime_adapter.protocol import RuntimeAdapter
     from hi_agent.llm.protocol import AsyncLLMGateway
+    from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 
 from hi_agent.gate_protocol import GatePendingError
 
@@ -120,7 +119,7 @@ class ChildRunPoller:
         poll_interval: Seconds to sleep between consecutive polls.
     """
 
-    def __init__(self, kernel: "RuntimeAdapter", poll_interval: float = 2.0) -> None:
+    def __init__(self, kernel: RuntimeAdapter, poll_interval: float = 2.0) -> None:
         self._kernel = kernel
         self._poll_interval = poll_interval
 
@@ -145,7 +144,7 @@ class ChildRunPoller:
         while True:
             try:
                 snapshot = self._kernel.query_run(child_run_id)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning(
                     "query_run(%s) raised %s — will retry", child_run_id, exc
                 )
@@ -189,7 +188,7 @@ class ResultSummarizer:
         llm: An async LLM gateway, or ``None`` for truncation-only mode.
     """
 
-    def __init__(self, llm: "AsyncLLMGateway | None") -> None:
+    def __init__(self, llm: AsyncLLMGateway | None) -> None:
         self._llm = llm
 
     async def summarize(
@@ -223,13 +222,14 @@ class ResultSummarizer:
 
         # Build a compressed summary via LLM.
         try:
-            from hi_agent.llm.protocol import LLMRequest  # noqa: PLC0415
+            from hi_agent.llm.protocol import LLMRequest
 
             prompt = (
-                f"子任务目标：{goal}\n"
-                f"子任务输出（摘要前）：\n"
+                f"Sub-task goal: {goal}\n"
+                f"Sub-task output (pre-summary):\n"
                 f"{raw_output[:4000]}\n\n"
-                f"请用不超过{max_chars}字符总结：完成了什么、关键结果、遇到的问题。"
+                f"Summarize the following output in {max_chars} characters or fewer: "
+                f"what was accomplished, key results, issues encountered."
             )
             request = LLMRequest(
                 messages=[{"role": "user", "content": prompt}],
@@ -239,7 +239,7 @@ class ResultSummarizer:
             response = await self._llm.complete(request)
             summary = response.content.strip()
             return summary[:max_chars]
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("LLM summarization failed (%s); falling back to truncation", exc)
             return raw_output[:max_chars]
 
@@ -266,9 +266,9 @@ class DelegationManager:
 
     def __init__(
         self,
-        kernel: "RuntimeAdapter",
+        kernel: RuntimeAdapter,
         config: DelegationConfig,
-        llm: "AsyncLLMGateway | None" = None,
+        llm: AsyncLLMGateway | None = None,
     ) -> None:
         self._kernel = kernel
         self._config = config
@@ -408,7 +408,7 @@ class DelegationManager:
 
             except GatePendingError:
                 raise
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 duration = time.monotonic() - start_time
                 logger.exception(
                     "Delegation failed for task_id=%s: %s", req.task_id, exc

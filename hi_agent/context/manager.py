@@ -17,12 +17,15 @@ Key responsibilities:
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
 from hi_agent.task_view.token_budget import count_tokens
+
+_logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Enums and data classes
@@ -74,7 +77,7 @@ class ContextBudget:
         return max(0, self.effective_window - self.fixed_overhead)
 
     @classmethod
-    def from_config(cls, cfg: Any) -> "ContextBudget":
+    def from_config(cls, cfg: Any) -> ContextBudget:
         """Build ContextBudget from a TraceConfig instance."""
         return cls(
             total_window=cfg.context_total_window,
@@ -218,7 +221,7 @@ class ContextManager:
         memory_retriever: Any = None,
         skill_loader: Any = None,
         compressor: Any = None,
-    ) -> "ContextManager":
+    ) -> ContextManager:
         """Instantiate ContextManager from a TraceConfig."""
         return cls(
             budget=ContextBudget.from_config(cfg),
@@ -354,8 +357,7 @@ class ContextManager:
             content = prompt.to_prompt_string()
             tokens = prompt.total_tokens
         except Exception as _exc:
-            import logging as _logging
-            _logging.getLogger(__name__).warning(
+            _logger.warning(
                 "ContextManager: skill_loader.build_prompt failed — skills section will be empty: %s",
                 _exc,
                 exc_info=True,
@@ -411,7 +413,12 @@ class ContextManager:
             else:
                 content = ""
                 tokens = 0
-        except Exception:
+        except Exception as exc:
+            _logger.warning(
+                "context.memory_retrieval_failed: %s",
+                exc,
+                exc_info=True,
+            )
             content = ""
             tokens = 0
 

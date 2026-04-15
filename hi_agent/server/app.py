@@ -63,7 +63,6 @@ from hi_agent.server.event_bus import event_bus
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.run_manager import RunManager
 
-
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -210,7 +209,7 @@ async def handle_ready(request: Request) -> JSONResponse:
         builder = getattr(server, "_builder", None)
         if builder is None:
             # Fallback: server not fully initialized yet
-            from hi_agent.config.builder import SystemBuilder  # noqa: PLC0415
+            from hi_agent.config.builder import SystemBuilder
             builder = SystemBuilder(config=getattr(server, "_config", None))
         snapshot = builder.readiness()
     except Exception as exc:
@@ -342,7 +341,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
             # Use builder to get/initialize the shared plugin loader singleton.
             plugin_loader = getattr(builder, "_plugin_loader", None)
             if plugin_loader is None:
-                from hi_agent.plugin.loader import PluginLoader  # noqa: PLC0415
+                from hi_agent.plugin.loader import PluginLoader
                 plugin_loader = PluginLoader()
                 plugin_loader.load_all()  # trigger discovery before listing
                 builder._plugin_loader = plugin_loader
@@ -820,15 +819,28 @@ async def handle_cost(request: Request) -> JSONResponse:
 async def handle_memory_dream(request: Request) -> JSONResponse:
     """Trigger dream consolidation (short-term -> mid-term)."""
     server: AgentServer = request.app.state.agent_server
-    manager = server.memory_manager
-    if manager is None:
-        return JSONResponse(
-            {"error": "memory_not_configured"}, status_code=503,
-        )
     try:
         body = await request.json()
     except (ValueError, json.JSONDecodeError):
         body = {}
+
+    profile_id = body.get("profile_id", "")
+    if profile_id:
+        # K-9: Build a per-request scoped manager for profile deployments.
+        try:
+            from hi_agent.config.builder import SystemBuilder
+            _builder = SystemBuilder()
+            manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
+        except Exception as _build_exc:
+            return JSONResponse(
+                {"error": f"profile_manager_build_failed: {_build_exc}"}, status_code=500
+            )
+    else:
+        manager = server.memory_manager
+
+    if manager is None:
+        return JSONResponse({"error": "memory_not_configured"}, status_code=503)
+
     result = manager.trigger_dream(body.get("date"))
     return JSONResponse(result)
 
@@ -836,15 +848,28 @@ async def handle_memory_dream(request: Request) -> JSONResponse:
 async def handle_memory_consolidate(request: Request) -> JSONResponse:
     """Trigger consolidation (mid-term -> long-term)."""
     server: AgentServer = request.app.state.agent_server
-    manager = server.memory_manager
-    if manager is None:
-        return JSONResponse(
-            {"error": "memory_not_configured"}, status_code=503,
-        )
     try:
         body = await request.json()
     except (ValueError, json.JSONDecodeError):
         body = {}
+
+    profile_id = body.get("profile_id", "")
+    if profile_id:
+        # K-9: Build a per-request scoped manager for profile deployments.
+        try:
+            from hi_agent.config.builder import SystemBuilder
+            _builder = SystemBuilder()
+            manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
+        except Exception as _build_exc:
+            return JSONResponse(
+                {"error": f"profile_manager_build_failed: {_build_exc}"}, status_code=500
+            )
+    else:
+        manager = server.memory_manager
+
+    if manager is None:
+        return JSONResponse({"error": "memory_not_configured"}, status_code=503)
+
     result = manager.trigger_consolidation(body.get("days", 7))
     return JSONResponse(result)
 
@@ -852,11 +877,28 @@ async def handle_memory_consolidate(request: Request) -> JSONResponse:
 async def handle_memory_status(request: Request) -> JSONResponse:
     """Return memory tier status."""
     server: AgentServer = request.app.state.agent_server
-    manager = server.memory_manager
+    try:
+        body = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        body = {}
+
+    profile_id = body.get("profile_id", "")
+    if profile_id:
+        # K-9: Build a per-request scoped manager for profile deployments.
+        try:
+            from hi_agent.config.builder import SystemBuilder
+            _builder = SystemBuilder()
+            manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
+        except Exception as _build_exc:
+            return JSONResponse(
+                {"error": f"profile_manager_build_failed: {_build_exc}"}, status_code=500
+            )
+    else:
+        manager = server.memory_manager
+
     if manager is None:
-        return JSONResponse(
-            {"error": "memory_not_configured"}, status_code=503,
-        )
+        return JSONResponse({"error": "memory_not_configured"}, status_code=503)
+
     result = manager.get_status()
     return JSONResponse(result)
 
@@ -1216,7 +1258,6 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
         )
 
     try:
-        import os as _os
         from hi_agent.replay import ReplayEngine, load_event_envelopes_jsonl
 
         _loop2 = asyncio.get_event_loop()
@@ -1414,7 +1455,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
     and invocation forwarding require a transport layer that is deferred.
     """
     try:
-        from hi_agent.mcp.health import MCPHealth  # noqa: PLC0415
+        from hi_agent.mcp.health import MCPHealth
         server: AgentServer = request.app.state.agent_server
         mcp_reg = server.mcp_registry
         # Include tool count from _mcp_server so status and tools endpoints agree.
@@ -1785,7 +1826,6 @@ def build_app(agent_server: AgentServer) -> Starlette:
 
     # Catch-all for 404 on unmatched paths. Starlette by default returns
     # HTML 404; we override to return JSON.
-    from starlette.middleware import Middleware
     from starlette.exceptions import HTTPException
 
     async def http_exception_handler(
@@ -1902,7 +1942,7 @@ class AgentServer:
 
         # Build a shared CapabilityInvoker and wire MCPServer.
         try:
-            from hi_agent.server.mcp import MCPServer  # noqa: PLC0415
+            from hi_agent.server.mcp import MCPServer
             _invoker = self._builder.build_invoker()
             self._mcp_server: Any | None = MCPServer(
                 registry=_invoker.registry,
@@ -1950,7 +1990,7 @@ class AgentServer:
         except Exception as _exc:
             logger.warning("ContextManager initialization failed (%s: %s); /context/* endpoints will be unavailable.", type(_exc).__name__, _exc)
         try:
-            from hi_agent.management.slo import SLOMonitor  # noqa: PLC0415
+            from hi_agent.management.slo import SLOMonitor
             if self.metrics_collector is not None:
                 self.slo_monitor = SLOMonitor(self.metrics_collector)
         except Exception as _exc:
