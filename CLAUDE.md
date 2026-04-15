@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working in this repository.
-
 ## Language Rule
 
 **Translate all instructions into English before any model call.** Never pass Chinese, Japanese, or other non-English text into an LLM prompt, tool argument, or task goal.
@@ -10,7 +8,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project Status
 
-**Active implementation — production engineering phase.** All 6 engineering gates passed. Full design baseline at `architecture-review/` (V2.0).
+**Active implementation — production engineering phase.** Full design baseline at `architecture-review/`.
 
 ---
 
@@ -53,37 +51,23 @@ All three layers must be green before a feature is shipped:
 
 ---
 
-## First Principles
+## Production Integrity (P3)
 
-| | |
-|---|---|
-| **P1** | The agent must continuously evolve. |
-| **P2** | The cost of driving the agent must continuously decrease. |
-| **P3** | No Mock implementations in production — production integrity constraint. |
+No Mock implementations in production. Using mocks to bypass real failures is **strictly forbidden**.
 
-### Production Integrity Constraint (P3)
-
-Using mocks to bypass real failures is **strictly forbidden**.
-
-| Rule | Description |
-|------|-------------|
+| Rule | Detail |
+|------|--------|
 | No mock bypass | Do not use Mock/Stub/Fake to conceal missing components or broken wiring. |
 | Tests reflect reality | A passing test must mean the real path works. |
 | Missing = exposed | Unimplemented dependencies → `skip`/`xfail`, never faked. |
-| Legitimate mock uses | (1) external HTTP calls in unit tests; (2) fault injection; (3) performance benchmark stand-ins. Document reason in docstring. |
+| Legitimate mock uses | (1) external HTTP calls in unit tests; (2) fault injection; (3) performance benchmarks. Document reason in docstring. |
 | Zero mocks in integration | Integration and E2E tests use real components only. |
 
 ---
 
 ## System Overview
 
-**hi-agent** is an enterprise-grade intelligent agent built around the **TRACE** framework:
-
-```
-TRACE = Task → Route → Act → Capture → Evolve
-```
-
-Three-repository architecture:
+**TRACE = Task → Route → Act → Capture → Evolve**
 
 | Repo | Role |
 |------|------|
@@ -91,30 +75,8 @@ Three-repository architecture:
 | `agent-kernel` | Durable runtime: run lifecycle, event log, idempotency |
 | `agent-core` | Reusable capability modules: tools, retrieval, MCP |
 
-### Architecture Layers
-
-```
-Model-Driven Management
-  ModelRegistry → TierRouter (strong/medium/light) → ModelSelector (budget-aware)
-  LLMGateway (sync) + AsyncLLMGateway (async/httpx)
-
-Middleware Pipeline (~86% cost reduction via independent contexts)
-  Perception(light) → Control(medium) → Execution(dynamic) → Evaluation(light)
-  5-phase lifecycle: pre_create → pre_execute → execute → post_execute → pre_destroy
-
-Task Management (asyncio-native)
-  AsyncTaskScheduler(Semaphore) → GraphFactory → BudgetGuard
-  RestartPolicyEngine(retry/reflect/escalate) → ReflectionOrchestrator
-  RunContext(per-run isolation) → RunContextManager(concurrent runs)
-
-Context OS
-  ContextManager → Session → Memory(3-tier) → Knowledge(wiki+graph) → Skill(evolution)
-
-Execution Modes
-  execute()        — linear stage traversal
-  execute_graph()  — dynamic graph with backtrack + multi-successor routing
-  execute_async()  — full asyncio with AsyncTaskScheduler + KernelFacade
-```
+Execution modes: `execute()` linear · `execute_graph()` DAG with backtrack · `execute_async()` full asyncio.  
+Middleware: Perception(light) → Control(medium) → Execution(dynamic) → Evaluation(light); ~86% cost reduction via independent contexts.
 
 ---
 
@@ -123,32 +85,32 @@ Execution Modes
 ### Model-Driven Management
 | Module | Description |
 |--------|-------------|
-| `hi_agent/llm/` | LLMGateway + AsyncLLMGateway, HttpLLMGateway (sync), HTTPGateway (async/httpx), AnthropicGateway, ModelRegistry, TierRouter, ModelSelector, budget tracker |
+| `hi_agent/llm/` | LLMGateway + AsyncLLMGateway, ModelRegistry, TierRouter, ModelSelector, budget tracker |
 
 ### Middleware
 | Module | Description |
 |--------|-------------|
-| `hi_agent/middleware/` | Perception → Control → Execution → Evaluation; 5-phase lifecycle hooks; extensible MiddlewareOrchestrator (add/replace/remove, custom routes) |
+| `hi_agent/middleware/` | Perception → Control → Execution → Evaluation; 5-phase lifecycle hooks; MiddlewareOrchestrator |
 
 ### Task Management
 | Module | Description |
 |--------|-------------|
-| `hi_agent/task_mgmt/` | AsyncTaskScheduler, BudgetGuard, RestartPolicyEngine (`reflect(N)` injects reflection prompt before each retry within budget, not just at exhaustion), ReflectionOrchestrator, TaskMonitor, TaskHandle (8-state), PlanTypes (Sequential/Parallel/DAG/Speculative) |
-| `hi_agent/trajectory/` | TrajectoryGraph (chain/tree/DAG/general), StageGraph, Superstep execution, conditional edges, Mermaid export |
+| `hi_agent/task_mgmt/` | AsyncTaskScheduler, BudgetGuard, RestartPolicyEngine (`reflect(N)` injects reflection prompt before each retry), ReflectionOrchestrator, TaskMonitor, TaskHandle (8-state), PlanTypes |
+| `hi_agent/trajectory/` | TrajectoryGraph (chain/tree/DAG/general), StageGraph, Superstep execution, conditional edges |
 
 ### Context OS
 | Module | Description |
 |--------|-------------|
 | `hi_agent/context/` | ContextManager (7-section budget, 4 thresholds, compression fallback chain), RunContext, RunContextManager |
 | `hi_agent/session/` | RunSession (L0 JSONL, checkpoint save/resume), CostCalculator |
-| `hi_agent/memory/` | L0 Raw (RawMemoryStore with `close()` + context manager) → L1 STM → L2 MidTerm (Dream) → L3 LongTerm (graph, TF-IDF + `embedding_fn`, auto-load on init); L0Summarizer (L0 JSONL → DailySummary); AsyncMemoryCompressor; MemoryLifecycleManager |
+| `hi_agent/memory/` | L0 Raw → L1 STM → L2 MidTerm (Dream) → L3 LongTerm (graph, TF-IDF, auto-load); L0Summarizer; AsyncMemoryCompressor; MemoryLifecycleManager |
 | `hi_agent/knowledge/` | Wiki (`[[wikilinks]]`), knowledge graph, four-layer retrieval (grep→BM25→graph→embedding), 6 API endpoints |
 | `hi_agent/skill/` | SKILL.md format, SkillLoader (multi-source, token-budget binary search), SkillVersionManager (A/B), SkillEvolver, 7 API endpoints |
 
 ### TRACE Runtime
 | Module | Description |
 |--------|-------------|
-| `hi_agent/runner.py` | RunExecutor: execute(), execute_graph(), execute_async(), resume(); SubRunHandle, SubRunResult, dispatch_subrun(goal=), await_subrun(), register_gate(); gate blocking (GatePendingError / `_gate_pending`); reflection_prompt injection; constructor accepts `mid_term_store` and `long_term_consolidator` params; `_finalize_run` triggers full L0→L2→L3 memory chain (L0Summarizer → mid_term_store.store() → long_term_consolidator.consolidate()) + raw_memory.close(); dead-end detection; checkpoint resume; skill observation; LLM cost tracking |
+| `hi_agent/runner.py` | RunExecutor: execute(), execute_graph(), execute_async(), resume(); dispatch_subrun(goal=), await_subrun(), register_gate(); gate blocking (GatePendingError); reflection_prompt injection; `_finalize_run` triggers L0→L2→L3 memory chain + raw_memory.close(); dead-end detection; checkpoint resume; LLM cost tracking |
 | `hi_agent/contracts/` | TaskContract (13 fields, ACTIVE/PASSTHROUGH/QUEUE_ONLY annotations), PolicyVersionSet, CTSBudget |
 | `hi_agent/route_engine/` | Rule / LLM / Hybrid / Skill-aware / Conditional routing; DecisionAuditStore |
 | `hi_agent/task_view/` | TaskView builder, token budgets, auto-compress (snip→window→compress) |
@@ -172,19 +134,16 @@ Execution Modes
 | `hi_agent/auth/` | RBAC, JWT, SOC guard |
 | `hi_agent/mcp/` | MCPServer, MCPHealth, MCPBinding; StdioMCPTransport + MultiStdioTransport (transport_status: not_wired until plugin registers mcp_servers) |
 | `hi_agent/executor_facade.py` | RunExecutorFacade (start/run/stop), RunFacadeResult, check_readiness(), ReadinessReport |
-| `hi_agent/gate_protocol.py` | GateEvent dataclass (gate_id, gate_type, phase_name, recommendation, output_summary, opened_at); GatePendingError (carries `gate_id` attribute for gate identification) |
+| `hi_agent/gate_protocol.py` | GateEvent dataclass (gate_id, gate_type, phase_name, recommendation, output_summary, opened_at); GatePendingError (carries `gate_id` attribute) |
 | `hi_agent/llm/tier_presets.py` | `apply_research_defaults(tier_router)` — research-optimized TierRouter preset |
 
 ---
 
-## 10 First-Class Concepts
+## Key Concepts
 
 | Concept | Definition |
 |---------|------------|
 | **Task** | Formal task contract (13 fields), not raw user input |
-| **Run** | Durable long-running execution entity |
-| **Stage** | Formal phase in TRACE progression |
-| **Branch** | Logical trajectory in exploration space |
 | **Task View** | Minimal sufficient context rebuilt before each model call |
 | **Action** | External operation executed via Harness |
 | **Memory** | Agent experience: short-term (session) → mid-term (dream) → long-term (graph) |
@@ -196,15 +155,13 @@ Execution Modes
 
 ## Contract Field Consumption
 
-TaskContract fields are annotated with consumption level:
-
 | Level | Meaning |
 |-------|---------|
 | `ACTIVE` | Drives execution behavior in the default TRACE pipeline |
 | `PASSTHROUGH` | Stored and returned; consumption is the business agent's responsibility |
 | `QUEUE_ONLY` | Used for scheduling only; not consumed during stage execution |
 
-Fields: `goal`, `task_family`, `risk_level`, `constraints`, `acceptance_criteria`, `budget`, `deadline`, `profile_id`, `decomposition_strategy` → **ACTIVE**  
+`goal`, `task_family`, `risk_level`, `constraints`, `acceptance_criteria`, `budget`, `deadline`, `profile_id`, `decomposition_strategy` → **ACTIVE**  
 `environment_scope`, `input_refs`, `parent_task_id` → **PASSTHROUGH**  
 `priority` → **QUEUE_ONLY**
 
@@ -223,94 +180,16 @@ Fields: `goal`, `task_family`, `risk_level`, `constraints`, `acceptance_criteria
 
 `missing_evidence` · `invalid_context` · `harness_denied` · `model_output_invalid` · `model_refusal` · `callback_timeout` · `no_progress` · `contradictory_evidence` · `unsafe_action_blocked` · `exploration_budget_exhausted` · `execution_budget_exhausted`
 
-Defined in agent-kernel as `TraceFailureCode` (StrEnum); re-exported as `hi_agent.failures.taxonomy.FailureCode`.
+Defined as `hi_agent.failures.taxonomy.FailureCode` (StrEnum).
 
 ---
 
 ## Quick Start
 
 ```bash
-# Local execution
 python -m hi_agent run --goal "Analyze quarterly revenue data" --local
-
-# Full contract fields (CLI parity with server)
-python -m hi_agent run --goal "Analyze data" --local \
-  --risk-level low --task-family quick_task \
-  --acceptance-criteria '["required_stage:synthesize"]' \
-  --constraints '["no_external_calls"]' \
-  --deadline "2099-12-31T23:59:59Z" \
-  --budget '{"max_llm_calls": 10}'
-
-# Start API server
 python -m hi_agent serve --port 8080
-
-# Resume from checkpoint
 python -m hi_agent resume --checkpoint .checkpoint/checkpoint_run-001.json
-
-# Run tests
-python -m pytest tests/ -v          # 2936 tests
-python -m ruff check .              # lint
+python -m pytest tests/ -v
+python -m ruff check .
 ```
-
----
-
-## Release Quality Protocol
-
-Engineering checks (tests + lint) are necessary but **not sufficient**. A customer-perspective E2E verification must also pass.
-
-**Minimum verification path** (every release):
-
-```bash
-# 1. Start server
-python -m hi_agent serve --port 8080
-
-# 2. Submit a real task
-curl -s -X POST http://localhost:8080/runs \
-  -H "Content-Type: application/json" \
-  -d '{"goal": "Summarize the TRACE framework in one paragraph"}' | jq .run_id
-
-# 3. Poll until terminal
-curl -s http://localhost:8080/runs/{run_id} | jq '{state, result}'
-
-# 4. Verify: result is readable, no crash, no dirty state
-# 5. Submit same task again — confirm no duplicate run_id
-```
-
-**Pass/Fail criteria:**
-
-| Observation | Result |
-|-------------|--------|
-| POST /runs → 201, state reaches `completed` or `failed` | Pass |
-| Any step returns 5xx or process crashes | **Fail** |
-| Duplicate run_id on second submit | **Fail** |
-| Uncaught exception in logs | **Fail** |
-
----
-
-## Engineering Gates (all passed)
-
-| Gate | Deliverables |
-|------|-------------|
-| 1. Async foundation | AsyncTaskScheduler, EventBus, httpx gateway |
-| 2. Kernel integration | AsyncKernelFacadeAdapter, execute_turn() |
-| 3. LLM wiring | AsyncLLMGateway, HTTPGateway.complete(), AsyncMemoryCompressor |
-| 4. Safety mechanisms | AsyncCapabilityInvoker, dead-end detection, exception protection |
-| 5. Graph-driven execution | execute_graph(), backtrack edges, multi-successor routing |
-| 6. Concurrent isolation | RunContext, RunContextManager, per-run state serialization |
-
----
-
-## Test Coverage
-
-**2936 tests, all passing.** One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
-
----
-
-## Key Design Documents
-
-| Document | Location |
-|----------|----------|
-| Architecture design (V2.0) | `architecture-review/` |
-| Parallel scalability design | `docs/superpowers/specs/2026-04-08-parallel-scalability-design.md` |
-| Module evolution analysis | `docs/module-evolution-analysis.md` |
-| Agent-kernel integration proposal | `docs/agent-kernel-integration-proposal.md` |

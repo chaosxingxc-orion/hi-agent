@@ -455,6 +455,8 @@ class LongTermConsolidator:
                 self._graph.add_edge(edge)
         # Merge duplicates at the end
         self._merge_duplicates()
+        if count > 0:
+            self._graph.save()   # persist to disk after consolidation
         return count
 
     def _extract_facts(self, summary: DailySummary) -> list[MemoryNode]:

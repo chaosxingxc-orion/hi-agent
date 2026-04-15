@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -990,30 +991,39 @@ class SystemBuilder:
     # Memory tier builders
     # ------------------------------------------------------------------
 
-    def build_short_term_store(self) -> Any:
-        """Build short-term memory store."""
+    def build_short_term_store(self, profile_id: str = "") -> Any:
+        """Build short-term memory store, optionally scoped to a profile."""
         from hi_agent.memory.short_term import ShortTermMemoryStore
 
-        return ShortTermMemoryStore(
-            self._config.episodic_storage_dir.replace("episodes", "short_term")
+        base = self._config.episodic_storage_dir.replace("episodes", "")
+        path = (
+            os.path.join(base, "profiles", profile_id, "short_term")
+            if profile_id
+            else self._config.episodic_storage_dir.replace("episodes", "short_term")
         )
+        return ShortTermMemoryStore(path)
 
-    def build_mid_term_store(self) -> Any:
-        """Build mid-term memory store."""
+    def build_mid_term_store(self, profile_id: str = "") -> Any:
+        """Build mid-term memory store, optionally scoped to a profile."""
         from hi_agent.memory.mid_term import MidTermMemoryStore
 
-        return MidTermMemoryStore(
-            self._config.episodic_storage_dir.replace("episodes", "mid_term")
+        base = self._config.episodic_storage_dir.replace("episodes", "")
+        path = (
+            os.path.join(base, "profiles", profile_id, "mid_term")
+            if profile_id
+            else self._config.episodic_storage_dir.replace("episodes", "mid_term")
         )
+        return MidTermMemoryStore(path)
 
-    def build_long_term_graph(self) -> Any:
-        """Build long-term memory graph."""
+    def build_long_term_graph(self, profile_id: str = "") -> Any:
+        """Build long-term memory graph, optionally scoped to a profile."""
         from hi_agent.memory.long_term import LongTermMemoryGraph
 
         graph = LongTermMemoryGraph(
             self._config.episodic_storage_dir.replace(
                 "episodes", "long_term/graph.json"
-            )
+            ),
+            profile_id=profile_id,
         )
         try:
             graph.load()
@@ -1440,8 +1450,11 @@ class SystemBuilder:
             self._validate_required_capabilities(resolved_profile)
 
         # --- Build mid-term / long-term memory components for wiring ---
-        _mid_term_store = self.build_mid_term_store()
-        _long_term_graph = self.build_long_term_graph()
+        _profile_id = getattr(contract, "profile_id", "") or ""
+        _run_id = uuid.uuid4().hex
+        _raw_base = self._config.episodic_storage_dir
+        _mid_term_store = self.build_mid_term_store(profile_id=_profile_id)
+        _long_term_graph = self.build_long_term_graph(profile_id=_profile_id)
         try:
             from hi_agent.memory.long_term import LongTermConsolidator  # noqa: PLC0415
             _long_term_consolidator = LongTermConsolidator(
@@ -1458,7 +1471,7 @@ class SystemBuilder:
             harness_executor=self.build_harness(capability_invoker=invoker),
             human_gate_quality_threshold=self._config.gate_quality_threshold,
             event_emitter=EventEmitter(),
-            raw_memory=RawMemoryStore(),
+            raw_memory=RawMemoryStore(run_id=_run_id, base_dir=_raw_base),
             compressor=self._build_compressor(),
             failure_collector=self.build_failure_collector(),
             watchdog=self.build_watchdog(),
@@ -1472,7 +1485,7 @@ class SystemBuilder:
             policy_versions=PolicyVersionSet(),
             route_engine=self._build_route_engine(stage_actions=stage_actions),
             acceptance_policy=AcceptancePolicy(),
-            short_term_store=self.build_short_term_store(),
+            short_term_store=self.build_short_term_store(profile_id=_profile_id),
             mid_term_store=_mid_term_store,
             long_term_consolidator=_long_term_consolidator,
             knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,

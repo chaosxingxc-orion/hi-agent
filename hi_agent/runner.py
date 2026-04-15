@@ -1997,6 +1997,10 @@ class RunExecutor:
                         return self._finalize_run("failed")
                     # "reflected" or any non-failed result: continue to next stage
         except Exception as exc:
+            # Re-raise gate-pending errors — they are not run failures.
+            from hi_agent.gate_protocol import GatePendingError  # noqa: PLC0415
+            if isinstance(exc, GatePendingError):
+                raise
             # Capture exception type and message for failure attribution in RunResult.
             self._last_exception_msg: str | None = str(exc)
             self._last_exception_type: str | None = type(exc).__name__
@@ -2238,18 +2242,43 @@ class RunExecutor:
                                 )
 
                             if loop is not None and loop.is_running():
+                                loop.create_task(
+                                    self._reflection_orchestrator.reflect_and_infer(
+                                        descriptor=descriptor,
+                                        attempts=self._get_attempt_history(stage_id),
+                                        run_id=self.run_id,
+                                    )
+                                )
                                 _logger.info(
-                                    "runner.reflect_skipped_async_loop stage_id=%s",
+                                    "runner.reflect_scheduled_async stage_id=%s",
                                     stage_id,
                                 )
                             else:
                                 asyncio.run(
                                     self._reflection_orchestrator.reflect_and_infer(
                                         descriptor=descriptor,
-                                        attempts=[],
+                                        attempts=self._get_attempt_history(stage_id),
                                         run_id=self.run_id,
                                     )
                                 )
+                                # Inject reflection prompt into short-term memory so retry LLM sees it.
+                                if decision.reflection_prompt and self.short_term_store is not None:
+                                    try:
+                                        from hi_agent.memory.short_term import ShortTermMemory  # noqa: PLC0415
+                                        self.short_term_store.save(
+                                            ShortTermMemory(
+                                                session_id=f"{self.run_id}/reflect/{stage_id}/{attempt}",
+                                                run_id=self.run_id,
+                                                task_goal=decision.reflection_prompt,
+                                                outcome="reflecting",
+                                            )
+                                        )
+                                    except Exception as _exc:
+                                        _logger.warning(
+                                            "runner.reflect_context_inject_failed stage_id=%s error=%s",
+                                            stage_id,
+                                            _exc,
+                                        )
                     except Exception as exc:
                         _logger.warning(
                             "runner.reflect_failed stage_id=%s error=%s",
@@ -2313,6 +2342,14 @@ class RunExecutor:
                 exc,
             )
             return "failed"
+
+    def _get_attempt_history(self, stage_id: str) -> list:
+        """Return prior attempt records for the given stage_id from the restart policy."""
+        try:
+            policy_task_id = self.contract.task_id
+            return self._restart_policy._get_attempts(policy_task_id)
+        except Exception:
+            return []
 
     def _find_start_stage(self) -> str | None:
         """Find start stage (zero indegree) from stage graph."""
