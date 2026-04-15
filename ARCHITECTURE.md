@@ -906,7 +906,9 @@ Top-level symbols exported from `hi_agent` for external callers:
 | `hi_agent.RunExecutorFacade` | `start(run_id, profile_id, model_tier, skill_dir)` / `run(prompt) → RunFacadeResult` / `stop()` |
 | `hi_agent.check_readiness()` | Returns `ReadinessReport` — per-subsystem health check |
 | `hi_agent.GateEvent` | Human gate lifecycle event dataclass |
+| `hi_agent.GatePendingError` | Raised when stage execution hits a pending gate |
 | `hi_agent.SubRunHandle` / `SubRunResult` | Nested sub-run dispatch / collection |
+| `hi_agent.llm.tier_presets.apply_research_defaults(router)` | Research tier preset — configures TierRouter with research-optimized defaults |
 
 ---
 

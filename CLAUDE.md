@@ -141,14 +141,14 @@ Execution Modes
 |--------|-------------|
 | `hi_agent/context/` | ContextManager (7-section budget, 4 thresholds, compression fallback chain), RunContext, RunContextManager |
 | `hi_agent/session/` | RunSession (L0 JSONL, checkpoint save/resume), CostCalculator |
-| `hi_agent/memory/` | L0 Raw → L1 STM → L2 MidTerm (Dream) → L3 LongTerm (graph); AsyncMemoryCompressor; MemoryLifecycleManager |
+| `hi_agent/memory/` | L0 Raw (RawMemoryStore with `close()` + context manager) → L1 STM → L2 MidTerm (Dream) → L3 LongTerm (graph, TF-IDF + `embedding_fn`, auto-load on init); L0Summarizer (L0 JSONL → DailySummary); AsyncMemoryCompressor; MemoryLifecycleManager |
 | `hi_agent/knowledge/` | Wiki (`[[wikilinks]]`), knowledge graph, four-layer retrieval (grep→BM25→graph→embedding), 6 API endpoints |
 | `hi_agent/skill/` | SKILL.md format, SkillLoader (multi-source, token-budget binary search), SkillVersionManager (A/B), SkillEvolver, 7 API endpoints |
 
 ### TRACE Runtime
 | Module | Description |
 |--------|-------------|
-| `hi_agent/runner.py` | RunExecutor: execute(), execute_graph(), execute_async(), resume(); SubRunHandle, SubRunResult, dispatch_subrun(), await_subrun(), register_gate(); dead-end detection; checkpoint resume; skill observation; LLM cost tracking |
+| `hi_agent/runner.py` | RunExecutor: execute(), execute_graph(), execute_async(), resume(); SubRunHandle, SubRunResult, dispatch_subrun(goal=), await_subrun(), register_gate(); gate blocking (GatePendingError / `_gate_pending`); reflection_prompt injection; `_finalize_run` (L0Summarizer + raw_memory.close()); dead-end detection; checkpoint resume; skill observation; LLM cost tracking |
 | `hi_agent/contracts/` | TaskContract (13 fields, ACTIVE/PASSTHROUGH/QUEUE_ONLY annotations), PolicyVersionSet, CTSBudget |
 | `hi_agent/route_engine/` | Rule / LLM / Hybrid / Skill-aware / Conditional routing; DecisionAuditStore |
 | `hi_agent/task_view/` | TaskView builder, token budgets, auto-compress (snip→window→compress) |
@@ -172,7 +172,8 @@ Execution Modes
 | `hi_agent/auth/` | RBAC, JWT, SOC guard |
 | `hi_agent/mcp/` | MCPServer, MCPHealth, MCPBinding; StdioMCPTransport + MultiStdioTransport (transport_status: not_wired until plugin registers mcp_servers) |
 | `hi_agent/executor_facade.py` | RunExecutorFacade (start/run/stop), RunFacadeResult, check_readiness(), ReadinessReport |
-| `hi_agent/gate_protocol.py` | GateEvent dataclass (gate_id, gate_type, phase_name, recommendation, output_summary, opened_at) |
+| `hi_agent/gate_protocol.py` | GateEvent dataclass (gate_id, gate_type, phase_name, recommendation, output_summary, opened_at); GatePendingError |
+| `hi_agent/llm/tier_presets.py` | `apply_research_defaults(tier_router)` — research-optimized TierRouter preset |
 
 ---
 
@@ -247,7 +248,7 @@ python -m hi_agent serve --port 8080
 python -m hi_agent resume --checkpoint .checkpoint/checkpoint_run-001.json
 
 # Run tests
-python -m pytest tests/ -v          # 2878 tests
+python -m pytest tests/ -v          # 2918 tests
 python -m ruff check .              # lint
 ```
 
@@ -301,7 +302,7 @@ curl -s http://localhost:8080/runs/{run_id} | jq '{state, result}'
 
 ## Test Coverage
 
-**2878 tests, all passing.** One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
+**2918 tests, all passing.** One external dependency: `agent-kernel` (via GitHub). 252 source modules, ~34k lines.
 
 ---
 
