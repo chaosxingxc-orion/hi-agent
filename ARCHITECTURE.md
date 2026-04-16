@@ -828,12 +828,45 @@ flowchart TD
 
 | 方法 | 签名 | 职责 |
 |------|------|------|
-| `complete` | `(request: LLMRequest) → LLMResponse` | 执行模型调用 |
-| `supports_model` | `(model: str) → bool` | 检查模型兼容性 |
+| `complete` | `(request: LLMRequest) → LLMResponse` | 同步模型调用 |
+| `stream` | `(request: LLMRequest) → Iterator[LLMStreamChunk]` | SSE 流式调用（httpx chunked transfer） |
+| `supports_model` | `(model: str) → bool` | 检查模型兼容性（`AnthropicGateway` 始终返回 True，支持代理端点） |
 
-**实现链路**：`TierAwareLLMGateway` → `FailoverChain` → `HttpLLMGateway`（或 `AnthropicGateway`）
+**LLMRequest 扩展字段**：
+- `messages: list[dict[str, Any]]` — content 支持字符串或 content block 列表（multimodal）
+- `thinking_budget: int | None` — per-request 思考预算，覆盖 gateway 级默认值；`> 0` 开启，`0` 强制关闭
 
-`TierAwareLLMGateway` 同时提供同步 `complete()` 和异步 `acomplete()`；异步路径（`DelegationManager` / `HTTPGateway`）统一经由 `acomplete()` 完成 tier 路由，避免绕过分层策略。
+**LLMStreamChunk**（`llm/protocol.py`）：
+```
+delta: str              # 本次文字增量
+thinking_delta: str     # 思考过程增量（Anthropic extended thinking）
+finish_reason: str|None # 最终块携带停止原因
+usage: TokenUsage|None  # 最终块携带 token 用量
+model: str              # message_start 块携带模型 ID
+```
+
+**实现链路**：`TierAwareLLMGateway` → `FailoverChain` → `AnthropicLLMGateway`（Anthropic API / 兼容代理）或 `HttpLLMGateway`（OpenAI API）
+
+- `TierAwareLLMGateway` 同时提供同步 `complete()`、异步 `acomplete()`、流式 `stream()`；无流式能力的后端自动降级为单 chunk 包装。
+- `AnthropicLLMGateway` 支持自定义 `base_url`，可接入 DashScope 等 Anthropic 协议兼容代理；`default_thinking_budget` 配置 gateway 级思考预算。
+- 思考模式开启时自动强制 `temperature=1`（Anthropic API 要求）。
+
+**provider 配置（`config/llm_config.json`）**：
+```json
+{
+  "default_provider": "dashscope",
+  "providers": {
+    "dashscope": {
+      "api_key": "sk-...",
+      "base_url": "https://...",
+      "api_format": "anthropic",
+      "models": {"strong": "...", "medium": "...", "light": "..."},
+      "features": {"stream": true, "thinking_budget": null, "multimodal": false}
+    }
+  }
+}
+```
+`build_gateway_from_config()` 读取此文件，按 `api_format` 选择 `AnthropicLLMGateway` 或 `HttpLLMGateway`，注入 `thinking_budget`，并包装进 `TierAwareLLMGateway` 返回。`SystemBuilder.build_llm_gateway()` 在 env var 未命中时自动回落到此配置文件。
 
 ### 9.3 RuntimeAdapter Protocol（22 方法）
 
@@ -863,8 +896,6 @@ flowchart TD
 **HookAction**: `CONTINUE` / `MODIFY` / `SKIP` / `BLOCK` / `RETRY`
 
 **线程安全**：`MiddlewareOrchestrator` 的所有结构变更方法（`add/replace/remove_middleware`、`add/remove_hook`、`add_global_hook`）均在 `threading.Lock` 保护下执行。`run()` 入口持锁创建管道快照（`_mw_snapshot`），整个 pipeline 遍历使用快照，消除并发 run 与结构修改之间的竞态条件。
-
-**可观测性**：`MiddlewareOrchestrator` 全程记录结构化日志（`_logger = logging.getLogger(__name__)`）。`PipelineBlockedError` 触发时写入 INFO 日志（含中间件名称与 block 原因）；中间件异常写入 WARNING（含中间件名称与异常详情）；`run()` 入口/出口写入 DEBUG。
 
 ### 9.5 Server API 端点
 
@@ -905,7 +936,7 @@ Top-level symbols exported from `hi_agent` for external callers:
 
 | Symbol | Description |
 |--------|-------------|
-| `hi_agent.RunExecutorFacade` | `start(run_id, profile_id, model_tier, skill_dir)` / `run(prompt, use_graph=False) → RunFacadeResult` / `continue_from_gate(gate_id, decision) → RunFacadeResult` / `stop()` |
+| `hi_agent.RunExecutorFacade` | `start(run_id, profile_id, model_tier, skill_dir)` / `run(prompt) → RunFacadeResult` / `stop()` |
 | `hi_agent.check_readiness()` | Returns `ReadinessReport` — per-subsystem health check |
 | `hi_agent.GateEvent` | Human gate lifecycle event dataclass |
 | `hi_agent.GatePendingError` | Raised when stage execution hits a pending gate |
@@ -1078,16 +1109,15 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 
 ---
 
-## 12.5 2026-04-16 系统审计修复归档（全部已关闭）
+## 12.5 2026-04-16 LLM 能力扩展（全部已合并）
 
-| 缺口 | 修复内容 |
+| 能力 | 实现内容 |
 |------|---------|
-| **J3-4** `execute_async()` 全路径绕过 ExecutionHookManager | `_invoke_capability_via_hooks()` 原 `loop.is_running()` 分支直接跳回裸调用。修复：在 worker thread（`ThreadPoolExecutor(max_workers=1)` + `asyncio.run()`）中执行 hook chain，消除嵌套事件循环冲突，确保 async 路径下 pre/post_tool 钩子正常触发。 |
-| **J2-2** `RunExecutorFacade.continue_from_gate()` 图拓扑盲区 | facade 始终调用线性 `continue_from_gate()`，忽略 `execute_graph()` 路径。修复：`run()` 新增 `use_graph: bool = False` 参数，写入 `_last_execution_mode`；`continue_from_gate()` 依据 mode 选择 `RunExecutor.continue_from_gate_graph()` 或线性变体，图执行后 gate 恢复沿正确拓扑推进。 |
-| **J6-1** `_subrun_task_done_callback` 不存储失败结果 | 模块级回调仅 log，`_completed_subrun_results[task_id]` 从不写入，导致 `await_subrun()` 对 asyncio 任务级失败产生 `KeyError` 或挂起。修复：引入 `_make_subrun_done_callback(results_dict, task_id)` 闭包工厂，取消与异常均写入 `SubRunResult(success=False, ...)`。 |
-| **M-1** `MiddlewareOrchestrator` 零日志 | 653 行无任何 logging import，错误路径完全不可见。修复：增加 `_logger = logging.getLogger(__name__)`，在中间件异常（WARNING）、`PipelineBlockedError`（INFO）、`run()` 入口/出口（DEBUG）处写入结构化日志。 |
-| **M-2** 无 CI/CD 流水线 | 仓库无 `.github/` 目录，测试从未自动化运行。修复：创建 `.github/workflows/ci.yml`，push/PR 自动触发 lint（ruff）、单元测试、集成测试、覆盖率检查（≥ 65%）。 |
-| **M-3** 无覆盖率配置 | `pyproject.toml` 缺少 `[tool.coverage.*]` 配置。修复：新增 `[tool.coverage.run]`（branch coverage）和 `[tool.coverage.report]`（`fail_under=65`，`show_missing=true`），dev 依赖补充 `pytest-cov>=6.0`。 |
+| **SSE 流式调用** | `AnthropicLLMGateway.stream()` 和 `HttpLLMGateway.stream()` 均通过 httpx 实现真实分块传输；`LLMStreamChunk` 携带增量文本、思考增量、最终 usage；SSE `data:` 前缀容忍有无空格格式差异（兼容 DashScope）。 |
+| **Extended Thinking** | `LLMRequest.thinking_budget` per-request 设置；`AnthropicLLMGateway(default_thinking_budget=N)` gateway 级默认；映射到 Anthropic `{"thinking": {"type": "enabled", "budget_tokens": N}}`，自动强制 `temperature=1`。 |
+| **Multimodal 输入** | `LLMRequest.messages[].content` 接受 content block 列表（`{"type": "image", "source": {...}}` + `{"type": "text", ...}`）；`AnthropicLLMGateway._build_payload()` 处理 system 消息中的 content block 提取。 |
+| **第三方 Anthropic 兼容代理** | `AnthropicLLMGateway(base_url=...)` 支持自定义端点（DashScope 等）；`llm_config.json` 新增 `api_format`、`features` 字段；`build_gateway_from_config()` 按 `api_format` 分发 gateway 类型。 |
+| **SystemBuilder 配置回落** | `build_llm_gateway()` env var 未命中时自动调用 `build_gateway_from_config()`，无需手动设置环境变量即可接入配置文件中的 provider。 |
 
 ---
 
@@ -1096,7 +1126,9 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 ```bash
 python -m ruff check .
 python -m pytest -q        # 3027 passed, 5 skipped
-python -m pytest tests/ --ignore=tests/integration --cov=hi_agent --cov-report=term-missing
+
+# LLM 端到端冒烟（streaming / thinking / multimodal）
+python scripts/verify_llm.py [--thinking] [--multimodal <image_path>]
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-16，系统审计 pass）。CI 通过 `.github/workflows/ci.yml` 在每次 push/PR 时自动执行。
+当前文档对应代码形态已通过全量测试回归（2026-04-16，3rd pass）。

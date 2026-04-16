@@ -138,7 +138,7 @@ hi_agent/
   failures/            # FailureCode 分类、异常、采集与恢复映射
   harness/             # HarnessExecutor、GovernanceEngine、PermissionGate、EvidenceStore
   knowledge/           # KnowledgeManager、Wiki、Graph、RetrievalEngine、TF-IDF/BM25/Embedding
-  llm/                 # TierAwareLLMGateway、FailoverChain、PromptCacheInjector、ModelRegistry
+  llm/                 # TierAwareLLMGateway、AnthropicLLMGateway、HttpLLMGateway、FailoverChain、PromptCacheInjector、ModelRegistry；完整流式/思考/多模态支持
   mcp/                 # MCPServer、MCPHealth、MCPBinding；transport.py（可选传输层）
   memory/              # L0 Raw → L1 STM → L2 MidTerm → L3 LongTermGraph + Compressor + Retriever
   middleware/          # MiddlewareOrchestrator + 4 Middlewares (Perception/Control/Execution/Evaluation)
@@ -164,6 +164,8 @@ hi_agent/
   runner_stage.py      # StageExecutor 阶段执行委托
   runner_lifecycle.py  # 结束流程、postmortem、知识摄入、进化触发
   runner_telemetry.py  # 事件与指标记录
+config/                # llm_config.json（本地，gitignore）+ llm_config.example.json（模板）
+scripts/               # verify_llm.py — 流式/思考/多模态冒烟验证
 tests/                 # 3027 个测试，全部通过（2026-04-16 回归）
 docs/                  # 架构、规格、研究文档
 ```
@@ -229,8 +231,6 @@ report = check_readiness()
 facade = RunExecutorFacade()
 facade.start("run-001", profile_id="proj-A", model_tier="medium", skill_dir="skills/")
 result = facade.run("Summarize the TRACE framework in one paragraph")
-# Use execute_graph path with graph-aware gate resume:
-# result = facade.run("Analyze data", use_graph=True)
 facade.stop()
 ```
 
@@ -259,11 +259,16 @@ facade.stop()
 
 ## 关键能力
 
-### 模型分层路由
-`TierAwareLLMGateway` 按任务目的自动路由：`strong`（Claude Opus）/ `medium`（Sonnet）/ `light`（Haiku），配合 `FailoverChain` 凭证轮转与 `PromptCacheInjector` 降低成本。同步 `complete()` 与异步 `acomplete()` 均经由 tier 选择，异步路径不绕过分层策略。
+### 模型分层路由与多模态 LLM
+`TierAwareLLMGateway` 按任务目的自动路由：`strong`（Opus）/ `medium`（Sonnet）/ `light`（Haiku），配合 `FailoverChain` 凭证轮转与 `PromptCacheInjector` 降低成本。`complete()`（同步）、`acomplete()`（异步）、`stream()`（SSE 流式）均经由 tier 选择。
+
+- **流式输出**：`stream()` 通过 httpx 返回 `Iterator[LLMStreamChunk]`，增量文本（`delta`）与思考过程（`thinking_delta`）分流传出。
+- **Extended Thinking**：`LLMRequest(thinking_budget=N)` 开启单请求思考；`llm_config.json` 中 `features.thinking_budget` 设置 gateway 级默认值（`null` 关闭）。
+- **Multimodal**：`messages[].content` 接受 content block 列表，支持图文混合输入。
+- **第三方代理**：`config/llm_config.json` 通过 `api_format`（`"anthropic"` / `"openai"`）+ `base_url` 接入 DashScope 等 Anthropic 协议兼容端点，无需修改代码。`SystemBuilder.build_llm_gateway()` 在 env var 未命中时自动回落到配置文件。
 
 ### 中间件管道
-`Perception → Control → Execution → Evaluation` 四中间件 + 5 阶段生命周期钩子（`pre_create → pre_execute → execute → post_execute → pre_destroy`）。`MiddlewareOrchestrator` 所有结构变更（`add/replace/remove_middleware`、`add/remove_hook`）均持锁执行；`run()` 入口以快照隔离，消除并发执行与结构修改之间的竞态。全路径结构化日志（中间件异常 WARNING、`PipelineBlockedError` INFO、入口/出口 DEBUG）。
+`Perception → Control → Execution → Evaluation` 四中间件 + 5 阶段生命周期钩子（`pre_create → pre_execute → execute → post_execute → pre_destroy`）。`MiddlewareOrchestrator` 所有结构变更（`add/replace/remove_middleware`、`add/remove_hook`）均持锁执行；`run()` 入口以快照隔离，消除并发执行与结构修改之间的竞态。
 
 ### 认知三系统
 - **记忆**：L0 原始事件 → L1 短期（会话压缩）→ L2 中期（Dream 整合）→ L3 长期（语义图谱）。`MemoryCompressor` 压缩上限（`max_findings`/`max_decisions`/`max_entities`/`max_tokens`）可通过 `TraceConfig` 独立配置。
@@ -283,7 +288,11 @@ facade.stop()
 ```bash
 python -m ruff check .       # lint
 python -m pytest -q           # 3027 passed, 5 skipped
-python -m pytest tests/ --ignore=tests/integration --cov=hi_agent --cov-report=term-missing
+
+# LLM 配置验证（填写 config/llm_config.json 后运行）
+python scripts/verify_llm.py                            # 流式测试
+python scripts/verify_llm.py --thinking                 # + 思考模式
+python scripts/verify_llm.py --multimodal path/to.png   # + 多模态
 
 # 触发 Dream 记忆整合
 curl -X POST http://localhost:8080/memory/dream
