@@ -828,12 +828,45 @@ flowchart TD
 
 | 方法 | 签名 | 职责 |
 |------|------|------|
-| `complete` | `(request: LLMRequest) → LLMResponse` | 执行模型调用 |
-| `supports_model` | `(model: str) → bool` | 检查模型兼容性 |
+| `complete` | `(request: LLMRequest) → LLMResponse` | 同步模型调用 |
+| `stream` | `(request: LLMRequest) → Iterator[LLMStreamChunk]` | SSE 流式调用（httpx chunked transfer） |
+| `supports_model` | `(model: str) → bool` | 检查模型兼容性（`AnthropicGateway` 始终返回 True，支持代理端点） |
 
-**实现链路**：`TierAwareLLMGateway` → `FailoverChain` → `HttpLLMGateway`（或 `AnthropicGateway`）
+**LLMRequest 扩展字段**：
+- `messages: list[dict[str, Any]]` — content 支持字符串或 content block 列表（multimodal）
+- `thinking_budget: int | None` — per-request 思考预算，覆盖 gateway 级默认值；`> 0` 开启，`0` 强制关闭
 
-`TierAwareLLMGateway` 同时提供同步 `complete()` 和异步 `acomplete()`；异步路径（`DelegationManager` / `HTTPGateway`）统一经由 `acomplete()` 完成 tier 路由，避免绕过分层策略。
+**LLMStreamChunk**（`llm/protocol.py`）：
+```
+delta: str              # 本次文字增量
+thinking_delta: str     # 思考过程增量（Anthropic extended thinking）
+finish_reason: str|None # 最终块携带停止原因
+usage: TokenUsage|None  # 最终块携带 token 用量
+model: str              # message_start 块携带模型 ID
+```
+
+**实现链路**：`TierAwareLLMGateway` → `FailoverChain` → `AnthropicLLMGateway`（Anthropic API / 兼容代理）或 `HttpLLMGateway`（OpenAI API）
+
+- `TierAwareLLMGateway` 同时提供同步 `complete()`、异步 `acomplete()`、流式 `stream()`；无流式能力的后端自动降级为单 chunk 包装。
+- `AnthropicLLMGateway` 支持自定义 `base_url`，可接入 DashScope 等 Anthropic 协议兼容代理；`default_thinking_budget` 配置 gateway 级思考预算。
+- 思考模式开启时自动强制 `temperature=1`（Anthropic API 要求）。
+
+**provider 配置（`config/llm_config.json`）**：
+```json
+{
+  "default_provider": "dashscope",
+  "providers": {
+    "dashscope": {
+      "api_key": "sk-...",
+      "base_url": "https://...",
+      "api_format": "anthropic",
+      "models": {"strong": "...", "medium": "...", "light": "..."},
+      "features": {"stream": true, "thinking_budget": null, "multimodal": false}
+    }
+  }
+}
+```
+`build_gateway_from_config()` 读取此文件，按 `api_format` 选择 `AnthropicLLMGateway` 或 `HttpLLMGateway`，注入 `thinking_budget`，并包装进 `TierAwareLLMGateway` 返回。`SystemBuilder.build_llm_gateway()` 在 env var 未命中时自动回落到此配置文件。
 
 ### 9.3 RuntimeAdapter Protocol（22 方法）
 
@@ -1076,11 +1109,26 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 
 ---
 
+## 12.5 2026-04-16 LLM 能力扩展（全部已合并）
+
+| 能力 | 实现内容 |
+|------|---------|
+| **SSE 流式调用** | `AnthropicLLMGateway.stream()` 和 `HttpLLMGateway.stream()` 均通过 httpx 实现真实分块传输；`LLMStreamChunk` 携带增量文本、思考增量、最终 usage；SSE `data:` 前缀容忍有无空格格式差异（兼容 DashScope）。 |
+| **Extended Thinking** | `LLMRequest.thinking_budget` per-request 设置；`AnthropicLLMGateway(default_thinking_budget=N)` gateway 级默认；映射到 Anthropic `{"thinking": {"type": "enabled", "budget_tokens": N}}`，自动强制 `temperature=1`。 |
+| **Multimodal 输入** | `LLMRequest.messages[].content` 接受 content block 列表（`{"type": "image", "source": {...}}` + `{"type": "text", ...}`）；`AnthropicLLMGateway._build_payload()` 处理 system 消息中的 content block 提取。 |
+| **第三方 Anthropic 兼容代理** | `AnthropicLLMGateway(base_url=...)` 支持自定义端点（DashScope 等）；`llm_config.json` 新增 `api_format`、`features` 字段；`build_gateway_from_config()` 按 `api_format` 分发 gateway 类型。 |
+| **SystemBuilder 配置回落** | `build_llm_gateway()` env var 未命中时自动调用 `build_gateway_from_config()`，无需手动设置环境变量即可接入配置文件中的 provider。 |
+
+---
+
 ## 13. 质量门禁
 
 ```bash
 python -m ruff check .
-python -m pytest -q        # 2826 passed, 5 skipped
+python -m pytest -q        # 3027 passed, 5 skipped
+
+# LLM 端到端冒烟（streaming / thinking / multimodal）
+python scripts/verify_llm.py [--thinking] [--multimodal <image_path>]
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-15，2nd pass）。
+当前文档对应代码形态已通过全量测试回归（2026-04-16，3rd pass）。
