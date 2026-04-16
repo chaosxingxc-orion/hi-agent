@@ -21,6 +21,9 @@ class TraceConfig:
     ``HI_AGENT_`` prefix.
     """
 
+    # Project scoping
+    project_id: str = ""
+
     # Run limits
     max_stages: int = 10
     max_branches_per_stage: int = 5
@@ -76,6 +79,7 @@ class TraceConfig:
     # Evolve
     evolve_enabled: bool = True
     evolve_min_confidence: float = 0.6
+    feedback_store_enabled: bool = True
 
     # --- Auto-compression (NEW) ---
     compress_snip_threshold: int = 50

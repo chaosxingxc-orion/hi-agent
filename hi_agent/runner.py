@@ -14,8 +14,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from hi_agent.contracts.directives import StageDirective
     from hi_agent.evolve.contracts import RunPostmortem
     from hi_agent.evolve.engine import EvolveEngine
+    from hi_agent.evolve.feedback_store import FeedbackStore
     from hi_agent.failures.collector import FailureCollector
     from hi_agent.failures.watchdog import ProgressWatchdog
     from hi_agent.harness.executor import HarnessExecutor
@@ -218,6 +220,8 @@ class RunExecutor:
         compress_snip_threshold: int | None = None,
         compress_window_threshold: int | None = None,
         compress_compress_threshold: int | None = None,
+        replan_hook: Callable[[str, dict], "StageDirective | None"] | None = None,
+        feedback_store: "FeedbackStore | None" = None,
     ) -> None:
         """Initialize run executor state.
 
@@ -318,6 +322,8 @@ class RunExecutor:
         self._compress_snip_threshold = compress_snip_threshold
         self._compress_window_threshold = compress_window_threshold
         self._compress_compress_threshold = compress_compress_threshold
+        self._replan_hook = replan_hook
+        self._feedback_store = feedback_store
         self.evolve_engine = evolve_engine
         self.harness_executor = harness_executor
         self.human_gate_quality_threshold = human_gate_quality_threshold
@@ -2036,6 +2042,17 @@ class RunExecutor:
             except Exception as _exc:
                 _logger.debug("L2->L3 consolidation failed: %s", _exc)
 
+        # --- FeedbackStore: submit neutral record for completed run ---
+        if self._feedback_store is not None:
+            from hi_agent.evolve.feedback_store import RunFeedback
+            try:
+                self._feedback_store.submit(RunFeedback(run_id=self.run_id, rating=0.5))
+                _logger.debug(
+                    "feedback_store: neutral record submitted for run %s", self.run_id
+                )
+            except Exception as _fb_exc:
+                _logger.warning("feedback_store: submit failed: %s", _fb_exc)
+
         # --- Wall-clock duration ---
         _start = getattr(self, "_run_start_monotonic", None)
         duration_ms = int((time.monotonic() - _start) * 1000) if _start is not None else 0
@@ -2104,13 +2121,32 @@ class RunExecutor:
 
         self._run_start_monotonic: float = time.monotonic()
         try:
-            for stage_id in self.stage_graph.trace_order():
+            remaining_stages: list[str] = list(self.stage_graph.trace_order())
+            while remaining_stages:
+                stage_id = remaining_stages.pop(0)
                 stage_result = self._execute_stage(stage_id)
                 if stage_result == "failed":
                     handled = self._handle_stage_failure(stage_id, stage_result)
                     if handled == "failed":
                         return self._finalize_run("failed")
                     # "reflected" or any non-failed result: continue to next stage
+                if self._replan_hook is not None:
+                    from hi_agent.contracts.directives import StageDirective
+                    _stage_result_dict = stage_result if isinstance(stage_result, dict) else {}
+                    directive = self._replan_hook(stage_id, _stage_result_dict)
+                    if directive is not None and isinstance(directive, StageDirective) and directive.action != "continue":
+                        _logger.info(
+                            "replan_hook directive: %s (reason=%s)",
+                            directive.action,
+                            directive.reason,
+                        )
+                        if directive.action == "skip" and directive.target_stage_id:
+                            remaining_stages = [s for s in remaining_stages if s != directive.target_stage_id]
+                        elif directive.action == "repeat":
+                            remaining_stages.insert(0, stage_id)
+                        elif directive.action == "insert" and directive.new_stage_specs:
+                            for i, spec in enumerate(directive.new_stage_specs):
+                                remaining_stages.insert(i, spec.get("stage_id", f"dynamic_{i}"))
         except GatePendingError:
             raise  # propagate — gate awaits human input, not a run failure
         except Exception as exc:
