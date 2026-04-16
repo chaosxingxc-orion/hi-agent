@@ -10,12 +10,12 @@ import random
 import time
 import urllib.error
 import urllib.request
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterator
 
 import httpx
 
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
-from hi_agent.llm.protocol import LLMRequest, LLMResponse, TokenUsage
+from hi_agent.llm.protocol import LLMRequest, LLMResponse, LLMStreamChunk, TokenUsage
 
 if TYPE_CHECKING:
     from hi_agent.llm.failover import FailoverChain
@@ -153,6 +153,79 @@ class HttpLLMGateway:
         payload = self._build_payload(request, model)
         raw = self._post(payload)
         return self._parse_response(raw, model)
+
+    def stream(self, request: LLMRequest) -> Iterator[LLMStreamChunk]:
+        """Stream the response via SSE (OpenAI format).
+
+        Uses httpx for chunked transfer.  Yields :class:`LLMStreamChunk`
+        objects; the final chunk carries ``finish_reason`` and ``usage``.
+
+        Raises:
+            LLMTimeoutError: On connection timeout.
+            LLMProviderError: On HTTP error responses.
+        """
+        model = request.model if request.model != "default" else self._default_model
+        payload = self._build_payload(request, model)
+        payload["stream"] = True
+
+        api_key = os.environ.get(self._api_key_env, "")
+        url = f"{self._base_url}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "accept": "text/event-stream",
+        }
+
+        timeout = httpx.Timeout(connect=30.0, read=self._timeout, write=30.0, pool=5.0)
+
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                with client.stream("POST", url, json=payload, headers=headers) as resp:
+                    if resp.status_code >= 400:
+                        body = resp.read().decode(errors="replace")
+                        raise LLMProviderError(
+                            f"HTTP {resp.status_code}: {body}",
+                            status_code=resp.status_code,
+                        )
+                    for line in resp.iter_lines():
+                        # SSE format: "data: {...}" (RFC) or "data:{...}" (some proxies)
+                        if not line.startswith("data:"):
+                            continue
+                        data_str = line[5:].lstrip(" ")
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            event = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = event.get("choices", [])
+                        if not choices:
+                            continue
+                        choice = choices[0]
+                        delta = choice.get("delta", {})
+                        text = delta.get("content") or ""
+                        finish_reason = choice.get("finish_reason")
+                        usage_raw = event.get("usage", {})
+                        usage = None
+                        if usage_raw:
+                            usage = TokenUsage(
+                                prompt_tokens=usage_raw.get("prompt_tokens", 0),
+                                completion_tokens=usage_raw.get("completion_tokens", 0),
+                                total_tokens=usage_raw.get("total_tokens", 0),
+                            )
+                        if text or finish_reason or usage:
+                            yield LLMStreamChunk(
+                                delta=text,
+                                finish_reason=finish_reason,
+                                usage=usage,
+                                model=event.get("model", model),
+                            )
+        except httpx.TimeoutException as exc:
+            raise LLMTimeoutError(str(exc)) from exc
+        except httpx.HTTPStatusError as exc:
+            raise LLMProviderError(str(exc), status_code=exc.response.status_code) from exc
+        except httpx.RequestError as exc:
+            raise LLMProviderError(str(exc)) from exc
 
     def supports_model(self, model: str) -> bool:
         """Return ``True``; the HTTP gateway delegates model validation to the provider."""

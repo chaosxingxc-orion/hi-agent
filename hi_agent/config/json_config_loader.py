@@ -196,6 +196,9 @@ def build_gateway_from_config(
             ))
 
     # --- Build raw gateway ---
+    features = provider_cfg.get("features", {})
+    thinking_budget: int | None = features.get("thinking_budget") or None
+
     if api_format == "anthropic":
         from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
         raw_gw: object = AnthropicLLMGateway(
@@ -203,6 +206,7 @@ def build_gateway_from_config(
             default_model=default_model or "claude-sonnet-4-6",
             timeout_seconds=120,
             base_url=base_url or "https://api.anthropic.com",
+            default_thinking_budget=thinking_budget,
         )
     else:
         from hi_agent.llm.http_gateway import HttpLLMGateway
