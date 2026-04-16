@@ -77,6 +77,7 @@ class RunExecutorFacade:
         self._executor: Any | None = None
         self._contract: Any | None = None
         self._last_gate_id: str | None = None
+        self._last_execution_mode: str = "linear"  # "linear" or "graph"
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -122,14 +123,19 @@ class RunExecutorFacade:
         self._contract = contract
         self._executor = builder.build_executor(contract)
 
-    def run(self, prompt: str) -> RunFacadeResult:
+    def run(self, prompt: str, use_graph: bool = False) -> RunFacadeResult:
         """Execute a single prompt and return a structured result.
 
         Sets ``contract.goal`` to ``prompt`` then calls
-        :meth:`~hi_agent.runner.RunExecutor.execute`.
+        :meth:`~hi_agent.runner.RunExecutor.execute` (linear) or
+        :meth:`~hi_agent.runner.RunExecutor.execute_graph` (DAG) depending
+        on ``use_graph``.
 
         Args:
             prompt: Natural-language task goal.
+            use_graph: When True, execute with graph topology so that
+                :meth:`continue_from_gate` resumes via the correct
+                graph-aware path.
 
         Returns:
             :class:`RunFacadeResult` with ``success``, ``output``,
@@ -144,9 +150,13 @@ class RunExecutorFacade:
             )
 
         self._contract.goal = prompt
+        self._last_execution_mode = "graph" if use_graph else "linear"
         from hi_agent.gate_protocol import GatePendingError
         try:
-            run_result = self._executor.execute()
+            if use_graph:
+                run_result = self._executor.execute_graph()
+            else:
+                run_result = self._executor.execute()
         except GatePendingError as _gate_exc:
             self._last_gate_id = getattr(_gate_exc, "gate_id", None)
             raise
@@ -217,11 +227,18 @@ class RunExecutorFacade:
             )
         from hi_agent.gate_protocol import GatePendingError
         try:
-            run_result = self._executor.continue_from_gate(
-                gate_id=gate_id,
-                decision=decision,
-                rationale=rationale,
-            )
+            if self._last_execution_mode == "graph":
+                run_result = self._executor.continue_from_gate_graph(
+                    gate_id=gate_id,
+                    decision=decision,
+                    rationale=rationale,
+                )
+            else:
+                run_result = self._executor.continue_from_gate(
+                    gate_id=gate_id,
+                    decision=decision,
+                    rationale=rationale,
+                )
         except GatePendingError as _gate_exc:
             self._last_gate_id = getattr(_gate_exc, "gate_id", None)
             raise
