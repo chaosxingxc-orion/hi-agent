@@ -135,7 +135,7 @@ class ModelRegistry:
         defaults = [
             # Anthropic
             RegisteredModel(
-                model_id="claude-opus-4",
+                model_id="claude-opus-4-6",
                 provider="anthropic",
                 tier=ModelTier.STRONG,
                 cost_input_per_mtok=15.0,
@@ -148,7 +148,7 @@ class ModelRegistry:
                 capabilities=["reasoning", "code", "vision", "tool_use"],
             ),
             RegisteredModel(
-                model_id="claude-sonnet-4",
+                model_id="claude-sonnet-4-6",
                 provider="anthropic",
                 tier=ModelTier.MEDIUM,
                 cost_input_per_mtok=3.0,
@@ -161,7 +161,7 @@ class ModelRegistry:
                 capabilities=["reasoning", "code", "vision", "tool_use"],
             ),
             RegisteredModel(
-                model_id="claude-haiku-4.5",
+                model_id="claude-haiku-4-5-20251001",
                 provider="anthropic",
                 tier=ModelTier.LIGHT,
                 cost_input_per_mtok=0.8,

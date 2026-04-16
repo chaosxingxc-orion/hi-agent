@@ -105,8 +105,9 @@ class TraceConfig:
     openai_default_model: str = "gpt-4o"
     anthropic_base_url: str = "https://api.anthropic.com"
     anthropic_api_key_env: str = "ANTHROPIC_API_KEY"
-    anthropic_default_model: str = "claude-sonnet-4-20250514"
+    anthropic_default_model: str = "claude-sonnet-4-6"
     anthropic_api_version: str = "2023-06-01"
+    llm_default_provider: str = "anthropic"
 
     # --- LLM Budget (NEW) ---
     llm_budget_max_calls: int = 100

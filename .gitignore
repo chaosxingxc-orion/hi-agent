@@ -15,3 +15,4 @@ venv/
 docs/reports/
 docs/superpowers/plans/
 docs/superpowers/specs/
+config/llm_config.json

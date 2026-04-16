@@ -20,6 +20,7 @@ from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine
+from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
 from hi_agent.llm.http_gateway import HttpLLMGateway
 from hi_agent.llm.protocol import LLMGateway
 from hi_agent.llm.registry import ModelRegistry
@@ -523,18 +524,26 @@ class SystemBuilder:
             if self._llm_gateway is not None:
                 return self._llm_gateway
 
-            for env_var, base_url, default_model in [
-                (
+            _provider_params = {
+                "anthropic": (
+                    self._config.anthropic_api_key_env,
+                    self._config.anthropic_base_url,
+                    self._config.anthropic_default_model,
+                ),
+                "openai": (
                     self._config.openai_api_key_env,
                     self._config.openai_base_url,
                     self._config.openai_default_model,
                 ),
-                (
-                    self._config.anthropic_api_key_env,
-                    self._config.anthropic_base_url + "/v1",
-                    self._config.anthropic_default_model,
-                ),
-            ]:
+            }
+            default_provider = getattr(self._config, "llm_default_provider", "anthropic")
+            provider_order = (
+                ["anthropic", "openai"]
+                if default_provider == "anthropic"
+                else ["openai", "anthropic"]
+            )
+            for provider in provider_order:
+                env_var, base_url, default_model = _provider_params[provider]
                 if os.environ.get(env_var):
                     # Build optional cache injector and failover chain.
                     cache_injector = self._build_cache_injector()
@@ -542,15 +551,22 @@ class SystemBuilder:
 
                     if self._llm_budget_tracker is None:
                         self._llm_budget_tracker = self._build_llm_budget_tracker()
-                    raw_gateway: LLMGateway = HttpLLMGateway(
-                        base_url=base_url,
-                        api_key_env=env_var,
-                        default_model=default_model,
-                        timeout_seconds=self._config.llm_timeout_seconds,
-                        failover_chain=failover_chain,
-                        cache_injector=cache_injector,
-                        budget_tracker=self._llm_budget_tracker,
-                    )
+                    if provider == "anthropic":
+                        raw_gateway: LLMGateway = AnthropicLLMGateway(
+                            api_key_env=env_var,
+                            default_model=default_model,
+                            timeout_seconds=self._config.llm_timeout_seconds,
+                        )
+                    else:
+                        raw_gateway = HttpLLMGateway(
+                            base_url=base_url,
+                            api_key_env=env_var,
+                            default_model=default_model,
+                            timeout_seconds=self._config.llm_timeout_seconds,
+                            failover_chain=failover_chain,
+                            cache_injector=cache_injector,
+                            budget_tracker=self._llm_budget_tracker,
+                        )
                     registry = ModelRegistry()
                     registry.register_defaults()
                     tier_router = TierRouter(registry)
