@@ -164,7 +164,7 @@ hi_agent/
   runner_stage.py      # StageExecutor 阶段执行委托
   runner_lifecycle.py  # 结束流程、postmortem、知识摄入、进化触发
   runner_telemetry.py  # 事件与指标记录
-tests/                 # 2826 个测试，全部通过（2026-04-15 回归）
+tests/                 # 3027 个测试，全部通过（2026-04-16 回归）
 docs/                  # 架构、规格、研究文档
 ```
 
@@ -229,6 +229,8 @@ report = check_readiness()
 facade = RunExecutorFacade()
 facade.start("run-001", profile_id="proj-A", model_tier="medium", skill_dir="skills/")
 result = facade.run("Summarize the TRACE framework in one paragraph")
+# Use execute_graph path with graph-aware gate resume:
+# result = facade.run("Analyze data", use_graph=True)
 facade.stop()
 ```
 
@@ -261,7 +263,7 @@ facade.stop()
 `TierAwareLLMGateway` 按任务目的自动路由：`strong`（Claude Opus）/ `medium`（Sonnet）/ `light`（Haiku），配合 `FailoverChain` 凭证轮转与 `PromptCacheInjector` 降低成本。同步 `complete()` 与异步 `acomplete()` 均经由 tier 选择，异步路径不绕过分层策略。
 
 ### 中间件管道
-`Perception → Control → Execution → Evaluation` 四中间件 + 5 阶段生命周期钩子（`pre_create → pre_execute → execute → post_execute → pre_destroy`）。`MiddlewareOrchestrator` 所有结构变更（`add/replace/remove_middleware`、`add/remove_hook`）均持锁执行；`run()` 入口以快照隔离，消除并发执行与结构修改之间的竞态。
+`Perception → Control → Execution → Evaluation` 四中间件 + 5 阶段生命周期钩子（`pre_create → pre_execute → execute → post_execute → pre_destroy`）。`MiddlewareOrchestrator` 所有结构变更（`add/replace/remove_middleware`、`add/remove_hook`）均持锁执行；`run()` 入口以快照隔离，消除并发执行与结构修改之间的竞态。全路径结构化日志（中间件异常 WARNING、`PipelineBlockedError` INFO、入口/出口 DEBUG）。
 
 ### 认知三系统
 - **记忆**：L0 原始事件 → L1 短期（会话压缩）→ L2 中期（Dream 整合）→ L3 长期（语义图谱）。`MemoryCompressor` 压缩上限（`max_findings`/`max_decisions`/`max_entities`/`max_tokens`）可通过 `TraceConfig` 独立配置。
@@ -280,7 +282,8 @@ facade.stop()
 
 ```bash
 python -m ruff check .       # lint
-python -m pytest -q           # 2826 passed, 5 skipped
+python -m pytest -q           # 3027 passed, 5 skipped
+python -m pytest tests/ --ignore=tests/integration --cov=hi_agent --cov-report=term-missing
 
 # 触发 Dream 记忆整合
 curl -X POST http://localhost:8080/memory/dream

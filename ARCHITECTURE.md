@@ -864,6 +864,8 @@ flowchart TD
 
 **线程安全**：`MiddlewareOrchestrator` 的所有结构变更方法（`add/replace/remove_middleware`、`add/remove_hook`、`add_global_hook`）均在 `threading.Lock` 保护下执行。`run()` 入口持锁创建管道快照（`_mw_snapshot`），整个 pipeline 遍历使用快照，消除并发 run 与结构修改之间的竞态条件。
 
+**可观测性**：`MiddlewareOrchestrator` 全程记录结构化日志（`_logger = logging.getLogger(__name__)`）。`PipelineBlockedError` 触发时写入 INFO 日志（含中间件名称与 block 原因）；中间件异常写入 WARNING（含中间件名称与异常详情）；`run()` 入口/出口写入 DEBUG。
+
 ### 9.5 Server API 端点
 
 | 路径 | 方法 | 职责 |
@@ -903,7 +905,7 @@ Top-level symbols exported from `hi_agent` for external callers:
 
 | Symbol | Description |
 |--------|-------------|
-| `hi_agent.RunExecutorFacade` | `start(run_id, profile_id, model_tier, skill_dir)` / `run(prompt) → RunFacadeResult` / `stop()` |
+| `hi_agent.RunExecutorFacade` | `start(run_id, profile_id, model_tier, skill_dir)` / `run(prompt, use_graph=False) → RunFacadeResult` / `continue_from_gate(gate_id, decision) → RunFacadeResult` / `stop()` |
 | `hi_agent.check_readiness()` | Returns `ReadinessReport` — per-subsystem health check |
 | `hi_agent.GateEvent` | Human gate lifecycle event dataclass |
 | `hi_agent.GatePendingError` | Raised when stage execution hits a pending gate |
@@ -1076,11 +1078,25 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 
 ---
 
+## 12.5 2026-04-16 系统审计修复归档（全部已关闭）
+
+| 缺口 | 修复内容 |
+|------|---------|
+| **J3-4** `execute_async()` 全路径绕过 ExecutionHookManager | `_invoke_capability_via_hooks()` 原 `loop.is_running()` 分支直接跳回裸调用。修复：在 worker thread（`ThreadPoolExecutor(max_workers=1)` + `asyncio.run()`）中执行 hook chain，消除嵌套事件循环冲突，确保 async 路径下 pre/post_tool 钩子正常触发。 |
+| **J2-2** `RunExecutorFacade.continue_from_gate()` 图拓扑盲区 | facade 始终调用线性 `continue_from_gate()`，忽略 `execute_graph()` 路径。修复：`run()` 新增 `use_graph: bool = False` 参数，写入 `_last_execution_mode`；`continue_from_gate()` 依据 mode 选择 `RunExecutor.continue_from_gate_graph()` 或线性变体，图执行后 gate 恢复沿正确拓扑推进。 |
+| **J6-1** `_subrun_task_done_callback` 不存储失败结果 | 模块级回调仅 log，`_completed_subrun_results[task_id]` 从不写入，导致 `await_subrun()` 对 asyncio 任务级失败产生 `KeyError` 或挂起。修复：引入 `_make_subrun_done_callback(results_dict, task_id)` 闭包工厂，取消与异常均写入 `SubRunResult(success=False, ...)`。 |
+| **M-1** `MiddlewareOrchestrator` 零日志 | 653 行无任何 logging import，错误路径完全不可见。修复：增加 `_logger = logging.getLogger(__name__)`，在中间件异常（WARNING）、`PipelineBlockedError`（INFO）、`run()` 入口/出口（DEBUG）处写入结构化日志。 |
+| **M-2** 无 CI/CD 流水线 | 仓库无 `.github/` 目录，测试从未自动化运行。修复：创建 `.github/workflows/ci.yml`，push/PR 自动触发 lint（ruff）、单元测试、集成测试、覆盖率检查（≥ 65%）。 |
+| **M-3** 无覆盖率配置 | `pyproject.toml` 缺少 `[tool.coverage.*]` 配置。修复：新增 `[tool.coverage.run]`（branch coverage）和 `[tool.coverage.report]`（`fail_under=65`，`show_missing=true`），dev 依赖补充 `pytest-cov>=6.0`。 |
+
+---
+
 ## 13. 质量门禁
 
 ```bash
 python -m ruff check .
-python -m pytest -q        # 2826 passed, 5 skipped
+python -m pytest -q        # 3027 passed, 5 skipped
+python -m pytest tests/ --ignore=tests/integration --cov=hi_agent --cov-report=term-missing
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-15，2nd pass）。
+当前文档对应代码形态已通过全量测试回归（2026-04-16，系统审计 pass）。CI 通过 `.github/workflows/ci.yml` 在每次 push/PR 时自动执行。
