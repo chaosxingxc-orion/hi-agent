@@ -1,0 +1,28 @@
+{
+  "default_provider": "anthropic",
+  "providers": {
+    "anthropic": {
+      "api_key": "",
+      "base_url": "https://api.anthropic.com",
+      "models": {
+        "strong": "claude-opus-4-6",
+        "medium": "claude-sonnet-4-6",
+        "light": "claude-haiku-4-5-20251001"
+      }
+    },
+    "openai": {
+      "api_key": "",
+      "base_url": "https://api.openai.com/v1",
+      "models": {
+        "strong": "gpt-4.1",
+        "medium": "gpt-4o",
+        "light": "gpt-4o-mini"
+      }
+    }
+  },
+  "budget": {
+    "max_calls": 100,
+    "max_tokens": 500000,
+    "max_output_tokens": 4096
+  }
+}

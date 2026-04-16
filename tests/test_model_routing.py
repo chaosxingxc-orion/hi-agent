@@ -143,7 +143,7 @@ class TestModelRegistry:
         # Check tiers
         strong = reg.list_by_tier(ModelTier.STRONG)
         assert len(strong) == 1
-        assert strong[0].model_id == "claude-opus-4"
+        assert strong[0].model_id == "claude-opus-4-6"
         medium = reg.list_by_tier(ModelTier.MEDIUM)
         assert len(medium) >= 2
         light = reg.list_by_tier(ModelTier.LIGHT)
@@ -466,4 +466,4 @@ class TestIntegration:
 
         r = selector.select("control", complexity="complex")
         assert r.tier_actual == ModelTier.STRONG
-        assert r.model.model_id == "claude-opus-4"
+        assert r.model.model_id == "claude-opus-4-6"
