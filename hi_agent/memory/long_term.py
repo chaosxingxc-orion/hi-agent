@@ -17,6 +17,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore
 
@@ -62,25 +63,47 @@ class LongTermMemoryGraph:
         storage_path: str = ".hi_agent/memory/long_term/graph.json",
         profile_id: str = "",
         embedding_fn: Callable[[str], list[float]] | None = None,
+        project_id: str = "",
+        base_dir: str | None = None,
     ) -> None:
         """Initialize LongTermMemoryGraph.
 
         Args:
             storage_path: Default path to graph JSON file. Used as-is when
-                profile_id is empty.
+                profile_id and base_dir are both empty.
             profile_id: When non-empty, overrides the storage path to
                 {storage_path_base}/memory/L3/{profile_id}/graph.json where
                 storage_path_base is the parent-of-parent of storage_path.
             embedding_fn: Optional callable that maps a text string to a
                 float vector.  When provided, ``search()`` uses cosine
                 similarity instead of TF-IDF.
+            project_id: When non-empty, appended as a directory component
+                beneath the profile directory for per-project scoping.
+            base_dir: When provided, used as the root directory instead of
+                deriving the base from storage_path.  Typically a temp dir
+                in tests.
         """
-        if profile_id:
+        self._project_id = project_id
+        if base_dir is not None:
+            # Explicit base_dir overrides storage_path derivation.
+            root = Path(base_dir)
+            if profile_id and project_id:
+                resolved = root / "L3" / profile_id / project_id / "graph.json"
+            elif profile_id:
+                resolved = root / "L3" / profile_id / "graph.json"
+            elif project_id:
+                resolved = root / "L3" / project_id / "graph.json"
+            else:
+                resolved = root / "graph.json"
+        elif profile_id:
             # storage_path default: {base}/memory/long_term/graph.json
             # profile_id path:      {base}/memory/L3/{profile_id}/graph.json
             # So storage_path_base is three levels above graph.json.
             base = Path(storage_path).parents[2]
-            resolved = base / "memory" / "L3" / profile_id / "graph.json"
+            if project_id:
+                resolved = base / "memory" / "L3" / profile_id / project_id / "graph.json"
+            else:
+                resolved = base / "memory" / "L3" / profile_id / "graph.json"
         else:
             resolved = Path(storage_path)
         self._storage_path = resolved
@@ -375,6 +398,72 @@ class LongTermMemoryGraph:
         node = self._nodes.get(node_id)
         if node is not None:
             node.access_count += 1
+
+    # ------------------------------------------------------------------ Project scoping
+
+    def list_runs_by_project(self, project_id: str) -> list[str]:
+        """Return all run_ids recorded in nodes for the given project_id."""
+        return list({
+            src
+            for node in self._nodes.values()
+            for src in node.source_sessions
+            if project_id and project_id in node.tags
+        })
+
+    # ------------------------------------------------------------------ Graph inference
+
+    def find_transitive_closure(
+        self,
+        start_id: str,
+        relation_type: str | None = None,
+        max_depth: int = 5,
+    ) -> set[str]:
+        """BFS over edges of the given relation_type from start_id.
+
+        Returns set of reachable node IDs (start_id itself is excluded).
+        """
+        visited: set[str] = set()
+        queue = [start_id]
+        depth = 0
+        while queue and depth < max_depth:
+            next_queue: list[str] = []
+            for node_id in queue:
+                for edge in self._edges:
+                    if edge.source_id == node_id and node_id not in visited:
+                        if relation_type is None or edge.relation_type == relation_type:
+                            next_queue.append(edge.target_id)
+                visited.add(node_id)
+            queue = [n for n in next_queue if n not in visited]
+            depth += 1
+        visited.discard(start_id)
+        return visited
+
+    def find_conflicts(self, node_id: str) -> list[tuple[str, str]]:
+        """Return (neighbor_id, relation_type) pairs where relation_type == 'contradicts'."""
+        return [
+            (e.target_id if e.source_id == node_id else e.source_id, e.relation_type)
+            for e in self._edges
+            if e.relation_type == "contradicts"
+            and (e.source_id == node_id or e.target_id == node_id)
+        ]
+
+    def get_subgraph_with_confidence(
+        self, root_id: str, max_depth: int = 3
+    ) -> dict[str, Any]:
+        """Return a subgraph dict with nodes and their confidence scores.
+
+        Uses the existing get_subgraph() method for traversal and augments
+        the result with per-node confidence and node_type metadata.
+        """
+        nodes, _edges = self.get_subgraph(root_id, max_depth)
+        result: dict[str, Any] = {}
+        for node in nodes:
+            result[node.node_id] = {
+                "content": node.content,
+                "confidence": node.confidence,
+                "node_type": node.node_type,
+            }
+        return result
 
     # ------------------------------------------------------------------ TF-IDF index
 

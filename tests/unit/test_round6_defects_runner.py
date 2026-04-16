@@ -105,6 +105,7 @@ def _bare_executor(task_id: str = "t-r6", run_id: str = "run-r6") -> "RunExecuto
     executor._hook_manager = None
     executor.tier_router = None
     executor.budget_guard = None
+    executor._feedback_store = None
     return executor
 
 

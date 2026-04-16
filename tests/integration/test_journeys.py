@@ -367,20 +367,24 @@ def test_journey_checkpoint_resume(tmp_path: Path) -> None:
     session.save_checkpoint(str(cp_path))
     assert cp_path.exists(), "checkpoint file must be written"
 
-    # Resume from checkpoint with a new kernel
+    # Resume from checkpoint with a new kernel.
+    # A simple always-succeeding invoker ensures the remaining stages complete.
+    class AlwaysSucceedInvoker:
+        def invoke(self, capability_name: str, payload: dict) -> dict:
+            stage_id = payload.get("stage_id", capability_name)
+            return {"success": True, "score": 1.0, "evidence_hash": f"ev_{stage_id}"}
+
     kernel2 = MockKernel(strict_mode=False)
 
     result = RunExecutor.resume_from_checkpoint(
         str(cp_path),
         kernel2,
         stage_graph=graph,
+        invoker=AlwaysSucceedInvoker(),
     )
 
     # Resume should complete (remaining stages s3→s4→s5 succeed by default)
-    assert str(result) in ("completed", "failed"), f"Unexpected result: {result!r}"
-
-    # Primary invariant: resume returns a terminal result without re-running s1/s2.
-    assert str(result) in ("completed", "failed")
+    assert str(result) == "completed", f"Unexpected result: {result!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -484,3 +488,124 @@ async def test_journey_async_full() -> None:
         assert isinstance(executor.session.stage_states, dict), (
             "session.stage_states must be a dict after execute_async()"
         )
+
+
+# ---------------------------------------------------------------------------
+# Journey 9: PI-C artifact-writing capability + PI-D sub-run dispatch
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_journey_combined_pi_c_pi_d(tmp_path: Path) -> None:
+    """J9: PI-C (artifact-writing capability) followed by PI-D (sub-run dispatch).
+
+    Stage 1 (PI-C): invokes a registered capability that writes a text artifact.
+    Stage 2 (PI-D): dispatches a child sub-run via DelegationManager passing the
+                    artifact as input, then awaits the result.
+
+    Mocked boundary: kernel.spawn_child_run_async and kernel.query_run — these
+    represent external async kernel HTTP calls (P3-compliant mock boundary).
+    All other components are real.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    from hi_agent.task_mgmt.delegation import DelegationConfig, DelegationManager
+
+    # -------------------------------------------------------------------
+    # 1. Set up a real DelegationManager with mocked external kernel calls.
+    #    spawn_child_run_async / query_run are the only mocked boundaries
+    #    (external async kernel HTTP calls — P3 compliant).
+    # -------------------------------------------------------------------
+    child_kernel = MagicMock()
+    child_kernel.spawn_child_run_async = AsyncMock(return_value="child-run-j9")
+    child_kernel.query_run = MagicMock(
+        return_value={"lifecycle_state": "completed", "output": "subrun result j9"}
+    )
+
+    delegation_config = DelegationConfig(max_concurrent=1, poll_interval_seconds=0.01)
+    delegation_mgr = DelegationManager(kernel=child_kernel, config=delegation_config)
+
+    # -------------------------------------------------------------------
+    # 2. Build a 2-stage graph: stage_write → stage_dispatch
+    # -------------------------------------------------------------------
+    graph = _simple_graph("stage_write", "stage_dispatch")
+    contract = TaskContract(
+        task_id="journey-9-pi-c-pi-d",
+        goal="combined PI-C artifact write and PI-D sub-run dispatch",
+        task_family="quick_task",
+    )
+    kernel = MockKernel(strict_mode=False)
+
+    # Artifact storage shared between stages
+    artifact_store: dict[str, str] = {}
+
+    # -------------------------------------------------------------------
+    # 3. Capability invoker: stage_write produces an artifact;
+    #    stage_dispatch dispatches a sub-run and records the result.
+    # -------------------------------------------------------------------
+    subrun_result_store: dict[str, Any] = {}
+
+    class PiCPiDInvoker:
+        def invoke(self, capability_name: str, payload: dict) -> dict:
+            stage_id = payload.get("stage_id", capability_name)
+            if stage_id == "stage_write":
+                # PI-C: write a text artifact
+                artifact_path = tmp_path / "artifact_j9.txt"
+                artifact_path.write_text("artifact content from stage_write")
+                artifact_store["artifact_path"] = str(artifact_path)
+                return {
+                    "success": True,
+                    "score": 1.0,
+                    "evidence_hash": "ev_stage_write",
+                    "artifact_path": str(artifact_path),
+                }
+            if stage_id == "stage_dispatch":
+                # PI-D: dispatch a sub-run via DelegationManager
+                handle = executor.dispatch_subrun(
+                    agent="research",
+                    profile_id="test-profile-j9",
+                    goal=f"process artifact at {artifact_store.get('artifact_path', '')}",
+                )
+                sr = executor.await_subrun(handle)
+                subrun_result_store["success"] = sr.success
+                subrun_result_store["error"] = sr.error
+                return {
+                    "success": True,
+                    "score": 1.0,
+                    "evidence_hash": "ev_stage_dispatch",
+                }
+            return {"success": True, "score": 1.0, "evidence_hash": f"ev_{stage_id}"}
+
+    invoker = PiCPiDInvoker()
+
+    executor = RunExecutor(
+        contract,
+        kernel,
+        stage_graph=graph,
+        invoker=invoker,
+        delegation_manager=delegation_mgr,
+    )
+    executor._run_id = "run-journey-9"
+
+    # -------------------------------------------------------------------
+    # 4. Execute the run (synchronous linear path so the provided
+    #    stage_graph and invoker are used directly).
+    # -------------------------------------------------------------------
+    result = executor.execute()
+
+    # -------------------------------------------------------------------
+    # 5. Assertions
+    # -------------------------------------------------------------------
+    # Overall run completes successfully
+    assert str(result) == "completed", f"Expected completed, got: {result!r}"
+
+    # PI-C: artifact file was written by stage_write
+    assert "artifact_path" in artifact_store, "stage_write must populate artifact_store"
+    assert Path(artifact_store["artifact_path"]).exists(), "artifact file must exist on disk"
+    assert Path(artifact_store["artifact_path"]).read_text() == "artifact content from stage_write"
+
+    # PI-D: sub-run dispatched and result accessible
+    assert subrun_result_store.get("success") is True, (
+        f"sub-run must succeed, got: {subrun_result_store!r}"
+    )
+    assert subrun_result_store.get("error") is None

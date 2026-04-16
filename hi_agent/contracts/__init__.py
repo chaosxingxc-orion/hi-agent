@@ -10,6 +10,7 @@ from hi_agent.contracts.cts_budget import CTSBudget, CTSBudgetTemplate, CTSExplo
 from hi_agent.contracts.identity import deterministic_id
 from hi_agent.contracts.memory import RunIndex, StageSummary
 from hi_agent.contracts.policy import PolicyVersionSet, SkillContentSpec
+from hi_agent.contracts.provenance import Provenance
 from hi_agent.contracts.requests import (
     ApprovalRequest,
     BranchStateUpdateRequest,
@@ -40,6 +41,7 @@ __all__ = [
     "NodeType",
     "OpenBranchRequest",
     "PolicyVersionSet",
+    "Provenance",
     "QueryRunResponse",
     "RunIndex",
     "RunState",

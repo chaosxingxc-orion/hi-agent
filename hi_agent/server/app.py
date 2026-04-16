@@ -5,8 +5,10 @@ Endpoints:
     GET  /runs/{run_id} -- Query run status
     GET  /runs          -- List active runs
     GET  /runs/active   -- Active RunContext entries from RunContextManager
-    POST /runs/{run_id}/signal -- Send signal to run
-    POST /runs/{run_id}/resume -- Resume run from checkpoint
+    POST /runs/{run_id}/signal    -- Send signal to run
+    POST /runs/{run_id}/feedback  -- Submit explicit feedback for a run
+    GET  /runs/{run_id}/feedback  -- Retrieve feedback for a run
+    POST /runs/{run_id}/resume    -- Resume run from checkpoint
     GET  /runs/{run_id}/events -- SSE stream of run events
     GET  /health        -- Health check
     GET  /ready         -- Platform readiness contract (200=ready, 503=not ready)
@@ -632,6 +634,52 @@ async def handle_signal_run(request: Request) -> JSONResponse:
     return JSONResponse(
         {"error": "unknown_signal", "signal": signal}, status_code=400,
     )
+
+
+_feedback_store_fallback: Any = None
+
+
+def _get_feedback_store(server: "AgentServer") -> Any:
+    """Return the server's FeedbackStore, creating a module-level fallback if needed."""
+    global _feedback_store_fallback
+    store = getattr(server, "_feedback_store", None)
+    if store is not None:
+        return store
+    if _feedback_store_fallback is None:
+        from hi_agent.evolve.feedback_store import FeedbackStore
+        _feedback_store_fallback = FeedbackStore()
+    return _feedback_store_fallback
+
+
+async def handle_submit_feedback(request: Request) -> JSONResponse:
+    """POST /runs/{run_id}/feedback — record explicit feedback for a completed run."""
+    run_id = request.path_params["run_id"]
+    server: AgentServer = request.app.state.agent_server
+    try:
+        body = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+    rating = body.get("rating")
+    if rating is None or not isinstance(rating, (int, float)):
+        return JSONResponse({"error": "rating_required", "detail": "rating must be a number"}, status_code=400)
+    notes = body.get("notes", "")
+    from hi_agent.evolve.feedback_store import RunFeedback
+    feedback = RunFeedback(run_id=run_id, rating=float(rating), notes=str(notes))
+    store = _get_feedback_store(server)
+    store.submit(feedback)
+    return JSONResponse({"run_id": run_id, "rating": feedback.rating, "submitted_at": feedback.submitted_at})
+
+
+async def handle_get_feedback(request: Request) -> JSONResponse:
+    """GET /runs/{run_id}/feedback — return feedback for a run."""
+    run_id = request.path_params["run_id"]
+    server: AgentServer = request.app.state.agent_server
+    store = _get_feedback_store(server)
+    record = store.get(run_id)
+    if record is None:
+        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
+    from dataclasses import asdict
+    return JSONResponse(asdict(record))
 
 
 async def handle_resume_run(request: Request) -> JSONResponse:
@@ -1703,6 +1751,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/runs/{run_id}/artifacts", handle_run_artifacts, methods=["GET"]),
         Route("/runs/{run_id}", handle_get_run, methods=["GET"]),
         Route("/runs/{run_id}/signal", handle_signal_run, methods=["POST"]),
+        Route("/runs/{run_id}/feedback", handle_submit_feedback, methods=["POST"]),
+        Route("/runs/{run_id}/feedback", handle_get_feedback, methods=["GET"]),
         Route("/runs/{run_id}/resume", handle_resume_run, methods=["POST"]),
         Route("/runs/{run_id}/events", handle_run_events_sse, methods=["GET"]),
 

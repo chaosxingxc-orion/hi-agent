@@ -75,6 +75,7 @@ class ShortTermMemoryStore:
         self,
         storage_dir: str = ".hi_agent/memory/short_term",
         max_sessions: int = 500,
+        project_id: str = "",
     ) -> None:
         """Initialize ShortTermMemoryStore.
 
@@ -83,8 +84,12 @@ class ShortTermMemoryStore:
             max_sessions: Maximum number of sessions to retain.  Oldest
                 sessions (by ``created_at``) are deleted when the limit is
                 exceeded.  Set to 0 to disable eviction.
+            project_id: When non-empty, appended as a sub-directory under
+                the base storage path so memories are scoped per project.
         """
-        self._storage_dir = Path(storage_dir)
+        self._project_id = project_id
+        base = Path(storage_dir)
+        self._storage_dir = base / project_id if project_id else base
         self._max_sessions = max_sessions
 
     def _ensure_dir(self) -> None:

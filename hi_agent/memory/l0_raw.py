@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO
 
+from hi_agent.contracts.provenance import Provenance
+
 # Simple negation indicators used for contradiction heuristic.
 _NEGATION_PAIRS: list[tuple[str, str]] = [
     ("success", "failure"),
@@ -29,6 +31,7 @@ class RawEventRecord:
     payload: dict
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     tags: list[str] = field(default_factory=list)
+    provenance: Provenance | None = None
 
 
 def _payload_text(record: RawEventRecord) -> str:

@@ -23,6 +23,7 @@ class Artifact:
     artifact_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     artifact_type: str = "base"
     producer_action_id: str = ""
+    confidence: float = 0.0
     source_refs: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     provenance: dict[str, Any] = field(default_factory=dict)
@@ -31,14 +32,17 @@ class Artifact:
     content: Any = None
 
     def __hash__(self) -> int:  # identity by artifact_id; mutable fields excluded
+        """Hash by artifact_id; mutable fields excluded."""
         return hash(self.artifact_id)
 
     def to_dict(self) -> dict[str, Any]:
+        """Return a plain dict representation of this artifact."""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Artifact:
-        known = {f for f in cls.__dataclass_fields__}
+        """Construct an artifact from a plain dict, ignoring unknown keys."""
+        known = set(cls.__dataclass_fields__)
         return cls(**{k: v for k, v in data.items() if k in known})
 
 
@@ -51,6 +55,7 @@ class ResourceArtifact(Artifact):
     snippet: str = ""
 
     def __post_init__(self) -> None:
+        """Set artifact_type to 'resource'."""
         self.artifact_type = "resource"
 
 
@@ -64,6 +69,7 @@ class DocumentArtifact(Artifact):
     word_count: int = 0
 
     def __post_init__(self) -> None:
+        """Set artifact_type to 'document'."""
         self.artifact_type = "document"
 
 
@@ -75,6 +81,7 @@ class StructuredDataArtifact(Artifact):
     data: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        """Set artifact_type to 'structured_data'."""
         self.artifact_type = "structured_data"
 
 
@@ -83,10 +90,11 @@ class EvidenceArtifact(Artifact):
     """A piece of evidence supporting or contradicting a claim."""
 
     claim: str = ""
-    confidence: float = 0.0
     evidence_type: str = "direct"  # direct | indirect | counter
+    source_id: str = ""
 
     def __post_init__(self) -> None:
+        """Set artifact_type to 'evidence'."""
         self.artifact_type = "evidence"
 
 
@@ -100,4 +108,5 @@ class EvaluationArtifact(Artifact):
     feedback: str = ""
 
     def __post_init__(self) -> None:
+        """Set artifact_type to 'evaluation'."""
         self.artifact_type = "evaluation"
