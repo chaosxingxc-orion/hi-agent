@@ -583,16 +583,33 @@ class SystemBuilder:
                     )
                     return self._llm_gateway
 
+        # Fallback: try loading from llm_config.json (supports dashscope and other
+        # custom Anthropic-compatible providers beyond OPENAI_API_KEY/ANTHROPIC_API_KEY).
+        try:
+            from hi_agent.config.json_config_loader import build_gateway_from_config
+            gw = build_gateway_from_config()
+            if gw is not None:
+                with self._singleton_lock:
+                    self._llm_gateway = gw  # type: ignore[assignment]
+                logger.info(
+                    "build_llm_gateway: activated gateway from llm_config.json "
+                    "(provider=%s)",
+                    getattr(getattr(gw, "_inner", None), "__class__", type(gw)).__name__,
+                )
+                return self._llm_gateway
+        except Exception as _cfg_exc:
+            logger.debug("build_llm_gateway: config-file fallback failed: %s", _cfg_exc)
+
         is_prod = os.environ.get("HI_AGENT_ENV", "dev").lower() == "prod"
         if is_prod:
             raise RuntimeError(
                 "Production mode requires real LLM credentials. "
-                "Set OPENAI_API_KEY or ANTHROPIC_API_KEY."
+                "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or fill in config/llm_config.json."
             )
         logger.warning(
             "build_llm_gateway: no API key found in environment "
-            "(checked %s). LLM features will use heuristic fallback in non-prod mode. "
-            "Set OPENAI_API_KEY or ANTHROPIC_API_KEY to enable real LLM calls.",
+            "(checked %s) and no active provider in llm_config.json. "
+            "LLM features will use heuristic fallback.",
             ", ".join([self._config.openai_api_key_env, self._config.anthropic_api_key_env]),
         )
         return None  # No API key found, LLM features disabled

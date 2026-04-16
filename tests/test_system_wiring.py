@@ -158,8 +158,10 @@ class TestLLMGatewayActivation:
             episodic_storage_dir=str(tmp_path / "episodes"),
         )
         builder = SystemBuilder(config)
-        # Ensure no API keys leak from the real env
-        with patch.dict(os.environ, {"HI_AGENT_ENV": "dev"}, clear=True):
+        # Ensure no API keys leak from the real env; suppress config-file fallback
+        # so this test exercises the "truly no credentials" path.
+        with patch.dict(os.environ, {"HI_AGENT_ENV": "dev"}, clear=True), \
+             patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
             # Reset cached gateway
             builder._llm_gateway = None
             gateway = builder.build_llm_gateway()
@@ -217,7 +219,10 @@ class TestCLIRun:
         args = parser.parse_args([
             "run", "--goal", "say hello", "--local",
         ])
-        _cmd_run(args)
+        # Suppress config-file gateway fallback: this CLI test must run in
+        # heuristic mode without real network calls.
+        with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+            _cmd_run(args)
         captured = capsys.readouterr()
         assert "Run completed" in captured.out
 

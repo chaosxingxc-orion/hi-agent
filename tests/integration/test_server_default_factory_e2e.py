@@ -63,6 +63,12 @@ def dev_server(monkeypatch: pytest.MonkeyPatch) -> AgentServer:
     fallback — no real API key or kernel endpoint required.
     """
     monkeypatch.setenv("HI_AGENT_ENV", "dev")
+    # Suppress config-file gateway fallback so tests stay in heuristic mode
+    # even when a local llm_config.json with credentials is present.
+    monkeypatch.setattr(
+        "hi_agent.config.json_config_loader.build_gateway_from_config",
+        lambda *a, **kw: None,
+    )
     # Use a high rate limit so rapid polling in tests does not hit 429.
     server = AgentServer(rate_limit_rps=10000)
     # Verify we are NOT using a mock factory — the real factory must be wired.
