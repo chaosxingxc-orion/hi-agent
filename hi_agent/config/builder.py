@@ -1042,7 +1042,8 @@ class SystemBuilder:
             if profile_id
             else self._config.episodic_storage_dir.replace("episodes", "short_term")
         )
-        return ShortTermMemoryStore(path)
+        project_id = getattr(self._config, "project_id", "")
+        return ShortTermMemoryStore(path, project_id=project_id)
 
     def build_mid_term_store(self, profile_id: str = "") -> Any:
         """Build mid-term memory store, optionally scoped to a profile."""
@@ -1060,11 +1061,13 @@ class SystemBuilder:
         """Build long-term memory graph, optionally scoped to a profile."""
         from hi_agent.memory.long_term import LongTermMemoryGraph
 
+        project_id = getattr(self._config, "project_id", "")
         graph = LongTermMemoryGraph(
             self._config.episodic_storage_dir.replace(
                 "episodes", "long_term/graph.json"
             ),
             profile_id=profile_id,
+            project_id=project_id,
         )
         try:
             graph.load()

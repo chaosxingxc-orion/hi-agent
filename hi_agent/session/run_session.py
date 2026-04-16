@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from hi_agent.contracts.reasoning import ReasoningTrace
+
 
 @dataclass
 class LLMCallRecord:
@@ -64,16 +66,18 @@ class RunSession:
     def __init__(
         self,
         run_id: str,
-        task_contract: Any,  # TaskContract
+        task_contract: Any = None,  # TaskContract
         *,
         policy_versions: Any | None = None,  # PolicyVersionSet
         storage_dir: str | None = None,  # for L0 persistence
+        project_id: str = "",
     ) -> None:
         """Initialize RunSession."""
         self.run_id = run_id
         self.task_contract = task_contract
         self.policy_versions = policy_versions
         self._storage_dir = storage_dir
+        self._project_id = project_id
 
         # Working Memory
         self.l0_records: list[dict] = []  # raw events (also persisted if storage_dir)
@@ -164,6 +168,30 @@ class RunSession:
     def last_compact_boundary(self) -> CompactBoundary | None:
         """Return the most recent compact boundary, or None."""
         return self._compact_boundaries[-1] if self._compact_boundaries else None
+
+    @property
+    def project_id(self) -> str:
+        """Return the project_id this session is scoped to."""
+        return self._project_id
+
+    def write_reasoning_trace(self, trace: ReasoningTrace) -> None:
+        """Persist a structured reasoning trace via L0 append_record."""
+        self.append_record(
+            "reasoning_trace",
+            {
+                "trace_id": trace.trace_id,
+                "stage_id": trace.stage_id,
+                "steps": [
+                    {
+                        "step_id": s.step_id,
+                        "action": s.action,
+                        "thought": s.thought,
+                        "timestamp": s.timestamp,
+                    }
+                    for s in trace.steps
+                ],
+            },
+        )
 
     # --- LLM Call Tracking ---
     def record_llm_call(self, record: LLMCallRecord) -> None:
