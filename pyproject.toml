@@ -15,6 +15,7 @@ dependencies = [
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=1.0",
+  "pytest-cov>=6.0",
   "respx>=0.23",
   "ruff>=0.8",
 ]
@@ -37,3 +38,21 @@ ignore = ["D203", "D213"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.coverage.run]
+source = ["hi_agent"]
+branch = true
+omit = [
+    "hi_agent/__main__.py",
+    "hi_agent/samples/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 65
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]
