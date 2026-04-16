@@ -556,6 +556,7 @@ class SystemBuilder:
                             api_key_env=env_var,
                             default_model=default_model,
                             timeout_seconds=self._config.llm_timeout_seconds,
+                            base_url=base_url,
                         )
                     else:
                         raw_gateway = HttpLLMGateway(

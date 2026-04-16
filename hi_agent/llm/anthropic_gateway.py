@@ -43,11 +43,13 @@ class AnthropicLLMGateway:
         api_key_env: str = "ANTHROPIC_API_KEY",
         default_model: str = "claude-sonnet-4-20250514",
         timeout_seconds: int = 120,
+        base_url: str = _ANTHROPIC_BASE_URL,
     ) -> None:
         """Initialize AnthropicLLMGateway."""
         self._api_key_env = api_key_env
         self._default_model = default_model
         self._timeout = timeout_seconds
+        self._base_url = base_url.rstrip("/")
 
     # -- LLMGateway protocol --------------------------------------------------
 
@@ -105,7 +107,7 @@ class AnthropicLLMGateway:
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Run _post."""
         api_key = os.environ.get(self._api_key_env, "")
-        url = f"{_ANTHROPIC_BASE_URL}/v1/messages"
+        url = f"{self._base_url}/v1/messages"
         headers = {
             "Content-Type": "application/json",
             "x-api-key": api_key,
