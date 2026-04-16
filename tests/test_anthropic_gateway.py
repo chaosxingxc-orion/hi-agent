@@ -254,6 +254,8 @@ class TestSupportsModel:
         assert gw.supports_model("claude-3-opus-20240229") is True
 
     def test_non_claude_model(self) -> None:
+        # supports_model() delegates validation to the provider, enabling use with
+        # proxy endpoints (DashScope, etc.) that accept non-Claude model names.
         gw = AnthropicLLMGateway()
-        assert gw.supports_model("gpt-4o") is False
-        assert gw.supports_model("llama-3") is False
+        assert gw.supports_model("gpt-4o") is True
+        assert gw.supports_model("llama-3") is True

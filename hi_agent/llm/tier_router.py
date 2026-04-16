@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass
+from typing import Iterator
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
 
@@ -413,6 +414,7 @@ class TierAwareLLMGateway:
                     max_tokens=getattr(request, "max_tokens", 4096),
                     stop_sequences=getattr(request, "stop_sequences", []),
                     metadata=meta,
+                    thinking_budget=getattr(request, "thinking_budget", None),
                 )
             except Exception as _tier_exc:
                 _logger.warning(
@@ -423,6 +425,56 @@ class TierAwareLLMGateway:
                 )
 
         return self._inner.complete(request)  # type: ignore[union-attr]
+
+    def stream(self, request: object) -> Iterator[object]:
+        """Stream response chunks with tier-based model selection.
+
+        Applies the same tier routing as :meth:`complete`, then delegates
+        to ``inner.stream()``.  Falls back to accumulating ``complete()``
+        and yielding a single chunk if the inner gateway has no ``stream``.
+        """
+        from hi_agent.llm.protocol import LLMRequest, LLMStreamChunk
+
+        if getattr(request, "model", None) == "default":
+            meta = getattr(request, "metadata", None) or {}
+            purpose: str = meta.get("purpose", "routing")
+            budget_usd: float = float(meta.get("budget_remaining", 1.0))
+            complexity: str = meta.get("complexity", "moderate")
+            raw_sc = meta.get("skill_confidence")
+            skill_confidence: float | None = float(raw_sc) if raw_sc is not None else None
+            try:
+                result = self._tier_router.select_model(
+                    purpose=purpose,
+                    budget_remaining_usd=budget_usd,
+                    complexity=complexity,
+                    skill_confidence=skill_confidence,
+                )
+                request = LLMRequest(
+                    messages=getattr(request, "messages", []),
+                    model=result.model_id,
+                    temperature=getattr(request, "temperature", 0.7),
+                    max_tokens=getattr(request, "max_tokens", 4096),
+                    stop_sequences=getattr(request, "stop_sequences", []),
+                    metadata=meta,
+                    thinking_budget=getattr(request, "thinking_budget", None),
+                )
+            except Exception as _tier_exc:
+                _logger.warning(
+                    "TierAwareLLMGateway.stream: select_model failed: %s", _tier_exc
+                )
+
+        inner_stream = getattr(self._inner, "stream", None)
+        if callable(inner_stream):
+            yield from inner_stream(request)
+        else:
+            # Fallback: single-chunk yield from complete()
+            resp = self._inner.complete(request)  # type: ignore[union-attr]
+            yield LLMStreamChunk(
+                delta=getattr(resp, "content", ""),
+                finish_reason=getattr(resp, "finish_reason", "stop"),
+                usage=getattr(resp, "usage", None),
+                model=getattr(resp, "model", ""),
+            )
 
     async def acomplete(self, request: object) -> object:
         """Async variant: apply tier selection then await inner.complete().
@@ -454,6 +506,7 @@ class TierAwareLLMGateway:
                     max_tokens=getattr(request, "max_tokens", 4096),
                     stop_sequences=getattr(request, "stop_sequences", []),
                     metadata=meta,
+                    thinking_budget=getattr(request, "thinking_budget", None),
                 )
             except Exception as _tier_exc:
                 _logger.warning(

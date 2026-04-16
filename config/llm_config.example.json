@@ -9,6 +9,11 @@
         "strong": "claude-opus-4-6",
         "medium": "claude-sonnet-4-6",
         "light": "claude-haiku-4-5-20251001"
+      },
+      "features": {
+        "stream": true,
+        "thinking_budget": null,
+        "multimodal": true
       }
     },
     "openai": {
@@ -19,6 +24,11 @@
         "strong": "gpt-4.1",
         "medium": "gpt-4o",
         "light": "gpt-4o-mini"
+      },
+      "features": {
+        "stream": true,
+        "thinking_budget": null,
+        "multimodal": true
       }
     },
     "dashscope": {
@@ -29,6 +39,11 @@
         "strong": "qwen3.6-plus",
         "medium": "qwen3.5-plus",
         "light": "glm-5"
+      },
+      "features": {
+        "stream": true,
+        "thinking_budget": null,
+        "multimodal": false
       }
     }
   },
