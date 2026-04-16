@@ -126,6 +126,32 @@ def _subrun_task_done_callback(task: asyncio.Task[object]) -> None:
         )
 
 
+def _make_subrun_done_callback(
+    results_dict: "dict[str, object]", task_id: str
+) -> "Callable[[asyncio.Task[object]], None]":
+    """Create a done-callback that stores task-level failures into results_dict."""
+
+    def _cb(task: asyncio.Task[object]) -> None:
+        if task.cancelled():
+            _logger.warning(
+                "runner.subrun_async_task_cancelled task_id=%s", task_id
+            )
+            results_dict[task_id] = SubRunResult(success=False, output="cancelled")
+            return
+        exc = task.exception()
+        if exc is not None:
+            _logger.error(
+                "runner.subrun_async_task_failed task_id=%s error=%s",
+                task_id,
+                exc,
+            )
+            results_dict[task_id] = SubRunResult(success=False, output=f"error: {exc}")
+        # If task completed normally, the delegation result is stored by await_subrun
+        # via the future's result(), not here.
+
+    return _cb
+
+
 class RunExecutor:
     """Execute TRACE run lifecycle in spike mode."""
 
@@ -739,6 +765,7 @@ class RunExecutor:
 
         try:
             import asyncio
+            import concurrent.futures as _cf
 
             from hi_agent.middleware.hooks import ToolCallContext
 
@@ -762,11 +789,18 @@ class RunExecutor:
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    # Already in an async context — skip hooks, call directly
-                    return self._invoke_capability(proposal, payload)
-                loop.run_until_complete(
-                    self._hook_manager.wrap_tool_call(tool_ctx, _call_fn)
-                )
+                    # We're inside execute_async() — run hook chain in a fresh
+                    # thread to avoid nested event loop.  concurrent.futures +
+                    # asyncio.run() creates an isolated loop in the worker thread.
+                    with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
+                        _pool.submit(
+                            asyncio.run,
+                            self._hook_manager.wrap_tool_call(tool_ctx, _call_fn),
+                        ).result()
+                else:
+                    loop.run_until_complete(
+                        self._hook_manager.wrap_tool_call(tool_ctx, _call_fn)
+                    )
             except RuntimeError:
                 asyncio.run(
                     self._hook_manager.wrap_tool_call(tool_ctx, _call_fn)
@@ -3064,7 +3098,9 @@ class RunExecutor:
             future = loop.create_task(
                 self._delegation_manager.delegate([req], parent_run_id=self.run_id)
             )
-            future.add_done_callback(_subrun_task_done_callback)  # J6-1: log errors
+            future.add_done_callback(
+                _make_subrun_done_callback(self._completed_subrun_results, task_id)
+            )
             self._pending_subrun_futures[task_id] = future  # type: ignore[attr-defined]
         except RuntimeError:
             # No running loop — synchronous call path.

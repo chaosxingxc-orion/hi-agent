@@ -12,9 +12,12 @@ Default flow: perception -> control -> execution -> evaluation
 """
 from __future__ import annotations
 
+import logging as _logging
 import threading
 from collections.abc import Callable
 from typing import Any
+
+_logger = _logging.getLogger(__name__)
 
 from hi_agent.middleware.protocol import (
     HookAction,
@@ -313,6 +316,7 @@ class MiddlewareOrchestrator:
     ) -> MiddlewareMessage:
         """Execute full pipeline with lifecycle hooks at each middleware."""
         meta = metadata or {}
+        _logger.debug("orchestrator.run_start")
 
         # Create initial message
         message = MiddlewareMessage(
@@ -345,6 +349,7 @@ class MiddlewareOrchestrator:
                     current, message, _mw_snapshot=_mw,
                 )
             except PipelineBlockedError:
+                _logger.info("orchestrator.pipeline_blocked name=%s", current)
                 break
 
             with self._lock:
@@ -353,6 +358,7 @@ class MiddlewareOrchestrator:
             # Route to next middleware
             current = self._route_next(current, message)
 
+        _logger.debug("orchestrator.run_complete")
         return message
 
     def _execute_middleware_with_lifecycle(
@@ -383,6 +389,10 @@ class MiddlewareOrchestrator:
         # Phase 1: PRE_CREATE
         hook_result = self._run_hooks(name, LifecyclePhase.PRE_CREATE, message)
         if hook_result.action == HookAction.BLOCK:
+            _logger.info(
+                "orchestrator.pipeline_blocked name=%s reason=%s",
+                name, getattr(hook_result, "reason", ""),
+            )
             raise PipelineBlockedError(hook_result.reason)
         config = self._middleware_configs.get(name, {})
         if hasattr(mw, "on_create"):
@@ -391,6 +401,10 @@ class MiddlewareOrchestrator:
         # Phase 2: PRE_EXECUTE
         hook_result = self._run_hooks(name, LifecyclePhase.PRE_EXECUTE, message)
         if hook_result.action == HookAction.BLOCK:
+            _logger.info(
+                "orchestrator.pipeline_blocked name=%s reason=%s",
+                name, getattr(hook_result, "reason", ""),
+            )
             raise PipelineBlockedError(hook_result.reason)
         if hook_result.action == HookAction.SKIP:
             # Skip this middleware, pass message through
@@ -415,6 +429,9 @@ class MiddlewareOrchestrator:
                 break
             except Exception as exc:
                 metrics["errors"] += 1
+                _logger.warning(
+                    "orchestrator.middleware_error name=%s error=%s", name, exc
+                )
                 if attempt == max_retries:
                     result = MiddlewareMessage(
                         source=name,
@@ -441,6 +458,10 @@ class MiddlewareOrchestrator:
         # Phase 4: POST_EXECUTE
         hook_result = self._run_hooks(name, LifecyclePhase.POST_EXECUTE, result)
         if hook_result.action == HookAction.BLOCK:
+            _logger.info(
+                "orchestrator.pipeline_blocked name=%s reason=%s",
+                name, getattr(hook_result, "reason", ""),
+            )
             raise PipelineBlockedError(hook_result.reason)
         if hook_result.action == HookAction.MODIFY and hook_result.modified_message is not None:
             result = hook_result.modified_message
