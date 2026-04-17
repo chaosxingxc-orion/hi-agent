@@ -97,6 +97,7 @@ class SystemBuilder:
         # same instances used by actual run execution.
         self._skill_loader: Any | None = None
         self._skill_builder: Any | None = None  # lazy SkillBuilder singleton
+        self._memory_builder: Any | None = None  # lazy MemoryBuilder singleton
         self._mcp_registry: Any | None = None
         self._mcp_transport: Any | None = None
         self._plugin_loader: Any | None = None
@@ -810,6 +811,12 @@ class SystemBuilder:
             self._skill_builder = SkillBuilder(self._config)
         return self._skill_builder
 
+    def _get_memory_builder(self):
+        if self._memory_builder is None:
+            from hi_agent.config.memory_builder import MemoryBuilder
+            self._memory_builder = MemoryBuilder(self._config)
+        return self._memory_builder
+
     def build_skill_registry(self) -> SkillRegistry:
         """Build SkillRegistry using configured storage directory."""
         return self._get_skill_builder().build_skill_registry()
@@ -962,19 +969,15 @@ class SystemBuilder:
 
     def build_episodic_store(self) -> EpisodicMemoryStore:
         """Build EpisodicMemoryStore using configured storage directory."""
-        return EpisodicMemoryStore(storage_dir=self._config.episodic_storage_dir)
+        return self._get_memory_builder().build_episodic_store()
 
     def build_failure_collector(self) -> FailureCollector:
         """Build a fresh FailureCollector."""
-        return FailureCollector()
+        return self._get_memory_builder().build_failure_collector()
 
     def build_watchdog(self) -> ProgressWatchdog:
         """Build ProgressWatchdog with config-driven thresholds."""
-        return ProgressWatchdog(
-            window_size=self._config.watchdog_window_size,
-            min_success_rate=self._config.watchdog_min_success_rate,
-            max_consecutive_failures=self._config.watchdog_max_consecutive_failures,
-        )
+        return self._get_memory_builder().build_watchdog()
 
     # ------------------------------------------------------------------
     # Memory tier builders
@@ -982,46 +985,15 @@ class SystemBuilder:
 
     def build_short_term_store(self, profile_id: str = "") -> Any:
         """Build short-term memory store, optionally scoped to a profile."""
-        from hi_agent.memory.short_term import ShortTermMemoryStore
-
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        path = (
-            os.path.join(base, "profiles", profile_id, "short_term")
-            if profile_id
-            else self._config.episodic_storage_dir.replace("episodes", "short_term")
-        )
-        project_id = getattr(self._config, "project_id", "")
-        return ShortTermMemoryStore(path, project_id=project_id)
+        return self._get_memory_builder().build_short_term_store(profile_id=profile_id)
 
     def build_mid_term_store(self, profile_id: str = "") -> Any:
         """Build mid-term memory store, optionally scoped to a profile."""
-        from hi_agent.memory.mid_term import MidTermMemoryStore
-
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        path = (
-            os.path.join(base, "profiles", profile_id, "mid_term")
-            if profile_id
-            else self._config.episodic_storage_dir.replace("episodes", "mid_term")
-        )
-        return MidTermMemoryStore(path)
+        return self._get_memory_builder().build_mid_term_store(profile_id=profile_id)
 
     def build_long_term_graph(self, profile_id: str = "") -> Any:
         """Build long-term memory graph, optionally scoped to a profile."""
-        from hi_agent.memory.long_term import LongTermMemoryGraph
-
-        project_id = getattr(self._config, "project_id", "")
-        graph = LongTermMemoryGraph(
-            self._config.episodic_storage_dir.replace(
-                "episodes", "long_term/graph.json"
-            ),
-            profile_id=profile_id,
-            project_id=project_id,
-        )
-        try:
-            graph.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
-        return graph
+        return self._get_memory_builder().build_long_term_graph(profile_id=profile_id)
 
     def build_retrieval_engine(
         self,
@@ -1030,40 +1002,14 @@ class SystemBuilder:
         long_term_graph: Any = None,
         profile_id: str = "",
     ) -> Any:
-        """Build four-layer retrieval engine across all memory tiers.
-
-        When store objects are provided, they are used directly (no new instances
-        are created). When absent, new instances are built scoped to profile_id.
-
-        Layer 4 (semantic embedding re-ranking) is activated by wiring a
-        TFIDFEmbeddingProvider against the engine's internal TFIDFIndex.
-        This requires no external dependencies.  If construction fails for
-        any reason the engine falls back to embedding_fn=None (Layers 1-3
-        only).
-        """
-        from hi_agent.knowledge.retrieval_engine import RetrievalEngine
-
-        wiki = self.build_knowledge_wiki()
-        graph = long_term_graph if long_term_graph is not None else self.build_long_term_graph(profile_id=profile_id)
-        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
-        mid = mid_term_store if mid_term_store is not None else self.build_mid_term_store(profile_id=profile_id)
-
-        # Build the engine first so we can access its internal _tfidf index.
-        engine = RetrievalEngine(
-            wiki=wiki, graph=graph, short_term=short, mid_term=mid
+        """Build four-layer retrieval engine across all memory tiers."""
+        return self._get_memory_builder().build_retrieval_engine(
+            short_term_store=short_term_store,
+            mid_term_store=mid_term_store,
+            long_term_graph=long_term_graph,
+            profile_id=profile_id,
+            wiki=self.build_knowledge_wiki(),
         )
-
-        # Activate Layer 4 by wiring in a TF-IDF-based embedding function.
-        try:
-            from hi_agent.knowledge.embedding import TFIDFEmbeddingProvider
-
-            provider = TFIDFEmbeddingProvider(engine._tfidf)
-            engine._embedding_fn = provider.as_callable()
-        except Exception:
-            # Graceful degradation: Layer 4 stays disabled, Layers 1-3 work normally.
-            pass
-
-        return engine
 
     def build_memory_lifecycle_manager(
         self,
@@ -1072,28 +1018,13 @@ class SystemBuilder:
         long_term_graph: Any = None,
         profile_id: str = "",
     ) -> MemoryLifecycleManager:
-        """Build MemoryLifecycleManager wiring all memory tiers.
-
-        When store objects are provided, they are used directly (no new
-        instances are created), preserving profile-scoped paths built by
-        the caller. When absent, fresh instances are built scoped to profile_id.
-
-        Args:
-            profile_id: Profile scope for fallback store construction. Has no
-                effect when all store instances are provided explicitly.
-        """
-        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
-        mid   = mid_term_store   if mid_term_store   is not None else self.build_mid_term_store(profile_id=profile_id)
-        graph = long_term_graph  if long_term_graph  is not None else self.build_long_term_graph(profile_id=profile_id)
-        return MemoryLifecycleManager(
-            short_term_store=short,
-            mid_term_store=mid,
-            long_term_graph=graph,
-            retrieval_engine=self.build_retrieval_engine(
-                short_term_store=short,
-                mid_term_store=mid,
-                long_term_graph=graph,
-            ),
+        """Build MemoryLifecycleManager wiring all memory tiers."""
+        return self._get_memory_builder().build_memory_lifecycle_manager(
+            short_term_store=short_term_store,
+            mid_term_store=mid_term_store,
+            long_term_graph=long_term_graph,
+            profile_id=profile_id,
+            wiki=self.build_knowledge_wiki(),
         )
 
     # ------------------------------------------------------------------
