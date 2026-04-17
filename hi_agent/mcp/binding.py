@@ -59,17 +59,20 @@ class MCPBinding:
     def bind_all(self) -> int:
         """Bind all tools from all registered healthy MCP servers.
 
-        MCP transport is **Path A — Deferred**.  When no transport is
-        configured, tools are enumerated from the MCP registry and tracked in
-        ``_unavailable`` but are NOT registered to CapabilityRegistry.
-        Upper-layer agents should use provider adapters as the primary
-        integration path.  To enable MCP tools, pass a real transport
-        instance: ``MCPBinding(registry, mcp_registry, transport=YourTransport())``.
+        When transport has list_tools(), performs dynamic discovery:
+        1. Health check must pass (server status == "healthy")
+        2. Call transport.list_tools(server_id)
+        3. Merge with manifest pre-claims (_merge_tools)
+        4. Register final tool set to CapabilityRegistry
+
+        Falls back to manifest pre-claims on discovery failure (degraded mode).
+        When no transport, tools are tracked in _unavailable (Path A deferred).
 
         Returns:
             Number of tools successfully bound (0 when no transport).
         """
         self._unavailable.clear()
+        self._warnings: list[str] = []
 
         if self._transport is None:
             # Enumerate tools for discovery purposes but do NOT register them.
@@ -93,38 +96,95 @@ class MCPBinding:
         from hi_agent.capability.registry import CapabilitySpec  # noqa: PLC0415
 
         bound = 0
+        has_list_tools = hasattr(self._transport, "list_tools")
+
         for server in self._mcp_registry.list_servers():
             server_id = server["server_id"]
             status = server["status"]
-            if status == "healthy":
-                for tool_name in server.get("tools", []):
-                    cap_name = f"mcp.{server_id}.{tool_name}"
-                    handler = self._make_handler(server_id, tool_name)
-                    spec = CapabilitySpec(name=cap_name, handler=handler)
-                    self._registry.register(spec)
-                    bound += 1
-                    logger.debug("MCPBinding.bind_all: bound %r", cap_name)
-            elif status == "registered":
-                # Declared but not yet health-checked — track as unavailable,
-                # do NOT register as a callable capability.
-                for tool_name in server.get("tools", []):
-                    cap_name = f"mcp.{server_id}.{tool_name}"
-                    self._unavailable.append(cap_name)
-                logger.info(
-                    "MCPBinding.bind_all: server %r is unverified (status=%r) — "
-                    "%d tool(s) tracked as unavailable, not registered.",
-                    server_id,
-                    status,
-                    len(server.get("tools", [])),
-                )
-            else:
+
+            if status != "healthy":
+                if status == "registered":
+                    for tool_name in server.get("tools", []):
+                        self._unavailable.append(f"mcp.{server_id}.{tool_name}")
                 logger.debug(
-                    "MCPBinding.bind_all: skipping server %r (status=%r)",
-                    server_id,
-                    status,
+                    "MCPBinding.bind_all: skipping server %r (status=%r)", server_id, status
                 )
+                continue
+
+            preclaimed = server.get("tools", [])
+
+            if has_list_tools:
+                # Dynamic discovery — wins over manifest pre-claims
+                try:
+                    discovered = self._transport.list_tools(server_id)
+                    final_tools, warnings = self._merge_tools(server_id, preclaimed, discovered)
+                    self._warnings.extend(warnings)
+                    for w in warnings:
+                        logger.warning("MCPBinding: %s", w)
+                except Exception as exc:  # noqa: BLE001
+                    # Discovery failed → fall back to manifest pre-claims (degraded)
+                    logger.warning(
+                        "MCPBinding.bind_all: tools/list failed for %r (%s) — "
+                        "falling back to manifest pre-claims",
+                        server_id,
+                        exc,
+                    )
+                    final_tools = list(preclaimed)
+                    self._warnings.append(
+                        f"MCP server {server_id!r}: tools/list failed ({exc}), "
+                        f"using manifest pre-claims (degraded)"
+                    )
+            else:
+                final_tools = list(preclaimed)
+
+            for tool_name in final_tools:
+                cap_name = f"mcp.{server_id}.{tool_name}"
+                handler = self._make_handler(server_id, tool_name)
+                spec = CapabilitySpec(name=cap_name, handler=handler)
+                self._registry.register(spec)
+                bound += 1
+                logger.debug("MCPBinding.bind_all: bound %r", cap_name)
+
         logger.info("MCPBinding.bind_all: bound %d MCP tools.", bound)
         return bound
+
+    @staticmethod
+    def _merge_tools(
+        server_id: str,
+        preclaimed: list[str],
+        discovered: list[dict],
+    ) -> tuple[list[str], list[str]]:
+        """Merge preclaimed (manifest) and dynamically discovered tools.
+
+        Merge strategy:
+        1. Dynamic discovery wins — use discovered tool names as the final set.
+        2. Discovered-only tools: register without warning.
+        3. Manifest-only tools (declared but not found): emit warning.
+        4. Both agree: use discovered.
+
+        Returns:
+            (final_tool_names, warnings)
+            warnings: list of human-readable warning strings.
+        """
+        discovered_names = {t["name"] for t in discovered}
+        preclaimed_set = set(preclaimed)
+
+        warnings: list[str] = []
+        manifest_only = preclaimed_set - discovered_names
+        for tool_name in sorted(manifest_only):
+            warnings.append(
+                f"MCP server {server_id!r}: tool {tool_name!r} declared in manifest "
+                f"but not found in tools/list response"
+            )
+
+        return sorted(discovered_names), warnings
+
+    def list_warnings(self) -> list[str]:
+        """Return merge warnings from last bind_all() call.
+
+        Returns an empty list if bind_all() has not been called yet.
+        """
+        return list(getattr(self, "_warnings", []))
 
     def list_unavailable(self) -> list[str]:
         """Return capability names that exist but have no transport.

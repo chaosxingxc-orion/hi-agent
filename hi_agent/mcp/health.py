@@ -35,7 +35,7 @@ class MCPHealth:
         """Probe all registered MCP servers and return their statuses.
 
         Returns:
-            Dict mapping server_id → status ("healthy" | "error" | "timeout").
+            Dict mapping server_id → status ("healthy" | "degraded" | "unhealthy" | "error").
         """
         results: dict[str, str] = {}
         for server in self._registry.list_servers():
@@ -48,39 +48,71 @@ class MCPHealth:
     def _check_one(self, server: dict[str, Any]) -> str:
         """Return health status for *server*.
 
-        When a transport is configured and exposes ``ping()``, sends a
-        live JSON-RPC initialize handshake.  On success returns "healthy";
-        on failure returns "error".
+        Status values:
+        - "healthy": live ping succeeded, no stderr error keywords detected
+        - "degraded": ping succeeded but stderr contains error keywords
+        - "unhealthy": subprocess crash or ping failed
+        - "error": backward-compat alias returned from the no-transport path
+          when the last recorded status is "error"
 
         Without a transport, returns the last recorded registry status
         so downstream callers have a stable, non-empty value.
         """
-        if self._transport is not None and hasattr(self._transport, "ping"):
-            server_id = server.get("server_id")
+        if self._transport is None or not hasattr(self._transport, "ping"):
+            # No transport — return last recorded status unchanged.
+            return server.get("status", "registered")
+
+        server_id = server.get("server_id")
+        try:
+            # Prefer per-server ping (MultiStdioTransport accepts server_id);
+            # fall back to no-arg ping for single-server transports.
             try:
-                # Prefer per-server ping (MultiStdioTransport accepts server_id);
-                # fall back to no-arg ping for single-server transports.
+                alive = self._transport.ping(server_id)
+            except TypeError:
+                alive = self._transport.ping()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "MCPHealth._check_one: ping failed for server=%r: %s",
+                server_id,
+                exc,
+            )
+            return "unhealthy"
+
+        if not alive:
+            return "unhealthy"
+
+        # Ping succeeded — check stderr for degradation signals.
+        # get_stderr_tail() holds per-transport stderr (StdioMCPTransport) or
+        # may accept server_id (MultiStdioTransport).  Try no-arg first, then
+        # with server_id as fallback.
+        stderr_tail: list[str] = []
+        if hasattr(self._transport, "get_stderr_tail"):
+            try:
+                stderr_tail = self._transport.get_stderr_tail()
+            except TypeError:
                 try:
-                    alive = self._transport.ping(server_id)
-                except TypeError:
-                    alive = self._transport.ping()
-                status = "healthy" if alive else "error"
-                logger.debug(
-                    "MCPHealth._check_one: server=%r ping=%s status=%s",
-                    server_id,
-                    alive,
-                    status,
-                )
-                return status
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "MCPHealth._check_one: ping failed for server=%r: %s",
-                    server_id,
-                    exc,
-                )
-                return "error"
-        # No transport — return last recorded status unchanged.
-        return server.get("status", "registered")
+                    stderr_tail = self._transport.get_stderr_tail(server_id)
+                except Exception:  # noqa: BLE001
+                    pass
+            except Exception:  # noqa: BLE001
+                pass
+
+        _ERROR_KEYWORDS = ("error", "exception", "traceback", "fatal", "critical")
+        has_stderr_errors = False
+        if isinstance(stderr_tail, list):
+            has_stderr_errors = any(
+                isinstance(line, str) and any(kw in line.lower() for kw in _ERROR_KEYWORDS)
+                for line in stderr_tail
+            )
+        if has_stderr_errors:
+            logger.debug(
+                "MCPHealth._check_one: server=%r degraded (stderr errors detected)",
+                server_id,
+            )
+            return "degraded"
+
+        logger.debug("MCPHealth._check_one: server=%r healthy", server_id)
+        return "healthy"
 
     def snapshot(self) -> list[dict[str, Any]]:
         """Return a health snapshot of all servers."""

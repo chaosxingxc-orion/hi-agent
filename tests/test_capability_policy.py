@@ -22,7 +22,7 @@ def test_capability_policy_admin_allowed() -> None:
 
     response = invoker.invoke("echo", {"x": 42}, role="admin")
 
-    assert response == {"echo": 42}
+    assert response.get("echo") == 42
 
 
 def test_capability_policy_viewer_denied() -> None:
@@ -51,4 +51,4 @@ def test_capability_policy_anonymous_compatible() -> None:
 
     response = invoker.invoke("echo", {"x": 7})
 
-    assert response == {"echo": 7}
+    assert response.get("echo") == 7

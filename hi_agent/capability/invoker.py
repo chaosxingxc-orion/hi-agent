@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
@@ -9,6 +10,15 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from hi_agent.capability.circuit_breaker import CircuitBreaker
 from hi_agent.capability.policy import CapabilityPolicy
 from hi_agent.capability.registry import CapabilityRegistry
+
+
+class CapabilityUnavailableError(Exception):
+    """Raised when a capability fails probe_availability check."""
+
+    def __init__(self, capability_name: str, reason: str) -> None:
+        self.capability_name = capability_name
+        self.reason = reason
+        super().__init__(f"Capability {capability_name!r} unavailable: {reason}")
 
 
 def _default_timeout_call(
@@ -93,18 +103,47 @@ class CapabilityInvoker:
                 )
 
         spec = self.registry.get(capability_name)
+
+        # W4-003: pre-check availability before invoking
+        probe_fn = getattr(self.registry, "probe_availability", None)
+        if callable(probe_fn):
+            probe_result = probe_fn(capability_name)
+            if (
+                isinstance(probe_result, tuple)
+                and len(probe_result) == 2
+                and probe_result[0] is False
+            ):
+                raise CapabilityUnavailableError(capability_name, probe_result[1])
+
         attempt = 0
         while True:
             if not self.breaker.allow(capability_name):
                 raise RuntimeError(f"Capability circuit open: {capability_name}")
             try:
+                start_ms = int(time.monotonic() * 1000)
                 if self.call_timeout_seconds is None:
                     response = spec.handler(payload)
                 else:
                     response = self.timeout_call(
                         spec.handler, payload, self.call_timeout_seconds
                     )
+                elapsed_ms = int(time.monotonic() * 1000) - start_ms
                 self.breaker.mark_success(capability_name)
+                if isinstance(response, dict) and "_provenance" not in response:
+                    if response.get("_mcp"):
+                        mode = "mcp"
+                    elif response.get("_external"):
+                        mode = "external"
+                    elif response.get("_profile"):
+                        mode = "profile"
+                    else:
+                        mode = "sample"
+                    response = dict(response)
+                    response["_provenance"] = {
+                        "mode": mode,
+                        "capability_name": capability_name,
+                        "duration_ms": elapsed_ms,
+                    }
                 return response
             except Exception as exc:
                 self.breaker.mark_failure(capability_name)

@@ -57,6 +57,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
+from hi_agent.auth.operation_policy import require_operation
 from hi_agent.config.stack import ConfigStack
 from hi_agent.config.watcher import ConfigFileWatcher
 from hi_agent.server.auth_middleware import AuthMiddleware
@@ -64,6 +65,7 @@ from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.run_manager import RunManager
+from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +230,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
     """Return dynamic system capabilities manifest."""
     server: AgentServer = request.app.state.agent_server
     capabilities: list[str] = []
+    capability_views: list[dict] = []
     skills: list[dict] = []
     models: list[dict] = []
     profiles: list[dict] = []
@@ -244,6 +247,22 @@ async def handle_manifest(request: Request) -> JSONResponse:
                 registry = getattr(invoker, "registry", None) or getattr(invoker, "_registry", None)
                 if registry is not None and hasattr(registry, "list_names"):
                     capabilities = list(registry.list_names())
+                if registry is not None and hasattr(registry, "list_with_views"):
+                    try:
+                        capability_views = [
+                            {
+                                "name": name,
+                                "status": status,
+                                "toolset_id": getattr(desc, "toolset_id", "default") if desc else "default",
+                                "required_env": list(getattr(desc, "required_env", {}).keys()) if desc else [],
+                                "effect_class": getattr(desc, "effect_class", "unknown_effect") if desc else "unknown_effect",
+                                "output_budget_tokens": getattr(desc, "output_budget_tokens", 0) if desc else 0,
+                                "availability_reason": reason,
+                            }
+                            for name, desc, status, reason in registry.list_with_views()
+                        ]
+                    except Exception as _views_exc:
+                        logger.warning("manifest: capability_views enumeration failed: %s", _views_exc)
     except Exception as _cap_exc:
         logger.warning("manifest: capability enumeration failed: %s", _cap_exc)
 
@@ -363,17 +382,60 @@ async def handle_manifest(request: Request) -> JSONResponse:
     except Exception as _active_prof_exc:
         logger.warning("manifest: active profile lookup failed: %s", _active_prof_exc)
 
+    # --- Runtime mode, environment, and evolve policy ---
+    # All three are derived from the same resolvers used by /ready so that
+    # /manifest and /ready never drift on these fields.
+    evolve_policy: dict = {}
+    runtime_mode: str = "dev-smoke"
+    manifest_env: str = "dev"
+    manifest_llm_mode: str = "unknown"
+    manifest_kernel_mode: str = "local-fsm"
+    manifest_execution_mode: str = "local"
+    provenance_contract_version: str = "unknown"
+    try:
+        import os as _os_ep
+        from hi_agent.config.evolve_policy import resolve_evolve_effective as _rep
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
+        from hi_agent.contracts.execution_provenance import CONTRACT_VERSION as _cv
+        provenance_contract_version = _cv
+        _builder = getattr(server, "_builder", None)
+        _ev_mode = "auto"
+        if _builder is not None:
+            _cfg = getattr(_builder, "_config", None)
+            if _cfg is not None:
+                _ev_mode = getattr(_cfg, "evolve_mode", "auto")
+        manifest_env = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
+        # Obtain a live readiness snapshot so runtime_mode uses the same
+        # llm_mode/kernel_mode keys that resolve_runtime_mode expects.
+        _readiness_snap: dict = {}
+        if _builder is not None:
+            try:
+                _readiness_snap = _builder.readiness()
+            except Exception:
+                pass
+        runtime_mode = _rrm(manifest_env, _readiness_snap)
+        manifest_llm_mode = _readiness_snap.get("llm_mode", "unknown")
+        manifest_kernel_mode = _readiness_snap.get("kernel_mode", "local-fsm")
+        manifest_execution_mode = _readiness_snap.get("execution_mode", "local")
+        _ev_enabled, _ev_source = _rep(_ev_mode, runtime_mode)
+        evolve_policy = {"mode": _ev_mode, "effective": _ev_enabled, "source": _ev_source}
+    except Exception as _ep_exc:
+        logger.warning("manifest: runtime_mode/evolve_policy lookup failed: %s", _ep_exc)
+
     return JSONResponse({
         "name": "hi-agent",
         "version": "0.1.0",
         "framework": "TRACE",
         "stages": stages,
         "capabilities": capabilities,
+        "capability_views": capability_views,
+        "capability_contract_version": "2026-04-17",
         "profiles": profiles,
         "skills": skills,
         "models": models,
         "mcp_servers": mcp_servers,
         "plugins": plugins,
+        "evolve_policy": evolve_policy,
         "endpoints": [
             # Core
             "GET /health",
@@ -435,7 +497,12 @@ async def handle_manifest(request: Request) -> JSONResponse:
             "GET /artifacts/{artifact_id}",
         ],
         "active_profile": active_profile,
-        "runtime_mode": "platform",
+        "runtime_mode": runtime_mode,
+        "environment": manifest_env,
+        "llm_mode": manifest_llm_mode,
+        "kernel_mode": manifest_kernel_mode,
+        "execution_mode": manifest_execution_mode,
+        "provenance_contract_version": provenance_contract_version,
         # Contract field consumption levels — integrators must read this to understand
         # which TaskContract fields the default TRACE pipeline actually acts on.
         # ACTIVE: drives execution behavior or outcome
@@ -893,6 +960,7 @@ async def handle_memory_dream(request: Request) -> JSONResponse:
     return JSONResponse(result)
 
 
+@require_operation("memory.consolidate")
 async def handle_memory_consolidate(request: Request) -> JSONResponse:
     """Trigger consolidation (mid-term -> long-term)."""
     server: AgentServer = request.app.state.agent_server
@@ -1134,6 +1202,7 @@ async def handle_skills_status(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@require_operation("skill.evolve")
 async def handle_skills_evolve(request: Request) -> JSONResponse:
     """Trigger evolution cycle, return EvolutionReport."""
     server: AgentServer = request.app.state.agent_server
@@ -1223,6 +1292,7 @@ async def handle_skill_optimize(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@require_operation("skill.promote")
 async def handle_skill_promote(request: Request) -> JSONResponse:
     """Promote challenger to champion."""
     skill_id = request.path_params["skill_id"]
@@ -1522,7 +1592,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
         _transport = getattr(_builder, "_mcp_transport", None) if _builder is not None else None
         health = MCPHealth(mcp_reg, transport=_transport)
         health_results = health.check_all()
-        any_healthy = any(s == "healthy" for s in health_results.values())
+        any_healthy = any(s in ("healthy", "degraded") for s in health_results.values())
         if any_healthy:
             transport_status = "wired"
             capability_mode = "external_provider"
@@ -1547,6 +1617,19 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
                 "Register stdio MCP servers via plugin manifests (mcp_servers field) to "
                 "enable external providers."
             )
+        stderr_tails: dict[str, list[str]] = {}
+        if _transport is not None and hasattr(_transport, "get_stderr_tail"):
+            for srv in mcp_reg.list_servers():
+                sid = srv["server_id"]
+                try:
+                    stderr_tails[sid] = _transport.get_stderr_tail()
+                except TypeError:
+                    try:
+                        stderr_tails[sid] = _transport.get_stderr_tail(sid)
+                    except Exception:  # noqa: BLE001
+                        stderr_tails[sid] = []
+                except Exception:  # noqa: BLE001
+                    stderr_tails[sid] = []
         return JSONResponse({
             "servers": mcp_reg.list_servers(),
             "health": health.snapshot(),
@@ -1555,6 +1638,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
             "transport_status": transport_status,
             "capability_mode": capability_mode,
             "note": note,
+            "stderr_tails": stderr_tails,
         })
     except Exception as exc:
         return JSONResponse({"error": str(exc), "servers": [], "count": 0}, status_code=500)
@@ -1743,6 +1827,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/health", handle_health, methods=["GET"]),
         Route("/ready", handle_ready, methods=["GET"]),
         Route("/manifest", handle_manifest, methods=["GET"]),
+        Route("/doctor", handle_doctor, methods=["GET"]),
+        Route("/ops/release-gate", handle_release_gate, methods=["GET"]),
 
         # Runs
         Route("/runs", handle_list_runs, methods=["GET"]),
@@ -1874,8 +1960,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # Attach agent server reference so handlers can access it.
     app.state.agent_server = agent_server
 
-    # Catch-all for 404 on unmatched paths. Starlette by default returns
-    # HTML 404; we override to return JSON.
+    # Catch-all for HTTP exceptions. Starlette by default returns plain-text
+    # bodies; we override to return JSON for all status codes, and pass dict
+    # details through as-is (required for typed 403 payloads from auth guards).
     from starlette.exceptions import HTTPException
 
     async def http_exception_handler(
@@ -1883,10 +1970,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
     ) -> JSONResponse:
         if exc.status_code == 404:
             return JSONResponse({"error": "not_found"}, status_code=404)
-        return JSONResponse(
-            {"error": str(exc.detail)}, status_code=exc.status_code,
-        )
+        detail = exc.detail if isinstance(exc.detail, dict) else {"error": str(exc.detail)}
+        return JSONResponse(detail, status_code=exc.status_code)
 
+    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(404, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(405, http_exception_handler)  # type: ignore[arg-type]
 

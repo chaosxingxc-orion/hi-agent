@@ -51,3 +51,57 @@ class CapabilityRegistry:
             Number of capabilities registered by the bundle.
         """
         return bundle.register(self)
+
+    def probe_availability(self, name: str) -> tuple[bool, str]:
+        """Check if a capability is available given current environment.
+
+        Checks:
+        1. required_env — all keys must be present in os.environ
+        2. availability_probe() — if defined, calls it and uses result
+
+        Returns:
+            (True, "") if available
+            (False, reason) if unavailable
+        """
+        import os
+        if name not in self._capabilities:
+            return False, f"capability {name!r} not registered"
+
+        spec = self._capabilities[name]
+        desc = getattr(spec, "descriptor", None)
+        if desc is None:
+            return True, ""
+
+        # Check required_env
+        required_env = getattr(desc, "required_env", {})
+        for env_var, env_desc in required_env.items():
+            if not os.environ.get(env_var):
+                return False, f"missing env var {env_var!r} ({env_desc})"
+
+        # Call availability_probe if defined
+        probe = getattr(desc, "availability_probe", None)
+        if probe is not None and callable(probe):
+            try:
+                ok, reason = probe()
+                if not ok:
+                    return False, reason
+            except Exception as e:
+                return False, f"availability_probe raised: {e}"
+
+        return True, ""
+
+    def list_with_views(self) -> list[tuple]:
+        """List capabilities with availability status for manifest rendering.
+
+        Returns list of (name, descriptor, status, reason) tuples where:
+            status: "available" | "unavailable" | "not_wired"
+            reason: empty string if available, else explanation
+        """
+        result = []
+        for name in sorted(self._capabilities.keys()):
+            spec = self._capabilities[name]
+            desc = getattr(spec, "descriptor", None)
+            ok, reason = self.probe_availability(name)
+            status = "available" if ok else "unavailable"
+            result.append((name, desc, status, reason))
+        return result

@@ -32,7 +32,7 @@ def test_invoker_retries_and_eventually_succeeds() -> None:
 
     response = invoker.invoke("flaky", {})
 
-    assert response == {"ok": True}
+    assert response.get("ok") is True
     assert attempts["count"] == 3
 
 
@@ -117,6 +117,6 @@ def test_invoker_timeout_classified_as_retryable() -> None:
 
     response = invoker.invoke("echo", {"x": 7})
 
-    assert response == {"echo": 7}
+    assert response.get("echo") == 7
     assert handler_attempts["count"] == 1
     assert timeout_calls == [0.25, 0.25]

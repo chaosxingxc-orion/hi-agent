@@ -96,6 +96,8 @@ class SystemBuilder:
         # Subsystem singletons — cached so readiness() and manifest reflect the
         # same instances used by actual run execution.
         self._skill_loader: Any | None = None
+        self._skill_builder: Any | None = None  # lazy SkillBuilder singleton
+        self._memory_builder: Any | None = None  # lazy MemoryBuilder singleton
         self._mcp_registry: Any | None = None
         self._mcp_transport: Any | None = None
         self._plugin_loader: Any | None = None
@@ -803,43 +805,33 @@ class SystemBuilder:
             artifact_registry=self.build_artifact_registry(),
         )
 
+    def _get_skill_builder(self):
+        if self._skill_builder is None:
+            from hi_agent.config.skill_builder import SkillBuilder
+            self._skill_builder = SkillBuilder(self._config)
+        return self._skill_builder
+
+    def _get_memory_builder(self):
+        if self._memory_builder is None:
+            from hi_agent.config.memory_builder import MemoryBuilder
+            self._memory_builder = MemoryBuilder(self._config)
+        return self._memory_builder
+
+    def _get_knowledge_builder(self):
+        if not hasattr(self, "_knowledge_builder_inst") or self._knowledge_builder_inst is None:
+            from hi_agent.config.knowledge_builder import KnowledgeBuilder
+            self._knowledge_builder_inst = KnowledgeBuilder(self._config, long_term_graph_factory=self.build_long_term_graph)
+        return self._knowledge_builder_inst
+
     def build_skill_registry(self) -> SkillRegistry:
         """Build SkillRegistry using configured storage directory."""
-        return SkillRegistry(storage_dir=self._config.skill_storage_dir)
+        return self._get_skill_builder().build_skill_registry()
 
     def build_skill_loader(self) -> Any:
-        """Build or return the shared SkillLoader singleton.
-
-        Search order (highest to lowest priority):
-        1. Built-in skills bundled with hi-agent (hi_agent/skills/builtin/)
-        2. User-global skills (~/.hi_agent/skills/)
-        3. Project-local skills (config.skill_storage_dir, default .hi_agent/skills/)
-        """
-        if self._skill_loader is not None:
-            return self._skill_loader
-
-        import pathlib
-
-        from hi_agent.skill.loader import SkillLoader
-
-        builtin_dir = str(pathlib.Path(__file__).parent.parent / "skills" / "builtin")
-        user_global_dir = str(pathlib.Path.home() / ".hi_agent" / "skills")
-        project_dir = self._config.skill_storage_dir
-
-        # Deduplicate while preserving order
-        seen: set[str] = set()
-        dirs: list[str] = []
-        for d in [builtin_dir, user_global_dir, project_dir]:
-            if d not in seen:
-                seen.add(d)
-                dirs.append(d)
-
-        self._skill_loader = SkillLoader(
-            search_dirs=dirs,
-            max_skills_in_prompt=self._config.skill_loader_max_skills_in_prompt,
-            max_prompt_tokens=self._config.skill_loader_max_prompt_tokens,
-        )
-        return self._skill_loader
+        """Build or return the shared SkillLoader singleton."""
+        loader = self._get_skill_builder().build_skill_loader()
+        self._skill_loader = loader  # keep local ref for _wire_plugin_contributions
+        return loader
 
     def build_plugin_loader(self) -> Any:
         """Build or return the shared PluginLoader singleton.
@@ -971,62 +963,27 @@ class SystemBuilder:
 
     def build_skill_observer(self) -> Any:
         """Build SkillObserver for execution telemetry."""
-        from hi_agent.skill.observer import SkillObserver
-
-        return SkillObserver(
-            storage_dir=self._config.skill_storage_dir + "/observations"
-        )
+        return self._get_skill_builder().build_skill_observer()
 
     def build_skill_version_manager(self) -> Any:
         """Build SkillVersionManager for champion/challenger versioning."""
-        from hi_agent.skill.version import SkillVersionManager
-
-        mgr = SkillVersionManager(
-            storage_dir=self._config.skill_storage_dir + "/versions"
-        )
-        try:
-            mgr.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
-        return mgr
+        return self._get_skill_builder().build_skill_version_manager()
 
     def build_skill_evolver(self) -> Any:
-        """Build or return the shared SkillEvolver singleton.
-
-        Cached so that the internal _runs_since_evolve counter persists across
-        per-request RunExecutor instances; otherwise the interval counter resets
-        to 0 on every request and evolve_cycle() never fires.
-        """
-        if getattr(self, "_skill_evolver", None) is not None:
-            return self._skill_evolver
-        from hi_agent.skill.evolver import SkillEvolver
-
-        observer = self.build_skill_observer()
-        version_mgr = self.build_skill_version_manager()
-        gateway = self.build_llm_gateway()
-        self._skill_evolver = SkillEvolver.from_config(
-            cfg=self._config,
-            llm_gateway=gateway,
-            observer=observer,
-            version_manager=version_mgr,
-        )
-        return self._skill_evolver
+        """Build or return the shared SkillEvolver singleton."""
+        return self._get_skill_builder().build_skill_evolver(llm_gateway=self.build_llm_gateway())
 
     def build_episodic_store(self) -> EpisodicMemoryStore:
         """Build EpisodicMemoryStore using configured storage directory."""
-        return EpisodicMemoryStore(storage_dir=self._config.episodic_storage_dir)
+        return self._get_memory_builder().build_episodic_store()
 
     def build_failure_collector(self) -> FailureCollector:
         """Build a fresh FailureCollector."""
-        return FailureCollector()
+        return self._get_memory_builder().build_failure_collector()
 
     def build_watchdog(self) -> ProgressWatchdog:
         """Build ProgressWatchdog with config-driven thresholds."""
-        return ProgressWatchdog(
-            window_size=self._config.watchdog_window_size,
-            min_success_rate=self._config.watchdog_min_success_rate,
-            max_consecutive_failures=self._config.watchdog_max_consecutive_failures,
-        )
+        return self._get_memory_builder().build_watchdog()
 
     # ------------------------------------------------------------------
     # Memory tier builders
@@ -1034,46 +991,15 @@ class SystemBuilder:
 
     def build_short_term_store(self, profile_id: str = "") -> Any:
         """Build short-term memory store, optionally scoped to a profile."""
-        from hi_agent.memory.short_term import ShortTermMemoryStore
-
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        path = (
-            os.path.join(base, "profiles", profile_id, "short_term")
-            if profile_id
-            else self._config.episodic_storage_dir.replace("episodes", "short_term")
-        )
-        project_id = getattr(self._config, "project_id", "")
-        return ShortTermMemoryStore(path, project_id=project_id)
+        return self._get_memory_builder().build_short_term_store(profile_id=profile_id)
 
     def build_mid_term_store(self, profile_id: str = "") -> Any:
         """Build mid-term memory store, optionally scoped to a profile."""
-        from hi_agent.memory.mid_term import MidTermMemoryStore
-
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        path = (
-            os.path.join(base, "profiles", profile_id, "mid_term")
-            if profile_id
-            else self._config.episodic_storage_dir.replace("episodes", "mid_term")
-        )
-        return MidTermMemoryStore(path)
+        return self._get_memory_builder().build_mid_term_store(profile_id=profile_id)
 
     def build_long_term_graph(self, profile_id: str = "") -> Any:
         """Build long-term memory graph, optionally scoped to a profile."""
-        from hi_agent.memory.long_term import LongTermMemoryGraph
-
-        project_id = getattr(self._config, "project_id", "")
-        graph = LongTermMemoryGraph(
-            self._config.episodic_storage_dir.replace(
-                "episodes", "long_term/graph.json"
-            ),
-            profile_id=profile_id,
-            project_id=project_id,
-        )
-        try:
-            graph.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
-        return graph
+        return self._get_memory_builder().build_long_term_graph(profile_id=profile_id)
 
     def build_retrieval_engine(
         self,
@@ -1082,40 +1008,14 @@ class SystemBuilder:
         long_term_graph: Any = None,
         profile_id: str = "",
     ) -> Any:
-        """Build four-layer retrieval engine across all memory tiers.
-
-        When store objects are provided, they are used directly (no new instances
-        are created). When absent, new instances are built scoped to profile_id.
-
-        Layer 4 (semantic embedding re-ranking) is activated by wiring a
-        TFIDFEmbeddingProvider against the engine's internal TFIDFIndex.
-        This requires no external dependencies.  If construction fails for
-        any reason the engine falls back to embedding_fn=None (Layers 1-3
-        only).
-        """
-        from hi_agent.knowledge.retrieval_engine import RetrievalEngine
-
-        wiki = self.build_knowledge_wiki()
-        graph = long_term_graph if long_term_graph is not None else self.build_long_term_graph(profile_id=profile_id)
-        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
-        mid = mid_term_store if mid_term_store is not None else self.build_mid_term_store(profile_id=profile_id)
-
-        # Build the engine first so we can access its internal _tfidf index.
-        engine = RetrievalEngine(
-            wiki=wiki, graph=graph, short_term=short, mid_term=mid
+        """Build four-layer retrieval engine across all memory tiers."""
+        return self._get_memory_builder().build_retrieval_engine(
+            short_term_store=short_term_store,
+            mid_term_store=mid_term_store,
+            long_term_graph=long_term_graph,
+            profile_id=profile_id,
+            wiki=self.build_knowledge_wiki(),
         )
-
-        # Activate Layer 4 by wiring in a TF-IDF-based embedding function.
-        try:
-            from hi_agent.knowledge.embedding import TFIDFEmbeddingProvider
-
-            provider = TFIDFEmbeddingProvider(engine._tfidf)
-            engine._embedding_fn = provider.as_callable()
-        except Exception:
-            # Graceful degradation: Layer 4 stays disabled, Layers 1-3 work normally.
-            pass
-
-        return engine
 
     def build_memory_lifecycle_manager(
         self,
@@ -1124,28 +1024,13 @@ class SystemBuilder:
         long_term_graph: Any = None,
         profile_id: str = "",
     ) -> MemoryLifecycleManager:
-        """Build MemoryLifecycleManager wiring all memory tiers.
-
-        When store objects are provided, they are used directly (no new
-        instances are created), preserving profile-scoped paths built by
-        the caller. When absent, fresh instances are built scoped to profile_id.
-
-        Args:
-            profile_id: Profile scope for fallback store construction. Has no
-                effect when all store instances are provided explicitly.
-        """
-        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
-        mid   = mid_term_store   if mid_term_store   is not None else self.build_mid_term_store(profile_id=profile_id)
-        graph = long_term_graph  if long_term_graph  is not None else self.build_long_term_graph(profile_id=profile_id)
-        return MemoryLifecycleManager(
-            short_term_store=short,
-            mid_term_store=mid,
-            long_term_graph=graph,
-            retrieval_engine=self.build_retrieval_engine(
-                short_term_store=short,
-                mid_term_store=mid,
-                long_term_graph=graph,
-            ),
+        """Build MemoryLifecycleManager wiring all memory tiers."""
+        return self._get_memory_builder().build_memory_lifecycle_manager(
+            short_term_store=short_term_store,
+            mid_term_store=mid_term_store,
+            long_term_graph=long_term_graph,
+            profile_id=profile_id,
+            wiki=self.build_knowledge_wiki(),
         )
 
     # ------------------------------------------------------------------
@@ -1153,53 +1038,13 @@ class SystemBuilder:
     # ------------------------------------------------------------------
 
     def build_knowledge_wiki(self) -> Any:
-        """Build KnowledgeWiki for wiki-based knowledge storage."""
-        from hi_agent.knowledge.wiki import KnowledgeWiki
-
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        wiki = KnowledgeWiki(os.path.join(base, "knowledge", "wiki"))
-        try:
-            wiki.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
-        except Exception as exc:
-            logger.warning("build_wiki: failed to load prior wiki state: %s", exc)
-        return wiki
+        return self._get_knowledge_builder().build_knowledge_wiki()
 
     def build_user_knowledge_store(self) -> Any:
-        """Build UserKnowledgeStore for user profile knowledge."""
-        from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+        return self._get_knowledge_builder().build_user_knowledge_store()
 
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        return UserKnowledgeStore(os.path.join(base, "knowledge", "user"))
-
-    def build_knowledge_manager(
-        self,
-        profile_id: str = "",
-        long_term_graph: Any = None,
-    ) -> Any:
-        """Build KnowledgeManager wiring wiki, user store, graph, and renderer.
-
-        Args:
-            profile_id: Profile scope for the knowledge graph. When provided,
-                a profile-scoped graph is created if ``long_term_graph`` is None.
-            long_term_graph: Pre-built graph instance to share with the executor.
-                When provided, it is used directly (no new instance created).
-        """
-        from hi_agent.knowledge.graph_renderer import GraphRenderer
-        from hi_agent.knowledge.knowledge_manager import KnowledgeManager
-
-        wiki = self.build_knowledge_wiki()
-        user_store = self.build_user_knowledge_store()
-        graph = (
-            long_term_graph
-            if long_term_graph is not None
-            else self.build_long_term_graph(profile_id=profile_id)
-        )
-        renderer = GraphRenderer(graph)
-        return KnowledgeManager(
-            wiki=wiki, user_store=user_store, graph=graph, renderer=renderer,
-        )
+    def build_knowledge_manager(self, profile_id: str = "", long_term_graph: Any = None) -> Any:
+        return self._get_knowledge_builder().build_knowledge_manager(profile_id=profile_id, long_term_graph=long_term_graph)
 
     # ------------------------------------------------------------------
     # Composite builders
@@ -1610,6 +1455,7 @@ class SystemBuilder:
             compress_snip_threshold=self._config.compress_snip_threshold,
             compress_window_threshold=self._config.compress_window_threshold,
             compress_compress_threshold=self._config.compress_compress_threshold,
+            evolve_mode=getattr(self._config, "evolve_mode", "auto"),
         )
         # Wire middleware orchestrator into the StageExecutor that RunExecutor
         # already created during __init__.  RunExecutor does not yet accept
@@ -1837,209 +1683,7 @@ class SystemBuilder:
     def readiness(self) -> dict[str, Any]:
         """Return a live readiness snapshot of all platform subsystems.
 
-        This method probes each subsystem and returns a structured dict that
-        downstream integrators can use to verify platform state without reading
-        source code.  It never raises — failures are captured as status entries.
-
-        Returns a dict matching the platform manifest contract::
-
-            {
-              "ready": bool,
-              "health": "ok" | "degraded",
-              "execution_mode": str,
-              "models": [...],
-              "skills": [...],
-              "mcp_servers": [...],
-              "plugins": [...],
-              "capabilities": [...],
-              "subsystems": {...}
-            }
+        Delegates to ReadinessProbe — see hi_agent/config/readiness.py.
         """
-        result: dict[str, Any] = {
-            "ready": False,
-            "health": "ok",
-            "execution_mode": "unknown",
-            "models": [],
-            "skills": [],
-            "mcp_servers": [],
-            "plugins": [],
-            "capabilities": [],
-            "subsystems": {},
-        }
-        issues: list[str] = []
-
-        # --- kernel ---
-        try:
-            kernel = self.build_kernel()
-            base_url = getattr(self._config, "kernel_base_url", "local") or "local"
-            mode = "http" if base_url.lower() not in ("", "local") else "local"
-            result["execution_mode"] = mode
-            result["subsystems"]["kernel"] = {"status": "ok", "mode": mode}
-        except Exception as exc:
-            result["subsystems"]["kernel"] = {"status": "error", "error": str(exc)}
-            result["health"] = "degraded"
-            issues.append(f"kernel: {exc}")
-
-        # --- LLM / models ---
-        try:
-            gateway = self.build_llm_gateway()
-            if gateway is None:
-                result["subsystems"]["llm"] = {"status": "not_configured"}
-                result["models"] = []
-            else:
-                # Best-effort: list models from registry if tier router available
-                model_names: list[str] = []
-                if self._tier_router is not None:
-                    try:
-                        registry = getattr(self._tier_router, "_registry", None)
-                        if registry is not None:
-                            model_names = [
-                                m if isinstance(m, str) else getattr(m, "name", str(m))
-                                for m in registry.list_models()
-                            ]
-                    except Exception:
-                        pass
-                result["models"] = [{"name": n, "status": "configured"} for n in model_names]
-                result["subsystems"]["llm"] = {"status": "ok", "models": len(model_names)}
-        except Exception as exc:
-            result["subsystems"]["llm"] = {"status": "error", "error": str(exc)}
-            result["health"] = "degraded"
-            issues.append(f"llm: {exc}")
-
-        # --- capabilities ---
-        try:
-            invoker = self.build_invoker()
-            # CapabilityInvoker exposes registry as public `registry` attribute.
-            registry = getattr(invoker, "registry", None) or getattr(invoker, "_registry", None)
-            cap_names: list[str] = []
-            if registry is not None:
-                cap_names = registry.list_names()
-            result["capabilities"] = cap_names
-            result["subsystems"]["capabilities"] = {"status": "ok", "count": len(cap_names)}
-        except Exception as exc:
-            result["subsystems"]["capabilities"] = {"status": "error", "error": str(exc)}
-            result["health"] = "degraded"
-            issues.append(f"capabilities: {exc}")
-
-        # --- skills ---
-        try:
-            loader = self.build_skill_loader()
-            # discover() triggers loading and returns the count (int), not a list.
-            # Use list_skills() to get the actual SkillDefinition objects.
-            skill_count = 0
-            skill_list: list[Any] = []
-            try:
-                if hasattr(loader, "discover"):
-                    skill_count = loader.discover()
-                if hasattr(loader, "list_skills"):
-                    skill_list = loader.list_skills()
-                elif isinstance(skill_count, int):
-                    skill_count = skill_count  # just the count, no list available
-            except Exception:
-                pass
-            result["skills"] = [
-                {
-                    "name": getattr(s, "name", str(s)),
-                    "source": getattr(s, "source", "unknown"),
-                    "status": "loaded",
-                }
-                for s in skill_list
-            ]
-            result["subsystems"]["skills"] = {"status": "ok", "discovered": len(result["skills"])}
-        except Exception as exc:
-            result["subsystems"]["skills"] = {"status": "error", "error": str(exc)}
-            issues.append(f"skills: {exc}")
-
-        # --- MCP: use cached singleton so readiness reflects same state as runs ---
-        try:
-            from hi_agent.mcp.registry import MCPRegistry
-            if self._mcp_registry is None:
-                self._mcp_registry = MCPRegistry()
-            servers = self._mcp_registry.list_servers()
-            # Annotate each server with transport availability so integrators know
-            # whether tools are actually invokable vs just registered.
-            for srv in servers:
-                srv_status = srv.get("status", "registered")
-                if srv_status == "healthy":
-                    srv["availability"] = "available"
-                elif srv_status in ("registered",):
-                    srv["availability"] = "registered_but_no_transport"
-                else:
-                    srv["availability"] = srv_status
-            result["mcp_servers"] = servers
-            connected = sum(1 for s in servers if s.get("status") == "healthy")
-            result["subsystems"]["mcp"] = {
-                "status": "ok",
-                "servers": len(servers),
-                "connected": connected,
-                "registered_only": len(servers) - connected,
-                # Honest transport status for integrators.
-                "transport_status": "not_wired",
-                "capability_mode": "infrastructure_only",
-                "note": (
-                    "External MCP transport (stdio/SSE/HTTP) not yet implemented. "
-                    "Platform tools are available via /mcp/tools/list as MCP-compatible "
-                    "endpoints. External server registration and forwarding are deferred."
-                ),
-            }
-        except ImportError:
-            result["mcp_servers"] = []
-            result["subsystems"]["mcp"] = {"status": "not_configured"}
-        except Exception as exc:
-            result["subsystems"]["mcp"] = {"status": "error", "error": str(exc)}
-
-        # --- plugins: use cached singleton so readiness reflects same state as runs ---
-        try:
-            from hi_agent.plugin.loader import PluginLoader
-            if self._plugin_loader is None:
-                self._plugin_loader = PluginLoader()
-                # load_all() triggers actual discovery from plugin directories.
-                # Without this, list_loaded() always returns [] on a fresh loader.
-                self._plugin_loader.load_all()
-            loaded = self._plugin_loader.list_loaded()
-            result["plugins"] = loaded
-            result["subsystems"]["plugins"] = {"status": "ok", "count": len(loaded)}
-        except ImportError:
-            result["plugins"] = []
-            result["subsystems"]["plugins"] = {"status": "not_configured"}
-        except Exception as exc:
-            result["subsystems"]["plugins"] = {"status": "error", "error": str(exc)}
-
-        # --- readiness decision ---
-        kernel_ok = result["subsystems"].get("kernel", {}).get("status") == "ok"
-        cap_ok = result["subsystems"].get("capabilities", {}).get("status") == "ok"
-        # LLM error means prod mode requires credentials not present.
-        # "not_configured" (dev fallback) is acceptable; "error" (missing prod creds) blocks.
-        llm_status = result["subsystems"].get("llm", {}).get("status", "not_configured")
-        llm_ok = llm_status != "error"
-        result["ready"] = kernel_ok and cap_ok and llm_ok
-        if not llm_ok:
-            result["health"] = "degraded"
-            issues.append("llm: credentials required for prod mode")
-        if issues:
-            logger.warning("readiness: %d issue(s): %s", len(issues), "; ".join(issues))
-
-        # --- prerequisites transparency ---
-        # Emit explicit prerequisites so integrators know exactly what is needed
-        # when ready=false, without having to read source code.
-        import os as _os
-        env_mode = _os.environ.get("HI_AGENT_ENV", "dev").lower()
-        result["runtime_mode"] = env_mode
-        if env_mode == "prod":
-            result["prerequisites"] = {
-                "required_for_prod_mode": [
-                    "OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable",
-                    "kernel_base_url set to a real agent-kernel HTTP endpoint",
-                ],
-                "hint": (
-                    "Run with HI_AGENT_ENV=dev (or use `serve` default) for "
-                    "heuristic fallback without external dependencies."
-                ),
-            }
-        else:
-            result["prerequisites"] = {
-                "mode": "dev — heuristic fallback active, no external dependencies required",
-                "hint": "Use HI_AGENT_ENV=prod or `serve --prod` to require real credentials.",
-            }
-
-        return result
+        from hi_agent.config.readiness import ReadinessProbe  # noqa: PLC0415
+        return ReadinessProbe(self).snapshot()

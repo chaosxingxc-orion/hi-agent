@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Literal
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
@@ -24,6 +24,11 @@ class AsyncKernelFacadeAdapter:
         """Initialize AsyncKernelFacadeAdapter."""
         self._sync = KernelFacadeAdapter(facade)
         self._facade = facade
+
+    @property
+    def mode(self) -> Literal["local-fsm", "http"]:
+        """The kernel execution mode — delegates to the underlying sync adapter."""
+        return self._sync.mode
 
     # ------------------------------------------------------------------
     # Async wrappers for sync methods

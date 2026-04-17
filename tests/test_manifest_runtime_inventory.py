@@ -86,7 +86,7 @@ class TestManifestRuntimeInventory:
         assert isinstance(data["mcp_servers"], list)
 
     def test_manifest_has_runtime_mode(self):
-        """Manifest reports runtime_mode key."""
+        """Manifest reports runtime_mode key with a valid resolved value (not hardcoded)."""
         from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
 
@@ -95,7 +95,8 @@ class TestManifestRuntimeInventory:
         response = client.get("/manifest")
         data = response.json()
         assert "runtime_mode" in data
-        assert data["runtime_mode"] == "platform"
+        # runtime_mode is now resolved via resolve_runtime_mode() — never hardcoded
+        assert data["runtime_mode"] in ("dev-smoke", "local-real", "prod-real")
 
     def test_manifest_active_profile_is_none_at_startup(self):
         """Without a resolved profile, manifest reports active_profile=None."""

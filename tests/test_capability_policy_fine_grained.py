@@ -43,7 +43,7 @@ def test_invoke_allowed_when_action_permission_granted() -> None:
         metadata={"stage_id": "draft", "action_kind": "approve"},
     )
 
-    assert response == {"echo": 2}
+    assert response.get("echo") == 2
 
 
 def test_invoke_without_metadata_uses_legacy_capability_policy() -> None:
@@ -53,4 +53,4 @@ def test_invoke_without_metadata_uses_legacy_capability_policy() -> None:
 
     response = invoker.invoke("echo", {"x": 3}, role="operator")
 
-    assert response == {"echo": 3}
+    assert response.get("echo") == 3

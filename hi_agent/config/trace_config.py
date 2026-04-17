@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import warnings
 from dataclasses import asdict, dataclass, fields
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ class TraceConfig:
     kernel_circuit_breaker_threshold: int = 5
 
     # Evolve
-    evolve_enabled: bool = True
+    evolve_mode: Literal["auto", "on", "off"] = "auto"
     evolve_min_confidence: float = 0.6
     feedback_store_enabled: bool = True
 
@@ -271,11 +272,25 @@ class TraceConfig:
         "skill_min_provisional_evidence",
         "skill_min_certified_evidence",
         "skill_min_certified_success_rate",
-        "evolve_enabled",
         "gate_budget_crisis_threshold",
         "kernel_circuit_breaker_threshold",
         "task_default_priority",
     })
+
+    @property
+    def evolve_enabled(self) -> bool:
+        """Deprecated backward-compat accessor.
+
+        Use ``evolve_mode`` and ``resolve_evolve_effective`` instead.
+        """
+        warnings.warn(
+            "evolve_enabled is deprecated; use evolve_mode instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from hi_agent.config.evolve_policy import resolve_evolve_effective
+        enabled, _ = resolve_evolve_effective(self.evolve_mode, "dev-smoke")
+        return enabled
 
     def validate_no_deprecated(self) -> list[str]:
         """Log warnings for deprecated fields set to non-default values.

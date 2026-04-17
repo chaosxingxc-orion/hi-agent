@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import (
@@ -18,6 +18,11 @@ class RuntimeAdapter(Protocol):
     Defines the 17-method surface that hi-agent uses to communicate with
     the agent-kernel runtime substrate.
     """
+
+    @property
+    def mode(self) -> Literal["local-fsm", "http"]:
+        """The kernel execution mode."""
+        ...
 
     # --- Stage lifecycle ---
 

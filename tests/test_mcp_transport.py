@@ -271,7 +271,7 @@ class TestMCPHealthWithTransport:
         transport.ping.return_value = False
         health = MCPHealth(mcp_registry=registry, transport=transport)
         results = health.check_all()
-        assert results["srv"] == "error"
+        assert results["srv"] == "unhealthy"
 
     def test_check_all_error_when_ping_raises(self) -> None:
         from hi_agent.mcp.health import MCPHealth
@@ -281,7 +281,7 @@ class TestMCPHealthWithTransport:
         transport.ping.side_effect = Exception("connection refused")
         health = MCPHealth(mcp_registry=registry, transport=transport)
         results = health.check_all()
-        assert results["srv"] == "error"
+        assert results["srv"] == "unhealthy"
 
     def test_check_all_returns_recorded_status_without_transport(self) -> None:
         from hi_agent.mcp.health import MCPHealth

@@ -222,6 +222,7 @@ class RunExecutor:
         compress_compress_threshold: int | None = None,
         replan_hook: Callable[[str, dict], "StageDirective | None"] | None = None,
         feedback_store: "FeedbackStore | None" = None,
+        evolve_mode: str = "auto",
     ) -> None:
         """Initialize run executor state.
 
@@ -287,6 +288,7 @@ class RunExecutor:
         self.knowledge_query_text_builder = knowledge_query_text_builder
         self.dag: dict[str, TrajectoryNode] = {}
         self.stage_summaries: dict[str, StageSummary] = {}
+        self._capability_provenance_store: dict[str, list[dict]] = {}
         self.action_seq = 0
         self.branch_seq = 0
         self.decision_seq = 0
@@ -324,6 +326,7 @@ class RunExecutor:
         self._compress_compress_threshold = compress_compress_threshold
         self._replan_hook = replan_hook
         self._feedback_store = feedback_store
+        self._evolve_mode = evolve_mode
         self.evolve_engine = evolve_engine
         self.harness_executor = harness_executor
         self.human_gate_quality_threshold = human_gate_quality_threshold
@@ -605,6 +608,7 @@ class RunExecutor:
             cts_budget=self.cts_budget,
             route_engine=self.route_engine,
             tier_router=self.tier_router,
+            evolve_mode=self._evolve_mode,
         )
         self._stage_executor = StageExecutor(
             kernel=self.kernel,
@@ -1221,6 +1225,9 @@ class RunExecutor:
             try:
                 # Fix-4: route through ExecutionHookManager (pre/post tool hooks)
                 result = self._invoke_capability_via_hooks(proposal, payload)
+                # W2-002: collect capability provenance for StageProvenance derivation
+                if isinstance(result, dict) and "_provenance" in result:
+                    self._capability_provenance_store.setdefault(stage_id, []).append(result["_provenance"])
                 success = bool(result.get("success", False))
                 self._record_event(
                     "ActionExecuted",
@@ -2057,7 +2064,7 @@ class RunExecutor:
         _start = getattr(self, "_run_start_monotonic", None)
         duration_ms = int((time.monotonic() - _start) * 1000) if _start is not None else 0
 
-        return RunResult(
+        run_result = RunResult(
             run_id=self.run_id,
             status=outcome,
             stages=stage_dicts,
@@ -2068,6 +2075,91 @@ class RunExecutor:
             is_retryable=is_retryable,
             duration_ms=duration_ms,
         )
+
+        # --- Execution provenance (HI-W1-D3-001) ---
+        # Populate after RunResult construction so all fields are finalized.
+        try:
+            from hi_agent.contracts.execution_provenance import ExecutionProvenance
+            from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode
+
+            _stage_summaries = self._collect_stage_type_summaries()
+            _prov = ExecutionProvenance.build_from_stages(
+                stage_summaries=_stage_summaries,
+                runtime_context={
+                    "runtime_mode": resolve_runtime_mode(
+                        env=getattr(self, "_env", "dev"),
+                        readiness=getattr(self, "_readiness_snapshot", {}),
+                    ),
+                    "mcp_transport": self._get_mcp_transport_status(),
+                    "kernel_mode": getattr(self.kernel, "mode", "unknown"),
+                },
+            )
+            run_result.execution_provenance = _prov
+        except Exception as _prov_exc:  # provenance must never crash the run
+            _logger.warning("runner.provenance_build_failed error=%s", _prov_exc)
+
+        return run_result
+
+    def _collect_stage_type_summaries(self) -> list[dict]:
+        """Collect per-stage type info with StageProvenance.
+
+        For W2: each stage now carries a StageProvenance in the "provenance" key.
+        Current runs use heuristic routing, so llm_mode="heuristic" for all stages.
+        capability_mode is derived from whether capability was actually invoked.
+        Real LLM / capability tracking wired in W2-002.
+        """
+        from hi_agent.contracts.execution_provenance import StageProvenance
+
+        stages = getattr(self, "_stages", None) or list(self.stage_summaries.keys())
+        summaries = []
+        for stage in stages:
+            stage_id = (
+                getattr(stage, "stage_id", None)
+                or getattr(stage, "name", None)
+                or (stage if isinstance(stage, str) else "unknown")
+            )
+            # W2: real LLM tracking comes with W2-002
+            llm_mode = "heuristic"
+            fallback_used = True  # heuristic routing = fallback
+            # W2-002: derive capability_mode from collected invocation provenance
+            cap_prov_list = self._capability_provenance_store.get(str(stage_id), [])
+            if cap_prov_list:
+                modes = [r.get("mode", "sample") for r in cap_prov_list if isinstance(r, dict)]
+                if all(m == "mcp" for m in modes):
+                    capability_mode = "mcp"
+                elif all(m == "external" for m in modes):
+                    capability_mode = "external"
+                elif all(m == "profile" for m in modes):
+                    capability_mode = "profile"
+                elif all(m == "sample" for m in modes):
+                    capability_mode = "sample"
+                else:
+                    capability_mode = "unknown"
+            else:
+                capability_mode = "sample"  # W2-002 fallback: no capability data = sample
+            prov = StageProvenance(
+                stage_id=str(stage_id),
+                llm_mode=llm_mode,
+                capability_mode=capability_mode,
+                fallback_used=fallback_used,
+                fallback_reasons=["heuristic_routing"],
+                duration_ms=getattr(stage, "duration_ms", 0) or 0,
+            )
+            summaries.append({
+                "stage_id": str(stage_id),
+                "type": llm_mode,
+                "provenance": prov,
+            })
+        return summaries
+
+    def _get_mcp_transport_status(self) -> str:
+        """Return MCP transport status string for provenance.
+
+        Reads _mcp_status dict if available; defaults to "not_wired" per
+        CLAUDE.md transport_status convention.
+        """
+        mcp_status = getattr(self, "_mcp_status", {})
+        return mcp_status.get("transport_status", "not_wired")
 
     def execute(self) -> RunResult:
         """Execute all stages with deterministic routing and capability dispatch.
@@ -3429,7 +3521,9 @@ async def execute_async(
         for node_id in schedule_result.completed_nodes:
             executor.session.stage_states[node_id] = "completed"
 
-    # J3-2: Call _finalize_run for resource cleanup, L0→L3 memory chain, observability.
+    # J3-2: _finalize_run handles resource cleanup and provenance for RunResult.
+    # Note: AsyncRunResult does not carry execution_provenance; the computed
+    # provenance is discarded here. Async provenance tracking is deferred to W2+.
     outcome = "completed" if schedule_result.success else "failed"
     try:
         executor._finalize_run(outcome)

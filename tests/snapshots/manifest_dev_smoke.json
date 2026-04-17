@@ -1,0 +1,10 @@
+{
+  "environment": "dev",
+  "evolve_policy": {
+    "effective": true,
+    "mode": "auto",
+    "source": "auto_dev_on"
+  },
+  "provenance_contract_version": "2026-04-17",
+  "runtime_mode": "dev-smoke"
+}
