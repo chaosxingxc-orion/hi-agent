@@ -230,6 +230,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
     """Return dynamic system capabilities manifest."""
     server: AgentServer = request.app.state.agent_server
     capabilities: list[str] = []
+    capability_views: list[dict] = []
     skills: list[dict] = []
     models: list[dict] = []
     profiles: list[dict] = []
@@ -246,6 +247,22 @@ async def handle_manifest(request: Request) -> JSONResponse:
                 registry = getattr(invoker, "registry", None) or getattr(invoker, "_registry", None)
                 if registry is not None and hasattr(registry, "list_names"):
                     capabilities = list(registry.list_names())
+                if registry is not None and hasattr(registry, "list_with_views"):
+                    try:
+                        capability_views = [
+                            {
+                                "name": name,
+                                "status": status,
+                                "toolset_id": getattr(desc, "toolset_id", "default") if desc else "default",
+                                "required_env": list(getattr(desc, "required_env", {}).keys()) if desc else [],
+                                "effect_class": getattr(desc, "effect_class", "unknown_effect") if desc else "unknown_effect",
+                                "output_budget_tokens": getattr(desc, "output_budget_tokens", 0) if desc else 0,
+                                "availability_reason": reason,
+                            }
+                            for name, desc, status, reason in registry.list_with_views()
+                        ]
+                    except Exception as _views_exc:
+                        logger.warning("manifest: capability_views enumeration failed: %s", _views_exc)
     except Exception as _cap_exc:
         logger.warning("manifest: capability enumeration failed: %s", _cap_exc)
 
@@ -411,6 +428,8 @@ async def handle_manifest(request: Request) -> JSONResponse:
         "framework": "TRACE",
         "stages": stages,
         "capabilities": capabilities,
+        "capability_views": capability_views,
+        "capability_contract_version": "2026-04-17",
         "profiles": profiles,
         "skills": skills,
         "models": models,
