@@ -3475,7 +3475,9 @@ async def execute_async(
         for node_id in schedule_result.completed_nodes:
             executor.session.stage_states[node_id] = "completed"
 
-    # J3-2: Call _finalize_run for resource cleanup, L0→L3 memory chain, observability.
+    # J3-2: _finalize_run handles resource cleanup and provenance for RunResult.
+    # Note: AsyncRunResult does not carry execution_provenance; the computed
+    # provenance is discarded here. Async provenance tracking is deferred to W2+.
     outcome = "completed" if schedule_result.success else "failed"
     try:
         executor._finalize_run(outcome)

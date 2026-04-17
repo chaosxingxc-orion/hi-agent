@@ -1,8 +1,4 @@
-"""Single source of truth for runtime_mode — HI-W1-D3-001.
-
-All three consumers (/manifest, /ready, RunResult) MUST use this function —
-never compute runtime_mode independently.
-"""
+"""Single source of truth for runtime_mode — HI-W1-D3-001."""
 from typing import Literal
 
 
@@ -10,7 +6,11 @@ def resolve_runtime_mode(
     env: str,
     readiness: dict,
 ) -> Literal["dev-smoke", "local-real", "prod-real"]:
-    """Return the canonical runtime_mode for the given environment and readiness state.
+    """Single source of truth for runtime_mode.
+
+    Consumers: RunResult.execution_provenance (D3, wired), /manifest (D4, pending),
+    /ready (D4, pending). All three must converge on this function — never compute
+    runtime_mode independently once wired.
 
     Args:
         env: Environment string, e.g. "prod", "dev", "local".
