@@ -817,6 +817,12 @@ class SystemBuilder:
             self._memory_builder = MemoryBuilder(self._config)
         return self._memory_builder
 
+    def _get_knowledge_builder(self):
+        if not hasattr(self, "_knowledge_builder_inst") or self._knowledge_builder_inst is None:
+            from hi_agent.config.knowledge_builder import KnowledgeBuilder
+            self._knowledge_builder_inst = KnowledgeBuilder(self._config, long_term_graph_factory=self.build_long_term_graph)
+        return self._knowledge_builder_inst
+
     def build_skill_registry(self) -> SkillRegistry:
         """Build SkillRegistry using configured storage directory."""
         return self._get_skill_builder().build_skill_registry()
@@ -1032,53 +1038,13 @@ class SystemBuilder:
     # ------------------------------------------------------------------
 
     def build_knowledge_wiki(self) -> Any:
-        """Build KnowledgeWiki for wiki-based knowledge storage."""
-        from hi_agent.knowledge.wiki import KnowledgeWiki
-
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        wiki = KnowledgeWiki(os.path.join(base, "knowledge", "wiki"))
-        try:
-            wiki.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
-        except Exception as exc:
-            logger.warning("build_wiki: failed to load prior wiki state: %s", exc)
-        return wiki
+        return self._get_knowledge_builder().build_knowledge_wiki()
 
     def build_user_knowledge_store(self) -> Any:
-        """Build UserKnowledgeStore for user profile knowledge."""
-        from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+        return self._get_knowledge_builder().build_user_knowledge_store()
 
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        return UserKnowledgeStore(os.path.join(base, "knowledge", "user"))
-
-    def build_knowledge_manager(
-        self,
-        profile_id: str = "",
-        long_term_graph: Any = None,
-    ) -> Any:
-        """Build KnowledgeManager wiring wiki, user store, graph, and renderer.
-
-        Args:
-            profile_id: Profile scope for the knowledge graph. When provided,
-                a profile-scoped graph is created if ``long_term_graph`` is None.
-            long_term_graph: Pre-built graph instance to share with the executor.
-                When provided, it is used directly (no new instance created).
-        """
-        from hi_agent.knowledge.graph_renderer import GraphRenderer
-        from hi_agent.knowledge.knowledge_manager import KnowledgeManager
-
-        wiki = self.build_knowledge_wiki()
-        user_store = self.build_user_knowledge_store()
-        graph = (
-            long_term_graph
-            if long_term_graph is not None
-            else self.build_long_term_graph(profile_id=profile_id)
-        )
-        renderer = GraphRenderer(graph)
-        return KnowledgeManager(
-            wiki=wiki, user_store=user_store, graph=graph, renderer=renderer,
-        )
+    def build_knowledge_manager(self, profile_id: str = "", long_term_graph: Any = None) -> Any:
+        return self._get_knowledge_builder().build_knowledge_manager(profile_id=profile_id, long_term_graph=long_term_graph)
 
     # ------------------------------------------------------------------
     # Composite builders
