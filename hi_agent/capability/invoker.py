@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
@@ -98,13 +99,30 @@ class CapabilityInvoker:
             if not self.breaker.allow(capability_name):
                 raise RuntimeError(f"Capability circuit open: {capability_name}")
             try:
+                start_ms = int(time.monotonic() * 1000)
                 if self.call_timeout_seconds is None:
                     response = spec.handler(payload)
                 else:
                     response = self.timeout_call(
                         spec.handler, payload, self.call_timeout_seconds
                     )
+                elapsed_ms = int(time.monotonic() * 1000) - start_ms
                 self.breaker.mark_success(capability_name)
+                if isinstance(response, dict) and "_provenance" not in response:
+                    if response.get("_mcp"):
+                        mode = "mcp"
+                    elif response.get("_external"):
+                        mode = "external"
+                    elif response.get("_profile"):
+                        mode = "profile"
+                    else:
+                        mode = "sample"
+                    response = dict(response)
+                    response["_provenance"] = {
+                        "mode": mode,
+                        "capability_name": capability_name,
+                        "duration_ms": elapsed_ms,
+                    }
                 return response
             except Exception as exc:
                 self.breaker.mark_failure(capability_name)

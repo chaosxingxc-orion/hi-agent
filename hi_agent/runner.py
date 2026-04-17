@@ -288,6 +288,7 @@ class RunExecutor:
         self.knowledge_query_text_builder = knowledge_query_text_builder
         self.dag: dict[str, TrajectoryNode] = {}
         self.stage_summaries: dict[str, StageSummary] = {}
+        self._capability_provenance_store: dict[str, list[dict]] = {}
         self.action_seq = 0
         self.branch_seq = 0
         self.decision_seq = 0
@@ -1224,6 +1225,9 @@ class RunExecutor:
             try:
                 # Fix-4: route through ExecutionHookManager (pre/post tool hooks)
                 result = self._invoke_capability_via_hooks(proposal, payload)
+                # W2-002: collect capability provenance for StageProvenance derivation
+                if isinstance(result, dict) and "_provenance" in result:
+                    self._capability_provenance_store.setdefault(stage_id, []).append(result["_provenance"])
                 success = bool(result.get("success", False))
                 self._record_event(
                     "ActionExecuted",
@@ -2116,8 +2120,23 @@ class RunExecutor:
             )
             # W2: real LLM tracking comes with W2-002
             llm_mode = "heuristic"
-            capability_mode = "sample"
             fallback_used = True  # heuristic routing = fallback
+            # W2-002: derive capability_mode from collected invocation provenance
+            cap_prov_list = self._capability_provenance_store.get(str(stage_id), [])
+            if cap_prov_list:
+                modes = [r.get("mode", "sample") for r in cap_prov_list if isinstance(r, dict)]
+                if all(m == "mcp" for m in modes):
+                    capability_mode = "mcp"
+                elif all(m == "external" for m in modes):
+                    capability_mode = "external"
+                elif all(m == "profile" for m in modes):
+                    capability_mode = "profile"
+                elif all(m == "sample" for m in modes):
+                    capability_mode = "sample"
+                else:
+                    capability_mode = "unknown"
+            else:
+                capability_mode = "sample"  # W2-002 fallback: no capability data = sample
             prov = StageProvenance(
                 stage_id=str(stage_id),
                 llm_mode=llm_mode,

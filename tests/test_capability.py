@@ -31,7 +31,7 @@ def test_capability_invoker_success() -> None:
     registry.register(CapabilitySpec(name="echo", handler=lambda payload: {"echo": payload["x"]}))
     response = invoker.invoke("echo", {"x": 3})
 
-    assert response == {"echo": 3}
+    assert response.get("echo") == 3
 
 
 def test_capability_breaker_opens_after_failures() -> None:
@@ -76,5 +76,5 @@ def test_capability_breaker_half_open_probe_success_recovers() -> None:
         invoker.invoke("flaky", {})
 
     clock.advance(5.0)
-    assert invoker.invoke("flaky", {}) == {"ok": True}
-    assert invoker.invoke("flaky", {}) == {"ok": True}
+    assert invoker.invoke("flaky", {}).get("ok") is True
+    assert invoker.invoke("flaky", {}).get("ok") is True
