@@ -222,6 +222,7 @@ class RunExecutor:
         compress_compress_threshold: int | None = None,
         replan_hook: Callable[[str, dict], "StageDirective | None"] | None = None,
         feedback_store: "FeedbackStore | None" = None,
+        evolve_mode: str = "auto",
     ) -> None:
         """Initialize run executor state.
 
@@ -324,6 +325,7 @@ class RunExecutor:
         self._compress_compress_threshold = compress_compress_threshold
         self._replan_hook = replan_hook
         self._feedback_store = feedback_store
+        self._evolve_mode = evolve_mode
         self.evolve_engine = evolve_engine
         self.harness_executor = harness_executor
         self.human_gate_quality_threshold = human_gate_quality_threshold
@@ -605,6 +607,7 @@ class RunExecutor:
             cts_budget=self.cts_budget,
             route_engine=self.route_engine,
             tier_router=self.tier_router,
+            evolve_mode=self._evolve_mode,
         )
         self._stage_executor = StageExecutor(
             kernel=self.kernel,

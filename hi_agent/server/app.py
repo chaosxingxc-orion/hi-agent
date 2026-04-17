@@ -363,6 +363,24 @@ async def handle_manifest(request: Request) -> JSONResponse:
     except Exception as _active_prof_exc:
         logger.warning("manifest: active profile lookup failed: %s", _active_prof_exc)
 
+    # --- Evolve policy ---
+    evolve_policy: dict = {}
+    try:
+        import os as _os_ep
+        from hi_agent.config.evolve_policy import resolve_evolve_effective as _rep
+        _builder = getattr(server, "_builder", None)
+        _ev_mode = "auto"
+        if _builder is not None:
+            _cfg = getattr(_builder, "_config", None)
+            if _cfg is not None:
+                _ev_mode = getattr(_cfg, "evolve_mode", "auto")
+        _rt_env = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
+        _rt_mode = "dev-smoke" if _rt_env == "dev" else "prod-real"
+        _ev_enabled, _ev_source = _rep(_ev_mode, _rt_mode)
+        evolve_policy = {"mode": _ev_mode, "effective": _ev_enabled, "source": _ev_source}
+    except Exception as _ep_exc:
+        logger.warning("manifest: evolve_policy lookup failed: %s", _ep_exc)
+
     return JSONResponse({
         "name": "hi-agent",
         "version": "0.1.0",
@@ -374,6 +392,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
         "models": models,
         "mcp_servers": mcp_servers,
         "plugins": plugins,
+        "evolve_policy": evolve_policy,
         "endpoints": [
             # Core
             "GET /health",

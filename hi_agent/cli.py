@@ -172,6 +172,20 @@ def _cmd_run(args: argparse.Namespace) -> None:
         config_patch_str = getattr(args, "config_patch", None)
         config_patch = _json.loads(config_patch_str) if config_patch_str else None
 
+        # Resolve evolve_mode: CLI flags > HI_AGENT_EVOLVE_MODE env var > config default
+        _evolve_mode_override: str | None = None
+        if getattr(args, "enable_evolve", False):
+            _evolve_mode_override = "on"
+        elif getattr(args, "disable_evolve", False):
+            _evolve_mode_override = "off"
+        else:
+            _env_evolve = os.getenv("HI_AGENT_EVOLVE_MODE")
+            if _env_evolve in ("on", "off", "auto"):
+                _evolve_mode_override = _env_evolve
+        if _evolve_mode_override is not None:
+            config_patch = dict(config_patch or {})
+            config_patch["evolve_mode"] = _evolve_mode_override
+
         try:
             stack = ConfigStack(base_config_path=config_file, profile=profile)
             config = stack.resolve()
@@ -595,6 +609,21 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="JSON object for execution budget, e.g. "
              "'{\"max_llm_calls\": 10, \"max_wall_clock_seconds\": 300}'.",
+    )
+    _evolve_group = run_parser.add_mutually_exclusive_group()
+    _evolve_group.add_argument(
+        "--enable-evolve",
+        dest="enable_evolve",
+        action="store_true",
+        default=False,
+        help="Force evolve on (evolve_mode=on). Overrides HI_AGENT_EVOLVE_MODE.",
+    )
+    _evolve_group.add_argument(
+        "--disable-evolve",
+        dest="disable_evolve",
+        action="store_true",
+        default=False,
+        help="Force evolve off (evolve_mode=off). Overrides HI_AGENT_EVOLVE_MODE.",
     )
 
     # status

@@ -1610,6 +1610,7 @@ class SystemBuilder:
             compress_snip_threshold=self._config.compress_snip_threshold,
             compress_window_threshold=self._config.compress_window_threshold,
             compress_compress_threshold=self._config.compress_compress_threshold,
+            evolve_mode=getattr(self._config, "evolve_mode", "auto"),
         )
         # Wire middleware orchestrator into the StageExecutor that RunExecutor
         # already created during __init__.  RunExecutor does not yet accept
@@ -2018,6 +2019,22 @@ class SystemBuilder:
             issues.append("llm: credentials required for prod mode")
         if issues:
             logger.warning("readiness: %d issue(s): %s", len(issues), "; ".join(issues))
+
+        # --- evolve policy snapshot ---
+        try:
+            from hi_agent.config.evolve_policy import resolve_evolve_effective
+            import os as _os_ep
+            _env_ep = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
+            _rt_mode = "dev-smoke" if _env_ep == "dev" else "prod-real"
+            _ev_mode = getattr(self._config, "evolve_mode", "auto")
+            _ev_enabled, _ev_source = resolve_evolve_effective(_ev_mode, _rt_mode)
+            result["evolve_policy"] = {
+                "mode": _ev_mode,
+                "effective": _ev_enabled,
+                "source": _ev_source,
+            }
+        except Exception as _ep_exc:
+            logger.debug("readiness: evolve_policy snapshot failed: %s", _ep_exc)
 
         # --- prerequisites transparency ---
         # Emit explicit prerequisites so integrators know exactly what is needed
