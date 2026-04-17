@@ -12,6 +12,15 @@ from hi_agent.capability.policy import CapabilityPolicy
 from hi_agent.capability.registry import CapabilityRegistry
 
 
+class CapabilityUnavailableError(Exception):
+    """Raised when a capability fails probe_availability check."""
+
+    def __init__(self, capability_name: str, reason: str) -> None:
+        self.capability_name = capability_name
+        self.reason = reason
+        super().__init__(f"Capability {capability_name!r} unavailable: {reason}")
+
+
 def _default_timeout_call(
     handler: Callable[[dict], dict], payload: dict, timeout_seconds: float
 ) -> dict:
@@ -94,6 +103,18 @@ class CapabilityInvoker:
                 )
 
         spec = self.registry.get(capability_name)
+
+        # W4-003: pre-check availability before invoking
+        probe_fn = getattr(self.registry, "probe_availability", None)
+        if callable(probe_fn):
+            probe_result = probe_fn(capability_name)
+            if (
+                isinstance(probe_result, tuple)
+                and len(probe_result) == 2
+                and probe_result[0] is False
+            ):
+                raise CapabilityUnavailableError(capability_name, probe_result[1])
+
         attempt = 0
         while True:
             if not self.breaker.allow(capability_name):
