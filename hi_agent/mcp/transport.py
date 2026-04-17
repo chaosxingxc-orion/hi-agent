@@ -130,6 +130,75 @@ class StdioMCPTransport:
                 self._proc = None
                 return False
 
+    def list_tools(self, server_id: str, timeout: float | None = None) -> list[dict]:
+        """Send a ``tools/list`` JSON-RPC request and return the tool list.
+
+        Args:
+            server_id: Logical server identifier (used for logging only).
+            timeout: Per-request timeout override in seconds. Uses instance
+                default when None.
+
+        Returns:
+            List of tool dicts, each with at minimum {"name": str}.
+            May also include "description" and "inputSchema".
+
+        Raises:
+            MCPTransportError: On subprocess failure, timeout, JSON-RPC error,
+                or invalid response schema.
+        """
+        effective_timeout = timeout if timeout is not None else self._timeout
+        with self._lock:
+            self._ensure_running()
+            request_id = self._next_id
+            self._next_id += 1
+            request = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "tools/list",
+                "params": {},
+            }
+            line = json.dumps(request, ensure_ascii=False) + "\n"
+            try:
+                self._proc.stdin.write(line)
+                self._proc.stdin.flush()
+            except OSError as exc:
+                self._proc = None
+                raise MCPTransportError(
+                    f"Failed to write tools/list to MCP server {server_id!r}: {exc}"
+                ) from exc
+
+            # Temporarily override timeout for this call only
+            orig_timeout = self._timeout
+            self._timeout = effective_timeout
+            try:
+                response = self._read_response(server_id, request_id)
+            finally:
+                self._timeout = orig_timeout
+
+        # Validate response schema
+        if not isinstance(response, dict):
+            raise MCPTransportError(
+                f"tools/list response for {server_id!r} must be a dict, "
+                f"got {type(response).__name__}"
+            )
+        tools = response.get("tools")
+        if tools is None:
+            raise MCPTransportError(
+                f"tools/list response for {server_id!r} missing 'tools' key: {response!r}"
+            )
+        if not isinstance(tools, list):
+            raise MCPTransportError(
+                f"tools/list 'tools' field for {server_id!r} must be a list, "
+                f"got {type(tools).__name__}"
+            )
+        # Validate each tool has at least a 'name'
+        for i, tool in enumerate(tools):
+            if not isinstance(tool, dict) or "name" not in tool:
+                raise MCPTransportError(
+                    f"tools/list tool[{i}] for {server_id!r} missing 'name': {tool!r}"
+                )
+        return tools
+
     def close(self) -> None:
         """Terminate the subprocess if running."""
         with self._lock:
