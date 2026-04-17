@@ -16,7 +16,7 @@ import asyncio
 import datetime
 import uuid
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Literal
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
@@ -59,6 +59,11 @@ class KernelFacadeAdapter:
                 "KernelFacadeAdapter requires a real "
                 "agent_kernel.adapters.facade.KernelFacade instance."
             )
+
+    @property
+    def mode(self) -> Literal["local-fsm", "http"]:
+        """The kernel execution mode — always local-fsm for KernelFacadeAdapter."""
+        return "local-fsm"
 
     # ------------------------------------------------------------------
     # Stage lifecycle

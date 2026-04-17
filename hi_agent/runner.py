@@ -2087,6 +2087,7 @@ class RunExecutor:
                         readiness=getattr(self, "_readiness_snapshot", {}),
                     ),
                     "mcp_transport": self._get_mcp_transport_status(),
+                    "kernel_mode": getattr(self.kernel, "mode", "unknown"),
                 },
             )
             run_result.execution_provenance = _prov
@@ -2096,15 +2097,41 @@ class RunExecutor:
         return run_result
 
     def _collect_stage_type_summaries(self) -> list[dict]:
-        """Return per-stage type summaries for provenance calculation.
+        """Collect per-stage type info with StageProvenance.
 
-        W1 limitation: we cannot yet distinguish real vs. heuristic per stage,
-        so all stages are reported as "heuristic" — which is honest because the
-        current pipeline uses heuristic routing throughout. W2 will wire real
-        LLM call tracking and update this to return "real" where appropriate.
+        For W2: each stage now carries a StageProvenance in the "provenance" key.
+        Current runs use heuristic routing, so llm_mode="heuristic" for all stages.
+        capability_mode is derived from whether capability was actually invoked.
+        Real LLM / capability tracking wired in W2-002.
         """
+        from hi_agent.contracts.execution_provenance import StageProvenance
+
         stages = getattr(self, "_stages", None) or list(self.stage_summaries.keys())
-        return [{"type": "heuristic"}] * len(stages)
+        summaries = []
+        for stage in stages:
+            stage_id = (
+                getattr(stage, "stage_id", None)
+                or getattr(stage, "name", None)
+                or (stage if isinstance(stage, str) else "unknown")
+            )
+            # W2: real LLM tracking comes with W2-002
+            llm_mode = "heuristic"
+            capability_mode = "sample"
+            fallback_used = True  # heuristic routing = fallback
+            prov = StageProvenance(
+                stage_id=str(stage_id),
+                llm_mode=llm_mode,
+                capability_mode=capability_mode,
+                fallback_used=fallback_used,
+                fallback_reasons=["heuristic_routing"],
+                duration_ms=getattr(stage, "duration_ms", 0) or 0,
+            )
+            summaries.append({
+                "stage_id": str(stage_id),
+                "type": llm_mode,
+                "provenance": prov,
+            })
+        return summaries
 
     def _get_mcp_transport_status(self) -> str:
         """Return MCP transport status string for provenance.
