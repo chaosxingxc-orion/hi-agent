@@ -96,6 +96,7 @@ class SystemBuilder:
         # Subsystem singletons — cached so readiness() and manifest reflect the
         # same instances used by actual run execution.
         self._skill_loader: Any | None = None
+        self._skill_builder: Any | None = None  # lazy SkillBuilder singleton
         self._mcp_registry: Any | None = None
         self._mcp_transport: Any | None = None
         self._plugin_loader: Any | None = None
@@ -803,43 +804,21 @@ class SystemBuilder:
             artifact_registry=self.build_artifact_registry(),
         )
 
+    def _get_skill_builder(self):
+        if self._skill_builder is None:
+            from hi_agent.config.skill_builder import SkillBuilder
+            self._skill_builder = SkillBuilder(self._config)
+        return self._skill_builder
+
     def build_skill_registry(self) -> SkillRegistry:
         """Build SkillRegistry using configured storage directory."""
-        return SkillRegistry(storage_dir=self._config.skill_storage_dir)
+        return self._get_skill_builder().build_skill_registry()
 
     def build_skill_loader(self) -> Any:
-        """Build or return the shared SkillLoader singleton.
-
-        Search order (highest to lowest priority):
-        1. Built-in skills bundled with hi-agent (hi_agent/skills/builtin/)
-        2. User-global skills (~/.hi_agent/skills/)
-        3. Project-local skills (config.skill_storage_dir, default .hi_agent/skills/)
-        """
-        if self._skill_loader is not None:
-            return self._skill_loader
-
-        import pathlib
-
-        from hi_agent.skill.loader import SkillLoader
-
-        builtin_dir = str(pathlib.Path(__file__).parent.parent / "skills" / "builtin")
-        user_global_dir = str(pathlib.Path.home() / ".hi_agent" / "skills")
-        project_dir = self._config.skill_storage_dir
-
-        # Deduplicate while preserving order
-        seen: set[str] = set()
-        dirs: list[str] = []
-        for d in [builtin_dir, user_global_dir, project_dir]:
-            if d not in seen:
-                seen.add(d)
-                dirs.append(d)
-
-        self._skill_loader = SkillLoader(
-            search_dirs=dirs,
-            max_skills_in_prompt=self._config.skill_loader_max_skills_in_prompt,
-            max_prompt_tokens=self._config.skill_loader_max_prompt_tokens,
-        )
-        return self._skill_loader
+        """Build or return the shared SkillLoader singleton."""
+        loader = self._get_skill_builder().build_skill_loader()
+        self._skill_loader = loader  # keep local ref for _wire_plugin_contributions
+        return loader
 
     def build_plugin_loader(self) -> Any:
         """Build or return the shared PluginLoader singleton.
@@ -971,46 +950,15 @@ class SystemBuilder:
 
     def build_skill_observer(self) -> Any:
         """Build SkillObserver for execution telemetry."""
-        from hi_agent.skill.observer import SkillObserver
-
-        return SkillObserver(
-            storage_dir=self._config.skill_storage_dir + "/observations"
-        )
+        return self._get_skill_builder().build_skill_observer()
 
     def build_skill_version_manager(self) -> Any:
         """Build SkillVersionManager for champion/challenger versioning."""
-        from hi_agent.skill.version import SkillVersionManager
-
-        mgr = SkillVersionManager(
-            storage_dir=self._config.skill_storage_dir + "/versions"
-        )
-        try:
-            mgr.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
-        return mgr
+        return self._get_skill_builder().build_skill_version_manager()
 
     def build_skill_evolver(self) -> Any:
-        """Build or return the shared SkillEvolver singleton.
-
-        Cached so that the internal _runs_since_evolve counter persists across
-        per-request RunExecutor instances; otherwise the interval counter resets
-        to 0 on every request and evolve_cycle() never fires.
-        """
-        if getattr(self, "_skill_evolver", None) is not None:
-            return self._skill_evolver
-        from hi_agent.skill.evolver import SkillEvolver
-
-        observer = self.build_skill_observer()
-        version_mgr = self.build_skill_version_manager()
-        gateway = self.build_llm_gateway()
-        self._skill_evolver = SkillEvolver.from_config(
-            cfg=self._config,
-            llm_gateway=gateway,
-            observer=observer,
-            version_manager=version_mgr,
-        )
-        return self._skill_evolver
+        """Build or return the shared SkillEvolver singleton."""
+        return self._get_skill_builder().build_skill_evolver(llm_gateway=self.build_llm_gateway())
 
     def build_episodic_store(self) -> EpisodicMemoryStore:
         """Build EpisodicMemoryStore using configured storage directory."""
