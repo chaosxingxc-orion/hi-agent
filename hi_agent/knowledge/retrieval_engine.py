@@ -71,6 +71,7 @@ class RetrievalEngine:
         mid_term: MidTermMemoryStore | None = None,
         graph_renderer: GraphRenderer | None = None,
         embedding_fn: Callable[[str], list[float]] | None = None,
+        tfidf: TFIDFIndex | None = None,
         storage_dir: str = ".hi_agent/knowledge",
     ) -> None:
         """Initialize RetrievalEngine."""
@@ -80,7 +81,7 @@ class RetrievalEngine:
         self._mid_term = mid_term
         self._renderer = graph_renderer
         self._embedding_fn = embedding_fn
-        self._tfidf = TFIDFIndex()
+        self._tfidf = tfidf if tfidf is not None else TFIDFIndex()
         self._ranker = HybridRanker(self._tfidf)
         self._indexed = False
         self._index_lock = threading.Lock()
