@@ -1,0 +1,15 @@
+{
+  "contract_version": "2026-04-17",
+  "execution_provenance_keys": [
+    "capability_mode",
+    "contract_version",
+    "evidence",
+    "fallback_reasons",
+    "fallback_used",
+    "kernel_mode",
+    "llm_mode",
+    "mcp_transport",
+    "runtime_mode"
+  ],
+  "fallback_used": true
+}
