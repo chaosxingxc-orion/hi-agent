@@ -1,5 +1,11 @@
 # ARCHITECTURE: hi-agent
 
+## Refresh Notes (2026-04-17)
+
+- Preserved original architecture content and section ordering.
+- Updated quality-gate verification snapshot to `3059 passed, 5 skipped`.
+- Updated lint command to `python -m ruff check hi_agent tests scripts examples`.
+
 本文档描述 `hi-agent` 当前代码实现（as-is），涵盖分层架构视图、接口关系、使用关系、时序图与数据流图。  
 所有图表均基于代码实际实现，与工程实现严格对齐。
 
@@ -1109,7 +1115,7 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 
 ---
 
-## 12.5 2026-04-16 LLM 能力扩展（全部已合并）
+## 12.5 2026-04-17 LLM 能力扩展（全部已合并）
 
 | 能力 | 实现内容 |
 |------|---------|
@@ -1124,11 +1130,11 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 ## 13. 质量门禁
 
 ```bash
-python -m ruff check .
-python -m pytest -q        # 3027 passed, 5 skipped
+python -m ruff check hi_agent tests scripts examples
+python -m pytest -q        # 3059 passed, 5 skipped
 
 # LLM 端到端冒烟（streaming / thinking / multimodal）
 python scripts/verify_llm.py [--thinking] [--multimodal <image_path>]
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-16，3rd pass）。
+当前文档对应代码形态已通过全量测试回归（2026-04-17，3rd pass）。

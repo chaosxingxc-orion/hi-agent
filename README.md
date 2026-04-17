@@ -1,5 +1,11 @@
 # hi-agent
 
+## Refresh Notes (2026-04-17)
+
+- Preserved original document structure and sections.
+- Updated validation status to `3059 passed, 5 skipped`.
+- Updated lint command to `python -m ruff check hi_agent tests scripts examples`.
+
 `hi-agent` 是基于 **TRACE**（Task → Route → Act → Capture → Evolve）框架构建的企业级智能体系统。  
 负责任务理解、路由决策、能力执行、记忆沉淀与持续进化；底层持久化运行时由 `agent-kernel` 承载。
 
@@ -166,7 +172,7 @@ hi_agent/
   runner_telemetry.py  # 事件与指标记录
 config/                # llm_config.json（本地，gitignore）+ llm_config.example.json（模板）
 scripts/               # verify_llm.py — 流式/思考/多模态冒烟验证
-tests/                 # 3027 个测试，全部通过（2026-04-16 回归）
+tests/                 # 3059 个测试，全部通过（2026-04-17 回归）
 docs/                  # 架构、规格、研究文档
 ```
 
@@ -286,8 +292,8 @@ facade.stop()
 ## 开发与验证
 
 ```bash
-python -m ruff check .       # lint
-python -m pytest -q           # 3027 passed, 5 skipped
+python -m ruff check hi_agent tests scripts examples       # lint
+python -m pytest -q           # 3059 passed, 5 skipped
 
 # LLM 配置验证（填写 config/llm_config.json 后运行）
 python scripts/verify_llm.py                            # 流式测试
