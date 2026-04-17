@@ -28,6 +28,11 @@ class CapabilityDescriptor:
     description: str = ""
     parameters: dict = field(default_factory=dict)
     extra: dict = field(default_factory=dict)
+    # Governance metadata (W4-001)
+    toolset_id: str = "default"
+    required_env: dict = field(default_factory=dict)   # {"ENV_VAR": "description"}
+    output_budget_tokens: int = 0                       # 0 = unlimited
+    availability_probe: object = field(default=None)   # Callable[[], tuple[bool, str]] | None
 
 
 class CapabilityDescriptorFactory:
@@ -74,20 +79,23 @@ class CapabilityDescriptorFactory:
 
     def build_descriptor(
         self,
-        tool_info: dict,
+        tool_info: "dict | str",
         overrides: dict | None = None,
     ) -> CapabilityDescriptor:
         """Build a full descriptor with auto-inferred + manual override fields.
 
         Args:
             tool_info: Dict with at least ``name``; optionally ``description``,
-                ``parameters``, ``effect_class``, ``tags``.
+                ``parameters``, ``effect_class``, ``tags``.  May also be a
+                plain string, in which case it is treated as the capability name.
             overrides: Optional dict whose keys shadow any inferred or
                 tool_info-supplied values.  Useful for per-tool YAML config.
 
         Returns:
             A frozen ``CapabilityDescriptor`` instance.
         """
+        if isinstance(tool_info, str):
+            tool_info = {"name": tool_info}
         name: str = tool_info["name"]
         overrides = overrides or {}
 
@@ -116,6 +124,22 @@ class CapabilityDescriptorFactory:
 
         extra = overrides.get("extra", tool_info.get("extra", {}))
 
+        # Infer required_env for known LLM-backed capabilities (W4-001)
+        name_lower = name.lower()
+        if any(kw in name_lower for kw in ("llm", "plan", "reflect", "reason", "generate", "chat")):
+            inferred_required_env: dict = {"ANTHROPIC_API_KEY": "LLM API key (or OPENAI_API_KEY)"}
+        else:
+            inferred_required_env = {}
+        required_env = overrides.get("required_env", tool_info.get("required_env", inferred_required_env))
+
+        toolset_id = overrides.get("toolset_id", tool_info.get("toolset_id", "default"))
+        output_budget_tokens = overrides.get(
+            "output_budget_tokens", tool_info.get("output_budget_tokens", 0)
+        )
+        availability_probe = overrides.get(
+            "availability_probe", tool_info.get("availability_probe", None)
+        )
+
         return CapabilityDescriptor(
             name=name,
             effect_class=effect_class,
@@ -124,4 +148,8 @@ class CapabilityDescriptorFactory:
             description=description,
             parameters=parameters,
             extra=extra,
+            toolset_id=toolset_id,
+            required_env=required_env,
+            output_budget_tokens=output_budget_tokens,
+            availability_probe=availability_probe,
         )
