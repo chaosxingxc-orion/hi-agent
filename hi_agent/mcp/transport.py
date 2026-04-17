@@ -18,6 +18,7 @@ Usage::
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
 import subprocess
@@ -57,6 +58,8 @@ class StdioMCPTransport:
         self._proc: subprocess.Popen | None = None
         self._lock = threading.Lock()
         self._next_id = 1
+        self._stderr_buf: collections.deque[str] = collections.deque(maxlen=1024)
+        self._stderr_thread: threading.Thread | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -199,6 +202,18 @@ class StdioMCPTransport:
                 )
         return tools
 
+    def get_stderr_tail(self, n: int = 20) -> list[str]:
+        """Return the last n lines of stderr output from the subprocess.
+
+        Returns empty list if no stderr has been captured or subprocess not started.
+        Never raises.
+        """
+        try:
+            lines = list(self._stderr_buf)
+            return lines[-n:] if len(lines) > n else lines
+        except Exception:  # noqa: BLE001
+            return []
+
     def close(self) -> None:
         """Terminate the subprocess if running."""
         with self._lock:
@@ -215,6 +230,27 @@ class StdioMCPTransport:
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+
+    def _start_stderr_reader(self) -> None:
+        """Start background thread draining subprocess stderr into ring buffer."""
+        def _read_stderr(proc: subprocess.Popen, buf: collections.deque) -> None:
+            try:
+                for raw in proc.stderr:
+                    if isinstance(raw, str):
+                        line = raw.rstrip("\n")
+                    else:
+                        line = raw.rstrip(b"\n").decode("utf-8", errors="replace")
+                    buf.append(line)
+            except Exception:  # noqa: BLE001
+                pass  # Process closed — exit quietly
+
+        self._stderr_thread = threading.Thread(
+            target=_read_stderr,
+            args=(self._proc, self._stderr_buf),
+            daemon=True,
+            name=f"mcp-stderr-{id(self)}",
+        )
+        self._stderr_thread.start()
 
     def _ensure_running(self) -> None:
         """Spawn subprocess if not already running."""
@@ -251,6 +287,7 @@ class StdioMCPTransport:
                 f"Failed to spawn MCP server command {self._command!r}: {exc}"
             ) from exc
         logger.debug("StdioMCPTransport: spawned subprocess pid=%s", self._proc.pid)
+        self._start_stderr_reader()
 
     def _read_response(self, server_id: str, request_id: int) -> dict[str, Any]:
         """Read lines from subprocess stdout until the matching response is found.

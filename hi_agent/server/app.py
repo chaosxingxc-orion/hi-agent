@@ -1592,7 +1592,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
         _transport = getattr(_builder, "_mcp_transport", None) if _builder is not None else None
         health = MCPHealth(mcp_reg, transport=_transport)
         health_results = health.check_all()
-        any_healthy = any(s == "healthy" for s in health_results.values())
+        any_healthy = any(s in ("healthy", "degraded") for s in health_results.values())
         if any_healthy:
             transport_status = "wired"
             capability_mode = "external_provider"
@@ -1617,6 +1617,19 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
                 "Register stdio MCP servers via plugin manifests (mcp_servers field) to "
                 "enable external providers."
             )
+        stderr_tails: dict[str, list[str]] = {}
+        if _transport is not None and hasattr(_transport, "get_stderr_tail"):
+            for srv in mcp_reg.list_servers():
+                sid = srv["server_id"]
+                try:
+                    stderr_tails[sid] = _transport.get_stderr_tail()
+                except TypeError:
+                    try:
+                        stderr_tails[sid] = _transport.get_stderr_tail(sid)
+                    except Exception:  # noqa: BLE001
+                        stderr_tails[sid] = []
+                except Exception:  # noqa: BLE001
+                    stderr_tails[sid] = []
         return JSONResponse({
             "servers": mcp_reg.list_servers(),
             "health": health.snapshot(),
@@ -1625,6 +1638,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
             "transport_status": transport_status,
             "capability_mode": capability_mode,
             "note": note,
+            "stderr_tails": stderr_tails,
         })
     except Exception as exc:
         return JSONResponse({"error": str(exc), "servers": [], "count": 0}, status_code=500)

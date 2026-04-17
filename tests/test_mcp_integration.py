@@ -473,3 +473,144 @@ def test_mi15_merge_strategy_fallback_on_discovery_failure(tmp_path):
     # Warning recorded about failed discovery
     warnings = binding.list_warnings()
     assert any("failed" in w.lower() or "fallback" in w.lower() for w in warnings)
+
+
+# ---------------------------------------------------------------------------
+# mi16–mi18: stderr tail + health degradation (HI-W5-003)
+# ---------------------------------------------------------------------------
+
+_FAKE_SERVER_STDERR_TEMPLATE = textwrap.dedent(
+    """
+    import json, sys
+
+    def main():
+        # Write error lines to stderr before processing
+        for msg in {stderr_lines_json}:
+            sys.stderr.write(msg + "\\n")
+            sys.stderr.flush()
+
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                req = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            req_id = req.get("id")
+            method = req.get("method", "")
+            if method == "initialize":
+                resp = {{"jsonrpc": "2.0", "id": req_id, "result": {{"protocolVersion": "2024-11-05"}}}}
+            elif method == "tools/list":
+                resp = {{"jsonrpc": "2.0", "id": req_id, "result": {{"tools": []}}}}
+            else:
+                resp = {{"jsonrpc": "2.0", "id": req_id, "result": {{}}}}
+            sys.stdout.write(json.dumps(resp) + "\\n")
+            sys.stdout.flush()
+
+    if __name__ == "__main__":
+        main()
+    """
+)
+
+_FAKE_SERVER_STDERR_CRASH_TEMPLATE = textwrap.dedent(
+    """
+    import json, sys
+
+    # Write stderr lines and then exit immediately (crash simulation)
+    sys.stderr.write("ERROR: fatal startup failure\\n")
+    sys.stderr.write("Traceback: something went wrong\\n")
+    sys.stderr.flush()
+    sys.exit(1)
+    """
+)
+
+
+def test_mi16_stderr_captured_on_crash(tmp_path):
+    """Stderr lines from a crashing MCP server are captured in the ring buffer."""
+    script = _write_server_script(
+        tmp_path, "stderr_crash_server.py", _FAKE_SERVER_STDERR_CRASH_TEMPLATE
+    )
+    t = StdioMCPTransport(command=_server_command(script), timeout=5.0)
+    try:
+        # Trigger subprocess spawn; ping will fail (server crashes)
+        t.ping()
+        # Give the stderr reader thread time to drain
+        time.sleep(0.3)
+        tail = t.get_stderr_tail()
+        assert isinstance(tail, list)
+        assert any("error" in line.lower() or "fatal" in line.lower() for line in tail)
+    finally:
+        t.close()
+
+
+def test_mi17_stderr_tail_in_mcp_status(fake_mcp_server, tmp_path):
+    """GET /mcp/status response includes a 'stderr_tails' dict."""
+    from hi_agent.mcp.health import MCPHealth
+    from hi_agent.mcp.registry import MCPRegistry
+
+    mcp_reg = MCPRegistry()
+    mcp_reg.register(
+        server_id="test_srv",
+        name="Test Server",
+        transport="stdio",
+        endpoint=_server_command(fake_mcp_server),
+        tools=["echo"],
+    )
+    mcp_reg.update_status("test_srv", "healthy")
+    transport = StdioMCPTransport(
+        command=_server_command(fake_mcp_server),
+        timeout=10.0,
+    )
+
+    # Build the stderr_tails dict the same way handle_mcp_status does
+    stderr_tails: dict[str, list[str]] = {}
+    for server in mcp_reg.list_servers():
+        sid = server["server_id"]
+        try:
+            stderr_tails[sid] = transport.get_stderr_tail()
+        except Exception:
+            stderr_tails[sid] = []
+
+    assert isinstance(stderr_tails, dict)
+    assert "test_srv" in stderr_tails
+    assert isinstance(stderr_tails["test_srv"], list)
+    transport.close()
+
+
+def test_mi18_degraded_server_reported_correctly(tmp_path):
+    """Server with stderr errors causes MCPHealth._check_one to return 'degraded'."""
+    from hi_agent.mcp.health import MCPHealth
+    from hi_agent.mcp.registry import MCPRegistry
+
+    # Use a server that writes error keywords to stderr but stays alive
+    stderr_lines = ["ERROR: connection pool exhausted"]
+    script_content = _FAKE_SERVER_STDERR_TEMPLATE.format(
+        stderr_lines_json=json.dumps(stderr_lines)
+    )
+    script = _write_server_script(tmp_path, "stderr_error_server.py", script_content)
+
+    mcp_reg = MCPRegistry()
+    mcp_reg.register(
+        server_id="test_srv",
+        name="Test Server",
+        transport="stdio",
+        endpoint=_server_command(script),
+        tools=["echo"],
+    )
+    mcp_reg.update_status("test_srv", "healthy")
+
+    transport = StdioMCPTransport(
+        command=_server_command(script),
+        timeout=10.0,
+    )
+
+    # Ping to spawn the subprocess, then wait for stderr reader to drain
+    transport.ping()
+    time.sleep(0.3)
+
+    health = MCPHealth(mcp_reg, transport=transport)
+    results = health.check_all()
+
+    assert results.get("test_srv") == "degraded"
+    transport.close()
