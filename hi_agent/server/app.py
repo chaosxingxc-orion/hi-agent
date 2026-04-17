@@ -57,6 +57,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
+from hi_agent.auth.operation_policy import require_operation
 from hi_agent.config.stack import ConfigStack
 from hi_agent.config.watcher import ConfigFileWatcher
 from hi_agent.server.auth_middleware import AuthMiddleware
@@ -939,6 +940,7 @@ async def handle_memory_dream(request: Request) -> JSONResponse:
     return JSONResponse(result)
 
 
+@require_operation("memory.consolidate")
 async def handle_memory_consolidate(request: Request) -> JSONResponse:
     """Trigger consolidation (mid-term -> long-term)."""
     server: AgentServer = request.app.state.agent_server
@@ -1180,6 +1182,7 @@ async def handle_skills_status(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@require_operation("skill.evolve")
 async def handle_skills_evolve(request: Request) -> JSONResponse:
     """Trigger evolution cycle, return EvolutionReport."""
     server: AgentServer = request.app.state.agent_server
@@ -1269,6 +1272,7 @@ async def handle_skill_optimize(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@require_operation("skill.promote")
 async def handle_skill_promote(request: Request) -> JSONResponse:
     """Promote challenger to champion."""
     skill_id = request.path_params["skill_id"]
@@ -1920,8 +1924,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # Attach agent server reference so handlers can access it.
     app.state.agent_server = agent_server
 
-    # Catch-all for 404 on unmatched paths. Starlette by default returns
-    # HTML 404; we override to return JSON.
+    # Catch-all for HTTP exceptions. Starlette by default returns plain-text
+    # bodies; we override to return JSON for all status codes, and pass dict
+    # details through as-is (required for typed 403 payloads from auth guards).
     from starlette.exceptions import HTTPException
 
     async def http_exception_handler(
@@ -1929,10 +1934,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
     ) -> JSONResponse:
         if exc.status_code == 404:
             return JSONResponse({"error": "not_found"}, status_code=404)
-        return JSONResponse(
-            {"error": str(exc.detail)}, status_code=exc.status_code,
-        )
+        detail = exc.detail if isinstance(exc.detail, dict) else {"error": str(exc.detail)}
+        return JSONResponse(detail, status_code=exc.status_code)
 
+    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(404, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(405, http_exception_handler)  # type: ignore[arg-type]
 
