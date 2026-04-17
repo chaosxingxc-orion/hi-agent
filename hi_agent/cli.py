@@ -467,6 +467,55 @@ def _cmd_tools(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _run_doctor(args) -> None:
+    """Run hi-agent doctor diagnostic."""
+    from hi_agent.config.builder import SystemBuilder
+    from hi_agent.ops.diagnostics import build_doctor_report
+
+    builder = SystemBuilder()
+    report = build_doctor_report(builder)
+
+    if getattr(args, "json", False):
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        _print_doctor_report(report)
+
+    sys.exit(0 if report.status == "ready" else 1)
+
+
+def _print_doctor_report(report) -> None:
+    """Print doctor report in human-readable format."""
+    STATUS_SYMBOLS = {"ready": "OK", "degraded": "WARN", "error": "FAIL"}
+    symbol = STATUS_SYMBOLS.get(report.status, "?")
+    print(f"\nhi-agent doctor -- {symbol} {report.status.upper()}\n")
+
+    if report.blocking:
+        print("BLOCKING ISSUES:")
+        for issue in report.blocking:
+            print(f"  [FAIL] [{issue.subsystem}] {issue.message}")
+            print(f"    fix:    {issue.fix}")
+            print(f"    verify: {issue.verify}")
+        print()
+
+    if report.warnings:
+        print("WARNINGS:")
+        for issue in report.warnings:
+            print(f"  [WARN] [{issue.subsystem}] {issue.message}")
+        print()
+
+    if report.info:
+        print("INFO:")
+        for issue in report.info:
+            print(f"  [INFO] [{issue.subsystem}] {issue.message}")
+        print()
+
+    if report.next_steps:
+        print("NEXT STEPS:")
+        for step in report.next_steps:
+            print(f"  -> {step}")
+        print()
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser.
 
@@ -626,6 +675,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Force evolve off (evolve_mode=off). Overrides HI_AGENT_EVOLVE_MODE.",
     )
 
+    # doctor
+    doctor_parser = subparsers.add_parser("doctor", help="Diagnose platform health")
+    doctor_parser.add_argument("--json", action="store_true", help="Output JSON instead of human-readable")
+
     # status
     status_parser = subparsers.add_parser("status", help="Check run status")
     status_parser.add_argument("--run-id", required=False)
@@ -722,6 +775,7 @@ def main() -> None:
         "resume": _cmd_resume,
         "readiness": _cmd_readiness,
         "tools": _cmd_tools,
+        "doctor": _run_doctor,
     }
 
     handler = handlers.get(args.command)

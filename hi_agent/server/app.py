@@ -65,6 +65,7 @@ from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.run_manager import RunManager
+from hi_agent.server.ops_routes import handle_doctor
 
 logger = logging.getLogger(__name__)
 
@@ -1793,6 +1794,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/health", handle_health, methods=["GET"]),
         Route("/ready", handle_ready, methods=["GET"]),
         Route("/manifest", handle_manifest, methods=["GET"]),
+        Route("/doctor", handle_doctor, methods=["GET"]),
 
         # Runs
         Route("/runs", handle_list_runs, methods=["GET"]),
