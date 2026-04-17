@@ -2060,7 +2060,7 @@ class RunExecutor:
         _start = getattr(self, "_run_start_monotonic", None)
         duration_ms = int((time.monotonic() - _start) * 1000) if _start is not None else 0
 
-        return RunResult(
+        run_result = RunResult(
             run_id=self.run_id,
             status=outcome,
             stages=stage_dicts,
@@ -2071,6 +2071,49 @@ class RunExecutor:
             is_retryable=is_retryable,
             duration_ms=duration_ms,
         )
+
+        # --- Execution provenance (HI-W1-D3-001) ---
+        # Populate after RunResult construction so all fields are finalized.
+        try:
+            from hi_agent.contracts.execution_provenance import ExecutionProvenance
+            from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode
+
+            _stage_summaries = self._collect_stage_type_summaries()
+            _prov = ExecutionProvenance.build_from_stages(
+                stage_summaries=_stage_summaries,
+                runtime_context={
+                    "runtime_mode": resolve_runtime_mode(
+                        env=getattr(self, "_env", "dev"),
+                        readiness=getattr(self, "_readiness_snapshot", {}),
+                    ),
+                    "mcp_transport": self._get_mcp_transport_status(),
+                },
+            )
+            run_result.execution_provenance = _prov
+        except Exception as _prov_exc:  # provenance must never crash the run
+            _logger.warning("runner.provenance_build_failed error=%s", _prov_exc)
+
+        return run_result
+
+    def _collect_stage_type_summaries(self) -> list[dict]:
+        """Return per-stage type summaries for provenance calculation.
+
+        W1 limitation: we cannot yet distinguish real vs. heuristic per stage,
+        so all stages are reported as "heuristic" — which is honest because the
+        current pipeline uses heuristic routing throughout. W2 will wire real
+        LLM call tracking and update this to return "real" where appropriate.
+        """
+        stages = getattr(self, "_stages", None) or list(self.stage_summaries.keys())
+        return [{"type": "heuristic"}] * len(stages)
+
+    def _get_mcp_transport_status(self) -> str:
+        """Return MCP transport status string for provenance.
+
+        Reads _mcp_status dict if available; defaults to "not_wired" per
+        CLAUDE.md transport_status convention.
+        """
+        mcp_status = getattr(self, "_mcp_status", {})
+        return mcp_status.get("transport_status", "not_wired")
 
     def execute(self) -> RunResult:
         """Execute all stages with deterministic routing and capability dispatch.
