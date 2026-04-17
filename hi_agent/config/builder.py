@@ -2040,8 +2040,9 @@ class SystemBuilder:
         # Emit explicit prerequisites so integrators know exactly what is needed
         # when ready=false, without having to read source code.
         import os as _os
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_b
         env_mode = _os.environ.get("HI_AGENT_ENV", "dev").lower()
-        result["runtime_mode"] = env_mode
+        result["runtime_mode"] = _rrm_b(env_mode, result)
         if env_mode == "prod":
             result["prerequisites"] = {
                 "required_for_prod_mode": [

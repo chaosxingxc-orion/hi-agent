@@ -363,23 +363,45 @@ async def handle_manifest(request: Request) -> JSONResponse:
     except Exception as _active_prof_exc:
         logger.warning("manifest: active profile lookup failed: %s", _active_prof_exc)
 
-    # --- Evolve policy ---
+    # --- Runtime mode, environment, and evolve policy ---
+    # All three are derived from the same resolvers used by /ready so that
+    # /manifest and /ready never drift on these fields.
     evolve_policy: dict = {}
+    runtime_mode: str = "dev-smoke"
+    manifest_env: str = "dev"
+    manifest_llm_mode: str = "unknown"
+    manifest_kernel_mode: str = "local-fsm"
+    manifest_execution_mode: str = "local"
+    provenance_contract_version: str = "unknown"
     try:
         import os as _os_ep
         from hi_agent.config.evolve_policy import resolve_evolve_effective as _rep
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
+        from hi_agent.contracts.execution_provenance import CONTRACT_VERSION as _cv
+        provenance_contract_version = _cv
         _builder = getattr(server, "_builder", None)
         _ev_mode = "auto"
         if _builder is not None:
             _cfg = getattr(_builder, "_config", None)
             if _cfg is not None:
                 _ev_mode = getattr(_cfg, "evolve_mode", "auto")
-        _rt_env = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
-        _rt_mode = "dev-smoke" if _rt_env == "dev" else "prod-real"
-        _ev_enabled, _ev_source = _rep(_ev_mode, _rt_mode)
+        manifest_env = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
+        # Obtain a live readiness snapshot so runtime_mode uses the same
+        # llm_mode/kernel_mode keys that resolve_runtime_mode expects.
+        _readiness_snap: dict = {}
+        if _builder is not None:
+            try:
+                _readiness_snap = _builder.readiness()
+            except Exception:
+                pass
+        runtime_mode = _rrm(manifest_env, _readiness_snap)
+        manifest_llm_mode = _readiness_snap.get("llm_mode", "unknown")
+        manifest_kernel_mode = _readiness_snap.get("kernel_mode", "local-fsm")
+        manifest_execution_mode = _readiness_snap.get("execution_mode", "local")
+        _ev_enabled, _ev_source = _rep(_ev_mode, runtime_mode)
         evolve_policy = {"mode": _ev_mode, "effective": _ev_enabled, "source": _ev_source}
     except Exception as _ep_exc:
-        logger.warning("manifest: evolve_policy lookup failed: %s", _ep_exc)
+        logger.warning("manifest: runtime_mode/evolve_policy lookup failed: %s", _ep_exc)
 
     return JSONResponse({
         "name": "hi-agent",
@@ -454,7 +476,12 @@ async def handle_manifest(request: Request) -> JSONResponse:
             "GET /artifacts/{artifact_id}",
         ],
         "active_profile": active_profile,
-        "runtime_mode": "platform",
+        "runtime_mode": runtime_mode,
+        "environment": manifest_env,
+        "llm_mode": manifest_llm_mode,
+        "kernel_mode": manifest_kernel_mode,
+        "execution_mode": manifest_execution_mode,
+        "provenance_contract_version": provenance_contract_version,
         # Contract field consumption levels — integrators must read this to understand
         # which TaskContract fields the default TRACE pipeline actually acts on.
         # ACTIVE: drives execution behavior or outcome
