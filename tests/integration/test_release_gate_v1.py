@@ -38,12 +38,12 @@ def test_release_gate_gates_have_correct_shape(test_client):
         assert gate["status"] in ("pass", "fail", "skipped", "info")
 
 
-def test_release_gate_has_all_six_gates(test_client):
+def test_release_gate_has_all_seven_gates(test_client):
     resp = test_client.get("/ops/release-gate")
     gate_names = {g["name"] for g in resp.json()["gates"]}
     expected = {
         "readiness", "doctor", "config_validation",
-        "current_runtime_mode", "known_prerequisites", "prod_e2e_recent"
+        "current_runtime_mode", "known_prerequisites", "mcp_health", "prod_e2e_recent"
     }
     assert expected == gate_names
 

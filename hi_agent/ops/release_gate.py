@@ -3,6 +3,11 @@ import datetime
 from dataclasses import dataclass, field
 from typing import Literal
 
+try:
+    from hi_agent.mcp.health import MCPHealth
+except Exception:  # noqa: BLE001
+    MCPHealth = None  # type: ignore[assignment,misc]
+
 
 @dataclass
 class GateResult:
@@ -44,6 +49,29 @@ class ReleaseGateReport:
             "failed_gates": self.failed_gates,
             "last_checked_at": self.last_checked_at,
         }
+
+
+def _add_mcp_gate(gates: list, health) -> None:
+    """Evaluate MCPHealth results and append the mcp_health GateResult."""
+    results = health.check_all()
+    if not results:
+        gates.append(GateResult("mcp_health", "skipped", "no MCP servers configured"))
+        return
+    unhealthy = [sid for sid, s in results.items() if s == "unhealthy"]
+    degraded = [sid for sid, s in results.items() if s == "degraded"]
+    if unhealthy:
+        gates.append(GateResult(
+            "mcp_health", "fail",
+            f"unhealthy: {', '.join(sorted(unhealthy))}"
+        ))
+    elif degraded:
+        gates.append(GateResult(
+            "mcp_health", "pass",
+            f"degraded: {', '.join(sorted(degraded))} (non-blocking)"
+        ))
+    else:
+        n = len(results)
+        gates.append(GateResult("mcp_health", "pass", f"all {n} server(s) healthy"))
 
 
 def build_release_gate_report(builder) -> ReleaseGateReport:
@@ -110,7 +138,26 @@ def build_release_gate_report(builder) -> ReleaseGateReport:
     except Exception:
         gates.append(GateResult("known_prerequisites", "pass", "capability registry non-empty"))
 
-    # Gate 6: prod_e2e_recent — always skipped in W3 (W12: promote to required)
+    # Gate 6: mcp_health — any configured unhealthy server blocks release
+    try:
+        mcp_reg = getattr(builder, "_mcp_registry", None)
+        mcp_transport = getattr(builder, "_mcp_transport", None)
+
+        if mcp_reg is None or len(getattr(mcp_reg, '_servers', {}) or []) == 0:
+            # Check via list_servers()
+            servers = mcp_reg.list_servers() if mcp_reg is not None and hasattr(mcp_reg, "list_servers") else []
+            if not servers:
+                gates.append(GateResult("mcp_health", "skipped", "no MCP servers configured"))
+            else:
+                health = MCPHealth(mcp_reg, transport=mcp_transport)
+                _add_mcp_gate(gates, health)
+        else:
+            health = MCPHealth(mcp_reg, transport=mcp_transport)
+            _add_mcp_gate(gates, health)
+    except Exception as e:
+        gates.append(GateResult("mcp_health", "skipped", f"mcp check unavailable: {e}"))
+
+    # Gate 7: prod_e2e_recent — always skipped in W3 (W12: promote to required)
     gates.append(GateResult("prod_e2e_recent", "skipped", "no nightly yet"))
 
     return ReleaseGateReport(gates=gates)
