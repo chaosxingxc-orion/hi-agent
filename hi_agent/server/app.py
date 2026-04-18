@@ -68,6 +68,8 @@ from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.run_store import SQLiteRunStore
 from hi_agent.server.session_store import SessionStore
+from hi_agent.server.team_event_store import TeamEventStore
+from hi_agent.server.routes_team import handle_list_team_events
 from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
 from hi_agent.server.routes_events import handle_run_events_sse
 from hi_agent.server.routes_runs import (
@@ -1498,6 +1500,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/sessions", handle_list_sessions, methods=["GET"]),
         Route("/sessions/{session_id}/runs", handle_get_session_runs, methods=["GET"]),
         Route("/sessions/{session_id}", handle_patch_session, methods=["PATCH"]),
+
+        # Team
+        Route("/team/events", handle_list_team_events, methods=["GET"]),
     ]
 
     @contextlib.asynccontextmanager
@@ -1644,6 +1649,7 @@ class AgentServer:
         self.capacity_advisor: Any | None = None
         self.slo_monitor: Any | None = None
         self.session_store: SessionStore | None = None
+        self.team_event_store: TeamEventStore | None = None
 
         # stage_graph — the active stage topology for this server instance.
         # Business agents that inject a custom stage graph should also set this
@@ -1690,6 +1696,9 @@ class AgentServer:
             _session_store = SessionStore(db_path=f"{_db_dir}/sessions.db")
             _session_store.initialize()
             self.session_store = _session_store
+            _team_event_store = TeamEventStore(db_path=f"{_db_dir}/team_events.db")
+            _team_event_store.initialize()
+            self.team_event_store = _team_event_store
         self.run_manager = RunManager(
             max_concurrent=self._config.server_max_concurrent_runs,
             idempotency_store=_idempotency_store,
