@@ -129,6 +129,11 @@ def _cmd_serve(args: argparse.Namespace) -> None:
     from hi_agent.config.trace_config import TraceConfig
     from hi_agent.server.app import AgentServer
 
+    # Apply --home / HI_AGENT_HOME before any path resolution
+    home_arg = getattr(args, "home", None)
+    if home_arg:
+        os.environ["HI_AGENT_HOME"] = home_arg
+
     # Default to dev mode so the server works out of the box without API keys
     # or real kernel endpoints.  Use --prod to require real credentials.
     if getattr(args, "prod", False):
@@ -154,6 +159,11 @@ def _cmd_serve(args: argparse.Namespace) -> None:
 
 def _cmd_run(args: argparse.Namespace) -> None:
     """Execute a task -- locally via SystemBuilder, or via the API server."""
+    # Apply --home / HI_AGENT_HOME before any path resolution
+    home_arg = getattr(args, "home", None)
+    if home_arg:
+        os.environ["HI_AGENT_HOME"] = home_arg
+
     if getattr(args, "local", False):
         # Local execution: build executor directly, no server needed.
         # --local implies dev mode so heuristic fallback and in-process kernel
@@ -541,6 +551,15 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--host", default="0.0.0.0")
     serve_parser.add_argument("--port", type=int, default=8080)
     serve_parser.add_argument(
+        "--home",
+        required=False,
+        default=None,
+        help=(
+            "Override HI_AGENT_HOME directory. "
+            "All profile-related paths are resolved under this directory."
+        ),
+    )
+    serve_parser.add_argument(
         "--prod",
         action="store_true",
         default=False,
@@ -658,6 +677,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="JSON object for execution budget, e.g. "
              "'{\"max_llm_calls\": 10, \"max_wall_clock_seconds\": 300}'.",
+    )
+    run_parser.add_argument(
+        "--home",
+        required=False,
+        default=None,
+        help=(
+            "Override HI_AGENT_HOME directory (also settable via HI_AGENT_HOME env var). "
+            "All profile-related paths are resolved under this directory."
+        ),
     )
     _evolve_group = run_parser.add_mutually_exclusive_group()
     _evolve_group.add_argument(

@@ -19,6 +19,64 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+class ProfileAwareConfigStack:
+    """Config loading that respects HI_AGENT_HOME for file path resolution.
+
+    Layers (lowest to highest priority):
+    1. TraceConfig defaults
+    2. File config (hi_agent_config.json in home dir)
+    3. Profile overrides (if profile_id given)
+    4. Env var overrides (HI_AGENT_* prefix)
+    5. Runtime patch (passed at build time)
+    """
+
+    def __init__(self, home_dir: str | None = None, profile_id: str = "") -> None:
+        from hi_agent.profile.manager import ProfileDirectoryManager
+
+        self._pdm = ProfileDirectoryManager(home_dir=home_dir)
+        self._profile_id = profile_id
+
+    def resolve(self, run_patch: dict | None = None) -> "TraceConfig":
+        """Return merged TraceConfig with all layers applied."""
+        from hi_agent.config.trace_config import TraceConfig
+        from hi_agent.config.profile import deep_merge
+        from dataclasses import asdict, fields as dc_fields
+
+        # Layer 1: defaults
+        merged: dict = asdict(TraceConfig())
+
+        # Layer 2: file config from home dir
+        config_file = self._pdm.home / "hi_agent_config.json"
+        if config_file.exists():
+            with open(config_file, encoding="utf-8") as fh:
+                file_data = json.load(fh)
+            merged = deep_merge(merged, file_data)
+
+        # Layer 3: profile overrides
+        if self._profile_id:
+            profile_file = self._pdm.profile_dir(self._profile_id) / "config.json"
+            if profile_file.exists():
+                with open(profile_file, encoding="utf-8") as fh:
+                    profile_data = json.load(fh)
+                merged = deep_merge(merged, profile_data)
+
+        # Layer 4: env var overrides
+        env_overrides = {
+            f.name: getattr(TraceConfig.from_env(), f.name)
+            for f in dc_fields(TraceConfig)
+            if os.environ.get(f"HI_AGENT_{f.name.upper()}")
+        }
+        if env_overrides:
+            merged = deep_merge(merged, env_overrides)
+
+        # Layer 5: run patch
+        if run_patch:
+            merged = deep_merge(merged, run_patch)
+
+        known = {f.name for f in dc_fields(TraceConfig)}
+        return TraceConfig(**{k: v for k, v in merged.items() if k in known})
+
+
 class ConfigStack:
     """Resolves configuration from five stacked layers.
 
