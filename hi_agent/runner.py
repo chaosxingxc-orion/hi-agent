@@ -52,6 +52,7 @@ from hi_agent.contracts import (
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.contracts.requests import RunResult
 from hi_agent.events import EventEmitter, EventEnvelope
+from hi_agent.execution.action_dispatcher import ActionDispatchContext, ActionDispatcher
 from hi_agent.execution.gate_coordinator import GateCoordinator
 from hi_agent.gate_protocol import GatePendingError
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
@@ -307,7 +308,7 @@ class RunExecutor:
         self.action_max_retries = self._resolve_action_max_retries(
             action_max_retries, contract.constraints
         )
-        self.runner_role = runner_role or self._parse_invoker_role(
+        self.runner_role = runner_role or ActionDispatcher._parse_invoker_role(
             contract.constraints
         )
         self.force_fail_actions = self._parse_forced_fail_actions(
@@ -781,68 +782,32 @@ class RunExecutor:
     # Fix-4: ExecutionHookManager helpers
     # ------------------------------------------------------------------
 
+    def _build_action_dispatch_context(
+        self, stage_id: str = ""
+    ) -> ActionDispatchContext:
+        return ActionDispatchContext(
+            run_id=self.run_id,
+            current_stage=stage_id or self.current_stage,
+            action_seq=self.action_seq,
+            invoker=self.invoker,
+            harness_executor=self.harness_executor,
+            runner_role=self.runner_role,
+            invoker_accepts_role=self._invoker_accepts_role,
+            invoker_accepts_metadata=self._invoker_accepts_metadata,
+            hook_manager=self._hook_manager,
+            capability_provenance_store=self._capability_provenance_store,
+            force_fail_actions=self.force_fail_actions,
+            action_max_retries=self.action_max_retries,
+            record_event_fn=self._record_event,
+            emit_observability_fn=self._emit_observability,
+            nudge_check_fn=self._nudge_check_after_action,
+        )
+
     def _invoke_capability_via_hooks(
         self, proposal: object, payload: dict
     ) -> dict:
-        """Invoke capability through ExecutionHookManager pre/post tool hooks.
-
-        When _hook_manager is available, wraps the raw capability invocation
-        so that all registered pre_tool and post_tool hooks fire around it.
-        Falls back to direct invocation if hooks are unavailable.
-        """
-        if self._hook_manager is None:
-            return self._invoke_capability(proposal, payload)
-
-        try:
-            import asyncio
-            import concurrent.futures as _cf
-
-            from hi_agent.middleware.hooks import ToolCallContext
-
-            tool_ctx = ToolCallContext(
-                run_id=self.run_id,
-                stage_id=payload.get("stage_id", self.current_stage or ""),
-                tool_name=str(getattr(proposal, "action_kind", "unknown")),
-                tool_input=payload,
-                turn_number=self.action_seq,
-            )
-
-            def _call_fn(_ctx: ToolCallContext) -> str:
-                result = self._invoke_capability(proposal, payload)
-                # Store result so we can return it after hook chain completes
-                _call_fn._last_result = result  # type: ignore[attr-defined]
-                return str(result.get("success", False))
-
-            _call_fn._last_result = {}  # type: ignore[attr-defined]
-
-            # Run async hook chain synchronously
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # We're inside execute_async() — run hook chain in a fresh
-                    # thread to avoid nested event loop.  concurrent.futures +
-                    # asyncio.run() creates an isolated loop in the worker thread.
-                    with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
-                        _pool.submit(
-                            asyncio.run,
-                            self._hook_manager.wrap_tool_call(tool_ctx, _call_fn),
-                        ).result()
-                else:
-                    loop.run_until_complete(
-                        self._hook_manager.wrap_tool_call(tool_ctx, _call_fn)
-                    )
-            except RuntimeError:
-                asyncio.run(
-                    self._hook_manager.wrap_tool_call(tool_ctx, _call_fn)
-                )
-
-            return _call_fn._last_result  # type: ignore[attr-defined]
-        except Exception as exc:
-            _logger.debug(
-                "runner.hook_wrap_failed run_id=%s stage_id=%s error=%s",
-                self.run_id, payload.get("stage_id", ""), exc,
-            )
-            return self._invoke_capability(proposal, payload)
+        ctx = self._build_action_dispatch_context(payload.get("stage_id", ""))
+        return ActionDispatcher(ctx)._invoke_capability_via_hooks(proposal, payload)
 
     # ------------------------------------------------------------------
     # Fix-5: NudgeInjector helpers
@@ -1013,48 +978,6 @@ class RunExecutor:
 
         return "handlers" in signature.parameters or positional_count >= 2
 
-    def _invoke_capability(
-        self, proposal: object, payload: dict
-    ) -> dict:
-        """Invoke capability with optional role and action metadata propagation.
-
-        When a harness_executor is configured, actions are routed through the
-        harness governance pipeline instead of direct capability invocation.
-        """
-        if self.harness_executor is not None:
-            return self._invoke_via_harness(proposal, payload)
-
-        kwargs: dict[str, object] = {}
-        if self._invoker_accepts_role:
-            kwargs["role"] = self.runner_role
-        if self._invoker_accepts_metadata:
-            kwargs["metadata"] = {
-                "run_id": self.run_id,
-                "stage_id": payload["stage_id"],
-                "action_kind": payload["action_kind"],
-                "branch_id": payload["branch_id"],
-                "seq": payload["seq"],
-                "attempt": payload["attempt"],
-            }
-        if kwargs:
-            return self.invoker.invoke(
-                proposal.action_kind, payload, **kwargs
-            )
-        return self.invoker.invoke(proposal.action_kind, payload)
-
-    def _parse_invoker_role(self, constraints: list[str]) -> str | None:
-        """Extract invoker role from constraints.
-
-        Supported format: `invoker_role:<role_name>`.
-        """
-        for item in constraints:
-            if not item.startswith("invoker_role:"):
-                continue
-            role = item.split(":", 1)[1].strip()
-            if role:
-                return role
-        return None
-
     def _build_default_invoker(
         self, llm_gateway: Any | None = None
     ) -> CapabilityInvoker:
@@ -1214,92 +1137,9 @@ class RunExecutor:
         *,
         upstream_artifact_ids: list[str] | None = None,
     ) -> tuple[bool, dict | None, int]:
-        """Execute one action with retry semantics.
-
-        Args:
-            stage_id: Current stage identifier.
-            proposal: Route proposal for the action.
-            upstream_artifact_ids: Artifact IDs produced by prior actions in
-                this stage.  Threaded through to the harness so artifact
-                lineage is recorded on outputs.
-
-        Returns:
-          (success, result_payload_or_none, final_attempt_number)
-        """
-        max_attempts = self.action_max_retries + 1
-
-        for attempt in range(1, max_attempts + 1):
-            payload = {
-                "run_id": self.run_id,
-                "stage_id": stage_id,
-                "branch_id": proposal.branch_id,
-                "action_kind": proposal.action_kind,
-                "seq": self.action_seq,
-                "attempt": attempt,
-                "should_fail": proposal.action_kind
-                in self.force_fail_actions,
-                "upstream_artifact_ids": upstream_artifact_ids or [],
-            }
-            self._record_event("ActionPlanned", payload)
-
-            try:
-                # Fix-4: route through ExecutionHookManager (pre/post tool hooks)
-                result = self._invoke_capability_via_hooks(proposal, payload)
-                # W2-002: collect capability provenance for StageProvenance derivation
-                if isinstance(result, dict) and "_provenance" in result:
-                    self._capability_provenance_store.setdefault(stage_id, []).append(result["_provenance"])
-                success = bool(result.get("success", False))
-                self._record_event(
-                    "ActionExecuted",
-                    {
-                        "stage_id": stage_id,
-                        "action_kind": proposal.action_kind,
-                        "attempt": attempt,
-                        "success": success,
-                    },
-                )
-                self._emit_observability(
-                    "action_executed",
-                    {
-                        "run_id": self.run_id,
-                        "stage_id": stage_id,
-                        "action_kind": proposal.action_kind,
-                        "attempt": attempt,
-                        "success": success,
-                    },
-                )
-                # Fix-5: nudge check after each completed action attempt
-                action_text = str(result) if result else ""
-                self._nudge_check_after_action(stage_id, action_text)
-                if success:
-                    return True, result, attempt
-                if attempt == max_attempts:
-                    return False, result, attempt
-            except Exception as exc:
-                self._record_event(
-                    "ActionExecutionFailed",
-                    {
-                        "stage_id": stage_id,
-                        "action_kind": proposal.action_kind,
-                        "attempt": attempt,
-                        "error": str(exc),
-                    },
-                )
-                self._emit_observability(
-                    "action_executed",
-                    {
-                        "run_id": self.run_id,
-                        "stage_id": stage_id,
-                        "action_kind": proposal.action_kind,
-                        "attempt": attempt,
-                        "success": False,
-                        "error": str(exc),
-                    },
-                )
-                if attempt == max_attempts:
-                    return False, None, attempt
-
-        return False, None, max_attempts
+        ctx = self._build_action_dispatch_context(stage_id)
+        dispatcher = ActionDispatcher(ctx)
+        return dispatcher._execute_action_with_retry(stage_id, proposal, upstream_artifact_ids=upstream_artifact_ids)
 
     def _persist_snapshot(
         self, *, stage_id: str, result: str | None = None
@@ -1505,52 +1345,8 @@ class RunExecutor:
     def _invoke_via_harness(
         self, proposal: object, payload: dict
     ) -> dict:
-        """Route action through HarnessExecutor and convert result to dict.
-
-        Args:
-            proposal: Route proposal with action_kind and branch_id.
-            payload: Action payload dict.
-
-        Returns:
-            Dict in the format the runner expects from capability invocation.
-        """
-        from hi_agent.harness.contracts import ActionSpec, ActionState, SideEffectClass
-
-        spec = ActionSpec(
-            action_id=deterministic_id(
-                self.run_id,
-                payload["stage_id"],
-                payload["branch_id"],
-                str(payload["seq"]),
-            ),
-            action_type="mutate",
-            capability_name=proposal.action_kind,
-            payload=payload,
-            side_effect_class=SideEffectClass(
-                getattr(proposal, "side_effect_class", "read_only")
-            )
-            if hasattr(proposal, "side_effect_class")
-            and proposal.side_effect_class
-            in {e.value for e in SideEffectClass}
-            else SideEffectClass.READ_ONLY,
-            upstream_artifact_ids=list(
-                payload.get("upstream_artifact_ids") or []
-            ),
-        )
-
-        result = self.harness_executor.execute(spec)
-
-        success = result.state == ActionState.SUCCEEDED
-        output = result.output if isinstance(result.output, dict) else {}
-        return {
-            "success": success,
-            "score": output.get("score", 0.0),
-            "evidence_hash": result.evidence_ref or "ev_missing",
-            "action_id": result.action_id,
-            "side_effect_class": spec.side_effect_class.value,
-            "artifact_ids": result.artifact_ids,
-            **output,
-        }
+        ctx = self._build_action_dispatch_context(payload.get("stage_id", ""))
+        return ActionDispatcher(ctx)._invoke_via_harness(proposal, payload)
 
     def _check_human_gate_triggers(
         self,
