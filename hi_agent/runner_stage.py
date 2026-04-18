@@ -390,6 +390,23 @@ class StageExecutor:
             )
             executor._record_skill_usage_from_proposal(proposal, stage_id)
 
+            # --- Capability availability filter (P1-2b) ---
+            if self._capability_registry is not None:
+                try:
+                    from hi_agent.route_engine.capability_filter import filter_proposal
+                    proposal = filter_proposal(
+                        proposal,
+                        self._capability_registry,
+                        self._capability_runtime_mode,
+                    )
+                except Exception as exc:
+                    _logger.warning(
+                        "capability_filter raised unexpectedly — proceeding without filter: %s", exc
+                    )
+                    from hi_agent.observability.fallback import record_fallback, FallbackTaxonomy
+                    record_fallback(FallbackTaxonomy.UNEXPECTED_EXCEPTION, "capability_filter", str(exc))
+                    # proposal remains unfiltered (existing behavior)
+
             node = TrajectoryNode(
                 node_id=deterministic_id(
                     executor.run_id,
@@ -403,23 +420,6 @@ class StageExecutor:
                 description=proposal.rationale,
             )
             executor.dag[node.node_id] = node
-
-            # --- Capability availability filter (P1-2b) ---
-            if self._capability_registry is not None:
-                try:
-                    from hi_agent.route_engine.capability_filter import filter_proposal
-                    proposal = filter_proposal(
-                        proposal,
-                        self._capability_registry,
-                        self._capability_runtime_mode,
-                    )
-                except Exception as exc:
-                    _logger.debug(
-                        "stage.capability_filter_failed run_id=%s stage_id=%s error=%s",
-                        executor.run_id,
-                        stage_id,
-                        exc,
-                    )
 
             success = False
             result: dict | None = None
