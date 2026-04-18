@@ -148,6 +148,8 @@ class TraceConfig:
     harness_action_default_timeout: int = 60
     evidence_store_backend: str = "sqlite"
     evidence_store_path: str = ".hi_agent/evidence.db"
+    audit_store_backend: str = "memory"
+    audit_store_path: str = ".hi_agent/audit.db"
 
     # --- Task Budget defaults (NEW) ---
     task_budget_max_llm_calls: int = 100
