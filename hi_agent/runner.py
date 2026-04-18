@@ -43,7 +43,6 @@ from hi_agent.context.run_context import RunContext
 from hi_agent.contracts import (
     CTSExplorationBudget,
     HumanGateRequest,
-    NodeState,
     StageState,
     StageSummary,
     TaskContract,
@@ -53,6 +52,7 @@ from hi_agent.contracts import (
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.contracts.requests import RunResult
 from hi_agent.events import EventEmitter, EventEnvelope
+from hi_agent.execution.gate_coordinator import GateCoordinator
 from hi_agent.gate_protocol import GatePendingError
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.recovery import CompensationHandler, orchestrate_recovery
@@ -331,10 +331,7 @@ class RunExecutor:
         self.harness_executor = harness_executor
         self.human_gate_quality_threshold = human_gate_quality_threshold
         self._gate_seq = 0
-        # Registered human gate events, keyed by gate_id.
-        self._registered_gates: dict[str, object] = {}
-        # gate_id of the currently blocking human gate, or None if no gate is pending.
-        self._gate_pending: str | None = None
+        self.gate_coordinator = GateCoordinator(self)
         # Pending async delegation futures, keyed by task_id.
         self._pending_subrun_futures: dict[str, object] = {}
         # Completed synchronous delegation results, keyed by task_id.
@@ -686,6 +683,29 @@ class RunExecutor:
     def run_id(self, value: str) -> None:
         """Run run_id."""
         self._run_id = value
+
+    def _ensure_gate_coordinator(self) -> GateCoordinator:
+        coordinator = getattr(self, "gate_coordinator", None)
+        if coordinator is None:
+            coordinator = GateCoordinator(self)
+            self.gate_coordinator = coordinator
+        return coordinator
+
+    @property
+    def _gate_pending(self) -> str | None:
+        return self._ensure_gate_coordinator().gate_pending
+
+    @_gate_pending.setter
+    def _gate_pending(self, value: str | None) -> None:
+        self._ensure_gate_coordinator()._gate_pending = value
+
+    @property
+    def _registered_gates(self) -> dict[str, object]:
+        return self._ensure_gate_coordinator().registered_gates
+
+    @_registered_gates.setter
+    def _registered_gates(self, value: dict[str, object]) -> None:
+        self._ensure_gate_coordinator()._registered_gates = value
 
     def _sync_to_context(self) -> None:
         """Sync mutable state back to RunContext if present."""
@@ -1538,86 +1558,12 @@ class RunExecutor:
         action_result: dict,
         failure_code: str | None = None,
     ) -> None:
-        """Check if any Human Gate should be auto-triggered.
-
-        Gate A (contract_correction): contradictory_evidence failure code.
-        Gate B (route_direction): budget nearly exhausted (>80%) and no
-            viable branch found.
-        Gate C (artifact_review): action result quality_score below threshold.
-        Gate D (final_approval): irreversible_submit side effect class.
-        """
-        # Gate A: contradictory evidence
-        if failure_code == "contradictory_evidence":
-            self.kernel.open_human_gate(
-                HumanGateRequest(
-                    run_id=self.run_id,
-                    gate_type="contract_correction",
-                    gate_ref=self._make_gate_ref("contract_correction"),
-                    context={
-                        "stage_id": stage_id,
-                        "reason": "Contradictory evidence detected",
-                        "failure_code": failure_code,
-                    },
-                )
-            )
-
-        # Gate B: budget crisis (>80% used and no viable branch)
-        task_budget = self.contract.budget
-        if task_budget is not None and task_budget.max_actions > 0:
-            usage_ratio = self.action_seq / task_budget.max_actions
-            if usage_ratio > 0.8:
-                # Check if there are any succeeded branches in current stage
-                has_viable = any(
-                    node.state == NodeState.SUCCEEDED
-                    for node in self.dag.values()
-                    if node.stage_id == stage_id
-                )
-                if not has_viable:
-                    self.kernel.open_human_gate(
-                        HumanGateRequest(
-                            run_id=self.run_id,
-                            gate_type="route_direction",
-                            gate_ref=self._make_gate_ref("route_direction"),
-                            context={
-                                "stage_id": stage_id,
-                                "reason": "Budget nearly exhausted with no viable branch",
-                                "budget_usage_ratio": usage_ratio,
-                            },
-                        )
-                    )
-
-        # Gate C: quality threshold
-        quality_score = action_result.get("quality_score")
-        if quality_score is not None and quality_score < self.human_gate_quality_threshold:
-            self.kernel.open_human_gate(
-                HumanGateRequest(
-                    run_id=self.run_id,
-                    gate_type="artifact_review",
-                    gate_ref=self._make_gate_ref("artifact_review"),
-                    context={
-                        "stage_id": stage_id,
-                        "reason": "Action result quality below threshold",
-                        "quality_score": quality_score,
-                        "threshold": self.human_gate_quality_threshold,
-                    },
-                )
-            )
-
-        # Gate D: irreversible action
-        side_effect_class = action_result.get("side_effect_class")
-        if side_effect_class == "irreversible_submit":
-            self.kernel.open_human_gate(
-                HumanGateRequest(
-                    run_id=self.run_id,
-                    gate_type="final_approval",
-                    gate_ref=self._make_gate_ref("final_approval"),
-                    context={
-                        "stage_id": stage_id,
-                        "reason": "Irreversible action requires approval",
-                        "side_effect_class": side_effect_class,
-                    },
-                )
-            )
+        """Check if any Human Gate should be auto-triggered."""
+        return self.gate_coordinator._check_human_gate_triggers(
+            stage_id=stage_id,
+            action_result=action_result,
+            failure_code=failure_code,
+        )
 
     def _check_budget_exceeded(self, stage_id: str) -> str | None:
         """Return a failure code if any CTS or task budget limit is exceeded.
@@ -2624,59 +2570,13 @@ class RunExecutor:
         recommendation: str = "",
         output_summary: str = "",
     ) -> None:
-        """Register a named human gate point on this run.
-
-        The gate event is stored in ``_registered_gates`` (indexed by
-        *gate_id*) and written into the session checkpoint so that a
-        paused run can survive a process restart.
-
-        Args:
-            gate_id: Caller-assigned identifier for this gate.
-            gate_type: Gate category — one of ``contract_correction``,
-                ``route_direction``, ``artifact_review``,
-                ``final_approval``.
-            phase_name: Stage or phase at which the gate is registered.
-            recommendation: Optional suggestion for the human reviewer.
-            output_summary: Brief description of the work product.
-        """
-        from hi_agent.gate_protocol import GateEvent
-
-        event = GateEvent(
+        """Register a named human gate point on this run."""
+        return self.gate_coordinator.register_gate(
             gate_id=gate_id,
             gate_type=gate_type,
             phase_name=phase_name,
             recommendation=recommendation,
             output_summary=output_summary,
-        )
-        self._registered_gates[gate_id] = event
-        self._gate_pending = gate_id
-
-        # Persist gate state into the session checkpoint so it survives
-        # a process restart.
-        if self.session is not None:
-            try:
-                self.session.events.append({
-                    "event": "gate_registered",
-                    "gate_id": gate_id,
-                    "gate_type": gate_type,
-                    "phase_name": phase_name,
-                    "opened_at": event.opened_at,
-                })
-            except Exception as _exc:  # pragma: no cover
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.register_gate_session_failed",
-                    _exc,
-                    run_id=self.run_id,
-                    gate_id=gate_id,
-                )
-
-        _logger.info(
-            "runner.gate_registered run_id=%s gate_id=%s gate_type=%s phase=%s",
-            self.run_id,
-            gate_id,
-            gate_type,
-            phase_name,
         )
 
     def resume(
@@ -2685,56 +2585,12 @@ class RunExecutor:
         decision: str,
         rationale: str = "",
     ) -> None:
-        """Resume execution after a human decision on a registered gate.
-
-        Valid decisions: ``approved``, ``override``, ``backtrack``.
-
-        The decision is logged to the run record via the event emitter
-        and the session checkpoint.
-
-        Args:
-            gate_id: Gate to resume (must have been registered via
-                :meth:`register_gate`).
-            decision: Human decision — ``approved``, ``override``, or
-                ``backtrack``.
-            rationale: Free-text rationale for the decision.
-        """
-        _logger.info(
-            "runner.gate_decision run_id=%s gate_id=%s decision=%s",
-            self.run_id,
-            gate_id,
-            decision,
+        """Resume execution after a human decision on a registered gate."""
+        return self.gate_coordinator.resume(
+            gate_id=gate_id,
+            decision=decision,
+            rationale=rationale,
         )
-
-        self._emit_observability("gate_decision", {
-            "run_id": self.run_id,
-            "gate_id": gate_id,
-            "decision": decision,
-            "rationale": rationale,
-        })
-
-        if self.session is not None:
-            try:
-                self.session.events.append({
-                    "event": "gate_decision",
-                    "gate_id": gate_id,
-                    "decision": decision,
-                    "rationale": rationale,
-                })
-            except Exception as _exc:  # pragma: no cover
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.resume_session_failed",
-                    _exc,
-                    run_id=self.run_id,
-                    gate_id=gate_id,
-                )
-
-        # Unblock stage execution now that the human decision has been made.
-        if self._gate_pending == gate_id:
-            self._gate_pending = None
-        if decision == "backtrack":
-            self._run_terminated = True
 
     def continue_from_gate(
         self,
@@ -2742,24 +2598,12 @@ class RunExecutor:
         decision: str,
         rationale: str = "",
     ) -> RunResult:
-        """Resume execution after a human gate decision.
-
-        This is the correct entry point after a :class:`GatePendingError` has
-        been handled and a gate decision has been made. Calling ``execute()``
-        directly after ``resume()`` re-executes all stages from the beginning;
-        this method resumes from the first incomplete stage only.
-
-        Args:
-            gate_id: Gate identifier from the propagated ``GatePendingError``.
-            decision: Human decision — ``"approved"``, ``"override"``, or
-                ``"backtrack"``.
-            rationale: Free-text rationale for the decision (optional).
-
-        Returns:
-            :class:`RunResult` with run outcome after completion.
-        """
-        self.resume(gate_id=gate_id, decision=decision, rationale=rationale)
-        return self._execute_remaining()
+        """Resume execution after a human gate decision."""
+        return self.gate_coordinator.continue_from_gate(
+            gate_id=gate_id,
+            decision=decision,
+            rationale=rationale,
+        )
 
     def continue_from_gate_graph(
         self,
@@ -2770,93 +2614,17 @@ class RunExecutor:
         last_stage: str | None = None,
         completed_stages: set[str] | None = None,
     ) -> RunResult:
-        """Resume graph execution after a human gate decision.
-
-        Unlike :meth:`continue_from_gate` which uses linear ``trace_order()``,
-        this method resumes graph traversal from the correct position.
-
-        Args:
-            gate_id: Gate identifier from the propagated ``GatePendingError``.
-            decision: Human decision — ``"approved"``, ``"override"``, or
-                ``"backtrack"``.
-            rationale: Free-text rationale for the decision (optional).
-            last_stage: The stage that was executing when the gate fired.
-                When None, uses ``self.current_stage``.
-            completed_stages: Set of stage IDs already completed before the
-                gate fired. When None, inferred from session.stage_states.
-
-        Returns:
-            :class:`RunResult` with run outcome after completion.
-        """
-        self.resume(gate_id=gate_id, decision=decision, rationale=rationale)
-
-        if decision == "backtrack":
-            return self._finalize_run("failed")
-
-        # Determine which stages are already done.
-        if completed_stages is None:
-            if self.session is not None:
-                completed_stages = {
-                    sid for sid, state in self.session.stage_states.items()
-                    if state == "completed"
-                }
-            else:
-                completed_stages = set(self.stage_summaries.keys())
-
-        # Resume graph traversal from last_stage's successors.
-        start_stage = last_stage or self.current_stage
-        if start_stage and start_stage not in completed_stages:
-            # last_stage itself was not completed — retry it.
-            current_stage: str | None = start_stage
-        else:
-            # Advance to successors not yet completed.
-            successors = self.stage_graph.successors(start_stage) if start_stage else set()
-            candidates = successors - completed_stages
-            current_stage = self._select_next_stage(candidates) if candidates else None
-
-        max_steps = len(self.stage_graph.transitions) * 2
-        steps = 0
-        try:
-            while current_stage is not None and steps < max_steps:
-                steps += 1
-                if current_stage in completed_stages:
-                    successors = self.stage_graph.successors(current_stage)
-                    candidates = successors - completed_stages
-                    current_stage = self._select_next_stage(candidates) if candidates else None
-                    continue
-
-                result = self._execute_stage(current_stage)
-                if result == "failed":
-                    backtrack = self.stage_graph.get_backtrack(current_stage)
-                    if backtrack and backtrack not in completed_stages:
-                        current_stage = backtrack
-                        continue
-                    handled = self._handle_stage_failure(current_stage, result)
-                    if handled == "failed":
-                        return self._finalize_run("failed")
-                completed_stages.add(current_stage)
-
-                successors = self.stage_graph.successors(current_stage)
-                candidates = successors - completed_stages
-                if not candidates:
-                    break
-                if len(candidates) > 1:
-                    current_stage = self._select_next_stage(candidates)
-                else:
-                    current_stage = next(iter(candidates))
-        except GatePendingError:
-            raise
-        except Exception as exc:
-            self._log_best_effort_exception(
-                logging.WARNING, "runner.continue_from_gate_graph_failed", exc,
-                run_id=self.run_id, stage_id=self.current_stage,
-            )
-            return self._finalize_run("failed")
-
-        return self._finalize_run("completed")
+        """Resume graph execution after a human gate decision."""
+        return self.gate_coordinator.continue_from_gate_graph(
+            gate_id=gate_id,
+            decision=decision,
+            rationale=rationale,
+            last_stage=last_stage,
+            completed_stages=completed_stages,
+        )
 
     # -----------------------------------------------------------------------
-    # Sub-run delegation public API (Task 3 — P2-3)
+    # Sub-run delegation public API
     # -----------------------------------------------------------------------
 
     def dispatch_subrun(

@@ -98,6 +98,7 @@ class SystemBuilder:
         self._skill_loader: Any | None = None
         self._skill_builder: Any | None = None  # lazy SkillBuilder singleton
         self._memory_builder: Any | None = None  # lazy MemoryBuilder singleton
+        self._server_builder: Any | None = None  # lazy ServerBuilder singleton
         self._mcp_registry: Any | None = None
         self._mcp_transport: Any | None = None
         self._plugin_loader: Any | None = None
@@ -816,6 +817,12 @@ class SystemBuilder:
             from hi_agent.config.memory_builder import MemoryBuilder
             self._memory_builder = MemoryBuilder(self._config)
         return self._memory_builder
+
+    def _get_server_builder(self):
+        if self._server_builder is None:
+            from hi_agent.config.server_builder import ServerBuilder
+            self._server_builder = ServerBuilder(self._config)
+        return self._server_builder
 
     def _get_knowledge_builder(self):
         if not hasattr(self, "_knowledge_builder_inst") or self._knowledge_builder_inst is None:
@@ -1652,33 +1659,14 @@ class SystemBuilder:
 
     def build_server(self) -> Any:
         """Build API server with all subsystems connected."""
-        from hi_agent.server.app import AgentServer
-        from hi_agent.server.run_manager import RunManager
-
-        server = AgentServer(
-            host=self._config.server_host,
-            port=self._config.server_port,
+        return self._get_server_builder().build_server(
+            memory_manager=self.build_memory_lifecycle_manager(),
+            knowledge_manager=self.build_knowledge_manager(),
+            skill_evolver=self.build_skill_evolver(),
+            skill_loader=self.build_skill_loader(),
+            metrics_collector=self.build_metrics_collector(),
+            run_context_manager=self._build_run_context_manager(),
         )
-        server.run_manager = RunManager(
-            max_concurrent=self._config.server_max_concurrent_runs,
-        )
-        server.memory_manager = self.build_memory_lifecycle_manager()
-        server.knowledge_manager = self.build_knowledge_manager()
-        server.skill_evolver = self.build_skill_evolver()
-        server.skill_loader = self.build_skill_loader()
-        metrics = self.build_metrics_collector()
-        server.metrics_collector = metrics
-        server.run_context_manager = self._build_run_context_manager()
-
-        # Wire SLOMonitor so lifespan.start()/stop() activates continuous
-        # SLO evaluation rather than leaving it as a point-in-time snapshot.
-        try:
-            from hi_agent.management.slo import SLOMonitor
-            server.slo_monitor = SLOMonitor(metrics)
-        except Exception:
-            logger.warning("SLOMonitor initialization failed; SLO monitoring disabled.")
-
-        return server
 
     def readiness(self) -> dict[str, Any]:
         """Return a live readiness snapshot of all platform subsystems.
