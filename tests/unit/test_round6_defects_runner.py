@@ -106,6 +106,7 @@ def _bare_executor(task_id: str = "t-r6", run_id: str = "run-r6") -> "RunExecuto
     executor.tier_router = None
     executor.budget_guard = None
     executor._feedback_store = None
+    executor.route_engine = MagicMock(spec=[])  # W10-001: needed by _build_stage_orchestrator_context
     return executor
 
 

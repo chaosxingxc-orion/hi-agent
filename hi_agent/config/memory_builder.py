@@ -99,17 +99,11 @@ class MemoryBuilder:
         When store objects are provided, they are used directly (no new instances
         are created). When absent, new instances are built scoped to profile_id.
 
-        Layer 4 (semantic embedding re-ranking) is activated by wiring a
-        TFIDFEmbeddingProvider against the engine's internal TFIDFIndex.
-        This requires no external dependencies.  If construction fails for
-        any reason the engine falls back to embedding_fn=None (Layers 1-3
-        only).
-
         Args:
             wiki: Optional KnowledgeWiki instance. If None, one is built inline
                 using the same construction logic as SystemBuilder.build_knowledge_wiki().
         """
-        from hi_agent.knowledge.retrieval_engine import RetrievalEngine
+        from hi_agent.config.retrieval_builder import RetrievalBuilder
 
         if wiki is None:
             from hi_agent.knowledge.wiki import KnowledgeWiki
@@ -118,30 +112,19 @@ class MemoryBuilder:
             wiki = KnowledgeWiki(os.path.join(base, "knowledge", "wiki"))
             try:
                 wiki.load()
-            except (FileNotFoundError, KeyError, ValueError):
-                pass  # no prior state on first run — expected on fresh installs
+            except (FileNotFoundError, KeyError, ValueError) as exc:
+                logger.debug("KnowledgeWiki state unavailable during retrieval build: %s", exc)
 
         graph = long_term_graph if long_term_graph is not None else self.build_long_term_graph(profile_id=profile_id)
         short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
         mid = mid_term_store if mid_term_store is not None else self.build_mid_term_store(profile_id=profile_id)
 
-        # Build the engine first so we can access its internal _tfidf index.
-        engine = RetrievalEngine(
-            wiki=wiki, graph=graph, short_term=short, mid_term=mid
+        return RetrievalBuilder(self._config).build_retrieval_engine(
+            wiki=wiki,
+            graph=graph,
+            short_term=short,
+            mid_term=mid,
         )
-
-        # Activate Layer 4 by wiring in a TF-IDF-based embedding function.
-        # NOTE: engine._embedding_fn post-construction assignment stays here until W7-002.
-        try:
-            from hi_agent.knowledge.embedding import TFIDFEmbeddingProvider
-
-            provider = TFIDFEmbeddingProvider(engine._tfidf)
-            engine._embedding_fn = provider.as_callable()
-        except Exception:
-            # Graceful degradation: Layer 4 stays disabled, Layers 1-3 work normally.
-            pass
-
-        return engine
 
     def build_memory_lifecycle_manager(
         self,

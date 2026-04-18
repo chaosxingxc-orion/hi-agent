@@ -23,11 +23,14 @@ import json
 import logging
 import subprocess
 import threading
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _REQUEST_TIMEOUT = 30.0  # seconds to wait for a single tool response
+_MAX_RESTART_ATTEMPTS = 5  # W10-005: max restart attempts before marking unavailable
+_RESTART_BACKOFF_BASE = 1.0  # seconds; doubles each attempt (1, 2, 4, 8, 16)
 
 
 class MCPTransportError(Exception):
@@ -60,6 +63,10 @@ class StdioMCPTransport:
         self._next_id = 1
         self._stderr_buf: collections.deque[str] = collections.deque(maxlen=1024)
         self._stderr_thread: threading.Thread | None = None
+        # W10-005: crash restart tracking
+        self._restart_attempts: int = 0
+        self._unavailable: bool = False
+        self._server_id: str = ""  # set on first invoke for audit logging
 
     # ------------------------------------------------------------------
     # Public API
@@ -253,9 +260,36 @@ class StdioMCPTransport:
         self._stderr_thread.start()
 
     def _ensure_running(self) -> None:
-        """Spawn subprocess if not already running."""
+        """Spawn subprocess if not already running.
+
+        W10-005: on crash, retries with exponential backoff up to
+        _MAX_RESTART_ATTEMPTS times.  After exhausting retries the transport
+        is marked unavailable and raises MCPTransportError on every call.
+        """
         if self._proc is not None and self._proc.poll() is None:
             return
+
+        # W10-005: refuse to restart if we've exceeded the limit
+        if self._unavailable:
+            raise MCPTransportError(
+                f"MCP server {self._command!r} is permanently unavailable "
+                f"after {_MAX_RESTART_ATTEMPTS} failed restart attempts."
+            )
+
+        # Apply backoff delay for crash restarts (not the first spawn)
+        if self._restart_attempts > 0:
+            delay = min(
+                _RESTART_BACKOFF_BASE * (2 ** (self._restart_attempts - 1)),
+                _RESTART_BACKOFF_BASE * (2 ** (_MAX_RESTART_ATTEMPTS - 1)),
+            )
+            logger.warning(
+                "StdioMCPTransport: restarting server (attempt %d/%d) after %.1fs backoff",
+                self._restart_attempts + 1,
+                _MAX_RESTART_ATTEMPTS,
+                delay,
+            )
+            time.sleep(delay)
+
         import os  # noqa: PLC0415
         env = os.environ.copy()
         if self._env:
@@ -283,10 +317,44 @@ class StdioMCPTransport:
                     bufsize=1,
                 )
         except OSError as exc:
+            self._restart_attempts += 1
+            if self._restart_attempts >= _MAX_RESTART_ATTEMPTS:
+                self._unavailable = True
+                try:
+                    from hi_agent.observability.audit import emit_mcp_server_restart
+                    emit_mcp_server_restart(
+                        self._server_id or repr(self._command),
+                        self._restart_attempts,
+                        success=False,
+                        error=str(exc),
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
             raise MCPTransportError(
                 f"Failed to spawn MCP server command {self._command!r}: {exc}"
             ) from exc
+
         logger.debug("StdioMCPTransport: spawned subprocess pid=%s", self._proc.pid)
+        if self._restart_attempts > 0:
+            # Emit audit event for successful restart
+            try:
+                from hi_agent.observability.audit import emit_mcp_server_restart
+                emit_mcp_server_restart(
+                    self._server_id or repr(self._command),
+                    self._restart_attempts,
+                    success=True,
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        self._restart_attempts += 1
+        if self._restart_attempts >= _MAX_RESTART_ATTEMPTS:
+            self._unavailable = True
+            logger.warning(
+                "StdioMCPTransport: server %r reached max restart attempts (%d); "
+                "marking unavailable.",
+                self._command,
+                _MAX_RESTART_ATTEMPTS,
+            )
         self._start_stderr_reader()
 
     def _read_response(self, server_id: str, request_id: int) -> dict[str, Any]:

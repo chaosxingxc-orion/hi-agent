@@ -11,11 +11,27 @@ from hi_agent.capability.circuit_breaker import CircuitBreaker
 from hi_agent.capability.policy import CapabilityPolicy
 from hi_agent.capability.registry import CapabilityRegistry
 
+_DANGEROUS_ALLOWED_ROLES = {"approver", "admin"}
+
+
+def _get_effect_class_value(spec: object) -> str | None:
+    """Return effect_class value from a spec or attached descriptor."""
+    effect_class = getattr(spec, "effect_class", None)
+    if effect_class is None:
+        descriptor = getattr(spec, "descriptor", None)
+        if descriptor is not None:
+            effect_class = getattr(descriptor, "effect_class", None)
+    if effect_class is None:
+        return None
+    value = getattr(effect_class, "value", effect_class)
+    return str(value)
+
 
 class CapabilityUnavailableError(Exception):
     """Raised when a capability fails probe_availability check."""
 
     def __init__(self, capability_name: str, reason: str) -> None:
+        """Initialize unavailable capability details."""
         self.capability_name = capability_name
         self.reason = reason
         super().__init__(f"Capability {capability_name!r} unavailable: {reason}")
@@ -104,6 +120,14 @@ class CapabilityInvoker:
 
         spec = self.registry.get(capability_name)
 
+        effect_class = _get_effect_class_value(spec)
+        if effect_class == "dangerous" and role not in _DANGEROUS_ALLOWED_ROLES:
+            raise PermissionError(
+                f"Capability {capability_name!r} has effect_class='dangerous' "
+                "and requires role in ['approver', 'admin']; "
+                f"got role={role!r}"
+            )
+
         # W4-003: pre-check availability before invoking
         probe_fn = getattr(self.registry, "probe_availability", None)
         if callable(probe_fn):
@@ -129,21 +153,38 @@ class CapabilityInvoker:
                     )
                 elapsed_ms = int(time.monotonic() * 1000) - start_ms
                 self.breaker.mark_success(capability_name)
-                if isinstance(response, dict) and "_provenance" not in response:
-                    if response.get("_mcp"):
-                        mode = "mcp"
-                    elif response.get("_external"):
-                        mode = "external"
-                    elif response.get("_profile"):
-                        mode = "profile"
-                    else:
-                        mode = "sample"
-                    response = dict(response)
-                    response["_provenance"] = {
-                        "mode": mode,
-                        "capability_name": capability_name,
-                        "duration_ms": elapsed_ms,
-                    }
+                if isinstance(response, dict):
+                    # W10-004: output budget enforcement — truncate oversized outputs
+                    budget = None
+                    descriptor = getattr(spec, "descriptor", None)
+                    if descriptor is not None:
+                        budget = getattr(descriptor, "output_budget_tokens", None)
+                    if budget is None:
+                        budget = getattr(spec, "output_budget_tokens", 0)
+                    if isinstance(budget, int) and budget > 0:
+                        output_text = response.get("output") or response.get("result") or ""
+                        if isinstance(output_text, str) and len(output_text) > budget * 4:
+                            # approx 4 chars/token; truncate and mark
+                            response = dict(response)
+                            key = "output" if "output" in response else "result"
+                            response[key] = output_text[: budget * 4]
+                            response["_output_truncated"] = True
+                    # Attach provenance annotation
+                    if "_provenance" not in response:
+                        if response.get("_mcp"):
+                            mode = "mcp"
+                        elif response.get("_external"):
+                            mode = "external"
+                        elif response.get("_profile"):
+                            mode = "profile"
+                        else:
+                            mode = "sample"
+                        response = dict(response)
+                        response["_provenance"] = {
+                            "mode": mode,
+                            "capability_name": capability_name,
+                            "duration_ms": elapsed_ms,
+                        }
                 return response
             except Exception as exc:
                 self.breaker.mark_failure(capability_name)
