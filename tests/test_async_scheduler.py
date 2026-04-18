@@ -121,3 +121,23 @@ async def test_dynamic_node_added_during_execution():
     assert "A" in executed
     assert "B" in executed
     assert result.success
+
+
+@pytest.mark.asyncio
+async def test_empty_graph_sets_done_event():
+    facade = MockKernelFacade()
+    await facade.start_run("run-005", "sess", {})
+    scheduler = AsyncTaskScheduler(kernel=facade, max_concurrency=4)
+
+    async def make_handler(node_id):
+        async def _h(action, grant):
+            return {}
+        return _h
+
+    # Empty graph with no nodes
+    g = TrajectoryGraph()
+
+    result = await scheduler.run(g, run_id="run-005", make_handler=make_handler)
+
+    assert result.success
+    assert scheduler._done_event.is_set()

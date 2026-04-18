@@ -119,6 +119,7 @@ class AsyncTaskScheduler:
                 self._ready_queue.put_nowait(node_id)
 
         if self._in_flight == 0:
+            self._done_event.set()
             return ScheduleResult(success=True)
 
         worker_tasks: set[asyncio.Task[None]] = set()
