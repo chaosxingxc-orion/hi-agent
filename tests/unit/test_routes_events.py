@@ -13,12 +13,27 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from hi_agent.server.tenant_context import TenantContext, reset_tenant_context, set_tenant_context
+
+_DEFAULT_CTX = TenantContext(tenant_id="t1", user_id="u1", session_id="s1")
+
+
+@pytest.fixture(autouse=True)
+def inject_tenant_context():
+    """Inject a TenantContext so handlers don't return 401 in unit tests."""
+    token = set_tenant_context(_DEFAULT_CTX)
+    yield
+    reset_tenant_context(token)
+
 
 def _make_sse_request(run_id: str = "run-1", last_event_id: str = "") -> MagicMock:
     req = MagicMock()
     req.path_params = {"run_id": run_id}
     req.headers = {"last-event-id": last_event_id} if last_event_id else {}
-    req.app.state.agent_server = MagicMock()
+    server = MagicMock()
+    # get_run returns a truthy MagicMock so workspace ownership check passes.
+    server.run_manager.get_run.return_value = MagicMock()
+    req.app.state.agent_server = server
     return req
 
 

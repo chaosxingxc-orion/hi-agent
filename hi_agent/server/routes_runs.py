@@ -264,13 +264,18 @@ async def handle_get_feedback(request: Request) -> JSONResponse:
 async def handle_resume_run(request: Request) -> JSONResponse:
     """Resume a run from its checkpoint file."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     import os
     import threading
 
     run_id = request.path_params["run_id"]
+    server: Any = request.app.state.agent_server
+    manager = server.run_manager
+    run = manager.get_run(run_id, workspace=ctx)
+    if run is None:
+        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
 
     try:
         body = await request.json()
@@ -295,8 +300,6 @@ async def handle_resume_run(request: Request) -> JSONResponse:
             {"error": "checkpoint_not_found", "run_id": run_id},
             status_code=404,
         )
-
-    server: Any = request.app.state.agent_server
 
     def _resume_in_background() -> None:
         try:

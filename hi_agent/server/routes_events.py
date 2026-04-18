@@ -13,20 +13,31 @@ import asyncio
 import json
 
 from starlette.requests import Request
-from starlette.responses import StreamingResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
 from hi_agent.server.event_bus import event_bus
 from hi_agent.server.event_store import SQLiteEventStore
+from hi_agent.server.tenant_context import require_tenant_context
 
 
-async def handle_run_events_sse(request: Request) -> StreamingResponse:
+async def handle_run_events_sse(request: Request) -> StreamingResponse | JSONResponse:
     """Stream all events for a run as Server-Sent Events.
 
     Supports ``Last-Event-ID`` reconnection: when the header is present and the
     bus has a durable store attached, missed events are replayed before live
     streaming resumes.
     """
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+
     run_id = request.path_params["run_id"]
+    server = request.app.state.agent_server
+    manager = server.run_manager
+    run = manager.get_run(run_id, workspace=ctx)
+    if run is None:
+        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
 
     # Parse Last-Event-ID header for replay.
     last_event_id_raw = request.headers.get("last-event-id", "")
