@@ -63,6 +63,7 @@ from hi_agent.config.watcher import ConfigFileWatcher
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
+from hi_agent.server.event_store import SQLiteEventStore
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.run_manager import RunManager
@@ -833,10 +834,31 @@ async def handle_resume_run(request: Request) -> JSONResponse:
 
 
 async def handle_run_events_sse(request: Request) -> StreamingResponse:
-    """Stream all events for a run as Server-Sent Events."""
+    """Stream all events for a run as Server-Sent Events.
+
+    Supports ``Last-Event-ID`` reconnection: when the header is present and the
+    bus has a durable store attached, missed events are replayed before live
+    streaming resumes.
+    """
     run_id = request.path_params["run_id"]
 
+    # Parse Last-Event-ID header for replay.
+    last_event_id_raw = request.headers.get("last-event-id", "")
+    try:
+        since_sequence = int(last_event_id_raw) if last_event_id_raw else 0
+    except ValueError:
+        since_sequence = 0
+
+    # Resolve the store attached to the module-level bus (may be None).
+    _store: SQLiteEventStore | None = getattr(event_bus, "_event_store", None)
+
     async def generate():  # type: ignore[return]
+        # Replay missed events before subscribing to the live queue.
+        if since_sequence > 0 and _store is not None:
+            missed = _store.list_since(run_id, since_sequence)
+            for stored in missed:
+                yield f"id: {stored.sequence}\ndata: {stored.payload_json}\n\n"
+
         q = event_bus.subscribe(run_id)
         try:
             while True:

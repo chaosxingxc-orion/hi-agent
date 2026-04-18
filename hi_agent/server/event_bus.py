@@ -17,13 +17,16 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
+import uuid
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 from agent_kernel.kernel.contracts import RuntimeEvent
+from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 
 
 class EventBus:
@@ -38,14 +41,23 @@ class EventBus:
     loop thread.
     """
 
-    def __init__(self, max_queue_size: int = 1000) -> None:
+    def __init__(
+        self,
+        max_queue_size: int = 1000,
+        event_store: SQLiteEventStore | None = None,
+    ) -> None:
         """Initialize EventBus.
 
         Args:
             max_queue_size: Maximum number of events buffered per subscriber.
                 When a subscriber's queue is full, the oldest event is dropped.
+            event_store: Optional durable store.  When provided, every event is
+                persisted *before* being enqueued so that SSE clients can replay
+                missed events via ``Last-Event-ID``.  When ``None`` (default)
+                behaviour is identical to the pre-store implementation.
         """
         self._max_queue_size = max_queue_size
+        self._event_store: SQLiteEventStore | None = event_store
         self._queues: dict[str, list[asyncio.Queue[RuntimeEvent]]] = defaultdict(list)
         self._total_published: int = 0
         self._total_dropped: int = 0
@@ -76,6 +88,31 @@ class EventBus:
         If a subscriber's queue is full, the oldest event is dropped to make
         room for the new one.
         """
+        # --- Durable persistence (before fan-out) ---
+        if self._event_store is not None:
+            payload_str: str
+            if event.payload_json is None:
+                payload_str = ""
+            elif isinstance(event.payload_json, str):
+                payload_str = event.payload_json
+            else:
+                payload_str = json.dumps(event.payload_json)
+            stored = StoredEvent(
+                event_id=event.event_id or str(uuid.uuid4()),
+                run_id=event.run_id,
+                sequence=event.commit_offset or 0,
+                event_type=event.event_type,
+                payload_json=payload_str,
+            )
+            self._event_store.append(stored)
+            logger.debug(
+                "event.published run_id=%s event_type=%s sequence=%d tenant_id=%s",
+                event.run_id,
+                event.event_type,
+                event.commit_offset or 0,
+                "",
+            )
+
         with self._lock:
             queues = list(self._queues.get(event.run_id, []))
 
