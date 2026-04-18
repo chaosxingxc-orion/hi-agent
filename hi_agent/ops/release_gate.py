@@ -1,6 +1,9 @@
 from __future__ import annotations
 import datetime
+import json
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal
 
 try:
@@ -72,6 +75,107 @@ def _add_mcp_gate(gates: list, health) -> None:
     else:
         n = len(results)
         gates.append(GateResult("mcp_health", "pass", f"all {n} server(s) healthy"))
+
+
+@dataclass
+class ProdE2EResult:
+    """Result of a prod-real execution check."""
+
+    passed: bool
+    reason: str = ""
+    details: dict = field(default_factory=dict)
+
+
+def check_prod_e2e_recent(
+    max_age_hours: int = 24,
+    episodic_dir: str = ".hi_agent/episodes",
+) -> ProdE2EResult:
+    """Hard gate: fails if no prod-real execution found in last max_age_hours.
+
+    Scans episodic_dir for episode JSON files and looks for any entry whose
+    ``runtime_mode`` is "prod-real" and whose ``completed_at`` (or ``started_at``)
+    timestamp is within the last ``max_age_hours``.
+
+    Returns ProdE2EResult(passed=True) if a recent prod run exists,
+    ProdE2EResult(passed=False, reason="...") otherwise.
+    """
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=max_age_hours)
+    episodes_path = Path(episodic_dir)
+
+    if not episodes_path.exists():
+        return ProdE2EResult(
+            passed=False,
+            reason=f"episodic store not found: {episodic_dir}",
+            details={"episodic_dir": str(episodes_path.resolve())},
+        )
+
+    episode_files = sorted(episodes_path.glob("*.json"))
+    if not episode_files:
+        return ProdE2EResult(
+            passed=False,
+            reason="no episodes found in episodic store",
+            details={"episodic_dir": str(episodes_path.resolve()), "files": 0},
+        )
+
+    latest_prod_ts: datetime.datetime | None = None
+    prod_run_count = 0
+
+    for ep_file in episode_files:
+        try:
+            data = json.loads(ep_file.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+
+        mode = data.get("runtime_mode") or data.get("execution_provenance", {}).get("runtime_mode", "")
+        if mode != "prod-real":
+            continue
+
+        ts_str = data.get("completed_at") or data.get("started_at") or ""
+        if not ts_str:
+            continue
+
+        try:
+            ts = datetime.datetime.fromisoformat(ts_str.rstrip("Z"))
+        except ValueError:
+            continue
+
+        prod_run_count += 1
+        if latest_prod_ts is None or ts > latest_prod_ts:
+            latest_prod_ts = ts
+
+    if latest_prod_ts is None:
+        return ProdE2EResult(
+            passed=False,
+            reason="no prod-real executions found in episodic store",
+            details={"episodic_dir": str(episodes_path.resolve()), "total_episodes": len(episode_files)},
+        )
+
+    age_hours = (datetime.datetime.utcnow() - latest_prod_ts).total_seconds() / 3600
+    if latest_prod_ts < cutoff:
+        return ProdE2EResult(
+            passed=False,
+            reason=(
+                f"latest prod-real run is {age_hours:.1f}h old "
+                f"(max allowed: {max_age_hours}h)"
+            ),
+            details={
+                "latest_prod_run": latest_prod_ts.isoformat() + "Z",
+                "age_hours": round(age_hours, 2),
+                "max_age_hours": max_age_hours,
+                "prod_run_count": prod_run_count,
+            },
+        )
+
+    return ProdE2EResult(
+        passed=True,
+        reason=f"prod-real run found {age_hours:.1f}h ago (within {max_age_hours}h window)",
+        details={
+            "latest_prod_run": latest_prod_ts.isoformat() + "Z",
+            "age_hours": round(age_hours, 2),
+            "max_age_hours": max_age_hours,
+            "prod_run_count": prod_run_count,
+        },
+    )
 
 
 def build_release_gate_report(builder) -> ReleaseGateReport:
@@ -157,7 +261,12 @@ def build_release_gate_report(builder) -> ReleaseGateReport:
     except Exception as e:
         gates.append(GateResult("mcp_health", "skipped", f"mcp check unavailable: {e}"))
 
-    # Gate 7: prod_e2e_recent — always skipped in W3 (W12: promote to required)
-    gates.append(GateResult("prod_e2e_recent", "skipped", "no nightly yet"))
+    # Gate 7: prod_e2e_recent — hard gate: requires a prod-real execution within 24h
+    episodic_dir = os.environ.get("HI_AGENT_EPISODES_DIR", ".hi_agent/episodes")
+    prod_result = check_prod_e2e_recent(episodic_dir=episodic_dir)
+    if prod_result.passed:
+        gates.append(GateResult("prod_e2e_recent", "pass", prod_result.reason))
+    else:
+        gates.append(GateResult("prod_e2e_recent", "fail", prod_result.reason))
 
     return ReleaseGateReport(gates=gates)
