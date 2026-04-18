@@ -1,10 +1,10 @@
 # hi-agent
 
-## Refresh Notes (2026-04-17)
+## Refresh Notes (2026-04-18)
 
 - Preserved original document structure and sections.
-- Updated validation status to `3059 passed, 5 skipped`.
-- Updated lint command to `python -m ruff check hi_agent tests scripts examples`.
+- Updated validation status to `3430 passed, 0 failures`.
+- Added W1–W12 sprint deliverables: ExecutionProvenance, evolve tri-state policy, RBAC/SOC auth, SystemBuilder sub-builder split, StageOrchestrator extraction, output budget enforcement, audit log, MCP schema drift, ProfileDirectoryManager, prod-real release gate, golden path tests, runbooks.
 
 `hi-agent` 是基于 **TRACE**（Task → Route → Act → Capture → Evolve）框架构建的企业级智能体系统。  
 负责任务理解、路由决策、能力执行、记忆沉淀与持续进化；底层持久化运行时由 `agent-kernel` 承载。
@@ -38,6 +38,7 @@ graph TB
   subgraph Brain["智能体大脑（hi-agent）"]
     subgraph Exec["执行层"]
       REXEC["RunExecutor"]
+      STORCH["StageOrchestrator"]
       STAGE["StageExecutor"]
       LIFE["RunLifecycle"]
     end
@@ -73,6 +74,12 @@ graph TB
     subgraph EVO["进化引擎"]
       EVOLVE["EvolveEngine<br/>Postmortem → SkillExtract → Regression → A/B"]
     end
+
+    subgraph OPS["运维层"]
+      AUDIT["AuditLog<br/>.hi_agent/audit/events.jsonl"]
+      GATE["ReleaseGate<br/>ops/release_gate.py"]
+      PROF["ProfileDirectoryManager<br/>profile/manager.py"]
+    end
   end
 
   subgraph Kernel["agent-kernel（durable runtime）"]
@@ -84,7 +91,8 @@ graph TB
   SRV --> RLM
   RLM --> REXEC
 
-  REXEC --> STAGE
+  REXEC --> STORCH
+  STORCH --> STAGE
   REXEC --> LIFE
   STAGE --> MW
   MW --> PERC
@@ -109,6 +117,7 @@ graph TB
   EVOLVE --> SKILL
 
   REXEC --> KR
+  REXEC --> AUDIT
 ```
 
 ---
@@ -135,20 +144,25 @@ graph TB
 ```text
 hi_agent/
   artifacts/           # ArtifactRegistry、OutputToArtifactAdapter（类型化产出物管理）
-  capability/          # 能力注册、调用（同步/异步）、熔断器
-  config/              # TraceConfig (95+ 参数) + SystemBuilder 装配
+  auth/                # RBAC、JWT、SOC Guard；AuthorizationContext；operation_policy（mutation 路由守卫）
+  capability/          # 能力注册、调用（同步/异步）、熔断器；output_budget_tokens 截断；dangerous RBAC
+  config/              # TraceConfig (95+ 参数) + SystemBuilder；CognitionBuilder；RuntimeBuilder；ProfileAwareConfigStack
   context/             # ContextManager、RunContext、RunContextManager
-  contracts/           # 核心契约与数据模型（Task/Run/Stage/Branch）；TaskContract 13 字段含消费级别标注
+  contracts/           # 核心契约（Task/Run/Stage/Branch）；ExecutionProvenance（结构化执行来源）
   evaluation/          # EvaluatorRuntime（运行时评估注入）
   evolve/              # Postmortem、SkillExtractor、RegressionDetector、ChampionChallenger
+  execution/           # StageOrchestrator（线性/图/恢复遍历策略）；ActionDispatcher；GateCoordinator；RunFinalizer
   failures/            # FailureCode 分类、异常、采集与恢复映射
   harness/             # HarnessExecutor、GovernanceEngine、PermissionGate、EvidenceStore
   knowledge/           # KnowledgeManager、Wiki、Graph、RetrievalEngine、TF-IDF/BM25/Embedding
-  llm/                 # TierAwareLLMGateway、AnthropicLLMGateway、HttpLLMGateway、FailoverChain、PromptCacheInjector、ModelRegistry；完整流式/思考/多模态支持
-  mcp/                 # MCPServer、MCPHealth、MCPBinding；transport.py（可选传输层）
+  llm/                 # TierAwareLLMGateway、AnthropicLLMGateway、HttpLLMGateway、FailoverChain、PromptCacheInjector、ModelRegistry；流式/思考/多模态
+  management/          # ops 运维命令（config_history、ops_timeline、ops_snapshot、runtime_config）
+  mcp/                 # MCPServer、MCPHealth、MCPBinding；StdioMCPTransport（重启退避）；SchemaDriftRegistry（schema 漂移告警）
   memory/              # L0 Raw → L1 STM → L2 MidTerm → L3 LongTermGraph + Compressor + Retriever
   middleware/          # MiddlewareOrchestrator + 4 Middlewares (Perception/Control/Execution/Evaluation)
-  observability/       # MetricsCollector、NotificationService、TrajectoryExporter
+  observability/       # MetricsCollector、NotificationService、TrajectoryExporter；audit.py（emit → .hi_agent/audit/events.jsonl）；Tracer
+  ops/                 # diagnostics、doctor_report；ReleaseGateReport（7 门禁含 prod_e2e_recent）
+  profile/             # ProfileDirectoryManager（HI_AGENT_HOME 优先链：explicit > env > ~/.hi_agent）
   profiles/            # ProfileRegistry（运行时能力 profile 管理）
   recovery/            # 补偿与恢复编排
   replay/              # 确定性回放引擎
@@ -156,8 +170,7 @@ hi_agent/
   runtime/             # ProfileRuntimeResolver（profile → 运行时能力绑定）
   runtime_adapter/     # RuntimeAdapter Protocol、KernelFacadeAdapter、AsyncKernelFacadeAdapter、ResilientKernelAdapter
   samples/             # TRACE 示例管道（register_trace_capabilities；S1→S5 stage 配置）
-  security/            # Auth、RBAC、JWT、SOC Guard
-  server/              # HTTP Server（20+ 端点）、RunManager、EventBus、DreamScheduler
+  server/              # HTTP Server（20+ 端点）、RunManager、EventBus、DreamScheduler；runtime_mode_resolver（单一真相来源）
   session/             # RunSession、CostCalculator
   skill/               # SkillRegistry、SkillLoader、SkillMatcher、SkillEvolver、SkillVersionManager
   state_machine/       # StateMachine + 6 TRACE 状态定义
@@ -172,8 +185,13 @@ hi_agent/
   runner_telemetry.py  # 事件与指标记录
 config/                # llm_config.json（本地，gitignore）+ llm_config.example.json（模板）
 scripts/               # verify_llm.py — 流式/思考/多模态冒烟验证
-tests/                 # 3059 个测试，全部通过（2026-04-17 回归）
-docs/                  # 架构、规格、研究文档
+tests/                 # 3430 个测试，全部通过（2026-04-18 回归）
+  fixtures/            # fake_llm_http_server、fake_kernel_http_server、fake_mcp_stdio_server
+  golden/              # dev_smoke 黄金路径 3 层测试
+docs/                  # 架构、规格、研究文档、sprint 跟踪、runbook
+  runbook/             # deploy.md、verify.md、rollback.md、incident-mcp-crash.md、incident-evolve-unexpected-mutation.md
+  sprints/             # W1–W12 sprint 文档与 retro
+  migration/           # contract-changes-2026-04-17.md（执行来源 + manifest + RBAC 变更通知）
 ```
 
 ---
@@ -187,6 +205,9 @@ python -m pip install -e ".[dev]"
 
 # 本地执行（不依赖 server）
 python -m hi_agent run --goal "Analyze quarterly revenue data" --local
+
+# 指定 HI_AGENT_HOME（profile / episode / checkpoint 目录）
+python -m hi_agent run --goal "Analyze data" --local --home /data/hi_agent
 
 # 携带完整 TaskContract 字段本地执行
 python -m hi_agent run --goal "Analyze data" --local \
@@ -220,6 +241,9 @@ python -m hi_agent --api-port 8080 status --run-id <run_id> --json
 
 # 健康检查
 python -m hi_agent --api-port 8080 health --json
+
+# 进化模式控制（tri-state: auto / on / off）
+HI_AGENT_EVOLVE_MODE=on python -m hi_agent run --goal "..."
 ```
 
 > 注：API 请求默认超时 15 秒，可通过 `HI_AGENT_API_TIMEOUT_SECONDS` 覆盖。
@@ -250,13 +274,14 @@ facade.stop()
 | `/runs/{id}/events` | GET | SSE 实时事件流 |
 | `/runs/{id}/resume` | POST | 从 checkpoint 恢复 |
 | `/runs/{id}/resolve-escalation` | POST | 恢复 human_escalation 挂起的 run |
-| `/ready` | GET | 平台就绪检查（200=ready，503=not ready） |
-| `/manifest` | GET | 系统能力清单（含 `contract_field_status`：ACTIVE/PASSTHROUGH/QUEUE_ONLY） |
+| `/ready` | GET | 平台就绪检查（200=ready，503=not ready；含 `evolve_source`） |
+| `/manifest` | GET | 系统能力清单（`runtime_mode`、`evolve_policy`、`provenance_contract_version`、`contract_field_status`） |
 | `/knowledge/ingest` | POST | 文本摄取 |
 | `/knowledge/query` | GET | 知识查询 |
 | `/memory/dream` | POST | 触发 Dream 整合 |
-| `/skills/evolve` | POST | 触发技能进化 |
-| `/skills/{id}/promote` | POST | Challenger → Champion |
+| `/memory/consolidate` | POST | 触发长期图整合（需 `approver` 角色） |
+| `/skills/evolve` | POST | 触发技能进化（需 `approver` 角色） |
+| `/skills/{id}/promote` | POST | Challenger → Champion（需 `approver` 角色 + SOC 分离） |
 | `/context/health` | GET | 上下文预算状态 |
 | `/mcp/tools/list` | POST | MCP 工具枚举 |
 | `/metrics` | GET | Prometheus 格式指标 |
@@ -271,21 +296,101 @@ facade.stop()
 - **流式输出**：`stream()` 通过 httpx 返回 `Iterator[LLMStreamChunk]`，增量文本（`delta`）与思考过程（`thinking_delta`）分流传出。
 - **Extended Thinking**：`LLMRequest(thinking_budget=N)` 开启单请求思考；`llm_config.json` 中 `features.thinking_budget` 设置 gateway 级默认值（`null` 关闭）。
 - **Multimodal**：`messages[].content` 接受 content block 列表，支持图文混合输入。
-- **第三方代理**：`config/llm_config.json` 通过 `api_format`（`"anthropic"` / `"openai"`）+ `base_url` 接入 DashScope 等 Anthropic 协议兼容端点，无需修改代码。`SystemBuilder.build_llm_gateway()` 在 env var 未命中时自动回落到配置文件。
+- **第三方代理**：`config/llm_config.json` 通过 `api_format`（`"anthropic"` / `"openai"`）+ `base_url` 接入 DashScope 等 Anthropic 协议兼容端点，无需修改代码。
+
+### SystemBuilder 三层分拆（W6 + W10）
+`SystemBuilder` 职责拆分为三个专职 Builder，按依赖方向单向引用：
+
+| Builder | 职责 |
+|---------|------|
+| `CognitionBuilder` | LLM gateway 选择（Anthropic/OpenAI/llm_config.json）、failover chain、prompt cache、budget tracker、cost optimizer、regression detector、evolve engine、reflection orchestrator |
+| `RuntimeBuilder` | kernel adapter（HTTP/LocalFSM）、metrics collector、middleware orchestrator、restart policy engine |
+| `SystemBuilder` | 装配协调：调用上述两个 Builder，装配 memory/knowledge/skill/harness/server；消除 3 处后置构造突变 |
+
+`RunExecutor` 构造函数现在在 build 时直接接收 `middleware_orchestrator`、`skill_evolver`、`skill_evolve_interval`、`tracer` 四个可选参数，彻底消除后置 `setattr` 突变。
+
+### StageOrchestrator（W10-001）
+`hi_agent/execution/stage_orchestrator.py` 从 `RunExecutor` 提取遍历策略，通过 `StageOrchestratorContext` dataclass 注入依赖：
+- `run_linear()` — 顺序线性遍历（S1→S5）
+- `run_graph()` — 动态 DAG 遍历含回溯
+- `run_resume()` — 从 checkpoint 恢复续跑
+
+### 执行来源（ExecutionProvenance，W1-D3）
+每个 `RunResult` 携带 `execution_provenance: ExecutionProvenance`，包含：
+
+| 字段 | 说明 |
+|------|------|
+| `contract_version` | 固定 `"2026-04-17"`，下游用于 schema 版本检查 |
+| `runtime_mode` | `dev-smoke` / `local-real` / `prod-real`（由 `runtime_mode_resolver.py` 统一计算） |
+| `llm_mode` | `heuristic` / `real` / `disabled` / `unknown` |
+| `fallback_used` | 是否使用了启发式兜底 |
+| `fallback_reasons` | 去重排序的兜底原因列表 |
+| `evidence` | `heuristic_stage_count` 等可观测指标 |
+
+`/manifest` 同步返回 `runtime_mode`、`evolve_policy`、`provenance_contract_version`，与 `/ready` 术语对齐。
+
+### 进化三态策略（evolve_mode，W1-D2）
+`TraceConfig.evolve_mode: Literal["auto", "on", "off"]`（取代旧 `evolve_enabled: bool`）：
+- `auto`：`dev-smoke` → 开启；`local-real` / `prod-real` → 关闭
+- `on`：强制开启，在 prod 环境下额外写入 `audit.evolve.explicit_on` 审计事件
+- `off`：强制关闭
+- 旧 `evolve_enabled=True/False` 保留弃用路径，映射到 `on/off` + `DeprecationWarning`
+- 环境变量 `HI_AGENT_EVOLVE_MODE` 或 CLI `--enable-evolve` / `--disable-evolve` 可覆盖
+
+### RBAC/SOC 操作驱动授权（W1-D5）
+mutation 路由受 `@require_operation(op_name)` 装饰器保护，通过 `AuthorizationContext` 从请求 header 中解析角色：
+
+| 操作 | 所需角色 | SOC 分离 |
+|------|---------|----------|
+| `skill.promote` | `approver` / `admin` | 是（submitter ≠ approver） |
+| `skill.evolve` | `approver` / `admin` | 是 |
+| `memory.consolidate` | `approver` / `admin` | 否 |
+
+dev-smoke 模式下自动绕过（写入 `audit.auth.bypass`）；prod-real 模式下强制执行，违反返回 `403 + reason`。
+
+### 能力输出预算与危险 RBAC（W10-003 / W10-004）
+- `CapabilityDescriptor.output_budget_tokens`：超出 budget × 4 字符时截断 response，写入 `_output_truncated: true`
+- `effect_class = "dangerous"`：调用方必须持 `approver` 或 `admin` 角色，否则 `PermissionError`
+
+### 审计日志（W1-D2 + W10-005）
+`hi_agent/observability/audit.py` 提供 `emit(event_name, payload)` 函数，追加写入 `.hi_agent/audit/events.jsonl`（每行一个 JSON 事件，含 `ts`、`event`、`payload`）。内置事件：`audit.evolve.explicit_on`、`audit.auth.bypass`、`audit.auth.deny`、`audit.capability.*`。
+
+### MCP 传输与 schema 漂移（W10-005）
+- `StdioMCPTransport`：支持指数退避自动重启（最多 5 次，基础延迟 1s），隔离进程崩溃影响
+- `MCPSchemaRegistry`：在工具列表响应与注册 schema 不一致时发出 `WARNING: schema drift`，不阻断调用
+
+### ProfileDirectoryManager（W11-001）
+`hi_agent/profile/manager.py` 统一管理 `HI_AGENT_HOME` 目录优先链（explicit arg > `HI_AGENT_HOME` env > `~/.hi_agent`），提供：
+- `profile_dir(profile_id)`、`episodic_dir()`、`checkpoint_dir()`、`audit_dir()`
+
+`ProfileAwareConfigStack`（`config/stack.py`）实现 5 层配置合并：defaults → 文件 → profile → env → run_patch。
+
+### 发布门禁（W12-002）
+`hi_agent/ops/release_gate.py` 提供 `build_release_gate_report(builder)` 返回 `ReleaseGateReport`，包含 7 个门禁：
+
+| 门禁 | 说明 |
+|------|------|
+| `readiness` | 平台就绪状态 |
+| `doctor` | 无 blocking issues |
+| `config_validation` | config 正常加载 |
+| `current_runtime_mode` | info：当前运行模式 |
+| `known_prerequisites` | capability registry 非空 |
+| `mcp_health` | MCP server 全部健康（无配置时 skipped） |
+| `prod_e2e_recent` | 24h 内存在 prod-real 运行（仅 `HI_AGENT_ENV=prod` 时生效；非 prod 自动 skipped） |
 
 ### 中间件管道
-`Perception → Control → Execution → Evaluation` 四中间件 + 5 阶段生命周期钩子（`pre_create → pre_execute → execute → post_execute → pre_destroy`）。`MiddlewareOrchestrator` 所有结构变更（`add/replace/remove_middleware`、`add/remove_hook`）均持锁执行；`run()` 入口以快照隔离，消除并发执行与结构修改之间的竞态。
+`Perception → Control → Execution → Evaluation` 四中间件 + 5 阶段生命周期钩子。`MiddlewareOrchestrator` 所有结构变更均持锁执行；`run()` 入口以快照隔离，消除并发竞态。
 
 ### 认知三系统
-- **记忆**：L0 原始事件 → L1 短期（会话压缩）→ L2 中期（Dream 整合）→ L3 长期（语义图谱）。`MemoryCompressor` 压缩上限（`max_findings`/`max_decisions`/`max_entities`/`max_tokens`）可通过 `TraceConfig` 独立配置。
-- **知识**：Wiki（`[[wikilinks]]` 风格）+ 知识图谱 + 四层检索（Grep → BM25 → Graph → Embedding）。`WikiStore.load()` 对单页格式损坏具备容错能力，跳过损坏文件并记录警告，不影响整体加载。
+- **记忆**：L0 原始事件 → L1 短期（会话压缩）→ L2 中期（Dream 整合）→ L3 长期（语义图谱）。
+- **知识**：Wiki（`[[wikilinks]]` 风格）+ 知识图谱 + 四层检索（Grep → BM25 → Graph → Embedding）。
 - **技能**：SKILL.md 定义 + `SkillLoader` token 预算注入 + `ChampionChallenger` A/B 版本管理 + `SkillEvolver` textual gradient 优化
 
 ### 持续进化
 每次 run 完成后：`PostmortemAnalyzer` → `SkillExtractor`（提取候选技能）→ `RegressionDetector`（检测退化）→ `ChampionChallenger`（A/B 对比）→ 自动注册/晋升技能。
 
 ### 治理与安全
-`HarnessExecutor` 包裹所有能力调用，`GovernanceEngine` 按 `EffectClass + SideEffectClass` 双维度分级，`PermissionGate` 细粒度工具级授权，`EvidenceStore` 全量审计记录。Human Gate 支持四类审批（合同修正 / 路由指导 / 产物审阅 / 最终批准）；当恢复决策为 `human_escalation` 时 run 进入 `waiting_external`，通过 `resolve_escalation()` 发送 `recovery_succeeded` 信号恢复执行。
+`HarnessExecutor` 包裹所有能力调用，`GovernanceEngine` 按 `EffectClass + SideEffectClass` 双维度分级，`PermissionGate` 细粒度工具级授权，`EvidenceStore` 全量审计记录。Human Gate 支持四类审批；mutation 路由受 `@require_operation` 保护。
 
 ---
 
@@ -293,7 +398,7 @@ facade.stop()
 
 ```bash
 python -m ruff check hi_agent tests scripts examples       # lint
-python -m pytest -q           # 3059 passed, 5 skipped
+python -m pytest -q           # 3430 passed, 0 failures
 
 # LLM 配置验证（填写 config/llm_config.json 后运行）
 python scripts/verify_llm.py                            # 流式测试
@@ -306,8 +411,17 @@ curl -X POST http://localhost:8080/memory/dream
 # 查询知识
 curl "http://localhost:8080/knowledge/query?q=revenue+trends&limit=5"
 
-# 触发技能进化
-curl -X POST http://localhost:8080/skills/evolve
+# 触发技能进化（需 approver 角色）
+curl -X POST http://localhost:8080/skills/evolve \
+  -H "X-Role: approver" -H "X-Submitter: alice" -H "X-Approver: bob"
+
+# 查看发布门禁状态
+curl http://localhost:8080/ready | jq '{runtime_mode, evolve_source, release_gate}'
+
+# 查看执行来源
+curl -s -X POST http://localhost:8080/runs \
+  -H 'Content-Type: application/json' \
+  -d '{"goal":"smoke"}' | jq '.execution_provenance'
 ```
 
 ---
@@ -327,6 +441,9 @@ python -m pip install -e ".[dev]"
 ## 参考文档
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — 完整架构设计（含时序图、数据流图、接口关系图）
+- [docs/sprints/](./docs/sprints/) — W1–W12 sprint 文档与 retro
+- [docs/runbook/](./docs/runbook/) — deploy、verify、rollback、incident runbook
+- [docs/migration/contract-changes-2026-04-17.md](./docs/migration/contract-changes-2026-04-17.md) — 执行来源 + manifest + RBAC 变更通知
 - [docs/module-evolution-analysis.md](./docs/module-evolution-analysis.md)
 - [docs/agent-kernel-evolution-proposal.md](./docs/agent-kernel-evolution-proposal.md)
 - [docs/specs/](./docs/specs/) — 各子系统规格文档

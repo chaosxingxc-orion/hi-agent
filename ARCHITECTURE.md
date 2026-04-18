@@ -1,10 +1,11 @@
 # ARCHITECTURE: hi-agent
 
-## Refresh Notes (2026-04-17)
+## Refresh Notes (2026-04-18)
 
 - Preserved original architecture content and section ordering.
-- Updated quality-gate verification snapshot to `3059 passed, 5 skipped`.
+- Updated quality-gate verification snapshot to `3430 passed, 0 failures`.
 - Updated lint command to `python -m ruff check hi_agent tests scripts examples`.
+- Added W1–W12 sprint deliverables: §13 ExecutionProvenance, §14 Evolve Tri-State Policy, §15 RBAC/SOC Auth, §16 SystemBuilder Sub-Builder Split, §17 StageOrchestrator Extraction, §18 Capability Governance, §19 Audit & Observability, §20 MCP Schema Drift & Restart Backoff, §21 ProfileDirectoryManager & Config Stack, §22 Release Gate & Runbooks.
 
 本文档描述 `hi-agent` 当前代码实现（as-is），涵盖分层架构视图、接口关系、使用关系、时序图与数据流图。  
 所有图表均基于代码实际实现，与工程实现严格对齐。
@@ -42,9 +43,12 @@ graph TB
 
   subgraph EXEC["Execution Layer"]
     REXEC["RunExecutor<br/>runner.py"]
+    STORCH["StageOrchestrator<br/>execution/stage_orchestrator.py"]
     STAGE["StageExecutor<br/>runner_stage.py"]
     LIFE["RunLifecycle<br/>runner_lifecycle.py"]
     TELE["RunTelemetry<br/>runner_telemetry.py"]
+    PROV["ExecutionProvenance<br/>contracts/execution_provenance.py"]
+    RMRES["RuntimeModeResolver<br/>server/runtime_mode_resolver.py"]
   end
 
   subgraph MW["Middleware Pipeline"]
@@ -179,10 +183,22 @@ graph TB
     KR["KernelRuntime<br/>TurnEngine / EventLog / IdempotencyStore"]
   end
 
-  subgraph SEC["Security"]
+  subgraph SEC["Security & Auth"]
     AUTH["AuthMiddleware<br/>auth/"]
-    RBAC["RBAC<br/>auth/rbac.py"]
-    JWT["JWTService<br/>auth/jwt.py"]
+    RBAC["RBAC<br/>auth/rbac_enforcer.py"]
+    JWT["JWTService<br/>auth/jwt_middleware.py"]
+    OPOL["OperationPolicy<br/>auth/operation_policy.py"]
+    ACTX["AuthorizationContext<br/>auth/authorization_context.py"]
+    SOC["SOCGuard<br/>auth/soc_guard.py"]
+  end
+
+  subgraph OPS["Ops & Observability"]
+    AUDIT["AuditLog<br/>observability/audit.py"]
+    RGATE["ReleaseGateReport<br/>ops/release_gate.py"]
+    PROFMGR["ProfileDirectoryManager<br/>profile/manager.py"]
+    CFGSTACK["ProfileAwareConfigStack<br/>config/stack.py"]
+    TRACER["Tracer<br/>observability/tracing.py"]
+    SCHMREG["MCPSchemaRegistry<br/>mcp/schema_registry.py"]
   end
 
   %% Top-down connections
@@ -193,7 +209,8 @@ graph TB
   SRV --> AUTH
   RLM --> REXEC
 
-  REXEC --> STAGE
+  REXEC --> STORCH
+  STORCH --> STAGE
   REXEC --> LIFE
   REXEC --> TELE
   REXEC --> RCTX
@@ -201,6 +218,17 @@ graph TB
   REXEC --> MWORCH
   REXEC --> TSCH
   REXEC --> KADP
+  REXEC --> PROV
+  RMRES --> PROV
+  REXEC --> AUDIT
+
+  OPOL --> ACTX
+  OPOL --> SOC
+  OPOL --> AUDIT
+  SRV --> OPOL
+
+  PROFMGR --> CFGSTACK
+  CFGSTACK --> RGATE
 
   STAGE --> HROUT
   STAGE --> HEXEC
@@ -956,22 +984,32 @@ Top-level symbols exported from `hi_agent` for external callers:
 ```mermaid
 flowchart LR
   CFG["TraceConfig<br/>95+ 参数<br/>JSON/env/code"]
+  STACK["ProfileAwareConfigStack<br/>config/stack.py<br/>5 层合并"]
+  PROFMGR["ProfileDirectoryManager<br/>profile/manager.py<br/>HI_AGENT_HOME"]
 
   subgraph SB["SystemBuilder<br/>config/builder.py"]
-    KRN["build_kernel()<br/>→ RuntimeAdapter"]
-    LLM["build_llm_gateway()<br/>→ TierAwareLLMGateway"]
+    subgraph CB["CognitionBuilder<br/>config/cognition_builder.py"]
+      LLM["build_llm_gateway()<br/>→ TierAwareLLMGateway"]
+      EVO["build_evolve_engine()<br/>→ EvolveEngine"]
+      REFL["build_reflection_orchestrator()"]
+    end
+    subgraph RB["RuntimeBuilder<br/>config/runtime_builder.py"]
+      KRN["build_kernel()<br/>→ RuntimeAdapter"]
+      MW["build_middleware_orchestrator()<br/>→ MiddlewareOrchestrator"]
+      MET["build_metrics_collector()"]
+    end
     MEM["build_memory_manager()<br/>→ 3-tier stack"]
     KNOW["build_knowledge_manager()<br/>→ KnowledgeManager"]
     SKL["build_skill_registry()<br/>→ SkillRegistry"]
-    EVO["build_evolve_engine()<br/>→ EvolveEngine"]
     HARN["build_harness_executor()<br/>→ HarnessExecutor"]
-    MW["build_middleware_orchestrator()<br/>→ MiddlewareOrchestrator"]
     SCHED["build_task_scheduler()<br/>→ TaskScheduler"]
     SRV["build_http_server()<br/>→ AgentServer"]
   end
 
+  STACK --> CFG
+  PROFMGR --> STACK
   CFG --> SB
-  SB --> REXEC["RunExecutor<br/>(assembled)"]
+  SB --> REXEC["RunExecutor<br/>(assembled, no post-construction mutation)"]
 ```
 
 **TraceConfig 核心参数**：
@@ -1115,6 +1153,30 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 
 ---
 
+## 12.6 2026-04-18 W1–W12 sprint 归档（全部已合并到 main）
+
+| Sprint | 票号 | 内容 |
+|--------|------|------|
+| W1 | D1-001 | 运行时基线冻结文档 |
+| W1 | D2-001 | evolve_mode 三态策略（auto/on/off）+ audit.evolve 事件 |
+| W1 | D3-001 | RunResult.execution_provenance + runtime_mode_resolver |
+| W1 | D3-002 | 基线差异验证 |
+| W1 | D4-001 | /manifest 真实 runtime_mode + evolve_policy + provenance_contract_version |
+| W1 | D5-001 | @require_operation RBAC/SOC 装饰器 + AuthorizationContext |
+| W10 | W10-001 | StageOrchestrator 从 RunExecutor 提取（linear/graph/resume） |
+| W10 | W10-002 | CognitionBuilder + RuntimeBuilder 分拆；消除 3 处后置构造突变 |
+| W10 | W10-003 | dangerous capability RBAC 双重守卫 |
+| W10 | W10-004 | output_budget_tokens 截断强制 |
+| W10 | W10-005 | 审计事件类型 + MCP 重启退避 + schema 漂移注册 |
+| W11 | W11-001 | HI_AGENT_HOME + ProfileDirectoryManager + ProfileAwareConfigStack |
+| W11 | W11-002 | fake server fixtures（LLM/kernel/MCP 测试桩） |
+| W12 | W12-001 | dev-smoke 黄金路径 3 层测试 |
+| W12 | W12-002 | prod-real 发布门禁（7 门禁，含 prod_e2e_recent） |
+| W12 | W12-003 | Runbook 文档（deploy/verify/rollback/incident） |
+| W12 | W12-004 | W12 sprint retro + M2 milestone 声明 |
+
+---
+
 ## 12.5 2026-04-17 LLM 能力扩展（全部已合并）
 
 | 能力 | 实现内容 |
@@ -1131,10 +1193,282 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 
 ```bash
 python -m ruff check hi_agent tests scripts examples
-python -m pytest -q        # 3059 passed, 5 skipped
+python -m pytest -q        # 3430 passed, 0 failures
 
 # LLM 端到端冒烟（streaming / thinking / multimodal）
 python scripts/verify_llm.py [--thinking] [--multimodal <image_path>]
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-17，3rd pass）。
+当前文档对应代码形态已通过全量测试回归（2026-04-18，W12 pass）。
+
+---
+
+## 14. ExecutionProvenance — 结构化执行来源（W1-D3）
+
+每次 `_finalize_run` 时由 `ExecutionProvenance.build_from_stages()` 填充并挂载到 `RunResult.execution_provenance`。
+
+```mermaid
+flowchart LR
+  STAGES["stage_summaries<br/>list[dict]"]
+  CTX["runtime_context<br/>{runtime_mode, mcp_transport}"]
+  RESOLVER["resolve_runtime_mode()<br/>server/runtime_mode_resolver.py"]
+  PROV["ExecutionProvenance<br/>contracts/execution_provenance.py"]
+  RESULT["RunResult.execution_provenance"]
+
+  STAGES --> PROV
+  CTX --> PROV
+  RESOLVER --> CTX
+  PROV --> RESULT
+```
+
+**单一真相来源原则**：`runtime_mode` 仅由 `resolve_runtime_mode(env, readiness)` 计算，`/manifest`、`/ready`、`RunResult` 三处均引用此函数，禁止各自独立计算。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `contract_version` | `str` | `"2026-04-17"` — 下游 schema 版本检查锚点 |
+| `runtime_mode` | `Literal["dev-smoke","local-real","prod-real"]` | 由 resolver 统一计算 |
+| `llm_mode` | `Literal["heuristic","real","disabled","unknown"]` | W2 填充 |
+| `kernel_mode` | `Literal["local-fsm","http","unknown"]` | W2 填充 |
+| `capability_mode` | `Literal["sample","profile","mcp","external","mixed","unknown"]` | W2 填充 |
+| `mcp_transport` | `Literal["not_wired","stdio","sse","http"]` | 来自 mcp_transport_status |
+| `fallback_used` | `bool` | 是否使用了启发式兜底 |
+| `fallback_reasons` | `list[str]` | 去重排序的兜底原因 |
+| `evidence` | `dict[str, int]` | `heuristic_stage_count` 等 |
+
+---
+
+## 15. Evolve 三态策略（W1-D2）
+
+`TraceConfig.evolve_mode: Literal["auto","on","off"]`，旧 `evolve_enabled: bool` 保留弃用路径。
+
+```mermaid
+flowchart LR
+  MODE["evolve_mode<br/>auto / on / off"]
+  RM["runtime_mode<br/>dev-smoke / local-real / prod-real"]
+  RESOLVER["resolve_evolve_effective()<br/>config/evolve_policy.py"]
+  RESULT["(effective: bool, source: str)"]
+  AUDIT["audit.evolve.explicit_on<br/>仅 on + prod-real"]
+
+  MODE --> RESOLVER
+  RM --> RESOLVER
+  RESOLVER --> RESULT
+  RESOLVER --> AUDIT
+```
+
+| mode | runtime_mode | effective | source |
+|------|-------------|-----------|--------|
+| `on` | any | `True` | `explicit_on` |
+| `off` | any | `False` | `explicit_off` |
+| `auto` | `dev-smoke` | `True` | `auto_dev_on` |
+| `auto` | `local-real` / `prod-real` | `False` | `auto_prod_off` |
+
+`/manifest` 返回 `evolve_policy: {mode, effective, source}`；`/ready` 返回 `evolve_source`。
+
+---
+
+## 16. RBAC/SOC 操作驱动授权（W1-D5）
+
+```mermaid
+flowchart TD
+  REQ["HTTP Request"]
+  CTX["AuthorizationContext.from_request()<br/>auth/authorization_context.py<br/>role, submitter, approver, runtime_mode"]
+  DEC["@require_operation(op_name)<br/>auth/operation_policy.py"]
+  BYPASS["dev_bypass<br/>→ audit.auth.bypass"]
+  ROLE["role check<br/>required_roles"]
+  SOC["SOC separation<br/>submitter ≠ approver"]
+  ALLOW["200 OK + audit event"]
+  DENY["403 Forbidden<br/>{error, operation, required_roles, reason}"]
+
+  REQ --> CTX
+  CTX --> DEC
+  DEC -->|non-prod| BYPASS --> ALLOW
+  DEC -->|prod| ROLE
+  ROLE -->|pass| SOC
+  ROLE -->|fail| DENY
+  SOC -->|pass| ALLOW
+  SOC -->|fail| DENY
+```
+
+| 操作 | 所需角色 | SOC 分离 | audit_event |
+|------|---------|----------|-------------|
+| `skill.promote` | `approver` / `admin` | ✓ | `skill.promote` |
+| `skill.evolve` | `approver` / `admin` | ✓ | `skill.evolve` |
+| `memory.consolidate` | `approver` / `admin` | ✗ | `memory.consolidate` |
+
+---
+
+## 17. SystemBuilder 子 Builder 分拆（W6 + W10-002）
+
+```mermaid
+classDiagram
+  class SystemBuilder {
+    -_cognition_builder: CognitionBuilder
+    -_runtime_builder: RuntimeBuilder
+    +build_executor(contract) RunExecutor
+    +_get_cognition_builder() CognitionBuilder
+    +_get_runtime_builder() RuntimeBuilder
+  }
+  class CognitionBuilder {
+    -config: TraceConfig
+    -_lock: RLock
+    +build_llm_gateway() TierAwareLLMGateway
+    +build_evolve_engine() EvolveEngine
+    +build_reflection_orchestrator() ReflectionOrchestrator
+    -_build_llm_budget_tracker()
+    -_build_regression_detector()
+    -_wire_cost_optimizer()
+  }
+  class RuntimeBuilder {
+    -config: TraceConfig
+    -_lock: RLock
+    -parent: SystemBuilder
+    +build_kernel() RuntimeAdapter
+    +build_metrics_collector() MetricsCollector
+    +build_middleware_orchestrator() MiddlewareOrchestrator
+    +build_restart_policy_engine() RestartPolicyEngine
+  }
+  SystemBuilder --> CognitionBuilder : lazy getter
+  SystemBuilder --> RuntimeBuilder : lazy getter
+  RuntimeBuilder --> SystemBuilder : parent ref (no circular import)
+```
+
+**后置构造突变消除**：`RunExecutor.__init__` 新增 4 个可选参数（`middleware_orchestrator`, `skill_evolver`, `skill_evolve_interval`, `tracer`），builder 在 `_build_executor_impl` 阶段预计算后传入，移除了原有的 3 处 `setattr` 突变。
+
+---
+
+## 18. StageOrchestrator 提取（W10-001）
+
+```mermaid
+flowchart LR
+  REXEC["RunExecutor.execute()"]
+  CTX["StageOrchestratorContext\n{stage_graph, kernel, lifecycle, telemetry, ...}"]
+  ORCH["StageOrchestrator\nexecution/stage_orchestrator.py"]
+  LINEAR["run_linear()\nS1→S5 顺序遍历"]
+  GRAPH["run_graph()\nDAG 含回溯"]
+  RESUME["run_resume(checkpoint)\n从断点续跑"]
+
+  REXEC --> CTX
+  CTX --> ORCH
+  ORCH --> LINEAR
+  ORCH --> GRAPH
+  ORCH --> RESUME
+```
+
+`StageOrchestratorContext` 是只读 dataclass，携带 `stage_graph`、`kernel`、`lifecycle`、`telemetry`、`route_engine` 等所有遍历依赖，消除了 `RunExecutor` 的内部字段访问耦合。
+
+---
+
+## 19. 能力治理扩展（W10-003 / W10-004）
+
+### 危险能力 RBAC（W10-003）
+
+`CapabilityInvoker.invoke()` 在调用前检查 `effect_class = "dangerous"`：调用方角色必须在 `{"approver", "admin"}` 内，否则抛 `PermissionError`，与 policy-level RBAC 叠加形成双重守卫。
+
+### 输出预算截断（W10-004）
+
+`CapabilityDescriptor.output_budget_tokens`（int > 0）设置输出 token 上限。`CapabilityInvoker` 在 `mark_success` 后：
+1. 估算输出字符数（≈ budget × 4）
+2. 超出则截断 `response["output"]` 或 `response["result"]`
+3. 写入 `response["_output_truncated"] = True`
+
+---
+
+## 20. 审计日志与 MCP 可靠性（W10-005）
+
+### 审计日志
+
+```python
+# hi_agent/observability/audit.py
+emit(event_name: str, payload: dict) -> None
+# 追加写入 ${audit_dir}/events.jsonl，每行：
+# {"ts": "...", "event": "audit.auth.bypass", "payload": {...}}
+```
+
+内置事件前缀：`audit.evolve.*`、`audit.auth.*`、`audit.capability.*`。
+
+### MCP 重启退避（W10-005）
+
+`StdioMCPTransport` 进程崩溃时自动重启，指数退避（基础 1s，最多 5 次），超限后状态转为 `unhealthy` 并触发 release gate 失败。
+
+### Schema 漂移注册（W10-005）
+
+`MCPSchemaRegistry` 缓存工具列表 JSON Schema；当 MCP server 返回的 schema 与缓存不一致时，发出 `WARNING: schema drift detected for tool <name>`，不阻断调用但写入审计日志。
+
+---
+
+## 21. ProfileDirectoryManager 与 5 层配置（W11-001）
+
+```mermaid
+flowchart TD
+  ARG["--home CLI arg"]
+  ENV["HI_AGENT_HOME env"]
+  DEFAULT["~/.hi_agent"]
+
+  ARG -->|优先级 1| MGR["ProfileDirectoryManager\nprofile/manager.py"]
+  ENV -->|优先级 2| MGR
+  DEFAULT -->|优先级 3| MGR
+
+  MGR --> PROFDIR["profile_dir(profile_id)"]
+  MGR --> EPDIR["episodic_dir()"]
+  MGR --> CKDIR["checkpoint_dir()"]
+  MGR --> AUDDIR["audit_dir()"]
+
+  subgraph STACK["ProfileAwareConfigStack\nconfig/stack.py"]
+    D1["1. defaults (TraceConfig())"]
+    D2["2. file (llm_config.json)"]
+    D3["3. profile (profile_id overlay)"]
+    D4["4. env vars"]
+    D5["5. run_patch (per-run override)"]
+  end
+
+  MGR --> STACK
+```
+
+`ProfileAwareConfigStack.resolve(run_patch=None) -> TraceConfig` 按优先级从低到高合并，run_patch 为最高优先级（per-run 临时覆盖，不持久化）。
+
+---
+
+## 22. 发布门禁与运维（W12）
+
+### 发布门禁（W12-002）
+
+`build_release_gate_report(builder) -> ReleaseGateReport`，包含 7 个 `GateResult`（状态：`pass` / `fail` / `skipped` / `info`）：
+
+```mermaid
+flowchart LR
+  G1["readiness\n平台就绪"]
+  G2["doctor\n无 blocking issue"]
+  G3["config_validation\nconfig 正常加载"]
+  G4["current_runtime_mode\ninfo 信息"]
+  G5["known_prerequisites\ncapability registry 非空"]
+  G6["mcp_health\nMCP server 全部健康"]
+  G7["prod_e2e_recent\n24h 内 prod-real 运行\n(仅 HI_AGENT_ENV=prod)"]
+
+  G1 --> G2 --> G3 --> G4 --> G5 --> G6 --> G7
+```
+
+`check_prod_e2e_recent(max_age_hours, episodic_dir)` 扫描 `.hi_agent/episodes/*.json`，查找 `runtime_mode=prod-real` 且 `completed_at` 在窗口内的 episode；非 prod 环境 Gate 7 自动 `skipped`，不阻断本地 CI。
+
+### Runbook 文档（W12-003 / W12-004）
+
+`docs/runbook/` 提供以下标准运维文档：
+
+| 文档 | 内容 |
+|------|------|
+| `deploy.md` | 部署流程、发布门禁检查、蓝绿切换 |
+| `verify.md` | 部署后验证 checklist（/ready、/manifest、POST /runs smoke） |
+| `rollback.md` | 回滚决策树、回滚步骤、数据安全检查 |
+| `incident-mcp-crash.md` | MCP 进程崩溃响应流程、重启退避配置 |
+| `incident-evolve-unexpected-mutation.md` | 意外进化触发响应、evolve_mode 紧急关闭 |
+
+### 黄金路径测试（W11-002 / W12-001）
+
+`tests/golden/dev_smoke/` 提供 dev-smoke 黄金路径 3 层测试，使用真实 `SystemBuilder`（无 mock）+ 启发式兜底：
+
+| 层 | 测试 | 验证 |
+|----|------|------|
+| Unit | `test_execution_provenance.py` | ExecutionProvenance dataclass 合约 |
+| Integration | `test_runner_provenance_propagation.py` | RunResult 携带正确 provenance |
+| E2E (golden) | `test_dev_smoke_golden.py` | 完整 execute() 返回预期键集合 |
+
+`tests/fixtures/` 提供 `fake_llm_http_server`、`fake_kernel_http_server`、`fake_mcp_stdio_server` — 基于 `ThreadingMixIn + HTTPServer` 绑定端口 0，可用于需要真实 HTTP 交互的集成测试。
