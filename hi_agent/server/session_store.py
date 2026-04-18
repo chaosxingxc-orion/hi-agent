@@ -124,7 +124,7 @@ class SessionStore:
             True if the session is owned by the tenant/user, False otherwise.
         """
         row = self._cx().execute(
-            "SELECT 1 FROM sessions WHERE session_id = ? AND tenant_id = ? AND user_id = ?",
+            "SELECT 1 FROM sessions WHERE session_id = ? AND tenant_id = ? AND user_id = ? AND status = 'active'",
             (session_id, tenant_id, user_id),
         ).fetchone()
         return row is not None
@@ -158,16 +158,17 @@ class SessionStore:
         Raises:
             PermissionError: If the session is not owned by the tenant/user.
         """
-        if not self.validate_ownership(session_id, tenant_id, user_id):
-            raise PermissionError(
-                f"session {session_id!r} not owned by {tenant_id}/{user_id}"
-            )
         with self._lock:
-            self._cx().execute(
-                "UPDATE sessions SET status = 'archived', archived_at = ? WHERE session_id = ?",
-                (time.time(), session_id),
+            cur = self._cx().execute(
+                "UPDATE sessions SET status = 'archived', archived_at = ? "
+                "WHERE session_id = ? AND tenant_id = ? AND user_id = ? AND status = 'active'",
+                (time.time(), session_id, tenant_id, user_id),
             )
             self._cx().commit()
+            if cur.rowcount == 0:
+                raise PermissionError(
+                    f"session {session_id} not owned by {tenant_id}/{user_id} or already archived"
+                )
 
     @staticmethod
     def _row(row: tuple) -> SessionRecord:

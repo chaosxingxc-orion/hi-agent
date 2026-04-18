@@ -56,3 +56,9 @@ def test_archive_wrong_user_raises(store):
     sid = store.create(tenant_id="t1", user_id="u1")
     with pytest.raises(PermissionError):
         store.archive(sid, tenant_id="t1", user_id="u2")
+
+
+def test_validate_ownership_archived_session_returns_false(store):
+    sid = store.create(tenant_id="t1", user_id="u1")
+    store.archive(sid, tenant_id="t1", user_id="u1")
+    assert store.validate_ownership(sid, "t1", "u1") is False

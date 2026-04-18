@@ -85,7 +85,7 @@ class SessionMiddleware:
             ctx.session_id = new_session_id
 
         elif method == "GET" and any(
-            path.startswith(p) for p in _SESSION_OPTIONAL_PREFIXES
+            path == p or path.startswith(p + "/") for p in _SESSION_OPTIONAL_PREFIXES
         ):
             # GET /runs and GET /runs/{id} — session optional
             pass
