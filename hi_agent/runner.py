@@ -7,6 +7,7 @@ longer a pure "always success" simulation.
 
 from __future__ import annotations
 
+import copy
 import inspect
 import logging
 from collections.abc import Callable, Mapping
@@ -745,16 +746,16 @@ class RunExecutor:
         """Sync mutable state back to RunContext if present."""
         if self.run_context is None:
             return
-        self.run_context.dag = self.dag
-        self.run_context.stage_summaries = self.stage_summaries
+        self.run_context.dag = copy.copy(self.dag)
+        self.run_context.stage_summaries = copy.copy(self.stage_summaries)
         self.run_context.action_seq = self.action_seq
         self.run_context.branch_seq = self.branch_seq
         self.run_context.decision_seq = self.decision_seq
         self.run_context.current_stage = self.current_stage
         self.run_context.total_branches_opened = self._total_branches_opened
-        self.run_context.stage_active_branches = self._stage_active_branches
+        self.run_context.stage_active_branches = copy.copy(self._stage_active_branches)
         self.run_context.gate_seq = self._gate_seq
-        self.run_context.skill_ids_used = self._skill_ids_used
+        self.run_context.skill_ids_used = copy.copy(self._skill_ids_used)
 
     def _log_best_effort_exception(
         self,
