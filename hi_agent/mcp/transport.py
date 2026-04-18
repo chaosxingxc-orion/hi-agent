@@ -369,12 +369,23 @@ class StdioMCPTransport:
         deadline_remaining = self._timeout
         buf = self._proc.stdout
 
-        # Windows doesn't support select on pipes; use readline with a thread.
+        # Windows doesn't support select on pipes; also test doubles may expose
+        # stdout without a valid integer fileno(). In both cases, use a
+        # threaded readline fallback.
         if sys.platform == "win32":
-            return self._read_response_windows(server_id, request_id)
+            return self._read_response_threaded(server_id, request_id)
+        try:
+            fileno = buf.fileno()
+            if not isinstance(fileno, int):
+                return self._read_response_threaded(server_id, request_id)
+        except (AttributeError, OSError, TypeError, ValueError):
+            return self._read_response_threaded(server_id, request_id)
 
         while deadline_remaining > 0:
-            readable, _, _ = select.select([buf], [], [], min(deadline_remaining, 1.0))
+            try:
+                readable, _, _ = select.select([buf], [], [], min(deadline_remaining, 1.0))
+            except (TypeError, ValueError, OSError):
+                return self._read_response_threaded(server_id, request_id)
             if not readable:
                 deadline_remaining -= 1.0
                 if self._proc.poll() is not None:
@@ -412,8 +423,8 @@ class StdioMCPTransport:
             f"waiting for response to request id={request_id}."
         )
 
-    def _read_response_windows(self, server_id: str, request_id: int) -> dict[str, Any]:
-        """Windows fallback: read response in a background thread with timeout."""
+    def _read_response_threaded(self, server_id: str, request_id: int) -> dict[str, Any]:
+        """Threaded fallback: read response in a background thread with timeout."""
         result_holder: list[Any] = []
         exc_holder: list[Exception] = []
 
