@@ -6,6 +6,7 @@ Uses threading for concurrent run execution (stdlib only).
 
 from __future__ import annotations
 
+import json
 import queue
 import threading
 import uuid
@@ -15,6 +16,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from hi_agent.contracts.run import RunState
+from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
+from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 
 # Valid terminal/operational states that result_status may be mapped to.
 _VALID_RESULT_STATES: frozenset[str] = frozenset(s.value for s in RunState)
@@ -49,6 +52,8 @@ class RunManager:
         max_concurrent: int = 4,
         queue_size: int = 16,
         queue_timeout_s: float = 30.0,
+        idempotency_store: IdempotencyStore | None = None,
+        run_store: SQLiteRunStore | None = None,
     ) -> None:
         """Initialize the run manager.
 
@@ -57,11 +62,18 @@ class RunManager:
             queue_size: Maximum number of runs waiting in the queue.
             queue_timeout_s: Seconds a queued run waits for a concurrency slot
                 before being marked as timed-out.
+            idempotency_store: Optional SQLite-backed idempotency store.  When
+                provided, ``create_run`` honours ``idempotency_key`` in the
+                request payload to deduplicate submissions.
+            run_store: Optional SQLite-backed run store.  When provided, each
+                new run is persisted so state survives process restarts.
         """
         self._runs: dict[str, ManagedRun] = {}
         self._lock = threading.Lock()
         self._semaphore = threading.Semaphore(max_concurrent)
         self._max_concurrent = max_concurrent
+        self._idempotency_store = idempotency_store
+        self._run_store = run_store
         # PriorityQueue: items are (priority, sequence, run, executor_fn).
         # Lower priority integer = higher urgency (1 executes before 5).
         # sequence is a monotonic counter that breaks priority ties (FIFO within tier).
@@ -81,13 +93,60 @@ class RunManager:
     def create_run(self, task_contract_dict: dict[str, Any]) -> str:
         """Create a new run from task contract dict.
 
+        When an ``idempotency_store`` is configured and the request carries an
+        ``idempotency_key`` field, deduplication is enforced:
+
+        - ``"replayed"``  → returns the existing run_id (no new run created).
+        - ``"conflict"``  → raises ``ValueError("idempotency_conflict")`` so the
+          caller can return HTTP 409.
+        - ``"created"``   → falls through to normal run creation.
+
+        When a ``run_store`` is configured, the new run is persisted to SQLite
+        before being placed in the in-memory registry.
+
         Args:
             task_contract_dict: Serialized TaskContract fields.
 
         Returns:
-            The new run_id.
+            The new (or previously replayed) run_id.
+
+        Raises:
+            ValueError: With message ``"idempotency_conflict"`` when the same
+                idempotency key is submitted with a different request payload.
         """
-        run_id = task_contract_dict.get("task_id") or uuid.uuid4().hex[:12]
+        idempotency_key: str | None = task_contract_dict.get("idempotency_key")
+        tenant_id: str = task_contract_dict.get("tenant_id", "default")
+
+        # --- idempotency check (only when store + key are present) ----------
+        if self._idempotency_store is not None and idempotency_key:
+            # Build hash from payload excluding the idempotency_key itself so
+            # that the canonical hash represents the actual request content.
+            payload_for_hash = {
+                k: v for k, v in task_contract_dict.items() if k != "idempotency_key"
+            }
+            request_hash = _hash_payload(payload_for_hash)
+            # Allocate a tentative run_id; only used on "created" path.
+            candidate_run_id = task_contract_dict.get("task_id") or uuid.uuid4().hex[:12]
+
+            outcome, record = self._idempotency_store.reserve_or_replay(
+                tenant_id=tenant_id,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+                run_id=candidate_run_id,
+            )
+
+            if outcome == "conflict":
+                raise ValueError("idempotency_conflict")
+
+            if outcome == "replayed":
+                return record.run_id
+
+            # outcome == "created" — continue with candidate_run_id below.
+            run_id = candidate_run_id
+        else:
+            run_id = task_contract_dict.get("task_id") or uuid.uuid4().hex[:12]
+
+        # --- normal run creation -------------------------------------------
         now = datetime.now(UTC).isoformat()
         run = ManagedRun(
             run_id=run_id,
@@ -97,6 +156,25 @@ class RunManager:
         )
         with self._lock:
             self._runs[run_id] = run
+
+        # --- persist to run_store if available ------------------------------
+        if self._run_store is not None:
+            import time as _time
+            now_ts = _time.time()
+            self._run_store.upsert(RunRecord(
+                run_id=run_id,
+                tenant_id=tenant_id,
+                task_contract_json=json.dumps(task_contract_dict),
+                status="queued",
+                priority=int(task_contract_dict.get("priority", 5)),
+                attempt_count=0,
+                cancellation_flag=False,
+                result_summary="",
+                error_summary="",
+                created_at=now_ts,
+                updated_at=now_ts,
+            ))
+
         return run_id
 
     # -- internal helpers -----------------------------------------------------

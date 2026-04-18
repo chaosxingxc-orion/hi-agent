@@ -64,7 +64,9 @@ from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
 from hi_agent.server.rate_limiter import RateLimiter
+from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.run_manager import RunManager
+from hi_agent.server.run_store import SQLiteRunStore
 from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
 from hi_agent.server.routes_tools_mcp import (
     handle_mcp_tools,
@@ -1951,8 +1953,19 @@ class AgentServer:
         self._watcher: ConfigFileWatcher | None = None
 
         # RunManager respects server_max_concurrent_runs from config.
+        # Durable stores are opt-in: only instantiated when a db_dir is configured.
+        _db_dir = getattr(self._config, "server_db_dir", None)
+        _idempotency_store: IdempotencyStore | None = None
+        _run_store: SQLiteRunStore | None = None
+        if _db_dir:
+            _idempotency_store = IdempotencyStore(
+                db_path=f"{_db_dir}/idempotency.db"
+            )
+            _run_store = SQLiteRunStore(db_path=f"{_db_dir}/runs.db")
         self.run_manager = RunManager(
             max_concurrent=self._config.server_max_concurrent_runs,
+            idempotency_store=_idempotency_store,
+            run_store=_run_store,
         )
 
         from hi_agent.config.builder import SystemBuilder
