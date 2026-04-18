@@ -228,6 +228,11 @@ class RunExecutor:
         replan_hook: Callable[[str, dict], "StageDirective | None"] | None = None,
         feedback_store: "FeedbackStore | None" = None,
         evolve_mode: str = "auto",
+        # Pre-wired optional components (avoids post-construction mutation in builder)
+        middleware_orchestrator: Any | None = None,
+        skill_evolver: Any | None = None,
+        skill_evolve_interval: int = 10,
+        tracer: Any | None = None,
     ) -> None:
         """Initialize run executor state.
 
@@ -595,6 +600,7 @@ class RunExecutor:
             skill_recorder=self.skill_recorder,
             session=self.session,
             context_manager=self.context_manager,
+            tracer=tracer,
         )
         self._lifecycle = RunLifecycle(
             session=self.session,
@@ -611,6 +617,8 @@ class RunExecutor:
             route_engine=self.route_engine,
             tier_router=self.tier_router,
             evolve_mode=self._evolve_mode,
+            skill_evolver=skill_evolver,
+            skill_evolve_interval=skill_evolve_interval,
         )
         self._stage_executor = StageExecutor(
             kernel=self.kernel,
@@ -625,6 +633,7 @@ class RunExecutor:
             retrieval_engine=self.retrieval_engine,
             auto_compress=self._auto_compress,
             cost_calculator=self._cost_calculator,
+            middleware_orchestrator=middleware_orchestrator,
         )
 
         # --- Fix-4: ExecutionHookManager — wraps capability invocations so all

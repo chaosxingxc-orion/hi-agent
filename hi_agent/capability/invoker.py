@@ -161,7 +161,7 @@ class CapabilityInvoker:
                         budget = getattr(descriptor, "output_budget_tokens", None)
                     if budget is None:
                         budget = getattr(spec, "output_budget_tokens", 0)
-                    if budget and budget > 0:
+                    if isinstance(budget, int) and budget > 0:
                         output_text = response.get("output") or response.get("result") or ""
                         if isinstance(output_text, str) and len(output_text) > budget * 4:
                             # approx 4 chars/token; truncate and mark

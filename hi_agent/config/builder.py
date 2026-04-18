@@ -100,6 +100,8 @@ class SystemBuilder:
         self._memory_builder: Any | None = None  # lazy MemoryBuilder singleton
         self._server_builder: Any | None = None  # lazy ServerBuilder singleton
         self._capability_plane_builder: Any | None = None  # lazy CapabilityPlaneBuilder singleton
+        self._cognition_builder: Any | None = None  # lazy CognitionBuilder singleton
+        self._runtime_builder: Any | None = None  # lazy RuntimeBuilder singleton
         self._mcp_registry: Any | None = None
         self._mcp_transport: Any | None = None
         self._plugin_loader: Any | None = None
@@ -153,506 +155,49 @@ class SystemBuilder:
 
     def _build_run_context_manager(self) -> Any:
         """Build or return the shared RunContextManager singleton."""
-        with self._singleton_lock:
-            if self._run_context_manager is None:
-                try:
-                    from hi_agent.context.run_context import RunContextManager
-                    self._run_context_manager = RunContextManager()
-                    logger.info("_build_run_context_manager: RunContextManager created.")
-                except Exception as exc:
-                    logger.warning(
-                        "_build_run_context_manager: failed to create RunContextManager: %s", exc
-                    )
-        return self._run_context_manager
+        return self._get_runtime_builder().build_run_context_manager()
 
     def _build_middleware_orchestrator(self) -> Any:
         """Build or return the shared MiddlewareOrchestrator singleton."""
-        if self._middleware_orchestrator is None:
-            try:
-                from hi_agent.middleware.defaults import create_default_orchestrator
-                gateway = self.build_llm_gateway()
-                self._middleware_orchestrator = create_default_orchestrator(
-                    llm_gateway=gateway,
-                    quality_threshold=getattr(self._config, "gate_quality_threshold", 0.7),
-                    summary_threshold=getattr(self._config, "perception_summary_threshold_tokens", 2000),
-                    max_entities=getattr(self._config, "perception_max_entities", 50),
-                    llm_summarize_char_threshold=getattr(self._config, "perception_summarize_char_threshold", 500),
-                    summarize_temperature=getattr(self._config, "perception_summarize_temperature", 0.3),
-                    summarize_max_tokens=getattr(self._config, "perception_summarize_max_tokens", 200),
-                )
-                logger.info(
-                    "_build_middleware_orchestrator: MiddlewareOrchestrator created."
-                )
-            except Exception as exc:
-                logger.warning(
-                    "_build_middleware_orchestrator: failed to create MiddlewareOrchestrator: %s",
-                    exc,
-                )
-        return self._middleware_orchestrator
+        return self._get_runtime_builder().build_middleware_orchestrator()
 
     def _inject_middleware_dependencies(self, orchestrator: Any) -> None:
-        """Post-inject subsystem dependencies into orchestrator's middleware instances.
-
-        The orchestrator is created early — before context_manager, skill_loader,
-        knowledge_manager, capability_invoker, and retrieval_engine are built — so
-        those deps are None at construction time.  This method is called once all
-        subsystems are available and patches the live middleware instances in-place.
-
-        Only sets an attribute when it is currently None to avoid overwriting an
-        intentionally injected value.
-        """
-        try:
-            middlewares: dict[str, Any] = getattr(orchestrator, "_middlewares", {})
-            if not middlewares:
-                return
-
-            # Resolve subsystems (cached: these methods return the same instance).
-            context_mgr = self.build_context_manager()
-            skill_ldr = self.build_skill_loader()
-            knowledge_mgr = self.build_knowledge_manager()
-            retrieval_eng = self.build_retrieval_engine()
-            harness = self.build_harness()
-            capability_inv = self.build_invoker()
-
-            _ATTR_SUBSYSTEMS: list[tuple[str, Any]] = [
-                ("_context_manager", context_mgr),
-                ("_skill_loader", skill_ldr),
-                ("_knowledge_manager", knowledge_mgr),
-                ("_retrieval_engine", retrieval_eng),
-                ("_harness_executor", harness),
-                ("_capability_invoker", capability_inv),
-            ]
-
-            injected: list[str] = []
-            for mw_name, mw in middlewares.items():
-                for attr, value in _ATTR_SUBSYSTEMS:
-                    if hasattr(mw, attr) and getattr(mw, attr) is None and value is not None:
-                        setattr(mw, attr, value)
-                        injected.append(f"{mw_name}.{attr}")
-
-            if injected:
-                logger.info(
-                    "_inject_middleware_dependencies: injected into [%s].",
-                    ", ".join(injected),
-                )
-        except Exception as exc:
-            logger.warning(
-                "_inject_middleware_dependencies: failed, middleware may run degraded: %s", exc
-            )
+        """Post-inject subsystem dependencies into orchestrator's middleware instances."""
+        self._get_runtime_builder().inject_middleware_dependencies(orchestrator)
 
     def _build_llm_budget_tracker(self) -> Any:
-        """Build LLMBudgetTracker with config-driven limits."""
-        try:
-            from hi_agent.llm.budget_tracker import LLMBudgetTracker
-            max_calls = getattr(self._config, "llm_budget_max_calls", 100)
-            max_tokens = getattr(self._config, "llm_budget_max_tokens", 500_000)
-            tracker = LLMBudgetTracker(max_calls=max_calls, max_tokens=max_tokens)
-            logger.info(
-                "_build_llm_budget_tracker: LLMBudgetTracker created "
-                "(max_calls=%d, max_tokens=%d).",
-                max_calls,
-                max_tokens,
-            )
-            return tracker
-        except Exception as exc:
-            logger.warning(
-                "_build_llm_budget_tracker: failed to create LLMBudgetTracker: %s", exc
-            )
-            return None
+        """Build LLMBudgetTracker — delegated to CognitionBuilder."""
+        return self._get_cognition_builder()._build_llm_budget_tracker()
 
     def _build_restart_policy_engine(self) -> Any:
-        """Build RestartPolicyEngine with no-op stub collaborators.
-
-        The engine's collaborators (get_attempts, get_policy, update_state,
-        record_attempt) are wired as no-op stubs so that the engine can be
-        injected into RunExecutor without coupling the builder to a specific
-        task registry implementation.
-        """
-        try:
-            from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskRestartPolicy
-
-            _default_policy = TaskRestartPolicy(
-                max_attempts=getattr(self._config, "restart_max_attempts", 3),
-                backoff_base_ms=2000,
-                on_exhausted=getattr(self._config, "restart_on_exhausted", "reflect"),
-            )
-            # In-memory attempt store so the engine can actually track attempt history
-            # and enforce max_attempts. Replaced by a persistent store when wired to
-            # a real task registry.
-            _attempt_store: dict[str, list[Any]] = {}
-            _state_store: dict[str, Any] = {}
-            engine = RestartPolicyEngine(
-                get_attempts=lambda task_id: list(_attempt_store.get(task_id, [])),
-                get_policy=lambda task_id: _default_policy,
-                update_state=lambda task_id, state: _state_store.update({task_id: state}),
-                record_attempt=lambda attempt: _attempt_store.setdefault(
-                    getattr(attempt, "task_id", ""), []
-                ).append(attempt),
-            )
-            logger.info(
-                "_build_restart_policy_engine: RestartPolicyEngine created "
-                "(max_attempts=%s, on_exhausted=%s).",
-                _default_policy.max_attempts,
-                _default_policy.on_exhausted,
-            )
-            return engine
-        except Exception as exc:
-            logger.warning(
-                "_build_restart_policy_engine: failed to create RestartPolicyEngine: %s", exc
-            )
-            return None
+        """Build RestartPolicyEngine — delegated to RuntimeBuilder."""
+        return self._get_runtime_builder().build_restart_policy_engine()
 
     def _build_reflection_orchestrator(self) -> Any:
-        """Build ReflectionOrchestrator wired to the LLM gateway if available."""
-        try:
-            from hi_agent.task_mgmt.reflection import ReflectionOrchestrator
-            from hi_agent.task_mgmt.reflection_bridge import ReflectionBridge
-
-            gateway = self.build_llm_gateway()
-
-            async def _inference_fn(**kwargs: Any) -> str:
-                """LLM-backed or heuristic reflection inference."""
-                import json as _json
-                run_id = kwargs.get("run_id", "unknown")
-                if gateway is None:
-                    return _json.dumps({
-                        "action": "retry_with_default",
-                        "reason": "no LLM gateway available",
-                        "run_id": run_id,
-                    })
-                try:
-                    from hi_agent.llm.protocol import LLMRequest
-                    recovery_context = kwargs.get("recovery_context", {})
-                    prompt = (
-                        f"Reflection for run {run_id}.\n"
-                        f"Recovery context: {recovery_context}\n"
-                        "Suggest a corrective action in one sentence."
-                    )
-                    req = LLMRequest(
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=256,
-                    )
-                    resp = gateway.complete(req)
-                    return resp.content
-                except Exception as exc:
-                    logger.warning("_reflection_orchestrator inference_fn error: %s", exc)
-                    return _json.dumps({
-                        "action": "retry_with_default",
-                        "reason": f"inference failed: {exc}",
-                        "run_id": run_id,
-                    })
-
-            bridge = ReflectionBridge()
-            orchestrator = ReflectionOrchestrator(
-                bridge=bridge,
-                inference_fn=_inference_fn,
-            )
-            logger.info("_build_reflection_orchestrator: ReflectionOrchestrator created.")
-            return orchestrator
-        except Exception as exc:
-            logger.warning(
-                "_build_reflection_orchestrator: failed to create ReflectionOrchestrator: %s",
-                exc,
-            )
-            return None
+        """Build ReflectionOrchestrator — delegated to CognitionBuilder."""
+        return self._get_cognition_builder().build_reflection_orchestrator()
 
     def build_metrics_collector(self) -> MetricsCollector:
         """Build or return the shared MetricsCollector singleton."""
-        with self._singleton_lock:
-            if self._metrics_collector is None:
-                from hi_agent.observability.collector import default_alert_rules
-                self._metrics_collector = MetricsCollector()
-                for rule in default_alert_rules():
-                    self._metrics_collector.add_alert_rule(rule)
-                _webhook_url = os.environ.get("WEBHOOK_URL", "")
-                if _webhook_url:
-                    import time as _time
-
-                    from hi_agent.observability.notification import (
-                        build_notification_backend,
-                        send_notification,
-                    )
-                    _backend = build_notification_backend(_webhook_url)
-
-                    def _alert_cb(alert: object) -> None:
-                        # alert is an Alert dataclass: rule_name, metric_name, current_value
-                        _alert_name = getattr(alert, "rule_name", str(alert))
-                        _metric_name = getattr(alert, "metric_name", "")
-                        _value = getattr(alert, "current_value", 0.0)
-                        send_notification(
-                            backend=_backend,
-                            event=f"alert.{_alert_name}",
-                            severity="warning",
-                            message=f"Alert {_alert_name}: {_metric_name}={_value:.3f}",
-                            context={
-                                "alert_name": _alert_name,
-                                "metric_name": _metric_name,
-                                "value": _value,
-                            },
-                            timestamp=_time.time(),
-                        )
-
-                    self._metrics_collector.set_alert_callback(_alert_cb)
-        return self._metrics_collector
+        return self._get_runtime_builder().build_metrics_collector()
 
     def build_kernel(self) -> RuntimeAdapter:
-        """Build kernel adapter.
-
-        When ``config.kernel_base_url`` is set and is not ``"local"``,
-        creates a :class:`KernelFacadeClient` in HTTP mode.
-        Otherwise falls back to :func:`create_local_adapter` (in-process LocalFSM).
-        """
-        with self._singleton_lock:
-            if self._kernel is None:
-                base_url = self._config.kernel_base_url
-                env = os.environ.get("HI_AGENT_ENV", "dev").lower()
-                if base_url and base_url.lower() == "mock":
-                    raise ValueError(
-                        "kernel_base_url='mock' is no longer supported. "
-                        "Use 'local' for in-process agent-kernel LocalFSM, "
-                        "or set a real http(s) agent-kernel endpoint."
-                    )
-                if env == "prod" and (not base_url or base_url.lower() == "local"):
-                    raise RuntimeError(
-                        "Production mode requires a real agent-kernel HTTP endpoint. "
-                        "Set kernel_base_url to http(s)://... and do not use 'local'."
-                    )
-                if base_url and base_url.lower() != "local":
-                    self._kernel = KernelFacadeClient(
-                        mode="http",
-                        base_url=base_url,
-                        timeout_seconds=30,
-                    )
-                else:
-                    logger.warning(
-                        "build_kernel: kernel_base_url=%r — using in-process LocalFSM. "
-                        "Set kernel_base_url to a real agent-kernel HTTP endpoint for production.",
-                        base_url,
-                    )
-                    self._kernel = create_local_adapter()
-                # Wrap with resilience layer (retry + circuit breaker + event buffer).
-                from hi_agent.runtime_adapter import ResilientKernelAdapter
-                self._kernel = ResilientKernelAdapter(
-                    self._kernel,
-                    max_retries=self._config.kernel_max_retries,
-                )
-        return self._kernel
-
-    def _build_cache_injector(self) -> Any | None:
-        """Build PromptCacheInjector if prompt caching is enabled in config."""
-        try:
-            if not getattr(self._config, "prompt_cache_enabled", True):
-                return None
-            from hi_agent.llm.cache import PromptCacheConfig, PromptCacheInjector
-            return PromptCacheInjector(
-                PromptCacheConfig(
-                    enabled=True,
-                    anchor_messages=getattr(self._config, "prompt_cache_anchor_messages", 3),
-                    min_cacheable_tokens=getattr(self._config, "prompt_cache_min_tokens", 1024),
-                )
-            )
-        except Exception as exc:
-            logger.warning("Failed to build PromptCacheInjector, caching disabled: %s", exc)
-            return None
-
-    def _build_failover_chain(self, base_url: str, default_model: str) -> Any | None:
-        """Build FailoverChain from env credential pool if failover is enabled."""
-        try:
-            if not getattr(self._config, "llm_failover_enabled", True):
-                return None
-            from hi_agent.llm.failover import (
-                CredentialPool,
-                FailoverChain,
-                RetryPolicy,
-                make_credential_pool_from_env,
-            )
-            from hi_agent.llm.http_gateway import HTTPGateway
-
-            env_var = getattr(self._config, "llm_credential_pool_env_var", "ANTHROPIC_API_KEY")
-            pool: CredentialPool = make_credential_pool_from_env(env_var=env_var)
-            if pool.next_eligible() is None:
-                logger.warning(
-                    "_build_failover_chain: all credentials in cooldown, failover disabled."
-                )
-                return None
-
-            timeout = float(getattr(self._config, "llm_timeout_seconds", 120))
-            cache_injector = self._build_cache_injector()
-
-            def _gateway_factory(api_key: str) -> HTTPGateway:
-                return HTTPGateway(
-                    base_url=base_url,
-                    api_key=api_key,
-                    timeout=timeout,
-                    default_model=default_model,
-                    max_retries=0,  # FailoverChain controls retries
-                    cache_injector=cache_injector,
-                )
-
-            policy = RetryPolicy(
-                max_retries=getattr(self._config, "llm_failover_max_retries", 3),
-                base_delay_ms=getattr(self._config, "llm_failover_base_delay_ms", 500),
-                max_delay_ms=getattr(self._config, "llm_failover_max_delay_ms", 30_000),
-            )
-            chain = FailoverChain(
-                gateway_factory=_gateway_factory,
-                pool=pool,
-                policy=policy,
-            )
-            logger.info(
-                "_build_failover_chain: FailoverChain created (max_retries=%d, pool_size=%d)",
-                policy.max_retries,
-                len(pool),
-            )
-            return chain
-        except ValueError as exc:
-            logger.info(
-                "_build_failover_chain: credential pool unavailable (%s), failover disabled.", exc
-            )
-            return None
-        except Exception as exc:
-            logger.warning("Failed to build FailoverChain, failover disabled: %s", exc)
-            return None
+        """Build kernel adapter (HTTP or in-process LocalFSM)."""
+        return self._get_runtime_builder().build_kernel()
 
     def build_llm_gateway(self) -> LLMGateway | None:
-        """Build LLM gateway -- auto-activates if API key found in env.
-
-        Checks for known provider API keys in the environment and
-        creates an :class:`HttpLLMGateway` for the first match.  When
-        failover and/or prompt caching are enabled in config, the gateway
-        is wired with :class:`FailoverChain` and :class:`PromptCacheInjector`.
-        Returns ``None`` when no key is configured, which lets
-        downstream subsystems fall back to heuristic behaviour.
-        """
-        with self._singleton_lock:
-            if self._llm_gateway is not None:
-                return self._llm_gateway
-
-            _provider_params = {
-                "anthropic": (
-                    self._config.anthropic_api_key_env,
-                    self._config.anthropic_base_url,
-                    self._config.anthropic_default_model,
-                ),
-                "openai": (
-                    self._config.openai_api_key_env,
-                    self._config.openai_base_url,
-                    self._config.openai_default_model,
-                ),
-            }
-            default_provider = getattr(self._config, "llm_default_provider", "anthropic")
-            provider_order = (
-                ["anthropic", "openai"]
-                if default_provider == "anthropic"
-                else ["openai", "anthropic"]
-            )
-            for provider in provider_order:
-                env_var, base_url, default_model = _provider_params[provider]
-                if os.environ.get(env_var):
-                    # Build optional cache injector and failover chain.
-                    cache_injector = self._build_cache_injector()
-                    failover_chain = self._build_failover_chain(base_url, default_model)
-
-                    if self._llm_budget_tracker is None:
-                        self._llm_budget_tracker = self._build_llm_budget_tracker()
-                    if provider == "anthropic":
-                        raw_gateway: LLMGateway = AnthropicLLMGateway(
-                            api_key_env=env_var,
-                            default_model=default_model,
-                            timeout_seconds=self._config.llm_timeout_seconds,
-                            base_url=base_url,
-                        )
-                    else:
-                        raw_gateway = HttpLLMGateway(
-                            base_url=base_url,
-                            api_key_env=env_var,
-                            default_model=default_model,
-                            timeout_seconds=self._config.llm_timeout_seconds,
-                            failover_chain=failover_chain,
-                            cache_injector=cache_injector,
-                            budget_tracker=self._llm_budget_tracker,
-                        )
-                    registry = ModelRegistry()
-                    registry.register_defaults()
-                    tier_router = TierRouter(registry)
-                    self._tier_router = tier_router
-                    # Best-effort: apply cost-optimization overrides from any
-                    # run history that the config exposes at startup time.
-                    startup_history: list[dict[str, Any]] | None = getattr(
-                        self._config, "startup_cost_history", None
-                    )
-                    self._wire_cost_optimizer(tier_router, startup_history)
-                    self._llm_gateway = TierAwareLLMGateway(  # type: ignore[assignment]
-                        raw_gateway, tier_router, registry
-                    )
-                    return self._llm_gateway
-
-        # Fallback: try loading from llm_config.json (supports dashscope and other
-        # custom Anthropic-compatible providers beyond OPENAI_API_KEY/ANTHROPIC_API_KEY).
-        try:
-            from hi_agent.config.json_config_loader import build_gateway_from_config
-            gw = build_gateway_from_config()
-            if gw is not None:
-                with self._singleton_lock:
-                    self._llm_gateway = gw  # type: ignore[assignment]
-                logger.info(
-                    "build_llm_gateway: activated gateway from llm_config.json "
-                    "(provider=%s)",
-                    getattr(getattr(gw, "_inner", None), "__class__", type(gw)).__name__,
-                )
-                return self._llm_gateway
-        except Exception as _cfg_exc:
-            logger.debug("build_llm_gateway: config-file fallback failed: %s", _cfg_exc)
-
-        is_prod = os.environ.get("HI_AGENT_ENV", "dev").lower() == "prod"
-        if is_prod:
-            raise RuntimeError(
-                "Production mode requires real LLM credentials. "
-                "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or fill in config/llm_config.json."
-            )
-        logger.warning(
-            "build_llm_gateway: no API key found in environment "
-            "(checked %s) and no active provider in llm_config.json. "
-            "LLM features will use heuristic fallback.",
-            ", ".join([self._config.openai_api_key_env, self._config.anthropic_api_key_env]),
-        )
-        return None  # No API key found, LLM features disabled
-
-    def _build_regression_detector(self) -> RegressionDetector:
-        """Build RegressionDetector with optional persistent storage."""
-        from hi_agent.evolve.regression_detector import RegressionDetector
-
-        storage_path = self._config.episodic_storage_dir.replace(
-            "episodes", "regression_data.json"
-        )
-        detector = RegressionDetector(
-            baseline_window=self._config.evolve_regression_window,
-            threshold=self._config.evolve_regression_threshold,
-            storage_path=storage_path,
-        )
-        try:
-            detector.load()
-        except Exception as exc:  # pragma: no cover
-            import logging
-            logging.getLogger(__name__).debug("RegressionDetector.load skipped: %s", exc)
-        return detector
+        """Build LLM gateway — delegated to CognitionBuilder."""
+        gw = self._get_cognition_builder().build_llm_gateway()
+        # Keep backward-compat cached refs on SystemBuilder so code that reads
+        # self._llm_gateway / self._tier_router still works.
+        if gw is not None:
+            self._llm_gateway = gw
+            self._tier_router = self._get_cognition_builder()._tier_router
+        return gw
 
     def build_evolve_engine(self) -> EvolveEngine:
-        """Build EvolveEngine with config-driven parameters."""
-        from hi_agent.evolve.champion_challenger import ChampionChallenger
-        from hi_agent.evolve.skill_extractor import SkillExtractor
-
-        gateway = self.build_llm_gateway()
-        return EvolveEngine(
-            llm_gateway=gateway,
-            skill_extractor=SkillExtractor(
-                min_confidence=self._config.evolve_min_confidence,
-                gateway=gateway,
-            ),
-            regression_detector=self._build_regression_detector(),
-            champion_challenger=ChampionChallenger(),
-            version_manager=self.build_skill_version_manager(),
-        )
+        """Build EvolveEngine — delegated to CognitionBuilder."""
+        return self._get_cognition_builder().build_evolve_engine()
 
     def build_invoker(self) -> Any:
         """Build a CapabilityInvoker using the SHARED capability registry singleton.
@@ -839,6 +384,28 @@ class SystemBuilder:
                 llm_gateway=self.build_llm_gateway(),
             )
         return self._capability_plane_builder
+
+    def _get_cognition_builder(self):
+        """Return shared CognitionBuilder singleton (LLM gateway, evolve engine)."""
+        if self._cognition_builder is None:
+            from hi_agent.config.cognition_builder import CognitionBuilder
+            self._cognition_builder = CognitionBuilder(
+                self._config,
+                self._singleton_lock,
+                skill_version_mgr_fn=self.build_skill_version_manager,
+            )
+        return self._cognition_builder
+
+    def _get_runtime_builder(self):
+        """Return shared RuntimeBuilder singleton (kernel, metrics, middleware, executor)."""
+        if self._runtime_builder is None:
+            from hi_agent.config.runtime_builder import RuntimeBuilder
+            self._runtime_builder = RuntimeBuilder(
+                self._config,
+                self._singleton_lock,
+                parent=self,
+            )
+        return self._runtime_builder
 
     def build_skill_registry(self) -> SkillRegistry:
         """Build SkillRegistry using configured storage directory."""
@@ -1197,53 +764,9 @@ class SystemBuilder:
         budget = total_budget_tokens or self._config.llm_budget_max_tokens
         return BudgetGuard.from_config(self._config, total_budget_tokens=budget)
 
-    def _wire_cost_optimizer(
-        self,
-        tier_router: Any,
-        run_history: list[dict[str, Any]] | None = None,
-    ) -> None:
-        """Apply cost optimization hints to tier_router based on run history.
-
-        Reads aggregate telemetry from *run_history* (a list of cost-summary
-        dicts each with ``"total_usd"`` and ``"per_model"`` keys), generates
-        rule-based :class:`~hi_agent.session.cost_optimizer.CostOptimizationHint`
-        objects, converts them to tier overrides via
-        :func:`~hi_agent.session.cost_optimizer.derive_tier_overrides`, and
-        applies them to *tier_router* in one shot so that the **very first**
-        run after startup already benefits from prior cost telemetry.
-
-        All errors are swallowed; this method must never break normal startup.
-        """
-        if not run_history:
-            return
-        try:
-            from hi_agent.session.cost_optimizer import (
-                derive_tier_overrides,
-                recommend_cost_optimizations,
-            )
-
-            total_usd = sum(r.get("total_usd", 0.0) for r in run_history)
-            avg_cost = total_usd / len(run_history)
-            merged_per_model: dict[str, float] = {}
-            for r in run_history:
-                for model, cost in r.get("per_model", {}).items():
-                    merged_per_model[model] = merged_per_model.get(model, 0.0) + cost
-
-            hints = recommend_cost_optimizations(
-                run_count=len(run_history),
-                avg_cost_per_run=avg_cost,
-                per_model_breakdown=merged_per_model,
-            )
-            overrides = derive_tier_overrides(hints)
-            if overrides and hasattr(tier_router, "apply_cost_overrides"):
-                tier_router.apply_cost_overrides(overrides)
-                logger.info(
-                    "Cost optimizer applied %d overrides at startup: %s",
-                    len(overrides),
-                    overrides,
-                )
-        except Exception as exc:
-            logger.warning("Cost optimizer wiring failed: %s", exc)
+    def _wire_cost_optimizer(self, tier_router: Any, run_history: list | None = None) -> None:
+        """Delegated to CognitionBuilder — kept for backward compatibility."""
+        self._get_cognition_builder()._wire_cost_optimizer(tier_router, run_history)
 
     def _build_delegation_manager(self) -> Any:
         """Build DelegationManager with config-driven concurrency and polling parameters.
@@ -1369,6 +892,27 @@ class SystemBuilder:
         """
         invoker = self.build_invoker()
 
+        # Pre-compute optional wired components (avoids post-construction mutation).
+        _mw = self._build_middleware_orchestrator()
+        if _mw is not None:
+            self._inject_middleware_dependencies(_mw)
+            if resolved_profile is not None and resolved_profile.has_evaluator:
+                self._inject_evaluator(_mw, resolved_profile)
+        _skill_ev = None
+        try:
+            _skill_ev = self.build_skill_evolver()
+        except Exception as exc:
+            logger.warning("_build_executor_impl: build_skill_evolver failed: %s", exc)
+        _skill_ev_interval = getattr(self._config, "skill_evolve_interval", 10)
+        _tracer = None
+        try:
+            export_dir = getattr(self._config, "trace_export_dir", "")
+            if export_dir:
+                from hi_agent.observability.tracing import JsonFileTraceExporter, Tracer
+                _tracer = Tracer(exporters=[JsonFileTraceExporter(export_dir)])
+        except Exception as exc:
+            logger.warning("_build_executor_impl: Tracer build failed: %s", exc)
+
         # Determine stage_graph and stage_actions from profile, falling back to
         # TRACE sample defaults.
         stage_graph: Any | None = None
@@ -1473,65 +1017,16 @@ class SystemBuilder:
             compress_window_threshold=self._config.compress_window_threshold,
             compress_compress_threshold=self._config.compress_compress_threshold,
             evolve_mode=getattr(self._config, "evolve_mode", "auto"),
+            # Pre-wired components — no post-construction mutation needed.
+            middleware_orchestrator=_mw,
+            skill_evolver=_skill_ev,
+            skill_evolve_interval=_skill_ev_interval,
+            tracer=_tracer,
         )
-        # Wire middleware orchestrator into the StageExecutor that RunExecutor
-        # already created during __init__.  RunExecutor does not yet accept
-        # middleware_orchestrator directly, so we inject it post-construction
-        # via the StageExecutor's public instance attribute.
-        try:
-            mw = self._build_middleware_orchestrator()
-            if mw is not None and hasattr(executor, "_stage_executor"):
-                executor._stage_executor._middleware_orchestrator = mw
-                logger.info(
-                    "build_executor: MiddlewareOrchestrator wired into StageExecutor."
-                )
-                # Post-inject subsystem dependencies into middleware instances.
-                # The orchestrator is built early (before all subsystems exist) so
-                # dependencies are None at construction time.  We fill them here
-                # after all subsystems have been built, avoiding circular deps.
-                self._inject_middleware_dependencies(mw)
-                # Inject profile evaluator into EvaluationMiddleware when profile
-                # provides a custom evaluator factory.
-                if resolved_profile is not None and resolved_profile.has_evaluator:
-                    self._inject_evaluator(mw, resolved_profile)
-        except Exception as exc:
-            logger.warning(
-                "build_executor: failed to wire MiddlewareOrchestrator, "
-                "middleware path will be inactive: %s",
-                exc,
-            )
-        # Wire SkillEvolver into RunLifecycle for automatic evolve_cycle() triggering.
-        try:
-            se = self.build_skill_evolver()
-            if se is not None and hasattr(executor, "_lifecycle"):
-                executor._lifecycle.skill_evolver = se
-                executor._lifecycle._skill_evolve_interval = getattr(
-                    self._config, "skill_evolve_interval", 10
-                )
-                logger.info("build_executor: SkillEvolver wired into RunLifecycle.")
-        except Exception as exc:
-            logger.warning(
-                "build_executor: failed to wire SkillEvolver, "
-                "auto evolve_cycle will be inactive: %s",
-                exc,
-            )
-        # Wire JsonFileTraceExporter when trace_export_dir is configured.
-        try:
-            export_dir = getattr(self._config, "trace_export_dir", "")
-            if export_dir and hasattr(executor, "_telemetry"):
-                from hi_agent.observability.tracing import (
-                    JsonFileTraceExporter,
-                    Tracer,
-                )
-                executor._telemetry.tracer = Tracer(
-                    exporters=[JsonFileTraceExporter(export_dir)]
-                )
-                logger.info(
-                    "build_executor: JsonFileTraceExporter wired (dir=%r).", export_dir
-                )
-        except Exception as exc:
-            logger.warning(
-                "build_executor: failed to wire JsonFileTraceExporter: %s", exc
+        if _mw is not None:
+            logger.info(
+                "build_executor: MiddlewareOrchestrator + SkillEvolver + Tracer "
+                "wired at construction time (no post-mutation)."
             )
         return executor
 
