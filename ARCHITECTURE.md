@@ -1,10 +1,11 @@
 # ARCHITECTURE: hi-agent
 
-## Refresh Notes (2026-04-18 — W13 update)
+## Refresh Notes (2026-04-19 — Workspace Isolation update)
 
-- Updated quality-gate verification snapshot to `3543 passed, 13 skipped, 0 failures`.
-- Added W13 security hardening (§23): GovernedToolExecutor, CapabilityDescriptor risk metadata, PathPolicy, URLPolicy, auth posture degraded signal, shell_exec prod-default-disabled, FallbackTaxonomy, ToolCallAuditEvent, JSON-backed RetrievalEngine cache.
-- Added W13 engineering quality (§24): AsyncBridgeService, HttpLLMGateway deprecation, ContextManager section cache, RetrievalEngine index governance, routes_tools_mcp extraction, public API surface cleanup (snapshot/iter_nodes/stats/set_context_provider), memory store manifest index, SqliteEvidenceStore batch API.
+- Updated quality-gate verification snapshot to `3858 passed, 13 skipped, 0 failures`.
+- Added Workspace Isolation (§25): WorkspaceKey/WorkspacePathHelper, SessionStore/SessionMiddleware, RunManager workspace enforcement, workspace-scoped memory paths (L0–L3 + checkpoints), TeamEventStore, TeamSpace.publish(), GET /team/events, opt-in RunFinalizer auto-sync, acceptance tests 1–20.
+- Preserved W13 security hardening (§23): GovernedToolExecutor, CapabilityDescriptor risk metadata, PathPolicy, URLPolicy, auth posture degraded signal, shell_exec prod-default-disabled, FallbackTaxonomy, ToolCallAuditEvent, JSON-backed RetrievalEngine cache.
+- Preserved W13 engineering quality (§24): AsyncBridgeService, HttpLLMGateway deprecation, ContextManager section cache, RetrievalEngine index governance, routes_tools_mcp extraction, public API surface cleanup (snapshot/iter_nodes/stats/set_context_provider), memory store manifest index, SqliteEvidenceStore batch API.
 - Preserved W1–W12 sprint deliverables: §13 ExecutionProvenance, §14 Evolve Tri-State Policy, §15 RBAC/SOC Auth, §16 SystemBuilder Sub-Builder Split, §17 StageOrchestrator Extraction, §18 Capability Governance, §19 Audit & Observability, §20 MCP Schema Drift & Restart Backoff, §21 ProfileDirectoryManager & Config Stack, §22 Release Gate & Runbooks.
 
 本文档描述 `hi-agent` 当前代码实现（as-is），涵盖分层架构视图、接口关系、使用关系、时序图与数据流图。  
@@ -965,6 +966,10 @@ model: str              # message_start 块携带模型 ID
 | `/tools/call` | `POST` | 按名称调用能力 |
 | `/mcp/tools/list` | `POST` | MCP 工具枚举（含 JSON Schema） |
 | `/mcp/tools/call` | `POST` | MCP 工具调用 |
+| `/sessions` | `GET` | 列出当前用户的活跃 session |
+| `/sessions/{id}/runs` | `GET` | 列出 session 内所有 run |
+| `/sessions/{id}` | `PATCH` | 归档或重命名 session |
+| `/team/events` | `GET` | 列出 team space 事件（支持 since_id） |
 | `/metrics` | `GET` | Prometheus 指标 |
 | `/metrics/json` | `GET` | JSON 指标快照 |
 
@@ -1197,13 +1202,13 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 
 ```bash
 python -m ruff check hi_agent tests scripts examples
-python -m pytest -q        # 3543 passed, 13 skipped, 0 failures
+python -m pytest -q        # 3858 passed, 13 skipped, 0 failures
 
 # LLM 端到端冒烟（streaming / thinking / multimodal）
 python scripts/verify_llm.py [--thinking] [--multimodal <image_path>]
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-18，W13 pass）。
+当前文档对应代码形态已通过全量测试回归（2026-04-19，Workspace Isolation pass）。
 
 ---
 
@@ -1608,3 +1613,85 @@ with store.transaction() as conn: ...                    # 显式事务上下文
 ```
 
 默认 `store()` 保持立即提交语义（审计持久性保证不变）。
+
+---
+
+## 25. Workspace Isolation（Workspace Isolation — Phase 1–5）
+
+### 25.1 身份模型
+
+```python
+WorkspaceKey = NamedTuple("WorkspaceKey", tenant_id=str, user_id=str, session_id=str, team_id=str)
+```
+
+三维主键 `(tenant_id, user_id, session_id)`，`team_id` 默认为空字符串（由 `TenantContext.team_id` 填充）。`_safe_slug()` 对路径遍历字符（`..`、`/`、`\\`、`\x00`）进行 SHA-256 截断哈希，避免文件系统注入。
+
+### 25.2 WorkspacePathHelper
+
+```python
+WorkspacePathHelper.private(base, key, *parts)
+# → {base}/workspaces/{tenant}/users/{user}/sessions/{session}/{*parts}
+
+WorkspacePathHelper.team(base, key, *parts)
+# → {base}/workspaces/{tenant}/teams/{team}/{*parts}
+```
+
+所有存储层（L0/L1/L2/L3/checkpoints/retrieval-cache）均通过此 helper 计算工作区路径，存储类本身不感知工作区。
+
+### 25.3 SessionStore / SessionMiddleware
+
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| `SessionStore` | `server/session_store.py` | SQLite 会话持久化（WAL），`(tenant_id, user_id, session_id)` 所有权校验 |
+| `SessionMiddleware` | `server/session_middleware.py` | `X-Session-Id` 校验；缺失时自动创建并写入响应头 |
+| Session 路由 | `server/routes_sessions.py` | `GET /sessions`、`GET /sessions/{id}/runs`、`PATCH /sessions/{id}` |
+
+### 25.4 RunManager 工作区执行
+
+- `RunManager.create_run()` 从 `WorkspaceContext` 绑定 `tenant_id / user_id / session_id`，不信任请求体中的字段。
+- `get_run(run_id, workspace)` — workspace 不匹配返回 `None`（路由层返回 404）。
+- `list_runs(workspace)` — 内存 + SQLite 双重过滤。
+- 所有 run 路由（`GET/POST/PATCH /runs/*`、SSE `/runs/{id}/events`）均执行工作区所有权校验。
+
+### 25.5 内存存储路径注入链
+
+```
+ManagedRun.{tenant_id, user_id, session_id}
+  └─ WorkspaceKey
+       └─ SystemBuilder._build_executor_impl(workspace_key)
+            ├─ MemoryBuilder.build_short_term_store(workspace_key)  → L1 路径
+            ├─ MemoryBuilder.build_mid_term_store(workspace_key)    → L2 路径
+            ├─ MemoryBuilder.build_long_term_graph(workspace_key)   → L3 路径
+            ├─ RawMemoryStore(base_dir=WorkspacePathHelper.private(..., "L0"))
+            └─ RunSession(storage_dir=WorkspacePathHelper.private(..., "checkpoints"))
+```
+
+`workspace_key` 为 `None`（字段缺失或空值）时回退到原 profile_id 路径，保持向后兼容。
+
+### 25.6 TeamEventStore / TeamSpace
+
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| `TeamEventStore` | `server/team_event_store.py` | SQLite WAL，`threading.Lock` 并发安全 INSERT，11 字段 `TeamEvent`（含 provenance） |
+| `TeamSpace` | `server/team_space.py` | `publish(event_type, payload, ...)` — 生成 UUID event_id，调用 `TeamEventStore.insert()` |
+| Team 路由 | `server/routes_team.py` | `GET /team/events?since_id=N` — 需认证，按 `team_space_id` 过滤 |
+
+### 25.7 RunFinalizer opt-in Team Sync
+
+```python
+RunFinalizer(share_to_team=False, team_space=None, ...)
+# finalize() 结束时:
+if self._share_to_team and self._team_space is not None:
+    self._team_space.publish(event_type="run_summary", payload={"outcome": outcome}, ...)
+```
+
+默认 `share_to_team=False`；私有会话内容不自动写入 Team Space，防止数据泄漏。
+
+### 25.8 验收测试（1–20）
+
+| 测试范围 | 编号 | 覆盖文件 |
+|----------|------|---------|
+| Run/Event 所有权隔离 | 1–10 | `tests/integration/test_workspace_isolation_phase1.py` |
+| 内存存储路径隔离（L1/L2/L3/L0/checkpoint） | 11–15 | `tests/server/test_memory_isolation.py` |
+| Team Space 可见性与隔离 | 16–18 | `tests/server/test_team_routes.py` |
+| Legacy 行隐藏、路径遍历防护 | 19–20 | `tests/integration/test_workspace_isolation_phase2.py` |
