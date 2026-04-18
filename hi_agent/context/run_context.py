@@ -43,6 +43,7 @@ class RunContext:
     skill_ids_used: list[str] = field(default_factory=list)
     completed_stages: set[str] = field(default_factory=set)
     metadata: dict[str, Any] = field(default_factory=dict)
+    team_space: Any | None = None  # set at run start when share_to_team=True
     nudge_state: Any = field(
         default_factory=lambda: NudgeState() if NudgeState is not None else None
     )

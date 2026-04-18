@@ -52,8 +52,15 @@ class RunFinalizerContext:
 class RunFinalizer:
     """Finalize run execution state into a RunResult."""
 
-    def __init__(self, ctx: RunFinalizerContext) -> None:
+    def __init__(
+        self,
+        ctx: RunFinalizerContext,
+        team_space: Any | None = None,
+        share_to_team: bool = False,
+    ) -> None:
         self.ctx = ctx
+        self._team_space = team_space
+        self._share_to_team = share_to_team
 
     def _cancel_pending_subruns(self, status: str) -> None:
         """Cancel any sub-run futures and reflection tasks not collected before finalization."""
@@ -412,5 +419,19 @@ class RunFinalizer:
             run_result.execution_provenance = _prov
         except Exception as _prov_exc:  # provenance must never crash the run
             _logger.warning("runner.provenance_build_failed error=%s", _prov_exc)
+
+        # --- Opt-in team sync ---
+        if self._share_to_team and self._team_space is not None:
+            try:
+                self._team_space.publish(
+                    event_type="run_summary",
+                    payload={"outcome": outcome},
+                    source_run_id=ctx.run_id,
+                    source_user_id="",
+                    source_session_id="",
+                    publish_reason="auto_sync",
+                )
+            except Exception as _sync_exc:
+                _logger.warning("runner.team_sync_failed error=%s", _sync_exc)
 
         return run_result
