@@ -15,9 +15,9 @@ def test_safe_slug_replaces_spaces():
 
 def test_safe_slug_path_traversal_hashed():
     result = _safe_slug("../../../etc/passwd")
-    assert "/" not in result
-    assert "\\" not in result
-    assert ".." not in result
+    # SHA256 hex is always 32 lowercase hex chars
+    assert len(result) == 32
+    assert all(c in "0123456789abcdef" for c in result)
 
 
 def test_safe_slug_null_byte_hashed():
@@ -57,3 +57,21 @@ def test_path_traversal_in_tenant_id_is_safe():
     path = WorkspacePathHelper.private("/data", key)
     parts = Path(path).parts
     assert ".." not in parts
+
+
+def test_parts_with_traversal_are_sanitized():
+    key = WorkspaceKey(tenant_id="acme", user_id="alice", session_id="ses-1")
+    path = WorkspacePathHelper.private("/data", key, "../escape")
+    parts = Path(path).parts
+    assert ".." not in parts
+
+
+def test_empty_id_raises():
+    with pytest.raises(ValueError):
+        _safe_slug("")
+
+
+def test_different_keys_produce_distinct_paths():
+    key1 = WorkspaceKey(tenant_id="t1", user_id="alice", session_id="s1")
+    key2 = WorkspaceKey(tenant_id="t1", user_id="bob", session_id="s1")
+    assert WorkspacePathHelper.private("/data", key1) != WorkspacePathHelper.private("/data", key2)
