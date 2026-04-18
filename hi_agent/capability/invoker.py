@@ -11,11 +11,27 @@ from hi_agent.capability.circuit_breaker import CircuitBreaker
 from hi_agent.capability.policy import CapabilityPolicy
 from hi_agent.capability.registry import CapabilityRegistry
 
+_DANGEROUS_ALLOWED_ROLES = {"approver", "admin"}
+
+
+def _get_effect_class_value(spec: object) -> str | None:
+    """Return effect_class value from a spec or attached descriptor."""
+    effect_class = getattr(spec, "effect_class", None)
+    if effect_class is None:
+        descriptor = getattr(spec, "descriptor", None)
+        if descriptor is not None:
+            effect_class = getattr(descriptor, "effect_class", None)
+    if effect_class is None:
+        return None
+    value = getattr(effect_class, "value", effect_class)
+    return str(value)
+
 
 class CapabilityUnavailableError(Exception):
     """Raised when a capability fails probe_availability check."""
 
     def __init__(self, capability_name: str, reason: str) -> None:
+        """Initialize unavailable capability details."""
         self.capability_name = capability_name
         self.reason = reason
         super().__init__(f"Capability {capability_name!r} unavailable: {reason}")
@@ -103,6 +119,14 @@ class CapabilityInvoker:
                 )
 
         spec = self.registry.get(capability_name)
+
+        effect_class = _get_effect_class_value(spec)
+        if effect_class == "dangerous" and role not in _DANGEROUS_ALLOWED_ROLES:
+            raise PermissionError(
+                f"Capability {capability_name!r} has effect_class='dangerous' "
+                "and requires role in ['approver', 'admin']; "
+                f"got role={role!r}"
+            )
 
         # W4-003: pre-check availability before invoking
         probe_fn = getattr(self.registry, "probe_availability", None)
