@@ -54,7 +54,7 @@ from typing import Any
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response, StreamingResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from hi_agent.auth.operation_policy import require_operation
@@ -63,12 +63,23 @@ from hi_agent.config.watcher import ConfigFileWatcher
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
-from hi_agent.server.event_store import SQLiteEventStore
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.run_store import SQLiteRunStore
 from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
+from hi_agent.server.routes_events import handle_run_events_sse
+from hi_agent.server.routes_runs import (
+    handle_create_run,
+    handle_get_feedback,
+    handle_get_run,
+    handle_list_runs,
+    handle_resume_run,
+    handle_run_artifacts,
+    handle_runs_active,
+    handle_signal_run,
+    handle_submit_feedback,
+)
 from hi_agent.server.routes_tools_mcp import (
     handle_mcp_tools,
     handle_mcp_tools_call,
@@ -79,9 +90,6 @@ from hi_agent.server.routes_tools_mcp import (
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Starlette route handlers
-# ---------------------------------------------------------------------------
 
 async def handle_health(request: Request) -> JSONResponse:
     """Return aggregated server health status across all subsystems."""
@@ -580,309 +588,6 @@ async def handle_manifest(request: Request) -> JSONResponse:
             },
         },
     })
-
-
-async def handle_list_runs(request: Request) -> JSONResponse:
-    """List all managed runs."""
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    runs = manager.list_runs()
-    return JSONResponse({"runs": [manager.to_dict(r) for r in runs]})
-
-
-async def handle_runs_active(request: Request) -> JSONResponse:
-    """Return currently active run contexts from RunContextManager."""
-    server: AgentServer = request.app.state.agent_server
-    rcm = getattr(server, "run_context_manager", None)
-    if rcm is None:
-        return JSONResponse({"run_ids": [], "count": 0, "status": "not_configured"})
-    try:
-        run_ids = rcm.list_runs()
-        return JSONResponse({
-            "run_ids": run_ids,
-            "count": len(run_ids),
-            "status": "ok",
-        })
-    except Exception as exc:
-        logger.warning("handle_runs_active: error fetching active runs: %s", exc)
-        return JSONResponse({"error": str(exc)}, status_code=500)
-
-
-async def handle_create_run(request: Request) -> JSONResponse:
-    """Create a new run from the POST body."""
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-
-    if "goal" not in body:
-        return JSONResponse({"error": "missing_goal"}, status_code=400)
-
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    run_id = manager.create_run(body)
-
-    # Register run in RunContextManager so /runs/active reflects live runs.
-    rcm = getattr(server, "run_context_manager", None)
-    if rcm is not None:
-        try:
-            rcm.get_or_create(run_id)
-        except Exception:
-            pass
-
-    # If the server has an executor factory, start the run immediately.
-    if server.executor_factory is not None:
-        run_data = dict(body, run_id=run_id)
-        try:
-            task_runner = server.executor_factory(run_data)
-        except RuntimeError as exc:
-            # Platform subsystem not ready (e.g. LLM gateway requires API key in
-            # prod mode). Return 503 so integrators can act on it, not a raw 500.
-            logger.warning("handle_create_run: executor_factory failed — %s", exc)
-            # Clean up the run we registered above
-            try:
-                manager.get_run(run_id)  # no-op, just guard
-            except Exception:
-                pass
-            return JSONResponse(
-                {
-                    "error": "platform_not_ready",
-                    "detail": str(exc),
-                    "run_id": run_id,
-                    "hint": (
-                        "Set HI_AGENT_ENV=dev for heuristic fallback, or provide "
-                        "OPENAI_API_KEY / ANTHROPIC_API_KEY for production mode."
-                    ),
-                },
-                status_code=503,
-            )
-        except Exception as exc:
-            logger.exception("handle_create_run: executor_factory unexpected error — %s", exc)
-            return JSONResponse(
-                {
-                    "error": "executor_build_failed",
-                    "detail": str(exc),
-                    "run_id": run_id,
-                    "error_type": type(exc).__name__,
-                },
-                status_code=500,
-            )
-
-        def _executor_fn(_managed_run: Any) -> Any:
-            try:
-                return task_runner()
-            finally:
-                # Remove from active registry on completion or failure.
-                if rcm is not None:
-                    try:
-                        rcm.remove(run_id)
-                    except Exception:
-                        pass
-
-        manager.start_run(run_id, _executor_fn)
-
-    run = manager.get_run(run_id)
-    return JSONResponse(manager.to_dict(run), status_code=201)  # type: ignore[arg-type]
-
-
-async def handle_get_run(request: Request) -> JSONResponse:
-    """Return a single run by id."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    run = manager.get_run(run_id)
-    if run is None:
-        return JSONResponse(
-            {"error": "run_not_found", "run_id": run_id}, status_code=404,
-        )
-    return JSONResponse(manager.to_dict(run))
-
-
-async def handle_signal_run(request: Request) -> JSONResponse:
-    """Send a signal to an existing run."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    run = manager.get_run(run_id)
-    if run is None:
-        return JSONResponse(
-            {"error": "run_not_found", "run_id": run_id}, status_code=404,
-        )
-
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-
-    signal = body.get("signal")
-    if signal == "cancel":
-        ok = manager.cancel_run(run_id)
-        if ok:
-            return JSONResponse({"run_id": run_id, "state": "cancelled"})
-        return JSONResponse(
-            {"error": "cannot_cancel", "run_id": run_id}, status_code=409,
-        )
-    return JSONResponse(
-        {"error": "unknown_signal", "signal": signal}, status_code=400,
-    )
-
-
-_feedback_store_fallback: Any = None
-
-
-def _get_feedback_store(server: "AgentServer") -> Any:
-    """Return the server's FeedbackStore, creating a module-level fallback if needed."""
-    global _feedback_store_fallback
-    store = getattr(server, "_feedback_store", None)
-    if store is not None:
-        return store
-    if _feedback_store_fallback is None:
-        from hi_agent.evolve.feedback_store import FeedbackStore
-        _feedback_store_fallback = FeedbackStore()
-    return _feedback_store_fallback
-
-
-async def handle_submit_feedback(request: Request) -> JSONResponse:
-    """POST /runs/{run_id}/feedback — record explicit feedback for a completed run."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-    rating = body.get("rating")
-    if rating is None or not isinstance(rating, (int, float)):
-        return JSONResponse({"error": "rating_required", "detail": "rating must be a number"}, status_code=400)
-    notes = body.get("notes", "")
-    from hi_agent.evolve.feedback_store import RunFeedback
-    feedback = RunFeedback(run_id=run_id, rating=float(rating), notes=str(notes))
-    store = _get_feedback_store(server)
-    store.submit(feedback)
-    return JSONResponse({"run_id": run_id, "rating": feedback.rating, "submitted_at": feedback.submitted_at})
-
-
-async def handle_get_feedback(request: Request) -> JSONResponse:
-    """GET /runs/{run_id}/feedback — return feedback for a run."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    store = _get_feedback_store(server)
-    record = store.get(run_id)
-    if record is None:
-        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
-    from dataclasses import asdict
-    return JSONResponse(asdict(record))
-
-
-async def handle_resume_run(request: Request) -> JSONResponse:
-    """Resume a run from its checkpoint file."""
-    import os
-    import threading
-
-    run_id = request.path_params["run_id"]
-
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        body = {}
-
-    # Search for checkpoint file (run os.path.exists off the event loop)
-    loop = asyncio.get_event_loop()
-    checkpoint_path = body.get("checkpoint_path")
-    if not checkpoint_path:
-        candidates = [
-            os.path.join(".checkpoint", f"checkpoint_{run_id}.json"),
-            os.path.join(".hi_agent", f"checkpoint_{run_id}.json"),
-        ]
-        for candidate in candidates:
-            if await loop.run_in_executor(None, os.path.exists, candidate):
-                checkpoint_path = candidate
-                break
-
-    if not checkpoint_path or not await loop.run_in_executor(None, os.path.exists, checkpoint_path):
-        return JSONResponse(
-            {"error": "checkpoint_not_found", "run_id": run_id},
-            status_code=404,
-        )
-
-    server: AgentServer = request.app.state.agent_server
-
-    def _resume_in_background() -> None:
-        try:
-            from hi_agent.runner import RunExecutor
-
-            kernel = server._builder.build_kernel()
-            RunExecutor.resume_from_checkpoint(
-                checkpoint_path,
-                kernel,
-                evolve_engine=server._builder.build_evolve_engine(),
-                harness_executor=server._builder.build_harness(),
-            )
-        except Exception as exc:
-            logger.error(
-                "Background checkpoint resume failed for run %r: %s",
-                run_id, exc, exc_info=True,
-            )
-
-    thread = threading.Thread(target=_resume_in_background, daemon=True)
-    thread.start()
-
-    return JSONResponse({
-        "status": "resuming",
-        "run_id": run_id,
-        "checkpoint_path": checkpoint_path,
-    })
-
-
-async def handle_run_events_sse(request: Request) -> StreamingResponse:
-    """Stream all events for a run as Server-Sent Events.
-
-    Supports ``Last-Event-ID`` reconnection: when the header is present and the
-    bus has a durable store attached, missed events are replayed before live
-    streaming resumes.
-    """
-    run_id = request.path_params["run_id"]
-
-    # Parse Last-Event-ID header for replay.
-    last_event_id_raw = request.headers.get("last-event-id", "")
-    try:
-        since_sequence = int(last_event_id_raw) if last_event_id_raw else 0
-    except ValueError:
-        since_sequence = 0
-
-    # Resolve the store attached to the module-level bus (may be None).
-    _store: SQLiteEventStore | None = getattr(event_bus, "_event_store", None)
-
-    async def generate():  # type: ignore[return]
-        # Replay missed events before subscribing to the live queue.
-        if since_sequence > 0 and _store is not None:
-            missed = _store.list_since(run_id, since_sequence)
-            for stored in missed:
-                yield f"id: {stored.sequence}\ndata: {stored.payload_json}\n\n"
-
-        q = event_bus.subscribe(run_id)
-        try:
-            while True:
-                event = await q.get()
-                data = json.dumps({
-                    "run_id": event.run_id,
-                    "event_type": event.event_type,
-                    "commit_offset": event.commit_offset,
-                    "payload": event.payload_json,
-                })
-                yield f"id: {event.commit_offset}\ndata: {data}\n\n"
-        except asyncio.CancelledError:
-            pass
-        finally:
-            event_bus.unsubscribe(run_id, q)
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
 
 
 # ------------------------------------------------------------------
@@ -1687,28 +1392,6 @@ async def handle_get_artifact(request: Request) -> JSONResponse:
     if artifact is None:
         return JSONResponse({"error": "not_found", "artifact_id": artifact_id}, status_code=404)
     return JSONResponse(artifact.to_dict())
-
-
-async def handle_run_artifacts(request: Request) -> JSONResponse:
-    """Return artifact IDs associated with a completed run."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    run = manager.get_run(run_id)
-    if run is None:
-        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
-    result = run.result
-    artifact_ids: list[str] = []
-    if result is not None:
-        artifact_ids = list(getattr(result, "artifacts", []) or [])
-    # Enrich with full artifact data if registry is available.
-    registry = getattr(server, "artifact_registry", None)
-    if registry is not None:
-        artifacts = [registry.get(aid) for aid in artifact_ids]
-        artifacts_payload = [a.to_dict() for a in artifacts if a is not None]
-    else:
-        artifacts_payload = [{"artifact_id": aid} for aid in artifact_ids]
-    return JSONResponse({"run_id": run_id, "artifacts": artifacts_payload, "count": len(artifacts_payload)})
 
 
 # ------------------------------------------------------------------

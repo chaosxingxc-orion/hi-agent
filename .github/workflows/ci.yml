@@ -22,8 +22,12 @@ jobs:
       - name: Lint
         run: ruff check hi_agent tests
       - name: Unit & root tests
-        run: pytest tests/ --ignore=tests/integration -q --tb=short
+        run: pytest tests/ --ignore=tests/integration --ignore=tests/security --ignore=tests/contract -q --tb=short
+      - name: Security tests
+        run: python -m pytest tests/security/ -q --tb=short
+      - name: Contract tests
+        run: python -m pytest tests/contract/ -q --tb=short
       - name: Integration tests
-        run: pytest tests/integration -q --tb=short
+        run: python -m pytest tests/integration/ -q --tb=short --timeout=60
       - name: Coverage (unit)
-        run: pytest tests/ --ignore=tests/integration --cov=hi_agent --cov-report=term-missing --cov-fail-under=65
+        run: pytest tests/ --ignore=tests/integration --ignore=tests/security --ignore=tests/contract --cov=hi_agent --cov-report=term-missing --cov-fail-under=65
