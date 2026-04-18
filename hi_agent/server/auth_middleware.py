@@ -36,7 +36,11 @@ from hi_agent.auth.jwt_middleware import (
     validate_jwt_claims,
 )
 from hi_agent.auth.rbac_enforcer import OperationNotAllowedError, RBACEnforcer
-from hi_agent.server.tenant_context import TenantContext, set_tenant_context
+from hi_agent.server.tenant_context import (
+    TenantContext,
+    reset_tenant_context,
+    set_tenant_context,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -209,24 +213,34 @@ class AuthMiddleware:
             request_id=scope.get("path", "") + "-" + scope.get("method", ""),
         )
         scope["tenant_context"] = ctx
-        set_tenant_context(ctx)
+        reset_token = set_tenant_context(ctx)
 
-        await self.app(scope, receive, send)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            reset_tenant_context(reset_token)
 
     def _authenticate(self, token: str) -> str | None:
         """Validate token and return the resolved role, or None on failure.
 
         Plain API-key tokens get role ``write``.  JWT tokens get their
         role from the ``role`` claim (defaulting to ``read``).
+
+        When ENFORCE_JWT_SIGNATURE=true, reject unsigned JWTs (alg=none) by
+        requiring full signature verification.
         """
         # Plain API-key path
         if token in self._api_keys:
             return "write"
 
-        # JWT path
-        if self._jwt_secret:
+        # JWT path: check ENFORCE_JWT_SIGNATURE flag
+        enforce_sig = os.getenv("ENFORCE_JWT_SIGNATURE", "false").lower() == "true"
+
+        if self._jwt_secret or enforce_sig:
             # Signature verification mode: PyJWT verifies signature AND decodes claims
-            claims = _verify_jwt(token, self._jwt_secret, self._audience)
+            # When enforce_sig=true but jwt_secret is absent, _verify_jwt will fail,
+            # causing the token to be rejected (fail-closed).
+            claims = _verify_jwt(token, self._jwt_secret, self._audience) if self._jwt_secret else None
             if claims is None:
                 return None
             # PyJWT already validated exp and aud; only run additional claims checks
