@@ -59,9 +59,11 @@ class TestToolsCall503OnDegradedAuth:
     def test_tools_call_returns_503_when_auth_degraded(self, monkeypatch):
         """HTTP POST /tools/call returns 503 when auth posture is degraded.
 
-        Injects 'degraded' posture via app.state (the same attribute that
-        build_app() writes at startup) so no per-request AuthMiddleware
-        instance is constructed.
+        With Arch-3 fail-closed: when HI_AGENT_API_KEY is absent and the
+        server is in prod-real mode, AuthMiddleware rejects ALL requests at
+        the middleware layer before they reach route handlers.  The body
+        therefore carries the auth rejection envelope rather than the
+        route-level ``{"success": False}`` shape.
         """
         from starlette.testclient import TestClient
 
@@ -78,4 +80,5 @@ class TestToolsCall503OnDegradedAuth:
         resp = client.post("/tools/call", json={"name": "noop", "arguments": {}})
         assert resp.status_code == 503
         body = resp.json()
-        assert body.get("success") is False
+        # Middleware-level rejection: error envelope rather than route-level success field.
+        assert body.get("reason") == "auth_not_configured"

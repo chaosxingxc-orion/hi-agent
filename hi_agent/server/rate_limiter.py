@@ -92,7 +92,11 @@ class RateLimiter:
         client = scope.get("client")
         client_ip: str = client[0] if client else "unknown"
 
-        allowed, retry_after = self._consume(client_ip)
+        # Use tenant-scoped bucket when a TenantContext is present.
+        tenant_ctx = scope.get("tenant_context")
+        tenant_id: str = tenant_ctx.tenant_id if tenant_ctx is not None else ""
+
+        allowed, retry_after = self._consume(client_ip, tenant_id=tenant_id)
         if not allowed:
             response = JSONResponse(
                 {"error": "rate_limit_exceeded"},
@@ -108,21 +112,28 @@ class RateLimiter:
     # Token bucket logic (thread-safe)
     # ------------------------------------------------------------------
 
-    def _consume(self, client_ip: str) -> tuple[bool, float]:
-        """Try to consume one token for *client_ip*.
+    def _consume(
+        self, client_ip: str, *, tenant_id: str = ""
+    ) -> tuple[bool, float]:
+        """Try to consume one token for the request bucket.
+
+        When *tenant_id* is non-empty the bucket key is ``tenant:<tenant_id>``;
+        otherwise it falls back to ``ip:<client_ip>``.  This keeps all
+        existing IP-based behaviour intact when no TenantContext is present.
 
         Returns:
             ``(allowed, retry_after_seconds)``.
         """
+        bucket_key = f"tenant:{tenant_id}" if tenant_id else f"ip:{client_ip}"
         now = time.monotonic()
 
         with self._lock:
             self._maybe_cleanup(now)
 
-            bucket = self._buckets.get(client_ip)
+            bucket = self._buckets.get(bucket_key)
             if bucket is None:
                 bucket = _Bucket(tokens=float(self.burst), last_refill=now)
-                self._buckets[client_ip] = bucket
+                self._buckets[bucket_key] = bucket
 
             # Refill tokens based on elapsed time.
             elapsed = now - bucket.last_refill
@@ -159,9 +170,9 @@ class RateLimiter:
         if now is None:
             now = time.monotonic()
         stale = [
-            ip
-            for ip, b in self._buckets.items()
+            key
+            for key, b in self._buckets.items()
             if now - b.last_refill > _STALE_SECONDS
         ]
-        for ip in stale:
-            del self._buckets[ip]
+        for key in stale:
+            del self._buckets[key]

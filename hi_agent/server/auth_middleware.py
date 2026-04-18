@@ -36,6 +36,7 @@ from hi_agent.auth.jwt_middleware import (
     validate_jwt_claims,
 )
 from hi_agent.auth.rbac_enforcer import OperationNotAllowedError, RBACEnforcer
+from hi_agent.server.tenant_context import TenantContext, set_tenant_context
 
 _logger = logging.getLogger(__name__)
 
@@ -144,7 +145,17 @@ class AuthMiddleware:
         return "dev_risk_open"
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not self._enabled:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Prod fail-closed: reject all requests when auth is unconfigured in prod.
+        if not self._enabled:
+            if self._runtime_mode == "prod-real":
+                await self._reject(
+                    scope, receive, send, "auth_not_configured", status=503
+                )
+                return
             await self.app(scope, receive, send)
             return
 
@@ -179,6 +190,26 @@ class AuthMiddleware:
         except OperationNotAllowedError:
             await self._reject(scope, receive, send, "forbidden", status=403)
             return
+
+        # Resolve claims for TenantContext population.
+        validated_claims: dict[str, Any] = {}
+        is_jwt = token not in self._api_keys
+        if is_jwt:
+            if self._jwt_secret:
+                raw = _verify_jwt(token, self._jwt_secret, self._audience) or {}
+            else:
+                raw = _decode_jwt_payload(token) or {}
+            validated_claims = raw
+
+        ctx = TenantContext(
+            tenant_id=str(validated_claims.get("tenant_id", "") or "default"),
+            user_id=str(validated_claims.get("sub", "")),
+            roles=[role],
+            auth_method="jwt" if is_jwt else "api_key",
+            request_id=scope.get("path", "") + "-" + scope.get("method", ""),
+        )
+        scope["tenant_context"] = ctx
+        set_tenant_context(ctx)
 
         await self.app(scope, receive, send)
 
