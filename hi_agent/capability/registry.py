@@ -22,6 +22,7 @@ class CapabilityDescriptor:
     requires_approval: bool = False
     required_env: dict[str, str] = field(default_factory=dict)  # {env_var: description}
     output_budget_chars: int = 32_000
+    availability_probe: Callable[[], tuple[bool, str]] | None = None
 
 
 @dataclass(frozen=True)
@@ -102,8 +103,8 @@ class CapabilityRegistry:
             if not os.environ.get(env_var):
                 return False, f"missing env var {env_var!r} ({env_desc})"
 
-        # Call availability_probe if present (descriptor_factory.CapabilityDescriptor supports it)
-        probe = getattr(descriptor, "availability_probe", None)
+        # Call availability_probe if present
+        probe = descriptor.availability_probe
         if probe is not None and callable(probe):
             try:
                 ok, reason = probe()
