@@ -19,7 +19,7 @@ def _safe_slug(value: str, max_len: int = 64) -> str:
     """
     if not value:
         raise ValueError("workspace ID must not be empty")
-    if re.search(r"[/\\\x00.]", value):
+    if re.search(r"\.\.|[/\\\x00]", value):
         return hashlib.sha256(value.encode()).hexdigest()[:32]
     slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", value)
     return slug[:max_len]

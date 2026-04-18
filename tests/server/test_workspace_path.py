@@ -25,6 +25,12 @@ def test_safe_slug_null_byte_hashed():
     assert "\x00" not in result
 
 
+def test_safe_slug_single_dot_not_hashed():
+    result = _safe_slug("2026-04.json")
+    assert result == "2026-04_json"
+    assert len(result) != 32  # not a hash
+
+
 def test_safe_slug_max_length():
     result = _safe_slug("a" * 100)
     assert len(result) <= 64
