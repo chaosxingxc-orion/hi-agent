@@ -9,7 +9,7 @@ from typing import Any, Literal
 RiskClass = Literal["read_only", "filesystem_read", "filesystem_write", "network", "shell", "credential"]
 
 
-@dataclass
+@dataclass(frozen=True)
 class CapabilityDescriptor:
     """Machine-readable risk metadata for a capability."""
 
@@ -75,7 +75,7 @@ class CapabilityRegistry:
         spec = self._capabilities.get(name)
         if spec is None:
             return None
-        return getattr(spec, "descriptor", None)
+        return spec.descriptor
 
     def probe_availability(self, name: str) -> tuple[bool, str]:
         """Check if a capability is available given current environment.
@@ -93,18 +93,17 @@ class CapabilityRegistry:
             return False, f"capability {name!r} not registered"
 
         spec = self._capabilities[name]
-        desc = getattr(spec, "descriptor", None)
-        if desc is None:
+        descriptor = spec.descriptor
+        if descriptor is None:
             return True, ""
 
         # Check required_env
-        required_env = getattr(desc, "required_env", {})
-        for env_var, env_desc in required_env.items():
+        for env_var, env_desc in descriptor.required_env.items():
             if not os.environ.get(env_var):
                 return False, f"missing env var {env_var!r} ({env_desc})"
 
-        # Call availability_probe if defined
-        probe = getattr(desc, "availability_probe", None)
+        # Call availability_probe if present (descriptor_factory.CapabilityDescriptor supports it)
+        probe = getattr(descriptor, "availability_probe", None)
         if probe is not None and callable(probe):
             try:
                 ok, reason = probe()
@@ -125,7 +124,7 @@ class CapabilityRegistry:
         result = []
         for name in sorted(self._capabilities.keys()):
             spec = self._capabilities[name]
-            desc = getattr(spec, "descriptor", None)
+            desc = spec.descriptor
             ok, reason = self.probe_availability(name)
             status = "available" if ok else "unavailable"
             result.append((name, desc, status, reason))

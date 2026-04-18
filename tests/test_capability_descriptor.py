@@ -38,3 +38,18 @@ def test_descriptor_accessible_via_registry(registry: CapabilityRegistry) -> Non
 
 def test_missing_descriptor_returns_none(registry: CapabilityRegistry) -> None:
     assert registry.get_descriptor("nonexistent") is None
+
+
+def test_builtin_file_write_descriptor(registry: CapabilityRegistry) -> None:
+    desc = registry.get_descriptor("file_write")
+    assert desc is not None
+    assert desc.risk_class == "filesystem_write"
+    assert desc.requires_approval is True
+    assert desc.prod_enabled_default is True
+
+
+def test_builtin_web_fetch_descriptor(registry: CapabilityRegistry) -> None:
+    desc = registry.get_descriptor("web_fetch")
+    assert desc is not None
+    assert desc.risk_class == "network"
+    assert desc.requires_approval is False
