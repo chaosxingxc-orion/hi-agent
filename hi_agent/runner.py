@@ -1313,9 +1313,23 @@ class RunExecutor:
 
     def _trigger_recovery(self, stage_id: str) -> None:
         """Execute recovery hook and emit recovery lifecycle events."""
-        return RecoveryCoordinator(self._build_recovery_context())._trigger_recovery(
-            stage_id
-        )
+        # Pre-condition guard: check if recovery handlers are configured
+        if self.recovery_handlers is None:
+            _logger.warning(
+                "runner._trigger_recovery no_recovery_handlers_configured stage_id=%s run_id=%s",
+                stage_id,
+                self.run_id,
+            )
+
+        # Build recovery context with exception context propagation
+        try:
+            ctx = self._build_recovery_context()
+        except Exception as exc:
+            raise RuntimeError(
+                f"recovery context build failed for stage {stage_id!r}"
+            ) from exc
+
+        return RecoveryCoordinator(ctx)._trigger_recovery(stage_id)
 
     def _signal_run_safe(
         self, signal: str, payload: dict[str, Any] | None = None
