@@ -19,6 +19,7 @@ from hi_agent.contracts.run import RunState
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
 from hi_agent.server.run_queue import RunQueue
 from hi_agent.server.run_store import RunRecord, SQLiteRunStore
+from hi_agent.server.tenant_context import TenantContext
 
 # Valid terminal/operational states that result_status may be mapped to.
 _VALID_RESULT_STATES: frozenset[str] = frozenset(s.value for s in RunState)
@@ -36,6 +37,9 @@ class ManagedRun:
     thread: threading.Thread | None = field(default=None, repr=False)
     created_at: str = ""
     updated_at: str = ""
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
 
 
 class RunManager:
@@ -100,7 +104,27 @@ class RunManager:
         self._worker = threading.Thread(target=self._queue_worker, daemon=True)
         self._worker.start()
 
-    def create_run(self, task_contract_dict: dict[str, Any]) -> str:
+    def _owns(self, run: ManagedRun, ctx: TenantContext) -> bool:
+        """Return True if the run belongs to the given workspace context."""
+        return (
+            run.tenant_id == ctx.tenant_id
+            and run.user_id == ctx.user_id
+            and run.session_id == ctx.session_id
+        )
+
+    def _task_id_exists(self, task_id: str, workspace: TenantContext | None) -> bool:
+        """Return True if a run with the given task_id exists in the workspace."""
+        for run in self._runs.values():
+            if run.task_contract.get("task_id") == task_id:
+                if workspace is None or self._owns(run, workspace):
+                    return True
+        return False
+
+    def create_run(
+        self,
+        task_contract_dict: dict[str, Any],
+        workspace: TenantContext | None = None,
+    ) -> str:
         """Create a new run from task contract dict.
 
         When an ``idempotency_store`` is configured and the request carries an
@@ -114,8 +138,12 @@ class RunManager:
         When a ``run_store`` is configured, the new run is persisted to SQLite
         before being placed in the in-memory registry.
 
+        When ``workspace`` is provided, the run is bound to that workspace and a
+        duplicate ``task_id`` within the same workspace raises ``ValueError``.
+
         Args:
             task_contract_dict: Serialized TaskContract fields.
+            workspace: Optional tenant/user/session context to bind to the run.
 
         Returns:
             The new (or previously replayed) run_id.
@@ -123,9 +151,18 @@ class RunManager:
         Raises:
             ValueError: With message ``"idempotency_conflict"`` when the same
                 idempotency key is submitted with a different request payload.
+            ValueError: When a run with the same ``task_id`` already exists in
+                the workspace.
         """
         idempotency_key: str | None = task_contract_dict.get("idempotency_key")
         tenant_id: str = task_contract_dict.get("tenant_id", "default")
+
+        # --- duplicate task_id check within workspace -----------------------
+        client_task_id = task_contract_dict.get("task_id", "")
+        if client_task_id and self._task_id_exists(client_task_id, workspace):
+            raise ValueError(
+                f"run with task_id '{client_task_id}' already exists in workspace"
+            )
 
         # --- idempotency check (only when store + key are present) ----------
         if self._idempotency_store is not None and idempotency_key:
@@ -135,8 +172,8 @@ class RunManager:
                 k: v for k, v in task_contract_dict.items() if k != "idempotency_key"
             }
             request_hash = _hash_payload(payload_for_hash)
-            # Allocate a tentative run_id; only used on "created" path.
-            candidate_run_id = task_contract_dict.get("task_id") or uuid.uuid4().hex[:12]
+            # Allocate a tentative run_id as UUID4; only used on "created" path.
+            candidate_run_id = str(uuid.uuid4())
 
             outcome, record = self._idempotency_store.reserve_or_replay(
                 tenant_id=tenant_id,
@@ -154,7 +191,7 @@ class RunManager:
             # outcome == "created" — continue with candidate_run_id below.
             run_id = candidate_run_id
         else:
-            run_id = task_contract_dict.get("task_id") or uuid.uuid4().hex[:12]
+            run_id = str(uuid.uuid4())
 
         # --- normal run creation -------------------------------------------
         now = datetime.now(UTC).isoformat()
@@ -163,6 +200,9 @@ class RunManager:
             task_contract=task_contract_dict,
             created_at=now,
             updated_at=now,
+            tenant_id=workspace.tenant_id if workspace else "",
+            user_id=workspace.user_id if workspace else "",
+            session_id=workspace.session_id if workspace else "",
         )
         with self._lock:
             self._runs[run_id] = run
@@ -174,6 +214,8 @@ class RunManager:
             self._run_store.upsert(RunRecord(
                 run_id=run_id,
                 tenant_id=tenant_id,
+                user_id=workspace.user_id if workspace else "__legacy__",
+                session_id=workspace.session_id if workspace else "__legacy__",
                 task_contract_json=json.dumps(task_contract_dict),
                 status="queued",
                 priority=int(task_contract_dict.get("priority", 5)),
@@ -405,44 +447,63 @@ class RunManager:
             "queue_utilization": queued / self._queue_size if self._queue_size else 0.0,
         }
 
-    def get_run(self, run_id: str) -> ManagedRun | None:
+    def get_run(
+        self, run_id: str, workspace: TenantContext | None = None
+    ) -> ManagedRun | None:
         """Retrieve a run by id.
+
+        When ``workspace`` is provided, returns None if the run does not belong
+        to that workspace.
 
         Args:
             run_id: Identifier of the run.
+            workspace: Optional tenant/user/session filter.
 
         Returns:
-            The ManagedRun or None if not found.
+            The ManagedRun or None if not found or not owned by workspace.
         """
         with self._lock:
-            return self._runs.get(run_id)
+            run = self._runs.get(run_id)
+        if run is None:
+            return None
+        if workspace and not self._owns(run, workspace):
+            return None
+        return run
 
-    def list_runs(self) -> list[ManagedRun]:
-        """List all managed runs.
+    def list_runs(self, workspace: TenantContext | None = None) -> list[ManagedRun]:
+        """List managed runs, optionally filtered by workspace.
+
+        Args:
+            workspace: When provided, only runs belonging to this workspace are
+                returned.
 
         Returns:
-            A list of all ManagedRun instances.
+            A list of ManagedRun instances.
         """
         with self._lock:
-            return list(self._runs.values())
+            runs = list(self._runs.values())
+        if workspace:
+            runs = [r for r in runs if self._owns(r, workspace)]
+        return runs
 
-    def cancel_run(self, run_id: str) -> bool:
+    def cancel_run(self, run_id: str, workspace: TenantContext | None = None) -> bool:
         """Request cancellation of a run.
 
         Sets the run state to ``cancelled`` if it is still in ``created``
-        or ``running`` state. Note: this does not forcibly terminate the
-        thread but marks the run so callers can observe the cancellation.
+        or ``running`` state. When ``workspace`` is provided, returns False
+        if the run does not belong to that workspace.
 
         Args:
             run_id: Identifier of the run.
+            workspace: Optional tenant/user/session ownership check.
 
         Returns:
             True if the state was changed to cancelled, False otherwise.
         """
+        run = self.get_run(run_id, workspace)
+        if run is None:
+            return False
         with self._lock:
-            run = self._runs.get(run_id)
-            if run is None:
-                return False
             if run.state in ("created", "running"):
                 run.state = "cancelled"
                 run.updated_at = datetime.now(UTC).isoformat()
