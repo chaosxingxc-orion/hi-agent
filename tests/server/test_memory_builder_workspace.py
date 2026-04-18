@@ -16,22 +16,37 @@ def test_short_term_uses_workspace_path(builder, tmp_path):
     key = WorkspaceKey(tenant_id="t1", user_id="u1", session_id="s1")
     store = builder.build_short_term_store(profile_id="p1", workspace_key=key)
     base = getattr(store, "_storage_dir", None) or getattr(store, "storage_dir", None)
-    assert "workspaces/t1/users/u1/sessions/s1" in str(base).replace("\\", "/")
+    posix = Path(str(base)).as_posix()
+    assert "workspaces/t1/users/u1/sessions/s1" in posix
+    assert "L1" in posix
 
 
 def test_mid_term_uses_workspace_path(builder, tmp_path):
     key = WorkspaceKey(tenant_id="t1", user_id="u1", session_id="s1")
     store = builder.build_mid_term_store(profile_id="p1", workspace_key=key)
-    assert "workspaces/t1/users/u1/sessions/s1" in str(store._storage_dir).replace("\\", "/")
+    posix = Path(str(store._storage_dir)).as_posix()
+    assert "workspaces/t1/users/u1/sessions/s1" in posix
+    assert "L2" in posix
 
 
 def test_long_term_uses_workspace_path(builder, tmp_path):
     key = WorkspaceKey(tenant_id="t1", user_id="u1", session_id="s1")
     graph = builder.build_long_term_graph(profile_id="p1", workspace_key=key)
-    assert "workspaces/t1/users/u1/sessions/s1" in str(graph._storage_path).replace("\\", "/")
+    posix = Path(str(graph._storage_path)).as_posix()
+    assert "workspaces/t1/users/u1/sessions/s1" in posix
+    assert "graph.json" in posix
 
 
 def test_no_workspace_key_uses_profile_fallback(builder):
     """Backward compat: no workspace_key → profile_id-scoped path (existing behavior)."""
     store = builder.build_mid_term_store(profile_id="p1", workspace_key=None)
+    path = str(store._storage_dir)
+    assert "profiles" in path or "p1" in path  # profile-scoped path was taken
+    assert "workspaces" not in path             # workspace branch was NOT taken
+
+
+def test_no_workspace_key_no_profile_uses_default_path(builder):
+    """Neither workspace_key nor profile_id → default config-based path."""
+    store = builder.build_mid_term_store(profile_id="", workspace_key=None)
     assert store is not None
+    assert "workspaces" not in str(store._storage_dir)

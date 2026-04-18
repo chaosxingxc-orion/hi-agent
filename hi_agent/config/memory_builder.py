@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 from hi_agent.config.trace_config import TraceConfig
@@ -55,7 +56,7 @@ class MemoryBuilder:
         """
         from hi_agent.memory.short_term import ShortTermMemoryStore
 
-        base = self._config.episodic_storage_dir.replace("episodes", "")
+        base = str(Path(self._config.episodic_storage_dir).parent)
         if workspace_key is not None:
             path = str(WorkspacePathHelper.private(base, workspace_key, "L1"))
         elif profile_id:
@@ -76,7 +77,7 @@ class MemoryBuilder:
         """
         from hi_agent.memory.mid_term import MidTermMemoryStore
 
-        base = self._config.episodic_storage_dir.replace("episodes", "")
+        base = str(Path(self._config.episodic_storage_dir).parent)
         if workspace_key is not None:
             path = str(WorkspacePathHelper.private(base, workspace_key, "L2"))
         elif profile_id:
@@ -98,7 +99,7 @@ class MemoryBuilder:
 
         project_id = getattr(self._config, "project_id", "")
         if workspace_key is not None:
-            base = self._config.episodic_storage_dir.replace("episodes", "")
+            base = str(Path(self._config.episodic_storage_dir).parent)
             storage_path = str(
                 WorkspacePathHelper.private(base, workspace_key, "L3") / "graph.json"
             )
@@ -139,7 +140,7 @@ class MemoryBuilder:
         if wiki is None:
             from hi_agent.knowledge.wiki import KnowledgeWiki
 
-            base = self._config.episodic_storage_dir.replace("episodes", "")
+            base = str(Path(self._config.episodic_storage_dir).parent)
             wiki = KnowledgeWiki(os.path.join(base, "knowledge", "wiki"))
             try:
                 wiki.load()
