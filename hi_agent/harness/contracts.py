@@ -48,6 +48,7 @@ class ActionSpec:
         timeout_seconds: Maximum execution time.
         max_retries: Additional attempts after first failure.
         metadata: Arbitrary metadata for tracing and auditing.
+        submitter_id: Principal who submitted/initiated the action; used for SOC enforcement.
     """
 
     action_id: str
@@ -61,6 +62,7 @@ class ActionSpec:
     timeout_seconds: int = 60
     max_retries: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
+    submitter_id: str = ""
     upstream_artifact_ids: list[str] = field(default_factory=list)
 
 

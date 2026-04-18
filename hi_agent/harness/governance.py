@@ -150,12 +150,28 @@ class GovernanceEngine:
         """
         self._approval_queue.append(spec)
 
-    def approve(self, action_id: str) -> None:
+    def approve(self, action_id: str, *, approver_id: str = "") -> None:
         """Mark an action as approved.
 
         Args:
             action_id: The action to approve.
+            approver_id: Principal approving the action; enforced against submitter for SOC.
+
+        Raises:
+            SeparationOfConcernError: If approver is the same as the action submitter.
         """
+        # Enforce submitter/approver separation when both are present.
+        spec = next((s for s in self._approval_queue if s.action_id == action_id), None)
+        submitter_id = spec.submitter_id if spec is not None else ""
+
+        from hi_agent.auth.soc_guard import enforce_submitter_approver_separation
+
+        enforce_submitter_approver_separation(
+            submitter=submitter_id,
+            approver=approver_id,
+            enabled=bool(submitter_id and approver_id),
+        )
+
         self._approved.add(action_id)
         self._approval_queue = [
             s for s in self._approval_queue if s.action_id != action_id
