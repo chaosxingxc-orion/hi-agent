@@ -42,8 +42,8 @@ def _ensure_workflow_signal_run_compat(facade: object) -> None:
     setattr(workflow_gateway, "signal_run", _signal_run)
 
 
-def _patch_agent_kernel_turn_engine_syntax() -> bool:
-    """Hotfix known Python3-incompatible `except A, B:` syntax in agent-kernel.
+def _patch_agent_kernel_py2_except_syntax() -> bool:
+    """Hotfix Python3-incompatible ``except A, B:`` syntax in agent-kernel.
 
     Returns:
         True when a patch was applied, False otherwise.
@@ -52,19 +52,17 @@ def _patch_agent_kernel_turn_engine_syntax() -> bool:
     if spec is None or not spec.origin:
         return False
     package_root = Path(spec.origin).resolve().parent
-    turn_engine_path = package_root / "kernel" / "turn_engine.py"
-    if not turn_engine_path.exists():
-        return False
-
-    source = turn_engine_path.read_text(encoding="utf-8")
     pattern = re.compile(
         r"except\s+([A-Za-z_][\w\.]*)\s*,\s*([A-Za-z_][\w\.]*)\s*:"
     )
-    fixed = pattern.sub(r"except (\1, \2):", source)
-    if fixed == source:
-        return False
-    turn_engine_path.write_text(fixed, encoding="utf-8")
-    return True
+    patched_any = False
+    for py_file in package_root.rglob("*.py"):
+        source = py_file.read_text(encoding="utf-8")
+        fixed = pattern.sub(r"except (\1, \2):", source)
+        if fixed != source:
+            py_file.write_text(fixed, encoding="utf-8")
+            patched_any = True
+    return patched_any
 
 
 class KernelFacadeAdapter:
@@ -764,8 +762,8 @@ def create_local_adapter() -> KernelFacadeAdapter:
         )
     except SyntaxError as exc:
         # Temporary compatibility bridge: latest main may ship Python2-style
-        # exception syntax in turn_engine; patch in place then retry once.
-        if _patch_agent_kernel_turn_engine_syntax():
+        # exception syntax; patch in place then retry once.
+        if _patch_agent_kernel_py2_except_syntax():
             from agent_kernel.runtime.kernel_runtime import (
                 KernelRuntime,
                 KernelRuntimeConfig,
