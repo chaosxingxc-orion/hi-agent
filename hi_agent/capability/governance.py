@@ -96,6 +96,8 @@ class GovernedToolExecutor:
         principal: str = "anonymous",
         session_id: str = "",
         source: Literal["runner", "http_tools", "http_mcp", "cli"] = "runner",
+        role: str | None = None,
+        metadata: dict | None = None,
     ) -> dict:
         """Governance-gated capability invocation.
 
@@ -132,7 +134,7 @@ class GovernedToolExecutor:
                 capability_name, principal, session_id, source,
                 "allow", None, arguments,
             )
-            return self._invoker.invoke(capability_name, arguments)
+            return self._invoker.invoke(capability_name, arguments, role=role, metadata=metadata)
 
         # Step 2: prod_enabled_default check
         if not descriptor.prod_enabled_default and self._runtime_mode == "prod-real":
@@ -188,7 +190,7 @@ class GovernedToolExecutor:
             capability_name, principal, session_id, source,
             "allow", None, arguments,
         )
-        return self._invoker.invoke(capability_name, arguments)
+        return self._invoker.invoke(capability_name, arguments, role=role, metadata=metadata)
 
     # ------------------------------------------------------------------
     # Audit helper

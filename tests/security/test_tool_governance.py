@@ -124,7 +124,7 @@ def test_dev_mode_allows_shell_exec():
 
     result = executor.invoke("shell_exec", {"cmd": "echo hello"}, principal="dev_user")
 
-    invoker.invoke.assert_called_once_with("shell_exec", {"cmd": "echo hello"})
+    invoker.invoke.assert_called_once_with("shell_exec", {"cmd": "echo hello"}, role=None, metadata=None)
     assert result == {"output": "hello"}
 
 
@@ -162,7 +162,7 @@ def test_allow_decision_calls_invoker():
         "read_status", {"run_id": "abc"}, principal="service_account"
     )
 
-    invoker.invoke.assert_called_once_with("read_status", {"run_id": "abc"})
+    invoker.invoke.assert_called_once_with("read_status", {"run_id": "abc"}, role=None, metadata=None)
     assert result == expected
 
 

@@ -1551,10 +1551,17 @@ async def handle_tools_call(request: Request) -> JSONResponse:
     principal = getattr(request.state, "principal", "anonymous")
     session_id = getattr(request.state, "session_id", "")
     try:
+        import os as _os_tc
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_tc
+        _env_tc = _os_tc.environ.get("HI_AGENT_ENV", "dev").lower()
+        try:
+            _readiness_tc = server._builder.readiness()
+        except Exception:
+            _readiness_tc = {}
+        _runtime_mode_tc = _rrm_tc(_env_tc, _readiness_tc)
         invoker = server._builder.build_invoker()
         registry = server._builder.build_capability_registry()
-        # TODO: inject via app.state in follow-up
-        executor = GovernedToolExecutor(registry=registry, invoker=invoker)
+        executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode=_runtime_mode_tc)
         result = executor.invoke(
             name, arguments,
             principal=principal,
@@ -1757,10 +1764,17 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
     principal = getattr(request.state, "principal", "anonymous")
     session_id = getattr(request.state, "session_id", "")
     try:
+        import os as _os_mc
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_mc
+        _env_mc = _os_mc.environ.get("HI_AGENT_ENV", "dev").lower()
+        try:
+            _readiness_mc = server._builder.readiness()
+        except Exception:
+            _readiness_mc = {}
+        _runtime_mode_mc = _rrm_mc(_env_mc, _readiness_mc)
         registry = server._builder.build_capability_registry()
         invoker = server._builder.build_invoker()
-        # TODO: inject via app.state in follow-up
-        executor = GovernedToolExecutor(registry=registry, invoker=invoker)
+        executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode=_runtime_mode_mc)
         result = executor.invoke(
             name, arguments or {},
             principal=principal,
