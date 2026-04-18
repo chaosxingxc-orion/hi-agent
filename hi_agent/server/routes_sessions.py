@@ -8,6 +8,7 @@ Handlers:
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from starlette.requests import Request
@@ -18,9 +19,12 @@ from hi_agent.server.tenant_context import TenantContext, require_tenant_context
 
 async def handle_list_sessions(request: Request) -> JSONResponse:
     """List all active sessions belonging to the current user."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: Any = request.app.state.agent_server
     store = server.session_store
-    ctx = require_tenant_context()
     sessions = store.list_active(tenant_id=ctx.tenant_id, user_id=ctx.user_id)
     return JSONResponse({"sessions": [
         {
@@ -35,10 +39,13 @@ async def handle_list_sessions(request: Request) -> JSONResponse:
 
 async def handle_get_session_runs(request: Request) -> JSONResponse:
     """Return all runs associated with a specific session."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     sid = request.path_params["session_id"]
     server: Any = request.app.state.agent_server
     store = server.session_store
-    ctx = require_tenant_context()
     if not store.validate_ownership(sid, ctx.tenant_id, ctx.user_id):
         return JSONResponse({"error": "not found"}, status_code=404)
     manager = server.run_manager
@@ -55,11 +62,17 @@ async def handle_get_session_runs(request: Request) -> JSONResponse:
 
 async def handle_patch_session(request: Request) -> JSONResponse:
     """Archive or rename a session."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     sid = request.path_params["session_id"]
     server: Any = request.app.state.agent_server
     store = server.session_store
-    ctx = require_tenant_context()
-    body = await request.json()
+    try:
+        body = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
     if body.get("status") == "archived":
         try:
             store.archive(sid, tenant_id=ctx.tenant_id, user_id=ctx.user_id)
