@@ -583,17 +583,23 @@ class SystemBuilder:
     # Memory tier builders
     # ------------------------------------------------------------------
 
-    def build_short_term_store(self, profile_id: str = "") -> Any:
-        """Build short-term memory store, optionally scoped to a profile."""
-        return self._get_memory_builder().build_short_term_store(profile_id=profile_id)
+    def build_short_term_store(self, profile_id: str = "", workspace_key: Any = None) -> Any:
+        """Build short-term memory store, optionally scoped to a profile or workspace."""
+        return self._get_memory_builder().build_short_term_store(
+            profile_id=profile_id, workspace_key=workspace_key
+        )
 
-    def build_mid_term_store(self, profile_id: str = "") -> Any:
-        """Build mid-term memory store, optionally scoped to a profile."""
-        return self._get_memory_builder().build_mid_term_store(profile_id=profile_id)
+    def build_mid_term_store(self, profile_id: str = "", workspace_key: Any = None) -> Any:
+        """Build mid-term memory store, optionally scoped to a profile or workspace."""
+        return self._get_memory_builder().build_mid_term_store(
+            profile_id=profile_id, workspace_key=workspace_key
+        )
 
-    def build_long_term_graph(self, profile_id: str = "") -> Any:
-        """Build long-term memory graph, optionally scoped to a profile."""
-        return self._get_memory_builder().build_long_term_graph(profile_id=profile_id)
+    def build_long_term_graph(self, profile_id: str = "", workspace_key: Any = None) -> Any:
+        """Build long-term memory graph, optionally scoped to a profile or workspace."""
+        return self._get_memory_builder().build_long_term_graph(
+            profile_id=profile_id, workspace_key=workspace_key
+        )
 
     def build_retrieval_engine(
         self,
@@ -890,7 +896,10 @@ class SystemBuilder:
         return TraceConfig(**{k: v for k, v in merged.items() if k in known})
 
     def _build_executor_impl(
-        self, contract: TaskContract, resolved_profile: Any = None
+        self,
+        contract: TaskContract,
+        resolved_profile: Any = None,
+        workspace_key: Any = None,
     ) -> RunExecutor:
         """Build a fully-wired RunExecutor for a given task contract.
 
@@ -899,6 +908,9 @@ class SystemBuilder:
             resolved_profile: Optional ``ResolvedProfile`` from the platform
                 ProfileRegistry.  When provided, its stage_graph, stage_actions,
                 and evaluator override the TRACE sample defaults.
+            workspace_key: Optional ``WorkspaceKey`` (tenant_id, user_id,
+                session_id).  When provided, all memory stores are placed under
+                workspace-scoped paths instead of the global config directories.
         """
         invoker = self.build_invoker()
 
@@ -959,10 +971,25 @@ class SystemBuilder:
         # --- Build mid-term / long-term memory components for wiring ---
         _profile_id = getattr(contract, "profile_id", "") or ""
         _run_id = uuid.uuid4().hex
-        _raw_base = self._config.episodic_storage_dir
-        _short_term_store = self.build_short_term_store(profile_id=_profile_id)
-        _mid_term_store = self.build_mid_term_store(profile_id=_profile_id)
-        _long_term_graph = self.build_long_term_graph(profile_id=_profile_id)
+        if workspace_key is not None:
+            from pathlib import Path as _Path
+            from hi_agent.server.workspace_path import WorkspacePathHelper
+            _raw_base = str(WorkspacePathHelper.private(
+                _Path(self._config.episodic_storage_dir).parent,
+                workspace_key,
+                "L0",
+            ))
+        else:
+            _raw_base = self._config.episodic_storage_dir
+        _short_term_store = self.build_short_term_store(
+            profile_id=_profile_id, workspace_key=workspace_key
+        )
+        _mid_term_store = self.build_mid_term_store(
+            profile_id=_profile_id, workspace_key=workspace_key
+        )
+        _long_term_graph = self.build_long_term_graph(
+            profile_id=_profile_id, workspace_key=workspace_key
+        )
         # J7-1: share the profile-scoped graph with KnowledgeManager.
         km = self.build_knowledge_manager(
             profile_id=_profile_id,
@@ -1065,6 +1092,7 @@ class SystemBuilder:
         self,
         contract: TaskContract,
         config_patch: dict | None = None,
+        workspace_key: Any = None,
     ) -> RunExecutor:
         """Build a RunExecutor.
 
@@ -1072,6 +1100,13 @@ class SystemBuilder:
         and injects profile-derived stage_graph, stage_actions, and evaluator
         into the executor.  If config_patch provided, creates isolated per-run
         config.
+
+        Args:
+            contract: Task contract.
+            config_patch: Optional dict of config overrides for this run.
+            workspace_key: Optional ``WorkspaceKey`` (tenant_id, user_id,
+                session_id).  When provided, all memory stores are placed under
+                workspace-scoped paths.
         """
         resolved_profile = self._resolve_profile(getattr(contract, "profile_id", None))
         if config_patch:
@@ -1097,7 +1132,9 @@ class SystemBuilder:
             derived._mcp_transport = self._mcp_transport
             derived._plugin_loader = self._plugin_loader
             derived._evidence_store = self._evidence_store
-            return derived._build_executor_impl(contract, resolved_profile=resolved_profile)
+            return derived._build_executor_impl(
+                contract, resolved_profile=resolved_profile, workspace_key=workspace_key
+            )
         elif resolved_profile is not None and resolved_profile.config_overrides:
             run_cfg = self._resolve_with_patch(resolved_profile.config_overrides)
             derived = SystemBuilder(
@@ -1112,8 +1149,12 @@ class SystemBuilder:
             derived._mcp_transport = self._mcp_transport
             derived._plugin_loader = self._plugin_loader
             derived._evidence_store = self._evidence_store
-            return derived._build_executor_impl(contract, resolved_profile=resolved_profile)
-        return self._build_executor_impl(contract, resolved_profile=resolved_profile)
+            return derived._build_executor_impl(
+                contract, resolved_profile=resolved_profile, workspace_key=workspace_key
+            )
+        return self._build_executor_impl(
+            contract, resolved_profile=resolved_profile, workspace_key=workspace_key
+        )
 
     def build_executor_from_checkpoint(
         self, checkpoint_path: str

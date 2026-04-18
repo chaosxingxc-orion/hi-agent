@@ -26,6 +26,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from hi_agent.server.tenant_context import require_tenant_context
+from hi_agent.server.workspace_path import WorkspaceKey
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,14 @@ async def handle_create_run(request: Request) -> JSONResponse:
     # If the server has an executor factory, start the run immediately.
     if server.executor_factory is not None:
         run_data = dict(body, run_id=run_id)
+        # Inject workspace_key so the executor factory can scope memory stores.
+        if ctx.tenant_id and ctx.user_id and ctx.session_id:
+            run_data["_workspace_key"] = WorkspaceKey(
+                tenant_id=ctx.tenant_id,
+                user_id=ctx.user_id,
+                session_id=ctx.session_id,
+                team_id=ctx.team_id,
+            )
         try:
             task_runner = server.executor_factory(run_data)
         except RuntimeError as exc:

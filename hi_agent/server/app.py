@@ -67,6 +67,7 @@ from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.run_store import SQLiteRunStore
+from hi_agent.server.session_store import SessionStore
 from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
 from hi_agent.server.routes_events import handle_run_events_sse
 from hi_agent.server.routes_runs import (
@@ -79,6 +80,11 @@ from hi_agent.server.routes_runs import (
     handle_runs_active,
     handle_signal_run,
     handle_submit_feedback,
+)
+from hi_agent.server.routes_sessions import (
+    handle_get_session_runs,
+    handle_list_sessions,
+    handle_patch_session,
 )
 from hi_agent.server.routes_tools_mcp import (
     handle_mcp_tools,
@@ -1487,6 +1493,11 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # Artifacts
         Route("/artifacts", handle_list_artifacts, methods=["GET"]),
         Route("/artifacts/{artifact_id}", handle_get_artifact, methods=["GET"]),
+
+        # Sessions
+        Route("/sessions", handle_list_sessions, methods=["GET"]),
+        Route("/sessions/{session_id}/runs", handle_get_session_runs, methods=["GET"]),
+        Route("/sessions/{session_id}", handle_patch_session, methods=["PATCH"]),
     ]
 
     @contextlib.asynccontextmanager
@@ -1544,6 +1555,14 @@ def build_app(agent_server: AgentServer) -> Starlette:
             pass
     _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
     app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)
+
+    # SessionMiddleware — must be added AFTER AuthMiddleware in add_middleware
+    # calls so that Starlette's reverse execution order places it AFTER Auth
+    # (i.e. Auth executes first, sets TenantContext, then SessionMiddleware runs).
+    from hi_agent.server.session_middleware import SessionMiddleware
+    _session_store = getattr(agent_server, "session_store", None)
+    if _session_store is not None:
+        app.add_middleware(SessionMiddleware, session_store=_session_store)
     # Store the resolved auth posture on app.state so route handlers can read it
     # without constructing a new AuthMiddleware instance per-request.
     _auth_posture_mw = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_auth)  # type: ignore[arg-type]
@@ -1624,6 +1643,7 @@ class AgentServer:
         self.run_context_manager: Any | None = None
         self.capacity_advisor: Any | None = None
         self.slo_monitor: Any | None = None
+        self.session_store: SessionStore | None = None
 
         # stage_graph — the active stage topology for this server instance.
         # Business agents that inject a custom stage graph should also set this
@@ -1667,6 +1687,9 @@ class AgentServer:
                 db_path=f"{_db_dir}/idempotency.db"
             )
             _run_store = SQLiteRunStore(db_path=f"{_db_dir}/runs.db")
+            _session_store = SessionStore(db_path=f"{_db_dir}/sessions.db")
+            _session_store.initialize()
+            self.session_store = _session_store
         self.run_manager = RunManager(
             max_concurrent=self._config.server_max_concurrent_runs,
             idempotency_store=_idempotency_store,
@@ -1827,7 +1850,10 @@ class AgentServer:
             profile_id=run_data.get("profile_id"),
         )
         config_patch = run_data.get("config_patch")  # optional dict, may be None
-        executor = self._builder.build_executor(contract, config_patch=config_patch)
+        workspace_key = run_data.get("_workspace_key")  # injected by handle_create_run
+        executor = self._builder.build_executor(
+            contract, config_patch=config_patch, workspace_key=workspace_key
+        )
 
         def run() -> Any:
             return executor.execute()
