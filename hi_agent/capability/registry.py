@@ -4,7 +4,25 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+RiskClass = Literal["read_only", "filesystem_read", "filesystem_write", "network", "shell", "credential"]
+
+
+@dataclass(frozen=True)
+class CapabilityDescriptor:
+    """Machine-readable risk metadata for a capability."""
+
+    name: str
+    risk_class: RiskClass = "read_only"
+    side_effect_class: str = "none"
+    remote_callable: bool = True
+    prod_enabled_default: bool = True
+    requires_auth: bool = True
+    requires_approval: bool = False
+    required_env: dict[str, str] = field(default_factory=dict)  # {env_var: description}
+    output_budget_chars: int = 32_000
+    availability_probe: Callable[[], tuple[bool, str]] | None = None
 
 
 @dataclass(frozen=True)
@@ -15,6 +33,7 @@ class CapabilitySpec:
     handler: Callable[[dict], dict]
     description: str = ""
     parameters: dict = field(default_factory=dict)  # JSON Schema dict
+    descriptor: CapabilityDescriptor | None = None
 
 
 class CapabilityRegistry:
@@ -52,6 +71,13 @@ class CapabilityRegistry:
         """
         return bundle.register(self)
 
+    def get_descriptor(self, name: str) -> CapabilityDescriptor | None:
+        """Return the CapabilityDescriptor for a registered capability, or None."""
+        spec = self._capabilities.get(name)
+        if spec is None:
+            return None
+        return spec.descriptor
+
     def probe_availability(self, name: str) -> tuple[bool, str]:
         """Check if a capability is available given current environment.
 
@@ -68,18 +94,17 @@ class CapabilityRegistry:
             return False, f"capability {name!r} not registered"
 
         spec = self._capabilities[name]
-        desc = getattr(spec, "descriptor", None)
-        if desc is None:
+        descriptor = spec.descriptor
+        if descriptor is None:
             return True, ""
 
         # Check required_env
-        required_env = getattr(desc, "required_env", {})
-        for env_var, env_desc in required_env.items():
+        for env_var, env_desc in descriptor.required_env.items():
             if not os.environ.get(env_var):
                 return False, f"missing env var {env_var!r} ({env_desc})"
 
-        # Call availability_probe if defined
-        probe = getattr(desc, "availability_probe", None)
+        # Call availability_probe if present
+        probe = descriptor.availability_probe
         if probe is not None and callable(probe):
             try:
                 ok, reason = probe()
@@ -100,7 +125,7 @@ class CapabilityRegistry:
         result = []
         for name in sorted(self._capabilities.keys()):
             spec = self._capabilities[name]
-            desc = getattr(spec, "descriptor", None)
+            desc = spec.descriptor
             ok, reason = self.probe_availability(name)
             status = "available" if ok else "unavailable"
             result.append((name, desc, status, reason))

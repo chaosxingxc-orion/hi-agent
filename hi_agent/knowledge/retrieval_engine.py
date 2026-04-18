@@ -14,10 +14,11 @@ Searches across all knowledge tiers:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import math
 import os
-import pickle
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -92,45 +93,89 @@ class RetrievalEngine:
     # Index persistence helpers (Fix-6)
     # ------------------------------------------------------------------
 
+    _CACHE_SCHEMA_VERSION = 1
+
     def _index_cache_path(self) -> str:
         """Returns the file path for the persisted TF-IDF index cache."""
-        return os.path.join(self._storage_dir, ".index_cache.pkl")
+        return os.path.join(self._storage_dir, ".index_cache.json")
+
+    def _compute_fingerprint(self, doc_ids: list[str]) -> str:
+        """Compute a stable sha256 fingerprint from document IDs.
+
+        Sorted before hashing so insertion order does not matter.
+        """
+        stable = "\n".join(sorted(doc_ids))
+        return hashlib.sha256(stable.encode()).hexdigest()
 
     def _save_index(self) -> None:
-        """Persist the TF-IDF index to disk.
+        """Persist the TF-IDF index to disk as a JSON cache.
 
         Failures are swallowed so that a transient IO error never disrupts
         the main retrieval flow.
+
+        Deletes any stale legacy binary cache file if present.
         """
         try:
             path = self._index_cache_path()
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "wb") as f:
-                pickle.dump(
-                    {
-                        "tfidf": self._tfidf,
-                        "built_at": datetime.now(tz=timezone.utc).isoformat(),
-                    },
-                    f,
-                )
+
+            # Clean up the old binary cache file if it exists.
+            legacy_path = os.path.join(self._storage_dir, ".index_cache" + ".pkl")
+            if os.path.exists(legacy_path):
+                try:
+                    os.remove(legacy_path)
+                except OSError:
+                    pass
+
+            doc_ids = list(self._tfidf._docs.keys())
+            payload = {
+                "schema_version": self._CACHE_SCHEMA_VERSION,
+                "fingerprint": self._compute_fingerprint(doc_ids),
+                "built_at": datetime.now(tz=timezone.utc).isoformat(),
+                "docs": self._tfidf._docs,
+                "doc_tokens": self._tfidf._doc_tokens,
+                "idf": self._tfidf._idf,
+            }
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f)
             logger.debug("Index cache saved to %s", path)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to save index cache: %s", exc)
 
     def _load_index(self) -> bool:
-        """Try to restore the TF-IDF index from disk.
+        """Try to restore the TF-IDF index from a JSON cache file.
 
-        Returns True when the index was successfully loaded; False otherwise.
-        Failures are swallowed so that a missing or corrupt cache simply
-        triggers a fresh build.
+        Returns True when the index was successfully loaded; False otherwise
+        (missing file, invalid JSON, wrong schema_version, or fingerprint
+        mismatch all return False so the caller rebuilds from scratch).
+        Failures are logged as warnings and never propagated.
         """
         try:
             path = self._index_cache_path()
             if not os.path.exists(path):
                 return False
-            with open(path, "rb") as f:
-                data = pickle.load(f)  # noqa: S301
-            self._tfidf = data["tfidf"]
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+
+            if data.get("schema_version") != self._CACHE_SCHEMA_VERSION:
+                logger.warning(
+                    "Index cache schema_version mismatch (got %s, want %s) — rebuilding",
+                    data.get("schema_version"),
+                    self._CACHE_SCHEMA_VERSION,
+                )
+                return False
+
+            stored_fp = data.get("fingerprint", "")
+            doc_ids = list(data.get("docs", {}).keys())
+            expected_fp = self._compute_fingerprint(doc_ids)
+            if stored_fp != expected_fp:
+                logger.warning("Index cache fingerprint mismatch — rebuilding")
+                return False
+
+            self._tfidf._docs = data["docs"]
+            self._tfidf._doc_tokens = data["doc_tokens"]
+            self._tfidf._idf = {k: float(v) for k, v in data["idf"].items()}
+            self._tfidf._dirty = False
             # Rebuild the ranker so it references the restored index object.
             self._ranker = HybridRanker(self._tfidf)
             logger.debug(

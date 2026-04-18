@@ -24,7 +24,7 @@ import base64
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -84,15 +84,19 @@ class AuthMiddleware:
 
     When ``HI_AGENT_API_KEY`` is not set the middleware is disabled and all
     requests pass through without modification.
+
+    In ``prod-real`` mode without an API key the posture is ``degraded``.
     """
 
     def __init__(
         self,
         app: ASGIApp,
         audience: str = "hi-agent",
+        runtime_mode: str = "dev-smoke",
     ) -> None:
         self.app = app
         self._audience = audience
+        self._runtime_mode = runtime_mode
         self._api_keys = _load_api_keys()
         self._rbac = RBACEnforcer(_DEFAULT_POLICY)
         self._enabled = bool(self._api_keys)
@@ -105,6 +109,21 @@ class AuthMiddleware:
                 "AuthMiddleware disabled: HI_AGENT_API_KEY not set. "
                 "All endpoints are unauthenticated."
             )
+
+    @property
+    def auth_posture(self) -> Literal["ok", "dev_risk_open", "degraded"]:
+        """Return the current authentication posture.
+
+        Returns:
+            ``"ok"``           — API key is set and enforced.
+            ``"dev_risk_open"`` — No API key but in dev/smoke mode (acceptable).
+            ``"degraded"``     — No API key in prod-real mode (unacceptable).
+        """
+        if self._enabled:
+            return "ok"
+        if self._runtime_mode == "prod-real":
+            return "degraded"
+        return "dev_risk_open"
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or not self._enabled:

@@ -44,7 +44,7 @@ def test_call_tool_file_read_real_io(mcp, tmp_path):
     """Real file I/O — no mock."""
     f = tmp_path / "mcp_test.txt"
     f.write_text("mcp content")
-    result = mcp.call_tool("file_read", {"path": str(f)})
+    result = mcp.call_tool("file_read", {"path": "mcp_test.txt", "base_dir": str(tmp_path)})
     assert result["isError"] is False
     data = json.loads(result["content"][0]["text"])
     assert data["content"] == "mcp content"

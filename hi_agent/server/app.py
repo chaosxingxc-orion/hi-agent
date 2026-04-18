@@ -208,6 +208,10 @@ async def handle_ready(request: Request) -> JSONResponse:
     registries and subsystems used by actual run execution — not a
     reconstructed default snapshot.
     """
+    import os as _os_rdy
+    from hi_agent.server.auth_middleware import AuthMiddleware as _AM_rdy
+    from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_rdy
+
     server: AgentServer = request.app.state.agent_server
     try:
         builder = getattr(server, "_builder", None)
@@ -222,6 +226,16 @@ async def handle_ready(request: Request) -> JSONResponse:
             "health": "error",
             "error": str(exc),
         }
+
+    # Augment snapshot with auth_posture.
+    try:
+        _env_rdy = _os_rdy.environ.get("HI_AGENT_ENV", "dev").lower()
+        _runtime_mode_rdy = _rrm_rdy(_env_rdy, snapshot)
+        _auth_rdy = _AM_rdy(app=lambda *a: None, runtime_mode=_runtime_mode_rdy)  # type: ignore[arg-type]
+        snapshot = dict(snapshot, auth_posture=_auth_rdy.auth_posture)
+    except Exception:
+        snapshot = dict(snapshot, auth_posture="unknown")
+
     status_code = 200 if snapshot.get("ready") else 503
     return JSONResponse(snapshot, status_code=status_code)
 
@@ -1537,15 +1551,57 @@ async def handle_tools_call(request: Request) -> JSONResponse:
         return JSONResponse({"error": "missing_name"}, status_code=400)
     arguments = body.get("arguments", {})
 
+    from hi_agent.capability.governance import (
+        ApprovalRequiredError,
+        CapabilityDisabledError,
+        CapabilityNotFoundError,
+        CapabilityUnavailableError,
+        GovernedToolExecutor,
+        PermissionDeniedError,
+        PolicyViolationError,
+    )
+
     server: AgentServer = request.app.state.agent_server
+    principal = getattr(request.state, "principal", "anonymous")
+    session_id = getattr(request.state, "session_id", "")
     try:
+        import os as _os_tc
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_tc
+        _env_tc = _os_tc.environ.get("HI_AGENT_ENV", "dev").lower()
+        try:
+            _readiness_tc = server._builder.readiness()
+        except Exception:
+            _readiness_tc = {}
+        _runtime_mode_tc = _rrm_tc(_env_tc, _readiness_tc)
+        _auth_posture_tc = getattr(request.app.state, "auth_posture", "dev_risk_open")
+        if _auth_posture_tc == "degraded":
+            return JSONResponse(
+                {"success": False, "error": "Authentication not configured for production mode"},
+                status_code=503,
+            )
         invoker = server._builder.build_invoker()
-        result = invoker.invoke(name, arguments)
-        return JSONResponse({"success": True, "result": result})
-    except KeyError:
-        return JSONResponse(
-            {"success": False, "error": f"unknown_tool: {name}"}, status_code=404,
+        registry = server._builder.build_capability_registry()
+        executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode=_runtime_mode_tc)
+        result = executor.invoke(
+            name, arguments,
+            principal=principal,
+            session_id=session_id,
+            source="http_tools",
         )
+        return JSONResponse({"success": True, "result": result})
+    except CapabilityNotFoundError as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=404)
+    except (CapabilityDisabledError, PermissionDeniedError) as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=403)
+    except ApprovalRequiredError as exc:
+        return JSONResponse(
+            {"success": False, "error": str(exc), "capability_name": exc.capability_name},
+            status_code=202,
+        )
+    except PolicyViolationError as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=400)
+    except CapabilityUnavailableError as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=503)
     except Exception as exc:
         logger.warning("handle_tools_call error for %r: %s", name, exc)
         return JSONResponse({"success": False, "error": str(exc)}, status_code=500)
@@ -1715,9 +1771,62 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
     arguments = body.get("arguments", params.get("arguments", {}))
     if not name:
         return JSONResponse({"error": "missing_tool_name"}, status_code=400)
+    from hi_agent.capability.governance import (
+        ApprovalRequiredError,
+        CapabilityDisabledError,
+        CapabilityNotFoundError,
+        CapabilityUnavailableError,
+        GovernedToolExecutor,
+        PermissionDeniedError,
+        PolicyViolationError,
+    )
+
+    principal = getattr(request.state, "principal", "anonymous")
+    session_id = getattr(request.state, "session_id", "")
     try:
-        result = mcp_server.call_tool(name, arguments or {})
+        import os as _os_mc
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_mc
+        _env_mc = _os_mc.environ.get("HI_AGENT_ENV", "dev").lower()
+        try:
+            _readiness_mc = server._builder.readiness()
+        except Exception:
+            _readiness_mc = {}
+        _runtime_mode_mc = _rrm_mc(_env_mc, _readiness_mc)
+        _auth_posture_mc = getattr(request.app.state, "auth_posture", "dev_risk_open")
+        if _auth_posture_mc == "degraded":
+            return JSONResponse(
+                {"isError": True, "error": "Authentication not configured for production mode"},
+                status_code=503,
+            )
+        registry = server._builder.build_capability_registry()
+        invoker = server._builder.build_invoker()
+        executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode=_runtime_mode_mc)
+        result = executor.invoke(
+            name, arguments or {},
+            principal=principal,
+            session_id=session_id,
+            source="http_mcp",
+        )
         return JSONResponse(result)
+    except CapabilityNotFoundError:
+        # Fall back to mcp_server for unregistered tools (external MCP providers)
+        try:
+            result = mcp_server.call_tool(name, arguments or {})
+            return JSONResponse(result)
+        except Exception as exc:
+            logger.exception("handle_mcp_tools_call failed for tool %r", name)
+            return JSONResponse({"error": str(exc)}, status_code=500)
+    except (CapabilityDisabledError, PermissionDeniedError) as exc:
+        return JSONResponse({"isError": True, "error": str(exc)}, status_code=403)
+    except ApprovalRequiredError as exc:
+        return JSONResponse(
+            {"isError": True, "error": str(exc), "capability_name": exc.capability_name},
+            status_code=202,
+        )
+    except PolicyViolationError as exc:
+        return JSONResponse({"isError": True, "error": str(exc)}, status_code=400)
+    except CapabilityUnavailableError as exc:
+        return JSONResponse({"isError": True, "error": str(exc)}, status_code=503)
     except Exception as exc:
         logger.exception("handle_mcp_tools_call failed for tool %r", name)
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -1947,7 +2056,22 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # Auth middleware (outermost — rejects unauthenticated requests before
     # they reach rate limiting or route handlers).
     # Enabled only when HI_AGENT_API_KEY env-var is set; no-op otherwise.
-    app.add_middleware(AuthMiddleware)
+    import os as _os_auth
+    from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_auth
+    _env_auth = _os_auth.environ.get("HI_AGENT_ENV", "dev").lower()
+    _builder_auth = getattr(agent_server, "_builder", None)
+    _readiness_auth: dict = {}
+    if _builder_auth is not None:
+        try:
+            _readiness_auth = _builder_auth.readiness()
+        except Exception:
+            pass
+    _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
+    app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)
+    # Store the resolved auth posture on app.state so route handlers can read it
+    # without constructing a new AuthMiddleware instance per-request.
+    _auth_posture_mw = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_auth)  # type: ignore[arg-type]
+    app.state.auth_posture = _auth_posture_mw.auth_posture
 
     # Rate limiting middleware.
     app.add_middleware(

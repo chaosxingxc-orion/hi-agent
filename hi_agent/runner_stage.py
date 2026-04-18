@@ -56,6 +56,8 @@ class StageExecutor:
         auto_compress: Any | None,
         cost_calculator: Any | None,
         middleware_orchestrator: MiddlewareOrchestrator | None = None,
+        capability_registry: Any | None = None,
+        capability_runtime_mode: str = "dev",
     ) -> None:
         self.kernel = kernel
         self.route_engine = route_engine
@@ -70,6 +72,8 @@ class StageExecutor:
         self.auto_compress = auto_compress
         self.cost_calculator = cost_calculator
         self._middleware_orchestrator = middleware_orchestrator
+        self._capability_registry = capability_registry
+        self._capability_runtime_mode = capability_runtime_mode
 
     # ------------------------------------------------------------------
     # Task-view knowledge
@@ -385,6 +389,23 @@ class StageExecutor:
                 executor.run_id, stage_id, branch_id, BranchState.ACTIVE
             )
             executor._record_skill_usage_from_proposal(proposal, stage_id)
+
+            # --- Capability availability filter (P1-2b) ---
+            if self._capability_registry is not None:
+                try:
+                    from hi_agent.route_engine.capability_filter import filter_proposal
+                    proposal = filter_proposal(
+                        proposal,
+                        self._capability_registry,
+                        self._capability_runtime_mode,
+                    )
+                except Exception as exc:
+                    _logger.warning(
+                        "capability_filter raised unexpectedly — proceeding without filter: %s", exc
+                    )
+                    from hi_agent.observability.fallback import record_fallback, FallbackTaxonomy
+                    record_fallback(FallbackTaxonomy.UNEXPECTED_EXCEPTION, "capability_filter", str(exc))
+                    # proposal remains unfiltered (existing behavior)
 
             node = TrajectoryNode(
                 node_id=deterministic_id(

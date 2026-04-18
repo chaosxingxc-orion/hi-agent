@@ -620,6 +620,12 @@ class RunExecutor:
             skill_evolver=skill_evolver,
             skill_evolve_interval=skill_evolve_interval,
         )
+        # Extract capability registry and runtime mode from the invoker
+        # (GovernedToolExecutor) so the stage executor can apply the
+        # pre-dispatch capability availability filter (P1-2b).
+        _cap_registry = getattr(self.invoker, "_registry", None)
+        _cap_runtime_mode = getattr(self.invoker, "_runtime_mode", "dev")
+
         self._stage_executor = StageExecutor(
             kernel=self.kernel,
             route_engine=self.route_engine,
@@ -634,6 +640,8 @@ class RunExecutor:
             auto_compress=self._auto_compress,
             cost_calculator=self._cost_calculator,
             middleware_orchestrator=middleware_orchestrator,
+            capability_registry=_cap_registry,
+            capability_runtime_mode=_cap_runtime_mode,
         )
 
         # --- Fix-4: ExecutionHookManager — wraps capability invocations so all
@@ -993,17 +1001,31 @@ class RunExecutor:
 
     def _build_default_invoker(
         self, llm_gateway: Any | None = None
-    ) -> CapabilityInvoker:
+    ) -> "GovernedToolExecutor":
         """Build a default capability invoker with built-in action handlers.
+
+        Wraps the real CapabilityInvoker in GovernedToolExecutor so that all
+        capability calls flow through the central governance gate.
 
         Args:
             llm_gateway: Optional LLM gateway for model-backed capability
                 execution.  When provided, each default handler calls the LLM
                 and falls back to a heuristic on failure.
         """
+        import os as _os
+        from hi_agent.capability.governance import GovernedToolExecutor
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
+
         registry = CapabilityRegistry()
         register_default_capabilities(registry, llm_gateway=llm_gateway)
-        return CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+        raw_invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+        _env = _os.environ.get("HI_AGENT_ENV", "dev").lower()
+        runtime_mode = _rrm(_env, {})
+        return GovernedToolExecutor(
+            registry=registry,
+            invoker=raw_invoker,
+            runtime_mode=runtime_mode,
+        )
 
     def _build_recovery_context(self) -> RecoveryContext:
         """Build context for RecoveryCoordinator."""

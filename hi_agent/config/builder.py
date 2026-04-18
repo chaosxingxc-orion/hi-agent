@@ -251,7 +251,17 @@ class SystemBuilder:
                             "registry will have no pre-registered capabilities.",
                             exc,
                         )
-                    register_builtin_tools(registry)
+                    import os as _os_rbt
+                    from hi_agent.server.runtime_mode_resolver import (
+                        resolve_runtime_mode as _rrm_rbt,
+                    )
+                    _env_rbt = _os_rbt.environ.get("HI_AGENT_ENV", "dev").lower()
+                    try:
+                        _readiness_rbt = self.readiness()
+                    except Exception:
+                        _readiness_rbt = {}
+                    _profile_rbt = _rrm_rbt(_env_rbt, _readiness_rbt)
+                    register_builtin_tools(registry, profile=_profile_rbt)
                     self._capability_registry = registry
                     logger.info(
                         "build_capability_registry: CapabilityRegistry created with %d capabilities.",
