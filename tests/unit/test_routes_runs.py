@@ -12,6 +12,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from hi_agent.server.tenant_context import TenantContext, reset_tenant_context, set_tenant_context
+
+_DEFAULT_CTX = TenantContext(tenant_id="t1", user_id="u1", session_id="s1")
+
+
+@pytest.fixture(autouse=True)
+def inject_tenant_context():
+    """Inject a TenantContext so handlers don't return 401 in unit tests."""
+    token = set_tenant_context(_DEFAULT_CTX)
+    yield
+    reset_tenant_context(token)
+
 
 def _make_request(path_params: dict | None = None, json_body: dict | None = None) -> MagicMock:
     """Return a minimal fake Starlette Request."""

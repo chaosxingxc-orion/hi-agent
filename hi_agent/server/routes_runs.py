@@ -25,6 +25,8 @@ from typing import Any
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from hi_agent.server.tenant_context import require_tenant_context
+
 logger = logging.getLogger(__name__)
 
 # Module-level fallback for FeedbackStore when the server does not have one.
@@ -44,15 +46,23 @@ def _get_feedback_store(server: Any) -> Any:
 
 
 async def handle_list_runs(request: Request) -> JSONResponse:
-    """List all managed runs."""
+    """List all managed runs scoped to the caller's workspace."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: Any = request.app.state.agent_server
     manager = server.run_manager
-    runs = manager.list_runs()
+    runs = manager.list_runs(workspace=ctx)
     return JSONResponse({"runs": [manager.to_dict(r) for r in runs]})
 
 
 async def handle_runs_active(request: Request) -> JSONResponse:
     """Return currently active run contexts from RunContextManager."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: Any = request.app.state.agent_server
     rcm = getattr(server, "run_context_manager", None)
     if rcm is None:
@@ -70,7 +80,12 @@ async def handle_runs_active(request: Request) -> JSONResponse:
 
 
 async def handle_create_run(request: Request) -> JSONResponse:
-    """Create a new run from the POST body."""
+    """Create a new run from the POST body, bound to the caller's workspace."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+
     try:
         body = await request.json()
     except (ValueError, json.JSONDecodeError):
@@ -81,7 +96,12 @@ async def handle_create_run(request: Request) -> JSONResponse:
 
     server: Any = request.app.state.agent_server
     manager = server.run_manager
-    run_id = manager.create_run(body)
+    try:
+        run_id = manager.create_run(body, workspace=ctx)
+    except ValueError as exc:
+        if "idempotency_conflict" in str(exc):
+            return JSONResponse({"error": str(exc)}, status_code=409)
+        return JSONResponse({"error": str(exc)}, status_code=409)
 
     # Register run in RunContextManager so /runs/active reflects live runs.
     rcm = getattr(server, "run_context_manager", None)
@@ -142,16 +162,20 @@ async def handle_create_run(request: Request) -> JSONResponse:
 
         manager.start_run(run_id, _executor_fn)
 
-    run = manager.get_run(run_id)
+    run = manager.get_run(run_id, workspace=ctx)
     return JSONResponse(manager.to_dict(run), status_code=201)  # type: ignore[arg-type]
 
 
 async def handle_get_run(request: Request) -> JSONResponse:
-    """Return a single run by id."""
+    """Return a single run by id, scoped to the caller's workspace."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     run_id = request.path_params["run_id"]
     server: Any = request.app.state.agent_server
     manager = server.run_manager
-    run = manager.get_run(run_id)
+    run = manager.get_run(run_id, workspace=ctx)
     if run is None:
         return JSONResponse(
             {"error": "run_not_found", "run_id": run_id}, status_code=404,
@@ -160,11 +184,15 @@ async def handle_get_run(request: Request) -> JSONResponse:
 
 
 async def handle_signal_run(request: Request) -> JSONResponse:
-    """Send a signal to an existing run."""
+    """Send a signal to an existing run, enforcing workspace ownership."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     run_id = request.path_params["run_id"]
     server: Any = request.app.state.agent_server
     manager = server.run_manager
-    run = manager.get_run(run_id)
+    run = manager.get_run(run_id, workspace=ctx)
     if run is None:
         return JSONResponse(
             {"error": "run_not_found", "run_id": run_id}, status_code=404,
@@ -177,7 +205,7 @@ async def handle_signal_run(request: Request) -> JSONResponse:
 
     signal = body.get("signal")
     if signal == "cancel":
-        ok = manager.cancel_run(run_id)
+        ok = manager.cancel_run(run_id, workspace=ctx)
         if ok:
             return JSONResponse({"run_id": run_id, "state": "cancelled"})
         return JSONResponse(
@@ -190,8 +218,15 @@ async def handle_signal_run(request: Request) -> JSONResponse:
 
 async def handle_submit_feedback(request: Request) -> JSONResponse:
     """POST /runs/{run_id}/feedback — record explicit feedback for a completed run."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     run_id = request.path_params["run_id"]
     server: Any = request.app.state.agent_server
+    manager = server.run_manager
+    if manager.get_run(run_id, workspace=ctx) is None:
+        return JSONResponse({"error": "run_not_found", "run_id": run_id}, status_code=404)
     try:
         body = await request.json()
     except (ValueError, json.JSONDecodeError):
@@ -209,8 +244,15 @@ async def handle_submit_feedback(request: Request) -> JSONResponse:
 
 async def handle_get_feedback(request: Request) -> JSONResponse:
     """GET /runs/{run_id}/feedback — return feedback for a run."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     run_id = request.path_params["run_id"]
     server: Any = request.app.state.agent_server
+    manager = server.run_manager
+    if manager.get_run(run_id, workspace=ctx) is None:
+        return JSONResponse({"error": "run_not_found", "run_id": run_id}, status_code=404)
     store = _get_feedback_store(server)
     record = store.get(run_id)
     if record is None:
@@ -221,6 +263,10 @@ async def handle_get_feedback(request: Request) -> JSONResponse:
 
 async def handle_resume_run(request: Request) -> JSONResponse:
     """Resume a run from its checkpoint file."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     import os
     import threading
 
@@ -280,11 +326,15 @@ async def handle_resume_run(request: Request) -> JSONResponse:
 
 
 async def handle_run_artifacts(request: Request) -> JSONResponse:
-    """Return artifact IDs associated with a completed run."""
+    """Return artifact IDs associated with a completed run, scoped to caller's workspace."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     run_id = request.path_params["run_id"]
     server: Any = request.app.state.agent_server
     manager = server.run_manager
-    run = manager.get_run(run_id)
+    run = manager.get_run(run_id, workspace=ctx)
     if run is None:
         return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
     result = run.result

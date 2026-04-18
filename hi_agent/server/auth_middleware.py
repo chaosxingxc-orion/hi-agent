@@ -161,7 +161,19 @@ class AuthMiddleware:
                     scope, receive, send, "auth_not_configured", status=503
                 )
                 return
-            await self.app(scope, receive, send)
+            # Auth disabled in dev/smoke mode: inject an anonymous TenantContext so
+            # workspace-scoped handlers have a valid context to work with.
+            _anon_ctx = TenantContext(
+                tenant_id="__anonymous__",
+                user_id="__anonymous__",
+                session_id="__anonymous__",
+                auth_method="none",
+            )
+            _reset_token = set_tenant_context(_anon_ctx)
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                reset_tenant_context(_reset_token)
             return
 
         path: str = scope.get("path", "")
