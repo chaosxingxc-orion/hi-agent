@@ -32,6 +32,11 @@ class TenantContext:
     def workspace_key(self):
         """Return a WorkspaceKey for this context."""
         from hi_agent.server.workspace_path import WorkspaceKey
+        if not self.session_id:
+            raise ValueError(
+                "session_id is required to build a WorkspaceKey. "
+                "Ensure SessionMiddleware is configured for workspace-scoped routes."
+            )
         return WorkspaceKey(
             tenant_id=self.tenant_id,
             user_id=self.user_id,

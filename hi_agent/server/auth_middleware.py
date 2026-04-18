@@ -116,6 +116,7 @@ class AuthMiddleware:
         self._rbac = RBACEnforcer(_DEFAULT_POLICY)
         self._enabled = bool(self._api_keys)
         self._jwt_secret = os.environ.get("HI_AGENT_JWT_SECRET", "").strip() or None
+        self._enforce_jwt_sig: bool = os.getenv("ENFORCE_JWT_SIGNATURE", "false").lower() == "true"
         if self._jwt_secret:
             _logger.info("AuthMiddleware JWT signature verification enabled")
         else:
@@ -233,10 +234,12 @@ class AuthMiddleware:
         if token in self._api_keys:
             return "write"
 
-        # JWT path: check ENFORCE_JWT_SIGNATURE flag
-        enforce_sig = os.getenv("ENFORCE_JWT_SIGNATURE", "false").lower() == "true"
+        # JWT path: refuse immediately in prod-real when no secret is configured
+        if self._runtime_mode == "prod-real" and not self._jwt_secret:
+            return None  # Refuse JWT in production when no secret is configured
 
-        if self._jwt_secret or enforce_sig:
+        # JWT path: check ENFORCE_JWT_SIGNATURE flag
+        if self._jwt_secret or self._enforce_jwt_sig:
             # Signature verification mode: PyJWT verifies signature AND decodes claims
             # When enforce_sig=true but jwt_secret is absent, _verify_jwt will fail,
             # causing the token to be rejected (fail-closed).

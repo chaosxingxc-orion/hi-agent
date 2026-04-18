@@ -1,3 +1,5 @@
+import pytest
+
 from hi_agent.server.tenant_context import TenantContext
 from hi_agent.server.workspace_path import WorkspaceKey
 
@@ -16,3 +18,9 @@ def test_workspace_key_maps_correctly():
 def test_default_session_id_is_empty():
     ctx = TenantContext(tenant_id="t1", user_id="u1")
     assert ctx.session_id == ""
+
+
+def test_workspace_key_raises_if_no_session_id():
+    ctx = TenantContext(tenant_id="t1", user_id="u1")
+    with pytest.raises(ValueError, match="session_id is required"):
+        ctx.workspace_key()
