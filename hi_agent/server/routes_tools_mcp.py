@@ -229,13 +229,15 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
         )
         return JSONResponse(result)
     except CapabilityNotFoundError:
-        # Fall back to mcp_server for unregistered tools (external MCP providers)
-        try:
-            result = mcp_server.call_tool(name, arguments or {})
-            return JSONResponse(result)
-        except Exception as exc:
-            logger.exception("handle_mcp_tools_call failed for tool %r", name)
-            return JSONResponse({"error": str(exc)}, status_code=500)
+        # Governance: never bypass to raw invoker — return a governed not-found error.
+        logger.warning(
+            "mcp_tools_call: capability_not_found tool=%r principal=%r session=%r",
+            name, principal, session_id,
+        )
+        return JSONResponse(
+            {"isError": True, "error": "capability_not_found", "tool": name},
+            status_code=404,
+        )
     except (CapabilityDisabledError, PermissionDeniedError) as exc:
         return JSONResponse({"isError": True, "error": str(exc)}, status_code=403)
     except ApprovalRequiredError as exc:
