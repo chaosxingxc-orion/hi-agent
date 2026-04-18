@@ -112,8 +112,11 @@ class RunManager:
             and run.session_id == ctx.session_id
         )
 
-    def _task_id_exists(self, task_id: str, workspace: TenantContext | None) -> bool:
-        """Return True if a run with the given task_id exists in the workspace."""
+    def _task_id_exists_unlocked(self, task_id: str, workspace: TenantContext | None) -> bool:
+        """Return True if a run with the given task_id exists in the workspace.
+
+        Must be called while holding ``self._lock``.
+        """
         for run in self._runs.values():
             if run.task_contract.get("task_id") == task_id:
                 if workspace is None or self._owns(run, workspace):
@@ -157,13 +160,6 @@ class RunManager:
         idempotency_key: str | None = task_contract_dict.get("idempotency_key")
         tenant_id: str = task_contract_dict.get("tenant_id", "default")
 
-        # --- duplicate task_id check within workspace -----------------------
-        client_task_id = task_contract_dict.get("task_id", "")
-        if client_task_id and self._task_id_exists(client_task_id, workspace):
-            raise ValueError(
-                f"run with task_id '{client_task_id}' already exists in workspace"
-            )
-
         # --- idempotency check (only when store + key are present) ----------
         if self._idempotency_store is not None and idempotency_key:
             # Build hash from payload excluding the idempotency_key itself so
@@ -204,7 +200,13 @@ class RunManager:
             user_id=workspace.user_id if workspace else "",
             session_id=workspace.session_id if workspace else "",
         )
+        # --- duplicate task_id check and insertion under the same lock ------
+        client_task_id = task_contract_dict.get("task_id", "")
         with self._lock:
+            if client_task_id and self._task_id_exists_unlocked(client_task_id, workspace):
+                raise ValueError(
+                    f"run with task_id '{client_task_id}' already exists in workspace"
+                )
             self._runs[run_id] = run
 
         # --- persist to run_store if available ------------------------------

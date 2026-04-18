@@ -94,11 +94,10 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         cx = self._conn
         cols = {row[1] for row in cx.execute("PRAGMA table_info(run_records)")}
         if "user_id" not in cols:
-            for stmt in self._MIGRATE_RUN_RECORDS.strip().split(";"):
-                stmt = stmt.strip()
-                if stmt:
-                    cx.execute(stmt)
-            cx.commit()
+            cx.execute("ALTER TABLE run_records ADD COLUMN user_id TEXT NOT NULL DEFAULT '__legacy__'")
+        if "session_id" not in cols:
+            cx.execute("ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'")
+        cx.commit()
         cx.execute(
             "CREATE INDEX IF NOT EXISTS idx_run_records_workspace "
             "ON run_records (tenant_id, user_id, session_id, created_at)"

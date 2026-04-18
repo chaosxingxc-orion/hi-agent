@@ -73,11 +73,10 @@ class SQLiteEventStore:
         cx = self._conn
         cols = {row[1] for row in cx.execute("PRAGMA table_info(run_events)")}
         if "user_id" not in cols:
-            for stmt in _MIGRATE_RUN_EVENTS.strip().split(";"):
-                stmt = stmt.strip()
-                if stmt:
-                    cx.execute(stmt)
-            cx.commit()
+            cx.execute("ALTER TABLE run_events ADD COLUMN user_id TEXT NOT NULL DEFAULT '__legacy__'")
+        if "session_id" not in cols:
+            cx.execute("ALTER TABLE run_events ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'")
+        cx.commit()
         cx.execute(
             "CREATE INDEX IF NOT EXISTS idx_run_events_workspace_run_seq "
             "ON run_events (tenant_id, user_id, session_id, run_id, sequence)"
