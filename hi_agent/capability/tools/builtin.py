@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec
+from hi_agent.capability.registry import CapabilityDescriptor, CapabilityRegistry, CapabilitySpec
 
 
 def file_read_handler(payload: dict) -> dict:
@@ -129,6 +129,13 @@ _BUILTIN_TOOLS = [
             },
             "required": ["path"],
         },
+        descriptor=CapabilityDescriptor(
+            name="file_read",
+            risk_class="filesystem_read",
+            side_effect_class="filesystem_read",
+            prod_enabled_default=True,
+            requires_approval=False,
+        ),
     ),
     CapabilitySpec(
         name="file_write",
@@ -143,6 +150,13 @@ _BUILTIN_TOOLS = [
             },
             "required": ["path", "content"],
         },
+        descriptor=CapabilityDescriptor(
+            name="file_write",
+            risk_class="filesystem_write",
+            side_effect_class="filesystem_write",
+            prod_enabled_default=True,
+            requires_approval=True,
+        ),
     ),
     CapabilitySpec(
         name="web_fetch",
@@ -156,6 +170,13 @@ _BUILTIN_TOOLS = [
             },
             "required": ["url"],
         },
+        descriptor=CapabilityDescriptor(
+            name="web_fetch",
+            risk_class="network",
+            side_effect_class="network_read",
+            prod_enabled_default=True,
+            requires_approval=False,
+        ),
     ),
     CapabilitySpec(
         name="shell_exec",
@@ -170,6 +191,13 @@ _BUILTIN_TOOLS = [
             },
             "required": ["command"],
         },
+        descriptor=CapabilityDescriptor(
+            name="shell_exec",
+            risk_class="shell",
+            side_effect_class="shell_exec",
+            prod_enabled_default=False,
+            requires_approval=True,
+        ),
     ),
 ]
 
