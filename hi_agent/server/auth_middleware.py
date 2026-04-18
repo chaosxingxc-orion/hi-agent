@@ -26,6 +26,8 @@ import logging
 import os
 from typing import Any, Literal
 
+import jwt as pyjwt
+
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -57,6 +59,14 @@ def _load_api_keys() -> frozenset[str]:
     if not raw:
         return frozenset()
     return frozenset(k.strip() for k in raw.split(",") if k.strip())
+
+
+def _verify_jwt(token: str, secret: str, audience: str) -> dict[str, Any] | None:
+    """Decode and VERIFY a JWT using the provided secret."""
+    try:
+        return pyjwt.decode(token, secret, algorithms=["HS256"], audience=audience)
+    except pyjwt.PyJWTError:
+        return None
 
 
 def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
@@ -100,6 +110,14 @@ class AuthMiddleware:
         self._api_keys = _load_api_keys()
         self._rbac = RBACEnforcer(_DEFAULT_POLICY)
         self._enabled = bool(self._api_keys)
+        self._jwt_secret = os.environ.get("HI_AGENT_JWT_SECRET", "").strip() or None
+        if self._jwt_secret:
+            _logger.info("AuthMiddleware JWT signature verification enabled")
+        else:
+            _logger.warning(
+                "HI_AGENT_JWT_SECRET not set; JWT signature verification disabled. "
+                "Set this variable in production to prevent forged tokens."
+            )
         if self._enabled:
             _logger.info(
                 "AuthMiddleware enabled (%d key(s) configured)", len(self._api_keys)
@@ -174,15 +192,31 @@ class AuthMiddleware:
         if token in self._api_keys:
             return "write"
 
-        # JWT path: decode and validate claims
-        claims = _decode_jwt_payload(token)
-        if claims is None:
-            return None
-        try:
-            validated = validate_jwt_claims(claims, audience=self._audience)
-            return str(validated.get("role", "read"))
-        except JWTValidationError:
-            return None
+        # JWT path
+        if self._jwt_secret:
+            # Signature verification mode: PyJWT verifies signature AND decodes claims
+            claims = _verify_jwt(token, self._jwt_secret, self._audience)
+            if claims is None:
+                return None
+            # PyJWT already validated exp and aud; only run additional claims checks
+            try:
+                validated = validate_jwt_claims(claims, audience=self._audience)
+                return str(validated.get("role", "read"))
+            except JWTValidationError:
+                return None
+        else:
+            # Fallback: claims-only mode (no signature verification)
+            _logger.warning(
+                "Processing JWT without signature verification (HI_AGENT_JWT_SECRET unset)"
+            )
+            claims = _decode_jwt_payload(token)
+            if claims is None:
+                return None
+            try:
+                validated = validate_jwt_claims(claims, audience=self._audience)
+                return str(validated.get("role", "read"))
+            except JWTValidationError:
+                return None
 
     async def _reject(
         self,

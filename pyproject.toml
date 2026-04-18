@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
   "agent-kernel @ git+https://github.com/chaosxingxc-orion/agent-kernel.git@ff4d25c7e90cd2e2e0e62acb4cf929b0b77eca08",
   "httpx>=0.28",
+  "pyjwt>=2.8",
   "starlette>=0.37",
   "uvicorn[standard]>=0.29",
 ]
