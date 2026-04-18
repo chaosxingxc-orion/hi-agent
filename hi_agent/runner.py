@@ -620,6 +620,12 @@ class RunExecutor:
             skill_evolver=skill_evolver,
             skill_evolve_interval=skill_evolve_interval,
         )
+        # Extract capability registry and runtime mode from the invoker
+        # (GovernedToolExecutor) so the stage executor can apply the
+        # pre-dispatch capability availability filter (P1-2b).
+        _cap_registry = getattr(self.invoker, "_registry", None)
+        _cap_runtime_mode = getattr(self.invoker, "_runtime_mode", "dev")
+
         self._stage_executor = StageExecutor(
             kernel=self.kernel,
             route_engine=self.route_engine,
@@ -634,6 +640,8 @@ class RunExecutor:
             auto_compress=self._auto_compress,
             cost_calculator=self._cost_calculator,
             middleware_orchestrator=middleware_orchestrator,
+            capability_registry=_cap_registry,
+            capability_runtime_mode=_cap_runtime_mode,
         )
 
         # --- Fix-4: ExecutionHookManager — wraps capability invocations so all

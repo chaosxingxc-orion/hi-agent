@@ -56,6 +56,8 @@ class StageExecutor:
         auto_compress: Any | None,
         cost_calculator: Any | None,
         middleware_orchestrator: MiddlewareOrchestrator | None = None,
+        capability_registry: Any | None = None,
+        capability_runtime_mode: str = "dev",
     ) -> None:
         self.kernel = kernel
         self.route_engine = route_engine
@@ -70,6 +72,8 @@ class StageExecutor:
         self.auto_compress = auto_compress
         self.cost_calculator = cost_calculator
         self._middleware_orchestrator = middleware_orchestrator
+        self._capability_registry = capability_registry
+        self._capability_runtime_mode = capability_runtime_mode
 
     # ------------------------------------------------------------------
     # Task-view knowledge
@@ -399,6 +403,23 @@ class StageExecutor:
                 description=proposal.rationale,
             )
             executor.dag[node.node_id] = node
+
+            # --- Capability availability filter (P1-2b) ---
+            if self._capability_registry is not None:
+                try:
+                    from hi_agent.route_engine.capability_filter import filter_proposal
+                    proposal = filter_proposal(
+                        proposal,
+                        self._capability_registry,
+                        self._capability_runtime_mode,
+                    )
+                except Exception as exc:
+                    _logger.debug(
+                        "stage.capability_filter_failed run_id=%s stage_id=%s error=%s",
+                        executor.run_id,
+                        stage_id,
+                        exc,
+                    )
 
             success = False
             result: dict | None = None

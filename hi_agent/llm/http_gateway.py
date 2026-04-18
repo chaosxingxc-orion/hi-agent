@@ -285,6 +285,18 @@ class HttpLLMGateway:
                     time.sleep(delay)
             except TimeoutError as exc:
                 raise LLMTimeoutError(str(exc)) from exc
+        try:
+            from hi_agent.observability.fallback import (  # noqa: PLC0415
+                FallbackTaxonomy,
+                record_fallback,
+            )
+            record_fallback(
+                FallbackTaxonomy.DEPENDENCY_UNAVAILABLE,
+                "http_llm_gateway",
+                "all_retries_exhausted",
+            )
+        except Exception:
+            pass
         raise last_exc  # type: ignore[misc]
 
     @staticmethod
