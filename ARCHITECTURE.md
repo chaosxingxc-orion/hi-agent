@@ -1,11 +1,11 @@
 # ARCHITECTURE: hi-agent
 
-## Refresh Notes (2026-04-18)
+## Refresh Notes (2026-04-18 — W13 update)
 
-- Preserved original architecture content and section ordering.
-- Updated quality-gate verification snapshot to `3430 passed, 0 failures`.
-- Updated lint command to `python -m ruff check hi_agent tests scripts examples`.
-- Added W1–W12 sprint deliverables: §13 ExecutionProvenance, §14 Evolve Tri-State Policy, §15 RBAC/SOC Auth, §16 SystemBuilder Sub-Builder Split, §17 StageOrchestrator Extraction, §18 Capability Governance, §19 Audit & Observability, §20 MCP Schema Drift & Restart Backoff, §21 ProfileDirectoryManager & Config Stack, §22 Release Gate & Runbooks.
+- Updated quality-gate verification snapshot to `3543 passed, 13 skipped, 0 failures`.
+- Added W13 security hardening (§23): GovernedToolExecutor, CapabilityDescriptor risk metadata, PathPolicy, URLPolicy, auth posture degraded signal, shell_exec prod-default-disabled, FallbackTaxonomy, ToolCallAuditEvent, JSON-backed RetrievalEngine cache.
+- Added W13 engineering quality (§24): AsyncBridgeService, HttpLLMGateway deprecation, ContextManager section cache, RetrievalEngine index governance, routes_tools_mcp extraction, public API surface cleanup (snapshot/iter_nodes/stats/set_context_provider), memory store manifest index, SqliteEvidenceStore batch API.
+- Preserved W1–W12 sprint deliverables: §13 ExecutionProvenance, §14 Evolve Tri-State Policy, §15 RBAC/SOC Auth, §16 SystemBuilder Sub-Builder Split, §17 StageOrchestrator Extraction, §18 Capability Governance, §19 Audit & Observability, §20 MCP Schema Drift & Restart Backoff, §21 ProfileDirectoryManager & Config Stack, §22 Release Gate & Runbooks.
 
 本文档描述 `hi-agent` 当前代码实现（as-is），涵盖分层架构视图、接口关系、使用关系、时序图与数据流图。  
 所有图表均基于代码实际实现，与工程实现严格对齐。
@@ -149,6 +149,10 @@ graph TB
     CINV["CapabilityInvoker<br/>capability/invoker.py"]
     ACINV["AsyncCapabilityInvoker<br/>capability/async_invoker.py"]
     CB["CircuitBreaker<br/>capability/circuit_breaker.py"]
+    GTEXEC["GovernedToolExecutor<br/>capability/governance.py"]
+    PPOL["PathPolicy<br/>security/path_policy.py"]
+    UPOL["URLPolicy<br/>security/url_policy.py"]
+    ABRG["AsyncBridgeService<br/>runtime/async_bridge.py"]
   end
 
   subgraph TRAJ["Trajectory"]
@@ -1193,13 +1197,13 @@ agent-kernel 升级至 `ff4d25c7`（含 2 个新提交）：
 
 ```bash
 python -m ruff check hi_agent tests scripts examples
-python -m pytest -q        # 3430 passed, 0 failures
+python -m pytest -q        # 3543 passed, 13 skipped, 0 failures
 
 # LLM 端到端冒烟（streaming / thinking / multimodal）
 python scripts/verify_llm.py [--thinking] [--multimodal <image_path>]
 ```
 
-当前文档对应代码形态已通过全量测试回归（2026-04-18，W12 pass）。
+当前文档对应代码形态已通过全量测试回归（2026-04-18，W13 pass）。
 
 ---
 
@@ -1472,3 +1476,135 @@ flowchart LR
 | E2E (golden) | `test_dev_smoke_golden.py` | 完整 execute() 返回预期键集合 |
 
 `tests/fixtures/` 提供 `fake_llm_http_server`、`fake_kernel_http_server`、`fake_mcp_stdio_server` — 基于 `ThreadingMixIn + HTTPServer` 绑定端口 0，可用于需要真实 HTTP 交互的集成测试。
+
+---
+
+## 23. 安全加固（W13 — P0/P1）
+
+### GovernedToolExecutor（`capability/governance.py`）
+
+所有工具调用路径的唯一治理入口，涵盖：
+
+| 调用来源 | 路径 |
+|----------|------|
+| HTTP `/tools/call` | `server/routes_tools_mcp.py → GovernedToolExecutor` |
+| HTTP `/mcp/tools/call` | 同上 |
+| RunExecutor | `runner.py → _invoke_capability()` |
+| CLI | `__main__.py → GovernedToolExecutor` |
+
+执行顺序：CapabilityDescriptor 查找 → 运行时 profile 启用检查 → RBAC → 审批检查 → PathPolicy/URLPolicy 参数校验 → 写入预执行审计记录 → 委托原始调用器 → 写入执行结果审计记录。
+
+### CapabilityDescriptor 风险元数据
+
+```python
+@dataclass(frozen=True)
+class CapabilityDescriptor:
+    name: str
+    risk_class: Literal["read_only", "filesystem_read", "filesystem_write", "network", "shell", "credential"]
+    prod_enabled_default: bool
+    requires_approval: bool
+    remote_callable: bool
+    output_budget_chars: int
+```
+
+`/manifest` 返回每个已注册能力的 `capability_views` 数组（含 `risk_class`）。prod-real 下注册无描述符的能力抛 `MissingDescriptorError`。
+
+### PathPolicy（`security/path_policy.py`）
+
+`safe_resolve(base_dir, user_path)` 拒绝：`../` 穿越、绝对路径（`/etc/passwd`）、符号链接逃逸、Windows UNC 路径（`\\server\share`）、drive-letter 路径（`C:\Windows`）。
+
+### URLPolicy（`security/url_policy.py`）
+
+`URLPolicy.validate(url)` 拒绝：`file://` 及非 http/https scheme、loopback（127.x、::1）、私有段（RFC-1918）、link-local（169.254.x.x）、云元数据 IP（169.254.169.254）、IPv4-mapped IPv6（::ffff:10.x）；重定向后重新校验目标 URL。
+
+### ToolCallAuditEvent（`observability/audit.py`）
+
+每次工具调用（allow/deny 均记录）产生：
+
+```python
+@dataclass
+class ToolCallAuditEvent:
+    event_id: str; session_id: str; run_id: str
+    principal: str; tool_name: str; risk_class: str; source: str
+    argument_digest: str        # sha256(redacted arguments)
+    decision: Literal["allow", "deny", "approval_required"]
+    denial_reason: str | None
+    result_status: Literal["ok", "error", "timeout"] | None
+    duration_ms: float | None; timestamp: str
+```
+
+### auth 姿态与 shell_exec 禁用
+
+- `HI_AGENT_API_KEY` 未设置 + `runtime_mode=prod-real`：`/ready` 返回 `degraded`，`/tools/call` 返回 503。
+- `prod-real` profile：`shell_exec` 不注册到 CapabilityRegistry；尝试调用返回 `CapabilityNotFoundError`。
+- dev-smoke profile：`shell_exec` 可用，manifest 标注 `risk_class: shell`、`prod_enabled_default: false`。
+
+### FallbackTaxonomy（`observability/fallback.py`）
+
+```python
+class FallbackTaxonomy(StrEnum):
+    EXPECTED_DEGRADATION = "expected_degradation"
+    UNEXPECTED_EXCEPTION = "unexpected_exception"
+    SECURITY_DENIED = "security_denied"
+    DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
+    HEURISTIC_FALLBACK = "heuristic_fallback"
+    POLICY_BYPASS_DEV = "policy_bypass_dev"
+```
+
+`MetricsCollector` 暴露 `fallback_count` 按分类统计；prod-real release gate 如检测到 `POLICY_BYPASS_DEV` > 0 则标记 degraded。
+
+---
+
+## 24. 热路径工程质量（W13 — P3/P4）
+
+### AsyncBridgeService（`runtime/async_bridge.py`）
+
+进程级共享 `ThreadPoolExecutor(max_workers=8, thread_name_prefix="async_bridge")`，替代 `capability/invoker.py` 和 `llm/http_gateway.py` 中每次调用创建 `ThreadPoolExecutor(max_workers=1)` 的模式：
+
+```python
+# 同步调用（带可选超时）
+AsyncBridgeService.run_sync_in_thread(fn, *args, timeout=N)
+
+# 在异步上下文中执行同步函数
+await AsyncBridgeService.run_sync(fn, *args, timeout=N)
+```
+
+### HttpLLMGateway 弃用路径
+
+`HttpLLMGateway.__init__` 在 `runtime_mode ∈ {"prod-real", "local-real"}` 时发出 `DeprecationWarning`；`TraceConfig.compat_sync_llm=False`（默认）时 `SystemBuilder` 使用异步 `HTTPGateway` 作为主路径。
+
+### ContextManager 分段缓存
+
+- **稳定分段**（`system`、`tools`、`skills`）：内容指纹缓存，内容不变时跳过重建。
+- **动态分段**（`memory`、`history`、`reflection`）：脏标志失效机制：`add_history_entry()`、`set_reflection_context()`、`_compact_history()` 触发对应分段失效。
+- 缓存命中/未命中上报 `MetricsCollector`；压缩边界重置所有缓存。
+
+### RetrievalEngine 索引治理
+
+新增 `_index_dirty: bool`、`_index_fingerprint: str`；`warm_index_async()` 供 server 启动时后台预热；`mark_index_dirty()` 在文档变更时调用。pickle 缓存已替换为 JSON（指纹校验 + schema 版本检查；不匹配时触发重建）。`_graph._nodes` 私有访问已替换为 `iter_nodes()` 公开接口。
+
+### routes_tools_mcp（`server/routes_tools_mcp.py`）
+
+`/tools`、`/tools/call`、`/mcp/tools`、`/mcp/tools/list`、`/mcp/tools/call` 路由处理器从 `app.py` 提取，治理接线随路由移动：GovernedToolExecutor 实例化在此模块内完成，`app.py` 仅注册路由表项。
+
+### 公开 API 清理（消除跨模块私有字段访问）
+
+| 原私有访问 | 新公开 API |
+|-----------|-----------|
+| `budget_tracker._max_calls`, `._total_tokens` | `LLMBudgetTracker.snapshot()` → dict |
+| `graph._nodes.items()` | `LongTermMemoryGraph.iter_nodes()` → `Iterable[tuple[str, MemoryNode]]` |
+| `graph._nodes.__len__` | `LongTermMemoryGraph.stats()` → `{node_count, edge_count, adjacency_keys}` |
+| `route_engine._context_provider = ...` | `LLMRouteEngine.set_context_provider(provider)` |
+
+### Memory Store Manifest Index
+
+`ShortTermMemoryStore` 和 `MidTermMemoryStore` 均维护 `_manifest.json`：每条记录 `{id, timestamp, size_bytes}`，按时间戳降序排列，原子写入。`list_recent()` O(k)（manifest 路径），兼容无 manifest 的旧目录（O(n) 扫描回退）。
+
+### SqliteEvidenceStore 批量 API
+
+```python
+store.store_many(events: list[EvidenceRecord]) -> None   # 单事务批量写入，失败全部回滚
+with store.transaction() as conn: ...                    # 显式事务上下文
+```
+
+默认 `store()` 保持立即提交语义（审计持久性保证不变）。
