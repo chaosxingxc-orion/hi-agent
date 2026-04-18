@@ -993,17 +993,28 @@ class RunExecutor:
 
     def _build_default_invoker(
         self, llm_gateway: Any | None = None
-    ) -> CapabilityInvoker:
+    ) -> "GovernedToolExecutor":
         """Build a default capability invoker with built-in action handlers.
+
+        Wraps the real CapabilityInvoker in GovernedToolExecutor so that all
+        capability calls flow through the central governance gate.
 
         Args:
             llm_gateway: Optional LLM gateway for model-backed capability
                 execution.  When provided, each default handler calls the LLM
                 and falls back to a heuristic on failure.
         """
+        from hi_agent.capability.governance import GovernedToolExecutor
+
         registry = CapabilityRegistry()
         register_default_capabilities(registry, llm_gateway=llm_gateway)
-        return CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+        raw_invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+        runtime_mode = getattr(self, "_runtime_mode", "dev-smoke")
+        return GovernedToolExecutor(
+            registry=registry,
+            invoker=raw_invoker,
+            runtime_mode=runtime_mode,
+        )
 
     def _build_recovery_context(self) -> RecoveryContext:
         """Build context for RecoveryCoordinator."""

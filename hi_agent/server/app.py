@@ -1537,15 +1537,44 @@ async def handle_tools_call(request: Request) -> JSONResponse:
         return JSONResponse({"error": "missing_name"}, status_code=400)
     arguments = body.get("arguments", {})
 
+    from hi_agent.capability.governance import (
+        ApprovalRequiredError,
+        CapabilityDisabledError,
+        CapabilityNotFoundError,
+        CapabilityUnavailableError,
+        GovernedToolExecutor,
+        PermissionDeniedError,
+        PolicyViolationError,
+    )
+
     server: AgentServer = request.app.state.agent_server
+    principal = getattr(request.state, "principal", "anonymous")
+    session_id = getattr(request.state, "session_id", "")
     try:
         invoker = server._builder.build_invoker()
-        result = invoker.invoke(name, arguments)
-        return JSONResponse({"success": True, "result": result})
-    except KeyError:
-        return JSONResponse(
-            {"success": False, "error": f"unknown_tool: {name}"}, status_code=404,
+        registry = server._builder.build_capability_registry()
+        # TODO: inject via app.state in follow-up
+        executor = GovernedToolExecutor(registry=registry, invoker=invoker)
+        result = executor.invoke(
+            name, arguments,
+            principal=principal,
+            session_id=session_id,
+            source="http_tools",
         )
+        return JSONResponse({"success": True, "result": result})
+    except CapabilityNotFoundError as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=404)
+    except (CapabilityDisabledError, PermissionDeniedError) as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=403)
+    except ApprovalRequiredError as exc:
+        return JSONResponse(
+            {"success": False, "error": str(exc), "capability_name": exc.capability_name},
+            status_code=202,
+        )
+    except PolicyViolationError as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=400)
+    except CapabilityUnavailableError as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=503)
     except Exception as exc:
         logger.warning("handle_tools_call error for %r: %s", name, exc)
         return JSONResponse({"success": False, "error": str(exc)}, status_code=500)
@@ -1715,9 +1744,49 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
     arguments = body.get("arguments", params.get("arguments", {}))
     if not name:
         return JSONResponse({"error": "missing_tool_name"}, status_code=400)
+    from hi_agent.capability.governance import (
+        ApprovalRequiredError,
+        CapabilityDisabledError,
+        CapabilityNotFoundError,
+        CapabilityUnavailableError,
+        GovernedToolExecutor,
+        PermissionDeniedError,
+        PolicyViolationError,
+    )
+
+    principal = getattr(request.state, "principal", "anonymous")
+    session_id = getattr(request.state, "session_id", "")
     try:
-        result = mcp_server.call_tool(name, arguments or {})
+        registry = server._builder.build_capability_registry()
+        invoker = server._builder.build_invoker()
+        # TODO: inject via app.state in follow-up
+        executor = GovernedToolExecutor(registry=registry, invoker=invoker)
+        result = executor.invoke(
+            name, arguments or {},
+            principal=principal,
+            session_id=session_id,
+            source="http_mcp",
+        )
         return JSONResponse(result)
+    except CapabilityNotFoundError:
+        # Fall back to mcp_server for unregistered tools (external MCP providers)
+        try:
+            result = mcp_server.call_tool(name, arguments or {})
+            return JSONResponse(result)
+        except Exception as exc:
+            logger.exception("handle_mcp_tools_call failed for tool %r", name)
+            return JSONResponse({"error": str(exc)}, status_code=500)
+    except (CapabilityDisabledError, PermissionDeniedError) as exc:
+        return JSONResponse({"isError": True, "error": str(exc)}, status_code=403)
+    except ApprovalRequiredError as exc:
+        return JSONResponse(
+            {"isError": True, "error": str(exc), "capability_name": exc.capability_name},
+            status_code=202,
+        )
+    except PolicyViolationError as exc:
+        return JSONResponse({"isError": True, "error": str(exc)}, status_code=400)
+    except CapabilityUnavailableError as exc:
+        return JSONResponse({"isError": True, "error": str(exc)}, status_code=503)
     except Exception as exc:
         logger.exception("handle_mcp_tools_call failed for tool %r", name)
         return JSONResponse({"error": str(exc)}, status_code=500)
