@@ -972,6 +972,10 @@ class SystemBuilder:
         _profile_id = getattr(contract, "profile_id", "") or ""
         _run_id = uuid.uuid4().hex
         if workspace_key is not None:
+            # Validate all fields are non-empty before using workspace paths
+            if not (workspace_key.tenant_id and workspace_key.user_id and workspace_key.session_id):
+                workspace_key = None  # fall back to profile-scoped paths
+        if workspace_key is not None:
             from pathlib import Path as _Path
             from hi_agent.server.workspace_path import WorkspacePathHelper
             _raw_base = str(WorkspacePathHelper.private(

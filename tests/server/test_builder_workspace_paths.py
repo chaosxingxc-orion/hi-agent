@@ -65,3 +65,21 @@ def test_build_executor_raw_memory_uses_workspace_scoped_path(tmp_path):
     path = Path(base_dir).as_posix()
     assert "workspaces/t1/users/u1/sessions/s1" in path
     assert "L0" in path
+
+
+def test_build_run_executor_empty_user_id_falls_back(tmp_path):
+    """Empty user_id in WorkspaceKey must fall back to default paths, not raise ValueError."""
+    from hi_agent.config.builder import SystemBuilder
+    from hi_agent.config.trace_config import TraceConfig
+    from hi_agent.contracts import TaskContract
+
+    cfg = TraceConfig(episodic_storage_dir=str(tmp_path / "episodes"))
+    builder = SystemBuilder(cfg)
+    key = WorkspaceKey(tenant_id="t1", user_id="", session_id="s1")
+
+    contract = TaskContract(task_id="test-run-4", goal="test goal")
+    # Should not raise, should return an executor with non-workspace paths
+    executor = builder.build_executor(contract, workspace_key=key)
+    mid_term = getattr(executor, "mid_term_store", None)
+    if mid_term is not None:
+        assert "workspaces" not in Path(mid_term._storage_dir).as_posix()
