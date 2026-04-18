@@ -8,6 +8,7 @@ Stored as JSON file, available for next-day context.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 from dataclasses import asdict, dataclass, field
@@ -15,6 +16,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -103,8 +106,8 @@ class MidTermMemoryStore:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(data, list):
                     return data
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as exc:
+            _logger.warning("mid_term.manifest_read_failed path=%s error=%s", path, exc)
         return []
 
     def _save_manifest(self, entries: list[dict]) -> None:
@@ -118,8 +121,8 @@ class MidTermMemoryStore:
         except Exception:
             try:
                 os.unlink(tmp)
-            except OSError:
-                pass
+            except OSError as exc:
+                _logger.warning("mid_term.manifest_cleanup_failed tmp=%s error=%s", tmp, exc)
 
     def _manifest_upsert(self, date: str, timestamp: str, size_bytes: int) -> None:
         entries = self._load_manifest()
@@ -178,8 +181,8 @@ class MidTermMemoryStore:
                 try:
                     fpath.unlink(missing_ok=True)
                     deleted += 1
-                except OSError:
-                    pass
+                except OSError as exc:
+                    _logger.warning("mid_term.evict_file_failed path=%s error=%s", fpath, exc)
         self._manifest_remove_before(cutoff)
         return deleted
 

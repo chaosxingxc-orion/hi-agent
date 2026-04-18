@@ -8,12 +8,15 @@ Stored as JSON file, participates in context building.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -121,8 +124,8 @@ class ShortTermMemoryStore:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(data, list):
                     return data
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as exc:
+            _logger.warning("short_term.manifest_read_failed path=%s error=%s", path, exc)
         return []
 
     def _save_manifest(self, entries: list[dict]) -> None:
@@ -137,8 +140,8 @@ class ShortTermMemoryStore:
         except Exception:
             try:
                 os.unlink(tmp)
-            except OSError:
-                pass
+            except OSError as exc:
+                _logger.warning("short_term.manifest_cleanup_failed tmp=%s error=%s", tmp, exc)
 
     def _manifest_upsert(self, session_id: str, timestamp: str, size_bytes: int) -> None:
         """Add or update one entry in the manifest, keeping it sorted newest-first."""
@@ -206,8 +209,8 @@ class ShortTermMemoryStore:
                         fpath.unlink(missing_ok=True)
                         deleted += 1
                         evicted_ids.add(sid)
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        _logger.warning("short_term.evict_file_failed path=%s error=%s", fpath, exc)
             if evicted_ids:
                 self._manifest_remove(evicted_ids)
             return deleted
@@ -231,8 +234,8 @@ class ShortTermMemoryStore:
             try:
                 fpath.unlink(missing_ok=True)
                 deleted += 1
-            except OSError:
-                pass
+            except OSError as exc:
+                _logger.warning("short_term.evict_file_failed path=%s error=%s", fpath, exc)
         return deleted
 
     def load(self, session_id: str) -> ShortTermMemory | None:
