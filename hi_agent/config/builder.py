@@ -99,6 +99,7 @@ class SystemBuilder:
         self._skill_builder: Any | None = None  # lazy SkillBuilder singleton
         self._memory_builder: Any | None = None  # lazy MemoryBuilder singleton
         self._server_builder: Any | None = None  # lazy ServerBuilder singleton
+        self._capability_plane_builder: Any | None = None  # lazy CapabilityPlaneBuilder singleton
         self._mcp_registry: Any | None = None
         self._mcp_transport: Any | None = None
         self._plugin_loader: Any | None = None
@@ -829,6 +830,15 @@ class SystemBuilder:
             from hi_agent.config.knowledge_builder import KnowledgeBuilder
             self._knowledge_builder_inst = KnowledgeBuilder(self._config, long_term_graph_factory=self.build_long_term_graph)
         return self._knowledge_builder_inst
+
+    def _get_capability_plane_builder(self):
+        if self._capability_plane_builder is None:
+            from hi_agent.config.capability_plane_builder import CapabilityPlaneBuilder
+            self._capability_plane_builder = CapabilityPlaneBuilder(
+                self._config,
+                llm_gateway=self.build_llm_gateway(),
+            )
+        return self._capability_plane_builder
 
     def build_skill_registry(self) -> SkillRegistry:
         """Build SkillRegistry using configured storage directory."""
