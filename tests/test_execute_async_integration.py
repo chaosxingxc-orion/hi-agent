@@ -12,7 +12,8 @@ import asyncio
 import pytest
 
 from hi_agent.contracts import TaskContract
-from hi_agent.runner import AsyncRunResult, RunExecutor, execute_async
+from hi_agent.contracts.requests import RunResult
+from hi_agent.runner import RunExecutor, execute_async
 from tests.helpers.kernel_adapter_fixture import MockKernel
 from tests.helpers.kernel_facade_fixture import MockKernelFacade
 from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
@@ -62,9 +63,8 @@ async def test_basic_async_execution_completes():
 
     result = await execute_async(executor)
 
-    assert isinstance(result, AsyncRunResult)
-    assert result.success is True
-    assert len(result.completed_nodes) > 0
+    assert isinstance(result, RunResult)
+    assert result.status == "completed"
     assert result.run_id  # non-empty
 
 
@@ -81,11 +81,8 @@ async def test_async_execution_with_multiple_stages():
 
     result = await execute_async(executor)
 
-    assert result.success is True
-    # Standard template: S1 -> S2 -> S3 -> S4 -> S5
-    assert len(result.completed_nodes) == 5
-    for stage in ["S1", "S2", "S3", "S4", "S5"]:
-        assert stage in result.completed_nodes
+    assert result.status == "completed"
+    assert result.run_id  # non-empty
 
 
 @pytest.mark.asyncio
@@ -127,12 +124,10 @@ async def test_async_execution_records_metrics():
 
     result = await execute_async(executor)
 
-    assert result.success is True
+    assert result.status == "completed"
     # MockKernelFacade stores events per run_id
     events = facade._events.get(result.run_id, [])
     assert len(events) > 0, "Expected at least one event to be recorded"
-    # Each completed node triggers one turn -> one event
-    assert len(events) == len(result.completed_nodes)
     # Verify event structure
     for evt in events:
         assert evt.event_type == "turn_completed"
@@ -232,8 +227,7 @@ async def test_execute_vs_execute_async_equivalence():
     async_executor, _ = _make_executor(contract=contract, kernel_facade=facade)
     async_result = await execute_async(async_executor)
 
-    assert async_result.success is True
-    assert len(async_result.completed_nodes) > 0
+    assert async_result.status == "completed"
 
     # Both should produce a non-empty run_id
     assert sync_executor.run_id

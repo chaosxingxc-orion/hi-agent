@@ -128,10 +128,16 @@ class ExecutionProvenance:
             agg_llm_mode: Literal["heuristic", "real", "disabled", "unknown"] = "real"
         elif llm_modes == {"heuristic"}:
             agg_llm_mode = "heuristic"
-        elif "disabled" in llm_modes and len(llm_modes) == 1:
+        elif llm_modes == {"disabled"}:
             agg_llm_mode = "disabled"
+        elif llm_modes == {"unknown"} or llm_modes <= {"unknown", "disabled"}:
+            # All stages are unknown (no capability provenance recorded) or disabled.
+            # Do not assert "heuristic" — report truthfully as "unknown".
+            agg_llm_mode = "unknown"
+        elif "heuristic" in llm_modes:
+            agg_llm_mode = "heuristic"  # at least one confirmed heuristic stage
         else:
-            agg_llm_mode = "heuristic"  # mixed or contains heuristic
+            agg_llm_mode = "unknown"  # mixed real/unknown — cannot classify
 
         # Aggregate capability_mode
         cap_modes = {sp.capability_mode for sp in stage_provs}

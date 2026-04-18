@@ -460,7 +460,7 @@ async def test_journey_async_full() -> None:
     """Full journey: execute_async() → success → session and result populated.
 
     Validates that:
-    - execute_async() returns AsyncRunResult with success=True
+    - execute_async() returns RunResult with status="completed"
     - result.run_id is not empty
     - session.stage_states is populated after the run
     """
@@ -478,8 +478,8 @@ async def test_journey_async_full() -> None:
     assert result is not None
     assert result.run_id, "run_id must be non-empty"
 
-    # success flag must be True
-    assert result.success is True
+    # status must be "completed"
+    assert result.status == "completed"
 
     # Session stage_states must have been updated during the async run
     if executor.session is not None:

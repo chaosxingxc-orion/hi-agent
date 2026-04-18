@@ -2190,7 +2190,7 @@ async def execute_async(
     executor: RunExecutor,
     *,
     max_concurrency: int = 64,
-) -> AsyncRunResult:
+) -> RunResult:
     """Execute a RunExecutor using AsyncTaskScheduler and KernelFacade.
 
     This is a standalone async function (not a method) to avoid mutating
@@ -2198,14 +2198,15 @@ async def execute_async(
 
         result = await execute_async(executor, max_concurrency=8)
 
-    .. warning::
+    Returns:
+        A :class:`~hi_agent.contracts.requests.RunResult` identical in
+        structure to the one returned by :meth:`RunExecutor.execute`.  This
+        includes ``run_id``, ``status``, ``stages``, ``artifacts``,
+        ``execution_provenance``, and failure attribution fields.
+
+    .. note::
         **Not wired into the server RunManager.** ``POST /runs`` dispatches
         ``executor.execute()`` (synchronous, linear), not this function.
-        ``execute_async()`` returns :class:`AsyncRunResult` which has no
-        ``status`` or ``stages`` fields and is incompatible with
-        ``RunManager.to_dict()``. Use this function only for direct asyncio
-        callers; do not surface it through the HTTP API without first
-        adapting the result type to :class:`~hi_agent.contracts.requests.RunResult`.
     """
     from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
     from hi_agent.task_mgmt.graph_factory import GraphFactory
@@ -2316,16 +2317,20 @@ async def execute_async(
             executor.session.stage_states[node_id] = "completed"
 
     # J3-2: _finalize_run handles resource cleanup and provenance for RunResult.
-    # Note: AsyncRunResult does not carry execution_provenance; the computed
-    # provenance is discarded here. Async provenance tracking is deferred to W2+.
     outcome = "completed" if schedule_result.success else "failed"
+    _run_result: RunResult | None = None
     try:
-        executor._finalize_run(outcome)
+        _run_result = executor._finalize_run(outcome)
     except Exception as _fin_exc:
         _logger.warning("execute_async: _finalize_run failed: %s", _fin_exc)
 
-    return AsyncRunResult(
+    if _run_result is not None:
+        return _run_result
+
+    # Fallback: _finalize_run failed or returned None — construct minimal RunResult.
+    return RunResult(
         run_id=run_id,
-        success=schedule_result.success,
-        completed_nodes=schedule_result.completed_nodes,
+        status=outcome,
+        stages=[],
+        artifacts=[],
     )

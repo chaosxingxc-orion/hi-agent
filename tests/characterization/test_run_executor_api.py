@@ -21,7 +21,7 @@ from hi_agent.config.trace_config import TraceConfig
 from hi_agent.contracts import StageSummary, TaskContract
 from hi_agent.contracts.requests import RunResult
 from hi_agent.gate_protocol import GatePendingError
-from hi_agent.runner import AsyncRunResult, RunExecutor, execute_async
+from hi_agent.runner import RunExecutor, execute_async
 from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 
@@ -147,8 +147,8 @@ class TestRunResultContract:
         assert list(async_sig.parameters) == ["executor", "max_concurrency"]
         assert async_sig.parameters["max_concurrency"].default == 64
         assert str(async_sig.return_annotation) in {
-            "AsyncRunResult",
-            "<class 'hi_agent.runner.AsyncRunResult'>",
+            "RunResult",
+            "<class 'hi_agent.contracts.requests.RunResult'>",
         }
 
     def test_finalize_run_returns_run_result_with_stage_and_artifact_fields(
@@ -344,9 +344,8 @@ class TestExecuteAsyncOutcomes:
 
         result = await execute_async(executor, max_concurrency=4)
 
-        assert isinstance(result, AsyncRunResult)
-        assert result.success is True
-        assert result.completed_nodes == ["S1", "S3", "S5"]
+        assert isinstance(result, RunResult)
+        assert result.status == "completed"
         assert calls == ["S1", "S3", "S5"]
         finalize.assert_called_once()
         assert finalize.call_args.args[0] == "completed"
@@ -364,9 +363,8 @@ class TestExecuteAsyncOutcomes:
 
         result = await execute_async(executor, max_concurrency=4)
 
-        assert isinstance(result, AsyncRunResult)
-        assert result.success is True
-        assert result.completed_nodes == ["S1", "S3", "S5"]
+        assert isinstance(result, RunResult)
+        assert result.status == "completed"
         assert calls == ["S1", "S3", "S5"]
         finalize.assert_called_once()
         assert finalize.call_args.args[0] == "completed"
@@ -384,9 +382,8 @@ class TestExecuteAsyncOutcomes:
 
         result = await execute_async(executor, max_concurrency=4)
 
-        assert isinstance(result, AsyncRunResult)
-        assert result.success is True
-        assert result.completed_nodes == ["S1", "S3", "S5"]
+        assert isinstance(result, RunResult)
+        assert result.status == "completed"
         assert calls == ["S1", "S3", "S5"]
         finalize.assert_called_once()
         assert finalize.call_args.args[0] == "completed"

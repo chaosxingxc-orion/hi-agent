@@ -98,10 +98,11 @@ class RunFinalizer:
     def _collect_stage_type_summaries(self) -> list[dict]:
         """Collect per-stage type info with StageProvenance.
 
-        For W2: each stage now carries a StageProvenance in the "provenance" key.
-        Current runs use heuristic routing, so llm_mode="heuristic" for all stages.
-        capability_mode is derived from whether capability was actually invoked.
-        Real LLM / capability tracking wired in W2-002.
+        llm_mode is derived from capability_provenance_store entries:
+        - Entries present (from heuristic path): llm_mode="heuristic", fallback_used=True
+        - No entries: llm_mode="unknown", fallback_used=False
+          (real LLM results do not inject _provenance; absence is ambiguous)
+        capability_mode is derived from recorded invocation mode values.
         """
         from hi_agent.contracts.execution_provenance import StageProvenance
 
@@ -114,12 +115,13 @@ class RunFinalizer:
                 or getattr(stage, "name", None)
                 or (stage if isinstance(stage, str) else "unknown")
             )
-            # W2: real LLM tracking comes with W2-002
-            llm_mode = "heuristic"
-            fallback_used = True  # heuristic routing = fallback
-            # W2-002: derive capability_mode from collected invocation provenance
             cap_prov_list = ctx.capability_provenance_store.get(str(stage_id), [])
             if cap_prov_list:
+                # Provenance entries are only injected by the heuristic fallback path.
+                # If any entry exists the stage used heuristic routing.
+                llm_mode = "heuristic"
+                fallback_used = True
+                fallback_reasons = ["heuristic_routing"]
                 modes = [r.get("mode", "sample") for r in cap_prov_list if isinstance(r, dict)]
                 if all(m == "mcp" for m in modes):
                     capability_mode = "mcp"
@@ -132,13 +134,18 @@ class RunFinalizer:
                 else:
                     capability_mode = "unknown"
             else:
-                capability_mode = "sample"  # W2-002 fallback: no capability data = sample
+                # No provenance entries: either real LLM was used (no _provenance key)
+                # or no capability was invoked. Cannot assert "heuristic" here.
+                llm_mode = "unknown"
+                fallback_used = False
+                fallback_reasons = []
+                capability_mode = "unknown"
             prov = StageProvenance(
                 stage_id=str(stage_id),
                 llm_mode=llm_mode,
                 capability_mode=capability_mode,
                 fallback_used=fallback_used,
-                fallback_reasons=["heuristic_routing"],
+                fallback_reasons=fallback_reasons,
                 duration_ms=getattr(stage, "duration_ms", 0) or 0,
             )
             summaries.append({
