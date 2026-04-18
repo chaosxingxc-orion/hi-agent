@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Generator, Protocol, runtime_checkable
 
 from hi_agent.harness.contracts import EvidenceRecord
 
@@ -155,6 +156,62 @@ ON evidence (action_id)
             )
             self._conn.commit()
         return record.evidence_ref
+
+    def store_many(self, events: list[EvidenceRecord]) -> None:
+        """Write a batch of evidence records in a single transaction.
+
+        All records are committed atomically.  If any INSERT fails the
+        entire batch is rolled back.
+
+        Args:
+            events: Evidence records to persist.
+
+        Raises:
+            ValueError: If any record has an empty evidence_ref.
+        """
+        for record in events:
+            if not record.evidence_ref:
+                raise ValueError("evidence_ref must not be empty")
+        with self._lock:
+            try:
+                for record in events:
+                    self._conn.execute(
+                        "INSERT OR REPLACE INTO evidence "
+                        "(evidence_ref, action_id, evidence_type, content, timestamp) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (
+                            record.evidence_ref,
+                            record.action_id,
+                            record.evidence_type,
+                            json.dumps(record.content),
+                            record.timestamp,
+                        ),
+                    )
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    @contextmanager
+    def transaction(self) -> Generator[sqlite3.Connection, None, None]:
+        """Explicit transaction context; caller controls commit timing.
+
+        Yields the raw ``sqlite3.Connection`` so the caller can issue
+        arbitrary SQL within a single transaction.  Commits on clean
+        exit, rolls back on exception.
+
+        Example::
+
+            with store.transaction() as conn:
+                conn.execute("INSERT OR REPLACE INTO evidence ...")
+        """
+        with self._lock:
+            try:
+                yield self._conn
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
 
     # -- read ------------------------------------------------------------
 

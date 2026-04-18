@@ -89,6 +89,51 @@ class MidTermMemoryStore:
         """Run _summary_path."""
         return self._storage_dir / f"{date}.json"
 
+    # ------------------------------------------------------------------
+    # Manifest helpers (O(k) list_recent support)
+    # ------------------------------------------------------------------
+
+    def _manifest_path(self) -> Path:
+        return self._storage_dir / "_manifest.json"
+
+    def _load_manifest(self) -> list[dict]:
+        try:
+            path = self._manifest_path()
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    return data
+        except (json.JSONDecodeError, OSError):
+            pass
+        return []
+
+    def _save_manifest(self, entries: list[dict]) -> None:
+        path = self._manifest_path()
+        payload = json.dumps(entries, ensure_ascii=False)
+        fd, tmp = tempfile.mkstemp(dir=str(self._storage_dir), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+            os.replace(tmp, path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    def _manifest_upsert(self, date: str, timestamp: str, size_bytes: int) -> None:
+        entries = self._load_manifest()
+        entries = [e for e in entries if e.get("id") != date]
+        entries.append({"id": date, "timestamp": timestamp, "size_bytes": size_bytes})
+        entries.sort(key=lambda e: e.get("id", ""), reverse=True)
+        self._save_manifest(entries)
+
+    def _manifest_remove_before(self, cutoff_date: str) -> None:
+        entries = [e for e in self._load_manifest() if e.get("id", "") >= cutoff_date]
+        self._save_manifest(entries)
+
+    # ------------------------------------------------------------------
+
     def save(self, summary: DailySummary) -> None:
         """Persist daily summary to disk as JSON (atomic write).
 
@@ -112,6 +157,7 @@ class MidTermMemoryStore:
             except OSError:
                 pass
             raise
+        self._manifest_upsert(summary.date, summary.created_at, len(payload))
         if self._max_days > 0:
             self._evict_older_than(days=self._max_days)
 
@@ -125,7 +171,8 @@ class MidTermMemoryStore:
         cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
         deleted = 0
         for fpath in self._storage_dir.glob("*.json"):
-            # File names are ISO dates: "2026-01-15.json"
+            if fpath.name == "_manifest.json":
+                continue
             date_str = fpath.stem
             if len(date_str) == 10 and date_str < cutoff:
                 try:
@@ -133,6 +180,7 @@ class MidTermMemoryStore:
                     deleted += 1
                 except OSError:
                     pass
+        self._manifest_remove_before(cutoff)
         return deleted
 
     def load(self, date: str) -> DailySummary | None:
@@ -144,17 +192,36 @@ class MidTermMemoryStore:
         return _dict_to_daily_summary(data)
 
     def list_recent(self, days: int = 7) -> list[DailySummary]:
-        """List most recent daily summaries, newest first."""
+        """List most recent daily summaries, newest first.
+
+        Uses manifest index for O(k) access when available.
+        """
         if not self._storage_dir.exists():
             return []
-        summaries: list[DailySummary] = []
+        manifest = self._load_manifest()
+        if manifest:
+            top_entries = manifest[:days]
+            summaries: list[DailySummary] = []
+            for entry in top_entries:
+                date = entry.get("id", "")
+                if not date:
+                    continue
+                summary = self.load(date)
+                if summary is not None:
+                    summaries.append(summary)
+            return summaries
+
+        # Fallback: full directory scan
+        all_summaries: list[DailySummary] = []
         for fpath in self._storage_dir.glob("*.json"):
+            if fpath.name == "_manifest.json":
+                continue
             try:
                 data = json.loads(fpath.read_text(encoding="utf-8"))
-                summaries.append(_dict_to_daily_summary(data))
+                all_summaries.append(_dict_to_daily_summary(data))
             except (json.JSONDecodeError, KeyError):
                 continue
-        summaries.sort(key=lambda s: s.date, reverse=True)
+        all_summaries.sort(key=lambda s: s.date, reverse=True)
         return summaries[:days]
 
 

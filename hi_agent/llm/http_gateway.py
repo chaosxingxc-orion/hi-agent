@@ -16,6 +16,7 @@ import httpx
 
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, LLMStreamChunk, TokenUsage
+from hi_agent.runtime.async_bridge import AsyncBridgeService
 
 if TYPE_CHECKING:
     from hi_agent.llm.failover import FailoverChain
@@ -51,8 +52,25 @@ class HttpLLMGateway:
         failover_chain: "FailoverChain | None" = None,
         cache_injector: "PromptCacheInjector | None" = None,
         budget_tracker: "LLMBudgetTracker | None" = None,
+        runtime_mode: str = "",
     ) -> None:
-        """Initialize HttpLLMGateway."""
+        """Initialize HttpLLMGateway.
+
+        .. deprecated::
+            ``HttpLLMGateway`` (urllib/sync) is the compatibility layer.  Use
+            ``HTTPGateway`` (httpx/async) for production profiles.  Set
+            ``compat_sync_llm=True`` in ``TraceConfig`` to opt into this class
+            explicitly and suppress the deprecation warning.
+        """
+        import warnings
+
+        if runtime_mode in ("prod-real", "local-real"):
+            warnings.warn(
+                "HttpLLMGateway (sync/urllib) is deprecated for production profiles. "
+                "Use HTTPGateway (async/httpx) by setting compat_sync_llm=False in TraceConfig.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self._base_url = base_url.rstrip("/")
         self._api_key_env = api_key_env
         self._default_model = default_model
@@ -84,12 +102,11 @@ class HttpLLMGateway:
             # that TierAwareLLMGateway can make accurate per-request tier
             # downgrade decisions instead of relying on the caller-supplied
             # default of 1.0.
-            remaining_calls = self._budget_tracker.remaining_calls
-            max_calls = self._budget_tracker._max_calls  # noqa: SLF001
-            remaining_tokens = max(
-                0, self._budget_tracker._max_tokens - self._budget_tracker._total_tokens  # noqa: SLF001
-            )
-            max_tokens = self._budget_tracker._max_tokens  # noqa: SLF001
+            _snap = self._budget_tracker.snapshot()
+            remaining_calls = _snap["remaining_calls"]
+            max_calls = _snap["max_calls"]
+            remaining_tokens = _snap["remaining_tokens"]
+            max_tokens = _snap["max_tokens"]
             calls_ratio = remaining_calls / max_calls if max_calls > 0 else 1.0
             tokens_ratio = remaining_tokens / max_tokens if max_tokens > 0 else 1.0
             budget_ratio = min(calls_ratio, tokens_ratio)
@@ -123,12 +140,11 @@ class HttpLLMGateway:
                 try:
                     loop = _asyncio.get_event_loop()
                     if loop.is_running():
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                            future = pool.submit(
-                                _asyncio.run, self._failover_chain.complete(request)
-                            )
-                            return future.result()
+                        # Use shared bridge executor rather than creating a per-call pool.
+                        future = AsyncBridgeService.get_executor().submit(
+                            _asyncio.run, self._failover_chain.complete(request)
+                        )
+                        return future.result()
                     else:
                         return loop.run_until_complete(
                             self._failover_chain.complete(request)
@@ -378,12 +394,11 @@ class HTTPGateway:
             # that TierAwareLLMGateway can make accurate per-request tier
             # downgrade decisions instead of relying on the caller-supplied
             # default of 1.0.
-            remaining_calls = self._budget_tracker.remaining_calls
-            max_calls = self._budget_tracker._max_calls  # noqa: SLF001
-            remaining_tokens = max(
-                0, self._budget_tracker._max_tokens - self._budget_tracker._total_tokens  # noqa: SLF001
-            )
-            max_tokens = self._budget_tracker._max_tokens  # noqa: SLF001
+            _snap = self._budget_tracker.snapshot()
+            remaining_calls = _snap["remaining_calls"]
+            max_calls = _snap["max_calls"]
+            remaining_tokens = _snap["remaining_tokens"]
+            max_tokens = _snap["max_tokens"]
             calls_ratio = remaining_calls / max_calls if max_calls > 0 else 1.0
             tokens_ratio = remaining_tokens / max_tokens if max_tokens > 0 else 1.0
             budget_ratio = min(calls_ratio, tokens_ratio)

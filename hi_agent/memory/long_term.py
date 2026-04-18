@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import math
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -390,6 +390,18 @@ class LongTermMemoryGraph:
     def edge_count(self) -> int:
         """Return number of edges."""
         return len(self._edges)
+
+    def iter_nodes(self) -> "Iterable[tuple[str, MemoryNode]]":
+        """Yield (node_id, node) pairs without exposing _nodes directly."""
+        yield from self._nodes.items()
+
+    def stats(self) -> dict:
+        """Return lightweight graph statistics dict."""
+        return {
+            "node_count": len(self._nodes),
+            "edge_count": len(self._edges),
+            "adjacency_keys": len(self._adjacency),
+        }
 
     # ------------------------------------------------------------------ Access tracking
 

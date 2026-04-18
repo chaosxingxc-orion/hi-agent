@@ -226,6 +226,12 @@ class CognitionBuilder:
                             base_url=base_url,
                         )
                     else:
+                        # Resolve runtime mode to pass deprecation signal.
+                        from hi_agent.server.runtime_mode_resolver import (
+                            resolve_runtime_mode as _rrm,
+                        )
+                        _rt_mode = _rrm(os.environ.get("HI_AGENT_ENV", ""), {})
+                        _compat_sync = getattr(self._config, "compat_sync_llm", False)
                         raw_gateway = HttpLLMGateway(
                             base_url=base_url,
                             api_key_env=env_var,
@@ -234,6 +240,7 @@ class CognitionBuilder:
                             failover_chain=failover_chain,
                             cache_injector=cache_injector,
                             budget_tracker=self._llm_budget_tracker,
+                            runtime_mode="" if _compat_sync else _rt_mode,
                         )
                     registry = ModelRegistry()
                     registry.register_defaults()

@@ -85,6 +85,8 @@ class RetrievalEngine:
         self._tfidf = tfidf if tfidf is not None else TFIDFIndex()
         self._ranker = HybridRanker(self._tfidf)
         self._indexed = False
+        self._index_dirty = True
+        self._index_fingerprint: str = ""
         self._index_lock = threading.Lock()
         self._storage_dir = storage_dir
         self._injection_scanner = None  # lazy-initialised in _scan_content
@@ -99,13 +101,18 @@ class RetrievalEngine:
         """Returns the file path for the persisted TF-IDF index cache."""
         return os.path.join(self._storage_dir, ".index_cache.json")
 
-    def _compute_fingerprint(self, doc_ids: list[str]) -> str:
-        """Compute a stable sha256 fingerprint from document IDs.
+    def _compute_fingerprint(self, docs: dict[str, str]) -> str:
+        """Compute sha256 fingerprint over document IDs and content.
 
-        Sorted before hashing so insertion order does not matter.
+        Sorted by key before hashing so insertion order does not matter.
+        Including content means a doc that changes ID-silently still
+        produces a different fingerprint.
         """
-        stable = "\n".join(sorted(doc_ids))
-        return hashlib.sha256(stable.encode()).hexdigest()
+        hasher = hashlib.sha256()
+        for doc_id in sorted(docs.keys()):
+            content = docs.get(doc_id, "")
+            hasher.update(f"{doc_id}:{content}\n".encode())
+        return hasher.hexdigest()
 
     def _save_index(self) -> None:
         """Persist the TF-IDF index to disk as a JSON cache.
@@ -127,10 +134,9 @@ class RetrievalEngine:
                 except OSError:
                     pass
 
-            doc_ids = list(self._tfidf._docs.keys())
             payload = {
                 "schema_version": self._CACHE_SCHEMA_VERSION,
-                "fingerprint": self._compute_fingerprint(doc_ids),
+                "fingerprint": self._compute_fingerprint(self._tfidf._docs),
                 "built_at": datetime.now(tz=timezone.utc).isoformat(),
                 "docs": self._tfidf._docs,
                 "doc_tokens": self._tfidf._doc_tokens,
@@ -166,8 +172,7 @@ class RetrievalEngine:
                 return False
 
             stored_fp = data.get("fingerprint", "")
-            doc_ids = list(data.get("docs", {}).keys())
-            expected_fp = self._compute_fingerprint(doc_ids)
+            expected_fp = self._compute_fingerprint(data.get("docs", {}))
             if stored_fp != expected_fp:
                 logger.warning("Index cache fingerprint mismatch — rebuilding")
                 return False
@@ -236,7 +241,7 @@ class RetrievalEngine:
 
             # Index graph nodes
             if self._graph is not None:
-                for node_id, node in self._graph._nodes.items():
+                for node_id, node in self._graph.iter_nodes():
                     doc_text = f"{node.content} {' '.join(node.tags)}"
                     self._tfidf.add(f"graph:{node_id}", doc_text)
 
@@ -253,9 +258,27 @@ class RetrievalEngine:
                     self._tfidf.add(f"mid:{summary.date}", doc_text)
 
             self._indexed = True
+            self._index_dirty = False
+            self._index_fingerprint = self._compute_fingerprint(self._tfidf._docs)
             # Persist the freshly built index so future restarts skip the rebuild.
             self._save_index()
             return self._tfidf.doc_count
+
+    async def warm_index_async(self) -> int:
+        """Build the index in a background thread without blocking the event loop.
+
+        Safe to call at server startup.  Returns the number of indexed docs.
+        """
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.build_index)
+
+    def mark_index_dirty(self) -> None:
+        """Signal that source documents have changed and the index needs rebuild."""
+        self._index_dirty = True
+        with self._index_lock:
+            self._indexed = False
 
     def ingest_document(self, doc_id: str, text: str, source: str = "") -> None:
         """Ingest a single document into the TF-IDF index.
@@ -346,7 +369,7 @@ class RetrievalEngine:
 
         # Search graph nodes
         if self._graph is not None:
-            for node_id, node in self._graph._nodes.items():
+            for node_id, node in self._graph.iter_nodes():
                 text = f"{node.content} {' '.join(node.tags)}".lower()
                 if any(kw in text for kw in keywords):
                     item_id = f"graph:{node_id}"

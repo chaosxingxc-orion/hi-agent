@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 
 from hi_agent.capability.circuit_breaker import CircuitBreaker
 from hi_agent.capability.policy import CapabilityPolicy
 from hi_agent.capability.registry import CapabilityRegistry
+from hi_agent.runtime.async_bridge import AsyncBridgeService
 
 _DANGEROUS_ALLOWED_ROLES = {"approver", "admin"}
 
@@ -40,16 +40,16 @@ class CapabilityUnavailableError(Exception):
 def _default_timeout_call(
     handler: Callable[[dict], dict], payload: dict, timeout_seconds: float
 ) -> dict:
-    """Run handler with a timeout and raise built-in TimeoutError on expiry."""
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(handler, payload)
-        try:
-            return future.result(timeout=timeout_seconds)
-        except FutureTimeoutError as exc:
-            future.cancel()
-            raise TimeoutError(
-                f"Capability call timed out after {timeout_seconds} seconds"
-            ) from exc
+    """Run handler with a timeout using the shared bridge executor."""
+    executor = AsyncBridgeService.get_executor()
+    future = executor.submit(handler, payload)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except FutureTimeoutError as exc:
+        future.cancel()
+        raise TimeoutError(
+            f"Capability call timed out after {timeout_seconds} seconds"
+        ) from exc
 
 
 class CapabilityInvoker:

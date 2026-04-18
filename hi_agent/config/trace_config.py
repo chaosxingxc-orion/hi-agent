@@ -113,6 +113,9 @@ class TraceConfig:
     anthropic_default_model: str = "claude-sonnet-4-6"
     anthropic_api_version: str = "2023-06-01"
     llm_default_provider: str = "anthropic"
+    # Set True to explicitly opt into the deprecated sync/urllib gateway (HttpLLMGateway).
+    # For prod-real / local-real profiles the async HTTPGateway is the default.
+    compat_sync_llm: bool = False
 
     # --- LLM Budget (NEW) ---
     llm_budget_max_calls: int = 100

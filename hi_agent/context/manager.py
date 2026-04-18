@@ -17,6 +17,7 @@ Key responsibilities:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
@@ -213,6 +214,18 @@ class ContextManager:
         # Reflection prompt injected via set_reflection_context (dedicated partition)
         self._reflection_context: str = ""
 
+        # Section-level cache
+        # Stable sections: key -> (fingerprint, ContextSection)
+        self._section_cache: dict[str, tuple[str, ContextSection]] = {}
+        # Dynamic sections: True means the section must be rebuilt
+        self._section_dirty: dict[str, bool] = {
+            "memory": True,
+            "history": True,
+            "reflection": True,
+        }
+        # Optional metrics sink (injected by the system builder when present)
+        self._metrics: Any | None = None
+
     @classmethod
     def from_config(
         cls,
@@ -310,7 +323,16 @@ class ContextManager:
     # ------------------------------------------------------------------
 
     def _assemble_system(self, system_prompt: str) -> ContextSection:
-        """Assemble system prompt section."""
+        """Assemble system prompt section.
+
+        Stable section: cached by SHA-256 fingerprint of input content.
+        """
+        fp = self._section_fingerprint(system_prompt)
+        cached = self._section_cache.get("system")
+        if cached is not None and cached[0] == fp:
+            self._record_cache_hit("system")
+            return cached[1]
+
         budget = self._budget.system_prompt
         content = system_prompt
         tokens = count_tokens(content) if content else 0
@@ -319,16 +341,27 @@ class ContextManager:
             max_chars = budget * 4
             content = content[:max_chars]
             tokens = count_tokens(content)
-        return ContextSection(
+        section = ContextSection(
             name="system",
             content=content,
             tokens=tokens,
             budget=budget,
             source="system_prompt",
         )
+        self._section_cache["system"] = (fp, section)
+        return section
 
     def _assemble_tools(self, tool_definitions: str) -> ContextSection:
-        """Assemble tool definitions section."""
+        """Assemble tool definitions section.
+
+        Stable section: cached by SHA-256 fingerprint of input content.
+        """
+        fp = self._section_fingerprint(tool_definitions)
+        cached = self._section_cache.get("tools")
+        if cached is not None and cached[0] == fp:
+            self._record_cache_hit("tools")
+            return cached[1]
+
         budget = self._budget.tool_definitions
         content = tool_definitions
         tokens = count_tokens(content) if content else 0
@@ -336,21 +369,33 @@ class ContextManager:
             max_chars = budget * 4
             content = content[:max_chars]
             tokens = count_tokens(content)
-        return ContextSection(
+        section = ContextSection(
             name="tools",
             content=content,
             tokens=tokens,
             budget=budget,
             source="tool_definitions",
         )
+        self._section_cache["tools"] = (fp, section)
+        return section
 
     def _assemble_skills(self) -> ContextSection:
-        """Use SkillLoader.build_prompt() with skill budget."""
+        """Use SkillLoader.build_prompt() with skill budget.
+
+        Stable section: cached by SHA-256 fingerprint of built content.
+        """
         budget = self._budget.skill_prompts
         if self._skill_loader is None:
-            return ContextSection(
+            cached = self._section_cache.get("skills")
+            empty_fp = self._section_fingerprint("")
+            if cached is not None and cached[0] == empty_fp:
+                self._record_cache_hit("skills")
+                return cached[1]
+            section = ContextSection(
                 name="skills", content="", tokens=0, budget=budget, source="none"
             )
+            self._section_cache["skills"] = (empty_fp, section)
+            return section
 
         try:
             prompt = self._skill_loader.build_prompt(budget_tokens=budget)
@@ -365,13 +410,21 @@ class ContextManager:
             content = ""
             tokens = 0
 
-        return ContextSection(
+        fp = self._section_fingerprint(content)
+        cached = self._section_cache.get("skills")
+        if cached is not None and cached[0] == fp:
+            self._record_cache_hit("skills")
+            return cached[1]
+
+        section = ContextSection(
             name="skills",
             content=content,
             tokens=tokens,
             budget=budget,
             source="skill_loader",
         )
+        self._section_cache["skills"] = (fp, section)
+        return section
 
     def _assemble_reflection(self) -> ContextSection:
         """Assemble the reflection-prompt partition.
@@ -379,25 +432,50 @@ class ContextManager:
         Returns content previously injected via set_reflection_context().
         Always appears before general memory content so the LLM receives
         actionable repair guidance first.
+
+        Dynamic section: rebuilt when dirty flag is set (cleared after build).
         """
+        if not self._section_dirty.get("reflection", True):
+            cached = self._section_cache.get("reflection")
+            if cached is not None:
+                self._record_cache_hit("reflection")
+                return cached[1]
+
         budget = self._budget.reflection_context
         content = self._reflection_context
         tokens = count_tokens(content) if content else 0
-        return ContextSection(
+        section = ContextSection(
             name="reflection",
             content=content,
             tokens=tokens,
             budget=budget,
             source="reflection_prompt" if content else "none",
         )
+        fp = self._section_fingerprint(content)
+        self._section_cache["reflection"] = (fp, section)
+        self._section_dirty["reflection"] = False
+        return section
 
     def _assemble_memory(self) -> ContextSection:
-        """Use memory retriever with memory budget."""
+        """Use memory retriever with memory budget.
+
+        Dynamic section: rebuilt when dirty flag is set (cleared after build).
+        """
+        if not self._section_dirty.get("memory", True):
+            cached = self._section_cache.get("memory")
+            if cached is not None:
+                self._record_cache_hit("memory")
+                return cached[1]
+
         budget = self._budget.memory_context
         if self._memory_retriever is None:
-            return ContextSection(
+            section = ContextSection(
                 name="memory", content="", tokens=0, budget=budget, source="none"
             )
+            fp = self._section_fingerprint("")
+            self._section_cache["memory"] = (fp, section)
+            self._section_dirty["memory"] = False
+            return section
 
         try:
             # Support both UnifiedMemoryRetriever and RetrievalEngine
@@ -427,13 +505,17 @@ class ContextManager:
             content = content[:max_chars]
             tokens = count_tokens(content)
 
-        return ContextSection(
+        section = ContextSection(
             name="memory",
             content=content,
             tokens=tokens,
             budget=budget,
             source="memory_retriever",
         )
+        fp = self._section_fingerprint(content)
+        self._section_cache["memory"] = (fp, section)
+        self._section_dirty["memory"] = False
+        return section
 
     def set_knowledge_context(self, content: str) -> None:
         """Inject retrieved knowledge content into the context assembly.
@@ -459,6 +541,7 @@ class ContextManager:
         if tokens > self._budget.reflection_context:
             content = content[: self._budget.reflection_context * 4]
         self._reflection_context = content
+        self._section_dirty["reflection"] = True
 
     def _assemble_knowledge(self) -> ContextSection:
         """Use knowledge retrieval with knowledge budget.
@@ -486,7 +569,15 @@ class ContextManager:
 
         Only includes entries AFTER compact_offset (dedup with compressed
         content).  Prepends compact summary if one exists.
+
+        Dynamic section: rebuilt when dirty flag is set (cleared after build).
         """
+        if not self._section_dirty.get("history", True):
+            cached = self._section_cache.get("history")
+            if cached is not None:
+                self._record_cache_hit("history")
+                return cached[1]
+
         budget = self._budget.history_budget
         parts: list[str] = []
         used = 0
@@ -507,13 +598,17 @@ class ContextManager:
             used += entry_tokens
 
         content = "\n".join(parts)
-        return ContextSection(
+        section = ContextSection(
             name="history",
             content=content,
             tokens=used,
             budget=budget,
             source="session_history",
         )
+        fp = self._section_fingerprint(content)
+        self._section_cache["history"] = (fp, section)
+        self._section_dirty["history"] = False
+        return section
 
     # ------------------------------------------------------------------
     # Threshold checking
@@ -712,6 +807,8 @@ class ContextManager:
         # Update compact state
         self._compact_summary = summary
         self._compact_offset = len(self._history_entries)
+        # Cache is stale after compaction — force a rebuild on next call
+        self._section_dirty["history"] = True
 
         new_content = f"[Summary of earlier context]\n{summary}"
         new_tokens = count_tokens(new_content)
@@ -811,6 +908,7 @@ class ContextManager:
         if metadata:
             entry["metadata"] = metadata
         self._history_entries.append(entry)
+        self._section_dirty["history"] = True
 
     def get_history_after_compact(self) -> list[dict]:
         """Get history entries after the compact offset."""
@@ -900,3 +998,17 @@ class ContextManager:
             if s.name == replacement.name:
                 sections[i] = replacement
                 return
+
+    @staticmethod
+    def _section_fingerprint(content: list | str) -> str:
+        """Return SHA-256 hex digest of the string representation of content."""
+        raw = str(content).encode("utf-8", errors="replace")
+        return hashlib.sha256(raw).hexdigest()
+
+    def _record_cache_hit(self, section: str) -> None:
+        """Increment cache-hit metric if metrics sink is available."""
+        try:
+            if self._metrics is not None:
+                self._metrics.increment("context_cache_hit", {"section": section})
+        except Exception:
+            pass

@@ -133,6 +133,18 @@ def _subrun_task_done_callback(task: asyncio.Task[object]) -> None:
         )
 
 
+def _set_engine_context_provider(engine: object, provider: object) -> None:
+    """Set context provider on a route engine using the public API when available.
+
+    Falls back to direct attribute assignment for engines that pre-date
+    LLMRouteEngine's ``set_context_provider`` method.
+    """
+    if hasattr(engine, 'set_context_provider'):
+        engine.set_context_provider(provider)  # type: ignore[union-attr]
+    elif hasattr(engine, '_context_provider'):
+        engine._context_provider = provider  # type: ignore[union-attr]
+
+
 def _make_subrun_done_callback(
     results_dict: "dict[str, object]", task_id: str
 ) -> "Callable[[asyncio.Task[object]], None]":
@@ -459,10 +471,10 @@ class RunExecutor:
         if self.session is not None:
             try:
                 # 1. Inject context_provider into LLMRouteEngine
-                if hasattr(self.route_engine, '_context_provider'):
-                    self.route_engine._context_provider = (
-                        lambda: self.session.build_context_for_llm("routing")
-                    )
+                _set_engine_context_provider(
+                    self.route_engine,
+                    lambda: self.session.build_context_for_llm("routing"),
+                )
                 # 2. Create auto-compress trigger
                 from hi_agent.task_view.auto_compress import (
                     AutoCompressTrigger,
@@ -514,14 +526,16 @@ class RunExecutor:
                         exc,
                     )
                 return ctx
-            if hasattr(self.route_engine, '_context_provider'):
-                self.route_engine._context_provider = _enriched_context
+            _set_engine_context_provider(self.route_engine, _enriched_context)
 
         # --- Skill prompt injection into routing context ---
         if self.skill_loader is not None:
             try:
                 _skill_loader = self.skill_loader
-                _prev_provider = getattr(self.route_engine, '_context_provider', None)
+                _prev_provider = getattr(
+                    self.route_engine, 'context_provider',
+                    getattr(self.route_engine, '_context_provider', None),
+                )
 
                 def _skill_enriched_context() -> dict:
                     ctx: dict = {}
@@ -550,8 +564,7 @@ class RunExecutor:
                         )
                     return ctx
 
-                if hasattr(self.route_engine, '_context_provider'):
-                    self.route_engine._context_provider = _skill_enriched_context
+                _set_engine_context_provider(self.route_engine, _skill_enriched_context)
             except Exception as exc:
                 self._log_best_effort_exception(
                     logging.DEBUG,
@@ -587,8 +600,7 @@ class RunExecutor:
                         return _session_fallback.build_context_for_llm("routing")
                     return {}
 
-            if hasattr(self.route_engine, '_context_provider'):
-                self.route_engine._context_provider = _managed_context
+            _set_engine_context_provider(self.route_engine, _managed_context)
 
         # --- Delegate instances for extracted logic ---
         self._telemetry = RunTelemetry(
