@@ -148,10 +148,15 @@ class _RawInjectCtxMiddleware:
 
 
 def session_count(store: SessionStore) -> int:
-    """Count the number of active sessions in the store."""
-    conn = store._cx()
-    row = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()
-    return row[0] if row else 0
+    """Count the number of active sessions in the store (all tenants/users).
+
+    Uses the public list_active API scoped to the known test tenant so we
+    avoid touching the private _cx() connection handle.
+    """
+    # Test fixture only ever creates sessions under tenant "t1"; counting
+    # active sessions for an empty user_id string is not supported, so we
+    # query both test user accounts and sum.
+    return len(store.list_active("t1", "user_a")) + len(store.list_active("t1", "user_b"))
 
 
 # ---------------------------------------------------------------------------

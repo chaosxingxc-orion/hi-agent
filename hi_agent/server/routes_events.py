@@ -52,7 +52,12 @@ async def handle_run_events_sse(request: Request) -> StreamingResponse | JSONRes
     async def generate():  # type: ignore[return]
         # Replay missed events before subscribing to the live queue.
         if since_sequence > 0 and _store is not None:
-            missed = _store.list_since(run_id, since_sequence)
+            missed = _store.list_since(
+                run_id, since_sequence,
+                tenant_id=ctx.tenant_id,
+                user_id=ctx.user_id,
+                session_id=ctx.session_id,
+            )
             for stored in missed:
                 yield f"id: {stored.sequence}\ndata: {stored.payload_json}\n\n"
 

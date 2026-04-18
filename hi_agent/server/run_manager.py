@@ -104,13 +104,17 @@ class RunManager:
         self._worker = threading.Thread(target=self._queue_worker, daemon=True)
         self._worker.start()
 
-    def _owns(self, run: ManagedRun, ctx: TenantContext) -> bool:
-        """Return True if the run belongs to the given workspace context."""
-        return (
-            run.tenant_id == ctx.tenant_id
-            and run.user_id == ctx.user_id
-            and run.session_id == ctx.session_id
-        )
+    def _owns(self, run: ManagedRun, ctx: "TenantContext") -> bool:
+        """Return True if the run belongs to the given workspace context.
+
+        session_id is only enforced when the caller provides one (non-empty).
+        An empty ctx.session_id means "all sessions for this user".
+        """
+        if run.tenant_id != ctx.tenant_id or run.user_id != ctx.user_id:
+            return False
+        if ctx.session_id:  # if caller provided a session, require exact match
+            return run.session_id == ctx.session_id
+        return True  # no session filter: matches all sessions for this user
 
     def _task_id_exists_unlocked(self, task_id: str, workspace: TenantContext | None) -> bool:
         """Return True if a run with the given task_id exists in the workspace.

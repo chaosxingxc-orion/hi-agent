@@ -78,6 +78,13 @@ class TestHandleRunsActive:
         rcm = MagicMock()
         rcm.list_runs.return_value = ["r1", "r2"]
         req.app.state.agent_server.run_context_manager = rcm
+        # run_manager.list_runs must return owned ManagedRun-like objects so the
+        # post-filter in handle_runs_active can match them against rcm's list.
+        owned_r1 = MagicMock()
+        owned_r1.run_id = "r1"
+        owned_r2 = MagicMock()
+        owned_r2.run_id = "r2"
+        req.app.state.agent_server.run_manager.list_runs.return_value = [owned_r1, owned_r2]
 
         resp = await handle_runs_active(req)
         import json

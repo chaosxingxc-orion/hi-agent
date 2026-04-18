@@ -58,9 +58,9 @@ async def handle_list_runs(request: Request) -> JSONResponse:
 
 
 async def handle_runs_active(request: Request) -> JSONResponse:
-    """Return currently active run contexts from RunContextManager."""
+    """Return currently active run contexts from RunContextManager, scoped to the caller's workspace."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: Any = request.app.state.agent_server
@@ -68,7 +68,12 @@ async def handle_runs_active(request: Request) -> JSONResponse:
     if rcm is None:
         return JSONResponse({"run_ids": [], "count": 0, "status": "not_configured"})
     try:
-        run_ids = rcm.list_runs()
+        # Get owned run IDs from the workspace-aware manager, then post-filter
+        # the rcm result (RunContextManager has no workspace API of its own).
+        manager = server.run_manager
+        owned_ids = {r.run_id for r in manager.list_runs(workspace=ctx)}
+        all_active = rcm.list_runs()
+        run_ids = [rid for rid in all_active if rid in owned_ids]
         return JSONResponse({
             "run_ids": run_ids,
             "count": len(run_ids),
