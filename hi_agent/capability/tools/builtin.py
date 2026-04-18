@@ -217,7 +217,17 @@ _BUILTIN_TOOLS = [
 ]
 
 
-def register_builtin_tools(registry: CapabilityRegistry) -> None:
-    """Register all real builtin tool handlers into the registry."""
+def register_builtin_tools(registry: CapabilityRegistry, *, profile: str = "dev-smoke") -> None:
+    """Register real builtin tool handlers into the registry.
+
+    Args:
+        registry: Target capability registry.
+        profile: Runtime profile.  When ``profile`` is not a dev/smoke mode
+            (i.e. ``"dev-smoke"`` or ``"dev"``), ``shell_exec`` is omitted
+            because it is not safe for production deployment.
+    """
+    _dev_profiles = {"dev-smoke", "dev"}
     for spec in _BUILTIN_TOOLS:
+        if spec.name == "shell_exec" and profile not in _dev_profiles:
+            continue
         registry.register(spec)

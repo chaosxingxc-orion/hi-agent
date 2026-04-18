@@ -208,6 +208,10 @@ async def handle_ready(request: Request) -> JSONResponse:
     registries and subsystems used by actual run execution — not a
     reconstructed default snapshot.
     """
+    import os as _os_rdy
+    from hi_agent.server.auth_middleware import AuthMiddleware as _AM_rdy
+    from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_rdy
+
     server: AgentServer = request.app.state.agent_server
     try:
         builder = getattr(server, "_builder", None)
@@ -222,6 +226,16 @@ async def handle_ready(request: Request) -> JSONResponse:
             "health": "error",
             "error": str(exc),
         }
+
+    # Augment snapshot with auth_posture.
+    try:
+        _env_rdy = _os_rdy.environ.get("HI_AGENT_ENV", "dev").lower()
+        _runtime_mode_rdy = _rrm_rdy(_env_rdy, snapshot)
+        _auth_rdy = _AM_rdy(app=lambda *a: None, runtime_mode=_runtime_mode_rdy)  # type: ignore[arg-type]
+        snapshot = dict(snapshot, auth_posture=_auth_rdy.auth_posture)
+    except Exception:
+        snapshot = dict(snapshot, auth_posture="unknown")
+
     status_code = 200 if snapshot.get("ready") else 503
     return JSONResponse(snapshot, status_code=status_code)
 
@@ -1552,6 +1566,7 @@ async def handle_tools_call(request: Request) -> JSONResponse:
     session_id = getattr(request.state, "session_id", "")
     try:
         import os as _os_tc
+        from hi_agent.server.auth_middleware import AuthMiddleware as _AM_tc
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_tc
         _env_tc = _os_tc.environ.get("HI_AGENT_ENV", "dev").lower()
         try:
@@ -1559,6 +1574,12 @@ async def handle_tools_call(request: Request) -> JSONResponse:
         except Exception:
             _readiness_tc = {}
         _runtime_mode_tc = _rrm_tc(_env_tc, _readiness_tc)
+        _auth_tc = _AM_tc(app=lambda *a: None, runtime_mode=_runtime_mode_tc)  # type: ignore[arg-type]
+        if _auth_tc.auth_posture == "degraded":
+            return JSONResponse(
+                {"success": False, "error": "Authentication not configured for production mode"},
+                status_code=503,
+            )
         invoker = server._builder.build_invoker()
         registry = server._builder.build_capability_registry()
         executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode=_runtime_mode_tc)
@@ -1765,6 +1786,7 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
     session_id = getattr(request.state, "session_id", "")
     try:
         import os as _os_mc
+        from hi_agent.server.auth_middleware import AuthMiddleware as _AM_mc
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_mc
         _env_mc = _os_mc.environ.get("HI_AGENT_ENV", "dev").lower()
         try:
@@ -1772,6 +1794,12 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
         except Exception:
             _readiness_mc = {}
         _runtime_mode_mc = _rrm_mc(_env_mc, _readiness_mc)
+        _auth_mc = _AM_mc(app=lambda *a: None, runtime_mode=_runtime_mode_mc)  # type: ignore[arg-type]
+        if _auth_mc.auth_posture == "degraded":
+            return JSONResponse(
+                {"isError": True, "error": "Authentication not configured for production mode"},
+                status_code=503,
+            )
         registry = server._builder.build_capability_registry()
         invoker = server._builder.build_invoker()
         executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode=_runtime_mode_mc)
@@ -2030,7 +2058,18 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # Auth middleware (outermost — rejects unauthenticated requests before
     # they reach rate limiting or route handlers).
     # Enabled only when HI_AGENT_API_KEY env-var is set; no-op otherwise.
-    app.add_middleware(AuthMiddleware)
+    import os as _os_auth
+    from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_auth
+    _env_auth = _os_auth.environ.get("HI_AGENT_ENV", "dev").lower()
+    _builder_auth = getattr(agent_server, "_builder", None)
+    _readiness_auth: dict = {}
+    if _builder_auth is not None:
+        try:
+            _readiness_auth = _builder_auth.readiness()
+        except Exception:
+            pass
+    _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
+    app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)
 
     # Rate limiting middleware.
     app.add_middleware(
