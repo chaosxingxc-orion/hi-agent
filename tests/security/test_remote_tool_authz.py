@@ -7,7 +7,6 @@ AuthMiddleware is constructed directly — no running server needed.
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
 
 import pytest
 
@@ -54,3 +53,29 @@ class TestAuthPostureDegraded:
         monkeypatch.delenv("HI_AGENT_API_KEY", raising=False)
         mw = _make_middleware("prod-real")
         assert mw.auth_posture == "degraded"
+
+
+class TestToolsCall503OnDegradedAuth:
+    def test_tools_call_returns_503_when_auth_degraded(self, monkeypatch):
+        """HTTP POST /tools/call returns 503 when auth posture is degraded.
+
+        Injects 'degraded' posture via app.state (the same attribute that
+        build_app() writes at startup) so no per-request AuthMiddleware
+        instance is constructed.
+        """
+        from starlette.testclient import TestClient
+
+        from hi_agent.server.app import AgentServer
+
+        monkeypatch.setenv("HI_AGENT_ENV", "prod")
+        monkeypatch.delenv("HI_AGENT_API_KEY", raising=False)
+
+        server = AgentServer(rate_limit_rps=10000)
+        # Override the posture stored at build_app() time so the handler sees "degraded".
+        server.app.state.auth_posture = "degraded"
+
+        client = TestClient(server.app, raise_server_exceptions=False)
+        resp = client.post("/tools/call", json={"name": "noop", "arguments": {}})
+        assert resp.status_code == 503
+        body = resp.json()
+        assert body.get("success") is False

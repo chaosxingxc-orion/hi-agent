@@ -1566,7 +1566,6 @@ async def handle_tools_call(request: Request) -> JSONResponse:
     session_id = getattr(request.state, "session_id", "")
     try:
         import os as _os_tc
-        from hi_agent.server.auth_middleware import AuthMiddleware as _AM_tc
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_tc
         _env_tc = _os_tc.environ.get("HI_AGENT_ENV", "dev").lower()
         try:
@@ -1574,8 +1573,8 @@ async def handle_tools_call(request: Request) -> JSONResponse:
         except Exception:
             _readiness_tc = {}
         _runtime_mode_tc = _rrm_tc(_env_tc, _readiness_tc)
-        _auth_tc = _AM_tc(app=lambda *a: None, runtime_mode=_runtime_mode_tc)  # type: ignore[arg-type]
-        if _auth_tc.auth_posture == "degraded":
+        _auth_posture_tc = getattr(request.app.state, "auth_posture", "dev_risk_open")
+        if _auth_posture_tc == "degraded":
             return JSONResponse(
                 {"success": False, "error": "Authentication not configured for production mode"},
                 status_code=503,
@@ -1786,7 +1785,6 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
     session_id = getattr(request.state, "session_id", "")
     try:
         import os as _os_mc
-        from hi_agent.server.auth_middleware import AuthMiddleware as _AM_mc
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_mc
         _env_mc = _os_mc.environ.get("HI_AGENT_ENV", "dev").lower()
         try:
@@ -1794,8 +1792,8 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
         except Exception:
             _readiness_mc = {}
         _runtime_mode_mc = _rrm_mc(_env_mc, _readiness_mc)
-        _auth_mc = _AM_mc(app=lambda *a: None, runtime_mode=_runtime_mode_mc)  # type: ignore[arg-type]
-        if _auth_mc.auth_posture == "degraded":
+        _auth_posture_mc = getattr(request.app.state, "auth_posture", "dev_risk_open")
+        if _auth_posture_mc == "degraded":
             return JSONResponse(
                 {"isError": True, "error": "Authentication not configured for production mode"},
                 status_code=503,
@@ -2070,6 +2068,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
             pass
     _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
     app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)
+    # Store the resolved auth posture on app.state so route handlers can read it
+    # without constructing a new AuthMiddleware instance per-request.
+    _auth_posture_mw = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_auth)  # type: ignore[arg-type]
+    app.state.auth_posture = _auth_posture_mw.auth_posture
 
     # Rate limiting middleware.
     app.add_middleware(
