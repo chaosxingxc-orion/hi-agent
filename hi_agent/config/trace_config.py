@@ -57,7 +57,6 @@ class TraceConfig:
 
     # Human Gate
     gate_quality_threshold: float = 0.5
-    gate_budget_crisis_threshold: float = 0.8
 
     # Watchdog
     watchdog_window_size: int = 10
@@ -275,7 +274,6 @@ class TraceConfig:
         "skill_min_provisional_evidence",
         "skill_min_certified_evidence",
         "skill_min_certified_success_rate",
-        "gate_budget_crisis_threshold",
         "kernel_circuit_breaker_threshold",
         "task_default_priority",
     })
