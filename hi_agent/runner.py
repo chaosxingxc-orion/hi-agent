@@ -1578,6 +1578,28 @@ class RunExecutor:
         from hi_agent.execution.run_finalizer import RunFinalizer
         return RunFinalizer(self._build_finalizer_context()).finalize(outcome)
 
+    def _build_stage_orchestrator_context(self):
+        """Build context for StageOrchestrator (HI-W10-001)."""
+        from hi_agent.execution.stage_orchestrator import StageOrchestratorContext
+        return StageOrchestratorContext(
+            run_id=self.run_id,
+            contract=self.contract,
+            stage_graph=self.stage_graph,
+            stage_summaries=self.stage_summaries,
+            policy_versions=self.policy_versions,
+            session=self.session,
+            route_engine=self.route_engine,
+            metrics_collector=self.metrics_collector,
+            replan_hook=getattr(self, "_replan_hook", None),
+            execute_stage_fn=self._execute_stage,
+            handle_stage_failure_fn=self._handle_stage_failure,
+            finalize_run_fn=self._finalize_run,
+            emit_observability_fn=self._emit_observability,
+            log_best_effort_fn=self._log_best_effort_exception,
+            record_event_fn=self._record_event,
+            set_executor_attr_fn=lambda k, v: setattr(self, k, v),
+        )
+
     def execute(self) -> RunResult:
         """Execute all stages with deterministic routing and capability dispatch.
 
@@ -1586,96 +1608,17 @@ class RunExecutor:
           For backward compatibility, ``str(result)`` returns the status string
           (``"completed"`` or ``"failed"``).
         """
-        # --- Start run lifecycle via adapter ---
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
         self._run_id = self.kernel.start_run(self.contract.task_id)
-        # Sync session run_id to the kernel-assigned value
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id
             except Exception as exc:
                 self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.session_run_id_sync_failed",
-                    exc,
-                    run_id=self.run_id,
-                    task_id=self.contract.task_id,
+                    logging.DEBUG, "runner.session_run_id_sync_failed", exc,
+                    run_id=self.run_id, task_id=self.contract.task_id,
                 )
-        self._record_event(
-            "RunStarted",
-            {
-                "run_id": self.run_id,
-                "task_id": self.contract.task_id,
-                "policy_versions": {
-                    "route_policy": self.policy_versions.route_policy,
-                    "acceptance_policy": self.policy_versions.acceptance_policy,
-                    "memory_policy": self.policy_versions.memory_policy,
-                    "evaluation_policy": self.policy_versions.evaluation_policy,
-                    "task_view_policy": self.policy_versions.task_view_policy,
-                    "skill_policy": self.policy_versions.skill_policy,
-                },
-            },
-        )
-        # --- MetricsCollector: mark run as active ---
-        if self.metrics_collector is not None:
-            try:
-                self.metrics_collector.increment("runs_active", 1.0)
-            except Exception as exc:
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.metrics_increment_failed",
-                    exc,
-                    run_id=self.run_id,
-                    stage_id=self.current_stage,
-                )
-
-        self._run_start_monotonic: float = time.monotonic()
-        try:
-            remaining_stages: list[str] = list(self.stage_graph.trace_order())
-            while remaining_stages:
-                stage_id = remaining_stages.pop(0)
-                stage_result = self._execute_stage(stage_id)
-                if stage_result == "failed":
-                    handled = self._handle_stage_failure(stage_id, stage_result)
-                    if handled == "failed":
-                        return self._finalize_run("failed")
-                    # "reflected" or any non-failed result: continue to next stage
-                if self._replan_hook is not None:
-                    from hi_agent.contracts.directives import StageDirective
-                    _stage_result_dict = stage_result if isinstance(stage_result, dict) else {}
-                    directive = self._replan_hook(stage_id, _stage_result_dict)
-                    if directive is not None and isinstance(directive, StageDirective) and directive.action != "continue":
-                        _logger.info(
-                            "replan_hook directive: %s (reason=%s)",
-                            directive.action,
-                            directive.reason,
-                        )
-                        if directive.action == "skip" and directive.target_stage_id:
-                            remaining_stages = [s for s in remaining_stages if s != directive.target_stage_id]
-                        elif directive.action == "repeat":
-                            remaining_stages.insert(0, stage_id)
-                        elif directive.action == "insert" and directive.new_stage_specs:
-                            for i, spec in enumerate(directive.new_stage_specs):
-                                remaining_stages.insert(i, spec.get("stage_id", f"dynamic_{i}"))
-        except GatePendingError:
-            raise  # propagate — gate awaits human input, not a run failure
-        except Exception as exc:
-            # Capture exception type and message for failure attribution in RunResult.
-            self._last_exception_msg: str | None = str(exc)
-            self._last_exception_type: str | None = type(exc).__name__
-            self._log_best_effort_exception(
-                logging.WARNING,
-                "runner.execute_failed",
-                exc,
-                run_id=self.run_id,
-                stage_id=self.current_stage,
-            )
-            self._record_event("RunError", {"error": str(exc), "run_id": self.run_id})
-            handled = self._handle_stage_failure(self.current_stage, "failed")
-            if handled == "failed":
-                return self._finalize_run("failed")
-            # "reflected" or non-failed: continue to finalize as completed
-
-        return self._finalize_run("completed")
+        return StageOrchestrator(self._build_stage_orchestrator_context()).run_linear()
 
     def execute_graph(self) -> RunResult:
         """Execute stages using dynamic graph traversal.
@@ -1684,94 +1627,17 @@ class RunExecutor:
         dynamically after each stage completes. Uses route_engine to
         choose among multiple successors when available.
         """
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
         self._run_id = self.kernel.start_run(self.contract.task_id)
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id
             except Exception as exc:
                 self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.session_run_id_sync_failed",
-                    exc,
-                    run_id=self.run_id,
-                    task_id=self.contract.task_id,
+                    logging.DEBUG, "runner.session_run_id_sync_failed", exc,
+                    run_id=self.run_id, task_id=self.contract.task_id,
                 )
-        self._record_event(
-            "RunStarted",
-            {
-                "run_id": self.run_id,
-                "task_id": self.contract.task_id,
-                "policy_versions": {
-                    "route_policy": self.policy_versions.route_policy,
-                    "acceptance_policy": self.policy_versions.acceptance_policy,
-                    "memory_policy": self.policy_versions.memory_policy,
-                    "evaluation_policy": self.policy_versions.evaluation_policy,
-                    "task_view_policy": self.policy_versions.task_view_policy,
-                    "skill_policy": self.policy_versions.skill_policy,
-                },
-            },
-        )
-        # --- MetricsCollector: mark run as active ---
-        if self.metrics_collector is not None:
-            try:
-                self.metrics_collector.increment("runs_active", 1.0)
-            except Exception as exc:
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.metrics_increment_failed",
-                    exc,
-                    run_id=self.run_id,
-                    stage_id=self.current_stage,
-                )
-
-        self._run_start_monotonic = time.monotonic()
-        # Find start stage (zero indegree)
-        current_stage = self._find_start_stage()
-        completed_stages: set[str] = set()
-        max_steps = len(self.stage_graph.transitions) * 2  # safety limit
-        steps = 0
-
-        try:
-            while current_stage is not None and steps < max_steps:
-                steps += 1
-                result = self._execute_stage(current_stage)
-                if result == "failed":
-                    backtrack = self.stage_graph.get_backtrack(current_stage)
-                    if backtrack and backtrack not in completed_stages:
-                        # Backtrack: re-execute a previous stage
-                        current_stage = backtrack
-                        continue
-                    handled = self._handle_stage_failure(current_stage, result)
-                    if handled == "failed":
-                        return self._finalize_run("failed")
-                    # "reflected" or non-failed: treat as completed and continue
-                completed_stages.add(current_stage)
-
-                # Get next stage from graph
-                successors = self.stage_graph.successors(current_stage)
-                candidates = successors - completed_stages
-
-                if not candidates:
-                    # No more stages to run
-                    break
-
-                if len(candidates) == 1:
-                    current_stage = next(iter(candidates))
-                else:
-                    # Multiple successors: use route engine or pick lexically
-                    current_stage = self._select_next_stage(candidates)
-        except GatePendingError:
-            raise  # propagate — gate awaits human input, not a run failure
-        except Exception as exc:
-            self._last_exception_msg = str(exc)
-            self._last_exception_type = type(exc).__name__
-            self._log_best_effort_exception(
-                logging.WARNING, "runner.execute_graph_failed", exc,
-                run_id=self.run_id, stage_id=self.current_stage,
-            )
-            return self._finalize_run("failed")
-
-        return self._finalize_run("completed")
+        return StageOrchestrator(self._build_stage_orchestrator_context()).run_graph()
 
     def _handle_stage_failure(
         self,
@@ -1811,98 +1677,19 @@ class RunExecutor:
             return []
 
     def _find_start_stage(self) -> str | None:
-        """Find start stage (zero indegree) from stage graph."""
-        if not self.stage_graph.transitions:
-            return None
-        indegree: dict[str, int] = dict.fromkeys(self.stage_graph.transitions, 0)
-        for targets in self.stage_graph.transitions.values():
-            for t in targets:
-                indegree[t] = indegree.get(t, 0) + 1
-        roots = sorted(s for s, c in indegree.items() if c == 0)
-        return roots[0] if roots else sorted(self.stage_graph.transitions)[0]
+        """Find start stage — delegates to StageOrchestrator (HI-W10-001)."""
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        return StageOrchestrator(self._build_stage_orchestrator_context())._find_start_stage()
 
     def _select_next_stage(self, candidates: set[str]) -> str:
-        """Select next stage from multiple candidates.
-
-        Delegates to route_engine if it has a select_stage method,
-        otherwise picks the lexicographically first candidate.
-        """
-        if hasattr(self.route_engine, "select_stage") and callable(
-            self.route_engine.select_stage
-        ):
-            try:
-                return self.route_engine.select_stage(
-                    candidates=sorted(candidates),
-                    run_id=self.run_id,
-                    completed_stages=list(self.stage_summaries.keys()),
-                )
-            except Exception as exc:
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.select_next_stage_failed",
-                    exc,
-                    run_id=self.run_id,
-                    stage_id=self.current_stage,
-                )
-        return sorted(candidates)[0]
+        """Select next stage — delegates to StageOrchestrator (HI-W10-001)."""
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        return StageOrchestrator(self._build_stage_orchestrator_context())._select_next_stage(candidates)
 
     def _execute_remaining(self) -> RunResult:
-        """Execute stages that haven't been completed yet.
-
-        Skips stages that are already ``completed`` in
-        ``session.stage_states``.  Continues from the first
-        non-completed stage.
-
-        Returns:
-            Completion status string (``completed`` or ``failed``).
-        """
-        completed_stages: set[str] = set()
-        if self.session is not None:
-            completed_stages = {
-                sid
-                for sid, state in self.session.stage_states.items()
-                if state == "completed"
-            }
-        else:
-            # Fallback: use stage_summaries (populated by _execute_stage on success).
-            completed_stages = {
-                sid
-                for sid, summary in self.stage_summaries.items()
-                if getattr(summary, "outcome", None) in ("completed", "success")
-            }
-
-        self._emit_observability("run_resumed", {
-            "run_id": self.run_id,
-            "completed_stages": sorted(completed_stages),
-            "resuming_from": self.current_stage,
-        })
-
-        all_completed = True
-        try:
-            for stage_id in self.stage_graph.trace_order():
-                if stage_id in completed_stages:
-                    self._emit_observability("stage_skipped_resume", {
-                        "run_id": self.run_id, "stage_id": stage_id,
-                    })
-                    continue
-
-                all_completed = False
-                stage_result = self._execute_stage(stage_id)
-                if stage_result == "failed":
-                    handled = self._handle_stage_failure(stage_id, stage_result)
-                    if handled == "failed":
-                        return self._finalize_run("failed")
-                    # "reflected" or non-failed: continue to next stage
-        except GatePendingError:
-            raise  # gate must propagate during resume too
-
-        if all_completed:
-            # All stages were already completed in the checkpoint
-            self._emit_observability("run_already_completed", {
-                "run_id": self.run_id,
-            })
-
-        return self._finalize_run("completed")
+        """Execute remaining (non-completed) stages — delegates to StageOrchestrator (HI-W10-001)."""
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        return StageOrchestrator(self._build_stage_orchestrator_context()).run_resume()
 
     @classmethod
     def resume_from_checkpoint(
