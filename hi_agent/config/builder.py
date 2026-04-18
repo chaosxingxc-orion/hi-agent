@@ -983,8 +983,14 @@ class SystemBuilder:
                 workspace_key,
                 "L0",
             ))
+            _session_storage_dir = str(WorkspacePathHelper.private(
+                _Path(self._config.episodic_storage_dir).parent,
+                workspace_key,
+                "checkpoints",
+            ))
         else:
             _raw_base = self._config.episodic_storage_dir
+            _session_storage_dir = None
         _short_term_store = self.build_short_term_store(
             profile_id=_profile_id, workspace_key=workspace_key
         )
@@ -1063,6 +1069,8 @@ class SystemBuilder:
             skill_evolver=_skill_ev,
             skill_evolve_interval=_skill_ev_interval,
             tracer=_tracer,
+            workspace_key=workspace_key,
+            session_storage_dir=_session_storage_dir,
         )
         if _mw is not None:
             logger.info(

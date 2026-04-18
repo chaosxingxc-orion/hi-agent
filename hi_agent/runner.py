@@ -248,6 +248,8 @@ class RunExecutor:
         skill_evolve_interval: int = 10,
         tracer: Any | None = None,
         cancellation_token: Any | None = None,  # CancellationToken | None
+        workspace_key: Any | None = None,  # WorkspaceKey — for session storage scoping
+        session_storage_dir: str | None = None,  # pre-computed workspace-scoped dir for RunSession
     ) -> None:
         """Initialize run executor state.
 
@@ -306,6 +308,8 @@ class RunExecutor:
         # backward compatibility with code that accesses run_id before execute.
         self._run_id_fallback = deterministic_id(contract.task_id, "run")
         self._run_id: str | None = None
+        self._workspace_key = workspace_key
+        self._session_storage_dir = session_storage_dir
         self.stage_graph = stage_graph or default_trace_stage_graph()
         self.optimizer = GreedyOptimizer()
         self.route_engine = self._resolve_route_engine(route_engine)
@@ -417,6 +421,7 @@ class RunExecutor:
                 self.session: RunSession | None = RunSession(
                     run_id=self._run_id_fallback,
                     task_contract=contract,
+                    storage_dir=self._session_storage_dir,
                 )
             except Exception as exc:
                 self._log_best_effort_exception(
