@@ -11,7 +11,11 @@ import json
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
+
+from hi_agent.security.path_policy import PathPolicyViolation, safe_resolve
+from hi_agent.security.url_policy import URLPolicy, URLPolicyViolation
 
 if TYPE_CHECKING:
     from hi_agent.capability.invoker import CapabilityInvoker
@@ -185,7 +189,32 @@ class GovernedToolExecutor:
                 capability_name=capability_name,
             )
 
-        # Step 6: Execute
+        # Step 6: Path/URL policy checks
+        if descriptor.risk_class in ("filesystem_read", "filesystem_write"):
+            path_arg = arguments.get("path") or arguments.get("file_path")
+            if path_arg is not None:
+                try:
+                    safe_resolve(Path.cwd(), path_arg)
+                except PathPolicyViolation as exc:
+                    self._write_audit(
+                        capability_name, principal, session_id, source,
+                        "deny", "path_policy_violation", arguments,
+                    )
+                    raise PolicyViolationError(str(exc)) from exc
+
+        if descriptor.risk_class == "network":
+            url_arg = arguments.get("url")
+            if url_arg is not None:
+                try:
+                    URLPolicy().validate(url_arg)
+                except URLPolicyViolation as exc:
+                    self._write_audit(
+                        capability_name, principal, session_id, source,
+                        "deny", "url_policy_violation", arguments,
+                    )
+                    raise PolicyViolationError(str(exc)) from exc
+
+        # Step 7: Execute
         self._write_audit(
             capability_name, principal, session_id, source,
             "allow", None, arguments,

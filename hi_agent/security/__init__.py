@@ -6,4 +6,17 @@ from hi_agent.security.injection_scanner import (
     SecurityEvent,
     SecurityEventSeverity,
 )
-__all__ = ["InjectionPattern", "InjectionScanner", "ScanResult", "SecurityEvent", "SecurityEventSeverity"]
+from hi_agent.security.path_policy import PathPolicyViolation, safe_resolve
+from hi_agent.security.url_policy import URLPolicy, URLPolicyViolation
+
+__all__ = [
+    "InjectionPattern",
+    "InjectionScanner",
+    "ScanResult",
+    "SecurityEvent",
+    "SecurityEventSeverity",
+    "PathPolicyViolation",
+    "safe_resolve",
+    "URLPolicy",
+    "URLPolicyViolation",
+]

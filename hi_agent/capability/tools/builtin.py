@@ -7,6 +7,8 @@ import urllib.request
 from pathlib import Path
 
 from hi_agent.capability.registry import CapabilityDescriptor, CapabilityRegistry, CapabilitySpec
+from hi_agent.security.path_policy import PathPolicyViolation, safe_resolve
+from hi_agent.security.url_policy import URLPolicy, URLPolicyViolation
 
 
 def file_read_handler(payload: dict) -> dict:
@@ -20,9 +22,15 @@ def file_read_handler(payload: dict) -> dict:
     if not path:
         return {"success": False, "content": "", "size": 0, "error": "path is required"}
     try:
-        p = Path(path)
+        base_dir = payload.get("base_dir")
+        if base_dir is not None:
+            p = safe_resolve(base_dir, path)
+        else:
+            p = Path(path)
         content = p.read_text(encoding=encoding)
         return {"success": True, "content": content, "size": len(content), "error": None}
+    except PathPolicyViolation as exc:
+        return {"success": False, "content": "", "size": 0, "error": str(exc)}
     except Exception as exc:
         return {"success": False, "content": "", "size": 0, "error": str(exc)}
 
@@ -39,10 +47,16 @@ def file_write_handler(payload: dict) -> dict:
     if not path:
         return {"success": False, "bytes_written": 0, "error": "path is required"}
     try:
-        p = Path(path)
+        base_dir = payload.get("base_dir")
+        if base_dir is not None:
+            p = safe_resolve(base_dir, path)
+        else:
+            p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding=encoding)
         return {"success": True, "bytes_written": len(content.encode(encoding)), "error": None}
+    except PathPolicyViolation as exc:
+        return {"success": False, "bytes_written": 0, "error": str(exc)}
     except Exception as exc:
         return {"success": False, "bytes_written": 0, "error": str(exc)}
 
