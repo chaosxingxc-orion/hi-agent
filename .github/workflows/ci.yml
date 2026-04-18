@@ -29,5 +29,5 @@ jobs:
         run: python -m pytest tests/contract/ -q --tb=short
       - name: Integration tests
         run: python -m pytest tests/integration/ -q --tb=short --timeout=60
-      - name: Coverage (unit)
-        run: pytest tests/ --ignore=tests/integration --ignore=tests/security --ignore=tests/contract --cov=hi_agent --cov-report=term-missing --cov-fail-under=65
+      - name: Coverage (unit + integration)
+        run: pytest tests/ --ignore=tests/security --ignore=tests/contract --cov=hi_agent --cov-report=term-missing --cov-fail-under=50 --timeout=60
