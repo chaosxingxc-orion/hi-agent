@@ -246,6 +246,7 @@ class RunExecutor:
         skill_evolver: Any | None = None,
         skill_evolve_interval: int = 10,
         tracer: Any | None = None,
+        cancellation_token: Any | None = None,  # CancellationToken | None
     ) -> None:
         """Initialize run executor state.
 
@@ -708,6 +709,9 @@ class RunExecutor:
 
         # --- DelegationManager: parallel child-run delegation (optional) ---
         self._delegation_manager: DelegationManager | None = delegation_manager
+
+        # --- CancellationToken: cooperative cancellation at stage boundaries ---
+        self._cancellation_token = cancellation_token
 
     @property
     def run_id(self) -> str:
@@ -1585,6 +1589,8 @@ class RunExecutor:
                     return "failed"
             except (ValueError, TypeError):
                 pass  # malformed deadline string — ignore rather than crash
+        if self._cancellation_token is not None:
+            self._cancellation_token.check_or_raise()
         return self._stage_executor.execute_stage(stage_id, executor=self)
 
     def _build_finalizer_context(self):

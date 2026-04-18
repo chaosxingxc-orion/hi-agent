@@ -17,6 +17,7 @@ from typing import Any
 
 from hi_agent.contracts.run import RunState
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
+from hi_agent.server.run_queue import RunQueue
 from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 
 # Valid terminal/operational states that result_status may be mapped to.
@@ -54,6 +55,7 @@ class RunManager:
         queue_timeout_s: float = 30.0,
         idempotency_store: IdempotencyStore | None = None,
         run_store: SQLiteRunStore | None = None,
+        run_queue: RunQueue | None = None,
     ) -> None:
         """Initialize the run manager.
 
@@ -67,6 +69,11 @@ class RunManager:
                 request payload to deduplicate submissions.
             run_store: Optional SQLite-backed run store.  When provided, each
                 new run is persisted so state survives process restarts.
+            run_queue: Optional lease-based durable run queue.  When provided,
+                ``create_run`` enqueues the run and the worker loop uses
+                ``claim_next``/``complete``/``fail`` instead of the in-memory
+                PriorityQueue.  When ``None``, the original in-memory queue
+                path is used unchanged.
         """
         self._runs: dict[str, ManagedRun] = {}
         self._lock = threading.Lock()
@@ -74,6 +81,9 @@ class RunManager:
         self._max_concurrent = max_concurrent
         self._idempotency_store = idempotency_store
         self._run_store = run_store
+        self._run_queue = run_queue
+        # Maps run_id -> executor_fn when run_queue is used; populated by start_run.
+        self._pending_executors: dict[str, Callable[[ManagedRun], Any]] = {}
         # PriorityQueue: items are (priority, sequence, run, executor_fn).
         # Lower priority integer = higher urgency (1 executes before 5).
         # sequence is a monotonic counter that breaks priority ties (FIFO within tier).
@@ -175,35 +185,81 @@ class RunManager:
                 updated_at=now_ts,
             ))
 
+        # --- enqueue to durable run_queue if available ----------------------
+        if self._run_queue is not None:
+            self._run_queue.enqueue(
+                run_id=run_id,
+                priority=int(task_contract_dict.get("priority", 5)),
+                payload_json=json.dumps(task_contract_dict),
+            )
+
         return run_id
 
     # -- internal helpers -----------------------------------------------------
 
     def _queue_worker(self) -> None:
-        """Background worker: drain queue, acquire semaphore, dispatch."""
+        """Background worker: drain queue, acquire semaphore, dispatch.
+
+        When a ``RunQueue`` is wired in, this method claims the next run
+        from the durable queue and calls ``complete``/``fail`` after
+        execution.  The in-memory PriorityQueue path remains unchanged when
+        ``run_queue`` is ``None``.
+        """
         while not self._shutdown:
-            try:
-                item = self._queue.get(timeout=0.25)
-            except queue.Empty:
-                continue
-            _priority, _seq, run, executor_fn = item
-            # Wait for a concurrency slot (with timeout).
-            acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
-            if not acquired:
+            if self._run_queue is not None:
+                self._run_queue.release_expired_leases()
+                claim = self._run_queue.claim_next(worker_id="run_manager")
+                if claim is None:
+                    import time as _time
+                    _time.sleep(0.1)
+                    continue
+                run_id = claim["run_id"]
                 with self._lock:
-                    run.state = "failed"
-                    run.error = "queue_timeout"
-                    run.updated_at = datetime.now(UTC).isoformat()
+                    run = self._runs.get(run_id)
+                    executor_fn = self._pending_executors.pop(run_id, None)
+                if run is None or executor_fn is None:
+                    # Run was created but executor not yet registered; release.
+                    self._run_queue.fail(run_id, "run_manager", "executor_not_found")
+                    continue
+                acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
+                if not acquired:
+                    self._run_queue.fail(run_id, "run_manager", "queue_timeout")
+                    with self._lock:
+                        run.state = "failed"
+                        run.error = "queue_timeout"
+                        run.updated_at = datetime.now(UTC).isoformat()
+                    continue
+                thread = threading.Thread(
+                    target=self._execute_run_durable,
+                    args=(run, executor_fn, run_id),
+                    daemon=True,
+                )
+                thread.start()
+                with self._lock:
+                    run.thread = thread
+            else:
+                try:
+                    item = self._queue.get(timeout=0.25)
+                except queue.Empty:
+                    continue
+                _priority, _seq, run, executor_fn = item
+                # Wait for a concurrency slot (with timeout).
+                acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
+                if not acquired:
+                    with self._lock:
+                        run.state = "failed"
+                        run.error = "queue_timeout"
+                        run.updated_at = datetime.now(UTC).isoformat()
+                    self._queue.task_done()
+                    continue
+                # Dispatch in a new thread so the worker can process the next item.
+                thread = threading.Thread(
+                    target=self._execute_run, args=(run, executor_fn), daemon=True
+                )
+                thread.start()
+                with self._lock:
+                    run.thread = thread
                 self._queue.task_done()
-                continue
-            # Dispatch in a new thread so the worker can process the next item.
-            thread = threading.Thread(
-                target=self._execute_run, args=(run, executor_fn), daemon=True
-            )
-            thread.start()
-            with self._lock:
-                run.thread = thread
-            self._queue.task_done()
 
     def _execute_run(
         self, run: ManagedRun, executor_fn: Callable[[ManagedRun], Any]
@@ -242,6 +298,52 @@ class RunManager:
                 self._active_count -= 1
             self._semaphore.release()
 
+    def _execute_run_durable(
+        self,
+        run: ManagedRun,
+        executor_fn: Callable[[ManagedRun], Any],
+        run_id: str,
+    ) -> None:
+        """Execute a run claimed from the durable RunQueue.
+
+        Calls ``run_queue.complete`` on success or ``run_queue.fail`` on
+        exception.  Semaphore was already acquired by the caller.
+        """
+        with self._lock:
+            self._active_count += 1
+            run.state = "running"
+            run.updated_at = datetime.now(UTC).isoformat()
+        try:
+            result = executor_fn(run)
+            with self._lock:
+                result_status = getattr(result, "status", None)
+                if result_status is not None and result_status != "completed":
+                    if result_status in _VALID_RESULT_STATES:
+                        run.state = result_status
+                    else:
+                        run.state = RunState.FAILED
+                    run.error = getattr(result, "error", None) or result_status
+                else:
+                    run.state = "completed"
+                run.result = result
+                run.updated_at = datetime.now(UTC).isoformat()
+            if self._run_queue is not None:
+                if run.state == "completed":
+                    self._run_queue.complete(run_id, "run_manager")
+                else:
+                    self._run_queue.fail(run_id, "run_manager", run.error or "")
+        except Exception as exc:
+            with self._lock:
+                run.state = "failed"
+                run.error = str(exc)
+                run.updated_at = datetime.now(UTC).isoformat()
+            if self._run_queue is not None:
+                self._run_queue.fail(run_id, "run_manager", str(exc))
+        finally:
+            with self._lock:
+                self._active_count -= 1
+            self._semaphore.release()
+
     # -- public API ---------------------------------------------------------
 
     def start_run(self, run_id: str, executor_fn: Callable[[ManagedRun], Any]) -> None:
@@ -261,6 +363,12 @@ class RunManager:
                 return
             if run.state != "created":
                 return
+
+        if self._run_queue is not None:
+            # Durable queue path: store executor so the worker can look it up.
+            with self._lock:
+                self._pending_executors[run_id] = executor_fn
+            return
 
         # Try to enqueue (non-blocking). Priority from task_contract (1=highest).
         priority = int(run.task_contract.get("priority", 5))
