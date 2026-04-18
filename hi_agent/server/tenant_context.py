@@ -27,6 +27,17 @@ class TenantContext:
     # "api_key" | "jwt" | "none"
     auth_method: str = "none"
     request_id: str = ""
+    session_id: str = ""
+
+    def workspace_key(self):
+        """Return a WorkspaceKey for this context."""
+        from hi_agent.server.workspace_path import WorkspaceKey
+        return WorkspaceKey(
+            tenant_id=self.tenant_id,
+            user_id=self.user_id,
+            session_id=self.session_id,
+            team_id=self.team_id,
+        )
 
 
 # ContextVar — one slot per async task / thread context.
