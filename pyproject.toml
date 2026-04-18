@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "agent-kernel @ git+https://github.com/chaosxingxc-orion/agent-kernel.git@378efc6376ddbd22703872a3510c1eb62db87c17",
+  "fastapi>=0.111",
   "httpx>=0.28",
   "pyjwt>=2.8",
   "starlette>=0.37",
