@@ -153,21 +153,38 @@ class CapabilityInvoker:
                     )
                 elapsed_ms = int(time.monotonic() * 1000) - start_ms
                 self.breaker.mark_success(capability_name)
-                if isinstance(response, dict) and "_provenance" not in response:
-                    if response.get("_mcp"):
-                        mode = "mcp"
-                    elif response.get("_external"):
-                        mode = "external"
-                    elif response.get("_profile"):
-                        mode = "profile"
-                    else:
-                        mode = "sample"
-                    response = dict(response)
-                    response["_provenance"] = {
-                        "mode": mode,
-                        "capability_name": capability_name,
-                        "duration_ms": elapsed_ms,
-                    }
+                if isinstance(response, dict):
+                    # W10-004: output budget enforcement — truncate oversized outputs
+                    budget = None
+                    descriptor = getattr(spec, "descriptor", None)
+                    if descriptor is not None:
+                        budget = getattr(descriptor, "output_budget_tokens", None)
+                    if budget is None:
+                        budget = getattr(spec, "output_budget_tokens", 0)
+                    if budget and budget > 0:
+                        output_text = response.get("output") or response.get("result") or ""
+                        if isinstance(output_text, str) and len(output_text) > budget * 4:
+                            # approx 4 chars/token; truncate and mark
+                            response = dict(response)
+                            key = "output" if "output" in response else "result"
+                            response[key] = output_text[: budget * 4]
+                            response["_output_truncated"] = True
+                    # Attach provenance annotation
+                    if "_provenance" not in response:
+                        if response.get("_mcp"):
+                            mode = "mcp"
+                        elif response.get("_external"):
+                            mode = "external"
+                        elif response.get("_profile"):
+                            mode = "profile"
+                        else:
+                            mode = "sample"
+                        response = dict(response)
+                        response["_provenance"] = {
+                            "mode": mode,
+                            "capability_name": capability_name,
+                            "duration_ms": elapsed_ms,
+                        }
                 return response
             except Exception as exc:
                 self.breaker.mark_failure(capability_name)
