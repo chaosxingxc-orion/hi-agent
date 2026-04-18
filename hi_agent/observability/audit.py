@@ -25,17 +25,6 @@ from typing import Literal
 # P1-2d: structured audit dataclass + store
 # ---------------------------------------------------------------------------
 
-_SENSITIVE_FIELDS = frozenset({"password", "secret", "token", "key"})
-
-
-def _redact_args(arguments: dict) -> dict:
-    """Return a shallow copy with sensitive field values replaced by [REDACTED]."""
-    return {
-        k: "[REDACTED]" if k in _SENSITIVE_FIELDS else v
-        for k, v in arguments.items()
-    }
-
-
 @dataclass
 class ToolCallAuditEvent:
     """Structured audit record for a single tool invocation decision."""
@@ -114,6 +103,7 @@ class AuditStore:
                     "approval_id": event.approval_id,
                     "result_status": event.result_status,
                     "duration_ms": event.duration_ms,
+                    "timestamp": event.timestamp,
                 },
             )
         except Exception:
