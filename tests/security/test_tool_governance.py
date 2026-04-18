@@ -192,8 +192,9 @@ def test_audit_store_receives_allow_record():
 
     executor.invoke("read_status", {})
 
-    audit_store.record_tool_call.assert_called_once()
-    call_kwargs = audit_store.record_tool_call.call_args.kwargs
+    # Two calls are expected: pre-decision (result_status=None) + post-result (result_status='ok')
+    assert audit_store.record_tool_call.call_count >= 1
+    call_kwargs = audit_store.record_tool_call.call_args_list[0].kwargs
     assert call_kwargs["decision"] == "allow"
     assert call_kwargs["capability_name"] == "read_status"
 

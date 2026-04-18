@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
     from hi_agent.capability.registry import CapabilityRegistry
 
 _logger = logging.getLogger(__name__)
+
+_SENSITIVE_ARG_FIELDS = frozenset({"password", "secret", "token", "key"})
 
 
 @dataclass
@@ -114,7 +117,7 @@ class GovernedToolExecutor:
         except KeyError:
             self._write_audit(
                 capability_name, principal, session_id, source,
-                "deny", "not_found", arguments,
+                "deny", "not_found", arguments, descriptor=None,
             )
             raise CapabilityNotFoundError(
                 f"Unknown capability: {capability_name!r}"
@@ -127,24 +130,41 @@ class GovernedToolExecutor:
             if self._runtime_mode == "prod-real":
                 self._write_audit(
                     capability_name, principal, session_id, source,
-                    "deny", "no_descriptor_in_prod", arguments,
+                    "deny", "no_descriptor_in_prod", arguments, descriptor=None,
                 )
                 raise CapabilityDisabledError(
                     f"Capability {capability_name!r} has no risk descriptor "
                     "and cannot run in prod-real mode"
                 )
-            # dev mode: allow without descriptor
+            # dev mode: allow without descriptor — track result
+            start = time.monotonic()
             self._write_audit(
                 capability_name, principal, session_id, source,
-                "allow", None, arguments,
+                "allow", None, arguments, descriptor=None,
             )
-            return self._invoker.invoke(capability_name, arguments, role=role, metadata=metadata)
+            try:
+                result = self._invoker.invoke(capability_name, arguments, role=role, metadata=metadata)
+                duration = (time.monotonic() - start) * 1000
+                self._write_audit(
+                    capability_name, principal, session_id, source,
+                    "allow", None, arguments, descriptor=None,
+                    result_status="ok", duration_ms=duration,
+                )
+                return result
+            except Exception:
+                duration = (time.monotonic() - start) * 1000
+                self._write_audit(
+                    capability_name, principal, session_id, source,
+                    "allow", None, arguments, descriptor=None,
+                    result_status="error", duration_ms=duration,
+                )
+                raise
 
         # Step 2: prod_enabled_default check
         if not descriptor.prod_enabled_default and self._runtime_mode == "prod-real":
             self._write_audit(
                 capability_name, principal, session_id, source,
-                "deny", "prod_disabled", arguments,
+                "deny", "prod_disabled", arguments, descriptor=descriptor,
             )
             raise CapabilityDisabledError(
                 f"Capability {capability_name!r} is disabled in prod-real mode "
@@ -158,7 +178,7 @@ class GovernedToolExecutor:
                 reason = f"missing_env:{','.join(missing)}"
                 self._write_audit(
                     capability_name, principal, session_id, source,
-                    "deny", reason, arguments,
+                    "deny", reason, arguments, descriptor=descriptor,
                 )
                 raise CapabilityUnavailableError(
                     f"Capability {capability_name!r} requires env vars: {missing}"
@@ -172,7 +192,7 @@ class GovernedToolExecutor:
         ):
             self._write_audit(
                 capability_name, principal, session_id, source,
-                "deny", "unauthenticated", arguments,
+                "deny", "unauthenticated", arguments, descriptor=descriptor,
             )
             raise PermissionDeniedError(
                 f"Capability {capability_name!r} requires authentication"
@@ -182,7 +202,7 @@ class GovernedToolExecutor:
         if descriptor.requires_approval:
             self._write_audit(
                 capability_name, principal, session_id, source,
-                "approval_required", "requires_approval", arguments,
+                "approval_required", "requires_approval", arguments, descriptor=descriptor,
             )
             raise ApprovalRequiredError(
                 f"Capability {capability_name!r} requires explicit approval before execution",
@@ -205,7 +225,7 @@ class GovernedToolExecutor:
                 except PathPolicyViolation as exc:
                     self._write_audit(
                         capability_name, principal, session_id, source,
-                        "deny", "path_policy_violation", arguments,
+                        "deny", "path_policy_violation", arguments, descriptor=descriptor,
                     )
                     raise PolicyViolationError(str(exc)) from exc
 
@@ -217,16 +237,33 @@ class GovernedToolExecutor:
                 except URLPolicyViolation as exc:
                     self._write_audit(
                         capability_name, principal, session_id, source,
-                        "deny", "url_policy_violation", arguments,
+                        "deny", "url_policy_violation", arguments, descriptor=descriptor,
                     )
                     raise PolicyViolationError(str(exc)) from exc
 
-        # Step 7: Execute
+        # Step 7: Execute — write pre-decision audit then track result
         self._write_audit(
             capability_name, principal, session_id, source,
-            "allow", None, arguments,
+            "allow", None, arguments, descriptor=descriptor,
         )
-        return self._invoker.invoke(capability_name, arguments, role=role, metadata=metadata)
+        start = time.monotonic()
+        try:
+            result = self._invoker.invoke(capability_name, arguments, role=role, metadata=metadata)
+            duration = (time.monotonic() - start) * 1000
+            self._write_audit(
+                capability_name, principal, session_id, source,
+                "allow", None, arguments, descriptor=descriptor,
+                result_status="ok", duration_ms=duration,
+            )
+            return result
+        except Exception:
+            duration = (time.monotonic() - start) * 1000
+            self._write_audit(
+                capability_name, principal, session_id, source,
+                "allow", None, arguments, descriptor=descriptor,
+                result_status="error", duration_ms=duration,
+            )
+            raise
 
     # ------------------------------------------------------------------
     # Audit helper
@@ -241,13 +278,27 @@ class GovernedToolExecutor:
         decision: str,
         reason: str | None,
         arguments: dict,
+        *,
+        descriptor: object | None = None,
+        result_status: str | None = None,
+        duration_ms: float | None = None,
     ) -> None:
         """Write audit record. No-op if no audit_store is configured."""
         if self._audit_store is None:
             return
+        # Redact sensitive fields before hashing
+        redacted = {
+            k: "[REDACTED]" if k in _SENSITIVE_ARG_FIELDS else v
+            for k, v in arguments.items()
+        }
         arg_digest = hashlib.sha256(
-            json.dumps(arguments, sort_keys=True, default=str).encode()
+            json.dumps(redacted, sort_keys=True, default=str).encode()
         ).hexdigest()[:16]
+        risk_class = (
+            descriptor.risk_class  # type: ignore[union-attr]
+            if descriptor is not None and hasattr(descriptor, "risk_class")
+            else "unknown"
+        )
         try:
             self._audit_store.record_tool_call(
                 capability_name=capability_name,
@@ -257,6 +308,9 @@ class GovernedToolExecutor:
                 decision=decision,
                 reason=reason,
                 argument_digest=arg_digest,
+                risk_class=risk_class,
+                result_status=result_status,
+                duration_ms=duration_ms,
             )
         except Exception:
             # Audit must never block execution
