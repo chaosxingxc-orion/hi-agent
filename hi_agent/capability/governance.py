@@ -193,8 +193,15 @@ class GovernedToolExecutor:
         if descriptor.risk_class in ("filesystem_read", "filesystem_write"):
             path_arg = arguments.get("path") or arguments.get("file_path")
             if path_arg is not None:
+                base = Path.cwd()
+                if base == Path(base.anchor):  # CWD is filesystem root
+                    _logger.warning(
+                        "GovernedToolExecutor: path policy base_dir is filesystem root %s"
+                        " — containment is ineffective",
+                        base,
+                    )
                 try:
-                    safe_resolve(Path.cwd(), path_arg)
+                    safe_resolve(base, path_arg)
                 except PathPolicyViolation as exc:
                     self._write_audit(
                         capability_name, principal, session_id, source,

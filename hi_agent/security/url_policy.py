@@ -82,6 +82,10 @@ class URLPolicy:
         except ValueError:
             return
 
+        # Unwrap IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
+        if isinstance(addr, IPv6Address) and addr.ipv4_mapped is not None:
+            addr = addr.ipv4_mapped  # becomes an IPv4Address
+
         if isinstance(addr, IPv4Address):
             for net in _BLOCKED_NETWORKS_V4:
                 if addr in net:

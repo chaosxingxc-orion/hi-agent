@@ -63,6 +63,6 @@ def test_tools_call_logic_file_read(tmp_path):
     f = tmp_path / "cli_test.txt"
     f.write_text("cli content")
 
-    result = invoker.invoke("file_read", {"path": str(f)})
+    result = invoker.invoke("file_read", {"path": "cli_test.txt", "base_dir": str(tmp_path)})
     assert result["success"] is True
     assert result["content"] == "cli content"

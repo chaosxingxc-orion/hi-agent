@@ -76,3 +76,17 @@ def test_no_hostname_blocked():
     policy = URLPolicy()
     with pytest.raises(URLPolicyViolation, match="no hostname"):
         policy.validate("http:///path")
+
+
+def test_ipv4_mapped_ipv6_loopback_blocked():
+    """::ffff:127.0.0.1 (IPv4-mapped IPv6) must be blocked as loopback.
+
+    Mocks getaddrinfo to return an IPv4-mapped IPv6 address that maps to
+    127.0.0.1 — a bypass vector if _check_ip only checks the IPv6 block list.
+    """
+    # AF_INET6=10, sockaddr includes scope_id for IPv6
+    ipv4_mapped_loopback = [(10, 1, 6, "", ("::ffff:127.0.0.1", 0, 0, 0))]
+    policy = URLPolicy()
+    with patch("hi_agent.security.url_policy.socket.getaddrinfo", return_value=ipv4_mapped_loopback):
+        with pytest.raises(URLPolicyViolation, match="blocked"):
+            policy.validate("http://evil.com/")
