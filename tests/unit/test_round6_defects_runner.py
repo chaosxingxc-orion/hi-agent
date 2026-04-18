@@ -42,7 +42,7 @@ def _make_kernel(run_id: str = "run-r6") -> MagicMock:
     return k
 
 
-def _bare_executor(task_id: str = "t-r6", run_id: str = "run-r6") -> "RunExecutor":
+def _bare_executor(task_id: str = "t-r6", run_id: str = "run-r6") -> object:
     """Return a RunExecutor instance bypassing __init__ with minimal wiring."""
     from hi_agent.runner import RunExecutor
 
@@ -102,6 +102,7 @@ def _bare_executor(task_id: str = "t-r6", run_id: str = "run-r6") -> "RunExecuto
     executor._pending_nudge_blocks = []
     executor._total_branches_opened = 0
     executor._stage_active_branches = {}
+    executor._cancellation_token = None
     executor._hook_manager = None
     executor.tier_router = None
     executor.budget_guard = None

@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "hi-agent"
 version = "0.1.0"
@@ -5,7 +9,7 @@ description = "TRACE enterprise agent implementation"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "agent-kernel @ git+https://github.com/chaosxingxc-orion/agent-kernel.git@ff4d25c7e90cd2e2e0e62acb4cf929b0b77eca08",
+  "agent-kernel @ git+https://github.com/chaosxingxc-orion/agent-kernel.git@378efc6376ddbd22703872a3510c1eb62db87c17",
   "httpx>=0.28",
   "pyjwt>=2.8",
   "starlette>=0.37",
@@ -20,6 +24,13 @@ dev = [
   "respx>=0.23",
   "ruff>=0.8",
 ]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hi_agent*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

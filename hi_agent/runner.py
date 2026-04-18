@@ -8,6 +8,7 @@ longer a pure "always success" simulation.
 from __future__ import annotations
 
 import copy
+import asyncio
 import inspect
 import logging
 from collections.abc import Callable, Mapping
@@ -106,7 +107,7 @@ class SubRunResult:
     status: str = "completed"
 
 
-def _reflect_task_done_callback(task: asyncio.Task[object]) -> None:
+def _reflect_task_done_callback(task: Any) -> None:
     """Log completion or failure of an async reflection background task."""
     if task.cancelled():
         _logger.warning("runner.reflect_async_task_cancelled")
@@ -120,7 +121,7 @@ def _reflect_task_done_callback(task: asyncio.Task[object]) -> None:
         )
 
 
-def _subrun_task_done_callback(task: asyncio.Task[object]) -> None:
+def _subrun_task_done_callback(task: Any) -> None:
     """Log completion or failure of an async sub-run background task."""
     if task.cancelled():
         _logger.warning("runner.subrun_async_task_cancelled")
@@ -148,10 +149,10 @@ def _set_engine_context_provider(engine: object, provider: object) -> None:
 
 def _make_subrun_done_callback(
     results_dict: "dict[str, object]", task_id: str
-) -> "Callable[[asyncio.Task[object]], None]":
+) -> "Callable[[Any], None]":
     """Create a done-callback that stores task-level failures into results_dict."""
 
-    def _cb(task: asyncio.Task[object]) -> None:
+    def _cb(task: Any) -> None:
         if task.cancelled():
             _logger.warning(
                 "runner.subrun_async_task_cancelled task_id=%s", task_id
@@ -218,8 +219,8 @@ class RunExecutor:
         skill_version_mgr: Any | None = None,  # SkillVersionManager
         skill_loader: Any | None = None,  # SkillLoader
         short_term_store: ShortTermMemoryStore | None = None,
-        mid_term_store: MidTermMemoryStore | None = None,
-        long_term_consolidator: LongTermConsolidator | None = None,
+        mid_term_store: Any | None = None,
+        long_term_consolidator: Any | None = None,
         session: RunSession | None = None,
         retrieval_engine: Any | None = None,  # RetrievalEngine
         knowledge_manager: Any | None = None,  # KnowledgeManager
@@ -1018,7 +1019,7 @@ class RunExecutor:
 
     def _build_default_invoker(
         self, llm_gateway: Any | None = None
-    ) -> "GovernedToolExecutor":
+    ) -> CapabilityInvoker:
         """Build a default capability invoker with built-in action handlers.
 
         Wraps the real CapabilityInvoker in GovernedToolExecutor so that all

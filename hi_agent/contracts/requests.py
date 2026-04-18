@@ -136,6 +136,11 @@ class RunResult:
     execution_provenance: ExecutionProvenance | None = None
     """Structured provenance for machine-readable run classification (HI-W1-D3-001)."""
 
+    @property
+    def success(self) -> bool:
+        """Backward-compatible success flag used by async/integration callers."""
+        return self.status == "completed"
+
     def __str__(self) -> str:  # noqa: D105
         return self.status
 

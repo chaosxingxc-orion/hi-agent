@@ -36,7 +36,7 @@ class ProfileAwareConfigStack:
         self._pdm = ProfileDirectoryManager(home_dir=home_dir)
         self._profile_id = profile_id
 
-    def resolve(self, run_patch: dict | None = None) -> "TraceConfig":
+    def resolve(self, run_patch: dict | None = None) -> Any:
         """Return merged TraceConfig with all layers applied."""
         from hi_agent.config.trace_config import TraceConfig
         from hi_agent.config.profile import deep_merge
@@ -94,13 +94,13 @@ class ConfigStack:
         # Profile: explicit argument > HI_AGENT_PROFILE env var > ""
         self._profile = profile if profile is not None else os.environ.get("HI_AGENT_PROFILE", "")
         self._env = env if env is not None else os.environ.get("HI_AGENT_ENV", "prod")
-        self._cached: "TraceConfig | None" = None
+        self._cached: Any | None = None
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def resolve(self, run_patch: dict[str, Any] | None = None) -> "TraceConfig":
+    def resolve(self, run_patch: dict[str, Any] | None = None) -> Any:
         """Merge all layers and return a TraceConfig.
 
         When *run_patch* is ``None``, the result is cached.
@@ -120,7 +120,7 @@ class ConfigStack:
     # Internal
     # ------------------------------------------------------------------
 
-    def _build(self, run_patch: dict[str, Any] | None = None) -> "TraceConfig":
+    def _build(self, run_patch: dict[str, Any] | None = None) -> Any:
         from hi_agent.config.trace_config import TraceConfig
         from hi_agent.config.profile import deep_merge, load_profile_file
         from hi_agent.config.validator import ConfigValidator

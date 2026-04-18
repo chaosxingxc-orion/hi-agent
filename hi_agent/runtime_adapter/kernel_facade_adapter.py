@@ -22,6 +22,23 @@ from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
 
+
+def _ensure_workflow_signal_run_compat(facade: object) -> None:
+    """Backfill workflow gateway `signal_run` when only `signal_workflow` exists."""
+    workflow_gateway = getattr(facade, "_workflow_gateway", None)
+    if workflow_gateway is None or hasattr(workflow_gateway, "signal_run"):
+        return
+    signal_workflow = getattr(workflow_gateway, "signal_workflow", None)
+    if not callable(signal_workflow):
+        return
+
+    async def _signal_run(request: Any) -> Any:
+        run_id = getattr(request, "run_id", None)
+        return await signal_workflow(run_id, request)
+
+    setattr(workflow_gateway, "signal_run", _signal_run)
+
+
 class KernelFacadeAdapter:
     """Forward RuntimeAdapter Protocol calls to an agent-kernel KernelFacade.
 
@@ -776,6 +793,7 @@ def create_local_adapter() -> KernelFacadeAdapter:
         facade = result[0].facade
         if getattr(facade, "_task_view_log", None) is None:
             facade._task_view_log = _task_view_log
+        _ensure_workflow_signal_run_compat(facade)
         return KernelFacadeAdapter(facade)
 
     try:
@@ -788,5 +806,6 @@ def create_local_adapter() -> KernelFacadeAdapter:
         facade = runtime.facade
         if getattr(facade, "_task_view_log", None) is None:
             facade._task_view_log = _task_view_log
+        _ensure_workflow_signal_run_compat(facade)
         return KernelFacadeAdapter(facade)
 
