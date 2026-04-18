@@ -14,6 +14,7 @@ from hi_agent.failures.collector import FailureCollector
 from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.memory.episodic import EpisodicMemoryStore
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
+from hi_agent.server.workspace_path import WorkspaceKey, WorkspacePathHelper
 
 logger = logging.getLogger(__name__)
 
@@ -43,43 +44,73 @@ class MemoryBuilder:
             max_consecutive_failures=self._config.watchdog_max_consecutive_failures,
         )
 
-    def build_short_term_store(self, profile_id: str = "") -> Any:
-        """Build short-term memory store, optionally scoped to a profile."""
+    def build_short_term_store(
+        self, profile_id: str = "", workspace_key: WorkspaceKey | None = None
+    ) -> Any:
+        """Build short-term memory store, optionally scoped to a profile or workspace.
+
+        When *workspace_key* is provided the store is placed under
+        ``{base_root}/workspaces/{tenant}/users/{user}/sessions/{session}/L1``.
+        When absent, falls back to the existing profile_id-scoped path.
+        """
         from hi_agent.memory.short_term import ShortTermMemoryStore
 
         base = self._config.episodic_storage_dir.replace("episodes", "")
-        path = (
-            os.path.join(base, "profiles", profile_id, "short_term")
-            if profile_id
-            else self._config.episodic_storage_dir.replace("episodes", "short_term")
-        )
+        if workspace_key is not None:
+            path = str(WorkspacePathHelper.private(base, workspace_key, "L1"))
+        elif profile_id:
+            path = os.path.join(base, "profiles", profile_id, "short_term")
+        else:
+            path = self._config.episodic_storage_dir.replace("episodes", "short_term")
         project_id = getattr(self._config, "project_id", "")
         return ShortTermMemoryStore(path, project_id=project_id)
 
-    def build_mid_term_store(self, profile_id: str = "") -> Any:
-        """Build mid-term memory store, optionally scoped to a profile."""
+    def build_mid_term_store(
+        self, profile_id: str = "", workspace_key: WorkspaceKey | None = None
+    ) -> Any:
+        """Build mid-term memory store, optionally scoped to a profile or workspace.
+
+        When *workspace_key* is provided the store is placed under
+        ``{base_root}/workspaces/{tenant}/users/{user}/sessions/{session}/L2``.
+        When absent, falls back to the existing profile_id-scoped path.
+        """
         from hi_agent.memory.mid_term import MidTermMemoryStore
 
         base = self._config.episodic_storage_dir.replace("episodes", "")
-        path = (
-            os.path.join(base, "profiles", profile_id, "mid_term")
-            if profile_id
-            else self._config.episodic_storage_dir.replace("episodes", "mid_term")
-        )
+        if workspace_key is not None:
+            path = str(WorkspacePathHelper.private(base, workspace_key, "L2"))
+        elif profile_id:
+            path = os.path.join(base, "profiles", profile_id, "mid_term")
+        else:
+            path = self._config.episodic_storage_dir.replace("episodes", "mid_term")
         return MidTermMemoryStore(path)
 
-    def build_long_term_graph(self, profile_id: str = "") -> Any:
-        """Build long-term memory graph, optionally scoped to a profile."""
+    def build_long_term_graph(
+        self, profile_id: str = "", workspace_key: WorkspaceKey | None = None
+    ) -> Any:
+        """Build long-term memory graph, optionally scoped to a profile or workspace.
+
+        When *workspace_key* is provided the graph file is placed under
+        ``{base_root}/workspaces/{tenant}/users/{user}/sessions/{session}/L3/graph.json``.
+        When absent, falls back to the existing profile_id-scoped path.
+        """
         from hi_agent.memory.long_term import LongTermMemoryGraph
 
         project_id = getattr(self._config, "project_id", "")
-        graph = LongTermMemoryGraph(
-            self._config.episodic_storage_dir.replace(
-                "episodes", "long_term/graph.json"
-            ),
-            profile_id=profile_id,
-            project_id=project_id,
-        )
+        if workspace_key is not None:
+            base = self._config.episodic_storage_dir.replace("episodes", "")
+            storage_path = str(
+                WorkspacePathHelper.private(base, workspace_key, "L3") / "graph.json"
+            )
+            graph = LongTermMemoryGraph(storage_path, project_id=project_id)
+        else:
+            graph = LongTermMemoryGraph(
+                self._config.episodic_storage_dir.replace(
+                    "episodes", "long_term/graph.json"
+                ),
+                profile_id=profile_id,
+                project_id=project_id,
+            )
         try:
             graph.load()
         except (FileNotFoundError, KeyError, ValueError):
