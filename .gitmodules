@@ -1,3 +1,0 @@
-[submodule "external/agent-kernel"]
-	path = external/agent-kernel
-	url = https://github.com/chaosxingxc-orion/agent-kernel.git
