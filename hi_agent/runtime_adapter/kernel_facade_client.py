@@ -65,22 +65,22 @@ class KernelFacadeClient:
     # Stage lifecycle
     # ------------------------------------------------------------------
 
-    def open_stage(self, stage_id: str) -> None:
+    def open_stage(self, run_id: str, stage_id: str) -> None:
         """Open stage in runtime."""
         if self._mode == "direct":
-            self._direct_call("open_stage", stage_id)
+            self._direct_call("open_stage", stage_id, run_id)
         else:
-            self._http_post("/stages/open", {"stage_id": stage_id})
+            self._http_post(f"/runs/{run_id}/stages/{stage_id}/open", {})
 
-    def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+    def mark_stage_state(self, run_id: str, stage_id: str, target: StageState) -> None:
         """Update stage lifecycle state in runtime."""
         target_value = target.value if isinstance(target, StageState) else str(target)
         if self._mode == "direct":
-            self._direct_call("mark_stage_state", stage_id, target_value)
+            self._direct_call("mark_stage_state", run_id, stage_id, target_value)
         else:
-            self._http_post(
-                "/stages/mark_state",
-                {"stage_id": stage_id, "target": target_value},
+            self._http_put(
+                f"/runs/{run_id}/stages/{stage_id}/state",
+                {"state": target_value},
             )
 
     # ------------------------------------------------------------------

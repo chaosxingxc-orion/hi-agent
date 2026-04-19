@@ -112,42 +112,25 @@ class KernelFacadeAdapter:
     # Stage lifecycle
     # ------------------------------------------------------------------
 
-    def open_stage(self, stage_id: str) -> None:
-        """Open a stage in facade runtime.
-
-        The real KernelFacade requires ``open_stage(stage_id, run_id)``.
-        The ``run_id`` is taken from the value stored by the most recent
-        ``start_run()`` call.
-        """
+    def open_stage(self, run_id: str, stage_id: str) -> None:
+        """Open a stage in facade runtime."""
+        normalized_run = self._non_empty(run_id, "run_id")
         normalized = self._non_empty(stage_id, "stage_id")
-        if self._current_run_id is None:
-            raise RuntimeAdapterBackendError(
-                "open_stage",
-                cause=ValueError("open_stage requires run context; call start_run() first"),
-            )
-        self._call("open_stage", normalized, self._current_run_id)
+        self._call("open_stage", normalized, normalized_run)
 
-    def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+    def mark_stage_state(self, run_id: str, stage_id: str, target: StageState) -> None:
         """Mark stage state in facade runtime.
 
-        The real KernelFacade signature is
-        `mark_stage_state(run_id, stage_id, new_state, failure_code=None)`.
-        `run_id` is taken from the value stored by `start_run()`.
+        KernelFacade signature: ``mark_stage_state(run_id, stage_id, new_state)``.
         """
+        normalized_run = self._non_empty(run_id, "run_id")
         normalized_stage = self._non_empty(stage_id, "stage_id")
         normalized_target = (
             target.value if isinstance(target, StageState) else str(target)
         )
-        if self._current_run_id is None:
-            raise RuntimeAdapterBackendError(
-                "mark_stage_state",
-                cause=ValueError(
-                    "mark_stage_state requires run context; call start_run() first"
-                ),
-            )
         self._call(
             "mark_stage_state",
-            self._current_run_id,
+            normalized_run,
             normalized_stage,
             normalized_target,
         )

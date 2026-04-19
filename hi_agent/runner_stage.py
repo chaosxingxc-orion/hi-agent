@@ -156,8 +156,8 @@ class StageExecutor:
             or ``None`` if the stage completed successfully.
         """
         executor.current_stage = stage_id
-        self.kernel.open_stage(stage_id)
-        self.kernel.mark_stage_state(stage_id, StageState.ACTIVE)
+        self.kernel.open_stage(executor.run_id, stage_id)
+        self.kernel.mark_stage_state(executor.run_id, stage_id, StageState.ACTIVE)
         executor._record_event(
             "StageStateChanged",
             {"stage_id": stage_id, "to_state": "active"},
@@ -190,7 +190,7 @@ class StageExecutor:
                     "stage_skipped_budget",
                     {"run_id": executor.run_id, "stage_id": stage_id},
                 )
-                self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
+                self.kernel.mark_stage_state(executor.run_id, stage_id, StageState.COMPLETED)
                 executor.stage_summaries[stage_id] = StageSummary(
                     stage_id=stage_id,
                     outcome="skipped_by_budget",
@@ -703,7 +703,9 @@ class StageExecutor:
                                 "verdict=%s score=%.2f",
                                 executor.run_id, stage_id, overall_verdict, overall_score,
                             )
-                            self.kernel.mark_stage_state(stage_id, StageState.FAILED)
+                            self.kernel.mark_stage_state(
+                                executor.run_id, stage_id, StageState.FAILED
+                            )
                             executor._trigger_recovery(stage_id)
                             _failed_summary = executor._compress_stage_summary(stage_id)
                             _failed_summary.outcome = "failed"  # set at source — compressor doesn't know stage failed
@@ -721,7 +723,7 @@ class StageExecutor:
                 )
 
         if detect_dead_end(stage_id, executor.dag):
-            self.kernel.mark_stage_state(stage_id, StageState.FAILED)
+            self.kernel.mark_stage_state(executor.run_id, stage_id, StageState.FAILED)
             executor._record_event(
                 "StageStateChanged",
                 {"stage_id": stage_id, "to_state": "failed"},
@@ -741,7 +743,7 @@ class StageExecutor:
             executor._sync_to_context()
             return "failed"
 
-        self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
+        self.kernel.mark_stage_state(executor.run_id, stage_id, StageState.COMPLETED)
         executor._record_event(
             "StageStateChanged",
             {"stage_id": stage_id, "to_state": "completed"},

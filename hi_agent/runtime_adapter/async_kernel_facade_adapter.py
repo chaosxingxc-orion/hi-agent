@@ -34,13 +34,13 @@ class AsyncKernelFacadeAdapter:
     # Async wrappers for sync methods
     # ------------------------------------------------------------------
 
-    async def open_stage(self, stage_id: str) -> None:
+    async def open_stage(self, run_id: str, stage_id: str) -> None:
         """Run open_stage."""
-        await asyncio.to_thread(self._sync.open_stage, stage_id)
+        await asyncio.to_thread(self._sync.open_stage, run_id, stage_id)
 
-    async def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+    async def mark_stage_state(self, run_id: str, stage_id: str, target: StageState) -> None:
         """Run mark_stage_state."""
-        await asyncio.to_thread(self._sync.mark_stage_state, stage_id, target)
+        await asyncio.to_thread(self._sync.mark_stage_state, run_id, stage_id, target)
 
     async def record_task_view(
         self, task_view_id: str, content: dict[str, Any]

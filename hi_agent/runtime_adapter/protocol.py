@@ -26,10 +26,10 @@ class RuntimeAdapter(Protocol):
 
     # --- Stage lifecycle ---
 
-    def open_stage(self, stage_id: str) -> None:
+    def open_stage(self, run_id: str, stage_id: str) -> None:
         """Open stage in runtime."""
 
-    def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+    def mark_stage_state(self, run_id: str, stage_id: str, target: StageState) -> None:
         """Update stage lifecycle state in runtime."""
 
     # --- Task view ---
