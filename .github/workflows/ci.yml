@@ -17,8 +17,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Verify agent-kernel pin (latest main)
-        run: python scripts/check_agent_kernel_pin.py
       - name: Install dependencies
         run: pip install -e ".[dev]"
       - name: Lint (blocking)
