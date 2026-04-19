@@ -131,7 +131,10 @@ class KernelFacadeClient:
                 cause=ValueError("start_run did not return a run_id"),
             )
         else:
-            resp = self._http_post("/runs/start", {"task_id": task_id})
+            resp = self._http_post(
+                "/runs",
+                {"run_kind": task_id, "input_json": {"task_id": task_id}},
+            )
             return resp["run_id"]
 
     def query_run(self, run_id: str) -> dict[str, Any]:
@@ -398,10 +401,10 @@ class KernelFacadeClient:
                 "spawn_child_run",
                 cause=ValueError("spawn_child_run returned no child_run_id"),
             )
-        body: dict[str, Any] = {"parent_run_id": parent_run_id, "task_id": task_id}
+        body: dict[str, Any] = {"task_id": task_id}
         if config:
             body["config"] = config
-        resp = self._http_post("/runs/spawn_child", body)
+        resp = self._http_post(f"/runs/{parent_run_id}/children", body)
         child_id = resp.get("child_run_id", "")
         if not child_id:
             raise RuntimeAdapterBackendError(

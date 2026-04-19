@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
@@ -439,7 +440,9 @@ class LocalWorkflowGateway:
             return f"{request.parent_run_id}:{request.run_kind}"
         if request.session_id:
             return f"{request.session_id}:{request.run_kind}"
-        return request.run_kind
+        # No discriminating field — generate a unique ID so consecutive calls
+        # with the same run_kind never collide inside LocalWorkflowGateway.
+        return f"{request.run_kind}:{uuid.uuid4().hex}"
 
     def _workflow_id_for(self, run_id: str) -> str:
         """Build a local workflow id from a run id.

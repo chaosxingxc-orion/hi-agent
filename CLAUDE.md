@@ -14,7 +14,7 @@
 
 ## AI Engineering Rules
 
-Six non-negotiable rules. No exceptions.
+Eight non-negotiable rules. No exceptions.
 
 ### Rule 1 — Think Before Coding
 Surface assumptions, name confusion, state tradeoffs before writing a single line. If multiple valid interpretations exist, present them — never pick one silently. If the requirement is unclear, stop and ask.
@@ -39,6 +39,8 @@ Before every commit, audit every touched file across six dimensions:
 | **Subsystem connectivity** | No broken wiring, missing DI, or unattached components. |
 | **Driver–result alignment** | Every decision-driving field produces an observable effect. |
 | **Error visibility** | No silent `except: pass` — every catch re-raises, logs, or converts to typed failure. |
+| **HTTP path truth** | Every `_http_post(path)` / `_http_get(path)` in `kernel_facade_client.py` matches a `Route(path, method)` in `agent_kernel/service/http_server.py`. Enumerate all endpoints side-by-side in the PR description. |
+| **ID uniqueness** | Runtime identifiers (`run_id`, `stage_id`, `branch_id`) come from the caller or are generated via `uuid.uuid4()`. Fallback to semantic labels (`run_kind`, `'default'`, `'trace'`) as an ID is forbidden. |
 
 Fix defects before committing. No "I'll fix it later."
 
@@ -48,6 +50,64 @@ All three layers must be green before a feature is shipped:
 - **Layer 1 — Unit**: one function/method per test; mock only external network calls or fault injection (document reason in docstring).
 - **Layer 2 — Integration**: real components wired together, no internal mocking; skip with `@pytest.mark.skip(reason="awaiting real implementation")` if dependency is absent.
 - **Layer 3 — E2E**: drive through the public interface (HTTP, CLI, top-level API); assert on observable outputs, not internal variables.
+
+### Rule 7 — Kernel HTTP Contract Lock
+
+`agent_kernel/service/http_server.py` is the **single authority** for all endpoint definitions.  
+`hi_agent/runtime_adapter/kernel_facade_client.py` is the **single HTTP client** for those endpoints.
+
+**When either file changes, both must be audited together in the same commit:**
+
+1. Produce a side-by-side table for every kernel operation:
+
+   | Operation | Client call (path · method · body fields) | Server Route (path · method) | Match? |
+   |-----------|------------------------------------------|------------------------------|--------|
+   | `start_run` | `POST /runs · {run_kind, input_json}` | `POST /runs` | ✅ |
+   | … | … | … | … |
+
+2. Every row must be ✅. Any ❌ is a blocker — fix before merging.
+
+3. If a server route is added or renamed, the client must be updated **in the same PR**. Split PRs that leave client/server out of sync are rejected.
+
+**Incident record** (why this rule exists):
+- 2026-04-19: `POST /runs/start` (wrong) vs `POST /runs` (actual); `POST /runs/spawn_child` vs `POST /runs/{run_id}/children`; `POST /stages/open` vs `POST /runs/{run_id}/stages/open` — caused 100% POST /runs failure on downstream deploy. Client was written against a draft spec and never cross-verified against the live Route table.
+
+### Rule 8 — Downstream Delivery Gate
+
+Before any package (zip / pip / docker image) is delivered to a downstream system, the following smoke test **must pass** in a clean environment (Python 3.12, empty `.hi_agent/`):
+
+```bash
+# Step 1 — import gate (catches syntax errors, BOM, missing deps)
+python -c "import hi_agent; import agent_kernel"
+
+# Step 2 — sequential run creation (catches hardcoded ID bugs)
+for i in 1 2 3; do
+  curl -sf -X POST http://127.0.0.1:8080/runs \
+    -H 'Content-Type: application/json' \
+    -d "{\"goal\":\"smoke $i\",\"task_family\":\"quick_task\",\"risk_level\":\"low\"}" \
+    | jq -c '{run_id, state}'
+done
+# Assert: 3 distinct run_ids, all HTTP 200/201
+
+# Step 3 — run-to-terminal (catches path mismatch, stuck-running bugs)
+RUN_ID=$(curl -sf -X POST http://127.0.0.1:8080/runs \
+  -H 'Content-Type: application/json' \
+  -d '{"goal":"smoke final","task_family":"quick_task","risk_level":"low"}' | jq -r .run_id)
+for i in $(seq 1 30); do
+  STATE=$(curl -sf http://127.0.0.1:8080/runs/$RUN_ID | jq -r .state)
+  [ "$STATE" = "done" -o "$STATE" = "failed" ] && echo "OK: $STATE" && break
+  sleep 2
+done
+```
+
+**Pass criteria — all three must hold:**
+- Step 1 exits 0 with no error output
+- Step 2 produces 3 distinct `run_id` values, no 4xx/5xx
+- Step 3 reaches `done` or `failed` within 60 s; error log shows no 404/405/400/duplicate
+
+**Incident record** (why this rule exists):
+- 2026-04-11: Step 1 failed (17× Python 2 `except A, B:` syntax + 12× UTF-8 BOM).
+- 2026-04-19: Step 1 passed but Steps 2–3 failed (`/runs/start` 405; duplicate `run_id='default'`).
 
 ---
 
@@ -69,10 +129,10 @@ No Mock implementations in production. Using mocks to bypass real failures is **
 
 **TRACE = Task → Route → Act → Capture → Evolve**
 
-| Repo | Role |
-|------|------|
-| `hi-agent` (this repo) | Agent brain: all cognitive + decision logic |
-| `agent-kernel` | Durable runtime: run lifecycle, event log, idempotency |
+| Package | Role |
+|---------|------|
+| `hi_agent/` (this repo) | Agent brain: all cognitive + decision logic |
+| `agent_kernel/` (inlined, 2026-04-19) | Durable runtime: run lifecycle, event log, idempotency — source of truth for HTTP endpoints is `agent_kernel/service/http_server.py` |
 | `agent-core` | Reusable capability modules: tools, retrieval, MCP |
 
 Execution modes: `execute()` linear · `execute_graph()` DAG with backtrack · `execute_async()` full asyncio.  
