@@ -115,6 +115,18 @@ class TraceConfig:
     # Set True to explicitly opt into the deprecated sync/urllib gateway (HttpLLMGateway).
     # For prod-real / local-real profiles the async HTTPGateway is the default.
     compat_sync_llm: bool = False
+    # Runtime mode hints — used by cognition_builder when resolving runtime_mode.
+    # Set HI_AGENT_LLM_MODE=real to signal real LLM intent (default: auto-detected
+    # from API key presence).  Set HI_AGENT_KERNEL_MODE=http to indicate a separate
+    # agent_kernel HTTP process is running (required for local-real mode via resolver).
+    # Full local-real env var checklist:
+    #   HI_AGENT_LLM_DEFAULT_PROVIDER=openai   (or anthropic)
+    #   HI_AGENT_OPENAI_BASE_URL=https://api.deepseek.com/v1  (or your endpoint)
+    #   OPENAI_API_KEY=<key>                   (env var named in openai_api_key_env)
+    #   HI_AGENT_LLM_MODE=real
+    #   HI_AGENT_KERNEL_MODE=http
+    llm_mode: str = ""
+    kernel_mode: str = ""
 
     # --- LLM Budget (NEW) ---
     llm_budget_max_calls: int = 100

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import logging
 import os
@@ -77,6 +78,10 @@ class HttpLLMGateway:
         self._timeout = timeout_seconds
         self._max_retries = max_retries
         self._retry_base = retry_base_seconds
+        # dev-smoke: skip slow LLM wait, fall through to heuristic immediately
+        if runtime_mode == "dev-smoke":
+            self._timeout = min(self._timeout, 3)
+            self._max_retries = 0
         self._failover_chain = failover_chain
         self._cache_injector = cache_injector
         self._budget_tracker = budget_tracker
@@ -295,6 +300,9 @@ class HttpLLMGateway:
             except urllib.error.URLError as exc:
                 if "timed out" in str(exc.reason):
                     raise LLMTimeoutError(str(exc.reason)) from exc
+                # Network unreachable: no point retrying, fail immediately
+                if isinstance(exc.reason, OSError) and exc.reason.errno == errno.ENETUNREACH:
+                    raise LLMProviderError(str(exc.reason)) from exc
                 last_exc = LLMProviderError(str(exc.reason))
                 if attempt < self._max_retries:
                     delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
