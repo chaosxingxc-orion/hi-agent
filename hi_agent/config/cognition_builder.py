@@ -226,11 +226,20 @@ class CognitionBuilder:
                             base_url=base_url,
                         )
                     else:
-                        # Resolve runtime mode to pass deprecation signal.
+                        # API key is confirmed present at this point.
+                        # Use "local-real" so the gateway uses full timeouts/retries;
+                        # "dev-smoke" is reserved for credential-absent scenarios.
                         from hi_agent.server.runtime_mode_resolver import (
                             resolve_runtime_mode as _rrm,
                         )
-                        _rt_mode = _rrm(os.environ.get("HI_AGENT_ENV", ""), {})
+                        _env = os.environ.get("HI_AGENT_ENV", "")
+                        _rt_mode = _rrm(
+                            _env,
+                            {
+                                "llm_mode": getattr(self._config, "llm_mode", None) or "real",
+                                "kernel_mode": getattr(self._config, "kernel_mode", None) or "http",
+                            },
+                        )
                         _compat_sync = getattr(self._config, "compat_sync_llm", False)
                         raw_gateway = HttpLLMGateway(
                             base_url=base_url,
