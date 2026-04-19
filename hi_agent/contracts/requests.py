@@ -95,6 +95,7 @@ class ApprovalRequest:
 
     gate_ref: str
     decision: str  # "approved" or "rejected"
+    run_id: str = ""
     reviewer_id: str = ""
     comment: str = ""
 
