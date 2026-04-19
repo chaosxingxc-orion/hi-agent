@@ -23,16 +23,24 @@ if _LLM_CONFIG.exists():
     os.environ.setdefault("VOLCE_BASE_URL", _volces.get("base_url", ""))
 
 # ---------------------------------------------------------------------------
-# Wire Volces Ark (OpenAI-compatible) into the production LLM gateway path.
-# HttpLLMGateway uses openai_base_url + openai_api_key_env — both configurable.
-# This lets test_prod_e2e.py run with real LLM calls without OpenAI/Anthropic keys.
+# Wire Volces Ark into the production LLM gateway path.
+# Primary: Anthropic-compatible endpoint (AnthropicLLMGateway).
+# Fallback: OpenAI-compatible endpoint (HttpLLMGateway).
 # Real env vars always win (setdefault never overwrites).
 # ---------------------------------------------------------------------------
 _volce_key_val = os.environ.get("VOLCE_API_KEY", "")
 _volce_url_val = os.environ.get("VOLCE_BASE_URL", "")
-if _volce_key_val and _volce_url_val:
+if _volce_key_val:
     _volce_model = (_volces.get("all_models") or ["doubao-seed-2.0-code"])[0]
+    _volce_anthropic_url = _volces.get(
+        "anthropic_base_url", "https://ark.cn-beijing.volces.com/api/coding"
+    )
+    # Anthropic-compatible path (primary — cleaner SDK integration)
+    os.environ.setdefault("ANTHROPIC_API_KEY", _volce_key_val)
+    os.environ.setdefault("HI_AGENT_ANTHROPIC_BASE_URL", _volce_anthropic_url)
+    os.environ.setdefault("HI_AGENT_ANTHROPIC_DEFAULT_MODEL", _volce_model)
+    # OpenAI-compatible path (fallback)
     os.environ.setdefault("OPENAI_API_KEY", _volce_key_val)
-    os.environ.setdefault("HI_AGENT_OPENAI_BASE_URL", _volce_url_val)
-    os.environ.setdefault("HI_AGENT_LLM_DEFAULT_PROVIDER", "openai")
+    if _volce_url_val:
+        os.environ.setdefault("HI_AGENT_OPENAI_BASE_URL", _volce_url_val)
     os.environ.setdefault("HI_AGENT_OPENAI_DEFAULT_MODEL", _volce_model)

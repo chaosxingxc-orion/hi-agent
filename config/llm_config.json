@@ -1,0 +1,83 @@
+{
+  "default_provider": "anthropic",
+  "providers": {
+    "anthropic": {
+      "api_key": "",
+      "base_url": "https://api.anthropic.com",
+      "api_format": "anthropic",
+      "models": {
+        "strong": "claude-opus-4-6",
+        "medium": "claude-sonnet-4-6",
+        "light": "claude-haiku-4-5-20251001"
+      },
+      "features": {
+        "stream": true,
+        "thinking_budget": null,
+        "multimodal": true
+      }
+    },
+    "openai": {
+      "api_key": "",
+      "base_url": "https://api.openai.com/v1",
+      "api_format": "openai",
+      "models": {
+        "strong": "gpt-4.1",
+        "medium": "gpt-4o",
+        "light": "gpt-4o-mini"
+      },
+      "features": {
+        "stream": true,
+        "thinking_budget": null,
+        "multimodal": true
+      }
+    },
+    "dashscope": {
+      "api_key": "",
+      "base_url": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+      "api_format": "anthropic",
+      "models": {
+        "strong": "qwen3.6-plus",
+        "medium": "qwen3.5-plus",
+        "light": "glm-5"
+      },
+      "features": {
+        "stream": true,
+        "thinking_budget": null,
+        "multimodal": false
+      }
+    },
+    "volces": {
+      "api_key": "f103e564-61c5-462c-9d4a-95ec035c56f0",
+      "base_url": "https://ark.cn-beijing.volces.com/api/coding/v1",
+      "anthropic_base_url": "https://ark.cn-beijing.volces.com/api/coding",
+      "api_format": "openai",
+      "timeout_seconds": 60,
+      "max_retries": 1,
+      "models": {
+        "strong": "doubao-seed-2.0-pro",
+        "medium": "doubao-seed-2.0-lite",
+        "light": "doubao-seed-2.0-lite"
+      },
+      "all_models": [
+        "doubao-seed-2.0-code",
+        "doubao-seed-2.0-pro",
+        "doubao-seed-2.0-lite",
+        "doubao-seed-code",
+        "minimax-m2.5",
+        "glm-4.7",
+        "deepseek-v3.2",
+        "kimi-k2.5"
+      ],
+      "features": {
+        "stream": true,
+        "thinking_budget": null,
+        "multimodal": false
+      }
+    }
+  },
+  "budget": {
+    "max_calls": 100,
+    "max_tokens": 500000,
+    "max_output_tokens": 4096
+  }
+}
