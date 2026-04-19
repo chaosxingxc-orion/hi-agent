@@ -596,3 +596,15 @@ class RunManager:
             "current_stage": run.current_stage,
             "stage_updated_at": run.stage_updated_at,
         }
+
+    def shutdown(self, timeout: float = 2.0) -> None:
+        """Stop the background worker thread and prevent new queue loops.
+
+        This is primarily used by server/test teardown to avoid leaking daemon
+        worker threads across many short-lived RunManager instances.
+        """
+        with self._lock:
+            self._shutdown = True
+            worker = self._worker
+        if worker is not None and worker.is_alive():
+            worker.join(timeout=timeout)
