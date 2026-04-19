@@ -461,19 +461,42 @@ def test_tc11_sse_endpoint_returns_correct_content_type(
     # asyncio.run().  The handler body does not await anything; it only
     # constructs and returns the StreamingResponse object.  The generator is
     # not iterated — only .media_type is read.
+    #
+    # The handler requires two pieces of context that are normally injected by
+    # middleware before the route handler runs:
+    #   1. TenantContext — set by AuthMiddleware (anonymous when auth disabled)
+    #   2. request.app — needed to access app.state.agent_server
+    # Both must be supplied when calling the handler directly.
     from starlette.requests import Request as StarletteRequest
     from hi_agent.server.app import handle_run_events_sse
+    from hi_agent.server.tenant_context import (
+        TenantContext,
+        reset_tenant_context,
+        set_tenant_context,
+    )
 
-    scope = {
-        "type": "http",
-        "method": "GET",
-        "path": f"/runs/{run_id}/events",
-        "path_params": {"run_id": run_id},
-        "query_string": b"",
-        "headers": [],
-    }
+    # Mirror the anonymous context that AuthMiddleware injects when auth is disabled.
+    anon_ctx = TenantContext(
+        tenant_id="__anonymous__",
+        user_id="__anonymous__",
+        session_id="__anonymous__",
+        auth_method="none",
+    )
+    _token = set_tenant_context(anon_ctx)
+    try:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": f"/runs/{run_id}/events",
+            "path_params": {"run_id": run_id},
+            "query_string": b"",
+            "headers": [],
+            "app": client.app,  # required for request.app.state.agent_server
+        }
+        sse_response = asyncio.run(handle_run_events_sse(StarletteRequest(scope)))
+    finally:
+        reset_tenant_context(_token)
 
-    sse_response = asyncio.run(handle_run_events_sse(StarletteRequest(scope)))
     media_type = sse_response.media_type or ""
     assert "text/event-stream" in media_type, (
         f"SSE endpoint must return Content-Type: text/event-stream, "

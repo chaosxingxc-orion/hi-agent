@@ -14,7 +14,24 @@
 
 ## AI Engineering Rules
 
-Eight non-negotiable rules. No exceptions.
+Nine non-negotiable rules. No exceptions.
+
+### Rule 0 — Root Cause Before Plan
+**Before writing any plan, diagnosis, or fix — trace the root cause to a falsifiable mechanical statement.**
+
+A symptom is not a root cause. A guess is not a root cause. A root cause names the exact code path, state transition, or missing invariant that produces the failure.
+
+Required format before any plan is written:
+1. **Observed failure**: exact error message or test output
+2. **Execution path**: which function calls which, and where it diverges from expectation
+3. **Root cause statement**: one precise sentence — "X happens because Y at line Z, which causes W"
+4. **Evidence**: file:line references that confirm the root cause, not just the symptom
+
+Plans written before this analysis is complete are rejected. Fixing symptoms without tracing root cause is forbidden — it generates new bugs while masking the original.
+
+**Incident record** (why this rule exists):
+- 2026-04-19: Three repeated HTTP path mismatches (04-11, 04-19①, 04-19②) all traced to the same root cause (client written against draft spec, never verified against live Route table) — but each fix addressed the symptom (wrong path) without fixing the root cause (no verification gate). Only after root cause analysis was Rule 7 added to prevent recurrence.
+- 2026-04-19: SSE test `test_tc11` returned `application/json` instead of `text/event-stream`. Surface diagnosis: "wrong media_type". Root cause: handler's auth guard (`require_tenant_context()`) raises `RuntimeError` when called without middleware context, returning a 401 JSON early-exit — the StreamingResponse line is never reached. Fix required understanding the auth middleware's anonymous context injection behavior, not just the handler code.
 
 ### Rule 1 — Think Before Coding
 Surface assumptions, name confusion, state tradeoffs before writing a single line. If multiple valid interpretations exist, present them — never pick one silently. If the requirement is unclear, stop and ask.
