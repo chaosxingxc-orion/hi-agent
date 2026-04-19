@@ -16,6 +16,7 @@ import asyncio
 import datetime
 import importlib.util
 import re
+import threading
 import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -85,6 +86,7 @@ class KernelFacadeAdapter:
                 instance.
         """
         self._facade = facade
+        self._thread_local = threading.local()
         # Tracks the active run_id after start_run(); required by open_stage
         # and mark_stage_state when the real KernelFacade needs it.
         self._current_run_id: str | None = None
@@ -674,8 +676,6 @@ class KernelFacadeAdapter:
                 except RuntimeError:
                     loop = None
                 if loop is not None and loop.is_running():
-                    import threading
-
                     holder: dict[str, Any] = {}
 
                     def _runner() -> None:
@@ -691,7 +691,11 @@ class KernelFacadeAdapter:
                         raise holder["error"]
                     return holder.get("result")
                 else:
-                    return asyncio.run(result)
+                    per_thread_loop = getattr(self._thread_local, "loop", None)
+                    if per_thread_loop is None or per_thread_loop.is_closed():
+                        per_thread_loop = asyncio.new_event_loop()
+                        self._thread_local.loop = per_thread_loop
+                    return per_thread_loop.run_until_complete(result)
             return result
         except RuntimeAdapterBackendError:
             raise
