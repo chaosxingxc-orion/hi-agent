@@ -40,6 +40,8 @@ class ManagedRun:
     tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
+    current_stage: str | None = None
+    stage_updated_at: str | None = None
 
 
 class RunManager:
@@ -103,6 +105,34 @@ class RunManager:
         # Background worker that drains the queue.
         self._worker = threading.Thread(target=self._queue_worker, daemon=True)
         self._worker.start()
+
+        # Subscribe to EventBus for stage transition events (sync observer path).
+        try:
+            from hi_agent.server.event_bus import event_bus as _event_bus
+            _event_bus.add_sync_observer(self._on_stage_event)
+        except Exception:
+            pass
+
+    def _on_stage_event(self, event: object) -> None:
+        """Update current_stage on stage_start events published to EventBus."""
+        if getattr(event, "event_type", None) != "stage_start":
+            return
+        payload = getattr(event, "payload_json", None) or {}
+        if isinstance(payload, str):
+            try:
+                import json as _json
+                payload = _json.loads(payload)
+            except Exception:
+                return
+        stage_name = payload.get("stage_name") if isinstance(payload, dict) else None
+        run_id = getattr(event, "run_id", None)
+        if not stage_name or not run_id:
+            return
+        with self._lock:
+            run = self._runs.get(run_id)
+            if run is not None:
+                run.current_stage = stage_name
+                run.stage_updated_at = datetime.now(UTC).isoformat()
 
     def _owns(self, run: ManagedRun, ctx: "TenantContext") -> bool:
         """Return True if the run belongs to the given workspace context.
@@ -539,4 +569,6 @@ class RunManager:
             "error": run.error,
             "created_at": run.created_at,
             "updated_at": run.updated_at,
+            "current_stage": run.current_stage,
+            "stage_updated_at": run.stage_updated_at,
         }

@@ -65,6 +65,9 @@ class EventBus:
         self._lock = threading.Lock()
         # Captured lazily on first subscribe; used by cross-thread publish.
         self._loop: asyncio.AbstractEventLoop | None = None
+        # Sync observers: called best-effort on every publish() from any thread.
+        # Used by threading-based components (e.g. RunManager) that cannot use asyncio queues.
+        self._sync_observers: list = []
 
     def _put_nowait_in_loop(self, q: asyncio.Queue[RuntimeEvent], event: RuntimeEvent) -> None:
         """Enqueue one event into *q*.  Must be called from the loop thread."""
@@ -139,6 +142,25 @@ class EventBus:
             # or in a pure-sync environment without asyncio.
             for q in queues:
                 self._put_nowait_in_loop(q, event)
+
+        # Notify sync observers (e.g. RunManager) — best-effort, never raises.
+        with self._lock:
+            observers = list(self._sync_observers)
+        for obs in observers:
+            try:
+                obs(event)
+            except Exception:
+                pass
+
+    def add_sync_observer(self, callback) -> None:
+        """Register a thread-safe sync callback invoked on every publish().
+
+        Used by threading-based components (e.g. RunManager) that cannot use
+        asyncio Queue subscriptions.  Callbacks are called best-effort; any
+        exception is silently suppressed to avoid disrupting event fan-out.
+        """
+        with self._lock:
+            self._sync_observers.append(callback)
 
     def subscribe(self, run_id: str) -> asyncio.Queue[RuntimeEvent]:
         """Create a bounded queue for a new subscriber and return it.

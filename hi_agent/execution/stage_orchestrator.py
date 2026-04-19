@@ -77,7 +77,7 @@ class StageOrchestrator:
             remaining_stages: list[str] = list(ctx.stage_graph.trace_order())
             while remaining_stages:
                 stage_id = remaining_stages.pop(0)
-                stage_result = ctx.execute_stage_fn(stage_id)
+                stage_result = self._execute_stage_with_events(stage_id)
                 if stage_result == "failed":
                     handled = ctx.handle_stage_failure_fn(stage_id, stage_result)
                     if handled == "failed":
@@ -130,7 +130,7 @@ class StageOrchestrator:
             steps = 0
             while current_stage is not None and steps < max_steps:
                 steps += 1
-                result = ctx.execute_stage_fn(current_stage)
+                result = self._execute_stage_with_events(current_stage)
                 if result == "failed":
                     backtrack = ctx.stage_graph.get_backtrack(current_stage)
                     if backtrack and backtrack not in completed_stages:
@@ -188,7 +188,7 @@ class StageOrchestrator:
                     })
                     continue
                 all_completed = False
-                stage_result = ctx.execute_stage_fn(stage_id)
+                stage_result = self._execute_stage_with_events(stage_id)
                 if stage_result == "failed":
                     handled = ctx.handle_stage_failure_fn(stage_id, stage_result)
                     if handled == "failed":
@@ -206,6 +206,23 @@ class StageOrchestrator:
     # ------------------------------------------------------------------
     # Shared loop infrastructure
     # ------------------------------------------------------------------
+
+    def _execute_stage_with_events(self, stage_id: str) -> str | None:
+        """Wrap execute_stage_fn with stage_start/stage_complete event publishing."""
+        ctx = self._ctx
+        try:
+            ctx.record_event_fn("stage_start", {"stage_name": stage_id})
+        except Exception:
+            pass
+        result = ctx.execute_stage_fn(stage_id)
+        try:
+            ctx.record_event_fn("stage_complete", {
+                "stage_name": stage_id,
+                "status": "failed" if result == "failed" else "success",
+            })
+        except Exception:
+            pass
+        return result
 
     def _start_run_preamble(self) -> None:
         """Record RunStarted event and metrics; set _run_start_monotonic."""
