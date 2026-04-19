@@ -114,6 +114,6 @@ python -m pytest tests/integration/test_live_llm_api.py -m live_api -v       # l
 python -m ruff check hi_agent/ agent_kernel/                                  # lint
 ```
 
-Current baseline: **11,110 passed, 6 skipped, 1 xfailed, 0 failures** (2026-04-20, offline suite).
+Current baseline: **11,109 passed, 1 skipped, 1 xfailed, 0 failures** (2026-04-20, offline suite; prod E2E included via Volces Ark credentials in `config/llm_config.json`).
 
 Live API test suite (`@pytest.mark.live_api`): 33 tests × 5 scenarios (smoke, multi-turn, code generation, state isolation, latency) parameterized over all 8 Volces Ark models. Auto-skipped when `VOLCE_API_KEY` is absent; config loaded from `config/llm_config.json` (gitignored) — copy from `config/llm_config.example.json`.
