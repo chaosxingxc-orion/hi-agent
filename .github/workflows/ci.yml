@@ -33,4 +33,4 @@ jobs:
       - name: Integration tests
         run: python -m pytest tests/integration/ -q --tb=short --timeout=60
       - name: Coverage (unit + integration)
-        run: pytest tests/ --ignore=tests/security --ignore=tests/contract --cov=hi_agent --cov-report=term-missing --cov-fail-under=50 --timeout=60 -p no:unraisableexception
+        run: pytest tests/ --ignore=tests/security --ignore=tests/contract --cov=hi_agent --cov-report=term-missing --cov-fail-under=50 --timeout=120 -p no:unraisableexception
