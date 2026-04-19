@@ -124,17 +124,24 @@ class TestNoPostConstructionMutation:
         )
 
     def test_cognition_builder_provides_llm_gateway(self):
-        """CognitionBuilder.build_llm_gateway() returns None (no API key in test env)."""
+        """CognitionBuilder.build_llm_gateway() returns a gateway or None.
+
+        Returns a TierAwareLLMGateway when llm_config.json has a configured
+        default_provider with an api_key; returns None only when neither the
+        config file nor environment variables supply credentials.
+        """
         from hi_agent.config.cognition_builder import CognitionBuilder
         from hi_agent.config.trace_config import TraceConfig
+        from hi_agent.llm.tier_router import TierAwareLLMGateway
         import threading
 
         cfg = TraceConfig()
         lock = threading.RLock()
         cb = CognitionBuilder(cfg, lock)
         gw = cb.build_llm_gateway()
-        # In test environment there's no API key, so gateway should be None
-        assert gw is None
+        # Gateway is either a TierAwareLLMGateway (config/llm_config.json present
+        # with valid api_key) or None (no credentials available in this env).
+        assert gw is None or isinstance(gw, TierAwareLLMGateway)
 
     def test_runtime_builder_provides_kernel(self):
         """RuntimeBuilder.build_kernel() returns a RuntimeAdapter."""

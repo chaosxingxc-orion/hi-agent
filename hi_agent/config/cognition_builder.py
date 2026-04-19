@@ -178,7 +178,12 @@ class CognitionBuilder:
     # ------------------------------------------------------------------
 
     def build_llm_gateway(self) -> "LLMGateway | None":
-        """Build LLM gateway — auto-activates if API key found in env.
+        """Build LLM gateway — config file takes priority over env var detection.
+
+        Priority:
+        1. llm_config.json default_provider with non-empty api_key
+        2. ANTHROPIC_API_KEY / OPENAI_API_KEY in environment (backward compat)
+        3. prod → RuntimeError; dev → None (heuristic fallback)
 
         Returns ``None`` when no key is configured; downstream subsystems
         fall back to heuristic behaviour.
@@ -187,6 +192,39 @@ class CognitionBuilder:
         from hi_agent.llm.http_gateway import HttpLLMGateway
         from hi_agent.llm.registry import ModelRegistry
         from hi_agent.llm.tier_router import TierAwareLLMGateway, TierRouter
+
+        # Fast-path: already built (singleton per builder instance)
+        with self._lock:
+            if self._llm_gateway is not None:
+                return self._llm_gateway
+
+        # --- Step 1: llm_config.json takes priority (config-first policy) ---
+        try:
+            import json as _json
+            from pathlib import Path as _Path
+            from hi_agent.config.json_config_loader import (
+                _DEFAULT_CONFIG_PATH,
+                build_gateway_from_config,
+            )
+            _cfg_path = _Path(_DEFAULT_CONFIG_PATH)
+            if _cfg_path.exists():
+                _cfg_data = _json.loads(_cfg_path.read_text(encoding="utf-8"))
+                _dp = _cfg_data.get("default_provider", "")
+                _prov = _cfg_data.get("providers", {}).get(_dp, {})
+                if _dp and _prov.get("api_key", "").strip():
+                    gw = build_gateway_from_config(_cfg_path)
+                    if gw is not None:
+                        with self._lock:
+                            if self._llm_budget_tracker is None:
+                                self._llm_budget_tracker = self._build_llm_budget_tracker()
+                            self._llm_gateway = gw  # type: ignore[assignment]
+                        _logger.info(
+                            "build_llm_gateway: activated from llm_config.json (provider=%r)",
+                            _dp,
+                        )
+                        return self._llm_gateway
+        except Exception as _pre_exc:
+            _logger.debug("build_llm_gateway: config-file pre-check failed: %s", _pre_exc)
 
         with self._lock:
             if self._llm_gateway is not None:
@@ -261,22 +299,6 @@ class CognitionBuilder:
                     self._wire_cost_optimizer(tier_router, startup_history)
                     self._llm_gateway = TierAwareLLMGateway(raw_gateway, tier_router, registry)  # type: ignore[assignment]
                     return self._llm_gateway
-
-        # Fallback: try loading from llm_config.json
-        try:
-            from hi_agent.config.json_config_loader import build_gateway_from_config
-            gw = build_gateway_from_config()
-            if gw is not None:
-                with self._lock:
-                    self._llm_gateway = gw  # type: ignore[assignment]
-                _logger.info(
-                    "build_llm_gateway: activated gateway from llm_config.json "
-                    "(provider=%s)",
-                    getattr(getattr(gw, "_inner", None), "__class__", type(gw)).__name__,
-                )
-                return self._llm_gateway
-        except Exception as _cfg_exc:
-            _logger.debug("build_llm_gateway: config-file fallback failed: %s", _cfg_exc)
 
         is_prod = os.environ.get("HI_AGENT_ENV", "dev").lower() == "prod"
         if is_prod:

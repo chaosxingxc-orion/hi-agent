@@ -1,5 +1,5 @@
 {
-  "default_provider": "anthropic",
+  "default_provider": "volces",
   "providers": {
     "anthropic": {
       "api_key": "",
@@ -21,9 +21,9 @@
       "base_url": "https://api.openai.com/v1",
       "api_format": "openai",
       "models": {
-        "strong": "gpt-4.1",
-        "medium": "gpt-4o",
-        "light": "gpt-4o-mini"
+        "strong": "deepseek-v3.2",
+        "medium": "glm-4.7",
+        "light": "minimax-m2.5"
       },
       "features": {
         "stream": true,

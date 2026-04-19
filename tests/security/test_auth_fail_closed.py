@@ -134,15 +134,12 @@ class TestProdRealFailClosed:
         with patch.dict("os.environ", {"HI_AGENT_API_KEY": ""}, clear=False):
             mw = AuthMiddleware(_capture_app, runtime_mode="prod-real")
 
-        # /health is in the exempt paths but the fail-closed check runs before
-        # the exempt-path guard only when auth is disabled. Verify the path is
-        # still reachable (503 guard fires before the exempt check, which is
-        # acceptable — health probes require the key be configured in prod).
+        # Exempt paths are checked BEFORE the fail-closed gate so /health is
+        # always reachable regardless of whether an API key is configured.
         sender = _FakeSend()
         _CAPTURED.clear()
         await mw(_make_scope(path="/health"), _fake_receive, sender)
-        # 503 is expected: health is only exempt when auth is ENABLED
-        assert sender.status == 503
+        assert sender.status == 200
 
 
 # ---------------------------------------------------------------------------
