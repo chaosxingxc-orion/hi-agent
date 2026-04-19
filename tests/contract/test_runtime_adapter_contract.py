@@ -264,31 +264,31 @@ class TestInstantiationContracts:
         with pytest.raises((ValueError, RuntimeAdapterBackendError)):
             adapter.start_run("   ")
 
-    def test_kernel_facade_adapter_open_stage_without_run_context_raises(
+    def test_kernel_facade_adapter_open_stage_empty_run_id_raises(
         self,
     ) -> None:
-        """open_stage before start_run must raise RuntimeAdapterBackendError.
+        """open_stage with empty run_id must raise ValueError.
 
         Mocking reason: bypasses agent-kernel isinstance guard (external dep).
+        run_id is now an explicit parameter; empty string is the invalid sentinel.
         """
         adapter, _ = _make_kernel_facade_adapter()
-        with pytest.raises(RuntimeAdapterBackendError) as exc_info:
-            adapter.open_stage("S1")
-        assert exc_info.value.operation == "open_stage"
+        with pytest.raises(ValueError, match="run_id"):
+            adapter.open_stage("", "S1")
 
-    def test_kernel_facade_adapter_mark_stage_state_without_run_context_raises(
+    def test_kernel_facade_adapter_mark_stage_state_empty_run_id_raises(
         self,
     ) -> None:
-        """mark_stage_state before start_run must raise RuntimeAdapterBackendError.
+        """mark_stage_state with empty run_id must raise ValueError.
 
         Mocking reason: bypasses agent-kernel isinstance guard (external dep).
+        run_id is now an explicit parameter; empty string is the invalid sentinel.
         """
         from hi_agent.contracts import StageState
 
         adapter, _ = _make_kernel_facade_adapter()
-        with pytest.raises(RuntimeAdapterBackendError) as exc_info:
-            adapter.mark_stage_state("S1", StageState.ACTIVE)
-        assert exc_info.value.operation == "mark_stage_state"
+        with pytest.raises(ValueError, match="run_id"):
+            adapter.mark_stage_state("", "S1", StageState.ACTIVE)
 
 
 # ---------------------------------------------------------------------------
@@ -327,11 +327,10 @@ class TestErrorHandlingContracts:
         Mocking reason: fault injection to verify error wrapping contract.
         """
         adapter, facade = _make_kernel_facade_adapter()
-        adapter._current_run_id = "run-001"
         facade.open_stage.side_effect = RuntimeError("kernel exploded")
 
         with pytest.raises(RuntimeAdapterBackendError) as exc_info:
-            adapter.open_stage("S1")
+            adapter.open_stage("run-001", "S1")
         assert exc_info.value.operation == "open_stage"
         assert isinstance(exc_info.value.__cause__, RuntimeError)
 
@@ -404,13 +403,12 @@ class TestErrorHandlingContracts:
         an older agent-kernel version.
         """
         adapter, facade = _make_kernel_facade_adapter()
-        adapter._current_run_id = "run-001"
         # Remove the method entirely from the mock
         del facade.open_stage
         facade.configure_mock(**{"open_stage": None})  # sets to non-callable None
 
         with pytest.raises(RuntimeAdapterBackendError) as exc_info:
-            adapter.open_stage("S1")
+            adapter.open_stage("run-001", "S1")
         assert exc_info.value.operation == "open_stage"
 
     def test_record_task_view_rejects_non_dict_content(self) -> None:

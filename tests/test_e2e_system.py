@@ -916,7 +916,7 @@ class TestHTTPAPIRoundTrip:
             )
             assert resp.status_code == 201
             run_id = resp.json()["run_id"]
-            assert run_id == "http-e2e-001"
+            assert run_id  # server generates a unique run_id per request
 
             # Wait for the run to complete
             deadline = time.monotonic() + 10.0

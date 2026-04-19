@@ -54,7 +54,7 @@ def test_action_ids_are_deterministic() -> None:
 def test_illegal_stage_transition_rejected() -> None:
     """Strict mode should reject illegal stage transitions."""
     kernel = MockKernel(strict_mode=True)
-    kernel.open_stage("s1")
+    kernel.open_stage("run-1", "s1")
 
     with pytest.raises(IllegalStateTransition):
-        kernel.mark_stage_state("s1", StageState.COMPLETED)
+        kernel.mark_stage_state("run-1", "s1", StageState.COMPLETED)

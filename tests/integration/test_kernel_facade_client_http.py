@@ -9,6 +9,7 @@ dependencies are required.
 from __future__ import annotations
 
 import json
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
@@ -69,33 +70,42 @@ class _MockKernelHandler(BaseHTTPRequestHandler):
         body = self._read_body()
         path = self.path.split("?")[0]
 
-        # Inject 500 for test_error_path
+        # Inject 500 for error-injection tests
         if getattr(self.server, "_inject_error", None) == path:
             self._server_error()
             return
 
-        if path == "/runs/start":
-            task_id = body.get("task_id", "task-x")
-            self._ok({"run_id": f"run-{task_id}"})
-        elif path == "/stages/open":
-            self._ok({"stage_id": body.get("stage_id", "")})
-        elif path == "/stages/mark_state":
-            self._ok()
-        elif path == "/branches/open":
+        if path == "/runs":
+            run_kind = body.get("run_kind", "task-x")
+            self._ok({"run_id": f"run-{run_kind}"})
+        elif re.fullmatch(r"/runs/[^/]+/stages/[^/]+/open", path):
+            self._ok({"ok": True})
+        elif re.fullmatch(r"/runs/[^/]+/branches", path):
             branch_id = body.get("branch_id", "branch-1")
             self._ok({"branch_id": branch_id})
-        elif path == "/branches/mark_state":
-            self._ok()
-        elif path == "/task_views/record":
+        elif re.fullmatch(r"/runs/[^/]+/task-views", path):
             self._ok({"task_view_id": body.get("task_view_id", "tv-1")})
-        elif path == "/task_views/bind_decision":
-            self._ok()
-        elif path == "/gates/open":
-            self._ok()
-        elif path == "/gates/approve":
-            self._ok()
-        elif path.startswith("/runs/") and path.endswith("/plan"):
-            self._ok()
+        elif re.fullmatch(r"/runs/[^/]+/human-gates", path):
+            self._ok({"ok": True})
+        elif re.fullmatch(r"/runs/[^/]+/approval", path):
+            self._ok({"ok": True})
+        elif re.fullmatch(r"/runs/[^/]+/signals", path):
+            self._ok({"ok": True})
+        else:
+            self._not_found()
+
+    # --- PUT dispatcher ---
+
+    def do_PUT(self) -> None:
+        body = self._read_body()
+        path = self.path.split("?")[0]
+
+        if re.fullmatch(r"/runs/[^/]+/stages/[^/]+/state", path):
+            self._ok({"ok": True})
+        elif re.fullmatch(r"/runs/[^/]+/branches/[^/]+/state", path):
+            self._ok({"ok": True})
+        elif re.fullmatch(r"/task-views/[^/]+/decision", path):
+            self._ok({"ok": True})
         else:
             self._not_found()
 
@@ -106,8 +116,8 @@ class _MockKernelHandler(BaseHTTPRequestHandler):
 
         if path == "/manifest":
             self._ok({"name": "mock-kernel", "version": "test"})
-        elif path.startswith("/runs/"):
-            run_id = path.split("/")[-1]
+        elif re.fullmatch(r"/runs/[^/]+", path):
+            run_id = path.rsplit("/", 1)[-1]
             self._ok({"run_id": run_id, "status": "running"})
         elif path == "/health":
             self._ok({"status": "ok"})
@@ -167,15 +177,17 @@ class TestKernelFacadeClientHttp:
         assert run_id == "run-task-abc"
 
     def test_open_stage_succeeds(self, client: KernelFacadeClient) -> None:
-        # Should not raise
-        client.open_stage("S1_understand")
+        run_id = client.start_run("task-os")
+        client.open_stage(run_id, "S1_understand")
 
     def test_mark_stage_state(self, client: KernelFacadeClient) -> None:
         from hi_agent.contracts import StageState
-        client.mark_stage_state("S1_understand", StageState.COMPLETED)
+        run_id = client.start_run("task-ms")
+        client.mark_stage_state(run_id, "S1_understand", StageState.COMPLETED)
 
     def test_record_task_view(self, client: KernelFacadeClient) -> None:
-        result = client.record_task_view("tv-001", {"content": "test view"})
+        run_id = client.start_run("task-tv")
+        result = client.record_task_view("tv-001", {"run_id": run_id, "content": "test view"})
         assert result == "tv-001"
 
     def test_bind_task_view_to_decision(self, client: KernelFacadeClient) -> None:
@@ -192,7 +204,6 @@ class TestKernelFacadeClientHttp:
 
     def test_open_branch(self, client: KernelFacadeClient) -> None:
         run_id = client.start_run("task-b")
-        # open_branch returns None; just verify no exception is raised
         client.open_branch(run_id, "S1_understand", "branch-1")
 
     def test_mark_branch_state(self, client: KernelFacadeClient) -> None:
@@ -205,7 +216,7 @@ class TestKernelFacadeClientHttp:
         self, mock_kernel_server, client: KernelFacadeClient
     ) -> None:
         server, _, _ = mock_kernel_server
-        server._inject_error = "/runs/start"
+        server._inject_error = "/runs"
         try:
             with pytest.raises(RuntimeAdapterBackendError):
                 client.start_run("task-err")
