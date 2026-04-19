@@ -29,6 +29,9 @@ dev = [
   "pytest-timeout>=2.3",
   "respx>=0.23",
   "ruff>=0.8",
+  "anthropic>=0.40",
+  "openai>=1.50",
+  "tiktoken>=0.7",
 ]
 
 [tool.setuptools]
