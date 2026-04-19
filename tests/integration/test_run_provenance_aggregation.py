@@ -44,8 +44,3 @@ def test_all_real_stages_yields_real():
     assert result.llm_mode == "real"
     assert result.capability_mode == "mcp"
     assert result.fallback_used is False
-
-
-@pytest.mark.xfail(strict=False, reason="requires completed run fixture — pending W2-002")
-def test_stage_provenance_in_stage_summary(completed_run_result=None):
-    """Each stage in a real run should have a provenance sub-dict."""
