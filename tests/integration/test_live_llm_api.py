@@ -3,17 +3,18 @@
 Every test in this module makes actual HTTP calls to the Volces Ark API.
 They are **excluded from the default test run** and must be invoked explicitly.
 
-How to run::
+How to run (no env var needed — config auto-loaded from config/llm_config.json)::
 
-    VOLCE_API_KEY=f103e564-61c5-462c-9d4a-95ec035c56f0 \\
     python -m pytest tests/integration/test_live_llm_api.py -v -m live_api
 
+All parameters (base_url, api_key, models, timeout) are read from
+``config/llm_config.json`` (``providers.volces`` section) via ``tests/conftest.py``.
+Override with env vars (``VOLCE_API_KEY``, ``VOLCE_BASE_URL``) for CI.
+
 Architecture context (traced before writing, per Rule 0):
-- ``HttpLLMGateway._post()`` calls ``{base_url}/chat/completions`` (line 267 in
-  http_gateway.py) — the path appended is ``/chat/completions``, not ``/v1/chat/completions``.
+- ``HttpLLMGateway._post()`` calls ``{base_url}/chat/completions``.
 - The API key is read from the env var named by ``api_key_env`` constructor arg.
-- All 8 models share one base URL and one API key — they are endpoints of a unified
-  proxy at ``https://ark.cn-beijing.volces.com/api/coding``.
+- All models share one base URL — unified proxy at Volces Ark.
 - LLMRequest.messages: ``[{role, content}]`` — standard OpenAI format.
 - LLMResponse.content: plain string extracted from ``choices[0].message.content``.
 - Tests skip automatically when ``VOLCE_API_KEY`` is not set.
@@ -21,8 +22,10 @@ Architecture context (traced before writing, per Rule 0):
 
 from __future__ import annotations
 
+import json
 import os
 import time
+from pathlib import Path
 
 import pytest
 
@@ -31,28 +34,26 @@ from hi_agent.llm.protocol import LLMRequest
 
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Load config from config/llm_config.json (providers.volces)
 # ---------------------------------------------------------------------------
 
-_API_KEY_ENV = "VOLCE_API_KEY"
-_BASE_URL = "https://ark.cn-beijing.volces.com/api/coding/v1"
+_LLM_CONFIG = Path(__file__).parent.parent.parent / "config" / "llm_config.json"
+_vcfg: dict = {}
+if _LLM_CONFIG.exists():
+    _vcfg = json.loads(_LLM_CONFIG.read_text()).get("providers", {}).get("volces", {})
 
-_ALL_MODELS = [
-    "doubao-seed-2.0-code",
-    "doubao-seed-2.0-pro",
-    "doubao-seed-2.0-lite",
-    "doubao-seed-code",
-    "minimax-m2.5",
-    "glm-4.7",
-    "deepseek-v3.2",
-    "kimi-k2.5",
-]
+_API_KEY_ENV = "VOLCE_API_KEY"
+_BASE_URL = os.environ.get("VOLCE_BASE_URL", _vcfg.get("base_url", ""))
+_TIMEOUT = _vcfg.get("timeout_seconds", 60)
+_MAX_RETRIES = _vcfg.get("max_retries", 1)
+_ALL_MODELS: list[str] = _vcfg.get("all_models", [])
 
 # Skip the entire module when the API key is absent.
+# Default key is loaded from config/llm_config.json via conftest.py; override with env var for CI.
 pytestmark = pytest.mark.skipif(
     not os.environ.get(_API_KEY_ENV),
     reason=f"{_API_KEY_ENV} not set — skip live API tests. "
-           f"Run with: {_API_KEY_ENV}=<key> pytest tests/integration/test_live_llm_api.py -m live_api",
+           f"Run: pytest tests/integration/test_live_llm_api.py -m live_api -v",
 )
 
 
@@ -76,8 +77,8 @@ def gateway() -> HttpLLMGateway:
     return HttpLLMGateway(
         base_url=_BASE_URL,
         api_key_env=_API_KEY_ENV,
-        timeout_seconds=60,
-        max_retries=1,
+        timeout_seconds=_TIMEOUT,
+        max_retries=_MAX_RETRIES,
         retry_base_seconds=1.0,
     )
 
