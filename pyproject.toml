@@ -43,6 +43,7 @@ pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
     "integration: integration tests using real components",
+    "live_api: live API tests that call real external model endpoints (require VOLCE_API_KEY)",
 ]
 
 [tool.ruff]
