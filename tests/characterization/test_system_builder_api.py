@@ -259,12 +259,6 @@ def test_build_executor_has_execute_method(builder):
     assert callable(getattr(obj, "execute", None))
 
 
-@pytest.mark.skip(reason="build_executor_from_checkpoint requires a real checkpoint file on disk")
-def test_build_executor_from_checkpoint_skipped(builder):
-    """Skipped: requires a real checkpoint JSON file. Covered by session resume tests."""
-    pass
-
-
 def test_build_orchestrator_returns_object(builder):
     obj = builder.build_orchestrator()
     assert obj is not None

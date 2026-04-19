@@ -35,7 +35,7 @@ def _make_registry_with_unavailable(monkeypatch):
     return registry
 
 
-@pytest.mark.skip(reason="HybridRouteEngine capability_registry wiring requires constructor change — integration wired in W4-003")
+@pytest.mark.xfail(strict=False, reason="HybridRouteEngine capability_registry wiring requires constructor change — pending W4-003")
 def test_hybrid_engine_filters_unavailable_capability(monkeypatch):
     """HybridRouteEngine.propose() should not return unavailable capabilities."""
     registry = _make_registry_with_unavailable(monkeypatch)

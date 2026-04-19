@@ -3,17 +3,12 @@ from __future__ import annotations
 
 import pytest
 
+from agent_kernel.kernel.contracts import RuntimeEvent
 from hi_agent.server.event_bus import EventBus
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 
-try:
-    from agent_kernel.kernel.contracts import RuntimeEvent
-    _HAS_RUNTIME_EVENT = True
-except ImportError:
-    _HAS_RUNTIME_EVENT = False
 
-
-def _make_runtime_event(run_id: str, sequence: int) -> "RuntimeEvent":
+def _make_runtime_event(run_id: str, sequence: int) -> RuntimeEvent:
     return RuntimeEvent(
         run_id=run_id,
         event_id=f"evt-{sequence}",
@@ -27,7 +22,6 @@ def _make_runtime_event(run_id: str, sequence: int) -> "RuntimeEvent":
     )
 
 
-@pytest.mark.skipif(not _HAS_RUNTIME_EVENT, reason="agent_kernel not available")
 class TestEventBusPersistenceContract:
     """Events published to a bus with a store have run_id and sequence populated."""
 

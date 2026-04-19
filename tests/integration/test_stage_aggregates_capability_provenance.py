@@ -3,7 +3,7 @@
 import pytest
 
 
-@pytest.mark.skip(reason="requires real runner fixture with stage execution — wired in W2-002 runner integration")
+@pytest.mark.xfail(strict=False, reason="requires real runner fixture with stage execution — pending W2-002 runner integration")
 def test_stage_summary_capability_mode_derived_from_invocations(dev_smoke_runner):
     """Stage capability_mode in StageProvenance reflects actual invocation modes."""
     result = dev_smoke_runner.execute(goal="test capability provenance")

@@ -6,19 +6,12 @@ import threading
 
 import pytest
 
-from hi_agent.observability.collector import MetricsCollector
-
-# The main branch may not have AlertRule/Alert/default_alert_rules yet.
-try:
-    from hi_agent.observability.collector import (
-        Alert,
-        AlertRule,
-        default_alert_rules,
-    )
-
-    HAS_ALERTS = True
-except ImportError:
-    HAS_ALERTS = False
+from hi_agent.observability.collector import (
+    Alert,
+    AlertRule,
+    MetricsCollector,
+    default_alert_rules,
+)
 
 
 class TestMetricsCollectorBasics:
@@ -103,7 +96,6 @@ class TestMetricsCollectorBasics:
         assert "nonexistent_metric" not in snap
 
 
-@pytest.mark.skipif(not HAS_ALERTS, reason="AlertRule not available in this branch")
 class TestAlertRules:
     """Alert subsystem tests."""
 

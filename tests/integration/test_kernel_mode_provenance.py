@@ -38,11 +38,5 @@ def test_kernel_mode_defaults_to_unknown_when_absent():
 def test_local_fsm_adapter_mode_property():
     """KernelFacadeAdapter (local) must expose mode='local-fsm'."""
     from hi_agent.runtime_adapter import KernelFacadeAdapter
-    # Use whichever constructor the class needs; check the actual signature
-    # If constructor requires args, find minimal required args from the source
-    try:
-        adapter = KernelFacadeAdapter.__new__(KernelFacadeAdapter)
-        assert adapter.mode == "local-fsm"
-    except Exception:
-        import pytest
-        pytest.skip("KernelFacadeAdapter requires complex init — mode property checked via integration")
+    adapter = KernelFacadeAdapter.__new__(KernelFacadeAdapter)
+    assert adapter.mode == "local-fsm"
