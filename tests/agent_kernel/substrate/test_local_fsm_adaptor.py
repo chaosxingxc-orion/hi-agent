@@ -148,8 +148,9 @@ async def test_gateway_start_workflow_returns_run_id() -> None:
     result = await gw.start_workflow(StartRunRequest(run_kind="task", initiator="test"))
     assert "run_id" in result
     assert "workflow_id" in result
-    assert result["run_id"] == "task"
-    assert result["workflow_id"] == "run:task"
+    # run_id is generated as "{run_kind}:{uuid_hex}" when no explicit id is provided
+    assert result["run_id"].startswith("task")
+    assert result["workflow_id"].startswith("run:task")
 
 
 @pytest.mark.asyncio
@@ -240,11 +241,12 @@ async def test_gateway_cancel_removes_run_from_registry() -> None:
     configure_run_actor_dependencies(deps)
     gw = LocalWorkflowGateway(deps)
 
-    await gw.start_workflow(StartRunRequest(run_kind="task", initiator="test"))
-    assert "task" in gw._workflows
+    result = await gw.start_workflow(StartRunRequest(run_kind="task", initiator="test"))
+    run_id = result["run_id"]
+    assert run_id in gw._workflows
 
-    await gw.cancel_workflow("task", "test cancellation")
-    assert "task" not in gw._workflows
+    await gw.cancel_workflow(run_id, "test cancellation")
+    assert run_id not in gw._workflows
 
 
 @pytest.mark.asyncio
@@ -328,7 +330,8 @@ async def test_kernel_runtime_local_substrate_start_run() -> None:
         response = await kernel.facade.start_run(
             StartRunRequest(run_kind="integration-test", initiator="pytest")
         )
-        assert response.run_id == "integration-test"
+        # run_id is "{run_kind}:{uuid_hex}" when no explicit id is provided
+        assert response.run_id.startswith("integration-test")
         assert response.lifecycle_state == "created"
 
 
