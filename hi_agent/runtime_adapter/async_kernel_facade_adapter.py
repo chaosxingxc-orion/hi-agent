@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 from collections.abc import AsyncIterator
 from typing import Any, Literal
 
@@ -58,20 +57,9 @@ class AsyncKernelFacadeAdapter:
             self._sync.bind_task_view_to_decision, task_view_id, decision_ref
         )
 
-    async def start_run(
-        self, run_id: str, session_id: str, metadata: dict
-    ) -> str:
-        """Start run -- adapts to facade's start_run signature."""
-        method = getattr(self._facade, "start_run", None)
-        if callable(method):
-            if inspect.iscoroutinefunction(method):
-                return await method(
-                    run_id=run_id, session_id=session_id, metadata=metadata
-                )
-            return await asyncio.to_thread(
-                method, run_id, session_id, metadata
-            )
-        return await asyncio.to_thread(self._sync.start_run, run_id)
+    async def start_run(self, task_id: str) -> str:
+        """Start run and return run ID."""
+        return await asyncio.to_thread(self._sync.start_run, task_id)
 
     async def query_run(self, run_id: str) -> dict[str, Any]:
         """Run query_run."""
