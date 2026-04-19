@@ -2,6 +2,10 @@
 
 from hi_agent.route_engine.acceptance import AcceptancePolicy, AcceptanceResult
 from hi_agent.route_engine.base import BranchProposal, RouteEngine
+from hi_agent.route_engine.capability_filter import (
+    NON_CAPABILITY_ACTIONS,
+    filter_proposal,
+)
 from hi_agent.route_engine.conditional_router import (
     ConditionalRoute,
     ConditionalRouter,
@@ -28,11 +32,13 @@ __all__ = [
     "LLMRouteDecision",
     "LLMRouteEngine",
     "LLMRouteParseError",
+    "NON_CAPABILITY_ACTIONS",
     "RouteContext",
     "RouteEngine",
     "RouteExplanation",
     "RuleRouteEngine",
     "SkillAwareRouteEngine",
+    "filter_proposal",
     "is_low_confidence",
     "record_route_decision_audit",
     "should_escalate_route_decision",

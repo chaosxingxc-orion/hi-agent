@@ -96,6 +96,12 @@ class SystemBuilder:
         # Subsystem singletons — cached so readiness() and manifest reflect the
         # same instances used by actual run execution.
         self._skill_loader: Any | None = None
+        self._skill_builder: Any | None = None  # lazy SkillBuilder singleton
+        self._memory_builder: Any | None = None  # lazy MemoryBuilder singleton
+        self._server_builder: Any | None = None  # lazy ServerBuilder singleton
+        self._capability_plane_builder: Any | None = None  # lazy CapabilityPlaneBuilder singleton
+        self._cognition_builder: Any | None = None  # lazy CognitionBuilder singleton
+        self._runtime_builder: Any | None = None  # lazy RuntimeBuilder singleton
         self._mcp_registry: Any | None = None
         self._mcp_transport: Any | None = None
         self._plugin_loader: Any | None = None
@@ -149,506 +155,49 @@ class SystemBuilder:
 
     def _build_run_context_manager(self) -> Any:
         """Build or return the shared RunContextManager singleton."""
-        with self._singleton_lock:
-            if self._run_context_manager is None:
-                try:
-                    from hi_agent.context.run_context import RunContextManager
-                    self._run_context_manager = RunContextManager()
-                    logger.info("_build_run_context_manager: RunContextManager created.")
-                except Exception as exc:
-                    logger.warning(
-                        "_build_run_context_manager: failed to create RunContextManager: %s", exc
-                    )
-        return self._run_context_manager
+        return self._get_runtime_builder().build_run_context_manager()
 
     def _build_middleware_orchestrator(self) -> Any:
         """Build or return the shared MiddlewareOrchestrator singleton."""
-        if self._middleware_orchestrator is None:
-            try:
-                from hi_agent.middleware.defaults import create_default_orchestrator
-                gateway = self.build_llm_gateway()
-                self._middleware_orchestrator = create_default_orchestrator(
-                    llm_gateway=gateway,
-                    quality_threshold=getattr(self._config, "gate_quality_threshold", 0.7),
-                    summary_threshold=getattr(self._config, "perception_summary_threshold_tokens", 2000),
-                    max_entities=getattr(self._config, "perception_max_entities", 50),
-                    llm_summarize_char_threshold=getattr(self._config, "perception_summarize_char_threshold", 500),
-                    summarize_temperature=getattr(self._config, "perception_summarize_temperature", 0.3),
-                    summarize_max_tokens=getattr(self._config, "perception_summarize_max_tokens", 200),
-                )
-                logger.info(
-                    "_build_middleware_orchestrator: MiddlewareOrchestrator created."
-                )
-            except Exception as exc:
-                logger.warning(
-                    "_build_middleware_orchestrator: failed to create MiddlewareOrchestrator: %s",
-                    exc,
-                )
-        return self._middleware_orchestrator
+        return self._get_runtime_builder().build_middleware_orchestrator()
 
     def _inject_middleware_dependencies(self, orchestrator: Any) -> None:
-        """Post-inject subsystem dependencies into orchestrator's middleware instances.
-
-        The orchestrator is created early — before context_manager, skill_loader,
-        knowledge_manager, capability_invoker, and retrieval_engine are built — so
-        those deps are None at construction time.  This method is called once all
-        subsystems are available and patches the live middleware instances in-place.
-
-        Only sets an attribute when it is currently None to avoid overwriting an
-        intentionally injected value.
-        """
-        try:
-            middlewares: dict[str, Any] = getattr(orchestrator, "_middlewares", {})
-            if not middlewares:
-                return
-
-            # Resolve subsystems (cached: these methods return the same instance).
-            context_mgr = self.build_context_manager()
-            skill_ldr = self.build_skill_loader()
-            knowledge_mgr = self.build_knowledge_manager()
-            retrieval_eng = self.build_retrieval_engine()
-            harness = self.build_harness()
-            capability_inv = self.build_invoker()
-
-            _ATTR_SUBSYSTEMS: list[tuple[str, Any]] = [
-                ("_context_manager", context_mgr),
-                ("_skill_loader", skill_ldr),
-                ("_knowledge_manager", knowledge_mgr),
-                ("_retrieval_engine", retrieval_eng),
-                ("_harness_executor", harness),
-                ("_capability_invoker", capability_inv),
-            ]
-
-            injected: list[str] = []
-            for mw_name, mw in middlewares.items():
-                for attr, value in _ATTR_SUBSYSTEMS:
-                    if hasattr(mw, attr) and getattr(mw, attr) is None and value is not None:
-                        setattr(mw, attr, value)
-                        injected.append(f"{mw_name}.{attr}")
-
-            if injected:
-                logger.info(
-                    "_inject_middleware_dependencies: injected into [%s].",
-                    ", ".join(injected),
-                )
-        except Exception as exc:
-            logger.warning(
-                "_inject_middleware_dependencies: failed, middleware may run degraded: %s", exc
-            )
+        """Post-inject subsystem dependencies into orchestrator's middleware instances."""
+        self._get_runtime_builder().inject_middleware_dependencies(orchestrator)
 
     def _build_llm_budget_tracker(self) -> Any:
-        """Build LLMBudgetTracker with config-driven limits."""
-        try:
-            from hi_agent.llm.budget_tracker import LLMBudgetTracker
-            max_calls = getattr(self._config, "llm_budget_max_calls", 100)
-            max_tokens = getattr(self._config, "llm_budget_max_tokens", 500_000)
-            tracker = LLMBudgetTracker(max_calls=max_calls, max_tokens=max_tokens)
-            logger.info(
-                "_build_llm_budget_tracker: LLMBudgetTracker created "
-                "(max_calls=%d, max_tokens=%d).",
-                max_calls,
-                max_tokens,
-            )
-            return tracker
-        except Exception as exc:
-            logger.warning(
-                "_build_llm_budget_tracker: failed to create LLMBudgetTracker: %s", exc
-            )
-            return None
+        """Build LLMBudgetTracker — delegated to CognitionBuilder."""
+        return self._get_cognition_builder()._build_llm_budget_tracker()
 
     def _build_restart_policy_engine(self) -> Any:
-        """Build RestartPolicyEngine with no-op stub collaborators.
-
-        The engine's collaborators (get_attempts, get_policy, update_state,
-        record_attempt) are wired as no-op stubs so that the engine can be
-        injected into RunExecutor without coupling the builder to a specific
-        task registry implementation.
-        """
-        try:
-            from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskRestartPolicy
-
-            _default_policy = TaskRestartPolicy(
-                max_attempts=getattr(self._config, "restart_max_attempts", 3),
-                backoff_base_ms=2000,
-                on_exhausted=getattr(self._config, "restart_on_exhausted", "reflect"),
-            )
-            # In-memory attempt store so the engine can actually track attempt history
-            # and enforce max_attempts. Replaced by a persistent store when wired to
-            # a real task registry.
-            _attempt_store: dict[str, list[Any]] = {}
-            _state_store: dict[str, Any] = {}
-            engine = RestartPolicyEngine(
-                get_attempts=lambda task_id: list(_attempt_store.get(task_id, [])),
-                get_policy=lambda task_id: _default_policy,
-                update_state=lambda task_id, state: _state_store.update({task_id: state}),
-                record_attempt=lambda attempt: _attempt_store.setdefault(
-                    getattr(attempt, "task_id", ""), []
-                ).append(attempt),
-            )
-            logger.info(
-                "_build_restart_policy_engine: RestartPolicyEngine created "
-                "(max_attempts=%s, on_exhausted=%s).",
-                _default_policy.max_attempts,
-                _default_policy.on_exhausted,
-            )
-            return engine
-        except Exception as exc:
-            logger.warning(
-                "_build_restart_policy_engine: failed to create RestartPolicyEngine: %s", exc
-            )
-            return None
+        """Build RestartPolicyEngine — delegated to RuntimeBuilder."""
+        return self._get_runtime_builder().build_restart_policy_engine()
 
     def _build_reflection_orchestrator(self) -> Any:
-        """Build ReflectionOrchestrator wired to the LLM gateway if available."""
-        try:
-            from hi_agent.task_mgmt.reflection import ReflectionOrchestrator
-            from hi_agent.task_mgmt.reflection_bridge import ReflectionBridge
-
-            gateway = self.build_llm_gateway()
-
-            async def _inference_fn(**kwargs: Any) -> str:
-                """LLM-backed or heuristic reflection inference."""
-                import json as _json
-                run_id = kwargs.get("run_id", "unknown")
-                if gateway is None:
-                    return _json.dumps({
-                        "action": "retry_with_default",
-                        "reason": "no LLM gateway available",
-                        "run_id": run_id,
-                    })
-                try:
-                    from hi_agent.llm.protocol import LLMRequest
-                    recovery_context = kwargs.get("recovery_context", {})
-                    prompt = (
-                        f"Reflection for run {run_id}.\n"
-                        f"Recovery context: {recovery_context}\n"
-                        "Suggest a corrective action in one sentence."
-                    )
-                    req = LLMRequest(
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=256,
-                    )
-                    resp = gateway.complete(req)
-                    return resp.content
-                except Exception as exc:
-                    logger.warning("_reflection_orchestrator inference_fn error: %s", exc)
-                    return _json.dumps({
-                        "action": "retry_with_default",
-                        "reason": f"inference failed: {exc}",
-                        "run_id": run_id,
-                    })
-
-            bridge = ReflectionBridge()
-            orchestrator = ReflectionOrchestrator(
-                bridge=bridge,
-                inference_fn=_inference_fn,
-            )
-            logger.info("_build_reflection_orchestrator: ReflectionOrchestrator created.")
-            return orchestrator
-        except Exception as exc:
-            logger.warning(
-                "_build_reflection_orchestrator: failed to create ReflectionOrchestrator: %s",
-                exc,
-            )
-            return None
+        """Build ReflectionOrchestrator — delegated to CognitionBuilder."""
+        return self._get_cognition_builder().build_reflection_orchestrator()
 
     def build_metrics_collector(self) -> MetricsCollector:
         """Build or return the shared MetricsCollector singleton."""
-        with self._singleton_lock:
-            if self._metrics_collector is None:
-                from hi_agent.observability.collector import default_alert_rules
-                self._metrics_collector = MetricsCollector()
-                for rule in default_alert_rules():
-                    self._metrics_collector.add_alert_rule(rule)
-                _webhook_url = os.environ.get("WEBHOOK_URL", "")
-                if _webhook_url:
-                    import time as _time
-
-                    from hi_agent.observability.notification import (
-                        build_notification_backend,
-                        send_notification,
-                    )
-                    _backend = build_notification_backend(_webhook_url)
-
-                    def _alert_cb(alert: object) -> None:
-                        # alert is an Alert dataclass: rule_name, metric_name, current_value
-                        _alert_name = getattr(alert, "rule_name", str(alert))
-                        _metric_name = getattr(alert, "metric_name", "")
-                        _value = getattr(alert, "current_value", 0.0)
-                        send_notification(
-                            backend=_backend,
-                            event=f"alert.{_alert_name}",
-                            severity="warning",
-                            message=f"Alert {_alert_name}: {_metric_name}={_value:.3f}",
-                            context={
-                                "alert_name": _alert_name,
-                                "metric_name": _metric_name,
-                                "value": _value,
-                            },
-                            timestamp=_time.time(),
-                        )
-
-                    self._metrics_collector.set_alert_callback(_alert_cb)
-        return self._metrics_collector
+        return self._get_runtime_builder().build_metrics_collector()
 
     def build_kernel(self) -> RuntimeAdapter:
-        """Build kernel adapter.
-
-        When ``config.kernel_base_url`` is set and is not ``"local"``,
-        creates a :class:`KernelFacadeClient` in HTTP mode.
-        Otherwise falls back to :func:`create_local_adapter` (in-process LocalFSM).
-        """
-        with self._singleton_lock:
-            if self._kernel is None:
-                base_url = self._config.kernel_base_url
-                env = os.environ.get("HI_AGENT_ENV", "dev").lower()
-                if base_url and base_url.lower() == "mock":
-                    raise ValueError(
-                        "kernel_base_url='mock' is no longer supported. "
-                        "Use 'local' for in-process agent-kernel LocalFSM, "
-                        "or set a real http(s) agent-kernel endpoint."
-                    )
-                if env == "prod" and (not base_url or base_url.lower() == "local"):
-                    raise RuntimeError(
-                        "Production mode requires a real agent-kernel HTTP endpoint. "
-                        "Set kernel_base_url to http(s)://... and do not use 'local'."
-                    )
-                if base_url and base_url.lower() != "local":
-                    self._kernel = KernelFacadeClient(
-                        mode="http",
-                        base_url=base_url,
-                        timeout_seconds=30,
-                    )
-                else:
-                    logger.warning(
-                        "build_kernel: kernel_base_url=%r — using in-process LocalFSM. "
-                        "Set kernel_base_url to a real agent-kernel HTTP endpoint for production.",
-                        base_url,
-                    )
-                    self._kernel = create_local_adapter()
-                # Wrap with resilience layer (retry + circuit breaker + event buffer).
-                from hi_agent.runtime_adapter import ResilientKernelAdapter
-                self._kernel = ResilientKernelAdapter(
-                    self._kernel,
-                    max_retries=self._config.kernel_max_retries,
-                )
-        return self._kernel
-
-    def _build_cache_injector(self) -> Any | None:
-        """Build PromptCacheInjector if prompt caching is enabled in config."""
-        try:
-            if not getattr(self._config, "prompt_cache_enabled", True):
-                return None
-            from hi_agent.llm.cache import PromptCacheConfig, PromptCacheInjector
-            return PromptCacheInjector(
-                PromptCacheConfig(
-                    enabled=True,
-                    anchor_messages=getattr(self._config, "prompt_cache_anchor_messages", 3),
-                    min_cacheable_tokens=getattr(self._config, "prompt_cache_min_tokens", 1024),
-                )
-            )
-        except Exception as exc:
-            logger.warning("Failed to build PromptCacheInjector, caching disabled: %s", exc)
-            return None
-
-    def _build_failover_chain(self, base_url: str, default_model: str) -> Any | None:
-        """Build FailoverChain from env credential pool if failover is enabled."""
-        try:
-            if not getattr(self._config, "llm_failover_enabled", True):
-                return None
-            from hi_agent.llm.failover import (
-                CredentialPool,
-                FailoverChain,
-                RetryPolicy,
-                make_credential_pool_from_env,
-            )
-            from hi_agent.llm.http_gateway import HTTPGateway
-
-            env_var = getattr(self._config, "llm_credential_pool_env_var", "ANTHROPIC_API_KEY")
-            pool: CredentialPool = make_credential_pool_from_env(env_var=env_var)
-            if pool.next_eligible() is None:
-                logger.warning(
-                    "_build_failover_chain: all credentials in cooldown, failover disabled."
-                )
-                return None
-
-            timeout = float(getattr(self._config, "llm_timeout_seconds", 120))
-            cache_injector = self._build_cache_injector()
-
-            def _gateway_factory(api_key: str) -> HTTPGateway:
-                return HTTPGateway(
-                    base_url=base_url,
-                    api_key=api_key,
-                    timeout=timeout,
-                    default_model=default_model,
-                    max_retries=0,  # FailoverChain controls retries
-                    cache_injector=cache_injector,
-                )
-
-            policy = RetryPolicy(
-                max_retries=getattr(self._config, "llm_failover_max_retries", 3),
-                base_delay_ms=getattr(self._config, "llm_failover_base_delay_ms", 500),
-                max_delay_ms=getattr(self._config, "llm_failover_max_delay_ms", 30_000),
-            )
-            chain = FailoverChain(
-                gateway_factory=_gateway_factory,
-                pool=pool,
-                policy=policy,
-            )
-            logger.info(
-                "_build_failover_chain: FailoverChain created (max_retries=%d, pool_size=%d)",
-                policy.max_retries,
-                len(pool),
-            )
-            return chain
-        except ValueError as exc:
-            logger.info(
-                "_build_failover_chain: credential pool unavailable (%s), failover disabled.", exc
-            )
-            return None
-        except Exception as exc:
-            logger.warning("Failed to build FailoverChain, failover disabled: %s", exc)
-            return None
+        """Build kernel adapter (HTTP or in-process LocalFSM)."""
+        return self._get_runtime_builder().build_kernel()
 
     def build_llm_gateway(self) -> LLMGateway | None:
-        """Build LLM gateway -- auto-activates if API key found in env.
-
-        Checks for known provider API keys in the environment and
-        creates an :class:`HttpLLMGateway` for the first match.  When
-        failover and/or prompt caching are enabled in config, the gateway
-        is wired with :class:`FailoverChain` and :class:`PromptCacheInjector`.
-        Returns ``None`` when no key is configured, which lets
-        downstream subsystems fall back to heuristic behaviour.
-        """
-        with self._singleton_lock:
-            if self._llm_gateway is not None:
-                return self._llm_gateway
-
-            _provider_params = {
-                "anthropic": (
-                    self._config.anthropic_api_key_env,
-                    self._config.anthropic_base_url,
-                    self._config.anthropic_default_model,
-                ),
-                "openai": (
-                    self._config.openai_api_key_env,
-                    self._config.openai_base_url,
-                    self._config.openai_default_model,
-                ),
-            }
-            default_provider = getattr(self._config, "llm_default_provider", "anthropic")
-            provider_order = (
-                ["anthropic", "openai"]
-                if default_provider == "anthropic"
-                else ["openai", "anthropic"]
-            )
-            for provider in provider_order:
-                env_var, base_url, default_model = _provider_params[provider]
-                if os.environ.get(env_var):
-                    # Build optional cache injector and failover chain.
-                    cache_injector = self._build_cache_injector()
-                    failover_chain = self._build_failover_chain(base_url, default_model)
-
-                    if self._llm_budget_tracker is None:
-                        self._llm_budget_tracker = self._build_llm_budget_tracker()
-                    if provider == "anthropic":
-                        raw_gateway: LLMGateway = AnthropicLLMGateway(
-                            api_key_env=env_var,
-                            default_model=default_model,
-                            timeout_seconds=self._config.llm_timeout_seconds,
-                            base_url=base_url,
-                        )
-                    else:
-                        raw_gateway = HttpLLMGateway(
-                            base_url=base_url,
-                            api_key_env=env_var,
-                            default_model=default_model,
-                            timeout_seconds=self._config.llm_timeout_seconds,
-                            failover_chain=failover_chain,
-                            cache_injector=cache_injector,
-                            budget_tracker=self._llm_budget_tracker,
-                        )
-                    registry = ModelRegistry()
-                    registry.register_defaults()
-                    tier_router = TierRouter(registry)
-                    self._tier_router = tier_router
-                    # Best-effort: apply cost-optimization overrides from any
-                    # run history that the config exposes at startup time.
-                    startup_history: list[dict[str, Any]] | None = getattr(
-                        self._config, "startup_cost_history", None
-                    )
-                    self._wire_cost_optimizer(tier_router, startup_history)
-                    self._llm_gateway = TierAwareLLMGateway(  # type: ignore[assignment]
-                        raw_gateway, tier_router, registry
-                    )
-                    return self._llm_gateway
-
-        # Fallback: try loading from llm_config.json (supports dashscope and other
-        # custom Anthropic-compatible providers beyond OPENAI_API_KEY/ANTHROPIC_API_KEY).
-        try:
-            from hi_agent.config.json_config_loader import build_gateway_from_config
-            gw = build_gateway_from_config()
-            if gw is not None:
-                with self._singleton_lock:
-                    self._llm_gateway = gw  # type: ignore[assignment]
-                logger.info(
-                    "build_llm_gateway: activated gateway from llm_config.json "
-                    "(provider=%s)",
-                    getattr(getattr(gw, "_inner", None), "__class__", type(gw)).__name__,
-                )
-                return self._llm_gateway
-        except Exception as _cfg_exc:
-            logger.debug("build_llm_gateway: config-file fallback failed: %s", _cfg_exc)
-
-        is_prod = os.environ.get("HI_AGENT_ENV", "dev").lower() == "prod"
-        if is_prod:
-            raise RuntimeError(
-                "Production mode requires real LLM credentials. "
-                "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or fill in config/llm_config.json."
-            )
-        logger.warning(
-            "build_llm_gateway: no API key found in environment "
-            "(checked %s) and no active provider in llm_config.json. "
-            "LLM features will use heuristic fallback.",
-            ", ".join([self._config.openai_api_key_env, self._config.anthropic_api_key_env]),
-        )
-        return None  # No API key found, LLM features disabled
-
-    def _build_regression_detector(self) -> RegressionDetector:
-        """Build RegressionDetector with optional persistent storage."""
-        from hi_agent.evolve.regression_detector import RegressionDetector
-
-        storage_path = self._config.episodic_storage_dir.replace(
-            "episodes", "regression_data.json"
-        )
-        detector = RegressionDetector(
-            baseline_window=self._config.evolve_regression_window,
-            threshold=self._config.evolve_regression_threshold,
-            storage_path=storage_path,
-        )
-        try:
-            detector.load()
-        except Exception as exc:  # pragma: no cover
-            import logging
-            logging.getLogger(__name__).debug("RegressionDetector.load skipped: %s", exc)
-        return detector
+        """Build LLM gateway — delegated to CognitionBuilder."""
+        gw = self._get_cognition_builder().build_llm_gateway()
+        # Keep backward-compat cached refs on SystemBuilder so code that reads
+        # self._llm_gateway / self._tier_router still works.
+        if gw is not None:
+            self._llm_gateway = gw
+            self._tier_router = self._get_cognition_builder()._tier_router
+        return gw
 
     def build_evolve_engine(self) -> EvolveEngine:
-        """Build EvolveEngine with config-driven parameters."""
-        from hi_agent.evolve.champion_challenger import ChampionChallenger
-        from hi_agent.evolve.skill_extractor import SkillExtractor
-
-        gateway = self.build_llm_gateway()
-        return EvolveEngine(
-            llm_gateway=gateway,
-            skill_extractor=SkillExtractor(
-                min_confidence=self._config.evolve_min_confidence,
-                gateway=gateway,
-            ),
-            regression_detector=self._build_regression_detector(),
-            champion_challenger=ChampionChallenger(),
-            version_manager=self.build_skill_version_manager(),
-        )
+        """Build EvolveEngine — delegated to CognitionBuilder."""
+        return self._get_cognition_builder().build_evolve_engine()
 
     def build_invoker(self) -> Any:
         """Build a CapabilityInvoker using the SHARED capability registry singleton.
@@ -702,7 +251,17 @@ class SystemBuilder:
                             "registry will have no pre-registered capabilities.",
                             exc,
                         )
-                    register_builtin_tools(registry)
+                    import os as _os_rbt
+                    from hi_agent.server.runtime_mode_resolver import (
+                        resolve_runtime_mode as _rrm_rbt,
+                    )
+                    _env_rbt = _os_rbt.environ.get("HI_AGENT_ENV", "dev").lower()
+                    try:
+                        _readiness_rbt = self.readiness()
+                    except Exception:
+                        _readiness_rbt = {}
+                    _profile_rbt = _rrm_rbt(_env_rbt, _readiness_rbt)
+                    register_builtin_tools(registry, profile=_profile_rbt)
                     self._capability_registry = registry
                     logger.info(
                         "build_capability_registry: CapabilityRegistry created with %d capabilities.",
@@ -803,43 +362,70 @@ class SystemBuilder:
             artifact_registry=self.build_artifact_registry(),
         )
 
+    def _get_skill_builder(self):
+        if self._skill_builder is None:
+            from hi_agent.config.skill_builder import SkillBuilder
+            self._skill_builder = SkillBuilder(self._config)
+        return self._skill_builder
+
+    def _get_memory_builder(self):
+        if self._memory_builder is None:
+            from hi_agent.config.memory_builder import MemoryBuilder
+            self._memory_builder = MemoryBuilder(self._config)
+        return self._memory_builder
+
+    def _get_server_builder(self):
+        if self._server_builder is None:
+            from hi_agent.config.server_builder import ServerBuilder
+            self._server_builder = ServerBuilder(self._config)
+        return self._server_builder
+
+    def _get_knowledge_builder(self):
+        if not hasattr(self, "_knowledge_builder_inst") or self._knowledge_builder_inst is None:
+            from hi_agent.config.knowledge_builder import KnowledgeBuilder
+            self._knowledge_builder_inst = KnowledgeBuilder(self._config, long_term_graph_factory=self.build_long_term_graph)
+        return self._knowledge_builder_inst
+
+    def _get_capability_plane_builder(self):
+        if self._capability_plane_builder is None:
+            from hi_agent.config.capability_plane_builder import CapabilityPlaneBuilder
+            self._capability_plane_builder = CapabilityPlaneBuilder(
+                self._config,
+                llm_gateway=self.build_llm_gateway(),
+            )
+        return self._capability_plane_builder
+
+    def _get_cognition_builder(self):
+        """Return shared CognitionBuilder singleton (LLM gateway, evolve engine)."""
+        if self._cognition_builder is None:
+            from hi_agent.config.cognition_builder import CognitionBuilder
+            self._cognition_builder = CognitionBuilder(
+                self._config,
+                self._singleton_lock,
+                skill_version_mgr_fn=self.build_skill_version_manager,
+            )
+        return self._cognition_builder
+
+    def _get_runtime_builder(self):
+        """Return shared RuntimeBuilder singleton (kernel, metrics, middleware, executor)."""
+        if self._runtime_builder is None:
+            from hi_agent.config.runtime_builder import RuntimeBuilder
+            self._runtime_builder = RuntimeBuilder(
+                self._config,
+                self._singleton_lock,
+                parent=self,
+            )
+        return self._runtime_builder
+
     def build_skill_registry(self) -> SkillRegistry:
         """Build SkillRegistry using configured storage directory."""
-        return SkillRegistry(storage_dir=self._config.skill_storage_dir)
+        return self._get_skill_builder().build_skill_registry()
 
     def build_skill_loader(self) -> Any:
-        """Build or return the shared SkillLoader singleton.
-
-        Search order (highest to lowest priority):
-        1. Built-in skills bundled with hi-agent (hi_agent/skills/builtin/)
-        2. User-global skills (~/.hi_agent/skills/)
-        3. Project-local skills (config.skill_storage_dir, default .hi_agent/skills/)
-        """
-        if self._skill_loader is not None:
-            return self._skill_loader
-
-        import pathlib
-
-        from hi_agent.skill.loader import SkillLoader
-
-        builtin_dir = str(pathlib.Path(__file__).parent.parent / "skills" / "builtin")
-        user_global_dir = str(pathlib.Path.home() / ".hi_agent" / "skills")
-        project_dir = self._config.skill_storage_dir
-
-        # Deduplicate while preserving order
-        seen: set[str] = set()
-        dirs: list[str] = []
-        for d in [builtin_dir, user_global_dir, project_dir]:
-            if d not in seen:
-                seen.add(d)
-                dirs.append(d)
-
-        self._skill_loader = SkillLoader(
-            search_dirs=dirs,
-            max_skills_in_prompt=self._config.skill_loader_max_skills_in_prompt,
-            max_prompt_tokens=self._config.skill_loader_max_prompt_tokens,
-        )
-        return self._skill_loader
+        """Build or return the shared SkillLoader singleton."""
+        loader = self._get_skill_builder().build_skill_loader()
+        self._skill_loader = loader  # keep local ref for _wire_plugin_contributions
+        return loader
 
     def build_plugin_loader(self) -> Any:
         """Build or return the shared PluginLoader singleton.
@@ -971,109 +557,49 @@ class SystemBuilder:
 
     def build_skill_observer(self) -> Any:
         """Build SkillObserver for execution telemetry."""
-        from hi_agent.skill.observer import SkillObserver
-
-        return SkillObserver(
-            storage_dir=self._config.skill_storage_dir + "/observations"
-        )
+        return self._get_skill_builder().build_skill_observer()
 
     def build_skill_version_manager(self) -> Any:
         """Build SkillVersionManager for champion/challenger versioning."""
-        from hi_agent.skill.version import SkillVersionManager
-
-        mgr = SkillVersionManager(
-            storage_dir=self._config.skill_storage_dir + "/versions"
-        )
-        try:
-            mgr.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
-        return mgr
+        return self._get_skill_builder().build_skill_version_manager()
 
     def build_skill_evolver(self) -> Any:
-        """Build or return the shared SkillEvolver singleton.
-
-        Cached so that the internal _runs_since_evolve counter persists across
-        per-request RunExecutor instances; otherwise the interval counter resets
-        to 0 on every request and evolve_cycle() never fires.
-        """
-        if getattr(self, "_skill_evolver", None) is not None:
-            return self._skill_evolver
-        from hi_agent.skill.evolver import SkillEvolver
-
-        observer = self.build_skill_observer()
-        version_mgr = self.build_skill_version_manager()
-        gateway = self.build_llm_gateway()
-        self._skill_evolver = SkillEvolver.from_config(
-            cfg=self._config,
-            llm_gateway=gateway,
-            observer=observer,
-            version_manager=version_mgr,
-        )
-        return self._skill_evolver
+        """Build or return the shared SkillEvolver singleton."""
+        return self._get_skill_builder().build_skill_evolver(llm_gateway=self.build_llm_gateway())
 
     def build_episodic_store(self) -> EpisodicMemoryStore:
         """Build EpisodicMemoryStore using configured storage directory."""
-        return EpisodicMemoryStore(storage_dir=self._config.episodic_storage_dir)
+        return self._get_memory_builder().build_episodic_store()
 
     def build_failure_collector(self) -> FailureCollector:
         """Build a fresh FailureCollector."""
-        return FailureCollector()
+        return self._get_memory_builder().build_failure_collector()
 
     def build_watchdog(self) -> ProgressWatchdog:
         """Build ProgressWatchdog with config-driven thresholds."""
-        return ProgressWatchdog(
-            window_size=self._config.watchdog_window_size,
-            min_success_rate=self._config.watchdog_min_success_rate,
-            max_consecutive_failures=self._config.watchdog_max_consecutive_failures,
-        )
+        return self._get_memory_builder().build_watchdog()
 
     # ------------------------------------------------------------------
     # Memory tier builders
     # ------------------------------------------------------------------
 
-    def build_short_term_store(self, profile_id: str = "") -> Any:
-        """Build short-term memory store, optionally scoped to a profile."""
-        from hi_agent.memory.short_term import ShortTermMemoryStore
-
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        path = (
-            os.path.join(base, "profiles", profile_id, "short_term")
-            if profile_id
-            else self._config.episodic_storage_dir.replace("episodes", "short_term")
+    def build_short_term_store(self, profile_id: str = "", workspace_key: Any = None) -> Any:
+        """Build short-term memory store, optionally scoped to a profile or workspace."""
+        return self._get_memory_builder().build_short_term_store(
+            profile_id=profile_id, workspace_key=workspace_key
         )
-        project_id = getattr(self._config, "project_id", "")
-        return ShortTermMemoryStore(path, project_id=project_id)
 
-    def build_mid_term_store(self, profile_id: str = "") -> Any:
-        """Build mid-term memory store, optionally scoped to a profile."""
-        from hi_agent.memory.mid_term import MidTermMemoryStore
-
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        path = (
-            os.path.join(base, "profiles", profile_id, "mid_term")
-            if profile_id
-            else self._config.episodic_storage_dir.replace("episodes", "mid_term")
+    def build_mid_term_store(self, profile_id: str = "", workspace_key: Any = None) -> Any:
+        """Build mid-term memory store, optionally scoped to a profile or workspace."""
+        return self._get_memory_builder().build_mid_term_store(
+            profile_id=profile_id, workspace_key=workspace_key
         )
-        return MidTermMemoryStore(path)
 
-    def build_long_term_graph(self, profile_id: str = "") -> Any:
-        """Build long-term memory graph, optionally scoped to a profile."""
-        from hi_agent.memory.long_term import LongTermMemoryGraph
-
-        project_id = getattr(self._config, "project_id", "")
-        graph = LongTermMemoryGraph(
-            self._config.episodic_storage_dir.replace(
-                "episodes", "long_term/graph.json"
-            ),
-            profile_id=profile_id,
-            project_id=project_id,
+    def build_long_term_graph(self, profile_id: str = "", workspace_key: Any = None) -> Any:
+        """Build long-term memory graph, optionally scoped to a profile or workspace."""
+        return self._get_memory_builder().build_long_term_graph(
+            profile_id=profile_id, workspace_key=workspace_key
         )
-        try:
-            graph.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
-        return graph
 
     def build_retrieval_engine(
         self,
@@ -1082,40 +608,14 @@ class SystemBuilder:
         long_term_graph: Any = None,
         profile_id: str = "",
     ) -> Any:
-        """Build four-layer retrieval engine across all memory tiers.
-
-        When store objects are provided, they are used directly (no new instances
-        are created). When absent, new instances are built scoped to profile_id.
-
-        Layer 4 (semantic embedding re-ranking) is activated by wiring a
-        TFIDFEmbeddingProvider against the engine's internal TFIDFIndex.
-        This requires no external dependencies.  If construction fails for
-        any reason the engine falls back to embedding_fn=None (Layers 1-3
-        only).
-        """
-        from hi_agent.knowledge.retrieval_engine import RetrievalEngine
-
-        wiki = self.build_knowledge_wiki()
-        graph = long_term_graph if long_term_graph is not None else self.build_long_term_graph(profile_id=profile_id)
-        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
-        mid = mid_term_store if mid_term_store is not None else self.build_mid_term_store(profile_id=profile_id)
-
-        # Build the engine first so we can access its internal _tfidf index.
-        engine = RetrievalEngine(
-            wiki=wiki, graph=graph, short_term=short, mid_term=mid
+        """Build four-layer retrieval engine across all memory tiers."""
+        return self._get_memory_builder().build_retrieval_engine(
+            short_term_store=short_term_store,
+            mid_term_store=mid_term_store,
+            long_term_graph=long_term_graph,
+            profile_id=profile_id,
+            wiki=self.build_knowledge_wiki(),
         )
-
-        # Activate Layer 4 by wiring in a TF-IDF-based embedding function.
-        try:
-            from hi_agent.knowledge.embedding import TFIDFEmbeddingProvider
-
-            provider = TFIDFEmbeddingProvider(engine._tfidf)
-            engine._embedding_fn = provider.as_callable()
-        except Exception:
-            # Graceful degradation: Layer 4 stays disabled, Layers 1-3 work normally.
-            pass
-
-        return engine
 
     def build_memory_lifecycle_manager(
         self,
@@ -1124,28 +624,13 @@ class SystemBuilder:
         long_term_graph: Any = None,
         profile_id: str = "",
     ) -> MemoryLifecycleManager:
-        """Build MemoryLifecycleManager wiring all memory tiers.
-
-        When store objects are provided, they are used directly (no new
-        instances are created), preserving profile-scoped paths built by
-        the caller. When absent, fresh instances are built scoped to profile_id.
-
-        Args:
-            profile_id: Profile scope for fallback store construction. Has no
-                effect when all store instances are provided explicitly.
-        """
-        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
-        mid   = mid_term_store   if mid_term_store   is not None else self.build_mid_term_store(profile_id=profile_id)
-        graph = long_term_graph  if long_term_graph  is not None else self.build_long_term_graph(profile_id=profile_id)
-        return MemoryLifecycleManager(
-            short_term_store=short,
-            mid_term_store=mid,
-            long_term_graph=graph,
-            retrieval_engine=self.build_retrieval_engine(
-                short_term_store=short,
-                mid_term_store=mid,
-                long_term_graph=graph,
-            ),
+        """Build MemoryLifecycleManager wiring all memory tiers."""
+        return self._get_memory_builder().build_memory_lifecycle_manager(
+            short_term_store=short_term_store,
+            mid_term_store=mid_term_store,
+            long_term_graph=long_term_graph,
+            profile_id=profile_id,
+            wiki=self.build_knowledge_wiki(),
         )
 
     # ------------------------------------------------------------------
@@ -1153,53 +638,13 @@ class SystemBuilder:
     # ------------------------------------------------------------------
 
     def build_knowledge_wiki(self) -> Any:
-        """Build KnowledgeWiki for wiki-based knowledge storage."""
-        from hi_agent.knowledge.wiki import KnowledgeWiki
-
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        wiki = KnowledgeWiki(os.path.join(base, "knowledge", "wiki"))
-        try:
-            wiki.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
-        except Exception as exc:
-            logger.warning("build_wiki: failed to load prior wiki state: %s", exc)
-        return wiki
+        return self._get_knowledge_builder().build_knowledge_wiki()
 
     def build_user_knowledge_store(self) -> Any:
-        """Build UserKnowledgeStore for user profile knowledge."""
-        from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+        return self._get_knowledge_builder().build_user_knowledge_store()
 
-        base = self._config.episodic_storage_dir.replace("episodes", "")
-        return UserKnowledgeStore(os.path.join(base, "knowledge", "user"))
-
-    def build_knowledge_manager(
-        self,
-        profile_id: str = "",
-        long_term_graph: Any = None,
-    ) -> Any:
-        """Build KnowledgeManager wiring wiki, user store, graph, and renderer.
-
-        Args:
-            profile_id: Profile scope for the knowledge graph. When provided,
-                a profile-scoped graph is created if ``long_term_graph`` is None.
-            long_term_graph: Pre-built graph instance to share with the executor.
-                When provided, it is used directly (no new instance created).
-        """
-        from hi_agent.knowledge.graph_renderer import GraphRenderer
-        from hi_agent.knowledge.knowledge_manager import KnowledgeManager
-
-        wiki = self.build_knowledge_wiki()
-        user_store = self.build_user_knowledge_store()
-        graph = (
-            long_term_graph
-            if long_term_graph is not None
-            else self.build_long_term_graph(profile_id=profile_id)
-        )
-        renderer = GraphRenderer(graph)
-        return KnowledgeManager(
-            wiki=wiki, user_store=user_store, graph=graph, renderer=renderer,
-        )
+    def build_knowledge_manager(self, profile_id: str = "", long_term_graph: Any = None) -> Any:
+        return self._get_knowledge_builder().build_knowledge_manager(profile_id=profile_id, long_term_graph=long_term_graph)
 
     # ------------------------------------------------------------------
     # Composite builders
@@ -1335,53 +780,9 @@ class SystemBuilder:
         budget = total_budget_tokens or self._config.llm_budget_max_tokens
         return BudgetGuard.from_config(self._config, total_budget_tokens=budget)
 
-    def _wire_cost_optimizer(
-        self,
-        tier_router: Any,
-        run_history: list[dict[str, Any]] | None = None,
-    ) -> None:
-        """Apply cost optimization hints to tier_router based on run history.
-
-        Reads aggregate telemetry from *run_history* (a list of cost-summary
-        dicts each with ``"total_usd"`` and ``"per_model"`` keys), generates
-        rule-based :class:`~hi_agent.session.cost_optimizer.CostOptimizationHint`
-        objects, converts them to tier overrides via
-        :func:`~hi_agent.session.cost_optimizer.derive_tier_overrides`, and
-        applies them to *tier_router* in one shot so that the **very first**
-        run after startup already benefits from prior cost telemetry.
-
-        All errors are swallowed; this method must never break normal startup.
-        """
-        if not run_history:
-            return
-        try:
-            from hi_agent.session.cost_optimizer import (
-                derive_tier_overrides,
-                recommend_cost_optimizations,
-            )
-
-            total_usd = sum(r.get("total_usd", 0.0) for r in run_history)
-            avg_cost = total_usd / len(run_history)
-            merged_per_model: dict[str, float] = {}
-            for r in run_history:
-                for model, cost in r.get("per_model", {}).items():
-                    merged_per_model[model] = merged_per_model.get(model, 0.0) + cost
-
-            hints = recommend_cost_optimizations(
-                run_count=len(run_history),
-                avg_cost_per_run=avg_cost,
-                per_model_breakdown=merged_per_model,
-            )
-            overrides = derive_tier_overrides(hints)
-            if overrides and hasattr(tier_router, "apply_cost_overrides"):
-                tier_router.apply_cost_overrides(overrides)
-                logger.info(
-                    "Cost optimizer applied %d overrides at startup: %s",
-                    len(overrides),
-                    overrides,
-                )
-        except Exception as exc:
-            logger.warning("Cost optimizer wiring failed: %s", exc)
+    def _wire_cost_optimizer(self, tier_router: Any, run_history: list | None = None) -> None:
+        """Delegated to CognitionBuilder — kept for backward compatibility."""
+        self._get_cognition_builder()._wire_cost_optimizer(tier_router, run_history)
 
     def _build_delegation_manager(self) -> Any:
         """Build DelegationManager with config-driven concurrency and polling parameters.
@@ -1495,7 +896,10 @@ class SystemBuilder:
         return TraceConfig(**{k: v for k, v in merged.items() if k in known})
 
     def _build_executor_impl(
-        self, contract: TaskContract, resolved_profile: Any = None
+        self,
+        contract: TaskContract,
+        resolved_profile: Any = None,
+        workspace_key: Any = None,
     ) -> RunExecutor:
         """Build a fully-wired RunExecutor for a given task contract.
 
@@ -1504,8 +908,32 @@ class SystemBuilder:
             resolved_profile: Optional ``ResolvedProfile`` from the platform
                 ProfileRegistry.  When provided, its stage_graph, stage_actions,
                 and evaluator override the TRACE sample defaults.
+            workspace_key: Optional ``WorkspaceKey`` (tenant_id, user_id,
+                session_id).  When provided, all memory stores are placed under
+                workspace-scoped paths instead of the global config directories.
         """
         invoker = self.build_invoker()
+
+        # Pre-compute optional wired components (avoids post-construction mutation).
+        _mw = self._build_middleware_orchestrator()
+        if _mw is not None:
+            self._inject_middleware_dependencies(_mw)
+            if resolved_profile is not None and resolved_profile.has_evaluator:
+                self._inject_evaluator(_mw, resolved_profile)
+        _skill_ev = None
+        try:
+            _skill_ev = self.build_skill_evolver()
+        except Exception as exc:
+            logger.warning("_build_executor_impl: build_skill_evolver failed: %s", exc)
+        _skill_ev_interval = getattr(self._config, "skill_evolve_interval", 10)
+        _tracer = None
+        try:
+            export_dir = getattr(self._config, "trace_export_dir", "")
+            if export_dir:
+                from hi_agent.observability.tracing import JsonFileTraceExporter, Tracer
+                _tracer = Tracer(exporters=[JsonFileTraceExporter(export_dir)])
+        except Exception as exc:
+            logger.warning("_build_executor_impl: Tracer build failed: %s", exc)
 
         # Determine stage_graph and stage_actions from profile, falling back to
         # TRACE sample defaults.
@@ -1543,10 +971,35 @@ class SystemBuilder:
         # --- Build mid-term / long-term memory components for wiring ---
         _profile_id = getattr(contract, "profile_id", "") or ""
         _run_id = uuid.uuid4().hex
-        _raw_base = self._config.episodic_storage_dir
-        _short_term_store = self.build_short_term_store(profile_id=_profile_id)
-        _mid_term_store = self.build_mid_term_store(profile_id=_profile_id)
-        _long_term_graph = self.build_long_term_graph(profile_id=_profile_id)
+        if workspace_key is not None:
+            # Validate all fields are non-empty before using workspace paths
+            if not (workspace_key.tenant_id and workspace_key.user_id and workspace_key.session_id):
+                workspace_key = None  # fall back to profile-scoped paths
+        if workspace_key is not None:
+            from pathlib import Path as _Path
+            from hi_agent.server.workspace_path import WorkspacePathHelper
+            _raw_base = str(WorkspacePathHelper.private(
+                _Path(self._config.episodic_storage_dir).parent,
+                workspace_key,
+                "L0",
+            ))
+            _session_storage_dir = str(WorkspacePathHelper.private(
+                _Path(self._config.episodic_storage_dir).parent,
+                workspace_key,
+                "checkpoints",
+            ))
+        else:
+            _raw_base = self._config.episodic_storage_dir
+            _session_storage_dir = None
+        _short_term_store = self.build_short_term_store(
+            profile_id=_profile_id, workspace_key=workspace_key
+        )
+        _mid_term_store = self.build_mid_term_store(
+            profile_id=_profile_id, workspace_key=workspace_key
+        )
+        _long_term_graph = self.build_long_term_graph(
+            profile_id=_profile_id, workspace_key=workspace_key
+        )
         # J7-1: share the profile-scoped graph with KnowledgeManager.
         km = self.build_knowledge_manager(
             profile_id=_profile_id,
@@ -1610,65 +1063,19 @@ class SystemBuilder:
             compress_snip_threshold=self._config.compress_snip_threshold,
             compress_window_threshold=self._config.compress_window_threshold,
             compress_compress_threshold=self._config.compress_compress_threshold,
+            evolve_mode=getattr(self._config, "evolve_mode", "auto"),
+            # Pre-wired components — no post-construction mutation needed.
+            middleware_orchestrator=_mw,
+            skill_evolver=_skill_ev,
+            skill_evolve_interval=_skill_ev_interval,
+            tracer=_tracer,
+            workspace_key=workspace_key,
+            session_storage_dir=_session_storage_dir,
         )
-        # Wire middleware orchestrator into the StageExecutor that RunExecutor
-        # already created during __init__.  RunExecutor does not yet accept
-        # middleware_orchestrator directly, so we inject it post-construction
-        # via the StageExecutor's public instance attribute.
-        try:
-            mw = self._build_middleware_orchestrator()
-            if mw is not None and hasattr(executor, "_stage_executor"):
-                executor._stage_executor._middleware_orchestrator = mw
-                logger.info(
-                    "build_executor: MiddlewareOrchestrator wired into StageExecutor."
-                )
-                # Post-inject subsystem dependencies into middleware instances.
-                # The orchestrator is built early (before all subsystems exist) so
-                # dependencies are None at construction time.  We fill them here
-                # after all subsystems have been built, avoiding circular deps.
-                self._inject_middleware_dependencies(mw)
-                # Inject profile evaluator into EvaluationMiddleware when profile
-                # provides a custom evaluator factory.
-                if resolved_profile is not None and resolved_profile.has_evaluator:
-                    self._inject_evaluator(mw, resolved_profile)
-        except Exception as exc:
-            logger.warning(
-                "build_executor: failed to wire MiddlewareOrchestrator, "
-                "middleware path will be inactive: %s",
-                exc,
-            )
-        # Wire SkillEvolver into RunLifecycle for automatic evolve_cycle() triggering.
-        try:
-            se = self.build_skill_evolver()
-            if se is not None and hasattr(executor, "_lifecycle"):
-                executor._lifecycle.skill_evolver = se
-                executor._lifecycle._skill_evolve_interval = getattr(
-                    self._config, "skill_evolve_interval", 10
-                )
-                logger.info("build_executor: SkillEvolver wired into RunLifecycle.")
-        except Exception as exc:
-            logger.warning(
-                "build_executor: failed to wire SkillEvolver, "
-                "auto evolve_cycle will be inactive: %s",
-                exc,
-            )
-        # Wire JsonFileTraceExporter when trace_export_dir is configured.
-        try:
-            export_dir = getattr(self._config, "trace_export_dir", "")
-            if export_dir and hasattr(executor, "_telemetry"):
-                from hi_agent.observability.tracing import (
-                    JsonFileTraceExporter,
-                    Tracer,
-                )
-                executor._telemetry.tracer = Tracer(
-                    exporters=[JsonFileTraceExporter(export_dir)]
-                )
-                logger.info(
-                    "build_executor: JsonFileTraceExporter wired (dir=%r).", export_dir
-                )
-        except Exception as exc:
-            logger.warning(
-                "build_executor: failed to wire JsonFileTraceExporter: %s", exc
+        if _mw is not None:
+            logger.info(
+                "build_executor: MiddlewareOrchestrator + SkillEvolver + Tracer "
+                "wired at construction time (no post-mutation)."
             )
         return executor
 
@@ -1697,6 +1104,7 @@ class SystemBuilder:
         self,
         contract: TaskContract,
         config_patch: dict | None = None,
+        workspace_key: Any = None,
     ) -> RunExecutor:
         """Build a RunExecutor.
 
@@ -1704,6 +1112,13 @@ class SystemBuilder:
         and injects profile-derived stage_graph, stage_actions, and evaluator
         into the executor.  If config_patch provided, creates isolated per-run
         config.
+
+        Args:
+            contract: Task contract.
+            config_patch: Optional dict of config overrides for this run.
+            workspace_key: Optional ``WorkspaceKey`` (tenant_id, user_id,
+                session_id).  When provided, all memory stores are placed under
+                workspace-scoped paths.
         """
         resolved_profile = self._resolve_profile(getattr(contract, "profile_id", None))
         if config_patch:
@@ -1729,7 +1144,9 @@ class SystemBuilder:
             derived._mcp_transport = self._mcp_transport
             derived._plugin_loader = self._plugin_loader
             derived._evidence_store = self._evidence_store
-            return derived._build_executor_impl(contract, resolved_profile=resolved_profile)
+            return derived._build_executor_impl(
+                contract, resolved_profile=resolved_profile, workspace_key=workspace_key
+            )
         elif resolved_profile is not None and resolved_profile.config_overrides:
             run_cfg = self._resolve_with_patch(resolved_profile.config_overrides)
             derived = SystemBuilder(
@@ -1744,8 +1161,12 @@ class SystemBuilder:
             derived._mcp_transport = self._mcp_transport
             derived._plugin_loader = self._plugin_loader
             derived._evidence_store = self._evidence_store
-            return derived._build_executor_impl(contract, resolved_profile=resolved_profile)
-        return self._build_executor_impl(contract, resolved_profile=resolved_profile)
+            return derived._build_executor_impl(
+                contract, resolved_profile=resolved_profile, workspace_key=workspace_key
+            )
+        return self._build_executor_impl(
+            contract, resolved_profile=resolved_profile, workspace_key=workspace_key
+        )
 
     def build_executor_from_checkpoint(
         self, checkpoint_path: str
@@ -1806,240 +1227,19 @@ class SystemBuilder:
 
     def build_server(self) -> Any:
         """Build API server with all subsystems connected."""
-        from hi_agent.server.app import AgentServer
-        from hi_agent.server.run_manager import RunManager
-
-        server = AgentServer(
-            host=self._config.server_host,
-            port=self._config.server_port,
+        return self._get_server_builder().build_server(
+            memory_manager=self.build_memory_lifecycle_manager(),
+            knowledge_manager=self.build_knowledge_manager(),
+            skill_evolver=self.build_skill_evolver(),
+            skill_loader=self.build_skill_loader(),
+            metrics_collector=self.build_metrics_collector(),
+            run_context_manager=self._build_run_context_manager(),
         )
-        server.run_manager = RunManager(
-            max_concurrent=self._config.server_max_concurrent_runs,
-        )
-        server.memory_manager = self.build_memory_lifecycle_manager()
-        server.knowledge_manager = self.build_knowledge_manager()
-        server.skill_evolver = self.build_skill_evolver()
-        server.skill_loader = self.build_skill_loader()
-        metrics = self.build_metrics_collector()
-        server.metrics_collector = metrics
-        server.run_context_manager = self._build_run_context_manager()
-
-        # Wire SLOMonitor so lifespan.start()/stop() activates continuous
-        # SLO evaluation rather than leaving it as a point-in-time snapshot.
-        try:
-            from hi_agent.management.slo import SLOMonitor
-            server.slo_monitor = SLOMonitor(metrics)
-        except Exception:
-            logger.warning("SLOMonitor initialization failed; SLO monitoring disabled.")
-
-        return server
 
     def readiness(self) -> dict[str, Any]:
         """Return a live readiness snapshot of all platform subsystems.
 
-        This method probes each subsystem and returns a structured dict that
-        downstream integrators can use to verify platform state without reading
-        source code.  It never raises — failures are captured as status entries.
-
-        Returns a dict matching the platform manifest contract::
-
-            {
-              "ready": bool,
-              "health": "ok" | "degraded",
-              "execution_mode": str,
-              "models": [...],
-              "skills": [...],
-              "mcp_servers": [...],
-              "plugins": [...],
-              "capabilities": [...],
-              "subsystems": {...}
-            }
+        Delegates to ReadinessProbe — see hi_agent/config/readiness.py.
         """
-        result: dict[str, Any] = {
-            "ready": False,
-            "health": "ok",
-            "execution_mode": "unknown",
-            "models": [],
-            "skills": [],
-            "mcp_servers": [],
-            "plugins": [],
-            "capabilities": [],
-            "subsystems": {},
-        }
-        issues: list[str] = []
-
-        # --- kernel ---
-        try:
-            kernel = self.build_kernel()
-            base_url = getattr(self._config, "kernel_base_url", "local") or "local"
-            mode = "http" if base_url.lower() not in ("", "local") else "local"
-            result["execution_mode"] = mode
-            result["subsystems"]["kernel"] = {"status": "ok", "mode": mode}
-        except Exception as exc:
-            result["subsystems"]["kernel"] = {"status": "error", "error": str(exc)}
-            result["health"] = "degraded"
-            issues.append(f"kernel: {exc}")
-
-        # --- LLM / models ---
-        try:
-            gateway = self.build_llm_gateway()
-            if gateway is None:
-                result["subsystems"]["llm"] = {"status": "not_configured"}
-                result["models"] = []
-            else:
-                # Best-effort: list models from registry if tier router available
-                model_names: list[str] = []
-                if self._tier_router is not None:
-                    try:
-                        registry = getattr(self._tier_router, "_registry", None)
-                        if registry is not None:
-                            model_names = [
-                                m if isinstance(m, str) else getattr(m, "name", str(m))
-                                for m in registry.list_models()
-                            ]
-                    except Exception:
-                        pass
-                result["models"] = [{"name": n, "status": "configured"} for n in model_names]
-                result["subsystems"]["llm"] = {"status": "ok", "models": len(model_names)}
-        except Exception as exc:
-            result["subsystems"]["llm"] = {"status": "error", "error": str(exc)}
-            result["health"] = "degraded"
-            issues.append(f"llm: {exc}")
-
-        # --- capabilities ---
-        try:
-            invoker = self.build_invoker()
-            # CapabilityInvoker exposes registry as public `registry` attribute.
-            registry = getattr(invoker, "registry", None) or getattr(invoker, "_registry", None)
-            cap_names: list[str] = []
-            if registry is not None:
-                cap_names = registry.list_names()
-            result["capabilities"] = cap_names
-            result["subsystems"]["capabilities"] = {"status": "ok", "count": len(cap_names)}
-        except Exception as exc:
-            result["subsystems"]["capabilities"] = {"status": "error", "error": str(exc)}
-            result["health"] = "degraded"
-            issues.append(f"capabilities: {exc}")
-
-        # --- skills ---
-        try:
-            loader = self.build_skill_loader()
-            # discover() triggers loading and returns the count (int), not a list.
-            # Use list_skills() to get the actual SkillDefinition objects.
-            skill_count = 0
-            skill_list: list[Any] = []
-            try:
-                if hasattr(loader, "discover"):
-                    skill_count = loader.discover()
-                if hasattr(loader, "list_skills"):
-                    skill_list = loader.list_skills()
-                elif isinstance(skill_count, int):
-                    skill_count = skill_count  # just the count, no list available
-            except Exception:
-                pass
-            result["skills"] = [
-                {
-                    "name": getattr(s, "name", str(s)),
-                    "source": getattr(s, "source", "unknown"),
-                    "status": "loaded",
-                }
-                for s in skill_list
-            ]
-            result["subsystems"]["skills"] = {"status": "ok", "discovered": len(result["skills"])}
-        except Exception as exc:
-            result["subsystems"]["skills"] = {"status": "error", "error": str(exc)}
-            issues.append(f"skills: {exc}")
-
-        # --- MCP: use cached singleton so readiness reflects same state as runs ---
-        try:
-            from hi_agent.mcp.registry import MCPRegistry
-            if self._mcp_registry is None:
-                self._mcp_registry = MCPRegistry()
-            servers = self._mcp_registry.list_servers()
-            # Annotate each server with transport availability so integrators know
-            # whether tools are actually invokable vs just registered.
-            for srv in servers:
-                srv_status = srv.get("status", "registered")
-                if srv_status == "healthy":
-                    srv["availability"] = "available"
-                elif srv_status in ("registered",):
-                    srv["availability"] = "registered_but_no_transport"
-                else:
-                    srv["availability"] = srv_status
-            result["mcp_servers"] = servers
-            connected = sum(1 for s in servers if s.get("status") == "healthy")
-            result["subsystems"]["mcp"] = {
-                "status": "ok",
-                "servers": len(servers),
-                "connected": connected,
-                "registered_only": len(servers) - connected,
-                # Honest transport status for integrators.
-                "transport_status": "not_wired",
-                "capability_mode": "infrastructure_only",
-                "note": (
-                    "External MCP transport (stdio/SSE/HTTP) not yet implemented. "
-                    "Platform tools are available via /mcp/tools/list as MCP-compatible "
-                    "endpoints. External server registration and forwarding are deferred."
-                ),
-            }
-        except ImportError:
-            result["mcp_servers"] = []
-            result["subsystems"]["mcp"] = {"status": "not_configured"}
-        except Exception as exc:
-            result["subsystems"]["mcp"] = {"status": "error", "error": str(exc)}
-
-        # --- plugins: use cached singleton so readiness reflects same state as runs ---
-        try:
-            from hi_agent.plugin.loader import PluginLoader
-            if self._plugin_loader is None:
-                self._plugin_loader = PluginLoader()
-                # load_all() triggers actual discovery from plugin directories.
-                # Without this, list_loaded() always returns [] on a fresh loader.
-                self._plugin_loader.load_all()
-            loaded = self._plugin_loader.list_loaded()
-            result["plugins"] = loaded
-            result["subsystems"]["plugins"] = {"status": "ok", "count": len(loaded)}
-        except ImportError:
-            result["plugins"] = []
-            result["subsystems"]["plugins"] = {"status": "not_configured"}
-        except Exception as exc:
-            result["subsystems"]["plugins"] = {"status": "error", "error": str(exc)}
-
-        # --- readiness decision ---
-        kernel_ok = result["subsystems"].get("kernel", {}).get("status") == "ok"
-        cap_ok = result["subsystems"].get("capabilities", {}).get("status") == "ok"
-        # LLM error means prod mode requires credentials not present.
-        # "not_configured" (dev fallback) is acceptable; "error" (missing prod creds) blocks.
-        llm_status = result["subsystems"].get("llm", {}).get("status", "not_configured")
-        llm_ok = llm_status != "error"
-        result["ready"] = kernel_ok and cap_ok and llm_ok
-        if not llm_ok:
-            result["health"] = "degraded"
-            issues.append("llm: credentials required for prod mode")
-        if issues:
-            logger.warning("readiness: %d issue(s): %s", len(issues), "; ".join(issues))
-
-        # --- prerequisites transparency ---
-        # Emit explicit prerequisites so integrators know exactly what is needed
-        # when ready=false, without having to read source code.
-        import os as _os
-        env_mode = _os.environ.get("HI_AGENT_ENV", "dev").lower()
-        result["runtime_mode"] = env_mode
-        if env_mode == "prod":
-            result["prerequisites"] = {
-                "required_for_prod_mode": [
-                    "OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable",
-                    "kernel_base_url set to a real agent-kernel HTTP endpoint",
-                ],
-                "hint": (
-                    "Run with HI_AGENT_ENV=dev (or use `serve` default) for "
-                    "heuristic fallback without external dependencies."
-                ),
-            }
-        else:
-            result["prerequisites"] = {
-                "mode": "dev — heuristic fallback active, no external dependencies required",
-                "hint": "Use HI_AGENT_ENV=prod or `serve --prod` to require real credentials.",
-            }
-
-        return result
+        from hi_agent.config.readiness import ReadinessProbe  # noqa: PLC0415
+        return ReadinessProbe(self).snapshot()

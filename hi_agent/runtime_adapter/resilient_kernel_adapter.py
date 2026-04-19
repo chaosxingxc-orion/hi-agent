@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, Literal
 
 from hi_agent.runtime_adapter.consistency import (
     ConsistencyIssue,
@@ -60,6 +60,8 @@ _WRITE_METHODS = frozenset(
         "bind_task_view_to_decision",
         "start_run",
         "cancel_run",
+        "resume_run",
+        "signal_run",
         "open_branch",
         "mark_branch_state",
         "open_human_gate",
@@ -201,6 +203,11 @@ class ResilientKernelAdapter:
                 "ResilientKernelAdapter: replayed %d buffered event(s)", replayed
             )
         return replayed
+
+    @property
+    def mode(self) -> Literal["local-fsm", "http"]:
+        """The kernel execution mode — delegates to the inner adapter."""
+        return getattr(self._inner, "mode", "local-fsm")
 
     # ------------------------------------------------------------------
     # Health & status

@@ -7,6 +7,8 @@ longer a pure "always success" simulation.
 
 from __future__ import annotations
 
+import copy
+import asyncio
 import inspect
 import logging
 from collections.abc import Callable, Mapping
@@ -43,7 +45,6 @@ from hi_agent.context.run_context import RunContext
 from hi_agent.contracts import (
     CTSExplorationBudget,
     HumanGateRequest,
-    NodeState,
     StageState,
     StageSummary,
     TaskContract,
@@ -53,6 +54,12 @@ from hi_agent.contracts import (
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.contracts.requests import RunResult
 from hi_agent.events import EventEmitter, EventEnvelope
+from hi_agent.execution.action_dispatcher import ActionDispatchContext, ActionDispatcher
+from hi_agent.execution.gate_coordinator import GateCoordinator
+from hi_agent.execution.recovery_coordinator import (
+    RecoveryContext,
+    RecoveryCoordinator,
+)
 from hi_agent.gate_protocol import GatePendingError
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.recovery import CompensationHandler, orchestrate_recovery
@@ -100,7 +107,7 @@ class SubRunResult:
     status: str = "completed"
 
 
-def _reflect_task_done_callback(task: asyncio.Task[object]) -> None:
+def _reflect_task_done_callback(task: Any) -> None:
     """Log completion or failure of an async reflection background task."""
     if task.cancelled():
         _logger.warning("runner.reflect_async_task_cancelled")
@@ -114,7 +121,7 @@ def _reflect_task_done_callback(task: asyncio.Task[object]) -> None:
         )
 
 
-def _subrun_task_done_callback(task: asyncio.Task[object]) -> None:
+def _subrun_task_done_callback(task: Any) -> None:
     """Log completion or failure of an async sub-run background task."""
     if task.cancelled():
         _logger.warning("runner.subrun_async_task_cancelled")
@@ -128,12 +135,24 @@ def _subrun_task_done_callback(task: asyncio.Task[object]) -> None:
         )
 
 
+def _set_engine_context_provider(engine: object, provider: object) -> None:
+    """Set context provider on a route engine using the public API when available.
+
+    Falls back to direct attribute assignment for engines that pre-date
+    LLMRouteEngine's ``set_context_provider`` method.
+    """
+    if hasattr(engine, 'set_context_provider'):
+        engine.set_context_provider(provider)  # type: ignore[union-attr]
+    elif hasattr(engine, '_context_provider'):
+        engine._context_provider = provider  # type: ignore[union-attr]
+
+
 def _make_subrun_done_callback(
     results_dict: "dict[str, object]", task_id: str
-) -> "Callable[[asyncio.Task[object]], None]":
+) -> "Callable[[Any], None]":
     """Create a done-callback that stores task-level failures into results_dict."""
 
-    def _cb(task: asyncio.Task[object]) -> None:
+    def _cb(task: Any) -> None:
         if task.cancelled():
             _logger.warning(
                 "runner.subrun_async_task_cancelled task_id=%s", task_id
@@ -200,8 +219,8 @@ class RunExecutor:
         skill_version_mgr: Any | None = None,  # SkillVersionManager
         skill_loader: Any | None = None,  # SkillLoader
         short_term_store: ShortTermMemoryStore | None = None,
-        mid_term_store: MidTermMemoryStore | None = None,
-        long_term_consolidator: LongTermConsolidator | None = None,
+        mid_term_store: Any | None = None,
+        long_term_consolidator: Any | None = None,
         session: RunSession | None = None,
         retrieval_engine: Any | None = None,  # RetrievalEngine
         knowledge_manager: Any | None = None,  # KnowledgeManager
@@ -222,6 +241,15 @@ class RunExecutor:
         compress_compress_threshold: int | None = None,
         replan_hook: Callable[[str, dict], "StageDirective | None"] | None = None,
         feedback_store: "FeedbackStore | None" = None,
+        evolve_mode: str = "auto",
+        # Pre-wired optional components (avoids post-construction mutation in builder)
+        middleware_orchestrator: Any | None = None,
+        skill_evolver: Any | None = None,
+        skill_evolve_interval: int = 10,
+        tracer: Any | None = None,
+        cancellation_token: Any | None = None,  # CancellationToken | None
+        workspace_key: Any | None = None,  # WorkspaceKey — for session storage scoping
+        session_storage_dir: str | None = None,  # pre-computed workspace-scoped dir for RunSession
     ) -> None:
         """Initialize run executor state.
 
@@ -280,6 +308,8 @@ class RunExecutor:
         # backward compatibility with code that accesses run_id before execute.
         self._run_id_fallback = deterministic_id(contract.task_id, "run")
         self._run_id: str | None = None
+        self._workspace_key = workspace_key
+        self._session_storage_dir = session_storage_dir
         self.stage_graph = stage_graph or default_trace_stage_graph()
         self.optimizer = GreedyOptimizer()
         self.route_engine = self._resolve_route_engine(route_engine)
@@ -287,6 +317,7 @@ class RunExecutor:
         self.knowledge_query_text_builder = knowledge_query_text_builder
         self.dag: dict[str, TrajectoryNode] = {}
         self.stage_summaries: dict[str, StageSummary] = {}
+        self._capability_provenance_store: dict[str, list[dict]] = {}
         self.action_seq = 0
         self.branch_seq = 0
         self.decision_seq = 0
@@ -305,7 +336,7 @@ class RunExecutor:
         self.action_max_retries = self._resolve_action_max_retries(
             action_max_retries, contract.constraints
         )
-        self.runner_role = runner_role or self._parse_invoker_role(
+        self.runner_role = runner_role or ActionDispatcher._parse_invoker_role(
             contract.constraints
         )
         self.force_fail_actions = self._parse_forced_fail_actions(
@@ -324,14 +355,12 @@ class RunExecutor:
         self._compress_compress_threshold = compress_compress_threshold
         self._replan_hook = replan_hook
         self._feedback_store = feedback_store
+        self._evolve_mode = evolve_mode
         self.evolve_engine = evolve_engine
         self.harness_executor = harness_executor
         self.human_gate_quality_threshold = human_gate_quality_threshold
         self._gate_seq = 0
-        # Registered human gate events, keyed by gate_id.
-        self._registered_gates: dict[str, object] = {}
-        # gate_id of the currently blocking human gate, or None if no gate is pending.
-        self._gate_pending: str | None = None
+        self.gate_coordinator = GateCoordinator(self)
         # Pending async delegation futures, keyed by task_id.
         self._pending_subrun_futures: dict[str, object] = {}
         # Completed synchronous delegation results, keyed by task_id.
@@ -392,6 +421,7 @@ class RunExecutor:
                 self.session: RunSession | None = RunSession(
                     run_id=self._run_id_fallback,
                     task_contract=contract,
+                    storage_dir=self._session_storage_dir,
                 )
             except Exception as exc:
                 self._log_best_effort_exception(
@@ -449,10 +479,10 @@ class RunExecutor:
         if self.session is not None:
             try:
                 # 1. Inject context_provider into LLMRouteEngine
-                if hasattr(self.route_engine, '_context_provider'):
-                    self.route_engine._context_provider = (
-                        lambda: self.session.build_context_for_llm("routing")
-                    )
+                _set_engine_context_provider(
+                    self.route_engine,
+                    lambda: self.session.build_context_for_llm("routing"),
+                )
                 # 2. Create auto-compress trigger
                 from hi_agent.task_view.auto_compress import (
                     AutoCompressTrigger,
@@ -504,14 +534,16 @@ class RunExecutor:
                         exc,
                     )
                 return ctx
-            if hasattr(self.route_engine, '_context_provider'):
-                self.route_engine._context_provider = _enriched_context
+            _set_engine_context_provider(self.route_engine, _enriched_context)
 
         # --- Skill prompt injection into routing context ---
         if self.skill_loader is not None:
             try:
                 _skill_loader = self.skill_loader
-                _prev_provider = getattr(self.route_engine, '_context_provider', None)
+                _prev_provider = getattr(
+                    self.route_engine, 'context_provider',
+                    getattr(self.route_engine, '_context_provider', None),
+                )
 
                 def _skill_enriched_context() -> dict:
                     ctx: dict = {}
@@ -540,8 +572,7 @@ class RunExecutor:
                         )
                     return ctx
 
-                if hasattr(self.route_engine, '_context_provider'):
-                    self.route_engine._context_provider = _skill_enriched_context
+                _set_engine_context_provider(self.route_engine, _skill_enriched_context)
             except Exception as exc:
                 self._log_best_effort_exception(
                     logging.DEBUG,
@@ -577,8 +608,7 @@ class RunExecutor:
                         return _session_fallback.build_context_for_llm("routing")
                     return {}
 
-            if hasattr(self.route_engine, '_context_provider'):
-                self.route_engine._context_provider = _managed_context
+            _set_engine_context_provider(self.route_engine, _managed_context)
 
         # --- Delegate instances for extracted logic ---
         self._telemetry = RunTelemetry(
@@ -590,6 +620,7 @@ class RunExecutor:
             skill_recorder=self.skill_recorder,
             session=self.session,
             context_manager=self.context_manager,
+            tracer=tracer,
         )
         self._lifecycle = RunLifecycle(
             session=self.session,
@@ -605,7 +636,16 @@ class RunExecutor:
             cts_budget=self.cts_budget,
             route_engine=self.route_engine,
             tier_router=self.tier_router,
+            evolve_mode=self._evolve_mode,
+            skill_evolver=skill_evolver,
+            skill_evolve_interval=skill_evolve_interval,
         )
+        # Extract capability registry and runtime mode from the invoker
+        # (GovernedToolExecutor) so the stage executor can apply the
+        # pre-dispatch capability availability filter (P1-2b).
+        _cap_registry = getattr(self.invoker, "_registry", None)
+        _cap_runtime_mode = getattr(self.invoker, "_runtime_mode", "dev")
+
         self._stage_executor = StageExecutor(
             kernel=self.kernel,
             route_engine=self.route_engine,
@@ -619,6 +659,9 @@ class RunExecutor:
             retrieval_engine=self.retrieval_engine,
             auto_compress=self._auto_compress,
             cost_calculator=self._cost_calculator,
+            middleware_orchestrator=middleware_orchestrator,
+            capability_registry=_cap_registry,
+            capability_runtime_mode=_cap_runtime_mode,
         )
 
         # --- Fix-4: ExecutionHookManager — wraps capability invocations so all
@@ -673,6 +716,9 @@ class RunExecutor:
         # --- DelegationManager: parallel child-run delegation (optional) ---
         self._delegation_manager: DelegationManager | None = delegation_manager
 
+        # --- CancellationToken: cooperative cancellation at stage boundaries ---
+        self._cancellation_token = cancellation_token
+
     @property
     def run_id(self) -> str:
         """Return the active run ID, falling back to deterministic ID."""
@@ -683,20 +729,43 @@ class RunExecutor:
         """Run run_id."""
         self._run_id = value
 
+    def _ensure_gate_coordinator(self) -> GateCoordinator:
+        coordinator = getattr(self, "gate_coordinator", None)
+        if coordinator is None:
+            coordinator = GateCoordinator(self)
+            self.gate_coordinator = coordinator
+        return coordinator
+
+    @property
+    def _gate_pending(self) -> str | None:
+        return self._ensure_gate_coordinator().gate_pending
+
+    @_gate_pending.setter
+    def _gate_pending(self, value: str | None) -> None:
+        self._ensure_gate_coordinator()._gate_pending = value
+
+    @property
+    def _registered_gates(self) -> dict[str, object]:
+        return self._ensure_gate_coordinator().registered_gates
+
+    @_registered_gates.setter
+    def _registered_gates(self, value: dict[str, object]) -> None:
+        self._ensure_gate_coordinator()._registered_gates = value
+
     def _sync_to_context(self) -> None:
         """Sync mutable state back to RunContext if present."""
         if self.run_context is None:
             return
-        self.run_context.dag = self.dag
-        self.run_context.stage_summaries = self.stage_summaries
+        self.run_context.dag = copy.copy(self.dag)
+        self.run_context.stage_summaries = copy.copy(self.stage_summaries)
         self.run_context.action_seq = self.action_seq
         self.run_context.branch_seq = self.branch_seq
         self.run_context.decision_seq = self.decision_seq
         self.run_context.current_stage = self.current_stage
         self.run_context.total_branches_opened = self._total_branches_opened
-        self.run_context.stage_active_branches = self._stage_active_branches
+        self.run_context.stage_active_branches = copy.copy(self._stage_active_branches)
         self.run_context.gate_seq = self._gate_seq
-        self.run_context.skill_ids_used = self._skill_ids_used
+        self.run_context.skill_ids_used = copy.copy(self._skill_ids_used)
 
     def _log_best_effort_exception(
         self,
@@ -757,68 +826,32 @@ class RunExecutor:
     # Fix-4: ExecutionHookManager helpers
     # ------------------------------------------------------------------
 
+    def _build_action_dispatch_context(
+        self, stage_id: str = ""
+    ) -> ActionDispatchContext:
+        return ActionDispatchContext(
+            run_id=self.run_id,
+            current_stage=stage_id or self.current_stage,
+            action_seq=self.action_seq,
+            invoker=self.invoker,
+            harness_executor=self.harness_executor,
+            runner_role=self.runner_role,
+            invoker_accepts_role=self._invoker_accepts_role,
+            invoker_accepts_metadata=self._invoker_accepts_metadata,
+            hook_manager=self._hook_manager,
+            capability_provenance_store=self._capability_provenance_store,
+            force_fail_actions=self.force_fail_actions,
+            action_max_retries=self.action_max_retries,
+            record_event_fn=self._record_event,
+            emit_observability_fn=self._emit_observability,
+            nudge_check_fn=self._nudge_check_after_action,
+        )
+
     def _invoke_capability_via_hooks(
         self, proposal: object, payload: dict
     ) -> dict:
-        """Invoke capability through ExecutionHookManager pre/post tool hooks.
-
-        When _hook_manager is available, wraps the raw capability invocation
-        so that all registered pre_tool and post_tool hooks fire around it.
-        Falls back to direct invocation if hooks are unavailable.
-        """
-        if self._hook_manager is None:
-            return self._invoke_capability(proposal, payload)
-
-        try:
-            import asyncio
-            import concurrent.futures as _cf
-
-            from hi_agent.middleware.hooks import ToolCallContext
-
-            tool_ctx = ToolCallContext(
-                run_id=self.run_id,
-                stage_id=payload.get("stage_id", self.current_stage or ""),
-                tool_name=str(getattr(proposal, "action_kind", "unknown")),
-                tool_input=payload,
-                turn_number=self.action_seq,
-            )
-
-            def _call_fn(_ctx: ToolCallContext) -> str:
-                result = self._invoke_capability(proposal, payload)
-                # Store result so we can return it after hook chain completes
-                _call_fn._last_result = result  # type: ignore[attr-defined]
-                return str(result.get("success", False))
-
-            _call_fn._last_result = {}  # type: ignore[attr-defined]
-
-            # Run async hook chain synchronously
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # We're inside execute_async() — run hook chain in a fresh
-                    # thread to avoid nested event loop.  concurrent.futures +
-                    # asyncio.run() creates an isolated loop in the worker thread.
-                    with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
-                        _pool.submit(
-                            asyncio.run,
-                            self._hook_manager.wrap_tool_call(tool_ctx, _call_fn),
-                        ).result()
-                else:
-                    loop.run_until_complete(
-                        self._hook_manager.wrap_tool_call(tool_ctx, _call_fn)
-                    )
-            except RuntimeError:
-                asyncio.run(
-                    self._hook_manager.wrap_tool_call(tool_ctx, _call_fn)
-                )
-
-            return _call_fn._last_result  # type: ignore[attr-defined]
-        except Exception as exc:
-            _logger.debug(
-                "runner.hook_wrap_failed run_id=%s stage_id=%s error=%s",
-                self.run_id, payload.get("stage_id", ""), exc,
-            )
-            return self._invoke_capability(proposal, payload)
+        ctx = self._build_action_dispatch_context(payload.get("stage_id", ""))
+        return ActionDispatcher(ctx)._invoke_capability_via_hooks(proposal, payload)
 
     # ------------------------------------------------------------------
     # Fix-5: NudgeInjector helpers
@@ -989,61 +1022,62 @@ class RunExecutor:
 
         return "handlers" in signature.parameters or positional_count >= 2
 
-    def _invoke_capability(
-        self, proposal: object, payload: dict
-    ) -> dict:
-        """Invoke capability with optional role and action metadata propagation.
-
-        When a harness_executor is configured, actions are routed through the
-        harness governance pipeline instead of direct capability invocation.
-        """
-        if self.harness_executor is not None:
-            return self._invoke_via_harness(proposal, payload)
-
-        kwargs: dict[str, object] = {}
-        if self._invoker_accepts_role:
-            kwargs["role"] = self.runner_role
-        if self._invoker_accepts_metadata:
-            kwargs["metadata"] = {
-                "run_id": self.run_id,
-                "stage_id": payload["stage_id"],
-                "action_kind": payload["action_kind"],
-                "branch_id": payload["branch_id"],
-                "seq": payload["seq"],
-                "attempt": payload["attempt"],
-            }
-        if kwargs:
-            return self.invoker.invoke(
-                proposal.action_kind, payload, **kwargs
-            )
-        return self.invoker.invoke(proposal.action_kind, payload)
-
-    def _parse_invoker_role(self, constraints: list[str]) -> str | None:
-        """Extract invoker role from constraints.
-
-        Supported format: `invoker_role:<role_name>`.
-        """
-        for item in constraints:
-            if not item.startswith("invoker_role:"):
-                continue
-            role = item.split(":", 1)[1].strip()
-            if role:
-                return role
-        return None
-
     def _build_default_invoker(
         self, llm_gateway: Any | None = None
     ) -> CapabilityInvoker:
         """Build a default capability invoker with built-in action handlers.
+
+        Wraps the real CapabilityInvoker in GovernedToolExecutor so that all
+        capability calls flow through the central governance gate.
 
         Args:
             llm_gateway: Optional LLM gateway for model-backed capability
                 execution.  When provided, each default handler calls the LLM
                 and falls back to a heuristic on failure.
         """
+        import os as _os
+        from hi_agent.capability.governance import GovernedToolExecutor
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
+
         registry = CapabilityRegistry()
         register_default_capabilities(registry, llm_gateway=llm_gateway)
-        return CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+        raw_invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+        _env = _os.environ.get("HI_AGENT_ENV", "dev").lower()
+        runtime_mode = _rrm(_env, {})
+        return GovernedToolExecutor(
+            registry=registry,
+            invoker=raw_invoker,
+            runtime_mode=runtime_mode,
+        )
+
+    def _build_recovery_context(self) -> RecoveryContext:
+        """Build context for RecoveryCoordinator."""
+        if not hasattr(self, "_pending_reflection_tasks"):
+            self._pending_reflection_tasks = []
+        if not hasattr(self, "_stage_attempt"):
+            self._stage_attempt = {}
+        return RecoveryContext(
+            event_emitter=getattr(self, "event_emitter", EventEmitter()),
+            recovery_executor=getattr(self, "recovery_executor", orchestrate_recovery),
+            recovery_handlers=getattr(self, "recovery_handlers", None),
+            _recovery_executor_accepts_handlers=getattr(
+                self, "_recovery_executor_accepts_handlers", False
+            ),
+            _record_event=self._record_event,
+            _log_best_effort_exception=self._log_best_effort_exception,
+            run_id=self.run_id,
+            _resolve_failed_stage_count=self._resolve_failed_stage_count,
+            _run_terminated=getattr(self, "_run_terminated", False),
+            _restart_policy=getattr(self, "_restart_policy", None),
+            _stage_attempt=self._stage_attempt,
+            contract=self.contract,
+            short_term_store=getattr(self, "short_term_store", None),
+            context_manager=getattr(self, "context_manager", None),
+            _reflection_orchestrator=getattr(self, "_reflection_orchestrator", None),
+            _execute_stage=self._execute_stage,
+            _get_attempt_history=self._get_attempt_history,
+            _pending_reflection_tasks=self._pending_reflection_tasks,
+        )
 
     def _parse_forced_fail_actions(
         self, constraints: list[str]
@@ -1052,14 +1086,7 @@ class RunExecutor:
 
         Supported format: `fail_action:<action_name>`.
         """
-        forced: set[str] = set()
-        for item in constraints:
-            if not item.startswith("fail_action:"):
-                continue
-            action_name = item.split(":", 1)[1].strip()
-            if action_name:
-                forced.add(action_name)
-        return forced
+        return RecoveryCoordinator._parse_forced_fail_actions(constraints)
 
     def _parse_action_max_retries(
         self, constraints: list[str]
@@ -1190,89 +1217,9 @@ class RunExecutor:
         *,
         upstream_artifact_ids: list[str] | None = None,
     ) -> tuple[bool, dict | None, int]:
-        """Execute one action with retry semantics.
-
-        Args:
-            stage_id: Current stage identifier.
-            proposal: Route proposal for the action.
-            upstream_artifact_ids: Artifact IDs produced by prior actions in
-                this stage.  Threaded through to the harness so artifact
-                lineage is recorded on outputs.
-
-        Returns:
-          (success, result_payload_or_none, final_attempt_number)
-        """
-        max_attempts = self.action_max_retries + 1
-
-        for attempt in range(1, max_attempts + 1):
-            payload = {
-                "run_id": self.run_id,
-                "stage_id": stage_id,
-                "branch_id": proposal.branch_id,
-                "action_kind": proposal.action_kind,
-                "seq": self.action_seq,
-                "attempt": attempt,
-                "should_fail": proposal.action_kind
-                in self.force_fail_actions,
-                "upstream_artifact_ids": upstream_artifact_ids or [],
-            }
-            self._record_event("ActionPlanned", payload)
-
-            try:
-                # Fix-4: route through ExecutionHookManager (pre/post tool hooks)
-                result = self._invoke_capability_via_hooks(proposal, payload)
-                success = bool(result.get("success", False))
-                self._record_event(
-                    "ActionExecuted",
-                    {
-                        "stage_id": stage_id,
-                        "action_kind": proposal.action_kind,
-                        "attempt": attempt,
-                        "success": success,
-                    },
-                )
-                self._emit_observability(
-                    "action_executed",
-                    {
-                        "run_id": self.run_id,
-                        "stage_id": stage_id,
-                        "action_kind": proposal.action_kind,
-                        "attempt": attempt,
-                        "success": success,
-                    },
-                )
-                # Fix-5: nudge check after each completed action attempt
-                action_text = str(result) if result else ""
-                self._nudge_check_after_action(stage_id, action_text)
-                if success:
-                    return True, result, attempt
-                if attempt == max_attempts:
-                    return False, result, attempt
-            except Exception as exc:
-                self._record_event(
-                    "ActionExecutionFailed",
-                    {
-                        "stage_id": stage_id,
-                        "action_kind": proposal.action_kind,
-                        "attempt": attempt,
-                        "error": str(exc),
-                    },
-                )
-                self._emit_observability(
-                    "action_executed",
-                    {
-                        "run_id": self.run_id,
-                        "stage_id": stage_id,
-                        "action_kind": proposal.action_kind,
-                        "attempt": attempt,
-                        "success": False,
-                        "error": str(exc),
-                    },
-                )
-                if attempt == max_attempts:
-                    return False, None, attempt
-
-        return False, None, max_attempts
+        ctx = self._build_action_dispatch_context(stage_id)
+        dispatcher = ActionDispatcher(ctx)
+        return dispatcher._execute_action_with_retry(stage_id, proposal, upstream_artifact_ids=upstream_artifact_ids)
 
     def _persist_snapshot(
         self, *, stage_id: str, result: str | None = None
@@ -1342,30 +1289,17 @@ class RunExecutor:
 
     def _resolve_recovery_success(self, report: object) -> bool:
         """Extract normalized success flag from recovery report payload."""
-        if isinstance(report, dict):
-            return bool(report.get("success", True))
-
-        if hasattr(report, "success"):
-            return bool(report.success)
-
-        if hasattr(report, "execution_report") and hasattr(
-            report.execution_report, "success"
-        ):
-            return bool(report.execution_report.success)
-
-        return True
+        return RecoveryCoordinator(
+            self._build_recovery_context()
+        )._resolve_recovery_success(report)
 
     def _resolve_recovery_should_escalate(
         self, report: object
     ) -> bool | None:
         """Extract optional escalation signal from recovery report payload."""
-        if isinstance(report, dict) and "should_escalate" in report:
-            return bool(report["should_escalate"])
-
-        if hasattr(report, "should_escalate"):
-            return bool(report.should_escalate)
-
-        return None
+        return RecoveryCoordinator(
+            self._build_recovery_context()
+        )._resolve_recovery_should_escalate(report)
 
     def _resolve_failed_stage_count(self, report: object) -> int | None:
         """Extract optional failed stage count from recovery report payload."""
@@ -1389,45 +1323,23 @@ class RunExecutor:
 
     def _trigger_recovery(self, stage_id: str) -> None:
         """Execute recovery hook and emit recovery lifecycle events."""
-        self._record_event("RecoveryTriggered", {"stage_id": stage_id})
-        consumed_events = tuple(self.event_emitter.events)
-        success = False
-        report: object | None = None
-
-        try:
-            if self._recovery_executor_accepts_handlers:
-                report = self.recovery_executor(
-                    consumed_events, self.recovery_handlers
-                )
-            else:
-                report = self.recovery_executor(consumed_events)
-            success = self._resolve_recovery_success(report)
-        except Exception as exc:
-            success = False
-            self._log_best_effort_exception(
-                logging.WARNING,
-                "runner.recovery_failed",
-                exc,
-                run_id=self.run_id,
-                stage_id=stage_id,
+        # Pre-condition guard: check if recovery handlers are configured
+        if self.recovery_handlers is None:
+            _logger.warning(
+                "runner._trigger_recovery no_recovery_handlers_configured stage_id=%s run_id=%s",
+                stage_id,
+                self.run_id,
             )
 
-        payload: dict[str, object] = {
-            "stage_id": stage_id,
-            "success": success,
-        }
-        if report is not None:
-            should_escalate = self._resolve_recovery_should_escalate(report)
-            if should_escalate is not None:
-                payload["should_escalate"] = should_escalate
-            failed_stage_count = self._resolve_failed_stage_count(report)
-            if failed_stage_count is not None:
-                payload["failed_stage_count"] = failed_stage_count
+        # Build recovery context with exception context propagation
+        try:
+            ctx = self._build_recovery_context()
+        except Exception as exc:
+            raise RuntimeError(
+                f"recovery context build failed for stage {stage_id!r}"
+            ) from exc
 
-        self._record_event(
-            "RecoveryCompleted",
-            payload,
-        )
+        return RecoveryCoordinator(ctx)._trigger_recovery(stage_id)
 
     def _signal_run_safe(
         self, signal: str, payload: dict[str, Any] | None = None
@@ -1478,52 +1390,8 @@ class RunExecutor:
     def _invoke_via_harness(
         self, proposal: object, payload: dict
     ) -> dict:
-        """Route action through HarnessExecutor and convert result to dict.
-
-        Args:
-            proposal: Route proposal with action_kind and branch_id.
-            payload: Action payload dict.
-
-        Returns:
-            Dict in the format the runner expects from capability invocation.
-        """
-        from hi_agent.harness.contracts import ActionSpec, ActionState, SideEffectClass
-
-        spec = ActionSpec(
-            action_id=deterministic_id(
-                self.run_id,
-                payload["stage_id"],
-                payload["branch_id"],
-                str(payload["seq"]),
-            ),
-            action_type="mutate",
-            capability_name=proposal.action_kind,
-            payload=payload,
-            side_effect_class=SideEffectClass(
-                getattr(proposal, "side_effect_class", "read_only")
-            )
-            if hasattr(proposal, "side_effect_class")
-            and proposal.side_effect_class
-            in {e.value for e in SideEffectClass}
-            else SideEffectClass.READ_ONLY,
-            upstream_artifact_ids=list(
-                payload.get("upstream_artifact_ids") or []
-            ),
-        )
-
-        result = self.harness_executor.execute(spec)
-
-        success = result.state == ActionState.SUCCEEDED
-        output = result.output if isinstance(result.output, dict) else {}
-        return {
-            "success": success,
-            "score": output.get("score", 0.0),
-            "evidence_hash": result.evidence_ref or "ev_missing",
-            "action_id": result.action_id,
-            "side_effect_class": spec.side_effect_class.value,
-            "artifact_ids": result.artifact_ids,
-            **output,
-        }
+        ctx = self._build_action_dispatch_context(payload.get("stage_id", ""))
+        return ActionDispatcher(ctx)._invoke_via_harness(proposal, payload)
 
     def _check_human_gate_triggers(
         self,
@@ -1531,86 +1399,12 @@ class RunExecutor:
         action_result: dict,
         failure_code: str | None = None,
     ) -> None:
-        """Check if any Human Gate should be auto-triggered.
-
-        Gate A (contract_correction): contradictory_evidence failure code.
-        Gate B (route_direction): budget nearly exhausted (>80%) and no
-            viable branch found.
-        Gate C (artifact_review): action result quality_score below threshold.
-        Gate D (final_approval): irreversible_submit side effect class.
-        """
-        # Gate A: contradictory evidence
-        if failure_code == "contradictory_evidence":
-            self.kernel.open_human_gate(
-                HumanGateRequest(
-                    run_id=self.run_id,
-                    gate_type="contract_correction",
-                    gate_ref=self._make_gate_ref("contract_correction"),
-                    context={
-                        "stage_id": stage_id,
-                        "reason": "Contradictory evidence detected",
-                        "failure_code": failure_code,
-                    },
-                )
-            )
-
-        # Gate B: budget crisis (>80% used and no viable branch)
-        task_budget = self.contract.budget
-        if task_budget is not None and task_budget.max_actions > 0:
-            usage_ratio = self.action_seq / task_budget.max_actions
-            if usage_ratio > 0.8:
-                # Check if there are any succeeded branches in current stage
-                has_viable = any(
-                    node.state == NodeState.SUCCEEDED
-                    for node in self.dag.values()
-                    if node.stage_id == stage_id
-                )
-                if not has_viable:
-                    self.kernel.open_human_gate(
-                        HumanGateRequest(
-                            run_id=self.run_id,
-                            gate_type="route_direction",
-                            gate_ref=self._make_gate_ref("route_direction"),
-                            context={
-                                "stage_id": stage_id,
-                                "reason": "Budget nearly exhausted with no viable branch",
-                                "budget_usage_ratio": usage_ratio,
-                            },
-                        )
-                    )
-
-        # Gate C: quality threshold
-        quality_score = action_result.get("quality_score")
-        if quality_score is not None and quality_score < self.human_gate_quality_threshold:
-            self.kernel.open_human_gate(
-                HumanGateRequest(
-                    run_id=self.run_id,
-                    gate_type="artifact_review",
-                    gate_ref=self._make_gate_ref("artifact_review"),
-                    context={
-                        "stage_id": stage_id,
-                        "reason": "Action result quality below threshold",
-                        "quality_score": quality_score,
-                        "threshold": self.human_gate_quality_threshold,
-                    },
-                )
-            )
-
-        # Gate D: irreversible action
-        side_effect_class = action_result.get("side_effect_class")
-        if side_effect_class == "irreversible_submit":
-            self.kernel.open_human_gate(
-                HumanGateRequest(
-                    run_id=self.run_id,
-                    gate_type="final_approval",
-                    gate_ref=self._make_gate_ref("final_approval"),
-                    context={
-                        "stage_id": stage_id,
-                        "reason": "Irreversible action requires approval",
-                        "side_effect_class": side_effect_class,
-                    },
-                )
-            )
+        """Check if any Human Gate should be auto-triggered."""
+        return self.gate_coordinator._check_human_gate_triggers(
+            stage_id=stage_id,
+            action_result=action_result,
+            failure_code=failure_code,
+        )
 
     def _check_budget_exceeded(self, stage_id: str) -> str | None:
         """Return a failure code if any CTS or task budget limit is exceeded.
@@ -1801,272 +1595,79 @@ class RunExecutor:
                     return "failed"
             except (ValueError, TypeError):
                 pass  # malformed deadline string — ignore rather than crash
+        if self._cancellation_token is not None:
+            self._cancellation_token.check_or_raise()
         return self._stage_executor.execute_stage(stage_id, executor=self)
 
-    def _cancel_pending_subruns(self, status: str) -> None:
-        """Cancel any sub-run futures and reflection tasks not collected before finalization."""
-        # J8-1: Cancel orphaned reflection background tasks.
-        for task in list(getattr(self, "_pending_reflection_tasks", [])):
-            try:
-                if callable(getattr(task, "done", None)) and not task.done():
-                    task.cancel()
-                    _logger.warning(
-                        "runner.reflect_task_cancelled_at_finalization run_id=%s",
-                        self.run_id,
-                    )
-            except Exception as _exc:
-                _logger.debug("runner.reflect_task_cancel_failed error=%s", _exc)
-        _pending_reflect = getattr(self, "_pending_reflection_tasks", [])
-        _pending_reflect.clear()
+    def _build_finalizer_context(self):
+        from hi_agent.execution.run_finalizer import RunFinalizerContext
+        return RunFinalizerContext(
+            run_id=self.run_id,
+            contract=self.contract,
+            lifecycle=self._lifecycle,
+            kernel=self.kernel,
+            stage_summaries=self.stage_summaries,
+            current_stage=getattr(self, "current_stage", None),
+            dag=getattr(self, "dag", None),
+            action_seq=getattr(self, "action_seq", None),
+            policy_versions=getattr(self, "policy_versions", None),
+            raw_memory=getattr(self, "raw_memory", None),
+            mid_term_store=getattr(self, "mid_term_store", None),
+            long_term_consolidator=getattr(self, "long_term_consolidator", None),
+            failure_collector=getattr(self, "failure_collector", None),
+            feedback_store=getattr(self, "_feedback_store", None),
+            restart_policy=getattr(self, "_restart_policy", None),
+            last_exception_msg=getattr(self, "_last_exception_msg", None),
+            last_exception_type=getattr(self, "_last_exception_type", None),
+            skill_ids_used=getattr(self, "_skill_ids_used", []),
+            run_start_monotonic=getattr(self, "_run_start_monotonic", None),
+            capability_provenance_store=getattr(self, "_capability_provenance_store", {}),
+            pending_subrun_futures=getattr(self, "_pending_subrun_futures", {}),
+            completed_subrun_results=getattr(self, "_completed_subrun_results", {}),
+            emit_observability_fn=getattr(self, "_emit_observability", None),
+            persist_snapshot_fn=getattr(self, "_persist_snapshot", None),
+            finalize_skill_outcomes_fn=getattr(self, "_finalize_skill_outcomes", None),
+            sync_to_context_fn=getattr(self, "_sync_to_context", None),
+            env=getattr(self, "_env", "dev"),
+            readiness_snapshot=getattr(self, "_readiness_snapshot", {}),
+            mcp_status=getattr(self, "_mcp_status", {}),
+            stages=getattr(self, "_stages", []),
+        )
 
-        pending = getattr(self, "_pending_subrun_futures", {})
-        for task_id, future in list(pending.items()):
-            try:
-                if callable(getattr(future, "done", None)) and not future.done():
-                    future.cancel()
-                    _logger.warning(
-                        "runner.subrun_cancelled_at_finalization "
-                        "task_id=%s run_status=%s run_id=%s",
-                        task_id, status, self.run_id,
-                    )
-            except Exception as _exc:
-                _logger.warning(
-                    "runner.subrun_cancel_failed task_id=%s error=%s", task_id, _exc
-                )
-        pending.clear()
-        completed = getattr(self, "_completed_subrun_results", {})
-        if completed:
-            _logger.debug(
-                "runner.subrun_uncollected_results_cleared count=%d run_id=%s",
-                len(completed), self.run_id,
-            )
-            completed.clear()
+    def _cancel_pending_subruns(self, status: str) -> None:
+        """Cancel orphaned sub-run futures and reflection tasks.
+
+        Delegates to RunFinalizer._cancel_pending_subruns (HI-W7-004).
+        Kept here so callers that reference this method directly still work.
+        """
+        from hi_agent.execution.run_finalizer import RunFinalizer
+        RunFinalizer(self._build_finalizer_context())._cancel_pending_subruns(status)
 
     def _finalize_run(self, outcome: str) -> RunResult:
-        """Run post-execution finalization for a given outcome.
+        """Delegate finalization to RunFinalizer (HI-W7-004)."""
+        from hi_agent.execution.run_finalizer import RunFinalizer
+        return RunFinalizer(self._build_finalizer_context()).finalize(outcome)
 
-        Handles observability, evolve engine, skill outcomes, episode
-        building, cost summary, short-term memory, and knowledge ingestion.
-
-        Returns:
-            A structured :class:`~hi_agent.contracts.requests.RunResult`
-            containing run_id, status, per-stage summaries, and artifact IDs.
-            ``str(result)`` returns the status string for backward compatibility.
-        """
-        self._cancel_pending_subruns(outcome)
-
-        # Flush and close L0 JSONL before L0Summarizer reads it.
-        if getattr(self, "raw_memory", None) is not None:
-            try:
-                self.raw_memory.close()
-            except Exception as _exc:
-                _logger.warning("runner.raw_memory_close_failed error=%s", _exc)
-
-        self._lifecycle.finalize_run(
-            outcome,
+    def _build_stage_orchestrator_context(self):
+        """Build context for StageOrchestrator (HI-W10-001)."""
+        from hi_agent.execution.stage_orchestrator import StageOrchestratorContext
+        return StageOrchestratorContext(
             run_id=self.run_id,
-            current_stage=self.current_stage,
             contract=self.contract,
+            stage_graph=self.stage_graph,
             stage_summaries=self.stage_summaries,
-            dag=self.dag,
-            action_seq=self.action_seq,
             policy_versions=self.policy_versions,
-            kernel=self.kernel,
-            skill_ids_used=self._skill_ids_used,
+            session=self.session,
+            route_engine=self.route_engine,
+            metrics_collector=self.metrics_collector,
+            replan_hook=getattr(self, "_replan_hook", None),
+            execute_stage_fn=self._execute_stage,
+            handle_stage_failure_fn=self._handle_stage_failure,
+            finalize_run_fn=self._finalize_run,
             emit_observability_fn=self._emit_observability,
-            persist_snapshot_fn=self._persist_snapshot,
-            finalize_skill_outcomes_fn=self._finalize_skill_outcomes,
-            sync_to_context_fn=self._sync_to_context,
-        )
-        # Build structured result from accumulated stage summaries.
-        stage_dicts: list[dict] = []
-        all_artifact_ids: list[str] = []
-        for stage_id, summary in self.stage_summaries.items():
-            stage_dicts.append({
-                "stage_id": stage_id,
-                "stage_name": getattr(summary, "stage_name", stage_id),
-                "outcome": getattr(summary, "outcome", "unknown"),
-                "findings": list(getattr(summary, "findings", [])),
-                "decisions": list(getattr(summary, "decisions", [])),
-                "artifact_ids": list(getattr(summary, "artifact_ids", [])),
-            })
-            all_artifact_ids.extend(getattr(summary, "artifact_ids", []))
-
-        # --- Failure attribution ---
-        failed_stage_id: str | None = None
-        error_detail: str | None = None
-        failure_code: str | None = None
-        is_retryable: bool = False
-
-        if outcome != "completed":
-            failed_stage_id = self.current_stage
-            # Prefer exception message captured during execute()
-            exc_msg = getattr(self, "_last_exception_msg", None)
-            if exc_msg:
-                error_detail = exc_msg
-            else:
-                # Fall back to the failed stage's outcome info
-                summary = self.stage_summaries.get(failed_stage_id or "")
-                if summary is not None:
-                    stage_outcome = getattr(summary, "outcome", "")
-                    if stage_outcome and stage_outcome != "succeeded":
-                        error_detail = f"Stage {failed_stage_id!r} outcome: {stage_outcome}"
-            if not error_detail:
-                error_detail = f"Run failed at stage {failed_stage_id!r}"
-            # Precise failure attribution: query FailureCollector for structured record.
-            # Map raw outcome strings to proper FailureCode enum values.
-            _OUTCOME_TO_FAILURE_CODE = {
-                "failed": "no_progress",
-                "aborted": "exploration_budget_exhausted",
-                "timeout": "callback_timeout",
-                "unsafe": "unsafe_action_blocked",
-            }
-            failure_code = _OUTCOME_TO_FAILURE_CODE.get(outcome, outcome)
-            is_retryable = False
-            collector = getattr(self, "failure_collector", None)
-            if collector is not None:
-                try:
-                    from hi_agent.failures.taxonomy import FAILURE_RECOVERY_MAP
-                    unresolved = collector.get_unresolved()
-                    last_failure = unresolved[-1] if unresolved else None
-                    if last_failure is None:
-                        all_records = collector.get_all()
-                        last_failure = all_records[-1] if all_records else None
-                    if last_failure is not None:
-                        # Use real FailureCode instead of bare outcome string
-                        fc = last_failure.failure_code
-                        failure_code = fc.value if hasattr(fc, "value") else str(fc)
-                        # Enrich error_detail with FailureRecord message
-                        if last_failure.message:
-                            error_detail = last_failure.message
-                        # Enrich failed_stage_id from FailureRecord
-                        if last_failure.stage_id:
-                            failed_stage_id = last_failure.stage_id
-                        # Determine retryability from FAILURE_RECOVERY_MAP
-                        recovery = FAILURE_RECOVERY_MAP.get(fc, "")
-                        is_retryable = recovery in (
-                            "retry_or_downgrade_model",
-                            "recovery_path",
-                            "task_view_degradation",
-                            "watchdog_handling",
-                        )
-                except Exception as _attr_exc:
-                    _logger.debug("Failure attribution enrichment failed: %s", _attr_exc)
-            # Final fallback: retryable if a restart policy engine is wired
-            if not is_retryable:
-                is_retryable = getattr(self, "_restart_policy", None) is not None
-
-        # Cross-validate stage summaries against final outcome.
-        # The failed stage cannot show "succeeded" or "active" — the compressor
-        # may mark it "succeeded" if any branch completed, or "active" if the
-        # stage was interrupted before an explicit completion event was recorded.
-        if outcome != "completed" and failed_stage_id is not None:
-            for sd in stage_dicts:
-                if sd["stage_id"] == failed_stage_id and sd.get("outcome") in ("succeeded", "active", "unknown"):
-                    sd["outcome"] = "failed"
-
-        # --- Acceptance criteria evaluation ---
-        # If outcome is "completed", verify declared acceptance_criteria.
-        # Supported formats:
-        #   "required_stage:<stage_id>"  — stage must have outcome "succeeded"
-        #   "required_artifact:<artifact_id>" — artifact_id must be present
-        # Any failing criterion downgrades outcome to "failed".
-        if outcome == "completed":
-            criteria = getattr(self.contract, "acceptance_criteria", None) or []
-            criteria_failures: list[str] = []
-            completed_stage_ids = {sd["stage_id"] for sd in stage_dicts if sd.get("outcome") == "succeeded"}
-            for criterion in criteria:
-                if not isinstance(criterion, str):
-                    continue
-                if criterion.startswith("required_stage:"):
-                    required_sid = criterion[len("required_stage:"):]
-                    if required_sid not in completed_stage_ids:
-                        criteria_failures.append(criterion)
-                elif criterion.startswith("required_artifact:"):
-                    required_aid = criterion[len("required_artifact:"):]
-                    if required_aid not in all_artifact_ids:
-                        criteria_failures.append(criterion)
-            if criteria_failures:
-                outcome = "failed"
-                failure_code = "invalid_context"
-                error_detail = f"Acceptance criteria not met: {criteria_failures}"
-                _logger.warning(
-                    "runner.acceptance_criteria_failed run_id=%s criteria=%s",
-                    self.run_id, criteria_failures,
-                )
-
-        # --- Exception-type → failure_code improvement (P2-NEW-03) ---
-        # When outcome is failed and failure_code is still the naive default,
-        # use the captured exception type for more precise attribution.
-        if outcome != "completed" and failure_code == "no_progress":
-            exc_type = getattr(self, "_last_exception_type", None)
-            if exc_type:
-                _EXC_TYPE_TO_FAILURE_CODE: dict[str, str] = {
-                    "TimeoutError": "callback_timeout",
-                    "asyncio.TimeoutError": "callback_timeout",
-                    "concurrent.futures.TimeoutError": "callback_timeout",
-                    "MemoryError": "execution_budget_exhausted",
-                    "RecursionError": "execution_budget_exhausted",
-                    "PermissionError": "harness_denied",
-                    "KeyError": "invalid_context",
-                    "ValueError": "invalid_context",
-                    "TypeError": "invalid_context",
-                }
-                mapped = _EXC_TYPE_TO_FAILURE_CODE.get(exc_type)
-                if mapped:
-                    failure_code = mapped
-
-        # --- L0 -> L2 consolidation ---
-        try:
-            from pathlib import Path as _Path
-            _raw_run_id = getattr(self.raw_memory, "_run_id", "")
-            _raw_file = getattr(self.raw_memory, "_file", None)
-            # Attempt to derive base_dir from the log path stored on the store
-            _raw_base = getattr(self.raw_memory, "_base_dir", None)
-            if _raw_base is None and _raw_run_id:
-                # Fallback: check if RawMemoryStore exposed _base_dir_path
-                _raw_base = getattr(self.raw_memory, "_base_dir_path", None)
-            if _raw_base is not None:
-                from hi_agent.memory.l0_summarizer import L0Summarizer
-                _summary = L0Summarizer().summarize_run(self.run_id, _Path(_raw_base))
-                if _summary is not None and self.mid_term_store is not None:
-                    self.mid_term_store.save(_summary)
-        except Exception as _cons_exc:  # consolidation must never crash the run
-            _logger.debug("L0->L2 consolidation failed: %s", _cons_exc)
-
-        # --- L2 -> L3 consolidation ---
-        _consolidator = self.long_term_consolidator
-        if _consolidator is not None:
-            try:
-                _consolidator.consolidate(days=1)
-            except Exception as _exc:
-                _logger.debug("L2->L3 consolidation failed: %s", _exc)
-
-        # --- FeedbackStore: submit neutral record for completed run ---
-        if self._feedback_store is not None:
-            from hi_agent.evolve.feedback_store import RunFeedback
-            try:
-                self._feedback_store.submit(RunFeedback(run_id=self.run_id, rating=0.5))
-                _logger.debug(
-                    "feedback_store: neutral record submitted for run %s", self.run_id
-                )
-            except Exception as _fb_exc:
-                _logger.warning("feedback_store: submit failed: %s", _fb_exc)
-
-        # --- Wall-clock duration ---
-        _start = getattr(self, "_run_start_monotonic", None)
-        duration_ms = int((time.monotonic() - _start) * 1000) if _start is not None else 0
-
-        return RunResult(
-            run_id=self.run_id,
-            status=outcome,
-            stages=stage_dicts,
-            artifacts=all_artifact_ids,
-            error=error_detail,
-            failure_code=failure_code,
-            failed_stage_id=failed_stage_id,
-            is_retryable=is_retryable,
-            duration_ms=duration_ms,
+            log_best_effort_fn=self._log_best_effort_exception,
+            record_event_fn=self._record_event,
+            set_executor_attr_fn=lambda k, v: setattr(self, k, v),
         )
 
     def execute(self) -> RunResult:
@@ -2077,96 +1678,17 @@ class RunExecutor:
           For backward compatibility, ``str(result)`` returns the status string
           (``"completed"`` or ``"failed"``).
         """
-        # --- Start run lifecycle via adapter ---
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
         self._run_id = self.kernel.start_run(self.contract.task_id)
-        # Sync session run_id to the kernel-assigned value
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id
             except Exception as exc:
                 self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.session_run_id_sync_failed",
-                    exc,
-                    run_id=self.run_id,
-                    task_id=self.contract.task_id,
+                    logging.DEBUG, "runner.session_run_id_sync_failed", exc,
+                    run_id=self.run_id, task_id=self.contract.task_id,
                 )
-        self._record_event(
-            "RunStarted",
-            {
-                "run_id": self.run_id,
-                "task_id": self.contract.task_id,
-                "policy_versions": {
-                    "route_policy": self.policy_versions.route_policy,
-                    "acceptance_policy": self.policy_versions.acceptance_policy,
-                    "memory_policy": self.policy_versions.memory_policy,
-                    "evaluation_policy": self.policy_versions.evaluation_policy,
-                    "task_view_policy": self.policy_versions.task_view_policy,
-                    "skill_policy": self.policy_versions.skill_policy,
-                },
-            },
-        )
-        # --- MetricsCollector: mark run as active ---
-        if self.metrics_collector is not None:
-            try:
-                self.metrics_collector.increment("runs_active", 1.0)
-            except Exception as exc:
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.metrics_increment_failed",
-                    exc,
-                    run_id=self.run_id,
-                    stage_id=self.current_stage,
-                )
-
-        self._run_start_monotonic: float = time.monotonic()
-        try:
-            remaining_stages: list[str] = list(self.stage_graph.trace_order())
-            while remaining_stages:
-                stage_id = remaining_stages.pop(0)
-                stage_result = self._execute_stage(stage_id)
-                if stage_result == "failed":
-                    handled = self._handle_stage_failure(stage_id, stage_result)
-                    if handled == "failed":
-                        return self._finalize_run("failed")
-                    # "reflected" or any non-failed result: continue to next stage
-                if self._replan_hook is not None:
-                    from hi_agent.contracts.directives import StageDirective
-                    _stage_result_dict = stage_result if isinstance(stage_result, dict) else {}
-                    directive = self._replan_hook(stage_id, _stage_result_dict)
-                    if directive is not None and isinstance(directive, StageDirective) and directive.action != "continue":
-                        _logger.info(
-                            "replan_hook directive: %s (reason=%s)",
-                            directive.action,
-                            directive.reason,
-                        )
-                        if directive.action == "skip" and directive.target_stage_id:
-                            remaining_stages = [s for s in remaining_stages if s != directive.target_stage_id]
-                        elif directive.action == "repeat":
-                            remaining_stages.insert(0, stage_id)
-                        elif directive.action == "insert" and directive.new_stage_specs:
-                            for i, spec in enumerate(directive.new_stage_specs):
-                                remaining_stages.insert(i, spec.get("stage_id", f"dynamic_{i}"))
-        except GatePendingError:
-            raise  # propagate — gate awaits human input, not a run failure
-        except Exception as exc:
-            # Capture exception type and message for failure attribution in RunResult.
-            self._last_exception_msg: str | None = str(exc)
-            self._last_exception_type: str | None = type(exc).__name__
-            self._log_best_effort_exception(
-                logging.WARNING,
-                "runner.execute_failed",
-                exc,
-                run_id=self.run_id,
-                stage_id=self.current_stage,
-            )
-            self._record_event("RunError", {"error": str(exc), "run_id": self.run_id})
-            handled = self._handle_stage_failure(self.current_stage, "failed")
-            if handled == "failed":
-                return self._finalize_run("failed")
-            # "reflected" or non-failed: continue to finalize as completed
-
-        return self._finalize_run("completed")
+        return StageOrchestrator(self._build_stage_orchestrator_context()).run_linear()
 
     def execute_graph(self) -> RunResult:
         """Execute stages using dynamic graph traversal.
@@ -2175,94 +1697,17 @@ class RunExecutor:
         dynamically after each stage completes. Uses route_engine to
         choose among multiple successors when available.
         """
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
         self._run_id = self.kernel.start_run(self.contract.task_id)
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id
             except Exception as exc:
                 self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.session_run_id_sync_failed",
-                    exc,
-                    run_id=self.run_id,
-                    task_id=self.contract.task_id,
+                    logging.DEBUG, "runner.session_run_id_sync_failed", exc,
+                    run_id=self.run_id, task_id=self.contract.task_id,
                 )
-        self._record_event(
-            "RunStarted",
-            {
-                "run_id": self.run_id,
-                "task_id": self.contract.task_id,
-                "policy_versions": {
-                    "route_policy": self.policy_versions.route_policy,
-                    "acceptance_policy": self.policy_versions.acceptance_policy,
-                    "memory_policy": self.policy_versions.memory_policy,
-                    "evaluation_policy": self.policy_versions.evaluation_policy,
-                    "task_view_policy": self.policy_versions.task_view_policy,
-                    "skill_policy": self.policy_versions.skill_policy,
-                },
-            },
-        )
-        # --- MetricsCollector: mark run as active ---
-        if self.metrics_collector is not None:
-            try:
-                self.metrics_collector.increment("runs_active", 1.0)
-            except Exception as exc:
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.metrics_increment_failed",
-                    exc,
-                    run_id=self.run_id,
-                    stage_id=self.current_stage,
-                )
-
-        self._run_start_monotonic = time.monotonic()
-        # Find start stage (zero indegree)
-        current_stage = self._find_start_stage()
-        completed_stages: set[str] = set()
-        max_steps = len(self.stage_graph.transitions) * 2  # safety limit
-        steps = 0
-
-        try:
-            while current_stage is not None and steps < max_steps:
-                steps += 1
-                result = self._execute_stage(current_stage)
-                if result == "failed":
-                    backtrack = self.stage_graph.get_backtrack(current_stage)
-                    if backtrack and backtrack not in completed_stages:
-                        # Backtrack: re-execute a previous stage
-                        current_stage = backtrack
-                        continue
-                    handled = self._handle_stage_failure(current_stage, result)
-                    if handled == "failed":
-                        return self._finalize_run("failed")
-                    # "reflected" or non-failed: treat as completed and continue
-                completed_stages.add(current_stage)
-
-                # Get next stage from graph
-                successors = self.stage_graph.successors(current_stage)
-                candidates = successors - completed_stages
-
-                if not candidates:
-                    # No more stages to run
-                    break
-
-                if len(candidates) == 1:
-                    current_stage = next(iter(candidates))
-                else:
-                    # Multiple successors: use route engine or pick lexically
-                    current_stage = self._select_next_stage(candidates)
-        except GatePendingError:
-            raise  # propagate — gate awaits human input, not a run failure
-        except Exception as exc:
-            self._last_exception_msg = str(exc)
-            self._last_exception_type = type(exc).__name__
-            self._log_best_effort_exception(
-                logging.WARNING, "runner.execute_graph_failed", exc,
-                run_id=self.run_id, stage_id=self.current_stage,
-            )
-            return self._finalize_run("failed")
-
-        return self._finalize_run("completed")
+        return StageOrchestrator(self._build_stage_orchestrator_context()).run_graph()
 
     def _handle_stage_failure(
         self,
@@ -2285,309 +1730,13 @@ class RunExecutor:
         All new logic is wrapped in try/except so any error falls back to the
         original "failed" path.
         """
-        # Honour a backtrack gate decision: run is terminated, no retry or reflect.
-        if getattr(self, "_run_terminated", False):
-            _logger.info(
-                "runner.stage_failure_skipped_terminated stage_id=%s run_id=%s",
-                stage_id, self.run_id,
-            )
-            return "failed"
-
-        if self._restart_policy is None:
-            return "failed"
-
-        # K-7: hard safety ceiling against unbounded recursion
-        _max_total_attempts = max_retries * 2 + 1
-        try:
-            for _loop_guard in range(_max_total_attempts):
-                attempt = self._stage_attempt.get(stage_id, 0) + 1
-                self._stage_attempt[stage_id] = attempt
-
-                # Build a lightweight failure object the engine can inspect.
-                class _StageFail:
-                    retryability = "unknown"
-                    failure_code = stage_result
-
-                policy_task_id = self.contract.task_id
-
-                # Record this attempt so reflect_and_infer() receives real history.
-                try:
-                    from datetime import UTC, datetime
-
-                    from hi_agent.task_mgmt.restart_policy import TaskAttempt as _TA
-                    _ta_kwargs: dict = dict(
-                        attempt_id=f"{self.run_id}/{stage_id}/{attempt}",
-                        task_id=policy_task_id,
-                        run_id=self.run_id,
-                        attempt_seq=attempt,
-                        started_at=datetime.now(UTC).isoformat(),
-                        outcome="failed",
-                        failure=_StageFail(),
-                    )
-                    # stage_id was added in H-1; fall back gracefully if absent.
-                    try:
-                        ta_obj = _TA(**_ta_kwargs, stage_id=stage_id)
-                    except TypeError:
-                        ta_obj = _TA(**_ta_kwargs)
-                        try:
-                            object.__setattr__(ta_obj, "stage_id", stage_id)
-                        except (AttributeError, TypeError):
-                            pass
-                    self._restart_policy._record_attempt(ta_obj)
-                except Exception as _rec_exc:
-                    _logger.debug(
-                        "runner.record_attempt_failed stage_id=%s attempt=%d error=%s",
-                        stage_id, attempt, _rec_exc,
-                    )
-
-                _policy = self._restart_policy._get_policy(policy_task_id)
-                if _policy is None:
-                    _logger.warning(
-                        "runner: no restart policy for task_id=%s, defaulting to abort",
-                        policy_task_id,
-                    )
-                    from hi_agent.task_mgmt.restart_policy import RestartDecision
-                    decision = RestartDecision(
-                        task_id=policy_task_id,
-                        action="abort",
-                        next_attempt_seq=None,
-                        reason="no restart policy configured",
-                    )
-                else:
-                    decision = self._restart_policy._decide(
-                        _policy,
-                        policy_task_id,
-                        attempt,
-                        _StageFail(),
-                        stage_id=stage_id,
-                    )
-
-                _logger.info(
-                    "runner.restart_decision stage_id=%s attempt=%d action=%s reason=%s",
-                    stage_id,
-                    attempt,
-                    decision.action,
-                    decision.reason,
-                )
-
-                if decision.action == "retry":
-                    if attempt <= max_retries:
-                        _logger.info(
-                            "runner.stage_retry stage_id=%s attempt=%d/%d",
-                            stage_id,
-                            attempt,
-                            max_retries,
-                        )
-                        retry_result = self._execute_stage(stage_id)
-                        if retry_result != "failed":
-                            return retry_result
-                        stage_result = retry_result
-                        continue  # K-7: loop back instead of recursing
-                    _logger.warning(
-                        "runner.stage_retry_exhausted stage_id=%s max_retries=%d",
-                        stage_id,
-                        max_retries,
-                    )
-                    return "failed"
-
-                if decision.action == "reflect":
-                    # Pinned retrieval: load prior reflection prompt by exact session_id to
-                    # bypass list_recent() window limits. Best-effort — retry proceeds if unavailable.
-                    if self.short_term_store is not None and attempt > 1:
-                        try:
-                            prior_session = f"{self.run_id}/reflect/{stage_id}/{attempt - 1}"
-                            prior_mem = self.short_term_store.load(prior_session)
-                            if prior_mem is not None and self.context_manager is not None:
-                                self.context_manager.set_reflection_context(
-                                    prior_mem.task_goal or ""
-                                )
-                        except Exception:
-                            pass  # best-effort
-
-                    # Inject reflection prompt into the run context so the next
-                    # stage attempt has actionable guidance from the failure.
-                    if decision.reflection_prompt is not None:
-                        try:
-                            self._record_event(
-                                "ReflectionPrompt",
-                                {
-                                    "stage_id": stage_id,
-                                    "run_id": self.run_id,
-                                    "reflection_prompt": decision.reflection_prompt,
-                                },
-                            )
-                        except Exception as exc:
-                            _logger.warning(
-                                "runner.reflect_prompt_record_failed stage_id=%s error=%s",
-                                stage_id,
-                                exc,
-                            )
-                    if self._reflection_orchestrator is not None:
-                        try:
-                            import asyncio
-
-                            descriptor_cls = None
-                            try:
-                                from hi_agent.task_mgmt.reflection_bridge import (
-                                    TaskDescriptor,
-                                )
-                                descriptor_cls = TaskDescriptor
-                            except Exception as exc:
-                                _logger.warning(
-                                    "runner: task_descriptor import failed, reflection skipped: %s",
-                                    exc,
-                                )
-
-                            if descriptor_cls is not None:
-                                descriptor = descriptor_cls(
-                                    task_id=policy_task_id,
-                                    goal=getattr(self.contract, "goal", ""),
-                                    context={},
-                                )
-                                loop = None
-                                try:
-                                    loop = asyncio.get_event_loop()
-                                except RuntimeError as exc:
-                                    _logger.warning(
-                                        "runner: no event loop available, sync reflection only: %s",
-                                        exc,
-                                    )
-
-                                if loop is not None and loop.is_running():
-                                    # Save reflection prompt synchronously — must precede the retry LLM call.
-                                    if decision.reflection_prompt and self.short_term_store is not None:
-                                        try:
-                                            from hi_agent.memory.short_term import (
-                                                ShortTermMemory,
-                                            )
-                                            self.short_term_store.save(
-                                                ShortTermMemory(
-                                                    session_id=f"{self.run_id}/reflect/{stage_id}/{attempt}",
-                                                    run_id=self.run_id,
-                                                    task_goal=decision.reflection_prompt,
-                                                    outcome="reflecting",
-                                                )
-                                            )
-                                        except Exception as _exc:
-                                            _logger.warning(
-                                                "runner.reflect_context_inject_failed "
-                                                "stage_id=%s error=%s",
-                                                stage_id,
-                                                _exc,
-                                            )
-                                    # Fire extended LLM reflection as a background task.
-                                    task = loop.create_task(
-                                        self._reflection_orchestrator.reflect_and_infer(
-                                            descriptor=descriptor,
-                                            attempts=self._get_attempt_history(stage_id),
-                                            run_id=self.run_id,
-                                        )
-                                    )
-                                    task.add_done_callback(_reflect_task_done_callback)
-                                    self._pending_reflection_tasks.append(task)  # J8-1: track for finalization
-                                    _logger.info(
-                                        "runner.reflect_scheduled_async stage_id=%s",
-                                        stage_id,
-                                    )
-                                else:
-                                    asyncio.run(
-                                        self._reflection_orchestrator.reflect_and_infer(
-                                            descriptor=descriptor,
-                                            attempts=self._get_attempt_history(stage_id),
-                                            run_id=self.run_id,
-                                        )
-                                    )
-                                    # Inject reflection prompt into short-term memory so retry LLM sees it.
-                                    if decision.reflection_prompt and self.short_term_store is not None:
-                                        try:
-                                            from hi_agent.memory.short_term import (
-                                                ShortTermMemory,
-                                            )
-                                            self.short_term_store.save(
-                                                ShortTermMemory(
-                                                    session_id=f"{self.run_id}/reflect/{stage_id}/{attempt}",
-                                                    run_id=self.run_id,
-                                                    task_goal=decision.reflection_prompt,
-                                                    outcome="reflecting",
-                                                )
-                                            )
-                                        except Exception as _exc:
-                                            _logger.warning(
-                                                "runner.reflect_context_inject_failed stage_id=%s error=%s",
-                                                stage_id,
-                                                _exc,
-                                            )
-                        except Exception as exc:
-                            _logger.warning(
-                                "runner.reflect_failed stage_id=%s error=%s",
-                                stage_id,
-                                exc,
-                            )
-                    else:
-                        _logger.info(
-                            "runner.reflect_no_orchestrator stage_id=%s",
-                            stage_id,
-                        )
-                    # If a next attempt is scheduled (reflect-before-retry), run it now.
-                    if decision.next_attempt_seq is not None:
-                        _logger.info(
-                            "runner.reflect_retry stage_id=%s next_attempt=%d",
-                            stage_id,
-                            decision.next_attempt_seq,
-                        )
-                        retry_result = self._execute_stage(stage_id)
-                        if retry_result != "failed":
-                            return retry_result
-                        stage_result = retry_result
-                        continue  # K-7: loop back instead of recursing
-                    # Budget exhausted after reflection — do not propagate failure.
-                    return "reflected"
-
-                if decision.action == "escalate":
-                    _logger.warning(
-                        "runner.stage_escalated stage_id=%s run_id=%s",
-                        stage_id,
-                        self.run_id,
-                    )
-                    try:
-                        self._record_event(
-                            "StageEscalated",
-                            {
-                                "stage_id": stage_id,
-                                "run_id": self.run_id,
-                                "reason": decision.reason,
-                            },
-                        )
-                    except Exception as exc:
-                        _logger.warning(
-                            "runner: StageEscalated event recording failed, continuing: %s", exc
-                        )
-                    return "failed"
-
-                # action == "abort" or unknown
-                _logger.info(
-                    "runner.stage_aborted stage_id=%s run_id=%s",
-                    stage_id,
-                    self.run_id,
-                )
-                return "failed"
-
-            _logger.warning(
-                "runner.stage_failure_loop_ceiling stage_id=%s run_id=%s ceiling=%d",
-                stage_id, self.run_id, _max_total_attempts,
-            )
-            return "failed"
-
-        except GatePendingError:
-            raise  # gate must propagate — not a retry failure
-
-        except Exception as exc:
-            _logger.warning(
-                "runner.handle_stage_failure_error stage_id=%s error=%s — falling back to failed",
-                stage_id,
-                exc,
-            )
-            return "failed"
+        return RecoveryCoordinator(
+            self._build_recovery_context()
+        )._handle_stage_failure(
+            stage_id,
+            stage_result,
+            max_retries=max_retries,
+        )
 
     def _get_attempt_history(self, stage_id: str) -> list:
         """Return prior attempt records for the given stage_id."""
@@ -2598,98 +1747,19 @@ class RunExecutor:
             return []
 
     def _find_start_stage(self) -> str | None:
-        """Find start stage (zero indegree) from stage graph."""
-        if not self.stage_graph.transitions:
-            return None
-        indegree: dict[str, int] = dict.fromkeys(self.stage_graph.transitions, 0)
-        for targets in self.stage_graph.transitions.values():
-            for t in targets:
-                indegree[t] = indegree.get(t, 0) + 1
-        roots = sorted(s for s, c in indegree.items() if c == 0)
-        return roots[0] if roots else sorted(self.stage_graph.transitions)[0]
+        """Find start stage — delegates to StageOrchestrator (HI-W10-001)."""
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        return StageOrchestrator(self._build_stage_orchestrator_context())._find_start_stage()
 
     def _select_next_stage(self, candidates: set[str]) -> str:
-        """Select next stage from multiple candidates.
-
-        Delegates to route_engine if it has a select_stage method,
-        otherwise picks the lexicographically first candidate.
-        """
-        if hasattr(self.route_engine, "select_stage") and callable(
-            self.route_engine.select_stage
-        ):
-            try:
-                return self.route_engine.select_stage(
-                    candidates=sorted(candidates),
-                    run_id=self.run_id,
-                    completed_stages=list(self.stage_summaries.keys()),
-                )
-            except Exception as exc:
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.select_next_stage_failed",
-                    exc,
-                    run_id=self.run_id,
-                    stage_id=self.current_stage,
-                )
-        return sorted(candidates)[0]
+        """Select next stage — delegates to StageOrchestrator (HI-W10-001)."""
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        return StageOrchestrator(self._build_stage_orchestrator_context())._select_next_stage(candidates)
 
     def _execute_remaining(self) -> RunResult:
-        """Execute stages that haven't been completed yet.
-
-        Skips stages that are already ``completed`` in
-        ``session.stage_states``.  Continues from the first
-        non-completed stage.
-
-        Returns:
-            Completion status string (``completed`` or ``failed``).
-        """
-        completed_stages: set[str] = set()
-        if self.session is not None:
-            completed_stages = {
-                sid
-                for sid, state in self.session.stage_states.items()
-                if state == "completed"
-            }
-        else:
-            # Fallback: use stage_summaries (populated by _execute_stage on success).
-            completed_stages = {
-                sid
-                for sid, summary in self.stage_summaries.items()
-                if getattr(summary, "outcome", None) in ("completed", "success")
-            }
-
-        self._emit_observability("run_resumed", {
-            "run_id": self.run_id,
-            "completed_stages": sorted(completed_stages),
-            "resuming_from": self.current_stage,
-        })
-
-        all_completed = True
-        try:
-            for stage_id in self.stage_graph.trace_order():
-                if stage_id in completed_stages:
-                    self._emit_observability("stage_skipped_resume", {
-                        "run_id": self.run_id, "stage_id": stage_id,
-                    })
-                    continue
-
-                all_completed = False
-                stage_result = self._execute_stage(stage_id)
-                if stage_result == "failed":
-                    handled = self._handle_stage_failure(stage_id, stage_result)
-                    if handled == "failed":
-                        return self._finalize_run("failed")
-                    # "reflected" or non-failed: continue to next stage
-        except GatePendingError:
-            raise  # gate must propagate during resume too
-
-        if all_completed:
-            # All stages were already completed in the checkpoint
-            self._emit_observability("run_already_completed", {
-                "run_id": self.run_id,
-            })
-
-        return self._finalize_run("completed")
+        """Execute remaining (non-completed) stages — delegates to StageOrchestrator (HI-W10-001)."""
+        from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        return StageOrchestrator(self._build_stage_orchestrator_context()).run_resume()
 
     @classmethod
     def resume_from_checkpoint(
@@ -2834,59 +1904,13 @@ class RunExecutor:
         recommendation: str = "",
         output_summary: str = "",
     ) -> None:
-        """Register a named human gate point on this run.
-
-        The gate event is stored in ``_registered_gates`` (indexed by
-        *gate_id*) and written into the session checkpoint so that a
-        paused run can survive a process restart.
-
-        Args:
-            gate_id: Caller-assigned identifier for this gate.
-            gate_type: Gate category — one of ``contract_correction``,
-                ``route_direction``, ``artifact_review``,
-                ``final_approval``.
-            phase_name: Stage or phase at which the gate is registered.
-            recommendation: Optional suggestion for the human reviewer.
-            output_summary: Brief description of the work product.
-        """
-        from hi_agent.gate_protocol import GateEvent
-
-        event = GateEvent(
+        """Register a named human gate point on this run."""
+        return self.gate_coordinator.register_gate(
             gate_id=gate_id,
             gate_type=gate_type,
             phase_name=phase_name,
             recommendation=recommendation,
             output_summary=output_summary,
-        )
-        self._registered_gates[gate_id] = event
-        self._gate_pending = gate_id
-
-        # Persist gate state into the session checkpoint so it survives
-        # a process restart.
-        if self.session is not None:
-            try:
-                self.session.events.append({
-                    "event": "gate_registered",
-                    "gate_id": gate_id,
-                    "gate_type": gate_type,
-                    "phase_name": phase_name,
-                    "opened_at": event.opened_at,
-                })
-            except Exception as _exc:  # pragma: no cover
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.register_gate_session_failed",
-                    _exc,
-                    run_id=self.run_id,
-                    gate_id=gate_id,
-                )
-
-        _logger.info(
-            "runner.gate_registered run_id=%s gate_id=%s gate_type=%s phase=%s",
-            self.run_id,
-            gate_id,
-            gate_type,
-            phase_name,
         )
 
     def resume(
@@ -2895,56 +1919,12 @@ class RunExecutor:
         decision: str,
         rationale: str = "",
     ) -> None:
-        """Resume execution after a human decision on a registered gate.
-
-        Valid decisions: ``approved``, ``override``, ``backtrack``.
-
-        The decision is logged to the run record via the event emitter
-        and the session checkpoint.
-
-        Args:
-            gate_id: Gate to resume (must have been registered via
-                :meth:`register_gate`).
-            decision: Human decision — ``approved``, ``override``, or
-                ``backtrack``.
-            rationale: Free-text rationale for the decision.
-        """
-        _logger.info(
-            "runner.gate_decision run_id=%s gate_id=%s decision=%s",
-            self.run_id,
-            gate_id,
-            decision,
+        """Resume execution after a human decision on a registered gate."""
+        return self.gate_coordinator.resume(
+            gate_id=gate_id,
+            decision=decision,
+            rationale=rationale,
         )
-
-        self._emit_observability("gate_decision", {
-            "run_id": self.run_id,
-            "gate_id": gate_id,
-            "decision": decision,
-            "rationale": rationale,
-        })
-
-        if self.session is not None:
-            try:
-                self.session.events.append({
-                    "event": "gate_decision",
-                    "gate_id": gate_id,
-                    "decision": decision,
-                    "rationale": rationale,
-                })
-            except Exception as _exc:  # pragma: no cover
-                self._log_best_effort_exception(
-                    logging.DEBUG,
-                    "runner.resume_session_failed",
-                    _exc,
-                    run_id=self.run_id,
-                    gate_id=gate_id,
-                )
-
-        # Unblock stage execution now that the human decision has been made.
-        if self._gate_pending == gate_id:
-            self._gate_pending = None
-        if decision == "backtrack":
-            self._run_terminated = True
 
     def continue_from_gate(
         self,
@@ -2952,24 +1932,12 @@ class RunExecutor:
         decision: str,
         rationale: str = "",
     ) -> RunResult:
-        """Resume execution after a human gate decision.
-
-        This is the correct entry point after a :class:`GatePendingError` has
-        been handled and a gate decision has been made. Calling ``execute()``
-        directly after ``resume()`` re-executes all stages from the beginning;
-        this method resumes from the first incomplete stage only.
-
-        Args:
-            gate_id: Gate identifier from the propagated ``GatePendingError``.
-            decision: Human decision — ``"approved"``, ``"override"``, or
-                ``"backtrack"``.
-            rationale: Free-text rationale for the decision (optional).
-
-        Returns:
-            :class:`RunResult` with run outcome after completion.
-        """
-        self.resume(gate_id=gate_id, decision=decision, rationale=rationale)
-        return self._execute_remaining()
+        """Resume execution after a human gate decision."""
+        return self.gate_coordinator.continue_from_gate(
+            gate_id=gate_id,
+            decision=decision,
+            rationale=rationale,
+        )
 
     def continue_from_gate_graph(
         self,
@@ -2980,93 +1948,17 @@ class RunExecutor:
         last_stage: str | None = None,
         completed_stages: set[str] | None = None,
     ) -> RunResult:
-        """Resume graph execution after a human gate decision.
-
-        Unlike :meth:`continue_from_gate` which uses linear ``trace_order()``,
-        this method resumes graph traversal from the correct position.
-
-        Args:
-            gate_id: Gate identifier from the propagated ``GatePendingError``.
-            decision: Human decision — ``"approved"``, ``"override"``, or
-                ``"backtrack"``.
-            rationale: Free-text rationale for the decision (optional).
-            last_stage: The stage that was executing when the gate fired.
-                When None, uses ``self.current_stage``.
-            completed_stages: Set of stage IDs already completed before the
-                gate fired. When None, inferred from session.stage_states.
-
-        Returns:
-            :class:`RunResult` with run outcome after completion.
-        """
-        self.resume(gate_id=gate_id, decision=decision, rationale=rationale)
-
-        if decision == "backtrack":
-            return self._finalize_run("failed")
-
-        # Determine which stages are already done.
-        if completed_stages is None:
-            if self.session is not None:
-                completed_stages = {
-                    sid for sid, state in self.session.stage_states.items()
-                    if state == "completed"
-                }
-            else:
-                completed_stages = set(self.stage_summaries.keys())
-
-        # Resume graph traversal from last_stage's successors.
-        start_stage = last_stage or self.current_stage
-        if start_stage and start_stage not in completed_stages:
-            # last_stage itself was not completed — retry it.
-            current_stage: str | None = start_stage
-        else:
-            # Advance to successors not yet completed.
-            successors = self.stage_graph.successors(start_stage) if start_stage else set()
-            candidates = successors - completed_stages
-            current_stage = self._select_next_stage(candidates) if candidates else None
-
-        max_steps = len(self.stage_graph.transitions) * 2
-        steps = 0
-        try:
-            while current_stage is not None and steps < max_steps:
-                steps += 1
-                if current_stage in completed_stages:
-                    successors = self.stage_graph.successors(current_stage)
-                    candidates = successors - completed_stages
-                    current_stage = self._select_next_stage(candidates) if candidates else None
-                    continue
-
-                result = self._execute_stage(current_stage)
-                if result == "failed":
-                    backtrack = self.stage_graph.get_backtrack(current_stage)
-                    if backtrack and backtrack not in completed_stages:
-                        current_stage = backtrack
-                        continue
-                    handled = self._handle_stage_failure(current_stage, result)
-                    if handled == "failed":
-                        return self._finalize_run("failed")
-                completed_stages.add(current_stage)
-
-                successors = self.stage_graph.successors(current_stage)
-                candidates = successors - completed_stages
-                if not candidates:
-                    break
-                if len(candidates) > 1:
-                    current_stage = self._select_next_stage(candidates)
-                else:
-                    current_stage = next(iter(candidates))
-        except GatePendingError:
-            raise
-        except Exception as exc:
-            self._log_best_effort_exception(
-                logging.WARNING, "runner.continue_from_gate_graph_failed", exc,
-                run_id=self.run_id, stage_id=self.current_stage,
-            )
-            return self._finalize_run("failed")
-
-        return self._finalize_run("completed")
+        """Resume graph execution after a human gate decision."""
+        return self.gate_coordinator.continue_from_gate_graph(
+            gate_id=gate_id,
+            decision=decision,
+            rationale=rationale,
+            last_stage=last_stage,
+            completed_stages=completed_stages,
+        )
 
     # -----------------------------------------------------------------------
-    # Sub-run delegation public API (Task 3 — P2-3)
+    # Sub-run delegation public API
     # -----------------------------------------------------------------------
 
     def dispatch_subrun(
@@ -3304,7 +2196,7 @@ async def execute_async(
     executor: RunExecutor,
     *,
     max_concurrency: int = 64,
-) -> AsyncRunResult:
+) -> RunResult:
     """Execute a RunExecutor using AsyncTaskScheduler and KernelFacade.
 
     This is a standalone async function (not a method) to avoid mutating
@@ -3312,14 +2204,15 @@ async def execute_async(
 
         result = await execute_async(executor, max_concurrency=8)
 
-    .. warning::
+    Returns:
+        A :class:`~hi_agent.contracts.requests.RunResult` identical in
+        structure to the one returned by :meth:`RunExecutor.execute`.  This
+        includes ``run_id``, ``status``, ``stages``, ``artifacts``,
+        ``execution_provenance``, and failure attribution fields.
+
+    .. note::
         **Not wired into the server RunManager.** ``POST /runs`` dispatches
         ``executor.execute()`` (synchronous, linear), not this function.
-        ``execute_async()`` returns :class:`AsyncRunResult` which has no
-        ``status`` or ``stages`` fields and is incompatible with
-        ``RunManager.to_dict()``. Use this function only for direct asyncio
-        callers; do not surface it through the HTTP API without first
-        adapting the result type to :class:`~hi_agent.contracts.requests.RunResult`.
     """
     from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
     from hi_agent.task_mgmt.graph_factory import GraphFactory
@@ -3429,15 +2322,21 @@ async def execute_async(
         for node_id in schedule_result.completed_nodes:
             executor.session.stage_states[node_id] = "completed"
 
-    # J3-2: Call _finalize_run for resource cleanup, L0→L3 memory chain, observability.
+    # J3-2: _finalize_run handles resource cleanup and provenance for RunResult.
     outcome = "completed" if schedule_result.success else "failed"
+    _run_result: RunResult | None = None
     try:
-        executor._finalize_run(outcome)
+        _run_result = executor._finalize_run(outcome)
     except Exception as _fin_exc:
         _logger.warning("execute_async: _finalize_run failed: %s", _fin_exc)
 
-    return AsyncRunResult(
+    if _run_result is not None:
+        return _run_result
+
+    # Fallback: _finalize_run failed or returned None — construct minimal RunResult.
+    return RunResult(
         run_id=run_id,
-        success=schedule_result.success,
-        completed_nodes=schedule_result.completed_nodes,
+        status=outcome,
+        stages=[],
+        artifacts=[],
     )

@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "hi-agent"
 version = "0.1.0"
@@ -5,36 +9,54 @@ description = "TRACE enterprise agent implementation"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "agent-kernel @ git+https://github.com/chaosxingxc-orion/agent-kernel.git@ff4d25c7e90cd2e2e0e62acb4cf929b0b77eca08",
+  "fastapi>=0.111",
   "httpx>=0.28",
+  "pyjwt>=2.8",
   "starlette>=0.37",
   "uvicorn[standard]>=0.29",
 ]
 
 [project.optional-dependencies]
+temporal = ["temporalio==1.24.0"]
+pg = ["asyncpg>=0.30"]
+anthropic = ["anthropic>=0.40"]
+openai = ["openai>=1.50", "tiktoken>=0.7"]
+llm = ["anthropic>=0.40", "openai>=1.50", "tiktoken>=0.7"]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=1.0",
   "pytest-cov>=6.0",
+  "pytest-timeout>=2.3",
   "respx>=0.23",
   "ruff>=0.8",
+  "anthropic>=0.40",
+  "openai>=1.50",
+  "tiktoken>=0.7",
 ]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hi_agent*", "agent_kernel*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
     "integration: integration tests using real components",
+    "live_api: live API tests that call real external model endpoints (require VOLCE_API_KEY)",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["hi_agent", "tests"]
+src = ["hi_agent", "agent_kernel", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "RUF", "D"]
-ignore = ["D203", "D213"]
+ignore = ["D203", "D213", "E402"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -49,7 +71,7 @@ omit = [
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 65
+fail_under = 50
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",

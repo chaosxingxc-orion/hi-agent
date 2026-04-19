@@ -38,6 +38,7 @@ class HybridRouteEngine:
         skill_matcher: Any | None = None,
         task_family: str = "",
         audit_store: Any | None = None,
+        capability_registry: Any | None = None,
     ) -> None:
         """Initialize hybrid route policy.
 
@@ -78,6 +79,8 @@ class HybridRouteEngine:
         # In-memory list used as append-only audit log; callers may inject
         # a persistent store by passing audit_store with an .append() method.
         self._audit_store: Any = audit_store if audit_store is not None else []
+        # W4-003: optional registry for filtering unavailable capabilities
+        self._capability_registry: Any = capability_registry
 
     def propose(
         self,
@@ -111,8 +114,10 @@ class HybridRouteEngine:
         )
         rule_confidence = self._estimate_rule_confidence(rule_proposals)
         if rule_proposals and rule_confidence >= self._confidence_threshold:
+            # W4-003: filter out proposals for unavailable capabilities
+            filtered = self._filter_unavailable(rule_proposals)
             outcome = HybridRouteOutcome(
-                proposals=rule_proposals,
+                proposals=filtered,
                 source="rule",
                 confidence=rule_confidence,
             )
@@ -148,6 +153,8 @@ class HybridRouteEngine:
                 action_kind=llm_decision.action_kind,
             )
         ]
+        # W4-003: filter out proposals for unavailable capabilities
+        llm_proposals = self._filter_unavailable(llm_proposals)
         outcome = HybridRouteOutcome(
             proposals=llm_proposals,
             source="llm",
@@ -263,6 +270,19 @@ class HybridRouteEngine:
             _logger.debug(
                 "route_engine.route_config_update unknown key=%s", key
             )
+
+    def _filter_unavailable(self, proposals: list[BranchProposal]) -> list[BranchProposal]:
+        """W4-003: Remove proposals whose action_kind maps to an unavailable capability."""
+        registry = getattr(self, "_capability_registry", None)
+        if registry is None or not hasattr(registry, "probe_availability"):
+            return proposals
+        result = []
+        for p in proposals:
+            cap_name = p.action_kind
+            ok, _ = registry.probe_availability(cap_name)
+            if ok:
+                result.append(p)
+        return result
 
     def _estimate_rule_confidence(self, proposals: list[BranchProposal]) -> float:
         """Run _estimate_rule_confidence."""

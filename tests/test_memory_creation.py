@@ -146,7 +146,7 @@ class TestSTMFileOnDisk:
 
         # The STM directory should now exist with a JSON file
         assert stm_dir.exists()
-        json_files = list(stm_dir.glob("*.json"))
+        json_files = [f for f in stm_dir.glob("*.json") if f.name != "_manifest.json"]
         assert len(json_files) == 1
 
     def test_stm_file_contains_valid_json(self, tmp_path: Path) -> None:
@@ -155,7 +155,7 @@ class TestSTMFileOnDisk:
         executor = _make_executor(tmp_path, short_term_store=store)
         executor.execute()
 
-        json_files = list(stm_dir.glob("*.json"))
+        json_files = [f for f in stm_dir.glob("*.json") if f.name != "_manifest.json"]
         data = json.loads(json_files[0].read_text(encoding="utf-8"))
         assert "session_id" in data
         assert "run_id" in data

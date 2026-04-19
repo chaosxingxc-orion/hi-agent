@@ -65,22 +65,22 @@ class KernelFacadeClient:
     # Stage lifecycle
     # ------------------------------------------------------------------
 
-    def open_stage(self, stage_id: str) -> None:
+    def open_stage(self, run_id: str, stage_id: str) -> None:
         """Open stage in runtime."""
         if self._mode == "direct":
-            self._direct_call("open_stage", stage_id)
+            self._direct_call("open_stage", stage_id, run_id)
         else:
-            self._http_post("/stages/open", {"stage_id": stage_id})
+            self._http_post(f"/runs/{run_id}/stages/{stage_id}/open", {})
 
-    def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+    def mark_stage_state(self, run_id: str, stage_id: str, target: StageState) -> None:
         """Update stage lifecycle state in runtime."""
         target_value = target.value if isinstance(target, StageState) else str(target)
         if self._mode == "direct":
-            self._direct_call("mark_stage_state", stage_id, target_value)
+            self._direct_call("mark_stage_state", run_id, stage_id, target_value)
         else:
-            self._http_post(
-                "/stages/mark_state",
-                {"stage_id": stage_id, "target": target_value},
+            self._http_put(
+                f"/runs/{run_id}/stages/{stage_id}/state",
+                {"state": target_value},
             )
 
     # ------------------------------------------------------------------
@@ -93,9 +93,10 @@ class KernelFacadeClient:
             result = self._direct_call("record_task_view", task_view_id, content)
             return result if isinstance(result, str) else task_view_id
         else:
+            run_id = content.get("run_id", "unknown") if isinstance(content, dict) else "unknown"
             resp = self._http_post(
-                "/task_views/record",
-                {"task_view_id": task_view_id, "content": content},
+                f"/runs/{run_id}/task-views",
+                {"task_view_id": task_view_id, **content},
             )
             return resp.get("task_view_id", task_view_id)
 
@@ -108,9 +109,9 @@ class KernelFacadeClient:
                 "bind_task_view_to_decision", task_view_id, decision_ref
             )
         else:
-            self._http_post(
-                "/task_views/bind_decision",
-                {"task_view_id": task_view_id, "decision_ref": decision_ref},
+            self._http_put(
+                f"/task-views/{task_view_id}/decision",
+                {"decision_ref": decision_ref},
             )
 
     # ------------------------------------------------------------------
@@ -120,24 +121,37 @@ class KernelFacadeClient:
     def start_run(self, task_id: str) -> str:
         """Start a run for task and return run ID."""
         if self._mode == "direct":
-            result = self._direct_call("start_run", task_id)
-            if isinstance(result, str):
-                return result
-            # KernelFacade returns StartRunResponse; extract run_id.
+            import uuid  # noqa: PLC0415
+            from agent_kernel.adapters.facade.kernel_facade import (  # noqa: PLC0415
+                StartRunRequest,
+            )
+            unique_run_id = f"{task_id[:48]}-{uuid.uuid4().hex[:8]}"
+            request = StartRunRequest(
+                initiator="agent_core_runner",
+                run_kind="trace",
+                input_json={"task_id": task_id, "run_id": unique_run_id},
+            )
+            result = self._direct_call("start_run", request)
             if hasattr(result, "run_id"):
                 return result.run_id
+            if isinstance(result, str) and result.strip():
+                return result
             raise RuntimeAdapterBackendError(
                 "start_run",
                 cause=ValueError("start_run did not return a run_id"),
             )
         else:
-            resp = self._http_post("/runs/start", {"task_id": task_id})
+            resp = self._http_post(
+                "/runs",
+                {"run_kind": task_id, "input_json": {"task_id": task_id}},
+            )
             return resp["run_id"]
 
     def query_run(self, run_id: str) -> dict[str, Any]:
         """Return run lifecycle snapshot."""
         if self._mode == "direct":
-            result = self._direct_call("query_run", run_id)
+            from agent_kernel.adapters.facade.kernel_facade import QueryRunRequest  # noqa: PLC0415
+            result = self._direct_call("query_run", QueryRunRequest(run_id=run_id))
             if isinstance(result, dict):
                 return result
             import dataclasses  # noqa: PLC0415
@@ -153,16 +167,16 @@ class KernelFacadeClient:
     def cancel_run(self, run_id: str, reason: str) -> None:
         """Cancel run with reason."""
         if self._mode == "direct":
-            self._direct_call("cancel_run", run_id, reason)
+            from agent_kernel.adapters.facade.kernel_facade import CancelRunRequest  # noqa: PLC0415
+            self._direct_call("cancel_run", CancelRunRequest(run_id=run_id, reason=reason))
         else:
-            self._http_post(
-                f"/runs/{run_id}/cancel", {"reason": reason}
-            )
+            self._http_post(f"/runs/{run_id}/cancel", {"reason": reason})
 
     def resume_run(self, run_id: str) -> None:
         """Resume a suspended or cancelled run."""
         if self._mode == "direct":
-            self._direct_call("resume_run", run_id)
+            from agent_kernel.adapters.facade.kernel_facade import ResumeRunRequest  # noqa: PLC0415
+            self._direct_call("resume_run", ResumeRunRequest(run_id=run_id))
         else:
             self._http_post(f"/runs/{run_id}/resume", {})
 
@@ -171,11 +185,19 @@ class KernelFacadeClient:
     ) -> None:
         """Push an external signal to a run."""
         if self._mode == "direct":
-            self._direct_call("signal_run", run_id, signal, payload or {})
+            from agent_kernel.adapters.facade.kernel_facade import SignalRunRequest  # noqa: PLC0415
+            self._direct_call(
+                "signal_run",
+                SignalRunRequest(
+                    run_id=run_id,
+                    signal_type=signal,
+                    signal_payload=payload or {},
+                ),
+            )
         else:
             self._http_post(
                 f"/runs/{run_id}/signal",
-                {"signal": signal, "payload": payload or {}},
+                {"signal_type": signal, "signal_payload": payload or {}},
             )
 
     # ------------------------------------------------------------------
@@ -239,12 +261,8 @@ class KernelFacadeClient:
             self._direct_call("open_branch", run_id, stage_id, branch_id)
         else:
             self._http_post(
-                "/branches/open",
-                {
-                    "run_id": run_id,
-                    "stage_id": stage_id,
-                    "branch_id": branch_id,
-                },
+                f"/runs/{run_id}/branches",
+                {"stage_id": stage_id, "branch_id": branch_id},
             )
 
     def mark_branch_state(
@@ -261,15 +279,10 @@ class KernelFacadeClient:
                 "mark_branch_state", run_id, stage_id, branch_id, state, failure_code
             )
         else:
-            body: dict[str, Any] = {
-                "run_id": run_id,
-                "stage_id": stage_id,
-                "branch_id": branch_id,
-                "state": state,
-            }
+            body: dict[str, Any] = {"state": state}
             if failure_code is not None:
                 body["failure_code"] = failure_code
-            self._http_post("/branches/mark_state", body)
+            self._http_put(f"/runs/{run_id}/branches/{branch_id}/state", body)
 
     # ------------------------------------------------------------------
     # Human gate
@@ -281,9 +294,8 @@ class KernelFacadeClient:
             self._direct_call("open_human_gate", request)
         else:
             self._http_post(
-                "/gates/open",
+                f"/runs/{request.run_id}/human-gates",
                 {
-                    "run_id": request.run_id,
                     "gate_type": request.gate_type,
                     "gate_ref": request.gate_ref,
                     "context": request.context,
@@ -296,8 +308,9 @@ class KernelFacadeClient:
         if self._mode == "direct":
             self._direct_call("submit_approval", request)
         else:
+            run_id = getattr(request, "run_id", None) or ""
             self._http_post(
-                "/gates/approve",
+                f"/runs/{run_id}/approval",
                 {
                     "gate_ref": request.gate_ref,
                     "decision": request.decision,
@@ -389,7 +402,14 @@ class KernelFacadeClient:
     ) -> str:
         """Spawn a child run under parent_run_id."""
         if self._mode == "direct":
-            result = self._direct_call("spawn_child_run", parent_run_id, task_id, config)
+            from agent_kernel.kernel.contracts import SpawnChildRunRequest  # noqa: PLC0415
+            request = SpawnChildRunRequest(
+                parent_run_id=parent_run_id,
+                child_kind="delegate",
+                task_id=task_id,
+                input_json=config if config else None,
+            )
+            result = self._direct_call("spawn_child_run", request)
             if hasattr(result, "child_run_id") and result.child_run_id:
                 return result.child_run_id
             if isinstance(result, str) and result.strip():
@@ -398,10 +418,10 @@ class KernelFacadeClient:
                 "spawn_child_run",
                 cause=ValueError("spawn_child_run returned no child_run_id"),
             )
-        body: dict[str, Any] = {"parent_run_id": parent_run_id, "task_id": task_id}
+        body: dict[str, Any] = {"task_id": task_id}
         if config:
             body["config"] = config
-        resp = self._http_post("/runs/spawn_child", body)
+        resp = self._http_post(f"/runs/{parent_run_id}/children", body)
         child_id = resp.get("child_run_id", "")
         if not child_id:
             raise RuntimeAdapterBackendError(
@@ -532,6 +552,29 @@ class KernelFacadeClient:
             data=data,
             headers={"Content-Type": "application/json"},
             method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                raw = resp.read().decode("utf-8")
+                return json.loads(raw) if raw.strip() else {}
+        except urllib.error.HTTPError as exc:
+            raise RuntimeAdapterBackendError(
+                path, cause=exc
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeAdapterBackendError(
+                path, cause=exc
+            ) from exc
+
+    def _http_put(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """PUT JSON to agent-kernel HTTP server."""
+        url = f"{self._base_url}{path}"
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="PUT",
         )
         try:
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:

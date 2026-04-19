@@ -8,12 +8,15 @@ Stored as JSON file, participates in context building.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -106,6 +109,55 @@ class ShortTermMemoryStore:
         safe_id = session_id.replace("/", "__").replace("\\", "__")
         return self._storage_dir / f"{safe_id}.json"
 
+    # ------------------------------------------------------------------
+    # Manifest helpers (O(k) list_recent support)
+    # ------------------------------------------------------------------
+
+    def _manifest_path(self) -> Path:
+        return self._storage_dir / "_manifest.json"
+
+    def _load_manifest(self) -> list[dict]:
+        """Return sorted manifest entries [{id, timestamp, size_bytes}], newest first."""
+        try:
+            path = self._manifest_path()
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    return data
+        except (json.JSONDecodeError, OSError) as exc:
+            _logger.warning("short_term.manifest_read_failed path=%s error=%s", path, exc)
+        return []
+
+    def _save_manifest(self, entries: list[dict]) -> None:
+        """Atomically persist manifest entries."""
+        path = self._manifest_path()
+        payload = json.dumps(entries, ensure_ascii=False)
+        fd, tmp = tempfile.mkstemp(dir=str(self._storage_dir), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+            os.replace(tmp, path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError as exc:
+                _logger.warning("short_term.manifest_cleanup_failed tmp=%s error=%s", tmp, exc)
+
+    def _manifest_upsert(self, session_id: str, timestamp: str, size_bytes: int) -> None:
+        """Add or update one entry in the manifest, keeping it sorted newest-first."""
+        entries = self._load_manifest()
+        entries = [e for e in entries if e.get("id") != session_id]
+        entries.append({"id": session_id, "timestamp": timestamp, "size_bytes": size_bytes})
+        entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+        self._save_manifest(entries)
+
+    def _manifest_remove(self, session_ids: set[str]) -> None:
+        """Remove entries for the given session_ids from the manifest."""
+        entries = [e for e in self._load_manifest() if e.get("id") not in session_ids]
+        self._save_manifest(entries)
+
+    # ------------------------------------------------------------------
+
     def save(self, memory: ShortTermMemory) -> None:
         """Save to JSON file named by session_id (atomic write).
 
@@ -129,18 +181,45 @@ class ShortTermMemoryStore:
             except OSError:
                 pass
             raise
+        self._manifest_upsert(memory.session_id, memory.created_at, len(payload))
         if self._max_sessions > 0:
             self._evict_oldest(keep=self._max_sessions)
 
     def _evict_oldest(self, keep: int) -> int:
         """Delete oldest sessions so at most *keep* remain.
 
+        Uses manifest index when available; falls back to directory scan.
         Returns the number of sessions deleted.
         """
         if not self._storage_dir.exists():
             return 0
+        manifest = self._load_manifest()
+        if manifest:
+            # Manifest is sorted newest-first; entries beyond *keep* are oldest.
+            if len(manifest) <= keep:
+                return 0
+            to_evict = manifest[keep:]
+            evicted_ids: set[str] = set()
+            deleted = 0
+            for entry in to_evict:
+                sid = entry.get("id", "")
+                fpath = self._memory_path(sid) if sid else None
+                if fpath is not None:
+                    try:
+                        fpath.unlink(missing_ok=True)
+                        deleted += 1
+                        evicted_ids.add(sid)
+                    except OSError as exc:
+                        _logger.warning("short_term.evict_file_failed path=%s error=%s", fpath, exc)
+            if evicted_ids:
+                self._manifest_remove(evicted_ids)
+            return deleted
+
+        # Fallback: directory scan (no manifest yet)
         entries: list[tuple[str, Path]] = []
         for fpath in self._storage_dir.glob("*.json"):
+            if fpath.name == "_manifest.json":
+                continue
             try:
                 data = json.loads(fpath.read_text(encoding="utf-8"))
                 entries.append((data.get("created_at", ""), fpath))
@@ -148,7 +227,6 @@ class ShortTermMemoryStore:
                 continue
         if len(entries) <= keep:
             return 0
-        # Sort ascending (oldest first) and delete the excess
         entries.sort(key=lambda t: t[0])
         to_delete = entries[: len(entries) - keep]
         deleted = 0
@@ -156,8 +234,8 @@ class ShortTermMemoryStore:
             try:
                 fpath.unlink(missing_ok=True)
                 deleted += 1
-            except OSError:
-                pass
+            except OSError as exc:
+                _logger.warning("short_term.evict_file_failed path=%s error=%s", fpath, exc)
         return deleted
 
     def load(self, session_id: str) -> ShortTermMemory | None:
@@ -169,18 +247,38 @@ class ShortTermMemoryStore:
         return _dict_to_short_term(data)
 
     def list_recent(self, limit: int = 10) -> list[ShortTermMemory]:
-        """List most recent sessions, newest first."""
+        """List most recent sessions, newest first.
+
+        Uses manifest index for O(k) access when available; falls back to
+        O(n) directory scan so existing stores without a manifest still work.
+        """
         if not self._storage_dir.exists():
             return []
-        memories: list[ShortTermMemory] = []
+        manifest = self._load_manifest()
+        if manifest:
+            top_entries = manifest[:limit]
+            memories: list[ShortTermMemory] = []
+            for entry in top_entries:
+                sid = entry.get("id", "")
+                if not sid:
+                    continue
+                mem = self.load(sid)
+                if mem is not None:
+                    memories.append(mem)
+            return memories
+
+        # Fallback: full directory scan (no manifest yet)
+        all_memories: list[ShortTermMemory] = []
         for fpath in self._storage_dir.glob("*.json"):
+            if fpath.name == "_manifest.json":
+                continue
             try:
                 data = json.loads(fpath.read_text(encoding="utf-8"))
-                memories.append(_dict_to_short_term(data))
+                all_memories.append(_dict_to_short_term(data))
             except (json.JSONDecodeError, KeyError):
                 continue
-        memories.sort(key=lambda m: m.created_at, reverse=True)
-        return memories[:limit]
+        all_memories.sort(key=lambda m: m.created_at, reverse=True)
+        return all_memories[:limit]
 
     def list_by_date(self, date: str) -> list[ShortTermMemory]:
         """List all short-term memories whose created_at starts with *date* (ISO date prefix)."""
@@ -188,6 +286,8 @@ class ShortTermMemoryStore:
             return []
         results: list[ShortTermMemory] = []
         for fpath in self._storage_dir.glob("*.json"):
+            if fpath.name == "_manifest.json":
+                continue
             try:
                 data = json.loads(fpath.read_text(encoding="utf-8"))
                 mem = _dict_to_short_term(data)

@@ -41,7 +41,6 @@ _FRACTION_FIELDS = {
     "route_confidence_threshold",
     "skill_min_certified_success_rate",
     "gate_quality_threshold",
-    "gate_budget_crisis_threshold",
     "watchdog_min_success_rate",
     "evolve_min_confidence",
     "evolve_successful_confidence",

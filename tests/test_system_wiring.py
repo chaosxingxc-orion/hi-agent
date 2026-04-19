@@ -174,7 +174,9 @@ class TestLLMGatewayActivation:
         )
         builder = SystemBuilder(config)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-123")
-        gateway = builder.build_llm_gateway()
+        # Suppress config-file path so test exercises the env-var fallback.
+        with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+            gateway = builder.build_llm_gateway()
         assert isinstance(gateway, TierAwareLLMGateway)
         assert isinstance(gateway._inner, HttpLLMGateway)
         assert gateway._inner._default_model == "gpt-4o"
@@ -187,7 +189,9 @@ class TestLLMGatewayActivation:
         builder = SystemBuilder(config)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
-        gateway = builder.build_llm_gateway()
+        # Suppress config-file path so test exercises the env-var fallback.
+        with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+            gateway = builder.build_llm_gateway()
         assert isinstance(gateway, TierAwareLLMGateway)
         assert isinstance(gateway._inner, AnthropicLLMGateway)
         assert gateway._inner._default_model == "claude-sonnet-4-6"

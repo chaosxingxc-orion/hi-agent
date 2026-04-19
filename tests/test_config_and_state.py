@@ -39,7 +39,7 @@ class TestTraceConfigDefaults:
         assert cfg.llm_timeout_seconds == 120
         assert cfg.route_confidence_threshold == 0.6
         assert cfg.server_port == 8080
-        assert cfg.evolve_enabled is True
+        assert cfg.evolve_mode == "auto"
 
     def test_to_dict_round_trip(self) -> None:
         cfg = TraceConfig()
@@ -85,10 +85,10 @@ class TestTraceConfigFromEnv:
         cfg = TraceConfig.from_env()
         assert cfg.route_confidence_threshold == 0.9
 
-    def test_bool_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("HI_AGENT_EVOLVE_ENABLED", "false")
+    def test_evolve_mode_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HI_AGENT_EVOLVE_MODE", "off")
         cfg = TraceConfig.from_env()
-        assert cfg.evolve_enabled is False
+        assert cfg.evolve_mode == "off"
 
     def test_str_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HI_AGENT_DEFAULT_MODEL", "claude-3")

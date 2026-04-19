@@ -14,13 +14,56 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import importlib.util
+import re
 import uuid
 from collections.abc import AsyncIterator
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
+
+
+def _ensure_workflow_signal_run_compat(facade: object) -> None:
+    """Backfill workflow gateway `signal_run` when only `signal_workflow` exists."""
+    workflow_gateway = getattr(facade, "_workflow_gateway", None)
+    if workflow_gateway is None or hasattr(workflow_gateway, "signal_run"):
+        return
+    signal_workflow = getattr(workflow_gateway, "signal_workflow", None)
+    if not callable(signal_workflow):
+        return
+
+    async def _signal_run(request: Any) -> Any:
+        run_id = getattr(request, "run_id", None)
+        return await signal_workflow(run_id, request)
+
+    setattr(workflow_gateway, "signal_run", _signal_run)
+
+
+def _patch_agent_kernel_py2_except_syntax() -> bool:
+    """Hotfix Python3-incompatible ``except A, B:`` syntax in agent-kernel.
+
+    Returns:
+        True when a patch was applied, False otherwise.
+    """
+    spec = importlib.util.find_spec("agent_kernel")
+    if spec is None or not spec.origin:
+        return False
+    package_root = Path(spec.origin).resolve().parent
+    pattern = re.compile(
+        r"except\s+([A-Za-z_][\w\.]*)\s*,\s*([A-Za-z_][\w\.]*)\s*:"
+    )
+    patched_any = False
+    for py_file in package_root.rglob("*.py"):
+        source = py_file.read_text(encoding="utf-8")
+        fixed = pattern.sub(r"except (\1, \2):", source)
+        if fixed != source:
+            py_file.write_text(fixed, encoding="utf-8")
+            patched_any = True
+    return patched_any
+
 
 class KernelFacadeAdapter:
     """Forward RuntimeAdapter Protocol calls to an agent-kernel KernelFacade.
@@ -60,46 +103,34 @@ class KernelFacadeAdapter:
                 "agent_kernel.adapters.facade.KernelFacade instance."
             )
 
+    @property
+    def mode(self) -> Literal["local-fsm", "http"]:
+        """The kernel execution mode — always local-fsm for KernelFacadeAdapter."""
+        return "local-fsm"
+
     # ------------------------------------------------------------------
     # Stage lifecycle
     # ------------------------------------------------------------------
 
-    def open_stage(self, stage_id: str) -> None:
-        """Open a stage in facade runtime.
-
-        The real KernelFacade requires ``open_stage(stage_id, run_id)``.
-        The ``run_id`` is taken from the value stored by the most recent
-        ``start_run()`` call.
-        """
+    def open_stage(self, run_id: str, stage_id: str) -> None:
+        """Open a stage in facade runtime."""
+        normalized_run = self._non_empty(run_id, "run_id")
         normalized = self._non_empty(stage_id, "stage_id")
-        if self._current_run_id is None:
-            raise RuntimeAdapterBackendError(
-                "open_stage",
-                cause=ValueError("open_stage requires run context; call start_run() first"),
-            )
-        self._call("open_stage", normalized, self._current_run_id)
+        self._call("open_stage", normalized, normalized_run)
 
-    def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+    def mark_stage_state(self, run_id: str, stage_id: str, target: StageState) -> None:
         """Mark stage state in facade runtime.
 
-        The real KernelFacade signature is
-        `mark_stage_state(run_id, stage_id, new_state, failure_code=None)`.
-        `run_id` is taken from the value stored by `start_run()`.
+        KernelFacade signature: ``mark_stage_state(run_id, stage_id, new_state)``.
         """
+        normalized_run = self._non_empty(run_id, "run_id")
         normalized_stage = self._non_empty(stage_id, "stage_id")
         normalized_target = (
             target.value if isinstance(target, StageState) else str(target)
         )
-        if self._current_run_id is None:
-            raise RuntimeAdapterBackendError(
-                "mark_stage_state",
-                cause=ValueError(
-                    "mark_stage_state requires run context; call start_run() first"
-                ),
-            )
         self._call(
             "mark_stage_state",
-            self._current_run_id,
+            normalized_run,
             normalized_stage,
             normalized_target,
         )
@@ -712,6 +743,19 @@ def create_local_adapter() -> KernelFacadeAdapter:
         from agent_kernel.substrate.local.adaptor import (
             LocalSubstrateConfig,
         )
+    except SyntaxError as exc:
+        # Temporary compatibility bridge: latest main may ship Python2-style
+        # exception syntax; patch in place then retry once.
+        if _patch_agent_kernel_py2_except_syntax():
+            from agent_kernel.runtime.kernel_runtime import (
+                KernelRuntime,
+                KernelRuntimeConfig,
+            )
+            from agent_kernel.substrate.local.adaptor import (
+                LocalSubstrateConfig,
+            )
+        else:
+            raise
     except ImportError as exc:
         raise ImportError(
             "agent-kernel is required for create_local_adapter(). "
@@ -771,6 +815,7 @@ def create_local_adapter() -> KernelFacadeAdapter:
         facade = result[0].facade
         if getattr(facade, "_task_view_log", None) is None:
             facade._task_view_log = _task_view_log
+        _ensure_workflow_signal_run_compat(facade)
         return KernelFacadeAdapter(facade)
 
     try:
@@ -783,5 +828,6 @@ def create_local_adapter() -> KernelFacadeAdapter:
         facade = runtime.facade
         if getattr(facade, "_task_view_log", None) is None:
             facade._task_view_log = _task_view_log
+        _ensure_workflow_signal_run_compat(facade)
         return KernelFacadeAdapter(facade)
 

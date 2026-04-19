@@ -143,6 +143,11 @@ def make_llm_capability_handler(
             "evidence": [f"{capability_name}:heuristic:{stage_id}"],
             "stage_id": stage_id,
             "_heuristic": True,   # marks as non-real execution
+            "_provenance": {
+                "mode": "sample",
+                "capability_name": capability_name,
+                "duration_ms": 0,
+            },
         }
 
     handler.__name__ = f"{capability_name}_handler"

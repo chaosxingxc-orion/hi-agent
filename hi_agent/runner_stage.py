@@ -56,6 +56,8 @@ class StageExecutor:
         auto_compress: Any | None,
         cost_calculator: Any | None,
         middleware_orchestrator: MiddlewareOrchestrator | None = None,
+        capability_registry: Any | None = None,
+        capability_runtime_mode: str = "dev",
     ) -> None:
         self.kernel = kernel
         self.route_engine = route_engine
@@ -70,6 +72,8 @@ class StageExecutor:
         self.auto_compress = auto_compress
         self.cost_calculator = cost_calculator
         self._middleware_orchestrator = middleware_orchestrator
+        self._capability_registry = capability_registry
+        self._capability_runtime_mode = capability_runtime_mode
 
     # ------------------------------------------------------------------
     # Task-view knowledge
@@ -152,8 +156,8 @@ class StageExecutor:
             or ``None`` if the stage completed successfully.
         """
         executor.current_stage = stage_id
-        self.kernel.open_stage(stage_id)
-        self.kernel.mark_stage_state(stage_id, StageState.ACTIVE)
+        self.kernel.open_stage(executor.run_id, stage_id)
+        self.kernel.mark_stage_state(executor.run_id, stage_id, StageState.ACTIVE)
         executor._record_event(
             "StageStateChanged",
             {"stage_id": stage_id, "to_state": "active"},
@@ -186,7 +190,7 @@ class StageExecutor:
                     "stage_skipped_budget",
                     {"run_id": executor.run_id, "stage_id": stage_id},
                 )
-                self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
+                self.kernel.mark_stage_state(executor.run_id, stage_id, StageState.COMPLETED)
                 executor.stage_summaries[stage_id] = StageSummary(
                     stage_id=stage_id,
                     outcome="skipped_by_budget",
@@ -385,6 +389,23 @@ class StageExecutor:
                 executor.run_id, stage_id, branch_id, BranchState.ACTIVE
             )
             executor._record_skill_usage_from_proposal(proposal, stage_id)
+
+            # --- Capability availability filter (P1-2b) ---
+            if self._capability_registry is not None:
+                try:
+                    from hi_agent.route_engine.capability_filter import filter_proposal
+                    proposal = filter_proposal(
+                        proposal,
+                        self._capability_registry,
+                        self._capability_runtime_mode,
+                    )
+                except Exception as exc:
+                    _logger.warning(
+                        "capability_filter raised unexpectedly — proceeding without filter: %s", exc
+                    )
+                    from hi_agent.observability.fallback import record_fallback, FallbackTaxonomy
+                    record_fallback(FallbackTaxonomy.UNEXPECTED_EXCEPTION, "capability_filter", str(exc))
+                    # proposal remains unfiltered (existing behavior)
 
             node = TrajectoryNode(
                 node_id=deterministic_id(
@@ -682,7 +703,9 @@ class StageExecutor:
                                 "verdict=%s score=%.2f",
                                 executor.run_id, stage_id, overall_verdict, overall_score,
                             )
-                            self.kernel.mark_stage_state(stage_id, StageState.FAILED)
+                            self.kernel.mark_stage_state(
+                                executor.run_id, stage_id, StageState.FAILED
+                            )
                             executor._trigger_recovery(stage_id)
                             _failed_summary = executor._compress_stage_summary(stage_id)
                             _failed_summary.outcome = "failed"  # set at source — compressor doesn't know stage failed
@@ -700,7 +723,7 @@ class StageExecutor:
                 )
 
         if detect_dead_end(stage_id, executor.dag):
-            self.kernel.mark_stage_state(stage_id, StageState.FAILED)
+            self.kernel.mark_stage_state(executor.run_id, stage_id, StageState.FAILED)
             executor._record_event(
                 "StageStateChanged",
                 {"stage_id": stage_id, "to_state": "failed"},
@@ -720,7 +743,7 @@ class StageExecutor:
             executor._sync_to_context()
             return "failed"
 
-        self.kernel.mark_stage_state(stage_id, StageState.COMPLETED)
+        self.kernel.mark_stage_state(executor.run_id, stage_id, StageState.COMPLETED)
         executor._record_event(
             "StageStateChanged",
             {"stage_id": stage_id, "to_state": "completed"},

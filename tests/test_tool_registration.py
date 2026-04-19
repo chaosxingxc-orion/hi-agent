@@ -49,6 +49,6 @@ def test_file_read_invokable_via_registry(tmp_path):
     invoker = builder.build_invoker()
     f = tmp_path / "test.txt"
     f.write_text("hello")
-    result = invoker.invoke("file_read", {"path": str(f)})
+    result = invoker.invoke("file_read", {"path": "test.txt", "base_dir": str(tmp_path)})
     assert result["success"] is True
     assert result["content"] == "hello"

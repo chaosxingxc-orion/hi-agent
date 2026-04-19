@@ -49,8 +49,8 @@ def test_save_does_not_create_subdirectory(tmp_path: Path) -> None:
         "Subdirectory 'abc' was created — session_id slash was not sanitised"
     )
 
-    # Exactly one .json file must exist at the flat level
-    json_files = list(tmp_path.glob("*.json"))
+    # Exactly one .json data file must exist at the flat level
+    json_files = [f for f in tmp_path.glob("*.json") if f.name != "_manifest.json"]
     assert len(json_files) == 1, f"Expected 1 flat .json file, got {json_files}"
     assert json_files[0].name == "abc__reflect__S1__1.json"
 
@@ -69,11 +69,12 @@ def test_evict_finds_reflection_memories(tmp_path: Path) -> None:
     for sid in slash_ids:
         store.save(_make_memory(sid))
 
-    assert len(list(tmp_path.glob("*.json"))) == 4, "Pre-condition: 4 files expected"
+    data_files = [f for f in tmp_path.glob("*.json") if f.name != "_manifest.json"]
+    assert len(data_files) == 4, "Pre-condition: 4 data files expected"
 
     deleted = store._evict_oldest(keep=2)
 
-    remaining = list(tmp_path.glob("*.json"))
+    remaining = [f for f in tmp_path.glob("*.json") if f.name != "_manifest.json"]
     assert len(remaining) == 2, (
         f"Expected 2 files after eviction, got {len(remaining)}: {remaining}"
     )

@@ -11,6 +11,9 @@ from hi_agent.llm.protocol import LLMRequest
 
 logger = logging.getLogger(__name__)
 
+# Track fallback usage
+_fallback_count: int = 0
+
 
 @dataclass
 class CompressionResult:
@@ -49,6 +52,29 @@ class AsyncMemoryCompressor:
         # so that subsequent calls can perform incremental updates.
         self._last_structured_summary: Any = None
 
+    def _emit_fallback(self, input_text: str, records: list[dict[str, Any]]) -> CompressionResult:
+        """Execute fallback compression and emit metrics.
+
+        This is the unified fallback path used when StructuredCompressor is unavailable,
+        when the gateway is missing, or when LLM compression fails. It uses simple
+        string concatenation and emits a warning so operators can track fallback usage.
+        """
+        global _fallback_count
+        _fallback_count += 1
+
+        summary = self._fallback_compress(records)
+        logger.warning(
+            "Using fallback compression (count: %d): summary length=%d bytes",
+            _fallback_count,
+            len(summary),
+        )
+        return CompressionResult(
+            summary=summary,
+            input_tokens=len(input_text.split()),
+            output_tokens=len(summary.split()),
+            compression_ratio=len(summary) / max(len(input_text), 1),
+        )
+
     async def compress(
         self,
         records: list[dict[str, Any]],
@@ -74,13 +100,7 @@ class AsyncMemoryCompressor:
 
         if self._gateway is None:
             # Fallback: simple concat (same as sync compressor)
-            summary = self._fallback_compress(records)
-            return CompressionResult(
-                summary=summary,
-                input_tokens=input_tokens,
-                output_tokens=len(summary.split()),
-                compression_ratio=len(summary) / max(len(input_text), 1),
-            )
+            return self._emit_fallback(input_text, records)
 
         # Attempt structured compression when the gateway supports async calls.
         complete = getattr(self._gateway, "complete", None)
@@ -123,7 +143,9 @@ class AsyncMemoryCompressor:
                 )
             except ImportError:
                 # structured_compression module not available — fall through
-                pass
+                logger.debug(
+                    "StructuredCompressor not available; proceeding to LLM fallback"
+                )
             except Exception as exc:
                 logger.warning(
                     "StructuredCompressor failed, falling back to plain LLM compression: %s",
@@ -131,6 +153,10 @@ class AsyncMemoryCompressor:
                 )
 
         # LLM-powered compression (original path)
+        if complete is None:
+            # If gateway lacks complete method, fall back to string concatenation
+            return self._emit_fallback(input_text, records)
+
         request = LLMRequest(
             messages=[
                 {"role": "system", "content": self._system_prompt()},
@@ -142,15 +168,6 @@ class AsyncMemoryCompressor:
         )
 
         import asyncio
-
-        if complete is None:
-            summary = self._fallback_compress(records)
-            return CompressionResult(
-                summary=summary,
-                input_tokens=input_tokens,
-                output_tokens=len(summary.split()),
-                compression_ratio=len(summary) / max(len(input_text), 1),
-            )
 
         if inspect.iscoroutinefunction(complete):
             response = await complete(request)

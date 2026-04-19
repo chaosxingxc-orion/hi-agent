@@ -30,11 +30,13 @@ class TestRunManagerCreate:
         assert run_id
         assert isinstance(run_id, str)
 
-    def test_create_uses_task_id_if_present(self) -> None:
-        """If task_id is in the contract, it is used as run_id."""
+    def test_create_generates_uuid4_run_id(self) -> None:
+        """create_run always generates a UUID4 run_id regardless of task_id."""
+        import uuid
         mgr = RunManager()
         run_id = mgr.create_run({"task_id": "my-task-42", "goal": "test"})
-        assert run_id == "my-task-42"
+        parsed = uuid.UUID(run_id, version=4)
+        assert str(parsed) == run_id
 
     def test_create_sets_initial_state(self) -> None:
         """New runs start in 'created' state."""
@@ -105,8 +107,9 @@ class TestRunManagerList:
         mgr.create_run({"task_id": "b", "goal": "two"})
         runs = mgr.list_runs()
         assert len(runs) == 2
-        ids = {r.run_id for r in runs}
-        assert ids == {"a", "b"}
+        # run_ids are UUID4; verify task_contract is retained instead.
+        goals = {r.task_contract.get("goal") for r in runs}
+        assert goals == {"one", "two"}
 
 
 class TestRunManagerCancel:
@@ -376,8 +379,8 @@ class TestRunManagerQueue:
 
         assert mgr.get_run(rid1).state == "completed"  # type: ignore[union-attr]
         assert mgr.get_run(rid2).state == "completed"  # type: ignore[union-attr]
-        assert "first" in results
-        assert "second" in results
+        assert rid1 in results
+        assert rid2 in results
 
 
 class TestRunManagerSerialize:
@@ -527,16 +530,19 @@ class TestRunsEndpoints:
     """Test run CRUD endpoints."""
 
     def test_create_and_get_run(self, client: TestClient) -> None:
-        """POST /runs creates a run, GET /runs/{id} retrieves it."""
+        """POST /runs creates a run with UUID4 run_id, GET /runs/{id} retrieves it."""
+        import uuid
         resp = client.post("/runs", json={"task_id": "abc", "goal": "test goal"})
         assert resp.status_code == 201
         body = resp.json()
-        assert body["run_id"] == "abc"
+        run_id = body["run_id"]
+        parsed = uuid.UUID(run_id, version=4)
+        assert str(parsed) == run_id
         assert body["state"] in ("created", "running", "completed")
 
-        resp2 = client.get("/runs/abc")
+        resp2 = client.get(f"/runs/{run_id}")
         assert resp2.status_code == 200
-        assert resp2.json()["run_id"] == "abc"
+        assert resp2.json()["run_id"] == run_id
 
     def test_create_without_goal_fails(self, client: TestClient) -> None:
         """POST /runs without goal returns 400."""
@@ -546,13 +552,15 @@ class TestRunsEndpoints:
 
     def test_list_runs(self, client: TestClient) -> None:
         """GET /runs lists created runs."""
-        client.post("/runs", json={"task_id": "r1", "goal": "a"})
-        client.post("/runs", json={"task_id": "r2", "goal": "b"})
+        resp1 = client.post("/runs", json={"task_id": "r1", "goal": "a"})
+        resp2 = client.post("/runs", json={"task_id": "r2", "goal": "b"})
+        rid1 = resp1.json()["run_id"]
+        rid2 = resp2.json()["run_id"]
         resp = client.get("/runs")
         assert resp.status_code == 200
         ids = {r["run_id"] for r in resp.json()["runs"]}
-        assert "r1" in ids
-        assert "r2" in ids
+        assert rid1 in ids
+        assert rid2 in ids
 
     def test_get_nonexistent_run(self, client: TestClient) -> None:
         """GET /runs/missing returns 404."""
@@ -561,16 +569,18 @@ class TestRunsEndpoints:
 
     def test_signal_cancel(self, client: TestClient) -> None:
         """POST /runs/{id}/signal with cancel signal works."""
-        client.post("/runs", json={"task_id": "s1", "goal": "test"})
-        resp = client.post("/runs/s1/signal", json={"signal": "cancel"})
+        create_resp = client.post("/runs", json={"task_id": "s1", "goal": "test"})
+        run_id = create_resp.json()["run_id"]
+        resp = client.post(f"/runs/{run_id}/signal", json={"signal": "cancel"})
         assert resp.status_code in (200, 409)
         if resp.status_code == 200:
             assert resp.json()["state"] == "cancelled"
 
     def test_signal_unknown(self, client: TestClient) -> None:
         """POST /runs/{id}/signal with unknown signal returns 400."""
-        client.post("/runs", json={"task_id": "s2", "goal": "test"})
-        resp = client.post("/runs/s2/signal", json={"signal": "explode"})
+        create_resp = client.post("/runs", json={"task_id": "s2", "goal": "test"})
+        run_id = create_resp.json()["run_id"]
+        resp = client.post(f"/runs/{run_id}/signal", json={"signal": "explode"})
         assert resp.status_code == 400
         assert resp.json()["error"] == "unknown_signal"
 
@@ -619,11 +629,12 @@ class TestAsyncEndpoint:
 
     def test_async_create_and_list(self, client: TestClient) -> None:
         """Verify async create followed by list returns consistent data."""
-        client.post("/runs", json={"task_id": "async-1", "goal": "async test"})
+        create_resp = client.post("/runs", json={"task_id": "async-1", "goal": "async test"})
+        run_id = create_resp.json()["run_id"]
         resp = client.get("/runs")
         assert resp.status_code == 200
         runs = resp.json()["runs"]
-        assert any(r["run_id"] == "async-1" for r in runs)
+        assert any(r["run_id"] == run_id for r in runs)
 
 
 class TestSSEStreaming:
@@ -681,12 +692,12 @@ class TestConcurrentRequests:
         assert not errors, f"Errors: {errors}"
         assert len(results) == 10
 
-        # Verify all runs are listed
+        # Verify all runs are listed — IDs are UUID4, check by count.
         resp = client.get("/runs")
         assert resp.status_code == 200
-        ids = {r["run_id"] for r in resp.json()["runs"]}
-        for i in range(10):
-            assert f"conc-{i}" in ids
+        created_ids = {r["run_id"] for r in results}
+        listed_ids = {r["run_id"] for r in resp.json()["runs"]}
+        assert created_ids.issubset(listed_ids)
 
 
 # ---------------------------------------------------------------------------

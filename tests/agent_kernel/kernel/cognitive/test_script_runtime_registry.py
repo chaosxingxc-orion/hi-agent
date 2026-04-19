@@ -1,0 +1,370 @@
+"""Verifies for scriptruntimeregistry (r4a)."""
+
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+
+from agent_kernel.kernel.cognitive.script_runtime import LocalProcessScriptRuntime
+from agent_kernel.kernel.cognitive.script_runtime_registry import (
+    KERNEL_SCRIPT_RUNTIME_REGISTRY,
+    ScriptRuntimeDescriptor,
+    ScriptRuntimeRegistry,
+    configure_local_process_timeout,
+    validate_host_kind,
+)
+from agent_kernel.kernel.contracts import ScriptActivityInput, ScriptResult
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_input(host_kind: str = "echo") -> ScriptActivityInput:
+    """Make input."""
+    return ScriptActivityInput(
+        run_id="run-1",
+        action_id="act-1",
+        script_id="s-1",
+        script_content="",
+        host_kind=host_kind,
+    )
+
+
+class _StubRuntime:
+    """Minimal stub runtime that returns a fixed result."""
+
+    def __init__(self, exit_code: int = 0) -> None:
+        """Initializes _StubRuntime."""
+        self.calls: list[ScriptActivityInput] = []
+        self._exit_code = exit_code
+
+    async def execute_script(self, input_value: ScriptActivityInput) -> ScriptResult:
+        """Execute script."""
+        self.calls.append(input_value)
+        return ScriptResult(
+            script_id=input_value.script_id,
+            exit_code=self._exit_code,
+            stdout="stub",
+            stderr="",
+            output_json=None,
+            execution_ms=1,
+        )
+
+
+# ---------------------------------------------------------------------------
+# ScriptRuntimeDescriptor
+# ---------------------------------------------------------------------------
+
+
+class TestScriptRuntimeDescriptor:
+    """Test suite for ScriptRuntimeDescriptor."""
+
+    def test_is_frozen(self) -> None:
+        """Verifies is frozen."""
+        desc = ScriptRuntimeDescriptor(host_kind="echo", description="test")
+        with pytest.raises((AttributeError, TypeError)):
+            desc.host_kind = "other"  # type: ignore[misc]
+
+    def test_default_not_production_safe(self) -> None:
+        """Verifies default not production safe."""
+        desc = ScriptRuntimeDescriptor(host_kind="echo", description="test")
+        assert desc.is_safe_for_production is False
+
+    def test_supports_timeout_default_true(self) -> None:
+        """Verifies supports timeout default true."""
+        desc = ScriptRuntimeDescriptor(host_kind="echo", description="test")
+        assert desc.supports_timeout is True
+
+
+# ---------------------------------------------------------------------------
+# ScriptRuntimeRegistry — registration
+# ---------------------------------------------------------------------------
+
+
+class TestScriptRuntimeRegistryRegistration:
+    """Test suite for ScriptRuntimeRegistryRegistration."""
+
+    def test_register_and_get(self) -> None:
+        """Verifies register and get."""
+        reg = ScriptRuntimeRegistry()
+        stub = _StubRuntime()
+        reg.register("my_kind", stub, description="test stub")
+        assert reg.get("my_kind") is stub
+
+    def test_get_unknown_returns_none(self) -> None:
+        """Verifies get unknown returns none."""
+        reg = ScriptRuntimeRegistry()
+        assert reg.get("nonexistent") is None
+
+    def test_known_host_kinds_empty_initially(self) -> None:
+        """Verifies known host kinds empty initially."""
+        reg = ScriptRuntimeRegistry()
+        assert reg.known_host_kinds() == []
+
+    def test_known_host_kinds_after_register(self) -> None:
+        """Verifies known host kinds after register."""
+        reg = ScriptRuntimeRegistry()
+        reg.register("a", _StubRuntime())
+        reg.register("b", _StubRuntime())
+        assert set(reg.known_host_kinds()) == {"a", "b"}
+
+    def test_register_overwrites_existing(self) -> None:
+        """Verifies register overwrites existing."""
+        reg = ScriptRuntimeRegistry()
+        stub1 = _StubRuntime(exit_code=0)
+        stub2 = _StubRuntime(exit_code=1)
+        reg.register("kind", stub1)
+        reg.register("kind", stub2)
+        assert reg.get("kind") is stub2
+
+    def test_get_descriptor_returns_descriptor(self) -> None:
+        """Verifies get descriptor returns descriptor."""
+        reg = ScriptRuntimeRegistry()
+        reg.register("k", _StubRuntime(), description="d", is_safe_for_production=True)
+        desc = reg.get_descriptor("k")
+        assert desc is not None
+        assert desc.host_kind == "k"
+        assert desc.description == "d"
+        assert desc.is_safe_for_production is True
+
+    def test_get_descriptor_unknown_returns_none(self) -> None:
+        """Verifies get descriptor unknown returns none."""
+        reg = ScriptRuntimeRegistry()
+        assert reg.get_descriptor("unknown") is None
+
+    def test_all_descriptors(self) -> None:
+        """Verifies all descriptors."""
+        reg = ScriptRuntimeRegistry()
+        reg.register("x", _StubRuntime())
+        reg.register("y", _StubRuntime())
+        descriptors = reg.all_descriptors()
+        kinds = {d.host_kind for d in descriptors}
+        assert kinds == {"x", "y"}
+
+
+# ---------------------------------------------------------------------------
+# ScriptRuntimeRegistry — dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestScriptRuntimeRegistryDispatch:
+    """Test suite for ScriptRuntimeRegistryDispatch."""
+
+    def test_dispatch_routes_to_correct_runtime(self) -> None:
+        """Verifies dispatch routes to correct runtime."""
+        reg = ScriptRuntimeRegistry()
+        stub = _StubRuntime(exit_code=42)
+        reg.register("custom", stub)
+        result = asyncio.run(reg.dispatch(_make_input(host_kind="custom")))
+        assert result.exit_code == 42
+        assert len(stub.calls) == 1
+
+    def test_dispatch_unknown_raises_key_error(self) -> None:
+        """Verifies dispatch unknown raises key error."""
+        reg = ScriptRuntimeRegistry()
+        with pytest.raises(KeyError, match="host_kind"):
+            asyncio.run(reg.dispatch(_make_input(host_kind="unknown_kind")))
+
+    def test_dispatch_error_message_includes_host_kind(self) -> None:
+        """Verifies dispatch error message includes host kind."""
+        reg = ScriptRuntimeRegistry()
+        with pytest.raises(KeyError) as exc_info:
+            asyncio.run(reg.dispatch(_make_input(host_kind="mystery")))
+        assert "mystery" in str(exc_info.value)
+
+    def test_dispatch_passes_full_input(self) -> None:
+        """Verifies dispatch passes full input."""
+        reg = ScriptRuntimeRegistry()
+        stub = _StubRuntime()
+        reg.register("echo", stub)
+        inp = _make_input(host_kind="echo")
+        asyncio.run(reg.dispatch(inp))
+        assert stub.calls[0] is inp
+
+
+# ---------------------------------------------------------------------------
+# KERNEL_SCRIPT_RUNTIME_REGISTRY — built-in runtimes
+# ---------------------------------------------------------------------------
+
+
+class TestKernelScriptRuntimeRegistry:
+    """Test suite for KernelScriptRuntimeRegistry."""
+
+    def test_echo_is_registered(self) -> None:
+        """Verifies echo is registered."""
+        assert "echo" in KERNEL_SCRIPT_RUNTIME_REGISTRY.known_host_kinds()
+
+    def test_in_process_python_is_registered(self) -> None:
+        """Verifies in process python is registered."""
+        assert "in_process_python" in KERNEL_SCRIPT_RUNTIME_REGISTRY.known_host_kinds()
+
+    def test_local_process_is_registered(self) -> None:
+        """Verifies local process is registered."""
+        assert "local_process" in KERNEL_SCRIPT_RUNTIME_REGISTRY.known_host_kinds()
+
+    def test_echo_descriptor_not_production_safe(self) -> None:
+        """Verifies echo descriptor not production safe."""
+        desc = KERNEL_SCRIPT_RUNTIME_REGISTRY.get_descriptor("echo")
+        assert desc is not None
+        assert desc.is_safe_for_production is False
+
+    def test_local_process_descriptor_production_safe(self) -> None:
+        """Verifies local process descriptor production safe."""
+        desc = KERNEL_SCRIPT_RUNTIME_REGISTRY.get_descriptor("local_process")
+        assert desc is not None
+        assert desc.is_safe_for_production is True
+
+    def test_dispatch_echo_succeeds(self) -> None:
+        """Verifies dispatch echo succeeds."""
+        inp = ScriptActivityInput(
+            run_id="r",
+            action_id="a",
+            script_id="s",
+            script_content="",
+            host_kind="echo",
+            parameters={"k": "v"},
+        )
+        result = asyncio.run(KERNEL_SCRIPT_RUNTIME_REGISTRY.dispatch(inp))
+        assert result.exit_code == 0
+        assert result.output_json == {"k": "v"}
+
+    def test_dispatch_in_process_python_succeeds(self) -> None:
+        """Verifies dispatch in process python succeeds."""
+        inp = ScriptActivityInput(
+            run_id="r",
+            action_id="a",
+            script_id="s",
+            script_content="print('hi')",
+            host_kind="in_process_python",
+        )
+        result = asyncio.run(KERNEL_SCRIPT_RUNTIME_REGISTRY.dispatch(inp))
+        assert result.exit_code == 0
+        assert "hi" in result.stdout
+
+    def test_custom_runtime_can_be_registered(self) -> None:
+        """Third-party code can inject a new host_kind."""
+        import uuid
+
+        reg = ScriptRuntimeRegistry()
+        stub = _StubRuntime(exit_code=7)
+        custom_kind = f"custom_{uuid.uuid4().hex[:6]}"
+        reg.register(custom_kind, stub, description="third-party runtime")
+        result = asyncio.run(reg.dispatch(_make_input(host_kind=custom_kind)))
+        assert result.exit_code == 7
+
+
+# ---------------------------------------------------------------------------
+# validate_host_kind
+# ---------------------------------------------------------------------------
+
+
+class TestValidateHostKind:
+    """Test suite for ValidateHostKind."""
+
+    def test_known_kind_returns_true(self) -> None:
+        """Verifies known kind returns true."""
+        assert validate_host_kind("echo") is True
+
+    def test_unknown_kind_returns_false(self) -> None:
+        """Verifies unknown kind returns false."""
+        assert validate_host_kind("totally_unknown") is False
+
+    def test_strict_raises_on_unknown(self) -> None:
+        """Verifies strict raises on unknown."""
+        with pytest.raises(ValueError, match="host_kind"):
+            validate_host_kind("not_registered", strict=True)
+
+    def test_strict_does_not_raise_on_known(self) -> None:
+        """Verifies strict does not raise on known."""
+        assert validate_host_kind("in_process_python", strict=True) is True
+
+
+# ---------------------------------------------------------------------------
+# ScriptRuntimeRegistry — production mode
+# ---------------------------------------------------------------------------
+
+
+class TestProductionMode:
+    """Test suite for ProductionMode."""
+
+    def test_enable_production_mode_blocks_unsafe_dispatch(self) -> None:
+        """Verifies enable production mode blocks unsafe dispatch."""
+        reg = ScriptRuntimeRegistry()
+        reg.register("unsafe_kind", _StubRuntime(), is_safe_for_production=False)
+        reg.enable_production_mode()
+        with pytest.raises(RuntimeError, match="not production-safe"):
+            asyncio.run(reg.dispatch(_make_input(host_kind="unsafe_kind")))
+
+    def test_enable_production_mode_allows_safe_dispatch(self) -> None:
+        """Verifies enable production mode allows safe dispatch."""
+        reg = ScriptRuntimeRegistry()
+        stub = _StubRuntime(exit_code=0)
+        reg.register("safe_kind", stub, is_safe_for_production=True)
+        reg.enable_production_mode()
+        result = asyncio.run(reg.dispatch(_make_input(host_kind="safe_kind")))
+        assert result.exit_code == 0
+        assert len(stub.calls) == 1
+
+    def test_enable_production_mode_idempotent(self) -> None:
+        """Verifies enable production mode idempotent."""
+        reg = ScriptRuntimeRegistry()
+        reg.enable_production_mode()
+        reg.enable_production_mode()  # second call must not raise
+        assert reg._production_mode is True
+
+    def test_production_mode_off_by_default(self) -> None:
+        """Verifies production mode off by default."""
+        reg = ScriptRuntimeRegistry()
+        stub = _StubRuntime(exit_code=0)
+        reg.register("unsafe_kind", stub, is_safe_for_production=False)
+        # No enable_production_mode() call — dispatch must succeed
+        result = asyncio.run(reg.dispatch(_make_input(host_kind="unsafe_kind")))
+        assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# configure_local_process_timeout
+# ---------------------------------------------------------------------------
+
+
+class TestConfigureLocalProcessTimeout:
+    """Test suite for ConfigureLocalProcessTimeout."""
+
+    def test_configure_local_process_timeout_updates_registry(self) -> None:
+        """Verifies configure local process timeout updates registry."""
+        original = KERNEL_SCRIPT_RUNTIME_REGISTRY._runtimes.get("local_process")
+        try:
+            configure_local_process_timeout(5000)
+            runtime = KERNEL_SCRIPT_RUNTIME_REGISTRY._runtimes["local_process"]
+            assert isinstance(runtime, LocalProcessScriptRuntime)
+            assert runtime._default_timeout_ms == 5000
+        finally:
+            # Restore original runtime to avoid polluting other tests.
+            if original is not None:
+                KERNEL_SCRIPT_RUNTIME_REGISTRY.register(
+                    "local_process",
+                    original,
+                    description="asyncio subprocess runtime for local shell scripts.",
+                    is_safe_for_production=True,
+                    supports_timeout=True,
+                )
+
+    def test_configure_local_process_timeout_is_production_safe(self) -> None:
+        """Verifies configure local process timeout is production safe."""
+        original = KERNEL_SCRIPT_RUNTIME_REGISTRY._runtimes.get("local_process")
+        try:
+            configure_local_process_timeout(1000)
+            descriptor = KERNEL_SCRIPT_RUNTIME_REGISTRY.get_descriptor("local_process")
+            assert descriptor is not None
+            assert descriptor.is_safe_for_production is True
+        finally:
+            if original is not None:
+                KERNEL_SCRIPT_RUNTIME_REGISTRY.register(
+                    "local_process",
+                    original,
+                    description="asyncio subprocess runtime for local shell scripts.",
+                    is_safe_for_production=True,
+                    supports_timeout=True,
+                )

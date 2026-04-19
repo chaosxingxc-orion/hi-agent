@@ -24,7 +24,9 @@ import base64
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
+
+import jwt as pyjwt
 
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -34,6 +36,11 @@ from hi_agent.auth.jwt_middleware import (
     validate_jwt_claims,
 )
 from hi_agent.auth.rbac_enforcer import OperationNotAllowedError, RBACEnforcer
+from hi_agent.server.tenant_context import (
+    TenantContext,
+    reset_tenant_context,
+    set_tenant_context,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -57,6 +64,14 @@ def _load_api_keys() -> frozenset[str]:
     if not raw:
         return frozenset()
     return frozenset(k.strip() for k in raw.split(",") if k.strip())
+
+
+def _verify_jwt(token: str, secret: str, audience: str) -> dict[str, Any] | None:
+    """Decode and VERIFY a JWT using the provided secret."""
+    try:
+        return pyjwt.decode(token, secret, algorithms=["HS256"], audience=audience)
+    except pyjwt.PyJWTError:
+        return None
 
 
 def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
@@ -84,18 +99,31 @@ class AuthMiddleware:
 
     When ``HI_AGENT_API_KEY`` is not set the middleware is disabled and all
     requests pass through without modification.
+
+    In ``prod-real`` mode without an API key the posture is ``degraded``.
     """
 
     def __init__(
         self,
         app: ASGIApp,
         audience: str = "hi-agent",
+        runtime_mode: str = "dev-smoke",
     ) -> None:
         self.app = app
         self._audience = audience
+        self._runtime_mode = runtime_mode
         self._api_keys = _load_api_keys()
         self._rbac = RBACEnforcer(_DEFAULT_POLICY)
         self._enabled = bool(self._api_keys)
+        self._jwt_secret = os.environ.get("HI_AGENT_JWT_SECRET", "").strip() or None
+        self._enforce_jwt_sig: bool = os.getenv("ENFORCE_JWT_SIGNATURE", "false").lower() == "true"
+        if self._jwt_secret:
+            _logger.info("AuthMiddleware JWT signature verification enabled")
+        else:
+            _logger.warning(
+                "HI_AGENT_JWT_SECRET not set; JWT signature verification disabled. "
+                "Set this variable in production to prevent forged tokens."
+            )
         if self._enabled:
             _logger.info(
                 "AuthMiddleware enabled (%d key(s) configured)", len(self._api_keys)
@@ -106,12 +134,54 @@ class AuthMiddleware:
                 "All endpoints are unauthenticated."
             )
 
+    @property
+    def auth_posture(self) -> Literal["ok", "dev_risk_open", "degraded"]:
+        """Return the current authentication posture.
+
+        Returns:
+            ``"ok"``           — API key is set and enforced.
+            ``"dev_risk_open"`` — No API key but in dev/smoke mode (acceptable).
+            ``"degraded"``     — No API key in prod-real mode (unacceptable).
+        """
+        if self._enabled:
+            return "ok"
+        if self._runtime_mode == "prod-real":
+            return "degraded"
+        return "dev_risk_open"
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not self._enabled:
+        if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
+        # Exempt paths bypass all auth checks, including the prod fail-closed gate.
         path: str = scope.get("path", "")
+        if path in _EXEMPT_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        # Prod fail-closed: reject non-exempt requests when auth is unconfigured in prod.
+        if not self._enabled:
+            if self._runtime_mode == "prod-real":
+                await self._reject(
+                    scope, receive, send, "auth_not_configured", status=503
+                )
+                return
+            # Auth disabled in dev/smoke mode: inject an anonymous TenantContext so
+            # workspace-scoped handlers have a valid context to work with.
+            _anon_ctx = TenantContext(
+                tenant_id="__anonymous__",
+                user_id="__anonymous__",
+                session_id="__anonymous__",
+                auth_method="none",
+            )
+            _reset_token = set_tenant_context(_anon_ctx)
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                reset_tenant_context(_reset_token)
+            return
+
         if path in _EXEMPT_PATHS:
             await self.app(scope, receive, send)
             return
@@ -143,27 +213,75 @@ class AuthMiddleware:
             await self._reject(scope, receive, send, "forbidden", status=403)
             return
 
-        await self.app(scope, receive, send)
+        # Resolve claims for TenantContext population.
+        validated_claims: dict[str, Any] = {}
+        is_jwt = token not in self._api_keys
+        if is_jwt:
+            if self._jwt_secret:
+                raw = _verify_jwt(token, self._jwt_secret, self._audience) or {}
+            else:
+                raw = _decode_jwt_payload(token) or {}
+            validated_claims = raw
+
+        ctx = TenantContext(
+            tenant_id=str(validated_claims.get("tenant_id", "") or "default"),
+            user_id=str(validated_claims.get("sub", "")),
+            roles=[role],
+            auth_method="jwt" if is_jwt else "api_key",
+            request_id=scope.get("path", "") + "-" + scope.get("method", ""),
+        )
+        scope["tenant_context"] = ctx
+        reset_token = set_tenant_context(ctx)
+
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            reset_tenant_context(reset_token)
 
     def _authenticate(self, token: str) -> str | None:
         """Validate token and return the resolved role, or None on failure.
 
         Plain API-key tokens get role ``write``.  JWT tokens get their
         role from the ``role`` claim (defaulting to ``read``).
+
+        When ENFORCE_JWT_SIGNATURE=true, reject unsigned JWTs (alg=none) by
+        requiring full signature verification.
         """
         # Plain API-key path
         if token in self._api_keys:
             return "write"
 
-        # JWT path: decode and validate claims
-        claims = _decode_jwt_payload(token)
-        if claims is None:
-            return None
-        try:
-            validated = validate_jwt_claims(claims, audience=self._audience)
-            return str(validated.get("role", "read"))
-        except JWTValidationError:
-            return None
+        # JWT path: refuse immediately in prod-real when no secret is configured
+        if self._runtime_mode == "prod-real" and not self._jwt_secret:
+            return None  # Refuse JWT in production when no secret is configured
+
+        # JWT path: check ENFORCE_JWT_SIGNATURE flag
+        if self._jwt_secret or self._enforce_jwt_sig:
+            # Signature verification mode: PyJWT verifies signature AND decodes claims
+            # When enforce_sig=true but jwt_secret is absent, _verify_jwt will fail,
+            # causing the token to be rejected (fail-closed).
+            claims = _verify_jwt(token, self._jwt_secret, self._audience) if self._jwt_secret else None
+            if claims is None:
+                return None
+            # PyJWT already validated exp and aud; only run additional claims checks
+            try:
+                validated = validate_jwt_claims(claims, audience=self._audience)
+                return str(validated.get("role", "read"))
+            except JWTValidationError:
+                return None
+        else:
+            # Fallback: claims-only mode (no signature verification)
+            _logger.warning(
+                "Processing JWT without signature verification (HI_AGENT_JWT_SECRET unset)"
+            )
+            claims = _decode_jwt_payload(token)
+            if claims is None:
+                return None
+            try:
+                validated = validate_jwt_claims(claims, audience=self._audience)
+                return str(validated.get("role", "read"))
+            except JWTValidationError:
+                return None
 
     async def _reject(
         self,

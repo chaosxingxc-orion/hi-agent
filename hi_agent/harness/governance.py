@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -10,6 +11,17 @@ from hi_agent.harness.contracts import (
     EffectClass,
     SideEffectClass,
 )
+
+DANGEROUS_PATTERNS = [
+    re.compile(r"\brm\s+-rf\b"),
+    re.compile(r"\bdd\s+if="),
+    re.compile(r"\bmkfs\b"),
+    re.compile(r">\s*/dev/"),
+    re.compile(r"\bsudo\b"),
+    re.compile(r"\bchmod\s+777\b"),
+    re.compile(r"\bcurl\b.*\|\s*bash"),
+    re.compile(r"\bwget\b.*\|\s*sh"),
+]
 
 
 @dataclass
@@ -48,6 +60,14 @@ class GovernanceEngine:
         self._approval_queue: list[ActionSpec] = []
         self._approved: set[str] = set()
         self._rejected: dict[str, str] = {}  # action_id -> reason
+
+    def check_dangerous_command(self, command: str) -> list[str]:
+        """Return dangerous command pattern matches for a shell command."""
+        hits = []
+        for pat in DANGEROUS_PATTERNS:
+            if pat.search(command):
+                hits.append(f"dangerous pattern: {pat.pattern!r}")
+        return hits
 
     def validate(self, spec: ActionSpec) -> list[str]:
         """Validate action spec against governance rules.
@@ -130,12 +150,28 @@ class GovernanceEngine:
         """
         self._approval_queue.append(spec)
 
-    def approve(self, action_id: str) -> None:
+    def approve(self, action_id: str, *, approver_id: str = "") -> None:
         """Mark an action as approved.
 
         Args:
             action_id: The action to approve.
+            approver_id: Principal approving the action; enforced against submitter for SOC.
+
+        Raises:
+            SeparationOfConcernError: If approver is the same as the action submitter.
         """
+        # Enforce submitter/approver separation when both are present.
+        spec = next((s for s in self._approval_queue if s.action_id == action_id), None)
+        submitter_id = spec.submitter_id if spec is not None else ""
+
+        from hi_agent.auth.soc_guard import enforce_submitter_approver_separation
+
+        enforce_submitter_approver_separation(
+            submitter=submitter_id,
+            approver=approver_id,
+            enabled=bool(submitter_id and approver_id),
+        )
+
         self._approved.add(action_id)
         self._approval_queue = [
             s for s in self._approval_queue if s.action_id != action_id

@@ -54,22 +54,50 @@ from typing import Any
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response, StreamingResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from hi_agent.auth.operation_policy import require_operation
 from hi_agent.config.stack import ConfigStack
 from hi_agent.config.watcher import ConfigFileWatcher
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
 from hi_agent.server.rate_limiter import RateLimiter
+from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.run_manager import RunManager
+from hi_agent.server.run_store import SQLiteRunStore
+from hi_agent.server.session_store import SessionStore
+from hi_agent.server.team_event_store import TeamEventStore
+from hi_agent.server.routes_team import handle_list_team_events
+from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
+from hi_agent.server.routes_events import handle_run_events_sse
+from hi_agent.server.routes_runs import (
+    handle_create_run,
+    handle_get_feedback,
+    handle_get_run,
+    handle_list_runs,
+    handle_resume_run,
+    handle_run_artifacts,
+    handle_runs_active,
+    handle_signal_run,
+    handle_submit_feedback,
+)
+from hi_agent.server.routes_sessions import (
+    handle_get_session_runs,
+    handle_list_sessions,
+    handle_patch_session,
+)
+from hi_agent.server.routes_tools_mcp import (
+    handle_mcp_tools,
+    handle_mcp_tools_call,
+    handle_mcp_tools_list,
+    handle_tools_call,
+    handle_tools_list,
+)
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Starlette route handlers
-# ---------------------------------------------------------------------------
 
 async def handle_health(request: Request) -> JSONResponse:
     """Return aggregated server health status across all subsystems."""
@@ -206,6 +234,10 @@ async def handle_ready(request: Request) -> JSONResponse:
     registries and subsystems used by actual run execution — not a
     reconstructed default snapshot.
     """
+    import os as _os_rdy
+    from hi_agent.server.auth_middleware import AuthMiddleware as _AM_rdy
+    from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_rdy
+
     server: AgentServer = request.app.state.agent_server
     try:
         builder = getattr(server, "_builder", None)
@@ -220,6 +252,16 @@ async def handle_ready(request: Request) -> JSONResponse:
             "health": "error",
             "error": str(exc),
         }
+
+    # Augment snapshot with auth_posture.
+    try:
+        _env_rdy = _os_rdy.environ.get("HI_AGENT_ENV", "dev").lower()
+        _runtime_mode_rdy = _rrm_rdy(_env_rdy, snapshot)
+        _auth_rdy = _AM_rdy(app=lambda *a: None, runtime_mode=_runtime_mode_rdy)  # type: ignore[arg-type]
+        snapshot = dict(snapshot, auth_posture=_auth_rdy.auth_posture)
+    except Exception:
+        snapshot = dict(snapshot, auth_posture="unknown")
+
     status_code = 200 if snapshot.get("ready") else 503
     return JSONResponse(snapshot, status_code=status_code)
 
@@ -228,6 +270,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
     """Return dynamic system capabilities manifest."""
     server: AgentServer = request.app.state.agent_server
     capabilities: list[str] = []
+    capability_views: list[dict] = []
     skills: list[dict] = []
     models: list[dict] = []
     profiles: list[dict] = []
@@ -244,6 +287,22 @@ async def handle_manifest(request: Request) -> JSONResponse:
                 registry = getattr(invoker, "registry", None) or getattr(invoker, "_registry", None)
                 if registry is not None and hasattr(registry, "list_names"):
                     capabilities = list(registry.list_names())
+                if registry is not None and hasattr(registry, "list_with_views"):
+                    try:
+                        capability_views = [
+                            {
+                                "name": name,
+                                "status": status,
+                                "toolset_id": getattr(desc, "toolset_id", "default") if desc else "default",
+                                "required_env": list(getattr(desc, "required_env", {}).keys()) if desc else [],
+                                "effect_class": getattr(desc, "effect_class", "unknown_effect") if desc else "unknown_effect",
+                                "output_budget_tokens": getattr(desc, "output_budget_tokens", 0) if desc else 0,
+                                "availability_reason": reason,
+                            }
+                            for name, desc, status, reason in registry.list_with_views()
+                        ]
+                    except Exception as _views_exc:
+                        logger.warning("manifest: capability_views enumeration failed: %s", _views_exc)
     except Exception as _cap_exc:
         logger.warning("manifest: capability enumeration failed: %s", _cap_exc)
 
@@ -363,17 +422,60 @@ async def handle_manifest(request: Request) -> JSONResponse:
     except Exception as _active_prof_exc:
         logger.warning("manifest: active profile lookup failed: %s", _active_prof_exc)
 
+    # --- Runtime mode, environment, and evolve policy ---
+    # All three are derived from the same resolvers used by /ready so that
+    # /manifest and /ready never drift on these fields.
+    evolve_policy: dict = {}
+    runtime_mode: str = "dev-smoke"
+    manifest_env: str = "dev"
+    manifest_llm_mode: str = "unknown"
+    manifest_kernel_mode: str = "local-fsm"
+    manifest_execution_mode: str = "local"
+    provenance_contract_version: str = "unknown"
+    try:
+        import os as _os_ep
+        from hi_agent.config.evolve_policy import resolve_evolve_effective as _rep
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
+        from hi_agent.contracts.execution_provenance import CONTRACT_VERSION as _cv
+        provenance_contract_version = _cv
+        _builder = getattr(server, "_builder", None)
+        _ev_mode = "auto"
+        if _builder is not None:
+            _cfg = getattr(_builder, "_config", None)
+            if _cfg is not None:
+                _ev_mode = getattr(_cfg, "evolve_mode", "auto")
+        manifest_env = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
+        # Obtain a live readiness snapshot so runtime_mode uses the same
+        # llm_mode/kernel_mode keys that resolve_runtime_mode expects.
+        _readiness_snap: dict = {}
+        if _builder is not None:
+            try:
+                _readiness_snap = _builder.readiness()
+            except Exception:
+                pass
+        runtime_mode = _rrm(manifest_env, _readiness_snap)
+        manifest_llm_mode = _readiness_snap.get("llm_mode", "unknown")
+        manifest_kernel_mode = _readiness_snap.get("kernel_mode", "local-fsm")
+        manifest_execution_mode = _readiness_snap.get("execution_mode", "local")
+        _ev_enabled, _ev_source = _rep(_ev_mode, runtime_mode)
+        evolve_policy = {"mode": _ev_mode, "effective": _ev_enabled, "source": _ev_source}
+    except Exception as _ep_exc:
+        logger.warning("manifest: runtime_mode/evolve_policy lookup failed: %s", _ep_exc)
+
     return JSONResponse({
         "name": "hi-agent",
         "version": "0.1.0",
         "framework": "TRACE",
         "stages": stages,
         "capabilities": capabilities,
+        "capability_views": capability_views,
+        "capability_contract_version": "2026-04-17",
         "profiles": profiles,
         "skills": skills,
         "models": models,
         "mcp_servers": mcp_servers,
         "plugins": plugins,
+        "evolve_policy": evolve_policy,
         "endpoints": [
             # Core
             "GET /health",
@@ -435,7 +537,12 @@ async def handle_manifest(request: Request) -> JSONResponse:
             "GET /artifacts/{artifact_id}",
         ],
         "active_profile": active_profile,
-        "runtime_mode": "platform",
+        "runtime_mode": runtime_mode,
+        "environment": manifest_env,
+        "llm_mode": manifest_llm_mode,
+        "kernel_mode": manifest_kernel_mode,
+        "execution_mode": manifest_execution_mode,
+        "provenance_contract_version": provenance_contract_version,
         # Contract field consumption levels — integrators must read this to understand
         # which TaskContract fields the default TRACE pipeline actually acts on.
         # ACTIVE: drives execution behavior or outcome
@@ -489,288 +596,6 @@ async def handle_manifest(request: Request) -> JSONResponse:
             },
         },
     })
-
-
-async def handle_list_runs(request: Request) -> JSONResponse:
-    """List all managed runs."""
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    runs = manager.list_runs()
-    return JSONResponse({"runs": [manager.to_dict(r) for r in runs]})
-
-
-async def handle_runs_active(request: Request) -> JSONResponse:
-    """Return currently active run contexts from RunContextManager."""
-    server: AgentServer = request.app.state.agent_server
-    rcm = getattr(server, "run_context_manager", None)
-    if rcm is None:
-        return JSONResponse({"run_ids": [], "count": 0, "status": "not_configured"})
-    try:
-        run_ids = rcm.list_runs()
-        return JSONResponse({
-            "run_ids": run_ids,
-            "count": len(run_ids),
-            "status": "ok",
-        })
-    except Exception as exc:
-        logger.warning("handle_runs_active: error fetching active runs: %s", exc)
-        return JSONResponse({"error": str(exc)}, status_code=500)
-
-
-async def handle_create_run(request: Request) -> JSONResponse:
-    """Create a new run from the POST body."""
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-
-    if "goal" not in body:
-        return JSONResponse({"error": "missing_goal"}, status_code=400)
-
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    run_id = manager.create_run(body)
-
-    # Register run in RunContextManager so /runs/active reflects live runs.
-    rcm = getattr(server, "run_context_manager", None)
-    if rcm is not None:
-        try:
-            rcm.get_or_create(run_id)
-        except Exception:
-            pass
-
-    # If the server has an executor factory, start the run immediately.
-    if server.executor_factory is not None:
-        run_data = dict(body, run_id=run_id)
-        try:
-            task_runner = server.executor_factory(run_data)
-        except RuntimeError as exc:
-            # Platform subsystem not ready (e.g. LLM gateway requires API key in
-            # prod mode). Return 503 so integrators can act on it, not a raw 500.
-            logger.warning("handle_create_run: executor_factory failed — %s", exc)
-            # Clean up the run we registered above
-            try:
-                manager.get_run(run_id)  # no-op, just guard
-            except Exception:
-                pass
-            return JSONResponse(
-                {
-                    "error": "platform_not_ready",
-                    "detail": str(exc),
-                    "run_id": run_id,
-                    "hint": (
-                        "Set HI_AGENT_ENV=dev for heuristic fallback, or provide "
-                        "OPENAI_API_KEY / ANTHROPIC_API_KEY for production mode."
-                    ),
-                },
-                status_code=503,
-            )
-        except Exception as exc:
-            logger.exception("handle_create_run: executor_factory unexpected error — %s", exc)
-            return JSONResponse(
-                {
-                    "error": "executor_build_failed",
-                    "detail": str(exc),
-                    "run_id": run_id,
-                    "error_type": type(exc).__name__,
-                },
-                status_code=500,
-            )
-
-        def _executor_fn(_managed_run: Any) -> Any:
-            try:
-                return task_runner()
-            finally:
-                # Remove from active registry on completion or failure.
-                if rcm is not None:
-                    try:
-                        rcm.remove(run_id)
-                    except Exception:
-                        pass
-
-        manager.start_run(run_id, _executor_fn)
-
-    run = manager.get_run(run_id)
-    return JSONResponse(manager.to_dict(run), status_code=201)  # type: ignore[arg-type]
-
-
-async def handle_get_run(request: Request) -> JSONResponse:
-    """Return a single run by id."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    run = manager.get_run(run_id)
-    if run is None:
-        return JSONResponse(
-            {"error": "run_not_found", "run_id": run_id}, status_code=404,
-        )
-    return JSONResponse(manager.to_dict(run))
-
-
-async def handle_signal_run(request: Request) -> JSONResponse:
-    """Send a signal to an existing run."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    run = manager.get_run(run_id)
-    if run is None:
-        return JSONResponse(
-            {"error": "run_not_found", "run_id": run_id}, status_code=404,
-        )
-
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-
-    signal = body.get("signal")
-    if signal == "cancel":
-        ok = manager.cancel_run(run_id)
-        if ok:
-            return JSONResponse({"run_id": run_id, "state": "cancelled"})
-        return JSONResponse(
-            {"error": "cannot_cancel", "run_id": run_id}, status_code=409,
-        )
-    return JSONResponse(
-        {"error": "unknown_signal", "signal": signal}, status_code=400,
-    )
-
-
-_feedback_store_fallback: Any = None
-
-
-def _get_feedback_store(server: "AgentServer") -> Any:
-    """Return the server's FeedbackStore, creating a module-level fallback if needed."""
-    global _feedback_store_fallback
-    store = getattr(server, "_feedback_store", None)
-    if store is not None:
-        return store
-    if _feedback_store_fallback is None:
-        from hi_agent.evolve.feedback_store import FeedbackStore
-        _feedback_store_fallback = FeedbackStore()
-    return _feedback_store_fallback
-
-
-async def handle_submit_feedback(request: Request) -> JSONResponse:
-    """POST /runs/{run_id}/feedback — record explicit feedback for a completed run."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-    rating = body.get("rating")
-    if rating is None or not isinstance(rating, (int, float)):
-        return JSONResponse({"error": "rating_required", "detail": "rating must be a number"}, status_code=400)
-    notes = body.get("notes", "")
-    from hi_agent.evolve.feedback_store import RunFeedback
-    feedback = RunFeedback(run_id=run_id, rating=float(rating), notes=str(notes))
-    store = _get_feedback_store(server)
-    store.submit(feedback)
-    return JSONResponse({"run_id": run_id, "rating": feedback.rating, "submitted_at": feedback.submitted_at})
-
-
-async def handle_get_feedback(request: Request) -> JSONResponse:
-    """GET /runs/{run_id}/feedback — return feedback for a run."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    store = _get_feedback_store(server)
-    record = store.get(run_id)
-    if record is None:
-        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
-    from dataclasses import asdict
-    return JSONResponse(asdict(record))
-
-
-async def handle_resume_run(request: Request) -> JSONResponse:
-    """Resume a run from its checkpoint file."""
-    import os
-    import threading
-
-    run_id = request.path_params["run_id"]
-
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        body = {}
-
-    # Search for checkpoint file (run os.path.exists off the event loop)
-    loop = asyncio.get_event_loop()
-    checkpoint_path = body.get("checkpoint_path")
-    if not checkpoint_path:
-        candidates = [
-            os.path.join(".checkpoint", f"checkpoint_{run_id}.json"),
-            os.path.join(".hi_agent", f"checkpoint_{run_id}.json"),
-        ]
-        for candidate in candidates:
-            if await loop.run_in_executor(None, os.path.exists, candidate):
-                checkpoint_path = candidate
-                break
-
-    if not checkpoint_path or not await loop.run_in_executor(None, os.path.exists, checkpoint_path):
-        return JSONResponse(
-            {"error": "checkpoint_not_found", "run_id": run_id},
-            status_code=404,
-        )
-
-    server: AgentServer = request.app.state.agent_server
-
-    def _resume_in_background() -> None:
-        try:
-            from hi_agent.runner import RunExecutor
-
-            kernel = server._builder.build_kernel()
-            RunExecutor.resume_from_checkpoint(
-                checkpoint_path,
-                kernel,
-                evolve_engine=server._builder.build_evolve_engine(),
-                harness_executor=server._builder.build_harness(),
-            )
-        except Exception as exc:
-            logger.error(
-                "Background checkpoint resume failed for run %r: %s",
-                run_id, exc, exc_info=True,
-            )
-
-    thread = threading.Thread(target=_resume_in_background, daemon=True)
-    thread.start()
-
-    return JSONResponse({
-        "status": "resuming",
-        "run_id": run_id,
-        "checkpoint_path": checkpoint_path,
-    })
-
-
-async def handle_run_events_sse(request: Request) -> StreamingResponse:
-    """Stream all events for a run as Server-Sent Events."""
-    run_id = request.path_params["run_id"]
-
-    async def generate():  # type: ignore[return]
-        q = event_bus.subscribe(run_id)
-        try:
-            while True:
-                event = await q.get()
-                data = json.dumps({
-                    "run_id": event.run_id,
-                    "event_type": event.event_type,
-                    "commit_offset": event.commit_offset,
-                    "payload": event.payload_json,
-                })
-                yield f"id: {event.commit_offset}\ndata: {data}\n\n"
-        except asyncio.CancelledError:
-            pass
-        finally:
-            event_bus.unsubscribe(run_id, q)
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
 
 
 # ------------------------------------------------------------------
@@ -893,6 +718,7 @@ async def handle_memory_dream(request: Request) -> JSONResponse:
     return JSONResponse(result)
 
 
+@require_operation("memory.consolidate")
 async def handle_memory_consolidate(request: Request) -> JSONResponse:
     """Trigger consolidation (mid-term -> long-term)."""
     server: AgentServer = request.app.state.agent_server
@@ -1134,6 +960,7 @@ async def handle_skills_status(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@require_operation("skill.evolve")
 async def handle_skills_evolve(request: Request) -> JSONResponse:
     """Trigger evolution cycle, return EvolutionReport."""
     server: AgentServer = request.app.state.agent_server
@@ -1223,6 +1050,7 @@ async def handle_skill_optimize(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@require_operation("skill.promote")
 async def handle_skill_promote(request: Request) -> JSONResponse:
     """Promote challenger to champion."""
     skill_id = request.path_params["skill_id"]
@@ -1418,70 +1246,6 @@ async def handle_capacity_advice(request: Request) -> JSONResponse:
 
 
 # ------------------------------------------------------------------
-# Tools (capability registry) endpoints
-# ------------------------------------------------------------------
-
-async def handle_tools_list(request: Request) -> JSONResponse:
-    """Return all registered capabilities as a tool list.
-
-    Response shape::
-
-        {"tools": [{"name": "file_read", "description": "...", "parameters": {...}}, ...]}
-    """
-    server: AgentServer = request.app.state.agent_server
-    try:
-        invoker = server._builder.build_invoker()
-        registry = invoker.registry
-        tools = []
-        for name in registry.list_names():
-            spec = registry.get(name)
-            tools.append({
-                "name": name,
-                "description": getattr(spec, "description", ""),
-                "parameters": getattr(spec, "parameters", {}),
-            })
-        return JSONResponse({"tools": tools, "count": len(tools)})
-    except Exception as exc:
-        logger.warning("handle_tools_list error: %s", exc)
-        return JSONResponse({"error": str(exc)}, status_code=500)
-
-
-async def handle_tools_call(request: Request) -> JSONResponse:
-    """Invoke a registered capability by name.
-
-    Request body::
-
-        {"name": "file_read", "arguments": {"path": "CLAUDE.md"}}
-
-    Response shape::
-
-        {"success": bool, "result": {...}}
-    """
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-
-    name = body.get("name")
-    if not name:
-        return JSONResponse({"error": "missing_name"}, status_code=400)
-    arguments = body.get("arguments", {})
-
-    server: AgentServer = request.app.state.agent_server
-    try:
-        invoker = server._builder.build_invoker()
-        result = invoker.invoke(name, arguments)
-        return JSONResponse({"success": True, "result": result})
-    except KeyError:
-        return JSONResponse(
-            {"success": False, "error": f"unknown_tool: {name}"}, status_code=404,
-        )
-    except Exception as exc:
-        logger.warning("handle_tools_call error for %r: %s", name, exc)
-        return JSONResponse({"success": False, "error": str(exc)}, status_code=500)
-
-
-# ------------------------------------------------------------------
 # Catch-all for 404
 # ------------------------------------------------------------------
 
@@ -1522,7 +1286,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
         _transport = getattr(_builder, "_mcp_transport", None) if _builder is not None else None
         health = MCPHealth(mcp_reg, transport=_transport)
         health_results = health.check_all()
-        any_healthy = any(s == "healthy" for s in health_results.values())
+        any_healthy = any(s in ("healthy", "degraded") for s in health_results.values())
         if any_healthy:
             transport_status = "wired"
             capability_mode = "external_provider"
@@ -1547,6 +1311,19 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
                 "Register stdio MCP servers via plugin manifests (mcp_servers field) to "
                 "enable external providers."
             )
+        stderr_tails: dict[str, list[str]] = {}
+        if _transport is not None and hasattr(_transport, "get_stderr_tail"):
+            for srv in mcp_reg.list_servers():
+                sid = srv["server_id"]
+                try:
+                    stderr_tails[sid] = _transport.get_stderr_tail()
+                except TypeError:
+                    try:
+                        stderr_tails[sid] = _transport.get_stderr_tail(sid)
+                    except Exception:  # noqa: BLE001
+                        stderr_tails[sid] = []
+                except Exception:  # noqa: BLE001
+                    stderr_tails[sid] = []
         return JSONResponse({
             "servers": mcp_reg.list_servers(),
             "health": health.snapshot(),
@@ -1555,88 +1332,10 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
             "transport_status": transport_status,
             "capability_mode": capability_mode,
             "note": note,
+            "stderr_tails": stderr_tails,
         })
     except Exception as exc:
         return JSONResponse({"error": str(exc), "servers": [], "count": 0}, status_code=500)
-
-
-async def handle_mcp_tools(request: Request) -> JSONResponse:
-    """Return all tools across registered MCP servers.
-
-    Prefers _mcp_server (same data source as /mcp/tools/list) so all tool
-    endpoints return a consistent view.
-    """
-    try:
-        server: AgentServer = request.app.state.agent_server
-        mcp_srv = getattr(server, "_mcp_server", None)
-        if mcp_srv is not None:
-            try:
-                return JSONResponse(mcp_srv.list_tools())
-            except Exception:
-                pass
-        # Fallback: registry-based listing
-        mcp_reg = server.mcp_registry
-        tools: list[dict] = []
-        for srv in mcp_reg.list_servers():
-            for tool_name in srv.get("tools", []):
-                tools.append({
-                    "server_id": srv["server_id"],
-                    "tool": tool_name,
-                    "capability_name": f"mcp.{srv['server_id']}.{tool_name}",
-                })
-        return JSONResponse({"tools": tools, "count": len(tools)})
-    except Exception as exc:
-        return JSONResponse({"error": str(exc), "tools": [], "count": 0}, status_code=500)
-
-
-async def handle_mcp_tools_list(request: Request) -> JSONResponse:
-    """MCP tools/list — enumerate all registered tools with their input schemas.
-
-    Returns an MCP-compatible response:
-    {"tools": [{"name": str, "description": str, "inputSchema": {...}}]}
-    """
-    server: AgentServer = request.app.state.agent_server
-    mcp_server = getattr(server, "_mcp_server", None)
-    if mcp_server is None:
-        return JSONResponse({"error": "mcp_server_not_configured"}, status_code=503)
-    try:
-        return JSONResponse(mcp_server.list_tools())
-    except Exception as exc:
-        logger.exception("handle_mcp_tools_list failed")
-        return JSONResponse({"error": str(exc)}, status_code=500)
-
-
-async def handle_mcp_tools_call(request: Request) -> JSONResponse:
-    """MCP tools/call — invoke a named tool with arguments.
-
-    Request body (flat form):
-        {"name": "file_read", "arguments": {"path": "CLAUDE.md"}}
-
-    Or JSON-RPC params envelope:
-        {"params": {"name": "file_read", "arguments": {"path": "CLAUDE.md"}}}
-
-    Returns an MCP-compatible content response:
-        {"content": [{"type": "text", "text": str}], "isError": bool}
-    """
-    server: AgentServer = request.app.state.agent_server
-    mcp_server = getattr(server, "_mcp_server", None)
-    if mcp_server is None:
-        return JSONResponse({"error": "mcp_server_not_configured"}, status_code=503)
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-    params = body.get("params", {})
-    name = body.get("name") or params.get("name")
-    arguments = body.get("arguments", params.get("arguments", {}))
-    if not name:
-        return JSONResponse({"error": "missing_tool_name"}, status_code=400)
-    try:
-        result = mcp_server.call_tool(name, arguments or {})
-        return JSONResponse(result)
-    except Exception as exc:
-        logger.exception("handle_mcp_tools_call failed for tool %r", name)
-        return JSONResponse({"error": str(exc)}, status_code=500)
 
 
 # ------------------------------------------------------------------
@@ -1703,28 +1402,6 @@ async def handle_get_artifact(request: Request) -> JSONResponse:
     return JSONResponse(artifact.to_dict())
 
 
-async def handle_run_artifacts(request: Request) -> JSONResponse:
-    """Return artifact IDs associated with a completed run."""
-    run_id = request.path_params["run_id"]
-    server: AgentServer = request.app.state.agent_server
-    manager = server.run_manager
-    run = manager.get_run(run_id)
-    if run is None:
-        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
-    result = run.result
-    artifact_ids: list[str] = []
-    if result is not None:
-        artifact_ids = list(getattr(result, "artifacts", []) or [])
-    # Enrich with full artifact data if registry is available.
-    registry = getattr(server, "artifact_registry", None)
-    if registry is not None:
-        artifacts = [registry.get(aid) for aid in artifact_ids]
-        artifacts_payload = [a.to_dict() for a in artifacts if a is not None]
-    else:
-        artifacts_payload = [{"artifact_id": aid} for aid in artifact_ids]
-    return JSONResponse({"run_id": run_id, "artifacts": artifacts_payload, "count": len(artifacts_payload)})
-
-
 # ------------------------------------------------------------------
 # build_app: construct Starlette application
 # ------------------------------------------------------------------
@@ -1743,6 +1420,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/health", handle_health, methods=["GET"]),
         Route("/ready", handle_ready, methods=["GET"]),
         Route("/manifest", handle_manifest, methods=["GET"]),
+        Route("/doctor", handle_doctor, methods=["GET"]),
+        Route("/ops/release-gate", handle_release_gate, methods=["GET"]),
 
         # Runs
         Route("/runs", handle_list_runs, methods=["GET"]),
@@ -1816,6 +1495,14 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # Artifacts
         Route("/artifacts", handle_list_artifacts, methods=["GET"]),
         Route("/artifacts/{artifact_id}", handle_get_artifact, methods=["GET"]),
+
+        # Sessions
+        Route("/sessions", handle_list_sessions, methods=["GET"]),
+        Route("/sessions/{session_id}/runs", handle_get_session_runs, methods=["GET"]),
+        Route("/sessions/{session_id}", handle_patch_session, methods=["PATCH"]),
+
+        # Team
+        Route("/team/events", handle_list_team_events, methods=["GET"]),
     ]
 
     @contextlib.asynccontextmanager
@@ -1861,7 +1548,30 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # Auth middleware (outermost — rejects unauthenticated requests before
     # they reach rate limiting or route handlers).
     # Enabled only when HI_AGENT_API_KEY env-var is set; no-op otherwise.
-    app.add_middleware(AuthMiddleware)
+    import os as _os_auth
+    from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_auth
+    _env_auth = _os_auth.environ.get("HI_AGENT_ENV", "dev").lower()
+    _builder_auth = getattr(agent_server, "_builder", None)
+    _readiness_auth: dict = {}
+    if _builder_auth is not None:
+        try:
+            _readiness_auth = _builder_auth.readiness()
+        except Exception:
+            pass
+    _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
+    app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)
+
+    # SessionMiddleware — must be added AFTER AuthMiddleware in add_middleware
+    # calls so that Starlette's reverse execution order places it AFTER Auth
+    # (i.e. Auth executes first, sets TenantContext, then SessionMiddleware runs).
+    from hi_agent.server.session_middleware import SessionMiddleware
+    _session_store = getattr(agent_server, "session_store", None)
+    if _session_store is not None:
+        app.add_middleware(SessionMiddleware, session_store=_session_store)
+    # Store the resolved auth posture on app.state so route handlers can read it
+    # without constructing a new AuthMiddleware instance per-request.
+    _auth_posture_mw = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_auth)  # type: ignore[arg-type]
+    app.state.auth_posture = _auth_posture_mw.auth_posture
 
     # Rate limiting middleware.
     app.add_middleware(
@@ -1874,8 +1584,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # Attach agent server reference so handlers can access it.
     app.state.agent_server = agent_server
 
-    # Catch-all for 404 on unmatched paths. Starlette by default returns
-    # HTML 404; we override to return JSON.
+    # Catch-all for HTTP exceptions. Starlette by default returns plain-text
+    # bodies; we override to return JSON for all status codes, and pass dict
+    # details through as-is (required for typed 403 payloads from auth guards).
     from starlette.exceptions import HTTPException
 
     async def http_exception_handler(
@@ -1883,10 +1594,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
     ) -> JSONResponse:
         if exc.status_code == 404:
             return JSONResponse({"error": "not_found"}, status_code=404)
-        return JSONResponse(
-            {"error": str(exc.detail)}, status_code=exc.status_code,
-        )
+        detail = exc.detail if isinstance(exc.detail, dict) else {"error": str(exc.detail)}
+        return JSONResponse(detail, status_code=exc.status_code)
 
+    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(404, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(405, http_exception_handler)  # type: ignore[arg-type]
 
@@ -1937,6 +1648,8 @@ class AgentServer:
         self.run_context_manager: Any | None = None
         self.capacity_advisor: Any | None = None
         self.slo_monitor: Any | None = None
+        self.session_store: SessionStore | None = None
+        self.team_event_store: TeamEventStore | None = None
 
         # stage_graph — the active stage topology for this server instance.
         # Business agents that inject a custom stage graph should also set this
@@ -1971,8 +1684,25 @@ class AgentServer:
         self._watcher: ConfigFileWatcher | None = None
 
         # RunManager respects server_max_concurrent_runs from config.
+        # Durable stores are opt-in: only instantiated when a db_dir is configured.
+        _db_dir = getattr(self._config, "server_db_dir", None)
+        _idempotency_store: IdempotencyStore | None = None
+        _run_store: SQLiteRunStore | None = None
+        if _db_dir:
+            _idempotency_store = IdempotencyStore(
+                db_path=f"{_db_dir}/idempotency.db"
+            )
+            _run_store = SQLiteRunStore(db_path=f"{_db_dir}/runs.db")
+            _session_store = SessionStore(db_path=f"{_db_dir}/sessions.db")
+            _session_store.initialize()
+            self.session_store = _session_store
+            _team_event_store = TeamEventStore(db_path=f"{_db_dir}/team_events.db")
+            _team_event_store.initialize()
+            self.team_event_store = _team_event_store
         self.run_manager = RunManager(
             max_concurrent=self._config.server_max_concurrent_runs,
+            idempotency_store=_idempotency_store,
+            run_store=_run_store,
         )
 
         from hi_agent.config.builder import SystemBuilder
@@ -2129,7 +1859,10 @@ class AgentServer:
             profile_id=run_data.get("profile_id"),
         )
         config_patch = run_data.get("config_patch")  # optional dict, may be None
-        executor = self._builder.build_executor(contract, config_patch=config_patch)
+        workspace_key = run_data.get("_workspace_key")  # injected by handle_create_run
+        executor = self._builder.build_executor(
+            contract, config_patch=config_patch, workspace_key=workspace_key
+        )
 
         def run() -> Any:
             return executor.execute()

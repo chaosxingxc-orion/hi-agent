@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import warnings
 from dataclasses import asdict, dataclass, fields
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,6 @@ class TraceConfig:
 
     # Human Gate
     gate_quality_threshold: float = 0.5
-    gate_budget_crisis_threshold: float = 0.8
 
     # Watchdog
     watchdog_window_size: int = 10
@@ -77,7 +77,7 @@ class TraceConfig:
     kernel_circuit_breaker_threshold: int = 5
 
     # Evolve
-    evolve_enabled: bool = True
+    evolve_mode: Literal["auto", "on", "off"] = "auto"
     evolve_min_confidence: float = 0.6
     feedback_store_enabled: bool = True
 
@@ -112,6 +112,21 @@ class TraceConfig:
     anthropic_default_model: str = "claude-sonnet-4-6"
     anthropic_api_version: str = "2023-06-01"
     llm_default_provider: str = "anthropic"
+    # Set True to explicitly opt into the deprecated sync/urllib gateway (HttpLLMGateway).
+    # For prod-real / local-real profiles the async HTTPGateway is the default.
+    compat_sync_llm: bool = False
+    # Runtime mode hints — used by cognition_builder when resolving runtime_mode.
+    # Set HI_AGENT_LLM_MODE=real to signal real LLM intent (default: auto-detected
+    # from API key presence).  Set HI_AGENT_KERNEL_MODE=http to indicate a separate
+    # agent_kernel HTTP process is running (required for local-real mode via resolver).
+    # Full local-real env var checklist:
+    #   HI_AGENT_LLM_DEFAULT_PROVIDER=openai   (or anthropic)
+    #   HI_AGENT_OPENAI_BASE_URL=https://api.deepseek.com/v1  (or your endpoint)
+    #   OPENAI_API_KEY=<key>                   (env var named in openai_api_key_env)
+    #   HI_AGENT_LLM_MODE=real
+    #   HI_AGENT_KERNEL_MODE=http
+    llm_mode: str = ""
+    kernel_mode: str = ""
 
     # --- LLM Budget (NEW) ---
     llm_budget_max_calls: int = 100
@@ -145,6 +160,8 @@ class TraceConfig:
     harness_action_default_timeout: int = 60
     evidence_store_backend: str = "sqlite"
     evidence_store_path: str = ".hi_agent/evidence.db"
+    audit_store_backend: str = "memory"
+    audit_store_path: str = ".hi_agent/audit.db"
 
     # --- Task Budget defaults (NEW) ---
     task_budget_max_llm_calls: int = 100
@@ -271,11 +288,24 @@ class TraceConfig:
         "skill_min_provisional_evidence",
         "skill_min_certified_evidence",
         "skill_min_certified_success_rate",
-        "evolve_enabled",
-        "gate_budget_crisis_threshold",
         "kernel_circuit_breaker_threshold",
         "task_default_priority",
     })
+
+    @property
+    def evolve_enabled(self) -> bool:
+        """Deprecated backward-compat accessor.
+
+        Use ``evolve_mode`` and ``resolve_evolve_effective`` instead.
+        """
+        warnings.warn(
+            "evolve_enabled is deprecated; use evolve_mode instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from hi_agent.config.evolve_policy import resolve_evolve_effective
+        enabled, _ = resolve_evolve_effective(self.evolve_mode, "dev-smoke")
+        return enabled
 
     def validate_no_deprecated(self) -> list[str]:
         """Log warnings for deprecated fields set to non-default values.

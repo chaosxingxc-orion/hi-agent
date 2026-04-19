@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Literal
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
@@ -25,17 +24,22 @@ class AsyncKernelFacadeAdapter:
         self._sync = KernelFacadeAdapter(facade)
         self._facade = facade
 
+    @property
+    def mode(self) -> Literal["local-fsm", "http"]:
+        """The kernel execution mode — delegates to the underlying sync adapter."""
+        return self._sync.mode
+
     # ------------------------------------------------------------------
     # Async wrappers for sync methods
     # ------------------------------------------------------------------
 
-    async def open_stage(self, stage_id: str) -> None:
+    async def open_stage(self, run_id: str, stage_id: str) -> None:
         """Run open_stage."""
-        await asyncio.to_thread(self._sync.open_stage, stage_id)
+        await asyncio.to_thread(self._sync.open_stage, run_id, stage_id)
 
-    async def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+    async def mark_stage_state(self, run_id: str, stage_id: str, target: StageState) -> None:
         """Run mark_stage_state."""
-        await asyncio.to_thread(self._sync.mark_stage_state, stage_id, target)
+        await asyncio.to_thread(self._sync.mark_stage_state, run_id, stage_id, target)
 
     async def record_task_view(
         self, task_view_id: str, content: dict[str, Any]
@@ -53,20 +57,9 @@ class AsyncKernelFacadeAdapter:
             self._sync.bind_task_view_to_decision, task_view_id, decision_ref
         )
 
-    async def start_run(
-        self, run_id: str, session_id: str, metadata: dict
-    ) -> str:
-        """Start run -- adapts to facade's start_run signature."""
-        method = getattr(self._facade, "start_run", None)
-        if callable(method):
-            if inspect.iscoroutinefunction(method):
-                return await method(
-                    run_id=run_id, session_id=session_id, metadata=metadata
-                )
-            return await asyncio.to_thread(
-                method, run_id, session_id, metadata
-            )
-        return await asyncio.to_thread(self._sync.start_run, run_id)
+    async def start_run(self, task_id: str) -> str:
+        """Start run and return run ID."""
+        return await asyncio.to_thread(self._sync.start_run, task_id)
 
     async def query_run(self, run_id: str) -> dict[str, Any]:
         """Run query_run."""

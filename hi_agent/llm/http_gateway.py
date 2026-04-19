@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import logging
 import os
@@ -16,6 +17,7 @@ import httpx
 
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, LLMStreamChunk, TokenUsage
+from hi_agent.runtime.async_bridge import AsyncBridgeService
 
 if TYPE_CHECKING:
     from hi_agent.llm.failover import FailoverChain
@@ -51,14 +53,35 @@ class HttpLLMGateway:
         failover_chain: "FailoverChain | None" = None,
         cache_injector: "PromptCacheInjector | None" = None,
         budget_tracker: "LLMBudgetTracker | None" = None,
+        runtime_mode: str = "",
     ) -> None:
-        """Initialize HttpLLMGateway."""
+        """Initialize HttpLLMGateway.
+
+        .. deprecated::
+            ``HttpLLMGateway`` (urllib/sync) is the compatibility layer.  Use
+            ``HTTPGateway`` (httpx/async) for production profiles.  Set
+            ``compat_sync_llm=True`` in ``TraceConfig`` to opt into this class
+            explicitly and suppress the deprecation warning.
+        """
+        import warnings
+
+        if runtime_mode in ("prod-real", "local-real"):
+            warnings.warn(
+                "HttpLLMGateway (sync/urllib) is deprecated for production profiles. "
+                "Use HTTPGateway (async/httpx) by setting compat_sync_llm=False in TraceConfig.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self._base_url = base_url.rstrip("/")
         self._api_key_env = api_key_env
         self._default_model = default_model
         self._timeout = timeout_seconds
         self._max_retries = max_retries
         self._retry_base = retry_base_seconds
+        # dev-smoke: skip slow LLM wait, fall through to heuristic immediately
+        if runtime_mode == "dev-smoke":
+            self._timeout = min(self._timeout, 3)
+            self._max_retries = 0
         self._failover_chain = failover_chain
         self._cache_injector = cache_injector
         self._budget_tracker = budget_tracker
@@ -84,12 +107,11 @@ class HttpLLMGateway:
             # that TierAwareLLMGateway can make accurate per-request tier
             # downgrade decisions instead of relying on the caller-supplied
             # default of 1.0.
-            remaining_calls = self._budget_tracker.remaining_calls
-            max_calls = self._budget_tracker._max_calls  # noqa: SLF001
-            remaining_tokens = max(
-                0, self._budget_tracker._max_tokens - self._budget_tracker._total_tokens  # noqa: SLF001
-            )
-            max_tokens = self._budget_tracker._max_tokens  # noqa: SLF001
+            _snap = self._budget_tracker.snapshot()
+            remaining_calls = _snap["remaining_calls"]
+            max_calls = _snap["max_calls"]
+            remaining_tokens = _snap["remaining_tokens"]
+            max_tokens = _snap["max_tokens"]
             calls_ratio = remaining_calls / max_calls if max_calls > 0 else 1.0
             tokens_ratio = remaining_tokens / max_tokens if max_tokens > 0 else 1.0
             budget_ratio = min(calls_ratio, tokens_ratio)
@@ -123,12 +145,11 @@ class HttpLLMGateway:
                 try:
                     loop = _asyncio.get_event_loop()
                     if loop.is_running():
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                            future = pool.submit(
-                                _asyncio.run, self._failover_chain.complete(request)
-                            )
-                            return future.result()
+                        # Use shared bridge executor rather than creating a per-call pool.
+                        future = AsyncBridgeService.get_executor().submit(
+                            _asyncio.run, self._failover_chain.complete(request)
+                        )
+                        return future.result()
                     else:
                         return loop.run_until_complete(
                             self._failover_chain.complete(request)
@@ -279,12 +300,27 @@ class HttpLLMGateway:
             except urllib.error.URLError as exc:
                 if "timed out" in str(exc.reason):
                     raise LLMTimeoutError(str(exc.reason)) from exc
+                # Network unreachable: no point retrying, fail immediately
+                if isinstance(exc.reason, OSError) and exc.reason.errno == errno.ENETUNREACH:
+                    raise LLMProviderError(str(exc.reason)) from exc
                 last_exc = LLMProviderError(str(exc.reason))
                 if attempt < self._max_retries:
                     delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
                     time.sleep(delay)
             except TimeoutError as exc:
                 raise LLMTimeoutError(str(exc)) from exc
+        try:
+            from hi_agent.observability.fallback import (  # noqa: PLC0415
+                FallbackTaxonomy,
+                record_fallback,
+            )
+            record_fallback(
+                FallbackTaxonomy.DEPENDENCY_UNAVAILABLE,
+                "http_llm_gateway",
+                "all_retries_exhausted",
+            )
+        except Exception:
+            pass
         raise last_exc  # type: ignore[misc]
 
     @staticmethod
@@ -366,12 +402,11 @@ class HTTPGateway:
             # that TierAwareLLMGateway can make accurate per-request tier
             # downgrade decisions instead of relying on the caller-supplied
             # default of 1.0.
-            remaining_calls = self._budget_tracker.remaining_calls
-            max_calls = self._budget_tracker._max_calls  # noqa: SLF001
-            remaining_tokens = max(
-                0, self._budget_tracker._max_tokens - self._budget_tracker._total_tokens  # noqa: SLF001
-            )
-            max_tokens = self._budget_tracker._max_tokens  # noqa: SLF001
+            _snap = self._budget_tracker.snapshot()
+            remaining_calls = _snap["remaining_calls"]
+            max_calls = _snap["max_calls"]
+            remaining_tokens = _snap["remaining_tokens"]
+            max_tokens = _snap["max_tokens"]
             calls_ratio = remaining_calls / max_calls if max_calls > 0 else 1.0
             tokens_ratio = remaining_tokens / max_tokens if max_tokens > 0 else 1.0
             budget_ratio = min(calls_ratio, tokens_ratio)

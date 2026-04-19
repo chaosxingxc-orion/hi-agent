@@ -35,7 +35,7 @@ class GraphRenderer:
         """
         # Collect nodes
         nodes: list[MemoryNode] = []
-        for node in self._graph._nodes.values():
+        for _nid, node in self._graph.iter_nodes():
             if node_type is not None and node.node_type != node_type:
                 continue
             nodes.append(node)
@@ -113,7 +113,7 @@ class GraphRenderer:
     def to_wiki_pages(self, wiki: KnowledgeWiki) -> int:
         """Convert graph nodes to wiki pages with wikilinks and return count."""
         count = 0
-        for node in self._graph._nodes.values():
+        for _nid, node in self._graph.iter_nodes():
             # Build content with wikilinks to neighbors
             neighbors = self._graph.get_neighbors(node.node_id)
             content = node.content

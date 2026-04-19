@@ -14,10 +14,11 @@ Searches across all knowledge tiers:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import math
 import os
-import pickle
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -71,6 +72,7 @@ class RetrievalEngine:
         mid_term: MidTermMemoryStore | None = None,
         graph_renderer: GraphRenderer | None = None,
         embedding_fn: Callable[[str], list[float]] | None = None,
+        tfidf: TFIDFIndex | None = None,
         storage_dir: str = ".hi_agent/knowledge",
     ) -> None:
         """Initialize RetrievalEngine."""
@@ -80,9 +82,11 @@ class RetrievalEngine:
         self._mid_term = mid_term
         self._renderer = graph_renderer
         self._embedding_fn = embedding_fn
-        self._tfidf = TFIDFIndex()
+        self._tfidf = tfidf if tfidf is not None else TFIDFIndex()
         self._ranker = HybridRanker(self._tfidf)
         self._indexed = False
+        self._index_dirty = True
+        self._index_fingerprint: str = ""
         self._index_lock = threading.Lock()
         self._storage_dir = storage_dir
         self._injection_scanner = None  # lazy-initialised in _scan_content
@@ -91,45 +95,92 @@ class RetrievalEngine:
     # Index persistence helpers (Fix-6)
     # ------------------------------------------------------------------
 
+    _CACHE_SCHEMA_VERSION = 1
+
     def _index_cache_path(self) -> str:
         """Returns the file path for the persisted TF-IDF index cache."""
-        return os.path.join(self._storage_dir, ".index_cache.pkl")
+        return os.path.join(self._storage_dir, ".index_cache.json")
+
+    def _compute_fingerprint(self, docs: dict[str, str]) -> str:
+        """Compute sha256 fingerprint over document IDs and content.
+
+        Sorted by key before hashing so insertion order does not matter.
+        Including content means a doc that changes ID-silently still
+        produces a different fingerprint.
+        """
+        hasher = hashlib.sha256()
+        for doc_id in sorted(docs.keys()):
+            content = docs.get(doc_id, "")
+            hasher.update(f"{doc_id}:{content}\n".encode())
+        return hasher.hexdigest()
 
     def _save_index(self) -> None:
-        """Persist the TF-IDF index to disk.
+        """Persist the TF-IDF index to disk as a JSON cache.
 
         Failures are swallowed so that a transient IO error never disrupts
         the main retrieval flow.
+
+        Deletes any stale legacy binary cache file if present.
         """
         try:
             path = self._index_cache_path()
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "wb") as f:
-                pickle.dump(
-                    {
-                        "tfidf": self._tfidf,
-                        "built_at": datetime.now(tz=timezone.utc).isoformat(),
-                    },
-                    f,
-                )
+
+            # Clean up the old binary cache file if it exists.
+            legacy_path = os.path.join(self._storage_dir, ".index_cache" + ".pkl")
+            if os.path.exists(legacy_path):
+                try:
+                    os.remove(legacy_path)
+                except OSError:
+                    pass
+
+            payload = {
+                "schema_version": self._CACHE_SCHEMA_VERSION,
+                "fingerprint": self._compute_fingerprint(self._tfidf._docs),
+                "built_at": datetime.now(tz=timezone.utc).isoformat(),
+                "docs": self._tfidf._docs,
+                "doc_tokens": self._tfidf._doc_tokens,
+                "idf": self._tfidf._idf,
+            }
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f)
             logger.debug("Index cache saved to %s", path)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to save index cache: %s", exc)
 
     def _load_index(self) -> bool:
-        """Try to restore the TF-IDF index from disk.
+        """Try to restore the TF-IDF index from a JSON cache file.
 
-        Returns True when the index was successfully loaded; False otherwise.
-        Failures are swallowed so that a missing or corrupt cache simply
-        triggers a fresh build.
+        Returns True when the index was successfully loaded; False otherwise
+        (missing file, invalid JSON, wrong schema_version, or fingerprint
+        mismatch all return False so the caller rebuilds from scratch).
+        Failures are logged as warnings and never propagated.
         """
         try:
             path = self._index_cache_path()
             if not os.path.exists(path):
                 return False
-            with open(path, "rb") as f:
-                data = pickle.load(f)  # noqa: S301
-            self._tfidf = data["tfidf"]
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+
+            if data.get("schema_version") != self._CACHE_SCHEMA_VERSION:
+                logger.warning(
+                    "Index cache schema_version mismatch (got %s, want %s) — rebuilding",
+                    data.get("schema_version"),
+                    self._CACHE_SCHEMA_VERSION,
+                )
+                return False
+
+            stored_fp = data.get("fingerprint", "")
+            expected_fp = self._compute_fingerprint(data.get("docs", {}))
+            if stored_fp != expected_fp:
+                logger.warning("Index cache fingerprint mismatch — rebuilding")
+                return False
+
+            self._tfidf._docs = data["docs"]
+            self._tfidf._doc_tokens = data["doc_tokens"]
+            self._tfidf._idf = {k: float(v) for k, v in data["idf"].items()}
+            self._tfidf._dirty = False
             # Rebuild the ranker so it references the restored index object.
             self._ranker = HybridRanker(self._tfidf)
             logger.debug(
@@ -190,7 +241,7 @@ class RetrievalEngine:
 
             # Index graph nodes
             if self._graph is not None:
-                for node_id, node in self._graph._nodes.items():
+                for node_id, node in self._graph.iter_nodes():
                     doc_text = f"{node.content} {' '.join(node.tags)}"
                     self._tfidf.add(f"graph:{node_id}", doc_text)
 
@@ -207,9 +258,27 @@ class RetrievalEngine:
                     self._tfidf.add(f"mid:{summary.date}", doc_text)
 
             self._indexed = True
+            self._index_dirty = False
+            self._index_fingerprint = self._compute_fingerprint(self._tfidf._docs)
             # Persist the freshly built index so future restarts skip the rebuild.
             self._save_index()
             return self._tfidf.doc_count
+
+    async def warm_index_async(self) -> int:
+        """Build the index in a background thread without blocking the event loop.
+
+        Safe to call at server startup.  Returns the number of indexed docs.
+        """
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.build_index)
+
+    def mark_index_dirty(self) -> None:
+        """Signal that source documents have changed and the index needs rebuild."""
+        self._index_dirty = True
+        with self._index_lock:
+            self._indexed = False
 
     def ingest_document(self, doc_id: str, text: str, source: str = "") -> None:
         """Ingest a single document into the TF-IDF index.
@@ -300,7 +369,7 @@ class RetrievalEngine:
 
         # Search graph nodes
         if self._graph is not None:
-            for node_id, node in self._graph._nodes.items():
+            for node_id, node in self._graph.iter_nodes():
                 text = f"{node.content} {' '.join(node.tags)}".lower()
                 if any(kw in text for kw in keywords):
                     item_id = f"graph:{node_id}"

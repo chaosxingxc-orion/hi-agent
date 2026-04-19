@@ -69,3 +69,15 @@ class LLMBudgetTracker:
         """Remaining call budget."""
         with self._lock:
             return max(0, self._max_calls - self._total_calls)
+
+    def snapshot(self) -> dict:
+        """Return a consistent snapshot of current and limit values."""
+        with self._lock:
+            return {
+                "max_calls": self._max_calls,
+                "max_tokens": self._max_tokens,
+                "total_calls": self._total_calls,
+                "total_tokens": self._total_tokens,
+                "remaining_calls": max(0, self._max_calls - self._total_calls),
+                "remaining_tokens": max(0, self._max_tokens - self._total_tokens),
+            }

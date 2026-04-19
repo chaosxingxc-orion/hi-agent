@@ -171,9 +171,10 @@ def build_gateway_from_config(
         default_provider, api_format, env_var,
     )
 
-    # --- Build model registry with provider's declared models ---
+    # --- Build model registry with provider's declared models only ---
+    # Do not call register_defaults(): that would inject gpt-4.1 / claude-sonnet
+    # defaults and mix them with third-party provider models in the registry.
     registry = ModelRegistry()
-    registry.register_defaults()
 
     _tier_map = {
         "strong": ModelTier.STRONG,
@@ -198,13 +199,14 @@ def build_gateway_from_config(
     # --- Build raw gateway ---
     features = provider_cfg.get("features", {})
     thinking_budget: int | None = features.get("thinking_budget") or None
+    _timeout = int(provider_cfg.get("timeout_seconds", 120))
 
     if api_format == "anthropic":
         from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
         raw_gw: object = AnthropicLLMGateway(
             api_key_env=env_var,
             default_model=default_model or "claude-sonnet-4-6",
-            timeout_seconds=120,
+            timeout_seconds=_timeout,
             base_url=base_url or "https://api.anthropic.com",
             default_thinking_budget=thinking_budget,
         )
@@ -214,7 +216,7 @@ def build_gateway_from_config(
             base_url=base_url or "https://api.openai.com/v1",
             api_key_env=env_var,
             default_model=default_model or "gpt-4o",
-            timeout_seconds=120,
+            timeout_seconds=_timeout,
         )
 
     tier_router = TierRouter(registry)

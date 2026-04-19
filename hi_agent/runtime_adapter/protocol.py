@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import (
@@ -19,12 +19,17 @@ class RuntimeAdapter(Protocol):
     the agent-kernel runtime substrate.
     """
 
+    @property
+    def mode(self) -> Literal["local-fsm", "http"]:
+        """The kernel execution mode."""
+        ...
+
     # --- Stage lifecycle ---
 
-    def open_stage(self, stage_id: str) -> None:
+    def open_stage(self, run_id: str, stage_id: str) -> None:
         """Open stage in runtime."""
 
-    def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+    def mark_stage_state(self, run_id: str, stage_id: str, target: StageState) -> None:
         """Update stage lifecycle state in runtime."""
 
     # --- Task view ---

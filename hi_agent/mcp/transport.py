@@ -18,15 +18,19 @@ Usage::
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
 import subprocess
 import threading
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _REQUEST_TIMEOUT = 30.0  # seconds to wait for a single tool response
+_MAX_RESTART_ATTEMPTS = 5  # W10-005: max restart attempts before marking unavailable
+_RESTART_BACKOFF_BASE = 1.0  # seconds; doubles each attempt (1, 2, 4, 8, 16)
 
 
 class MCPTransportError(Exception):
@@ -57,6 +61,12 @@ class StdioMCPTransport:
         self._proc: subprocess.Popen | None = None
         self._lock = threading.Lock()
         self._next_id = 1
+        self._stderr_buf: collections.deque[str] = collections.deque(maxlen=1024)
+        self._stderr_thread: threading.Thread | None = None
+        # W10-005: crash restart tracking
+        self._restart_attempts: int = 0
+        self._unavailable: bool = False
+        self._server_id: str = ""  # set on first invoke for audit logging
 
     # ------------------------------------------------------------------
     # Public API
@@ -130,6 +140,87 @@ class StdioMCPTransport:
                 self._proc = None
                 return False
 
+    def list_tools(self, server_id: str, timeout: float | None = None) -> list[dict]:
+        """Send a ``tools/list`` JSON-RPC request and return the tool list.
+
+        Args:
+            server_id: Logical server identifier (used for logging only).
+            timeout: Per-request timeout override in seconds. Uses instance
+                default when None.
+
+        Returns:
+            List of tool dicts, each with at minimum {"name": str}.
+            May also include "description" and "inputSchema".
+
+        Raises:
+            MCPTransportError: On subprocess failure, timeout, JSON-RPC error,
+                or invalid response schema.
+        """
+        effective_timeout = timeout if timeout is not None else self._timeout
+        with self._lock:
+            self._ensure_running()
+            request_id = self._next_id
+            self._next_id += 1
+            request = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "tools/list",
+                "params": {},
+            }
+            line = json.dumps(request, ensure_ascii=False) + "\n"
+            try:
+                self._proc.stdin.write(line)
+                self._proc.stdin.flush()
+            except OSError as exc:
+                self._proc = None
+                raise MCPTransportError(
+                    f"Failed to write tools/list to MCP server {server_id!r}: {exc}"
+                ) from exc
+
+            # Temporarily override timeout for this call only
+            orig_timeout = self._timeout
+            self._timeout = effective_timeout
+            try:
+                response = self._read_response(server_id, request_id)
+            finally:
+                self._timeout = orig_timeout
+
+        # Validate response schema
+        if not isinstance(response, dict):
+            raise MCPTransportError(
+                f"tools/list response for {server_id!r} must be a dict, "
+                f"got {type(response).__name__}"
+            )
+        tools = response.get("tools")
+        if tools is None:
+            raise MCPTransportError(
+                f"tools/list response for {server_id!r} missing 'tools' key: {response!r}"
+            )
+        if not isinstance(tools, list):
+            raise MCPTransportError(
+                f"tools/list 'tools' field for {server_id!r} must be a list, "
+                f"got {type(tools).__name__}"
+            )
+        # Validate each tool has at least a 'name'
+        for i, tool in enumerate(tools):
+            if not isinstance(tool, dict) or "name" not in tool:
+                raise MCPTransportError(
+                    f"tools/list tool[{i}] for {server_id!r} missing 'name': {tool!r}"
+                )
+        return tools
+
+    def get_stderr_tail(self, n: int = 20) -> list[str]:
+        """Return the last n lines of stderr output from the subprocess.
+
+        Returns empty list if no stderr has been captured or subprocess not started.
+        Never raises.
+        """
+        try:
+            lines = list(self._stderr_buf)
+            return lines[-n:] if len(lines) > n else lines
+        except Exception:  # noqa: BLE001
+            return []
+
     def close(self) -> None:
         """Terminate the subprocess if running."""
         with self._lock:
@@ -147,10 +238,58 @@ class StdioMCPTransport:
     # Internal
     # ------------------------------------------------------------------
 
+    def _start_stderr_reader(self) -> None:
+        """Start background thread draining subprocess stderr into ring buffer."""
+        def _read_stderr(proc: subprocess.Popen, buf: collections.deque) -> None:
+            try:
+                for raw in proc.stderr:
+                    if isinstance(raw, str):
+                        line = raw.rstrip("\n")
+                    else:
+                        line = raw.rstrip(b"\n").decode("utf-8", errors="replace")
+                    buf.append(line)
+            except Exception:  # noqa: BLE001
+                pass  # Process closed — exit quietly
+
+        self._stderr_thread = threading.Thread(
+            target=_read_stderr,
+            args=(self._proc, self._stderr_buf),
+            daemon=True,
+            name=f"mcp-stderr-{id(self)}",
+        )
+        self._stderr_thread.start()
+
     def _ensure_running(self) -> None:
-        """Spawn subprocess if not already running."""
+        """Spawn subprocess if not already running.
+
+        W10-005: on crash, retries with exponential backoff up to
+        _MAX_RESTART_ATTEMPTS times.  After exhausting retries the transport
+        is marked unavailable and raises MCPTransportError on every call.
+        """
         if self._proc is not None and self._proc.poll() is None:
             return
+
+        # W10-005: refuse to restart if we've exceeded the limit
+        if self._unavailable:
+            raise MCPTransportError(
+                f"MCP server {self._command!r} is permanently unavailable "
+                f"after {_MAX_RESTART_ATTEMPTS} failed restart attempts."
+            )
+
+        # Apply backoff delay for crash restarts (not the first spawn)
+        if self._restart_attempts > 0:
+            delay = min(
+                _RESTART_BACKOFF_BASE * (2 ** (self._restart_attempts - 1)),
+                _RESTART_BACKOFF_BASE * (2 ** (_MAX_RESTART_ATTEMPTS - 1)),
+            )
+            logger.warning(
+                "StdioMCPTransport: restarting server (attempt %d/%d) after %.1fs backoff",
+                self._restart_attempts + 1,
+                _MAX_RESTART_ATTEMPTS,
+                delay,
+            )
+            time.sleep(delay)
+
         import os  # noqa: PLC0415
         env = os.environ.copy()
         if self._env:
@@ -178,10 +317,45 @@ class StdioMCPTransport:
                     bufsize=1,
                 )
         except OSError as exc:
+            self._restart_attempts += 1
+            if self._restart_attempts >= _MAX_RESTART_ATTEMPTS:
+                self._unavailable = True
+                try:
+                    from hi_agent.observability.audit import emit_mcp_server_restart
+                    emit_mcp_server_restart(
+                        self._server_id or repr(self._command),
+                        self._restart_attempts,
+                        success=False,
+                        error=str(exc),
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
             raise MCPTransportError(
                 f"Failed to spawn MCP server command {self._command!r}: {exc}"
             ) from exc
+
         logger.debug("StdioMCPTransport: spawned subprocess pid=%s", self._proc.pid)
+        if self._restart_attempts > 0:
+            # Emit audit event for successful restart
+            try:
+                from hi_agent.observability.audit import emit_mcp_server_restart
+                emit_mcp_server_restart(
+                    self._server_id or repr(self._command),
+                    self._restart_attempts,
+                    success=True,
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        self._restart_attempts += 1
+        if self._restart_attempts >= _MAX_RESTART_ATTEMPTS:
+            self._unavailable = True
+            logger.warning(
+                "StdioMCPTransport: server %r reached max restart attempts (%d); "
+                "marking unavailable.",
+                self._command,
+                _MAX_RESTART_ATTEMPTS,
+            )
+        self._start_stderr_reader()
 
     def _read_response(self, server_id: str, request_id: int) -> dict[str, Any]:
         """Read lines from subprocess stdout until the matching response is found.
@@ -195,12 +369,23 @@ class StdioMCPTransport:
         deadline_remaining = self._timeout
         buf = self._proc.stdout
 
-        # Windows doesn't support select on pipes; use readline with a thread.
+        # Windows doesn't support select on pipes; also test doubles may expose
+        # stdout without a valid integer fileno(). In both cases, use a
+        # threaded readline fallback.
         if sys.platform == "win32":
-            return self._read_response_windows(server_id, request_id)
+            return self._read_response_threaded(server_id, request_id)
+        try:
+            fileno = buf.fileno()
+            if not isinstance(fileno, int):
+                return self._read_response_threaded(server_id, request_id)
+        except (AttributeError, OSError, TypeError, ValueError):
+            return self._read_response_threaded(server_id, request_id)
 
         while deadline_remaining > 0:
-            readable, _, _ = select.select([buf], [], [], min(deadline_remaining, 1.0))
+            try:
+                readable, _, _ = select.select([buf], [], [], min(deadline_remaining, 1.0))
+            except (TypeError, ValueError, OSError):
+                return self._read_response_threaded(server_id, request_id)
             if not readable:
                 deadline_remaining -= 1.0
                 if self._proc.poll() is not None:
@@ -238,8 +423,8 @@ class StdioMCPTransport:
             f"waiting for response to request id={request_id}."
         )
 
-    def _read_response_windows(self, server_id: str, request_id: int) -> dict[str, Any]:
-        """Windows fallback: read response in a background thread with timeout."""
+    def _read_response_threaded(self, server_id: str, request_id: int) -> dict[str, Any]:
+        """Threaded fallback: read response in a background thread with timeout."""
         result_holder: list[Any] = []
         exc_holder: list[Exception] = []
 

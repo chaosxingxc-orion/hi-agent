@@ -9,6 +9,7 @@ RunExecutor delegates to an instance of this class.
 from __future__ import annotations
 
 import logging
+import os
 from typing import TYPE_CHECKING, Any
 
 from hi_agent.contracts import (
@@ -62,6 +63,7 @@ class RunLifecycle:
         skill_evolver: "SkillEvolver | None" = None,
         skill_evolve_interval: int = 10,
         metrics_collector: Any | None = None,
+        evolve_mode: str = "auto",
     ) -> None:
         self.session = session
         self.short_term_store = short_term_store
@@ -82,6 +84,7 @@ class RunLifecycle:
         self.skill_evolver = skill_evolver
         self._skill_evolve_interval = skill_evolve_interval
         self.metrics_collector = metrics_collector
+        self._evolve_mode = evolve_mode
 
     # ------------------------------------------------------------------
     # Budget checking
@@ -323,7 +326,24 @@ class RunLifecycle:
                 {"run_id": run_id, "stage_id": current_stage},
             )
 
-        if self.evolve_engine is not None:
+        _env = os.environ.get("HI_AGENT_ENV", "dev").lower()
+        _runtime_mode = "dev-smoke" if _env == "dev" else "prod-real"
+        from hi_agent.config.evolve_policy import resolve_evolve_effective
+        _resolved_enabled, _evolve_source = resolve_evolve_effective(
+            self._evolve_mode, _runtime_mode
+        )
+        if _evolve_source == "explicit_on":
+            try:
+                from hi_agent.observability.audit import emit as _audit_emit
+                _audit_emit(
+                    "evolve.explicit_on_in_prod",
+                    {"run_id": run_id, "runtime_mode": _runtime_mode},
+                )
+            except Exception as _audit_exc:
+                _logger.debug(
+                    "run.audit_emit_failed run_id=%s error=%s", run_id, _audit_exc
+                )
+        if self.evolve_engine is not None and _resolved_enabled:
             try:
                 postmortem = self.build_postmortem(
                     outcome,

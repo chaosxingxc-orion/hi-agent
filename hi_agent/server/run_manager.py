@@ -6,6 +6,7 @@ Uses threading for concurrent run execution (stdlib only).
 
 from __future__ import annotations
 
+import json
 import queue
 import threading
 import uuid
@@ -15,6 +16,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from hi_agent.contracts.run import RunState
+from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
+from hi_agent.server.run_queue import RunQueue
+from hi_agent.server.run_store import RunRecord, SQLiteRunStore
+from hi_agent.server.tenant_context import TenantContext
 
 # Valid terminal/operational states that result_status may be mapped to.
 _VALID_RESULT_STATES: frozenset[str] = frozenset(s.value for s in RunState)
@@ -32,6 +37,11 @@ class ManagedRun:
     thread: threading.Thread | None = field(default=None, repr=False)
     created_at: str = ""
     updated_at: str = ""
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    current_stage: str | None = None
+    stage_updated_at: str | None = None
 
 
 class RunManager:
@@ -49,6 +59,9 @@ class RunManager:
         max_concurrent: int = 4,
         queue_size: int = 16,
         queue_timeout_s: float = 30.0,
+        idempotency_store: IdempotencyStore | None = None,
+        run_store: SQLiteRunStore | None = None,
+        run_queue: RunQueue | None = None,
     ) -> None:
         """Initialize the run manager.
 
@@ -57,11 +70,26 @@ class RunManager:
             queue_size: Maximum number of runs waiting in the queue.
             queue_timeout_s: Seconds a queued run waits for a concurrency slot
                 before being marked as timed-out.
+            idempotency_store: Optional SQLite-backed idempotency store.  When
+                provided, ``create_run`` honours ``idempotency_key`` in the
+                request payload to deduplicate submissions.
+            run_store: Optional SQLite-backed run store.  When provided, each
+                new run is persisted so state survives process restarts.
+            run_queue: Optional lease-based durable run queue.  When provided,
+                ``create_run`` enqueues the run and the worker loop uses
+                ``claim_next``/``complete``/``fail`` instead of the in-memory
+                PriorityQueue.  When ``None``, the original in-memory queue
+                path is used unchanged.
         """
         self._runs: dict[str, ManagedRun] = {}
         self._lock = threading.Lock()
         self._semaphore = threading.Semaphore(max_concurrent)
         self._max_concurrent = max_concurrent
+        self._idempotency_store = idempotency_store
+        self._run_store = run_store
+        self._run_queue = run_queue
+        # Maps run_id -> executor_fn when run_queue is used; populated by start_run.
+        self._pending_executors: dict[str, Callable[[ManagedRun], Any]] = {}
         # PriorityQueue: items are (priority, sequence, run, executor_fn).
         # Lower priority integer = higher urgency (1 executes before 5).
         # sequence is a monotonic counter that breaks priority ties (FIFO within tier).
@@ -78,54 +106,238 @@ class RunManager:
         self._worker = threading.Thread(target=self._queue_worker, daemon=True)
         self._worker.start()
 
-    def create_run(self, task_contract_dict: dict[str, Any]) -> str:
+        # Subscribe to EventBus for stage transition events (sync observer path).
+        try:
+            from hi_agent.server.event_bus import event_bus as _event_bus
+            _event_bus.add_sync_observer(self._on_stage_event)
+        except Exception:
+            pass
+
+    def _on_stage_event(self, event: object) -> None:
+        """Update current_stage on stage_start events published to EventBus."""
+        if getattr(event, "event_type", None) != "stage_start":
+            return
+        payload = getattr(event, "payload_json", None) or {}
+        if isinstance(payload, str):
+            try:
+                import json as _json
+                payload = _json.loads(payload)
+            except Exception:
+                return
+        stage_name = payload.get("stage_name") if isinstance(payload, dict) else None
+        run_id = getattr(event, "run_id", None)
+        if not stage_name or not run_id:
+            return
+        with self._lock:
+            run = self._runs.get(run_id)
+            if run is not None:
+                run.current_stage = stage_name
+                run.stage_updated_at = datetime.now(UTC).isoformat()
+
+    def _owns(self, run: ManagedRun, ctx: "TenantContext") -> bool:
+        """Return True if the run belongs to the given workspace context.
+
+        session_id is only enforced when the caller provides one (non-empty).
+        An empty ctx.session_id means "all sessions for this user".
+        """
+        if run.tenant_id != ctx.tenant_id or run.user_id != ctx.user_id:
+            return False
+        if ctx.session_id:  # if caller provided a session, require exact match
+            return run.session_id == ctx.session_id
+        return True  # no session filter: matches all sessions for this user
+
+    def _task_id_exists_unlocked(self, task_id: str, workspace: TenantContext | None) -> bool:
+        """Return True if a run with the given task_id exists in the workspace.
+
+        Must be called while holding ``self._lock``.
+        """
+        for run in self._runs.values():
+            if run.task_contract.get("task_id") == task_id:
+                if workspace is None or self._owns(run, workspace):
+                    return True
+        return False
+
+    def create_run(
+        self,
+        task_contract_dict: dict[str, Any],
+        workspace: TenantContext | None = None,
+    ) -> str:
         """Create a new run from task contract dict.
+
+        When an ``idempotency_store`` is configured and the request carries an
+        ``idempotency_key`` field, deduplication is enforced:
+
+        - ``"replayed"``  → returns the existing run_id (no new run created).
+        - ``"conflict"``  → raises ``ValueError("idempotency_conflict")`` so the
+          caller can return HTTP 409.
+        - ``"created"``   → falls through to normal run creation.
+
+        When a ``run_store`` is configured, the new run is persisted to SQLite
+        before being placed in the in-memory registry.
+
+        When ``workspace`` is provided, the run is bound to that workspace and a
+        duplicate ``task_id`` within the same workspace raises ``ValueError``.
 
         Args:
             task_contract_dict: Serialized TaskContract fields.
+            workspace: Optional tenant/user/session context to bind to the run.
 
         Returns:
-            The new run_id.
+            The new (or previously replayed) run_id.
+
+        Raises:
+            ValueError: With message ``"idempotency_conflict"`` when the same
+                idempotency key is submitted with a different request payload.
+            ValueError: When a run with the same ``task_id`` already exists in
+                the workspace.
         """
-        run_id = task_contract_dict.get("task_id") or uuid.uuid4().hex[:12]
+        idempotency_key: str | None = task_contract_dict.get("idempotency_key")
+        tenant_id: str = task_contract_dict.get("tenant_id", "default")
+
+        # --- idempotency check (only when store + key are present) ----------
+        if self._idempotency_store is not None and idempotency_key:
+            # Build hash from payload excluding the idempotency_key itself so
+            # that the canonical hash represents the actual request content.
+            payload_for_hash = {
+                k: v for k, v in task_contract_dict.items() if k != "idempotency_key"
+            }
+            request_hash = _hash_payload(payload_for_hash)
+            # Allocate a tentative run_id as UUID4; only used on "created" path.
+            candidate_run_id = str(uuid.uuid4())
+
+            outcome, record = self._idempotency_store.reserve_or_replay(
+                tenant_id=tenant_id,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+                run_id=candidate_run_id,
+            )
+
+            if outcome == "conflict":
+                raise ValueError("idempotency_conflict")
+
+            if outcome == "replayed":
+                return record.run_id
+
+            # outcome == "created" — continue with candidate_run_id below.
+            run_id = candidate_run_id
+        else:
+            run_id = str(uuid.uuid4())
+
+        # --- normal run creation -------------------------------------------
         now = datetime.now(UTC).isoformat()
         run = ManagedRun(
             run_id=run_id,
             task_contract=task_contract_dict,
             created_at=now,
             updated_at=now,
+            tenant_id=workspace.tenant_id if workspace else "",
+            user_id=workspace.user_id if workspace else "",
+            session_id=workspace.session_id if workspace else "",
         )
+        # --- duplicate task_id check and insertion under the same lock ------
+        client_task_id = task_contract_dict.get("task_id", "")
         with self._lock:
+            if client_task_id and self._task_id_exists_unlocked(client_task_id, workspace):
+                raise ValueError(
+                    f"run with task_id '{client_task_id}' already exists in workspace"
+                )
             self._runs[run_id] = run
+
+        # --- persist to run_store if available ------------------------------
+        if self._run_store is not None:
+            import time as _time
+            now_ts = _time.time()
+            self._run_store.upsert(RunRecord(
+                run_id=run_id,
+                tenant_id=tenant_id,
+                user_id=workspace.user_id if workspace else "__legacy__",
+                session_id=workspace.session_id if workspace else "__legacy__",
+                task_contract_json=json.dumps(task_contract_dict),
+                status="queued",
+                priority=int(task_contract_dict.get("priority", 5)),
+                attempt_count=0,
+                cancellation_flag=False,
+                result_summary="",
+                error_summary="",
+                created_at=now_ts,
+                updated_at=now_ts,
+            ))
+
+        # --- enqueue to durable run_queue if available ----------------------
+        if self._run_queue is not None:
+            self._run_queue.enqueue(
+                run_id=run_id,
+                priority=int(task_contract_dict.get("priority", 5)),
+                payload_json=json.dumps(task_contract_dict),
+            )
+
         return run_id
 
     # -- internal helpers -----------------------------------------------------
 
     def _queue_worker(self) -> None:
-        """Background worker: drain queue, acquire semaphore, dispatch."""
+        """Background worker: drain queue, acquire semaphore, dispatch.
+
+        When a ``RunQueue`` is wired in, this method claims the next run
+        from the durable queue and calls ``complete``/``fail`` after
+        execution.  The in-memory PriorityQueue path remains unchanged when
+        ``run_queue`` is ``None``.
+        """
         while not self._shutdown:
-            try:
-                item = self._queue.get(timeout=0.25)
-            except queue.Empty:
-                continue
-            _priority, _seq, run, executor_fn = item
-            # Wait for a concurrency slot (with timeout).
-            acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
-            if not acquired:
+            if self._run_queue is not None:
+                self._run_queue.release_expired_leases()
+                claim = self._run_queue.claim_next(worker_id="run_manager")
+                if claim is None:
+                    import time as _time
+                    _time.sleep(0.1)
+                    continue
+                run_id = claim["run_id"]
                 with self._lock:
-                    run.state = "failed"
-                    run.error = "queue_timeout"
-                    run.updated_at = datetime.now(UTC).isoformat()
+                    run = self._runs.get(run_id)
+                    executor_fn = self._pending_executors.pop(run_id, None)
+                if run is None or executor_fn is None:
+                    # Run was created but executor not yet registered; release.
+                    self._run_queue.fail(run_id, "run_manager", "executor_not_found")
+                    continue
+                acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
+                if not acquired:
+                    self._run_queue.fail(run_id, "run_manager", "queue_timeout")
+                    with self._lock:
+                        run.state = "failed"
+                        run.error = "queue_timeout"
+                        run.updated_at = datetime.now(UTC).isoformat()
+                    continue
+                thread = threading.Thread(
+                    target=self._execute_run_durable,
+                    args=(run, executor_fn, run_id),
+                    daemon=True,
+                )
+                thread.start()
+                with self._lock:
+                    run.thread = thread
+            else:
+                try:
+                    item = self._queue.get(timeout=0.25)
+                except queue.Empty:
+                    continue
+                _priority, _seq, run, executor_fn = item
+                # Wait for a concurrency slot (with timeout).
+                acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
+                if not acquired:
+                    with self._lock:
+                        run.state = "failed"
+                        run.error = "queue_timeout"
+                        run.updated_at = datetime.now(UTC).isoformat()
+                    self._queue.task_done()
+                    continue
+                # Dispatch in a new thread so the worker can process the next item.
+                thread = threading.Thread(
+                    target=self._execute_run, args=(run, executor_fn), daemon=True
+                )
+                thread.start()
+                with self._lock:
+                    run.thread = thread
                 self._queue.task_done()
-                continue
-            # Dispatch in a new thread so the worker can process the next item.
-            thread = threading.Thread(
-                target=self._execute_run, args=(run, executor_fn), daemon=True
-            )
-            thread.start()
-            with self._lock:
-                run.thread = thread
-            self._queue.task_done()
 
     def _execute_run(
         self, run: ManagedRun, executor_fn: Callable[[ManagedRun], Any]
@@ -164,6 +376,52 @@ class RunManager:
                 self._active_count -= 1
             self._semaphore.release()
 
+    def _execute_run_durable(
+        self,
+        run: ManagedRun,
+        executor_fn: Callable[[ManagedRun], Any],
+        run_id: str,
+    ) -> None:
+        """Execute a run claimed from the durable RunQueue.
+
+        Calls ``run_queue.complete`` on success or ``run_queue.fail`` on
+        exception.  Semaphore was already acquired by the caller.
+        """
+        with self._lock:
+            self._active_count += 1
+            run.state = "running"
+            run.updated_at = datetime.now(UTC).isoformat()
+        try:
+            result = executor_fn(run)
+            with self._lock:
+                result_status = getattr(result, "status", None)
+                if result_status is not None and result_status != "completed":
+                    if result_status in _VALID_RESULT_STATES:
+                        run.state = result_status
+                    else:
+                        run.state = RunState.FAILED
+                    run.error = getattr(result, "error", None) or result_status
+                else:
+                    run.state = "completed"
+                run.result = result
+                run.updated_at = datetime.now(UTC).isoformat()
+            if self._run_queue is not None:
+                if run.state == "completed":
+                    self._run_queue.complete(run_id, "run_manager")
+                else:
+                    self._run_queue.fail(run_id, "run_manager", run.error or "")
+        except Exception as exc:
+            with self._lock:
+                run.state = "failed"
+                run.error = str(exc)
+                run.updated_at = datetime.now(UTC).isoformat()
+            if self._run_queue is not None:
+                self._run_queue.fail(run_id, "run_manager", str(exc))
+        finally:
+            with self._lock:
+                self._active_count -= 1
+            self._semaphore.release()
+
     # -- public API ---------------------------------------------------------
 
     def start_run(self, run_id: str, executor_fn: Callable[[ManagedRun], Any]) -> None:
@@ -183,6 +441,12 @@ class RunManager:
                 return
             if run.state != "created":
                 return
+
+        if self._run_queue is not None:
+            # Durable queue path: store executor so the worker can look it up.
+            with self._lock:
+                self._pending_executors[run_id] = executor_fn
+            return
 
         # Try to enqueue (non-blocking). Priority from task_contract (1=highest).
         priority = int(run.task_contract.get("priority", 5))
@@ -219,44 +483,63 @@ class RunManager:
             "queue_utilization": queued / self._queue_size if self._queue_size else 0.0,
         }
 
-    def get_run(self, run_id: str) -> ManagedRun | None:
+    def get_run(
+        self, run_id: str, workspace: TenantContext | None = None
+    ) -> ManagedRun | None:
         """Retrieve a run by id.
+
+        When ``workspace`` is provided, returns None if the run does not belong
+        to that workspace.
 
         Args:
             run_id: Identifier of the run.
+            workspace: Optional tenant/user/session filter.
 
         Returns:
-            The ManagedRun or None if not found.
+            The ManagedRun or None if not found or not owned by workspace.
         """
         with self._lock:
-            return self._runs.get(run_id)
+            run = self._runs.get(run_id)
+        if run is None:
+            return None
+        if workspace and not self._owns(run, workspace):
+            return None
+        return run
 
-    def list_runs(self) -> list[ManagedRun]:
-        """List all managed runs.
+    def list_runs(self, workspace: TenantContext | None = None) -> list[ManagedRun]:
+        """List managed runs, optionally filtered by workspace.
+
+        Args:
+            workspace: When provided, only runs belonging to this workspace are
+                returned.
 
         Returns:
-            A list of all ManagedRun instances.
+            A list of ManagedRun instances.
         """
         with self._lock:
-            return list(self._runs.values())
+            runs = list(self._runs.values())
+        if workspace:
+            runs = [r for r in runs if self._owns(r, workspace)]
+        return runs
 
-    def cancel_run(self, run_id: str) -> bool:
+    def cancel_run(self, run_id: str, workspace: TenantContext | None = None) -> bool:
         """Request cancellation of a run.
 
         Sets the run state to ``cancelled`` if it is still in ``created``
-        or ``running`` state. Note: this does not forcibly terminate the
-        thread but marks the run so callers can observe the cancellation.
+        or ``running`` state. When ``workspace`` is provided, returns False
+        if the run does not belong to that workspace.
 
         Args:
             run_id: Identifier of the run.
+            workspace: Optional tenant/user/session ownership check.
 
         Returns:
             True if the state was changed to cancelled, False otherwise.
         """
+        run = self.get_run(run_id, workspace)
+        if run is None:
+            return False
         with self._lock:
-            run = self._runs.get(run_id)
-            if run is None:
-                return False
             if run.state in ("created", "running"):
                 run.state = "cancelled"
                 run.updated_at = datetime.now(UTC).isoformat()
@@ -286,4 +569,6 @@ class RunManager:
             "error": run.error,
             "created_at": run.created_at,
             "updated_at": run.updated_at,
+            "current_stage": run.current_stage,
+            "stage_updated_at": run.stage_updated_at,
         }

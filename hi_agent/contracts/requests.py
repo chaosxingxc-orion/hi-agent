@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from hi_agent.contracts.branch import BranchState
+from hi_agent.contracts.execution_provenance import ExecutionProvenance
 from hi_agent.contracts.run import RunState
 
 
@@ -94,6 +95,7 @@ class ApprovalRequest:
 
     gate_ref: str
     decision: str  # "approved" or "rejected"
+    run_id: str = ""
     reviewer_id: str = ""
     comment: str = ""
 
@@ -132,6 +134,13 @@ class RunResult:
     """ID of the stage that caused the run to fail."""
     is_retryable: bool = False
     """Whether the failure is transient and the run can be safely retried."""
+    execution_provenance: ExecutionProvenance | None = None
+    """Structured provenance for machine-readable run classification (HI-W1-D3-001)."""
+
+    @property
+    def success(self) -> bool:
+        """Backward-compatible success flag used by async/integration callers."""
+        return self.status == "completed"
 
     def __str__(self) -> str:  # noqa: D105
         return self.status
@@ -159,4 +168,5 @@ class RunResult:
             "failure_code": self.failure_code,
             "failed_stage_id": self.failed_stage_id,
             "is_retryable": self.is_retryable,
+            "execution_provenance": self.execution_provenance.to_dict() if self.execution_provenance else None,
         }

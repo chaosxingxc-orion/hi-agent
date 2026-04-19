@@ -45,11 +45,16 @@ class ReadinessReport:
         health: "ok" or "degraded".
         subsystems: Per-subsystem status dict as returned by
             ``SystemBuilder.readiness()``.
+        auth_posture: Authentication posture.  One of:
+            ``"ok"`` — API key is set and enforced;
+            ``"dev_risk_open"`` — no key but dev/smoke mode (acceptable);
+            ``"degraded"`` — no key in prod-real mode (unacceptable).
     """
 
     ready: bool
     health: str
     subsystems: dict[str, Any] = field(default_factory=dict)
+    auth_posture: str = "unknown"  # "ok" | "dev_risk_open" | "degraded"
 
 
 class RunExecutorFacade:
@@ -266,15 +271,26 @@ def check_readiness() -> ReadinessReport:
     ``ReadinessReport.subsystems``.
 
     Returns:
-        :class:`ReadinessReport` with ``ready``, ``health``, and
-        ``subsystems`` populated.
+        :class:`ReadinessReport` with ``ready``, ``health``,
+        ``subsystems``, and ``auth_posture`` populated.
     """
+    import os as _os_cr
     from hi_agent.config.builder import SystemBuilder
+    from hi_agent.server.auth_middleware import AuthMiddleware as _AM
+    from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
 
     builder = SystemBuilder()
     raw = builder.readiness()
+
+    # Compute auth posture using a temporary AuthMiddleware instance (no-op app).
+    _env_cr = _os_cr.environ.get("HI_AGENT_ENV", "dev").lower()
+    _runtime_mode_cr = _rrm(_env_cr, raw)
+    _auth = _AM(app=lambda *a: None, runtime_mode=_runtime_mode_cr)  # type: ignore[arg-type]
+    posture = _auth.auth_posture
+
     return ReadinessReport(
         ready=bool(raw.get("ready", False)),
         health=str(raw.get("health", "degraded")),
         subsystems=dict(raw.get("subsystems", {})),
+        auth_posture=posture,
     )

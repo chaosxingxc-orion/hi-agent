@@ -1,0 +1,438 @@
+"""Verifies for compensationregistry and its integration with plannedrecoverygateservice."""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+from unittest.mock import AsyncMock
+
+import pytest
+
+from agent_kernel.kernel.contracts import (
+    Action,
+    EffectClass,
+    RecoveryInput,
+    RunProjection,
+)
+from agent_kernel.kernel.recovery.compensation_errors import CompensationExhaustedError
+from agent_kernel.kernel.recovery.compensation_registry import (
+    CompensationRegistry,
+)
+from agent_kernel.kernel.recovery.gate import PlannedRecoveryGateService
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_action(effect_class: str = EffectClass.COMPENSATABLE_WRITE) -> Action:
+    """Make action."""
+    return Action(
+        action_id="act-1",
+        run_id="run-1",
+        action_type="tool_call",
+        effect_class=effect_class,  # type: ignore[arg-type]
+    )
+
+
+def _make_recovery_input(
+    run_id: str = "run-1",
+    reason_code: str = "transient_failure",
+    recovery_mode: str | None = None,
+) -> RecoveryInput:
+    """Make recovery input."""
+    projection = RunProjection(
+        run_id=run_id,
+        lifecycle_state="recovering",
+        projected_offset=5,
+        waiting_external=False,
+        ready_for_dispatch=False,
+        current_action_id="act-1",
+        recovery_mode=recovery_mode,  # type: ignore[arg-type]
+    )
+    return RecoveryInput(
+        run_id=run_id,
+        reason_code=reason_code,
+        lifecycle_state="recovering",
+        projection=projection,
+        failed_action_id="act-1",
+    )
+
+
+# ---------------------------------------------------------------------------
+# CompensationRegistry unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestCompensationRegistry:
+    """Test suite for CompensationRegistry."""
+
+    def test_empty_registry_has_no_handlers(self) -> None:
+        """Verifies empty registry has no handlers."""
+        registry = CompensationRegistry()
+        assert registry.lookup("compensatable_write") is None
+        assert not registry.has_handler("compensatable_write")
+        assert registry.registered_effect_classes() == []
+
+    def test_register_and_lookup(self) -> None:
+        """Verifies register and lookup."""
+        registry = CompensationRegistry()
+        fn = AsyncMock()
+        registry.register("compensatable_write", fn, description="undo write")
+
+        entry = registry.lookup("compensatable_write")
+        assert entry is not None
+        assert entry.effect_class == "compensatable_write"
+        assert entry.compensate is fn
+        assert entry.description == "undo write"
+
+    def test_has_handler_returns_true_after_register(self) -> None:
+        """Verifies has handler returns true after register."""
+        registry = CompensationRegistry()
+        registry.register("idempotent_write", AsyncMock())
+        assert registry.has_handler("idempotent_write")
+        assert not registry.has_handler("irreversible_write")
+
+    def test_register_overwrites_previous_handler(self) -> None:
+        """Verifies register overwrites previous handler."""
+        registry = CompensationRegistry()
+        fn_old = AsyncMock()
+        fn_new = AsyncMock()
+        registry.register("compensatable_write", fn_old)
+        registry.register("compensatable_write", fn_new)
+        assert registry.lookup("compensatable_write").compensate is fn_new
+
+    def test_registered_effect_classes_sorted(self) -> None:
+        """Verifies registered effect classes sorted."""
+        registry = CompensationRegistry()
+        registry.register("idempotent_write", AsyncMock())
+        registry.register("compensatable_write", AsyncMock())
+        registry.register("read_only", AsyncMock())
+        assert registry.registered_effect_classes() == [
+            "compensatable_write",
+            "idempotent_write",
+            "read_only",
+        ]
+
+    def test_handler_decorator_registers_function(self) -> None:
+        """Verifies handler decorator registers function."""
+        registry = CompensationRegistry()
+
+        @registry.handler("compensatable_write", description="via decorator")
+        async def _undo(action: Any) -> None:
+            """Performs compensation in tests."""
+            pass
+
+        entry = registry.lookup("compensatable_write")
+        assert entry is not None
+        assert entry.compensate is _undo
+        assert entry.description == "via decorator"
+
+    def test_handler_decorator_returns_original_function(self) -> None:
+        """Verifies handler decorator returns original function."""
+        registry = CompensationRegistry()
+
+        async def _undo(action: Any) -> None:
+            """Performs compensation in tests."""
+            pass
+
+        result = registry.handler("compensatable_write")(_undo)
+        assert result is _undo
+
+    def test_execute_calls_handler_with_action(self) -> None:
+        """Verifies execute calls handler with action."""
+        registry = CompensationRegistry()
+        called_with: list[Any] = []
+
+        async def _undo(action: Any) -> None:
+            """Performs compensation in tests."""
+            called_with.append(action)
+
+        registry.register("compensatable_write", _undo)
+        action = _make_action("compensatable_write")
+        result = asyncio.run(registry.execute(action))
+        assert result is True
+        assert called_with == [action]
+
+    def test_execute_returns_false_for_unregistered_effect_class(self) -> None:
+        """Verifies execute returns false for unregistered effect class."""
+        registry = CompensationRegistry()
+        action = _make_action("irreversible_write")
+        result = asyncio.run(registry.execute(action))
+        assert result is False
+
+    def test_execute_swallows_handler_exception(self) -> None:
+        """Verifies execute swallows handler exception."""
+        registry = CompensationRegistry()
+
+        async def _failing_undo(action: Any) -> None:
+            """Failing undo."""
+            raise RuntimeError("compensation exploded")
+
+        registry.register("compensatable_write", _failing_undo)
+        action = _make_action("compensatable_write")
+        # Must not raise
+        result = asyncio.run(registry.execute(action))
+        assert result is False  # handler raised → compensation failed, return False
+
+    def test_multiple_effect_classes_isolated(self) -> None:
+        """Verifies multiple effect classes isolated."""
+        registry = CompensationRegistry()
+        fn_a = AsyncMock()
+        fn_b = AsyncMock()
+        registry.register("compensatable_write", fn_a)
+        registry.register("idempotent_write", fn_b)
+
+        assert registry.lookup("compensatable_write").compensate is fn_a
+        assert registry.lookup("idempotent_write").compensate is fn_b
+
+
+# ---------------------------------------------------------------------------
+# PlannedRecoveryGateService + CompensationRegistry integration
+# ---------------------------------------------------------------------------
+
+
+class TestPlannedRecoveryGateServiceWithRegistry:
+    """Test suite for PlannedRecoveryGateServiceWithRegistry."""
+
+    def test_no_registry_passes_through_compensation_decision(self) -> None:
+        """Without a registry the gate never validates compensation handlers."""
+        gate = PlannedRecoveryGateService()
+        recovery_input = _make_recovery_input(
+            reason_code="transient_failure",
+            recovery_mode="static_compensation",
+        )
+        decision = asyncio.run(gate.decide(recovery_input))
+        assert decision.mode == "static_compensation"
+
+    def test_with_registry_allows_compensation_when_handler_registered(self) -> None:
+        """Verifies with registry allows compensation when handler registered."""
+        registry = CompensationRegistry()
+        registry.register("compensatable_write", AsyncMock())
+        gate = PlannedRecoveryGateService(compensation_registry=registry)
+
+        # reason_code uses "effect_class:reason" convention so gate can extract it
+        recovery_input = _make_recovery_input(
+            reason_code="compensatable_write:transient_failure",
+            recovery_mode="static_compensation",
+        )
+        decision = asyncio.run(gate.decide(recovery_input))
+        assert decision.mode == "static_compensation"
+
+    def test_with_registry_downgrades_to_abort_when_no_handler(self) -> None:
+        """Verifies with registry downgrades to abort when no handler."""
+        registry = CompensationRegistry()
+        # No handler registered for irreversible_write
+        gate = PlannedRecoveryGateService(compensation_registry=registry)
+
+        recovery_input = _make_recovery_input(
+            reason_code="irreversible_write:transient_failure",
+            recovery_mode="static_compensation",
+        )
+        decision = asyncio.run(gate.decide(recovery_input))
+        assert decision.mode == "abort"
+        assert "no_compensation_handler" in decision.reason
+
+    def test_with_registry_does_not_affect_human_escalation(self) -> None:
+        """Registry validation only applies to static_compensation mode."""
+        registry = CompensationRegistry()  # empty registry
+        gate = PlannedRecoveryGateService(compensation_registry=registry)
+
+        recovery_input = _make_recovery_input(
+            reason_code="human_requires_review",
+            recovery_mode="human_escalation",
+        )
+        decision = asyncio.run(gate.decide(recovery_input))
+        assert decision.mode == "human_escalation"
+
+    def test_with_registry_does_not_affect_abort(self) -> None:
+        """Registry validation does not interfere with abort decisions."""
+        registry = CompensationRegistry()
+        gate = PlannedRecoveryGateService(compensation_registry=registry)
+
+        recovery_input = _make_recovery_input(
+            reason_code="fatal_unrecoverable",
+            recovery_mode="abort",
+        )
+        decision = asyncio.run(gate.decide(recovery_input))
+        assert decision.mode == "abort"
+
+    def test_compensation_registry_property_returns_injected_registry(self) -> None:
+        """Verifies compensation registry property returns injected registry."""
+        registry = CompensationRegistry()
+        gate = PlannedRecoveryGateService(compensation_registry=registry)
+        assert gate.compensation_registry is registry
+
+    def test_compensation_registry_property_none_when_not_injected(self) -> None:
+        """Verifies compensation registry property none when not injected."""
+        gate = PlannedRecoveryGateService()
+        assert gate.compensation_registry is None
+
+    def test_reason_without_colon_does_not_trigger_downgrade(self) -> None:
+        """When reason_code has no ':' the effect_class is unknown; no downgrade."""
+        registry = CompensationRegistry()  # empty
+        gate = PlannedRecoveryGateService(compensation_registry=registry)
+
+        # No colon in reason_code → _extract_effect_class returns None → no check
+        recovery_input = _make_recovery_input(
+            reason_code="transient_failure",
+            recovery_mode="static_compensation",
+        )
+        decision = asyncio.run(gate.decide(recovery_input))
+        # Gate cannot determine effect_class → passes through as compensation
+        assert decision.mode == "static_compensation"
+
+
+# ---------------------------------------------------------------------------
+# R3e — Compensation execute() with DedupeStore idempotency
+# ---------------------------------------------------------------------------
+
+
+class TestCompensationRegistryDedupeIntegration:
+    """Verifies at-most-once execution via DedupeStore."""
+
+    def test_execute_without_dedupe_store_calls_handler(self) -> None:
+        """Baseline: no dedupe_store → handler called once normally."""
+        registry = CompensationRegistry()
+        calls: list[Any] = []
+
+        async def _handler(action: Any) -> None:
+            """Handles the test callback invocation."""
+            calls.append(action.action_id)
+
+        registry.register("write", _handler)
+        result = asyncio.run(registry.execute(_make_action("write")))
+        assert result is True
+        assert calls == ["act-1"]
+
+    def test_execute_with_dedupe_store_calls_handler_on_first_call(self) -> None:
+        """Verifies execute with dedupe store calls handler on first call."""
+        from agent_kernel.kernel.dedupe_store import InMemoryDedupeStore
+
+        registry = CompensationRegistry()
+        calls: list[str] = []
+
+        async def _handler(action: Any) -> None:
+            """Handles the test callback invocation."""
+            calls.append(action.action_id)
+
+        registry.register("write", _handler)
+        store = InMemoryDedupeStore()
+        result = asyncio.run(registry.execute(_make_action("write"), dedupe_store=store))
+        assert result is True
+        assert calls == ["act-1"]
+
+    def test_execute_with_dedupe_store_skips_handler_on_second_call(self) -> None:
+        """Second execute() for the same action should not re-run the handler."""
+        from agent_kernel.kernel.dedupe_store import InMemoryDedupeStore
+
+        registry = CompensationRegistry()
+        calls: list[str] = []
+
+        async def _handler(action: Any) -> None:
+            """Handles the test callback invocation."""
+            calls.append(action.action_id)
+
+        registry.register("write", _handler)
+        store = InMemoryDedupeStore()
+        action = _make_action("write")
+
+        asyncio.run(registry.execute(action, dedupe_store=store))
+        # Second call with same action — should be skipped
+        asyncio.run(registry.execute(action, dedupe_store=store))
+        assert len(calls) == 1
+
+    def test_execute_marks_dedupe_acknowledged_after_success(self) -> None:
+        """After success, the dedupe key should be in 'acknowledged' state."""
+        from agent_kernel.kernel.dedupe_store import InMemoryDedupeStore
+
+        registry = CompensationRegistry()
+        registry.register("write", AsyncMock())
+        store = InMemoryDedupeStore()
+        asyncio.run(registry.execute(_make_action("write"), dedupe_store=store))
+        key = "compensation:write:act-1"
+        record = store.get(key)
+        assert record is not None
+        assert record.state == "acknowledged"
+
+    def test_different_actions_are_independent(self) -> None:
+        """Different action_ids should each get their own idempotency slot."""
+        from agent_kernel.kernel.dedupe_store import InMemoryDedupeStore
+
+        registry = CompensationRegistry()
+        calls: list[str] = []
+
+        async def _handler(action: Any) -> None:
+            """Handles the test callback invocation."""
+            calls.append(action.action_id)
+
+        registry.register("write", _handler)
+        store = InMemoryDedupeStore()
+
+        action1 = Action(
+            action_id="act-1", run_id="run-1", action_type="tool_call", effect_class="write"
+        )
+        action2 = Action(
+            action_id="act-2", run_id="run-1", action_type="tool_call", effect_class="write"
+        )
+        asyncio.run(registry.execute(action1, dedupe_store=store))
+        asyncio.run(registry.execute(action2, dedupe_store=store))
+        assert set(calls) == {"act-1", "act-2"}
+
+
+class TestCompensationRegistryRetryAndTimeout:
+    """Test suite for CompensationRegistryRetryAndTimeout."""
+
+    def test_transient_error_retries_then_succeeds(self, monkeypatch: Any) -> None:
+        """Verifies transient error retries then succeeds."""
+        registry = CompensationRegistry()
+        calls = {"count": 0}
+
+        async def _handler(_action: Any) -> None:
+            """Handles the test callback invocation."""
+            calls["count"] += 1
+            if calls["count"] == 1:
+                from agent_kernel.kernel.recovery.compensation_errors import (
+                    TransientCompensationError,
+                )
+
+                raise TransientCompensationError("retry me")
+
+        monkeypatch.setattr(
+            "agent_kernel.kernel.recovery.compensation_registry._retry_delay_seconds",
+            lambda _base_ms, _attempt: 0.0,
+        )
+        registry.register("write", _handler, max_attempts=2, backoff_base_ms=1)
+        result = asyncio.run(registry.execute(_make_action("write")))
+        assert result is True
+        assert calls["count"] == 2
+
+    def test_timeout_marks_unknown_effect_when_dedupe_enabled(self) -> None:
+        """Verifies timeout marks unknown effect when dedupe enabled."""
+        from agent_kernel.kernel.dedupe_store import InMemoryDedupeStore
+
+        registry = CompensationRegistry()
+        store = InMemoryDedupeStore()
+
+        async def _slow_handler(_action: Any) -> None:
+            """Slow handler."""
+            await asyncio.sleep(0.05)
+
+        registry.register("write", _slow_handler, timeout_ms=1, max_attempts=1)
+        result = asyncio.run(registry.execute(_make_action("write"), dedupe_store=store))
+        assert result is False
+        record = store.get("compensation:write:act-1")
+        assert record is not None
+        assert record.state == "unknown_effect"
+
+    def test_raise_on_failure_raises_exhausted_error(self) -> None:
+        """Verifies raise on failure raises exhausted error."""
+        registry = CompensationRegistry()
+
+        async def _handler(_action: Any) -> None:
+            """Handles the test callback invocation."""
+            raise RuntimeError("boom")
+
+        registry.register("write", _handler, max_attempts=1)
+        with pytest.raises(CompensationExhaustedError):
+            asyncio.run(registry.execute(_make_action("write"), raise_on_failure=True))
