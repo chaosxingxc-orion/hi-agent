@@ -65,9 +65,9 @@ class MockKernel:
         if actual != expected:
             raise AssertionError(f"{stage_id}: expected {expected}, got {actual}")
 
-    def open_stage(self, stage_id: str) -> None:
+    def open_stage(self, run_id: str, stage_id: str) -> None:
         try:
-            self._adapter.open_stage(stage_id)
+            self._adapter.open_stage(run_id, stage_id)
         except RuntimeAdapterBackendError:
             pass
         if stage_id in self.stages:
@@ -75,7 +75,7 @@ class MockKernel:
         self.stages[stage_id] = StageState.PENDING
         self._record("StageOpened", stage_id=stage_id)
 
-    def mark_stage_state(self, stage_id: str, target: StageState) -> None:
+    def mark_stage_state(self, run_id: str, stage_id: str, target: StageState) -> None:
         current = self.stages.get(stage_id)
         if current is None:
             raise ValueError(f"Stage {stage_id} not opened")
@@ -84,7 +84,7 @@ class MockKernel:
         if self.strict_mode and target not in _STAGE_TRANSITIONS[current]:
             raise IllegalStateTransitionError(f"{stage_id}: {current} -> {target} is illegal")
         try:
-            self._adapter.mark_stage_state(stage_id, target)
+            self._adapter.mark_stage_state(run_id, stage_id, target)
         except RuntimeAdapterBackendError:
             pass
         self.stages[stage_id] = target
