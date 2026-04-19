@@ -23,7 +23,7 @@ jobs:
         run: ruff check hi_agent tests --select E9,F63,F7,F82
       - name: Lint (advisory)
         continue-on-error: true
-        run: ruff check hi_agent tests --statistics
+        run: ruff check hi_agent tests --statistics --exit-zero
       - name: Unit & root tests
         run: pytest tests/ --ignore=tests/integration --ignore=tests/security --ignore=tests/contract -q --tb=short
       - name: Security tests
