@@ -21,3 +21,18 @@ if _LLM_CONFIG.exists():
     _volces = json.loads(_LLM_CONFIG.read_text()).get("providers", {}).get("volces", {})
     os.environ.setdefault("VOLCE_API_KEY", _volces.get("api_key", ""))
     os.environ.setdefault("VOLCE_BASE_URL", _volces.get("base_url", ""))
+
+# ---------------------------------------------------------------------------
+# Wire Volces Ark (OpenAI-compatible) into the production LLM gateway path.
+# HttpLLMGateway uses openai_base_url + openai_api_key_env — both configurable.
+# This lets test_prod_e2e.py run with real LLM calls without OpenAI/Anthropic keys.
+# Real env vars always win (setdefault never overwrites).
+# ---------------------------------------------------------------------------
+_volce_key_val = os.environ.get("VOLCE_API_KEY", "")
+_volce_url_val = os.environ.get("VOLCE_BASE_URL", "")
+if _volce_key_val and _volce_url_val:
+    _volce_model = (_volces.get("all_models") or ["doubao-seed-2.0-code"])[0]
+    os.environ.setdefault("OPENAI_API_KEY", _volce_key_val)
+    os.environ.setdefault("HI_AGENT_OPENAI_BASE_URL", _volce_url_val)
+    os.environ.setdefault("HI_AGENT_LLM_DEFAULT_PROVIDER", "openai")
+    os.environ.setdefault("HI_AGENT_OPENAI_DEFAULT_MODEL", _volce_model)

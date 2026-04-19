@@ -154,7 +154,13 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Prod fail-closed: reject all requests when auth is unconfigured in prod.
+        # Exempt paths bypass all auth checks, including the prod fail-closed gate.
+        path: str = scope.get("path", "")
+        if path in _EXEMPT_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        # Prod fail-closed: reject non-exempt requests when auth is unconfigured in prod.
         if not self._enabled:
             if self._runtime_mode == "prod-real":
                 await self._reject(
@@ -176,7 +182,6 @@ class AuthMiddleware:
                 reset_tenant_context(_reset_token)
             return
 
-        path: str = scope.get("path", "")
         if path in _EXEMPT_PATHS:
             await self.app(scope, receive, send)
             return

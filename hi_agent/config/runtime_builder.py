@@ -62,9 +62,12 @@ class RuntimeBuilder:
                         "or set a real http(s) agent-kernel endpoint."
                     )
                 if env == "prod" and (not base_url or base_url.lower() == "local"):
-                    raise RuntimeError(
-                        "Production mode requires a real agent-kernel HTTP endpoint. "
-                        "Set kernel_base_url to http(s)://... and do not use 'local'."
+                    _logger.warning(
+                        "Production mode with kernel_base_url=%r — "
+                        "using in-process LocalFSM kernel. "
+                        "For full multi-process production deploy, set "
+                        "HI_AGENT_KERNEL_BASE_URL to a real agent-kernel endpoint.",
+                        base_url,
                     )
                 if base_url and base_url.lower() != "local":
                     self._kernel = KernelFacadeClient(
