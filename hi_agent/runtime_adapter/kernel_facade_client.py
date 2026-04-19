@@ -93,9 +93,10 @@ class KernelFacadeClient:
             result = self._direct_call("record_task_view", task_view_id, content)
             return result if isinstance(result, str) else task_view_id
         else:
+            run_id = content.get("run_id", "unknown") if isinstance(content, dict) else "unknown"
             resp = self._http_post(
-                "/task_views/record",
-                {"task_view_id": task_view_id, "content": content},
+                f"/runs/{run_id}/task-views",
+                {"task_view_id": task_view_id, **content},
             )
             return resp.get("task_view_id", task_view_id)
 
@@ -108,9 +109,9 @@ class KernelFacadeClient:
                 "bind_task_view_to_decision", task_view_id, decision_ref
             )
         else:
-            self._http_post(
-                "/task_views/bind_decision",
-                {"task_view_id": task_view_id, "decision_ref": decision_ref},
+            self._http_put(
+                f"/task-views/{task_view_id}/decision",
+                {"decision_ref": decision_ref},
             )
 
     # ------------------------------------------------------------------
@@ -178,7 +179,7 @@ class KernelFacadeClient:
         else:
             self._http_post(
                 f"/runs/{run_id}/signal",
-                {"signal": signal, "payload": payload or {}},
+                {"signal_type": signal, "signal_payload": payload or {}},
             )
 
     # ------------------------------------------------------------------
@@ -242,12 +243,8 @@ class KernelFacadeClient:
             self._direct_call("open_branch", run_id, stage_id, branch_id)
         else:
             self._http_post(
-                "/branches/open",
-                {
-                    "run_id": run_id,
-                    "stage_id": stage_id,
-                    "branch_id": branch_id,
-                },
+                f"/runs/{run_id}/branches",
+                {"stage_id": stage_id, "branch_id": branch_id},
             )
 
     def mark_branch_state(
@@ -264,15 +261,10 @@ class KernelFacadeClient:
                 "mark_branch_state", run_id, stage_id, branch_id, state, failure_code
             )
         else:
-            body: dict[str, Any] = {
-                "run_id": run_id,
-                "stage_id": stage_id,
-                "branch_id": branch_id,
-                "state": state,
-            }
+            body: dict[str, Any] = {"state": state}
             if failure_code is not None:
                 body["failure_code"] = failure_code
-            self._http_post("/branches/mark_state", body)
+            self._http_put(f"/runs/{run_id}/branches/{branch_id}/state", body)
 
     # ------------------------------------------------------------------
     # Human gate
@@ -284,9 +276,8 @@ class KernelFacadeClient:
             self._direct_call("open_human_gate", request)
         else:
             self._http_post(
-                "/gates/open",
+                f"/runs/{request.run_id}/human-gates",
                 {
-                    "run_id": request.run_id,
                     "gate_type": request.gate_type,
                     "gate_ref": request.gate_ref,
                     "context": request.context,
@@ -299,8 +290,9 @@ class KernelFacadeClient:
         if self._mode == "direct":
             self._direct_call("submit_approval", request)
         else:
+            run_id = getattr(request, "run_id", None) or ""
             self._http_post(
-                "/gates/approve",
+                f"/runs/{run_id}/approval",
                 {
                     "gate_ref": request.gate_ref,
                     "decision": request.decision,
@@ -535,6 +527,29 @@ class KernelFacadeClient:
             data=data,
             headers={"Content-Type": "application/json"},
             method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                raw = resp.read().decode("utf-8")
+                return json.loads(raw) if raw.strip() else {}
+        except urllib.error.HTTPError as exc:
+            raise RuntimeAdapterBackendError(
+                path, cause=exc
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeAdapterBackendError(
+                path, cause=exc
+            ) from exc
+
+    def _http_put(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """PUT JSON to agent-kernel HTTP server."""
+        url = f"{self._base_url}{path}"
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="PUT",
         )
         try:
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
