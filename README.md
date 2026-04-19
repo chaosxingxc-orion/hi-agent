@@ -290,6 +290,139 @@ facade.stop()
 
 ---
 
+## 下游系统接入指南
+
+### 1. 配置真实 LLM（local-real 模式）
+
+服务默认以 `dev-smoke` 启动（heuristic 回退，无需 API Key）。要接入真实模型，设置以下环境变量：
+
+```bash
+# 以 DeepSeek/Volces 兼容端点为例
+export HI_AGENT_LLM_DEFAULT_PROVIDER=openai
+export HI_AGENT_OPENAI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+export OPENAI_API_KEY=<your-api-key>
+export HI_AGENT_LLM_MODE=real
+export HI_AGENT_KERNEL_MODE=http
+
+# 验证模式
+curl -s http://127.0.0.1:8080/ready | jq '{runtime_mode, execution_mode}'
+# 期望：{ "runtime_mode": "local-real", "execution_mode": "local" }
+```
+
+若使用 Anthropic：
+
+```bash
+export HI_AGENT_LLM_DEFAULT_PROVIDER=anthropic
+export ANTHROPIC_API_KEY=<your-api-key>
+export HI_AGENT_LLM_MODE=real
+export HI_AGENT_KERNEL_MODE=http
+```
+
+---
+
+### 2. 创建 Run 并观察阶段进度
+
+```bash
+# 创建 Run
+RUN_ID=$(curl -s -X POST http://127.0.0.1:8080/runs \
+  -H 'Content-Type: application/json' \
+  -d '{"goal":"Summarize recent product feedback","task_family":"quick_task","risk_level":"low"}' \
+  | jq -r .run_id)
+
+echo "Run ID: $RUN_ID"
+
+# 轮询状态（含阶段进度，新增字段）
+curl -s http://127.0.0.1:8080/runs/$RUN_ID \
+  | jq '{state, current_stage, stage_updated_at, updated_at}'
+
+# 订阅实时事件（SSE）— 在独立终端运行
+curl -N http://127.0.0.1:8080/runs/$RUN_ID/events
+# 会收到 stage_start / stage_complete / RunStarted 等事件
+```
+
+响应示例（运行中）：
+
+```json
+{
+  "state": "running",
+  "current_stage": "S3_build",
+  "stage_updated_at": "2026-04-20T12:05:21Z",
+  "updated_at": "2026-04-20T12:00:01Z"
+}
+```
+
+---
+
+### 3. 端到端验证脚本
+
+```bash
+#!/usr/bin/env bash
+# hi-agent 下游端到端验证脚本
+# 用法：bash scripts/e2e_verify.sh [API_BASE]
+
+API=${1:-http://127.0.0.1:8080}
+
+echo "=== Step 1: 就绪检查 ==="
+READY=$(curl -sf $API/ready)
+echo "$READY" | jq '{runtime_mode, execution_mode}'
+RUNTIME_MODE=$(echo "$READY" | jq -r .runtime_mode)
+
+echo ""
+echo "=== Step 2: 连续创建 3 个 Run（验证 run_id 唯一性） ==="
+for i in 1 2 3; do
+  curl -sf -X POST $API/runs \
+    -H 'Content-Type: application/json' \
+    -d "{\"goal\":\"smoke $i\",\"task_family\":\"quick_task\",\"risk_level\":\"low\"}" \
+    | jq -c '{run_id, state}'
+done
+
+echo ""
+echo "=== Step 3: 创建 Run 并等待终态（≤60s） ==="
+RUN_ID=$(curl -sf -X POST $API/runs \
+  -H 'Content-Type: application/json' \
+  -d '{"goal":"Verify end-to-end execution","task_family":"quick_task","risk_level":"low"}' \
+  | jq -r .run_id)
+
+echo "Run ID: $RUN_ID"
+for i in $(seq 1 30); do
+  RESP=$(curl -sf $API/runs/$RUN_ID)
+  STATE=$(echo "$RESP" | jq -r .state)
+  STAGE=$(echo "$RESP" | jq -r .current_stage)
+  echo "[${i}] state=$STATE  current_stage=$STAGE"
+  [ "$STATE" = "completed" ] || [ "$STATE" = "failed" ] && echo "==> 终态: $STATE" && break
+  sleep 2
+done
+
+echo ""
+echo "=== Step 4: 验证 runtime_mode ==="
+if [ "$RUNTIME_MODE" = "local-real" ] || [ "$RUNTIME_MODE" = "prod-real" ]; then
+  echo "PASS: 真实 LLM 模式 ($RUNTIME_MODE)"
+else
+  echo "INFO: 当前为 $RUNTIME_MODE（heuristic 模式，设置 LLM env var 可切换到 local-real）"
+fi
+```
+
+将脚本保存为 `scripts/e2e_verify.sh` 后直接执行：
+
+```bash
+bash scripts/e2e_verify.sh http://127.0.0.1:8080
+```
+
+---
+
+### 4. 可观测性端点汇总
+
+| 端点 | 用途 | 示例 |
+|------|------|------|
+| `GET /ready` | 就绪状态 + runtime_mode | `curl $API/ready \| jq .` |
+| `GET /runs/{id}` | Run 状态 + **current_stage** + stage_updated_at | `curl $API/runs/$RUN_ID \| jq .` |
+| `GET /runs/{id}/events` | SSE 实时事件（stage_start/complete/RunStarted） | `curl -N $API/runs/$RUN_ID/events` |
+| `GET /manifest` | 系统能力清单（runtime_mode/evolve_policy/provenance） | `curl $API/manifest \| jq .` |
+| `GET /metrics` | Prometheus 格式指标 | `curl $API/metrics` |
+| `GET /context/health` | 上下文预算状态 | `curl $API/context/health \| jq .` |
+
+---
+
 ## 关键能力
 
 ### 模型分层路由与多模态 LLM
