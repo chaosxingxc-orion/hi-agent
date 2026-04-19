@@ -121,12 +121,21 @@ class KernelFacadeClient:
     def start_run(self, task_id: str) -> str:
         """Start a run for task and return run ID."""
         if self._mode == "direct":
-            result = self._direct_call("start_run", task_id)
-            if isinstance(result, str):
-                return result
-            # KernelFacade returns StartRunResponse; extract run_id.
+            import uuid  # noqa: PLC0415
+            from agent_kernel.adapters.facade.kernel_facade import (  # noqa: PLC0415
+                StartRunRequest,
+            )
+            unique_run_id = f"{task_id[:48]}-{uuid.uuid4().hex[:8]}"
+            request = StartRunRequest(
+                initiator="agent_core_runner",
+                run_kind="trace",
+                input_json={"task_id": task_id, "run_id": unique_run_id},
+            )
+            result = self._direct_call("start_run", request)
             if hasattr(result, "run_id"):
                 return result.run_id
+            if isinstance(result, str) and result.strip():
+                return result
             raise RuntimeAdapterBackendError(
                 "start_run",
                 cause=ValueError("start_run did not return a run_id"),
@@ -141,7 +150,8 @@ class KernelFacadeClient:
     def query_run(self, run_id: str) -> dict[str, Any]:
         """Return run lifecycle snapshot."""
         if self._mode == "direct":
-            result = self._direct_call("query_run", run_id)
+            from agent_kernel.adapters.facade.kernel_facade import QueryRunRequest  # noqa: PLC0415
+            result = self._direct_call("query_run", QueryRunRequest(run_id=run_id))
             if isinstance(result, dict):
                 return result
             import dataclasses  # noqa: PLC0415
@@ -157,16 +167,16 @@ class KernelFacadeClient:
     def cancel_run(self, run_id: str, reason: str) -> None:
         """Cancel run with reason."""
         if self._mode == "direct":
-            self._direct_call("cancel_run", run_id, reason)
+            from agent_kernel.adapters.facade.kernel_facade import CancelRunRequest  # noqa: PLC0415
+            self._direct_call("cancel_run", CancelRunRequest(run_id=run_id, reason=reason))
         else:
-            self._http_post(
-                f"/runs/{run_id}/cancel", {"reason": reason}
-            )
+            self._http_post(f"/runs/{run_id}/cancel", {"reason": reason})
 
     def resume_run(self, run_id: str) -> None:
         """Resume a suspended or cancelled run."""
         if self._mode == "direct":
-            self._direct_call("resume_run", run_id)
+            from agent_kernel.adapters.facade.kernel_facade import ResumeRunRequest  # noqa: PLC0415
+            self._direct_call("resume_run", ResumeRunRequest(run_id=run_id))
         else:
             self._http_post(f"/runs/{run_id}/resume", {})
 
@@ -175,7 +185,15 @@ class KernelFacadeClient:
     ) -> None:
         """Push an external signal to a run."""
         if self._mode == "direct":
-            self._direct_call("signal_run", run_id, signal, payload or {})
+            from agent_kernel.adapters.facade.kernel_facade import SignalRunRequest  # noqa: PLC0415
+            self._direct_call(
+                "signal_run",
+                SignalRunRequest(
+                    run_id=run_id,
+                    signal_type=signal,
+                    signal_payload=payload or {},
+                ),
+            )
         else:
             self._http_post(
                 f"/runs/{run_id}/signal",
@@ -384,7 +402,14 @@ class KernelFacadeClient:
     ) -> str:
         """Spawn a child run under parent_run_id."""
         if self._mode == "direct":
-            result = self._direct_call("spawn_child_run", parent_run_id, task_id, config)
+            from agent_kernel.kernel.contracts import SpawnChildRunRequest  # noqa: PLC0415
+            request = SpawnChildRunRequest(
+                parent_run_id=parent_run_id,
+                child_kind="delegate",
+                task_id=task_id,
+                input_json=config if config else None,
+            )
+            result = self._direct_call("spawn_child_run", request)
             if hasattr(result, "child_run_id") and result.child_run_id:
                 return result.child_run_id
             if isinstance(result, str) and result.strip():
