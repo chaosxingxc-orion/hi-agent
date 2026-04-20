@@ -66,12 +66,12 @@ class URLPolicy:
         # Rule 2: Resolve and check IP
         try:
             addr_info = socket.getaddrinfo(hostname, None)
-        except socket.gaierror as e:
+        except socket.gaierror as exc:
             raise URLPolicyViolation(
-                f"Cannot resolve hostname {hostname!r}: {e}"
-            )
+                f"Cannot resolve hostname {hostname!r}: {exc}"
+            ) from exc
 
-        for family, _, _, _, sockaddr in addr_info:
+        for _, _, _, _, sockaddr in addr_info:
             ip_str = sockaddr[0]
             self._check_ip(ip_str, hostname)
 

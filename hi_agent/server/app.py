@@ -1364,7 +1364,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
                 on_reload=agent_server._on_config_reload,
                 poll_interval_seconds=2.0,
             )
-            asyncio.create_task(agent_server._watcher.start())
+            agent_server._watcher_task = asyncio.create_task(agent_server._watcher.start())
             logger.info(
                 "ConfigFileWatcher started for %s",
                 agent_server._config_stack._base_path,
@@ -1396,6 +1396,11 @@ def build_app(agent_server: AgentServer) -> Starlette:
                 await slo.stop()
             if agent_server._watcher is not None:
                 agent_server._watcher.stop()
+            if agent_server._watcher_task is not None:
+                agent_server._watcher_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await agent_server._watcher_task
+                agent_server._watcher_task = None
             mcp_transport = getattr(agent_server._builder, "_mcp_transport", None)
             if mcp_transport is not None and hasattr(mcp_transport, "close_all"):
                 mcp_transport.close_all()
@@ -1554,6 +1559,7 @@ class AgentServer:
             # Use stack-resolved config (incorporates file + profile + env).
             self._config = self._config_stack.resolve()
         self._watcher: ConfigFileWatcher | None = None
+        self._watcher_task: asyncio.Task[None] | None = None
 
         # RunManager respects server_max_concurrent_runs from config.
         # Durable stores are opt-in: only instantiated when a db_dir is configured.

@@ -421,7 +421,7 @@ class TestErrorHandlingContracts:
 
         Mocking reason: bypasses agent-kernel isinstance guard (external dep).
         """
-        adapter, facade = _make_kernel_facade_adapter()
+        adapter, _ = _make_kernel_facade_adapter()
         with pytest.raises((ValueError, RuntimeAdapterBackendError)):
             adapter.signal_run("run-001", "pause", payload="not-a-dict")  # type: ignore[arg-type]
 

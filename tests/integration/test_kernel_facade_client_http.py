@@ -91,7 +91,7 @@ class _MockKernelHandler(BaseHTTPRequestHandler):
     # --- PUT dispatcher ---
 
     def do_PUT(self) -> None:
-        body = self._read_body()
+        _ = self._read_body()
         path = self.path.split("?")[0]
 
         if re.fullmatch(r"/runs/[^/]+/stages/[^/]+/state", path) or re.fullmatch(r"/runs/[^/]+/branches/[^/]+/state", path) or re.fullmatch(r"/task-views/[^/]+/decision", path):

@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging as _logging
 import threading
 from collections.abc import Callable
-from typing import Any
+from typing import Any, ClassVar
 
 _logger = _logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class MiddlewareOrchestrator:
     """Extensible middleware orchestrator with 5-phase lifecycle hooks."""
 
     # Cost-per-million-token estimates by tier for savings calculations.
-    _TIER_COST_PER_MTOK: dict[str, float] = {
+    _TIER_COST_PER_MTOK: ClassVar[dict[str, float]] = {
         "strong": 15.0,
         "medium": 3.0,
         "light": 0.25,

@@ -307,7 +307,7 @@ class TestBuildContextForLLM:
         s = _make_session()
         s.current_stage = "S1"
         # Add many records
-        for i in range(200):
+        for _ in range(200):
             s.append_record("obs", {"data": "x" * 100})
 
         ctx = s.build_context_for_llm("routing", budget_tokens=512)

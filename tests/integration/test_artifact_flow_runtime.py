@@ -112,7 +112,7 @@ class TestHarnessExecutorArtifactRegistry:
             capability_name="search",
             payload={"query": "test"},
         )
-        result = harness.execute(spec)
+        _ = harness.execute(spec)
         # Artifact should be stored
         assert registry.count() == 1
         arts = registry.query(artifact_type="resource")

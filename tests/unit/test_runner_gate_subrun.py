@@ -57,7 +57,7 @@ class TestDispatchSubrunGoal:
 
         import asyncio
 
-        handle = asyncio.run(
+        _ = asyncio.run(
             _dispatch_subrun_async(executor, goal="Write the introduction")
         )
 

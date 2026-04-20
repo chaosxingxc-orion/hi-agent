@@ -28,7 +28,7 @@ def _make_evidence_records(
 ) -> list[RawEventRecord]:
     """Generate synthetic evidence records for a stage."""
     records: list[RawEventRecord] = []
-    for i in range(count):
+    for _ in range(count):
         records.append(
             RawEventRecord(
                 event_type="StageStateChanged",

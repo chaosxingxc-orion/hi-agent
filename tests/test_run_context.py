@@ -143,7 +143,7 @@ class TestRunContextManagerDuplicate:
         mgr.create("run-dup")
         try:
             mgr.create("run-dup")
-            assert False, "Should have raised ValueError"
+            raise AssertionError("Should have raised ValueError")
         except ValueError as exc:
             assert "already exists" in str(exc)
 

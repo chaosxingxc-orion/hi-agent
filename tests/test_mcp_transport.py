@@ -306,7 +306,7 @@ class TestConfigReloadSafety:
         server = AgentServer()
         assert server._builder_generation == 0
         old_builder = server._builder
-        old_config = server._config
+        _ = server._config
 
         # Create a minimal new config (same as current, just a new object)
         new_cfg = server._config  # same values, different invocation

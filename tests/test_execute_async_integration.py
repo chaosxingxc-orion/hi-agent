@@ -77,7 +77,7 @@ async def test_async_execution_with_multiple_stages():
         goal="Produce a comprehensive quarterly revenue report for the board meeting today",
         task_family="analysis",
     )
-    executor, facade = _make_executor(contract=contract)
+    executor, _ = _make_executor(contract=contract)
 
     result = await execute_async(executor)
 

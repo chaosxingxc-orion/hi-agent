@@ -309,7 +309,7 @@ class DelegationManager:
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: list[DelegationResult] = []
-        for req, outcome in zip(requests, raw_results):
+        for req, outcome in zip(requests, raw_results, strict=True):
             if isinstance(outcome, GatePendingError):
                 results.append(
                     DelegationResult(

@@ -83,7 +83,7 @@ class AsyncHTTPGateway:
         from hi_agent.runtime.async_bridge import AsyncBridgeService
 
         try:
-            loop = asyncio.get_running_loop()
+            _ = asyncio.get_running_loop()
             # Already inside an event loop — delegate to shared executor.
             future = AsyncBridgeService.get_executor().submit(
                 asyncio.run, self._inner.complete(request)

@@ -46,7 +46,7 @@ class TestParallelDispatcher:
             dispatcher.dispatch("b", lambda: "done-b")
             results = dispatcher.wait_any(timeout=5)
             assert len(results) >= 1
-            node_id, value = results[0]
+            node_id, _ = results[0]
             assert node_id in ("a", "b")
         finally:
             dispatcher.shutdown()

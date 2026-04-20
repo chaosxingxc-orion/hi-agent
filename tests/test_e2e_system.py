@@ -139,7 +139,7 @@ class TestFullTracePipelineAllSubsystems:
 
         # 7. All branches succeeded
         assert len(kernel.branches) > 0
-        for key, branch in kernel.branches.items():
+        for _, branch in kernel.branches.items():
             assert branch["state"] == "succeeded"
 
         # 8. Task views recorded
@@ -675,7 +675,7 @@ class TestPolicyVersionPinning:
 
         # Task views should contain policy_versions
         assert len(kernel.task_views) > 0
-        for tv_id, tv_content in kernel.task_views.items():
+        for _, tv_content in kernel.task_views.items():
             pv = tv_content.get("policy_versions", {})
             assert pv.get("route_policy") == "route_pinned"
             assert pv.get("acceptance_policy") == "accept_pinned"
@@ -798,7 +798,7 @@ class TestBudgetEnforcement:
             failure_collector=failure_collector,
         )
 
-        result = executor.execute()
+        _ = executor.execute()
 
         # Action seq should be capped near the budget
         assert executor.action_seq <= 3

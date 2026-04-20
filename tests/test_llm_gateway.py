@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -190,7 +191,7 @@ class TestBudgetTracker:
 class TestHttpGateway:
     """HttpLLMGateway builds correct requests and parses responses."""
 
-    _FAKE_RAW: dict = {
+    _FAKE_RAW: ClassVar[dict] = {
         "id": "chatcmpl-abc",
         "model": "gpt-4o",
         "choices": [

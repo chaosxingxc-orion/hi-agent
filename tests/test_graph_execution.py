@@ -110,7 +110,7 @@ class TestExecuteGraphWithBacktrack:
         graph.add_edge("D", "C")
         graph.add_backtrack("B", "D")
 
-        executor, kernel, stages = _make_executor_with_stub(
+        executor, _, stages = _make_executor_with_stub(
             graph, fail_once_stages={"B"}, task_id="bt-002",
         )
 
@@ -129,7 +129,7 @@ class TestExecuteGraphWithBacktrack:
         # Backtrack from C to A (already completed when C runs)
         graph.add_backtrack("C", "A")
 
-        executor, kernel, stages = _make_executor_with_stub(
+        executor, _, _ = _make_executor_with_stub(
             graph, fail_stages={"C"}, task_id="bt-003",
         )
 
@@ -142,7 +142,7 @@ class TestExecuteGraphWithBacktrack:
         graph = StageGraph()
         graph.add_edge("A", "B")
 
-        executor, kernel, stages = _make_executor_with_stub(
+        executor, _, stages = _make_executor_with_stub(
             graph, fail_stages={"B"}, task_id="bt-004",
         )
 
@@ -163,7 +163,7 @@ class TestExecuteGraphMultipleSuccessors:
         graph.add_edge("B", "D")
         graph.add_edge("C", "D")
 
-        executor, kernel, stages = _make_executor_with_stub(
+        executor, _, stages = _make_executor_with_stub(
             graph, task_id="multi-001",
         )
 
@@ -227,7 +227,7 @@ class TestExecuteGraphMaxStepsSafety:
         graph.add_edge("A", "B")
         graph.add_edge("B", "A")
 
-        executor, kernel, stages = _make_executor_with_stub(
+        executor, _, stages = _make_executor_with_stub(
             graph, task_id="cycle-001",
         )
 
@@ -246,7 +246,7 @@ class TestExecuteGraphMaxStepsSafety:
         graph.add_edge("A", "B")
         graph.add_backtrack("B", "A")
 
-        executor, kernel, stages = _make_executor_with_stub(
+        executor, _, stages = _make_executor_with_stub(
             graph, fail_stages={"B"}, task_id="cycle-002",
         )
 

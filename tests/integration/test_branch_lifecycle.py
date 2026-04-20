@@ -10,6 +10,8 @@ Validates branch state machine transitions including:
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from hi_agent.contracts import (
     NodeState,
     StageState,
@@ -47,7 +49,7 @@ class _MultiBranchRouteEngine:
 class _PartialFailRouteEngine:
     """Route engine with 3 branches: first two succeed, third fails."""
 
-    STAGE_ACTIONS: dict[str, str] = {
+    STAGE_ACTIONS: ClassVar[dict[str, str]] = {
         "S1_understand": "analyze_goal",
         "S2_gather": "search_evidence",
         "S3_build": "build_draft",

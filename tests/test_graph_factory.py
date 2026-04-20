@@ -46,14 +46,14 @@ class TestGraphFactoryAutoSelect:
 
     def test_hints_override_speculative(self):
         factory = GraphFactory()
-        template, graph = factory.auto_select(
+        template, _ = factory.auto_select(
             "Simple task", hints={"speculative": True}
         )
         assert template == "speculative"
 
     def test_hints_override_parallel(self):
         factory = GraphFactory()
-        template, graph = factory.auto_select(
+        template, _ = factory.auto_select(
             "Simple task", hints={"parallel": True}
         )
         assert template == "parallel_gather"
@@ -61,7 +61,7 @@ class TestGraphFactoryAutoSelect:
     def test_long_goal_defaults_to_standard(self):
         factory = GraphFactory()
         long_goal = "Please analyze this complex dataset " * 5
-        template, graph = factory.auto_select(long_goal)
+        template, _ = factory.auto_select(long_goal)
         assert template == "standard"
 
     def test_build_with_explicit_complexity(self):

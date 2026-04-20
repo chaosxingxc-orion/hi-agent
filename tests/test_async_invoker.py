@@ -188,7 +188,7 @@ def test_runner_exception_protection():
     executor = _make_executor()
 
     # Make _execute_stage raise an unexpected error
-    original_execute_stage = executor._execute_stage
+    _ = executor._execute_stage
 
     def exploding_stage(stage_id: str):
         raise RuntimeError("unexpected kaboom")

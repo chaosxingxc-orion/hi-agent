@@ -214,7 +214,7 @@ class TestAutoCompressTriggerCheckAndCompress:
     def test_snips_old_records(self):
         trigger = AutoCompressTrigger(snip_threshold=5)
         records = _make_records(20)
-        filtered, summary = trigger.check_and_compress(
+        filtered, _ = trigger.check_and_compress(
             records, "S1", budget_tokens=100000
         )
         assert len(filtered) <= 5
@@ -231,7 +231,7 @@ class TestAutoCompressTriggerCheckAndCompress:
             compressor=compressor,
         )
         records = _make_records(15)
-        filtered, summary = trigger.check_and_compress(
+        _, summary = trigger.check_and_compress(
             records, "S2", budget_tokens=100000
         )
         # Summary should be produced.
@@ -246,7 +246,7 @@ class TestAutoCompressTriggerCheckAndCompress:
             compress_threshold=999999,
         )
         records = _make_records(50)
-        filtered, summary = trigger.check_and_compress(
+        filtered, _ = trigger.check_and_compress(
             records, "S1", budget_tokens=50
         )
         # Filtered should have fewer records than original.

@@ -99,7 +99,7 @@ class TestKnowledgeIngest:
 
     def test_ingest_missing_fields_returns_400(self, live_server: TestClient) -> None:
         """Missing title or content returns 400."""
-        status, body = _request(live_server, "POST", "/knowledge/ingest", {
+        status, _ = _request(live_server, "POST", "/knowledge/ingest", {
             "title": "Only title",
         })
         assert status == 400

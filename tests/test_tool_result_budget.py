@@ -220,7 +220,7 @@ def test_non_tool_messages_untouched() -> None:
         {"role": "system", "content": "z" * 1000},
     ]
     processed = budget.process_message_results(messages)
-    for orig, proc in zip(messages, processed):
+    for orig, proc in zip(messages, processed, strict=True):
         assert orig["content"] == proc["content"]
     assert budget.get_state().truncation_count == 0
     assert budget.get_state().cumulative_chars_used == 0

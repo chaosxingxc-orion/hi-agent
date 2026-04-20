@@ -57,7 +57,7 @@ class TestTraceContextManager:
         mgr = TraceContextManager()
         mgr.clear()
         assert mgr.current() is None
-        with mgr.span("root") as root:
+        with mgr.span("root") as _:
             assert mgr.current() is not None
         # After span exits, previous (None) is restored
         assert mgr.current() is None

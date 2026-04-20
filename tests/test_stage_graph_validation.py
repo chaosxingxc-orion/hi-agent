@@ -16,7 +16,7 @@ from hi_agent.trajectory.stage_graph import (
 def _linear_graph(*stage_ids: str) -> StageGraph:
     """Build a simple linear chain: s0 -> s1 -> ... -> sN."""
     g = StageGraph()
-    for src, tgt in zip(stage_ids, stage_ids[1:]):
+    for src, tgt in zip(stage_ids, stage_ids[1:], strict=False):
         g.add_edge(src, tgt)
     return g
 

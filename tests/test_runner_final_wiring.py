@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import tempfile
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from hi_agent.contracts import TaskContract
 from hi_agent.failures.collector import FailureCollector
@@ -79,7 +79,7 @@ class _SkillRouteEngine:
     Uses the same action mapping as RuleRouteEngine so actions succeed.
     """
 
-    STAGE_ACTIONS: dict[str, str] = {
+    STAGE_ACTIONS: ClassVar[dict[str, str]] = {
         "S1_understand": "analyze_goal",
         "S2_gather": "search_evidence",
         "S3_build": "build_draft",

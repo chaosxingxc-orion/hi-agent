@@ -71,7 +71,7 @@ class TestRunExecutorContextManagerRouting:
         cm = ContextManager(budget=ContextBudget(total_window=50_000))
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
-        executor = _make_executor(
+        _ = _make_executor(
             context_manager=cm, route_engine=engine, session=None,
         )
         # The context provider should have been overwritten
@@ -102,7 +102,7 @@ class TestRunExecutorContextManagerRouting:
 
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
-        executor = _make_executor(
+        _ = _make_executor(
             context_manager=cm, route_engine=engine, session=session,
         )
         ctx = engine._context_provider()
@@ -189,7 +189,7 @@ class TestRunExecutorBackwardCompat:
         session.l1_summaries = {}
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
-        executor = _make_executor(
+        _ = _make_executor(
             context_manager=None, route_engine=engine, session=session,
         )
         # With CM=None, the session-based provider should be set
@@ -251,7 +251,7 @@ class TestAPIContextHealth:
         handler._headers_buffer = []
 
         sent: list[tuple[int, dict]] = []
-        original_send = handler._send_json
+        _ = handler._send_json
 
         def mock_send_json(status: int, body: dict) -> None:
             sent.append((status, body))
@@ -367,6 +367,6 @@ class TestFullCycleContextManager:
             ContextHealth.RED,
         )
         # Compressions may have been applied
-        report = cm.get_health_report()
+        _ = cm.get_health_report()
         # The snapshot should be bounded by budget
         assert snapshot.total_tokens <= budget.effective_window or snapshot.compressions_applied > 0

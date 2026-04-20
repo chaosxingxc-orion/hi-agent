@@ -79,7 +79,7 @@ class TestJsonCacheLoadsCorrectly:
         assert len(result.items) >= 1
 
     def test_json_cache_schema_version_present(self, tmp_path):
-        engine = _build_engine(tmp_path)
+        _ = _build_engine(tmp_path)
         data = json.loads(_cache_path(tmp_path).read_text(encoding="utf-8"))
         assert data["schema_version"] == RetrievalEngine._CACHE_SCHEMA_VERSION
         assert "fingerprint" in data

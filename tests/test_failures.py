@@ -82,11 +82,11 @@ class TestMaps:
             assert code in FAILURE_GATE_MAP, f"{code} missing from FAILURE_GATE_MAP"
 
     def test_recovery_map_values_are_strings(self) -> None:
-        for code, action in FAILURE_RECOVERY_MAP.items():
+        for _, action in FAILURE_RECOVERY_MAP.items():
             assert isinstance(action, str)
 
     def test_gate_map_values_are_str_or_none(self) -> None:
-        for code, gate in FAILURE_GATE_MAP.items():
+        for _, gate in FAILURE_GATE_MAP.items():
             assert gate is None or isinstance(gate, str)
 
 

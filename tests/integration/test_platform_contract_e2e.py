@@ -438,7 +438,7 @@ def test_pc06_run_state_and_result_status_always_agree() -> None:
 
         run_id = manager.create_run({"goal": "alignment check", "constraints": constraints})
 
-        def executor_fn(_run):
+        def executor_fn(_run, executor=executor):
             return executor.execute()
 
         manager.start_run(run_id, executor_fn)
@@ -454,6 +454,7 @@ def test_pc06_run_state_and_result_status_always_agree() -> None:
 
         run = manager.get_run(run_id)
         assert run is not None
+        assert run.state == expected_status
         result = run.result
         if result is not None and isinstance(result, RunResult):
             assert run.state == result.status, (

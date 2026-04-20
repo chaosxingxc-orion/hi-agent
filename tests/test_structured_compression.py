@@ -292,7 +292,7 @@ async def test_structured_compressor_calls_llm():
 
     # 10 messages: head(1) + middle + tail
     messages = _make_mixed_messages(10)
-    new_messages, summary = await compressor.compress(messages, existing_summary=None)
+    _, summary = await compressor.compress(messages, existing_summary=None)
 
     # LLM was called exactly once
     gateway.complete.assert_awaited_once()
@@ -327,7 +327,7 @@ async def test_structured_compressor_returns_compressed_messages():
 
     # 10 messages — head=2, some tail, some middle
     messages = _make_mixed_messages(10)
-    new_messages, summary = await compressor.compress(messages)
+    new_messages, _ = await compressor.compress(messages)
 
     # First message is the summary injection (system role)
     assert new_messages[0]["role"] == "system"
@@ -371,7 +371,7 @@ async def test_structured_compressor_incremental_update():
     compressor = StructuredCompressor(llm=gateway, config=config)
 
     messages = _make_mixed_messages(10)
-    new_messages, merged_summary = await compressor.compress(
+    _, merged_summary = await compressor.compress(
         messages, existing_summary=existing
     )
 

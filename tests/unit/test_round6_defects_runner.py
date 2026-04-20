@@ -284,7 +284,7 @@ class TestH3RunTerminatedGuard:
         executor._gate_pending = None
         executor._stage_executor.execute_stage.return_value = None
 
-        result = executor._execute_stage("S1")
+        _ = executor._execute_stage("S1")
 
         executor._stage_executor.execute_stage.assert_called_once()
 
@@ -346,7 +346,7 @@ class TestH5ContinueFromGate:
         executor.session = None  # session-None path
         executor._lifecycle.finalize_run.return_value = None
 
-        result = executor.continue_from_gate("gate-001", "approved")
+        _ = executor.continue_from_gate("gate-001", "approved")
 
         # Only S2 must be executed (S1 was in stage_summaries as completed)
         calls = executor._stage_executor.execute_stage.call_args_list

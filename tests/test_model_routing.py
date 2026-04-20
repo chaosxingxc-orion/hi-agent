@@ -254,7 +254,7 @@ class TestTierRouter:
 
     def test_select_with_fallback_target_tier(self) -> None:
         router = self._router_with_models()
-        model, actual_tier = router.select_with_fallback("perception")
+        _, actual_tier = router.select_with_fallback("perception")
         assert actual_tier == ModelTier.LIGHT
 
     def test_estimate_cost(self) -> None:

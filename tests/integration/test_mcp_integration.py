@@ -139,17 +139,17 @@ _MCP_SERVER_SCRIPT = textwrap.dedent("""\
 @pytest.fixture(scope="module")
 def mcp_server_script() -> Path:
     """Write the minimal MCP server to a temp file and return its path."""
-    tmp = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         suffix=".py",
         delete=False,
         mode="w",
         encoding="utf-8",
-    )
-    tmp.write(_MCP_SERVER_SCRIPT)
-    tmp.flush()
-    tmp.close()
-    yield Path(tmp.name)
-    os.unlink(tmp.name)
+    ) as tmp:
+        tmp.write(_MCP_SERVER_SCRIPT)
+        tmp.flush()
+        path = Path(tmp.name)
+    yield path
+    os.unlink(path)
 
 
 @pytest.fixture()

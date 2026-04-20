@@ -61,7 +61,7 @@ class TestCompleteQuickTaskRun:
         executor, kernel = _run_quick_task()
 
         branches_by_stage: dict[str, list[str]] = {}
-        for (run_id, stage_id, branch_id), info in kernel.branches.items():
+        for (run_id, stage_id, _), info in kernel.branches.items():
             if run_id == executor.run_id:
                 branches_by_stage.setdefault(stage_id, []).append(info["state"])
 
@@ -90,7 +90,7 @@ class TestEventLogIntegrity:
         events = executor.event_emitter.events
         assert len(events) > 0
         # Envelopes are appended in order; verify sequential indexing
-        for idx, envelope in enumerate(events):
+        for _, envelope in enumerate(events):
             assert envelope.event_type is not None
             assert envelope.run_id == executor.run_id
             # Verify no None gaps
@@ -133,7 +133,7 @@ class TestBranchTransitions:
 
     def test_all_branches_transition_proposed_active_succeeded(self) -> None:
         """Each branch should follow proposed->active->succeeded in kernel events."""
-        executor, kernel = _run_quick_task()
+        _, kernel = _run_quick_task()
 
         branch_events: dict[str, list[dict]] = {}
         for e in kernel.events:

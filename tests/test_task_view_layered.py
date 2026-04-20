@@ -299,7 +299,7 @@ class TestBuildTaskViewLayered:
         assert isinstance(v2, TaskView)
         assert v1.total_tokens == v2.total_tokens
         assert len(v1.sections) == len(v2.sections)
-        for s1, s2 in zip(v1.sections, v2.sections):
+        for s1, s2 in zip(v1.sections, v2.sections, strict=True):
             assert s1.layer == s2.layer
             assert s1.content == s2.content
             assert s1.token_count == s2.token_count

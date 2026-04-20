@@ -137,7 +137,7 @@ def test_dynamic_section_rebuilds_when_dirty():
     mgr = _make_manager()
 
     # First build — populates cache
-    s1 = mgr._assemble_history()
+    _ = mgr._assemble_history()
     assert mgr._section_dirty["history"] is False
 
     # Add a new entry — marks dirty

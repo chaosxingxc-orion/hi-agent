@@ -122,7 +122,7 @@ class AsyncMemoryCompressor:
                 # StructuredCompressor understands (role + content).
                 messages = self._records_to_messages(records, context)
 
-                new_messages, summary_obj = await s_compressor.compress(
+                _, summary_obj = await s_compressor.compress(
                     messages,
                     existing_summary=self._last_structured_summary,
                 )

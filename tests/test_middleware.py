@@ -139,7 +139,7 @@ class TestLifecycleHooks:
             modify_hook, name="modifier",
         )
 
-        result = orch.run("original input")
+        _ = orch.run("original input")
         # The perception middleware should have received "MODIFIED INPUT"
         log = orch.get_message_log()
         # Find perception output
@@ -158,7 +158,7 @@ class TestLifecycleHooks:
             skip_hook, name="skipper",
         )
 
-        result = orch.run("test input")
+        _ = orch.run("test input")
         # Control was skipped but counted
         metrics = orch.get_metrics()
         assert metrics["control"]["calls"] >= 1  # skipped counts as a call
@@ -174,7 +174,7 @@ class TestLifecycleHooks:
             block_hook, name="blocker",
         )
 
-        result = orch.run("test input")
+        _ = orch.run("test input")
         # Pipeline should stop at perception
         log = orch.get_message_log()
         # Only the initial user input should be in the log
@@ -222,7 +222,7 @@ class TestLifecycleHooks:
             post_modify, name="post_mod",
         )
 
-        result = orch.run("test")
+        _ = orch.run("test")
         log = orch.get_message_log()
         perception_out = [m for m in log if m.source == "perception"]
         assert perception_out
@@ -642,7 +642,7 @@ class TestExecutionMiddleware:
         r2 = result2.payload["results"]
 
         # Results should be identical (cached)
-        for a, b in zip(r1, r2):
+        for a, b in zip(r1, r2, strict=True):
             assert a["node_id"] == b["node_id"]
             assert a["output"] == b["output"]
 
@@ -784,7 +784,7 @@ class TestMiddlewareOrchestrator:
         """Evaluation with retry should route back to execution."""
         # Use a threshold that forces retry
         orch = create_default_orchestrator(quality_threshold=0.99, max_retries=1)
-        result = orch.run("test reflection loop")
+        _ = orch.run("test reflection loop")
         log = orch.get_message_log()
         sources = [m.source for m in log]
         # Execution should appear more than once due to reflection
@@ -794,9 +794,9 @@ class TestMiddlewareOrchestrator:
     def test_escalation_loop(self):
         """Evaluation with escalate should route back to control."""
         orch = create_default_orchestrator(quality_threshold=0.99, max_retries=0)
-        result = orch.run("test escalation loop")
+        _ = orch.run("test escalation loop")
         log = orch.get_message_log()
-        sources = [m.source for m in log]
+        _ = [m.source for m in log]
         # Control should appear more than once due to escalation
         # (or at least evaluation routes to control)
         eval_msgs = [m for m in log if m.source == "evaluation"]

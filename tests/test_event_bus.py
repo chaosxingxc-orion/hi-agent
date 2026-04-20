@@ -82,7 +82,7 @@ class TestEventBus:
 
     def test_dropped_count(self):
         bus = EventBus(max_queue_size=1)
-        q = bus.subscribe("r1")
+        _ = bus.subscribe("r1")
         bus.publish(_make_event("r1"))
         bus.publish(_make_event("r1"))
         bus.publish(_make_event("r1"))

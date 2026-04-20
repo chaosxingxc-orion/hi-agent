@@ -26,7 +26,7 @@ def _make_ctx(
     **kwargs,
 ) -> StageOrchestratorContext:
     graph = graph or _make_graph({"s1": ["s2"], "s2": []})
-    finalize_results = {}
+    _ = {}
     attrs = {}
     return StageOrchestratorContext(
         run_id="run-test",

@@ -63,7 +63,7 @@ class TestD3FinalizeSavesToMidTerm:
         executor.raw_memory = fake_raw
 
         # Patch L0Summarizer to return our fake summary so we test the save path
-        original_finalize = executor._finalize_run
+        _ = executor._finalize_run
 
         # Directly mock the summarizer call inside _finalize_run via monkeypatching
         import unittest.mock as mock

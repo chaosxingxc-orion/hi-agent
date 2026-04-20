@@ -45,7 +45,7 @@ class ReadinessProbe:
 
         # --- kernel ---
         try:
-            kernel = self._builder.build_kernel()
+            _ = self._builder.build_kernel()
             base_url = getattr(self._builder._config, "kernel_base_url", "local") or "local"
             mode = "http" if base_url.lower() not in ("", "local") else "local"
             result["execution_mode"] = mode

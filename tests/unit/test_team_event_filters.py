@@ -58,7 +58,7 @@ def test_descending_order(store):
 
 
 def test_limit(store):
-    for i in range(10):
+    for _ in range(10):
         _append(store, "t1", "s1", "fact")
     results = store.list(tenant_id="t1", team_space_id="s1", limit=3)
     assert len(results) == 3

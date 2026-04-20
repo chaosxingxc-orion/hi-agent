@@ -15,7 +15,7 @@ def test_skill_evolver_thresholds_from_config():
 
 
 def test_skill_observer_summary_len_from_config():
-    cfg = TraceConfig(skill_observer_max_summary_len=200)
+    _ = TraceConfig(skill_observer_max_summary_len=200)
     obs = SkillObservation(
         observation_id="obs_test",
         skill_id="s1",

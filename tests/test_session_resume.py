@@ -66,7 +66,7 @@ def _create_checkpoint_at_stage(
         session.mark_compact_boundary(sid, summary_ref=sid)
 
     # Add some L0 records
-    for i, sid in enumerate(stages_completed):
+    for _, sid in enumerate(stages_completed):
         session.append_record("StageStateChanged", {"stage_id": sid, "to_state": "completed"}, stage_id=sid)
 
     # Add LLM call records

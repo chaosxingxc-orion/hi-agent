@@ -223,7 +223,7 @@ class TestSkillValidator:
             skill_id="s1", name="S", description="D",
             lifecycle_stage="candidate", evidence_count=3,
         )
-        ok, reason = v.can_promote(skill, "provisional")
+        ok, _ = v.can_promote(skill, "provisional")
         assert ok is True
 
     def test_insufficient_evidence_for_provisional(self) -> None:

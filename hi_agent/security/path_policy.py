@@ -46,9 +46,9 @@ def safe_resolve(base_dir: Path | str, user_path: str, *, allow_absolute: bool =
     # Verify candidate is within base_dir
     try:
         candidate.relative_to(base)
-    except ValueError:
+    except ValueError as exc:
         raise PathPolicyViolation(
             f"Path {user_path!r} resolves outside base directory {str(base)!r}"
-        )
+        ) from exc
 
     return candidate

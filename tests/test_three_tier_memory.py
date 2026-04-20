@@ -399,12 +399,12 @@ class TestLongTermMemoryGraph:
         lt_graph.add_edge(MemoryEdge(source_id="n3", target_id="n4", relation_type="r"))
 
         # depth=1 from n1 -> should get n1, n2
-        nodes, edges = lt_graph.get_subgraph("n1", depth=1)
+        nodes, _ = lt_graph.get_subgraph("n1", depth=1)
         node_ids = {n.node_id for n in nodes}
         assert node_ids == {"n1", "n2"}
 
         # depth=2 from n1 -> should get n1, n2, n3
-        nodes, edges = lt_graph.get_subgraph("n1", depth=2)
+        nodes, _ = lt_graph.get_subgraph("n1", depth=2)
         node_ids = {n.node_id for n in nodes}
         assert node_ids == {"n1", "n2", "n3"}
 

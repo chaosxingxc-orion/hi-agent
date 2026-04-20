@@ -187,7 +187,7 @@ class TestGovernanceCanExecute:
         gov = GovernanceEngine()
         spec = _irreversible_spec(approval=True, idempotency_key="k")
         gov.approve(spec.action_id)
-        allowed, reason = gov.can_execute(spec)
+        allowed, _ = gov.can_execute(spec)
         assert allowed is True
 
     def test_rejected_action_blocked(self) -> None:
@@ -201,7 +201,7 @@ class TestGovernanceCanExecute:
     def test_validation_failure_blocks(self) -> None:
         gov = GovernanceEngine()
         spec = _irreversible_spec(approval=False, idempotency_key="")
-        allowed, reason = gov.can_execute(spec)
+        allowed, _ = gov.can_execute(spec)
         assert allowed is False
 
 

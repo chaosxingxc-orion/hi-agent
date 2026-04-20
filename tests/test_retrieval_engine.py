@@ -143,8 +143,8 @@ class TestTFIDFIndex:
         bm25_results = idx.bm25("machine learning")
 
         # BM25 with length normalization should penalize the long doc more
-        bm25_ids = [r[0] for r in bm25_results]
-        tfidf_ids = [r[0] for r in tfidf_results]
+        _ = [r[0] for r in bm25_results]
+        _ = [r[0] for r in tfidf_results]
         # Both should return results, but rankings may differ
         assert len(bm25_results) >= 1
         assert len(tfidf_results) >= 1

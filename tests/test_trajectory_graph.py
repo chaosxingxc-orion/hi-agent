@@ -369,7 +369,7 @@ class TestBacktrackEdges:
         g.update_node_state("B", NodeState.FAILED)
         # step() should trigger backtrack.
         # Manually call step-like logic.
-        state = g._build_graph_state()
+        _ = g._build_graph_state()
         for e in g.get_outgoing("B"):
             if e.edge_type == EdgeType.BACKTRACK:
                 target = g.get_node(e.target)

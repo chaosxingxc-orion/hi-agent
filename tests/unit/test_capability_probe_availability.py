@@ -41,7 +41,7 @@ def test_probe_unavailable_when_env_var_missing(monkeypatch):
 def test_probe_available_when_env_var_present(monkeypatch):
     monkeypatch.setenv("FAKE_KEY_XYZ", "sk-test")
     registry = _make_registry(_make_spec("llm_cap", required_env={"FAKE_KEY_XYZ": "test key"}))
-    ok, reason = registry.probe_availability("llm_cap")
+    ok, _ = registry.probe_availability("llm_cap")
     assert ok is True
 
 
