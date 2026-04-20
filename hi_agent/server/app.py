@@ -801,6 +801,12 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
         )
     tags = body.get("tags", [])
     page_id = km.ingest_text(title, content, tags)
+    try:
+        re = server.retrieval_engine
+        if re is not None:
+            re.mark_index_dirty()
+    except Exception:
+        pass
     return JSONResponse({"page_id": page_id, "status": "created"}, status_code=201)
 
 
@@ -818,6 +824,12 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
         return JSONResponse({"error": "invalid_json"}, status_code=400)
     facts = body.get("facts", [])
     count = km.ingest_structured(facts)
+    try:
+        re = server.retrieval_engine
+        if re is not None:
+            re.mark_index_dirty()
+    except Exception:
+        pass
     return JSONResponse(
         {"nodes_created": count, "status": "created"}, status_code=201,
     )
@@ -1511,6 +1523,15 @@ def build_app(agent_server: AgentServer) -> Starlette:
         mm: MemoryLifecycleManager | None = agent_server.memory_manager
         if mm is not None:
             await mm.start()
+        try:
+            retrieval_engine = agent_server.retrieval_engine
+            if retrieval_engine is not None:
+                doc_count = await retrieval_engine.warm_index_async()
+                logger.info("RetrievalEngine index warmed: %d documents", doc_count)
+        except AttributeError:
+            logger.debug("No retrieval_engine on agent_server; skipping warm-up")
+        except Exception as exc:
+            logger.warning("RetrievalEngine warm-up failed (non-fatal): %s", exc)
         slo = agent_server.slo_monitor
         if slo is not None:
             await slo.start()
@@ -1641,6 +1662,7 @@ class AgentServer:
         self.server_address = (host, port)
         self.memory_manager: MemoryLifecycleManager | None = None
         self.knowledge_manager: Any | None = None
+        self.retrieval_engine: Any | None = None
         self.skill_evolver: Any | None = None
         self.skill_loader: Any | None = None
         self.context_manager: Any | None = None
@@ -1752,6 +1774,10 @@ class AgentServer:
             self.knowledge_manager = self._builder.build_knowledge_manager()
         except Exception as _exc:
             logger.warning("KnowledgeManager initialization failed (%s: %s); /knowledge/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+        try:
+            self.retrieval_engine = self._builder.build_retrieval_engine()
+        except Exception as _exc:
+            logger.warning("RetrievalEngine initialization failed (%s: %s); knowledge retrieval will be unavailable.", type(_exc).__name__, _exc)
         try:
             self.skill_evolver = self._builder.build_skill_evolver()
             self.skill_loader = self._builder.build_skill_loader()
