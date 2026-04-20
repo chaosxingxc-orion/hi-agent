@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import queue
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -603,8 +604,33 @@ class RunManager:
         This is primarily used by server/test teardown to avoid leaking daemon
         worker threads across many short-lived RunManager instances.
         """
+        deadline = time.monotonic() + max(timeout, 0.1)
         with self._lock:
             self._shutdown = True
             worker = self._worker
+            # Prevent durable queue workers from picking up executor callbacks
+            # after shutdown has started.
+            self._pending_executors.clear()
+
         if worker is not None and worker.is_alive():
-            worker.join(timeout=timeout)
+            remaining = max(0.0, deadline - time.monotonic())
+            worker.join(timeout=remaining)
+
+        # Best-effort: wait for in-flight run threads to finish so app teardown
+        # does not close shared resources (stores/transports) while they're in use.
+        while time.monotonic() < deadline:
+            with self._lock:
+                active_threads = [
+                    run.thread
+                    for run in self._runs.values()
+                    if run.thread is not None and run.thread.is_alive()
+                ]
+            if not active_threads:
+                break
+
+            remaining = max(0.0, deadline - time.monotonic())
+            join_slice = min(0.1, remaining)
+            if join_slice <= 0:
+                break
+            for thread in active_threads:
+                thread.join(timeout=join_slice)
