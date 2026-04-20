@@ -112,4 +112,11 @@ class TaskContract:
     # Runtime profile injection — business agents pass a profile_id to activate
     # a ProfileSpec from the platform's ProfileRegistry.
     profile_id: str | None = None
+    # G-12: Stage-level goal and exit criterion for RIA multi-phase research agents.
+    # stage_goal: [ACTIVE] Natural-language description of this stage's specific goal.
+    # exit_criterion: [ACTIVE] Structured criterion that must be satisfied before the
+    #   stage can complete.  Supported types: "file_exists", "metric_threshold".
+    #   An empty dict means no criterion (always passes).
+    stage_goal: str = ""
+    exit_criterion: dict = field(default_factory=dict)
 

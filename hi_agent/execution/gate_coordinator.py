@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import operator as _operator
+from pathlib import Path
 from typing import Any
 
 from hi_agent.contracts import HumanGateRequest, NodeState
@@ -209,6 +211,64 @@ class GateCoordinator:
             return executor._finalize_run("failed")
 
         return executor._finalize_run("completed")
+
+    def check_exit_criterion(self, contract: Any, workspace_root: Path) -> None:
+        """Check that the contract's exit criterion is satisfied.
+
+        Supported criterion types:
+        - ``"file_exists"``: checks that a file at params["path"] exists.
+        - ``"metric_threshold"``: reads a JSON metrics file and compares a
+          key against a numeric threshold using the specified operator.
+
+        An empty or absent exit_criterion always passes.
+
+        Raises:
+            GatePendingError: when the criterion is not satisfied.
+        """
+        criterion: dict = getattr(contract, "exit_criterion", {}) or {}
+        if not criterion:
+            return
+
+        ctype = criterion.get("type", "")
+        params = criterion.get("params", {})
+
+        if ctype == "file_exists":
+            target = workspace_root / params.get("path", "")
+            if not target.exists():
+                raise GatePendingError(
+                    gate_id=f"exit-criterion-{getattr(contract, 'stage_goal', '')}",
+                    message=f"Exit criterion not satisfied: file '{params.get('path')}' does not exist",
+                )
+
+        elif ctype == "metric_threshold":
+            import json as _json
+            metric_file = workspace_root / params.get("metric_file", "metrics.json")
+            if not metric_file.exists():
+                raise GatePendingError(
+                    gate_id="exit-criterion-metric",
+                    message=f"Exit criterion: metric_file '{metric_file}' not found",
+                )
+            metrics = _json.loads(metric_file.read_text())
+            key = params.get("key", "")
+            threshold = float(params.get("threshold", 0))
+            op_str = params.get("op", ">=")
+            _ops = {
+                ">=": _operator.ge,
+                ">": _operator.gt,
+                "<=": _operator.le,
+                "<": _operator.lt,
+                "==": _operator.eq,
+            }
+            op_fn = _ops.get(op_str, _operator.ge)
+            value = float(metrics.get(key, float("-inf")))
+            if not op_fn(value, threshold):
+                raise GatePendingError(
+                    gate_id="exit-criterion-metric",
+                    message=(
+                        f"Exit criterion: {key}={value} does not satisfy {op_str} {threshold}"
+                    ),
+                )
+        # Unknown types pass silently.
 
     def _check_human_gate_triggers(
         self,
