@@ -279,16 +279,29 @@ class CognitionBuilder:
                             },
                         )
                         _compat_sync = getattr(self._config, "compat_sync_llm", False)
-                        raw_gateway = HttpLLMGateway(
-                            base_url=base_url,
-                            api_key_env=env_var,
-                            default_model=default_model,
-                            timeout_seconds=self._config.llm_timeout_seconds,
-                            failover_chain=failover_chain,
-                            cache_injector=cache_injector,
-                            budget_tracker=self._llm_budget_tracker,
-                            runtime_mode="" if _compat_sync else _rt_mode,
-                        )
+                        if _compat_sync:
+                            raw_gateway = HttpLLMGateway(
+                                base_url=base_url,
+                                api_key_env=env_var,
+                                default_model=default_model,
+                                timeout_seconds=self._config.llm_timeout_seconds,
+                                failover_chain=failover_chain,
+                                cache_injector=cache_injector,
+                                budget_tracker=self._llm_budget_tracker,
+                                runtime_mode="",
+                            )
+                        else:
+                            from hi_agent.llm.async_http_gateway import AsyncHTTPGateway  # noqa: PLC0415
+                            raw_gateway = AsyncHTTPGateway(
+                                base_url=base_url,
+                                api_key_env=env_var,
+                                default_model=default_model,
+                                timeout_seconds=self._config.llm_timeout_seconds,
+                                failover_chain=failover_chain,
+                                cache_injector=cache_injector,
+                                budget_tracker=self._llm_budget_tracker,
+                                runtime_mode=_rt_mode,
+                            )
                     registry = ModelRegistry()
                     registry.register_defaults()
                     tier_router = TierRouter(registry)
