@@ -1,6 +1,8 @@
 """Real builtin tool handlers — no LLM, no mocks, real I/O."""
 from __future__ import annotations
 
+import os
+import shlex
 import subprocess
 import urllib.error
 import urllib.request
@@ -11,18 +13,31 @@ from hi_agent.security.path_policy import PathPolicyViolation, safe_resolve
 from hi_agent.security.url_policy import URLPolicy, URLPolicyViolation
 
 
-def file_read_handler(payload: dict) -> dict:
+import logging as _logging
+_handler_logger = _logging.getLogger(__name__)
+
+
+def file_read_handler(payload: dict, *, workspace_root: Path | None = None) -> dict:
     """Read a file from disk.
 
-    payload: {path: str, base_dir: str = ".", encoding: str = "utf-8"}
+    payload: {path: str, encoding: str = "utf-8"}
+    workspace_root: Caller-supplied workspace base directory.  When None, falls
+        back to the current working directory.  ``base_dir`` in the payload is
+        ignored and a warning is emitted if present.
+
     returns: {success: bool, content: str, size: int, error: str | None}
     """
+    if "base_dir" in payload:
+        _handler_logger.warning(
+            "file_read: ignoring payload base_dir='%s'; using workspace context",
+            payload["base_dir"],
+        )
     path = payload.get("path", "")
     encoding = payload.get("encoding", "utf-8")
     if not path:
         return {"success": False, "content": "", "size": 0, "error": "path is required"}
     try:
-        base_dir = Path(payload.get("base_dir", ".")).resolve()
+        base_dir = workspace_root or Path(".").resolve()
         p = safe_resolve(base_dir, path)
         content = p.read_text(encoding=encoding)
         return {"success": True, "content": content, "size": len(content), "error": None}
@@ -32,19 +47,28 @@ def file_read_handler(payload: dict) -> dict:
         return {"success": False, "content": "", "size": 0, "error": str(exc)}
 
 
-def file_write_handler(payload: dict) -> dict:
+def file_write_handler(payload: dict, *, workspace_root: Path | None = None) -> dict:
     """Write content to a file.
 
-    payload: {path: str, content: str, base_dir: str = ".", encoding: str = "utf-8"}
+    payload: {path: str, content: str, encoding: str = "utf-8"}
+    workspace_root: Caller-supplied workspace base directory.  When None, falls
+        back to the current working directory.  ``base_dir`` in the payload is
+        ignored and a warning is emitted if present.
+
     returns: {success: bool, bytes_written: int, error: str | None}
     """
+    if "base_dir" in payload:
+        _handler_logger.warning(
+            "file_write: ignoring payload base_dir='%s'; using workspace context",
+            payload["base_dir"],
+        )
     path = payload.get("path", "")
     content = payload.get("content", "")
     encoding = payload.get("encoding", "utf-8")
     if not path:
         return {"success": False, "bytes_written": 0, "error": "path is required"}
     try:
-        base_dir = Path(payload.get("base_dir", ".")).resolve()
+        base_dir = workspace_root or Path(".").resolve()
         p = safe_resolve(base_dir, path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding=encoding)
@@ -62,7 +86,8 @@ def web_fetch_handler(payload: dict) -> dict:
     returns: {success: bool, content: str, status_code: int, error: str | None}
 
     URLPolicy is enforced unconditionally regardless of whether this handler is
-    called via GovernedToolExecutor or a bare invoker.
+    called via GovernedToolExecutor or a bare invoker.  Redirects are re-validated
+    through URLPolicy to prevent SSRF via open-redirect chains.
 
     A fresh opener is built per call so that changes to proxy-related env vars
     (``no_proxy`` / ``NO_PROXY``) take effect immediately rather than being
@@ -72,13 +97,31 @@ def web_fetch_handler(payload: dict) -> dict:
     timeout = float(payload.get("timeout", 15.0))
     if not url:
         return {"success": False, "content": "", "status_code": 0, "error": "url is required"}
+    _policy = URLPolicy()
     try:
-        URLPolicy().validate(url)
+        _policy.validate(url)
     except URLPolicyViolation as e:
         return {"success": False, "error": f"URL policy violation: {e}", "status_code": 0, "content": ""}
     try:
+        class _NoUnsafeRedirect(urllib.request.HTTPRedirectHandler):
+            """Block redirects to URLs that fail URLPolicy validation."""
+
+            def redirect_request(
+                self, req: urllib.request.Request, fp: object, code: int,
+                msg: str, headers: object, newurl: str
+            ) -> urllib.request.Request | None:
+                try:
+                    _policy.validate(newurl)
+                except URLPolicyViolation as exc:
+                    raise urllib.error.URLError(f"Redirect blocked by URL policy: {exc}") from exc
+                return super().redirect_request(req, fp, code, msg, headers, newurl)  # type: ignore[arg-type]
+
         # Build a fresh opener each call so env-var proxy settings are current.
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler())
+        # ProxyHandler({}) disables system proxy to prevent proxy-based SSRF.
+        opener = urllib.request.build_opener(
+            _NoUnsafeRedirect(),
+            urllib.request.ProxyHandler({}),
+        )
         req = urllib.request.Request(url, headers={"User-Agent": "hi-agent/1.0"})
         with opener.open(req, timeout=timeout) as resp:
             raw = resp.read()
@@ -93,24 +136,33 @@ def web_fetch_handler(payload: dict) -> dict:
 def shell_exec_handler(payload: dict) -> dict:
     """Execute a shell command via subprocess.
 
-    payload: {command: str, timeout: float = 30.0, cwd: str | None = None}
+    payload: {command: str | list, timeout: int = 30, cwd: str = "."}
     returns: {success: bool, stdout: str, stderr: str, returncode: int, error: str | None}
 
-    Security: command must be a string (not list). Shell=True with string input.
+    Security: uses shell=False with an argv list to prevent shell injection.
     """
     command = payload.get("command", "")
-    timeout = float(payload.get("timeout", 30.0))
-    cwd = payload.get("cwd", None)
-    if not command:
-        return {"success": False, "stdout": "", "stderr": "", "returncode": -1, "error": "command is required"}
+    timeout = min(int(payload.get("timeout", 30)), 120)
+    cwd_raw = payload.get("cwd", ".")
+
+    argv = shlex.split(command) if isinstance(command, str) else [str(a) for a in command]
+    if not argv:
+        return {"success": False, "stdout": "", "stderr": "", "returncode": -1, "error": "empty command"}
+
+    base_cwd = Path(".").resolve()
+    try:
+        safe_cwd = safe_resolve(base_cwd, cwd_raw) if cwd_raw != "." else base_cwd
+    except (ValueError, PermissionError) as e:
+        return {"success": False, "stdout": "", "stderr": "", "returncode": -1, "error": f"invalid cwd: {e}"}
+
     try:
         result = subprocess.run(
-            command,
-            shell=True,
+            argv,
+            shell=False,
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=cwd,
+            cwd=safe_cwd,
         )
         return {
             "success": result.returncode == 0,
@@ -225,9 +277,18 @@ def register_builtin_tools(registry: CapabilityRegistry, *, profile: str = "dev-
         profile: Runtime profile.  When ``profile`` is not a dev/smoke mode
             (i.e. ``"dev-smoke"`` or ``"dev"``), ``shell_exec`` is omitted
             because it is not safe for production deployment.
+
+    Security: ``shell_exec`` is additionally gated behind the env var
+    ``HI_AGENT_ENABLE_SHELL_EXEC=true`` even in dev profiles.
     """
     _dev_profiles = {"dev-smoke", "dev"}
+    _shell_exec_enabled = os.getenv("HI_AGENT_ENABLE_SHELL_EXEC", "").lower() == "true"
     for spec in _BUILTIN_TOOLS:
-        if spec.name == "shell_exec" and profile not in _dev_profiles:
-            continue
+        if spec.name == "shell_exec":
+            if profile not in _dev_profiles or not _shell_exec_enabled:
+                continue
         registry.register(spec)
+
+
+# Alias used by some callers (register_builtin_capabilities is the legacy name).
+register_builtin_capabilities = register_builtin_tools

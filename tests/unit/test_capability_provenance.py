@@ -12,7 +12,9 @@ def _make_invoker(handler_return):
     registry.get.return_value = spec
     breaker = MagicMock()
     breaker.allow.return_value = True
-    return CapabilityInvoker(registry=registry, breaker=breaker)
+    # allow_unguarded=True: these unit tests verify provenance annotation behavior,
+    # not governance; no policy is needed here.
+    return CapabilityInvoker(registry=registry, breaker=breaker, allow_unguarded=True)
 
 
 def test_invoke_attaches_provenance_to_result():

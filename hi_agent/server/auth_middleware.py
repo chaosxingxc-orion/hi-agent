@@ -116,13 +116,23 @@ class AuthMiddleware:
         self._rbac = RBACEnforcer(_DEFAULT_POLICY)
         self._enabled = bool(self._api_keys)
         self._jwt_secret = os.environ.get("HI_AGENT_JWT_SECRET", "").strip() or None
-        self._enforce_jwt_sig: bool = os.getenv("ENFORCE_JWT_SIGNATURE", "false").lower() == "true"
+        self._enforce_jwt_sig: bool = os.getenv("ENFORCE_JWT_SIGNATURE", "true").lower() == "true"
         if self._jwt_secret:
             _logger.info("AuthMiddleware JWT signature verification enabled")
         else:
             _logger.warning(
                 "HI_AGENT_JWT_SECRET not set; JWT signature verification disabled. "
                 "Set this variable in production to prevent forged tokens."
+            )
+        if self._enabled and not self._jwt_secret:
+            _logger.critical(
+                "SECURITY: HI_AGENT_API_KEY is set but HI_AGENT_JWT_SECRET is absent. "
+                "JWT tokens will be rejected unless HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS=true."
+            )
+        if self._enabled and not self._jwt_secret:
+            _logger.critical(
+                "SECURITY: HI_AGENT_API_KEY is set but HI_AGENT_JWT_SECRET is absent. "
+                "JWT tokens will be rejected unless HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS=true."
             )
         if self._enabled:
             _logger.info(
@@ -251,16 +261,9 @@ class AuthMiddleware:
         if token in self._api_keys:
             return "write"
 
-        # JWT path: refuse immediately in prod-real when no secret is configured
-        if self._runtime_mode == "prod-real" and not self._jwt_secret:
-            return None  # Refuse JWT in production when no secret is configured
-
-        # JWT path: check ENFORCE_JWT_SIGNATURE flag
-        if self._jwt_secret or self._enforce_jwt_sig:
-            # Signature verification mode: PyJWT verifies signature AND decodes claims
-            # When enforce_sig=true but jwt_secret is absent, _verify_jwt will fail,
-            # causing the token to be rejected (fail-closed).
-            claims = _verify_jwt(token, self._jwt_secret, self._audience) if self._jwt_secret else None
+        # JWT path: when a secret is configured, always verify the signature.
+        if self._jwt_secret:
+            claims = _verify_jwt(token, self._jwt_secret, self._audience)
             if claims is None:
                 return None
             # PyJWT already validated exp and aud; only run additional claims checks
@@ -269,11 +272,16 @@ class AuthMiddleware:
                 return str(validated.get("role", "read"))
             except JWTValidationError:
                 return None
-        else:
-            # Fallback: claims-only mode (no signature verification)
-            _logger.warning(
-                "Processing JWT without signature verification (HI_AGENT_JWT_SECRET unset)"
-            )
+
+        # No JWT secret configured.
+
+        # Prod-real: refuse all JWTs when no secret is set.
+        if self._runtime_mode == "prod-real":
+            return None
+
+        # Non-prod: claims-only mode is allowed ONLY when test override is explicitly set.
+        if os.getenv("HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS", "").lower() == "true":
+            _logger.warning("Processing JWT without signature verification (TEST MODE ONLY)")
             claims = _decode_jwt_payload(token)
             if claims is None:
                 return None
@@ -282,6 +290,12 @@ class AuthMiddleware:
                 return str(validated.get("role", "read"))
             except JWTValidationError:
                 return None
+        else:
+            _logger.warning(
+                "JWT rejected: HI_AGENT_JWT_SECRET unset and "
+                "HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS not set."
+            )
+            return None
 
     async def _reject(
         self,

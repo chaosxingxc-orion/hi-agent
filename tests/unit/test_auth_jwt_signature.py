@@ -78,8 +78,15 @@ class TestVerifyJwtHelper:
 # ---------------------------------------------------------------------------
 
 
-def _make_middleware(secret: str | None = None) -> AuthMiddleware:
-    """Create an AuthMiddleware with one API key and optional JWT secret."""
+def _make_middleware(
+    secret: str | None = None,
+) -> AuthMiddleware:
+    """Create an AuthMiddleware with one API key and optional JWT secret.
+
+    The middleware is instantiated inside patch.dict so env vars are captured.
+    Callers that need claims-only mode (allow_unsigned_for_tests) must set the
+    env var themselves via monkeypatch or patch.dict before calling _authenticate.
+    """
     mock_app = MagicMock()
     env = {"HI_AGENT_API_KEY": "test-api-key"}
     if secret is not None:
@@ -142,28 +149,39 @@ class TestAuthMiddlewareJwtWithSecret:
         assert role == "write"
 
 
+_UNSIGNED_JWT_ENV = {"HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS": "true"}
+
+
 class TestAuthMiddlewareJwtWithoutSecret:
-    """Backward-compat: claims-only mode when HI_AGENT_JWT_SECRET is absent."""
+    """Backward-compat: claims-only mode when HI_AGENT_JWT_SECRET is absent.
+
+    These tests set HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS=true to enable the
+    legacy claims-only fallback path.  Production code must never set this flag.
+    The env var must be active both during middleware init and during _authenticate().
+    """
 
     def test_valid_claims_accepted_without_secret(self) -> None:
-        """JWT with valid claims passes when no secret is configured."""
-        mw = _make_middleware(secret=None)
-        assert mw._jwt_secret is None
-        # Use any key — signature is not checked
-        token = _make_token("any-key")
-        role = mw._authenticate(token)
+        """JWT with valid claims passes when no secret is configured (test mode)."""
+        with patch.dict("os.environ", _UNSIGNED_JWT_ENV, clear=False):
+            mw = _make_middleware(secret=None)
+            assert mw._jwt_secret is None
+            # Use any key — signature is not checked in test mode
+            token = _make_token("any-key")
+            role = mw._authenticate(token)
         assert role == "read"
 
     def test_expired_claims_rejected_without_secret(self) -> None:
-        mw = _make_middleware(secret=None)
-        token = _make_token("any-key", exp_offset=-10)
-        role = mw._authenticate(token)
+        with patch.dict("os.environ", _UNSIGNED_JWT_ENV, clear=False):
+            mw = _make_middleware(secret=None)
+            token = _make_token("any-key", exp_offset=-10)
+            role = mw._authenticate(token)
         assert role is None
 
     def test_wrong_audience_rejected_without_secret(self) -> None:
-        mw = _make_middleware(secret=None)
-        token = _make_token("any-key", audience="other-service")
-        role = mw._authenticate(token)
+        with patch.dict("os.environ", _UNSIGNED_JWT_ENV, clear=False):
+            mw = _make_middleware(secret=None)
+            token = _make_token("any-key", audience="other-service")
+            role = mw._authenticate(token)
         assert role is None
 
     def test_missing_sub_rejected_without_secret(self) -> None:
@@ -173,7 +191,79 @@ class TestAuthMiddlewareJwtWithoutSecret:
             "exp": int(time.time()) + 3600,
             "role": "read",
         }
-        token = pyjwt.encode(payload, "any-key", algorithm="HS256")
-        mw = _make_middleware(secret=None)
-        role = mw._authenticate(token)
+        with patch.dict("os.environ", _UNSIGNED_JWT_ENV, clear=False):
+            token = pyjwt.encode(payload, "any-key", algorithm="HS256")
+            mw = _make_middleware(secret=None)
+            role = mw._authenticate(token)
         assert role is None
+
+
+# ---------------------------------------------------------------------------
+# H-1: New tests — unsigned JWTs rejected by default
+# ---------------------------------------------------------------------------
+
+import base64
+import json
+
+
+def _make_unsigned_jwt(role: str = "write", audience: str = _AUDIENCE) -> str:
+    """Build an alg=none JWT (unsigned)."""
+    header = (
+        base64.urlsafe_b64encode(
+            json.dumps({"alg": "none", "typ": "JWT"}).encode()
+        )
+        .rstrip(b"=")
+        .decode()
+    )
+    payload = (
+        base64.urlsafe_b64encode(
+            json.dumps(
+                {
+                    "sub": "attacker",
+                    "role": role,
+                    "aud": audience,
+                    "exp": int(time.time()) + 3600,
+                }
+            ).encode()
+        )
+        .rstrip(b"=")
+        .decode()
+    )
+    return f"{header}.{payload}."
+
+
+class TestJWTDefaultEnforce:
+    """H-1: unsigned JWTs must be rejected by default when no JWT secret is set."""
+
+    def test_unsigned_jwt_rejected_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without the test override env var, claims-only mode must be blocked."""
+        monkeypatch.setenv("HI_AGENT_API_KEY", "testkey")
+        monkeypatch.delenv("HI_AGENT_JWT_SECRET", raising=False)
+        monkeypatch.delenv("HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS", raising=False)
+        from hi_agent.server.auth_middleware import AuthMiddleware as _AM
+        middleware = _AM(app=None, audience=_AUDIENCE)
+        token = _make_unsigned_jwt(role="admin")
+        result = middleware._authenticate(token)
+        assert result is None, f"Unsigned JWT accepted with role={result}"
+
+    def test_unsigned_jwt_allowed_with_test_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """With HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS=true, claims-only mode is enabled."""
+        monkeypatch.setenv("HI_AGENT_API_KEY", "testkey")
+        monkeypatch.delenv("HI_AGENT_JWT_SECRET", raising=False)
+        monkeypatch.setenv("HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS", "true")
+        from hi_agent.server.auth_middleware import AuthMiddleware as _AM
+        middleware = _AM(app=None, audience=_AUDIENCE)
+        token = _make_token("any-key", role="read")
+        result = middleware._authenticate(token)
+        assert result == "read"
+
+    def test_forged_role_rejected_without_secret(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An attacker cannot forge admin role when no secret is set and test flag is absent."""
+        monkeypatch.setenv("HI_AGENT_API_KEY", "testkey")
+        monkeypatch.delenv("HI_AGENT_JWT_SECRET", raising=False)
+        monkeypatch.delenv("HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS", raising=False)
+        from hi_agent.server.auth_middleware import AuthMiddleware as _AM
+        middleware = _AM(app=None, audience=_AUDIENCE)
+        token = _make_unsigned_jwt(role="admin")
+        result = middleware._authenticate(token)
+        assert result is None

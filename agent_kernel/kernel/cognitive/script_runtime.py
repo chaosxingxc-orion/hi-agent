@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import contextlib
+import hashlib
 import io
 import json
 import logging
@@ -22,6 +23,8 @@ import os
 import time
 from contextlib import redirect_stderr, redirect_stdout
 from typing import Any
+
+_PROD_PROFILES = frozenset({"prod-real", "prod"})
 
 from agent_kernel.kernel.contracts import ScriptActivityInput, ScriptResult
 from agent_kernel.kernel.dedupe_store import IdempotencyEnvelope
@@ -173,6 +176,19 @@ class InProcessPythonScriptRuntime:
             ScriptResult from the executed script.
 
         """
+        profile = os.getenv("HI_AGENT_RUNTIME_PROFILE", "dev")
+        if profile in _PROD_PROFILES:
+            raise RuntimeError(
+                f"Script runtime (exec-based) is disabled in production profiles. "
+                f"Profile: {profile}"
+            )
+        digest = hashlib.sha256(script_content.encode()).hexdigest()[:16]
+        logger.warning(
+            "SCRIPT_EXEC script_id=%s digest=%s profile=%s",
+            script_id,
+            digest,
+            profile,
+        )
         stdout_buf = io.StringIO()
         stderr_buf = io.StringIO()
         namespace: dict[str, Any] = {"__params__": parameters}
@@ -181,7 +197,7 @@ class InProcessPythonScriptRuntime:
         exit_code = 0
         try:
             with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
-                exec(script_content, namespace)
+                exec(script_content, namespace)  # noqa: S102
         except SystemExit as e:
             exit_code = e.code if isinstance(e.code, int) else 1
         except BaseException as e:
