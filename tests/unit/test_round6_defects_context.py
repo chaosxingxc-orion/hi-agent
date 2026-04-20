@@ -1,7 +1,5 @@
 """Unit tests for H-8: dedicated reflection_context partition in ContextManager."""
 
-import pytest
-
 from hi_agent.context.manager import ContextBudget, ContextManager
 
 

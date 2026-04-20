@@ -8,8 +8,9 @@ from dataclasses import asdict
 from hi_agent.contracts import TaskContract
 from hi_agent.replay import verify_replay_against_files
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.state import RunStateStore
+
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _persist_run_artifacts(executor: RunExecutor, events_path, state_path) -> None:

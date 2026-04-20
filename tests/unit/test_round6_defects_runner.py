@@ -14,9 +14,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -107,7 +104,9 @@ def _bare_executor(task_id: str = "t-r6", run_id: str = "run-r6") -> object:
     executor.tier_router = None
     executor.budget_guard = None
     executor._feedback_store = None
-    executor.route_engine = MagicMock(spec=[])  # W10-001: needed by _build_stage_orchestrator_context
+    executor.route_engine = MagicMock(
+        spec=[]
+    )  # W10-001: needed by _build_stage_orchestrator_context
     return executor
 
 
@@ -125,8 +124,6 @@ class TestH1RecordAttempt:
         stage_id is encoded in attempt_id even if the installed TaskAttempt
         version does not expose stage_id as a top-level field.
         """
-        from hi_agent.runner import RunExecutor
-
         executor = _bare_executor()
 
         recorded: list = []
@@ -250,7 +247,7 @@ class TestH2CancelPendingSubruns:
         assert executor._completed_subrun_results == {}
 
     def test_cancel_pending_subruns_skips_done_futures(self) -> None:
-        """futures already done must not have cancel() called."""
+        """Futures already done must not have cancel() called."""
         executor = _bare_executor()
 
         future = MagicMock()
@@ -289,7 +286,7 @@ class TestH3RunTerminatedGuard:
         executor._gate_pending = None
         executor._stage_executor.execute_stage.return_value = None
 
-        result = executor._execute_stage("S1")
+        executor._execute_stage("S1")
 
         executor._stage_executor.execute_stage.assert_called_once()
 
@@ -351,7 +348,7 @@ class TestH5ContinueFromGate:
         executor.session = None  # session-None path
         executor._lifecycle.finalize_run.return_value = None
 
-        result = executor.continue_from_gate("gate-001", "approved")
+        executor.continue_from_gate("gate-001", "approved")
 
         # Only S2 must be executed (S1 was in stage_summaries as completed)
         calls = executor._stage_executor.execute_stage.call_args_list
@@ -378,7 +375,7 @@ class TestH5ContinueFromGate:
 
 
 class TestH6AwaitSubrunGatePending:
-    """await_subrun must return SubRunResult with status='gate_pending' when delegate fires a gate."""
+    """`await_subrun` returns `SubRunResult(status="gate_pending")` when a delegate fires a gate."""
 
     def test_await_subrun_gate_pending_from_completed_results(self) -> None:
         """Synchronous dispatch path: gate_pending DelegationResult must surface to SubRunResult."""
@@ -402,7 +399,7 @@ class TestH6AwaitSubrunGatePending:
 
     def test_await_subrun_completed_result_backward_compat(self) -> None:
         """Normal completed DelegationResult must produce success=True SubRunResult."""
-        from hi_agent.runner import SubRunHandle, SubRunResult
+        from hi_agent.runner import SubRunHandle
 
         executor = _bare_executor()
 
@@ -493,7 +490,7 @@ class TestH7PinnedReflectionRetrieval:
         ctx_mgr.set_reflection_context.assert_called_once_with(prompt_text)
 
     def test_set_reflection_context_not_called_on_first_attempt(self) -> None:
-        """On first attempt (attempt==1), no prior session exists; set_reflection_context must not be called."""
+        """On first attempt, no prior session exists, so `set_reflection_context` is not called."""
         executor = _bare_executor()
 
         store = MagicMock()

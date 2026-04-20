@@ -36,24 +36,24 @@ _logger = logging.getLogger(__name__)
 class ContextHealth(Enum):
     """Context window health levels."""
 
-    GREEN = "green"    # < 70% -- normal
+    GREEN = "green"  # < 70% -- normal
     YELLOW = "yellow"  # 70-85% -- warning, prepare compression
     ORANGE = "orange"  # 85-95% -- auto-compress triggered
-    RED = "red"        # > 95% -- blocked, must compress
+    RED = "red"  # > 95% -- blocked, must compress
 
 
 @dataclass
 class ContextBudget:
     """Token budget allocation across context sections."""
 
-    total_window: int = 200_000    # Model's context window
-    output_reserve: int = 8_000    # Reserved for model response
-    system_prompt: int = 2_000     # System instructions
+    total_window: int = 200_000  # Model's context window
+    output_reserve: int = 8_000  # Reserved for model response
+    system_prompt: int = 2_000  # System instructions
     tool_definitions: int = 3_000  # Tool schemas
-    skill_prompts: int = 5_000     # Skill descriptions
-    memory_context: int = 1_500      # Memory retrieval results
-    knowledge_context: int = 1_500   # Knowledge retrieval results
-    reflection_context: int = 500    # Dedicated reflection-prompt partition
+    skill_prompts: int = 5_000  # Skill descriptions
+    memory_context: int = 1_500  # Memory retrieval results
+    knowledge_context: int = 1_500  # Knowledge retrieval results
+    reflection_context: int = 500  # Dedicated reflection-prompt partition
 
     @property
     def effective_window(self) -> int:
@@ -166,10 +166,10 @@ class ContextManager:
     def __init__(
         self,
         budget: ContextBudget | None = None,
-        session: Any | None = None,          # RunSession
-        memory_retriever: Any | None = None, # UnifiedMemoryRetriever or RetrievalEngine
-        skill_loader: Any | None = None,     # SkillLoader
-        compressor: Any | None = None,       # MemoryCompressor for LLM summarization
+        session: Any | None = None,  # RunSession
+        memory_retriever: Any | None = None,  # UnifiedMemoryRetriever or RetrievalEngine
+        skill_loader: Any | None = None,  # SkillLoader
+        compressor: Any | None = None,  # MemoryCompressor for LLM summarization
         # Thresholds (claude-code pattern)
         green_threshold: float = 0.70,
         yellow_threshold: float = 0.85,
@@ -177,8 +177,8 @@ class ContextManager:
         # Circuit breaker
         max_compression_failures: int = 3,
         # Diminishing returns detection
-        diminishing_window: int = 3,         # consecutive low-output iterations
-        diminishing_threshold: int = 100,    # minimum tokens per iteration
+        diminishing_window: int = 3,  # consecutive low-output iterations
+        diminishing_threshold: int = 100,  # minimum tokens per iteration
     ) -> None:
         """Initialize ContextManager."""
         self._budget = budget or ContextBudget()
@@ -299,9 +299,7 @@ class ContextManager:
 
         # Compress if needed
         if health in (ContextHealth.ORANGE, ContextHealth.RED):
-            sections, total_tokens = self._compress_if_needed(
-                sections, total_tokens
-            )
+            sections, total_tokens = self._compress_if_needed(sections, total_tokens)
             compressions_applied = 1
             health = self._check_health(total_tokens)
 
@@ -480,9 +478,7 @@ class ContextManager:
         try:
             # Support both UnifiedMemoryRetriever and RetrievalEngine
             if hasattr(self._memory_retriever, "retrieve"):
-                result = self._memory_retriever.retrieve(
-                    query="", budget_tokens=budget
-                )
+                result = self._memory_retriever.retrieve(query="", budget_tokens=budget)
                 if hasattr(result, "to_context_string"):
                     content = result.to_context_string()
                 else:
@@ -589,7 +585,7 @@ class ContextManager:
             used += summary_tokens
 
         # Append entries after compact offset
-        for entry in self._history_entries[self._compact_offset:]:
+        for entry in self._history_entries[self._compact_offset :]:
             entry_text = f"[{entry.get('role', 'unknown')}] {entry.get('content', '')}"
             entry_tokens = count_tokens(entry_text)
             if used + entry_tokens > budget:
@@ -651,9 +647,7 @@ class ContextManager:
 
         if self._circuit_breaker_open:
             # Skip LLM compression but still try snip + trim
-            sections, total_tokens = self._apply_snip_and_trim(
-                sections, total_tokens, target
-            )
+            sections, total_tokens = self._apply_snip_and_trim(sections, total_tokens, target)
             return sections, total_tokens
 
         # Step 1: Snip history
@@ -669,9 +663,7 @@ class ContextManager:
             history_section = self._find_section(sections, "history")
             if history_section is not None:
                 try:
-                    new_history = self._compact_history(
-                        history_section, target
-                    )
+                    new_history = self._compact_history(history_section, target)
                     delta = history_section.tokens - new_history.tokens
                     total_tokens -= delta
                     self._replace_section(sections, new_history)
@@ -682,10 +674,11 @@ class ContextManager:
                     if self._compression_failures >= self._max_compression_failures:
                         self._circuit_breaker_open = True
                     try:
-                        from hi_agent.observability.fallback import (  # noqa: PLC0415
+                        from hi_agent.observability.fallback import (
                             FallbackTaxonomy,
                             record_fallback,
                         )
+
                         record_fallback(
                             FallbackTaxonomy.UNEXPECTED_EXCEPTION,
                             "context_manager",
@@ -886,7 +879,7 @@ class ContextManager:
         """
         if len(self._iteration_tokens) < self._diminishing_window:
             return False
-        recent = self._iteration_tokens[-self._diminishing_window:]
+        recent = self._iteration_tokens[-self._diminishing_window :]
         return all(t < self._diminishing_threshold for t in recent)
 
     # ------------------------------------------------------------------
@@ -912,7 +905,7 @@ class ContextManager:
 
     def get_history_after_compact(self) -> list[dict]:
         """Get history entries after the compact offset."""
-        return list(self._history_entries[self._compact_offset:])
+        return list(self._history_entries[self._compact_offset :])
 
     # ------------------------------------------------------------------
     # Health reporting
@@ -980,9 +973,7 @@ class ContextManager:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _find_section(
-        sections: list[ContextSection], name: str
-    ) -> ContextSection | None:
+    def _find_section(sections: list[ContextSection], name: str) -> ContextSection | None:
         """Find a section by name."""
         for s in sections:
             if s.name == name:
@@ -990,9 +981,7 @@ class ContextManager:
         return None
 
     @staticmethod
-    def _replace_section(
-        sections: list[ContextSection], replacement: ContextSection
-    ) -> None:
+    def _replace_section(sections: list[ContextSection], replacement: ContextSection) -> None:
         """Replace a section in place by name."""
         for i, s in enumerate(sections):
             if s.name == replacement.name:

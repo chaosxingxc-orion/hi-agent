@@ -3,6 +3,7 @@
 Builds capability registry, artifact registry, MCP registry/transport, and harness.
 Accepts llm_gateway as constructor param to break circular dependency.
 """
+
 from __future__ import annotations
 
 import logging
@@ -43,6 +44,7 @@ class CapabilityPlaneBuilder:
                     )
                     from hi_agent.capability.registry import CapabilityRegistry
                     from hi_agent.capability.tools import register_builtin_tools
+
                     registry = CapabilityRegistry()
                     gateway = self._llm_gateway
                     try:
@@ -69,6 +71,7 @@ class CapabilityPlaneBuilder:
         if not hasattr(self, "_artifact_registry") or self._artifact_registry is None:
             try:
                 from hi_agent.artifacts.registry import ArtifactRegistry
+
                 self._artifact_registry = ArtifactRegistry()
                 logger.info("build_artifact_registry: ArtifactRegistry created.")
             except Exception as exc:
@@ -82,6 +85,7 @@ class CapabilityPlaneBuilder:
             if self._mcp_registry is None:
                 try:
                     from hi_agent.mcp.registry import MCPRegistry
+
                     self._mcp_registry = MCPRegistry()
                     logger.info("build_mcp_registry: MCPRegistry created.")
                 except Exception as exc:
@@ -102,15 +106,15 @@ class CapabilityPlaneBuilder:
             registry = self.build_mcp_registry()
             if registry is None:
                 return None
-            stdio_servers = [
-                s for s in registry.list_servers()
-                if s.get("transport") == "stdio"
-            ]
+            stdio_servers = [s for s in registry.list_servers() if s.get("transport") == "stdio"]
             if not stdio_servers:
-                logger.debug("build_mcp_transport: no stdio MCP servers registered; transport not created.")
+                logger.debug(
+                    "build_mcp_transport: no stdio MCP servers registered; transport not created."
+                )
                 return None
             try:
                 from hi_agent.mcp.transport import MultiStdioTransport
+
                 self._mcp_transport = MultiStdioTransport(mcp_registry=registry)
                 logger.info(
                     "build_mcp_transport: MultiStdioTransport created for %d stdio server(s).",
@@ -152,6 +156,7 @@ class CapabilityPlaneBuilder:
             registry = self.build_capability_registry()
             if registry is None:
                 from hi_agent.capability.registry import CapabilityRegistry
+
                 registry = CapabilityRegistry()
                 logger.warning("build_invoker: registry is None, using empty fallback registry.")
             breaker = CircuitBreaker()

@@ -10,12 +10,10 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio  # noqa: F401 – imported for pytest-asyncio registration
-
+import pytest_asyncio  # noqa: F401 - imported for pytest-asyncio registration
 from hi_agent.task_mgmt.delegation import (
     ChildRunPoller,
     DelegationConfig,
@@ -24,7 +22,6 @@ from hi_agent.task_mgmt.delegation import (
     DelegationResult,
     ResultSummarizer,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -39,14 +36,17 @@ def _make_kernel(lifecycle_states: list[str], output: str | None = None) -> Magi
     """
     kernel = MagicMock()
     responses = [
-        {"lifecycle_state": s, "output": output if s in ("completed", "failed", "aborted") else None}
+        {
+            "lifecycle_state": s,
+            "output": output if s in ("completed", "failed", "aborted") else None,
+        }
         for s in lifecycle_states
     ]
     # Pad with the last response so the poller doesn't IndexError.
     responses_iter = iter(responses)
     last: dict = responses[-1]
 
-    def _query_run(run_id: str) -> dict:  # noqa: ARG001
+    def _query_run(run_id: str) -> dict:
         try:
             return next(responses_iter)
         except StopIteration:
@@ -71,7 +71,7 @@ async def test_child_run_poller_completes() -> None:
 
     assert status == "completed"
     assert raw == "done!"
-    # query_run must have been called at least twice (running × 2, completed)
+    # query_run must have been called at least twice (running x 2, completed)
     assert kernel.query_run.call_count >= 2
 
 
@@ -119,7 +119,7 @@ async def test_result_summarizer_long_output_truncated_without_llm() -> None:
 @pytest.mark.asyncio
 async def test_result_summarizer_calls_llm_for_long_output() -> None:
     """ResultSummarizer should invoke LLM.complete() when output exceeds max_chars."""
-    from hi_agent.llm.protocol import LLMResponse, TokenUsage  # noqa: PLC0415
+    from hi_agent.llm.protocol import LLMResponse, TokenUsage
 
     llm = AsyncMock()
     llm.complete.return_value = LLMResponse(
@@ -149,7 +149,7 @@ async def test_result_summarizer_calls_llm_for_long_output() -> None:
 @pytest.mark.asyncio
 async def test_delegation_manager_single_request() -> None:
     """End-to-end: single request is spawned, polled, summarised, and returned."""
-    from hi_agent.llm.protocol import LLMResponse, TokenUsage  # noqa: PLC0415
+    from hi_agent.llm.protocol import LLMResponse, TokenUsage
 
     kernel = MagicMock()
     kernel.spawn_child_run_async = AsyncMock(return_value="child-run-001")
@@ -185,7 +185,7 @@ async def test_delegation_manager_concurrency_limit() -> None:
     active: list[int] = [0]
     peak: list[int] = [0]
 
-    async def fake_spawn(parent_run_id, task_id, config=None) -> str:  # noqa: ARG001
+    async def fake_spawn(parent_run_id, task_id, config=None) -> str:
         active[0] += 1
         peak[0] = max(peak[0], active[0])
         await asyncio.sleep(0.05)  # simulate child run execution time
@@ -201,8 +201,7 @@ async def test_delegation_manager_concurrency_limit() -> None:
     manager = DelegationManager(kernel=kernel, config=config, llm=None)
 
     requests = [
-        DelegationRequest(goal=f"Task {i}", task_id=f"t-{i}", timeout_seconds=5.0)
-        for i in range(5)
+        DelegationRequest(goal=f"Task {i}", task_id=f"t-{i}", timeout_seconds=5.0) for i in range(5)
     ]
     results = await manager.delegate(requests, parent_run_id="parent-run-X")
 
@@ -215,9 +214,7 @@ async def test_delegation_manager_concurrency_limit() -> None:
 async def test_delegation_manager_handles_exception() -> None:
     """When spawn raises, the result should carry status='failed' with error text."""
     kernel = MagicMock()
-    kernel.spawn_child_run_async = AsyncMock(
-        side_effect=RuntimeError("kernel unavailable")
-    )
+    kernel.spawn_child_run_async = AsyncMock(side_effect=RuntimeError("kernel unavailable"))
 
     config = DelegationConfig(max_concurrent=1, poll_interval_seconds=0.01)
     manager = DelegationManager(kernel=kernel, config=config, llm=None)
@@ -237,7 +234,7 @@ async def test_delegation_manager_gather_exception_wrapping() -> None:
     """Exceptions raised inside _delegate_one are captured, not propagated."""
     kernel = MagicMock()
 
-    async def bad_spawn(*args, **kwargs):  # noqa: ARG001
+    async def bad_spawn(*args, **kwargs):
         raise ValueError("unexpected error")
 
     kernel.spawn_child_run_async = bad_spawn

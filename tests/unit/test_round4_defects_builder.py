@@ -6,9 +6,6 @@ F-2: Memory store paths missing profile_id — cross-project contamination.
 
 from __future__ import annotations
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

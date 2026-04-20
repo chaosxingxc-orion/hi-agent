@@ -54,12 +54,10 @@ def record_fallback(
     # Best-effort metrics increment.  MetricsCollector silently ignores
     # metric names not in its catalogue, so this call is always safe.
     try:
-        from hi_agent.observability.collector import MetricsCollector  # noqa: PLC0415
+        from hi_agent.observability.collector import MetricsCollector
 
         # Access the process-level singleton if one has been set.
-        _mc: MetricsCollector | None = getattr(
-            MetricsCollector, "_singleton", None
-        )
+        _mc: MetricsCollector | None = getattr(MetricsCollector, "_singleton", None)
         if _mc is not None:
             _mc.increment(
                 f"fallback.{kind}",

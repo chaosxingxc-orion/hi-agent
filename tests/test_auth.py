@@ -2,29 +2,29 @@
 
 from __future__ import annotations
 
-import pytest
 from time import time
 
+import pytest
 from hi_agent.auth.jwt_middleware import (
-    validate_jwt_claims,
-    TokenExpiredError,
-    MissingClaimError,
     InvalidAudienceError,
+    MissingClaimError,
+    TokenExpiredError,
+    validate_jwt_claims,
 )
 from hi_agent.auth.rbac_enforcer import (
-    RBACEnforcer,
     OperationNotAllowedError,
+    RBACEnforcer,
     UnknownOperationError,
 )
 from hi_agent.auth.soc_guard import (
-    enforce_submitter_approver_separation,
     SeparationOfConcernError,
+    enforce_submitter_approver_separation,
 )
-
 
 # ---------------------------------------------------------------------------
 # JWT validation
 # ---------------------------------------------------------------------------
+
 
 class TestJWTValidation:
     def _valid_claims(self) -> dict:
@@ -113,6 +113,7 @@ class TestRBACEnforcer:
 # SOC guard
 # ---------------------------------------------------------------------------
 
+
 class TestSOCGuard:
     def test_different_principals_allowed(self):
         enforce_submitter_approver_separation(submitter="alice", approver="bob")
@@ -122,6 +123,4 @@ class TestSOCGuard:
             enforce_submitter_approver_separation(submitter="alice", approver="alice")
 
     def test_disabled_allows_same(self):
-        enforce_submitter_approver_separation(
-            submitter="alice", approver="alice", enabled=False
-        )
+        enforce_submitter_approver_separation(submitter="alice", approver="alice", enabled=False)

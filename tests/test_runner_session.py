@@ -14,13 +14,12 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from typing import Any
-from unittest.mock import MagicMock
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
+from hi_agent.session.run_session import RunSession
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
-from hi_agent.session.run_session import LLMCallRecord, RunSession
 
 
 def _make_contract(
@@ -35,6 +34,7 @@ def _make_contract(
 # ---------------------------------------------------------------------------
 # Test: session=None works as before (backward compat)
 # ---------------------------------------------------------------------------
+
 
 class TestRunExecutorSessionNone:
     """RunExecutor still works fine when session is not explicitly provided."""
@@ -65,6 +65,7 @@ class TestRunExecutorSessionNone:
 # ---------------------------------------------------------------------------
 # Test: session tracks L0 records
 # ---------------------------------------------------------------------------
+
 
 class TestRunExecutorSessionL0Records:
     """RunExecutor delegates event recording to session."""
@@ -119,6 +120,7 @@ class TestRunExecutorSessionL0Records:
 # Test: session marks compact boundaries after compression
 # ---------------------------------------------------------------------------
 
+
 class TestRunExecutorSessionCompactBoundary:
     """RunExecutor marks compact boundaries in session after stage compression."""
 
@@ -163,6 +165,7 @@ class TestRunExecutorSessionCompactBoundary:
 # Test: session emits cost summary
 # ---------------------------------------------------------------------------
 
+
 class TestRunExecutorSessionCostSummary:
     """RunExecutor emits cost summary via observability at run end."""
 
@@ -175,9 +178,7 @@ class TestRunExecutorSessionCostSummary:
         def hook(name: str, payload: dict[str, object]) -> None:
             observed.append((name, payload))
 
-        executor = RunExecutor(
-            contract, kernel, session=session, observability_hook=hook
-        )
+        executor = RunExecutor(contract, kernel, session=session, observability_hook=hook)
         executor.execute()
 
         cost_events = [e for e in observed if e[0] == "run_cost_summary"]
@@ -207,9 +208,7 @@ class TestRunExecutorSessionCostSummary:
         def hook(name: str, payload: dict[str, object]) -> None:
             observed.append((name, payload))
 
-        executor = RunExecutor(
-            contract, kernel, session=session, observability_hook=hook
-        )
+        executor = RunExecutor(contract, kernel, session=session, observability_hook=hook)
         executor.execute()
 
         cost_events = [e for e in observed if e[0] == "run_cost_summary"]
@@ -219,6 +218,7 @@ class TestRunExecutorSessionCostSummary:
 # ---------------------------------------------------------------------------
 # Test: session saves checkpoint at stage boundaries
 # ---------------------------------------------------------------------------
+
 
 class TestRunExecutorSessionCheckpoint:
     """RunExecutor saves session checkpoint at stage boundaries."""
@@ -237,9 +237,7 @@ class TestRunExecutorSessionCheckpoint:
             executor.execute()
 
             # Checkpoint file should exist
-            checkpoint_files = [
-                f for f in os.listdir(tmpdir) if f.startswith("checkpoint_")
-            ]
+            checkpoint_files = [f for f in os.listdir(tmpdir) if f.startswith("checkpoint_")]
             assert len(checkpoint_files) > 0
 
     def test_checkpoint_contains_stage_state(self) -> None:
@@ -255,9 +253,7 @@ class TestRunExecutorSessionCheckpoint:
 
             executor.execute()
 
-            checkpoint_files = [
-                f for f in os.listdir(tmpdir) if f.startswith("checkpoint_")
-            ]
+            checkpoint_files = [f for f in os.listdir(tmpdir) if f.startswith("checkpoint_")]
             assert len(checkpoint_files) > 0
 
             # Load and verify checkpoint contents
@@ -283,9 +279,7 @@ class TestRunExecutorSessionCheckpoint:
 
             executor.execute()
 
-            checkpoint_files = [
-                f for f in os.listdir(tmpdir) if f.startswith("checkpoint_")
-            ]
+            checkpoint_files = [f for f in os.listdir(tmpdir) if f.startswith("checkpoint_")]
             ckpt_path = os.path.join(tmpdir, checkpoint_files[0])
             with open(ckpt_path, encoding="utf-8") as f:
                 ckpt = json.load(f)
@@ -297,6 +291,7 @@ class TestRunExecutorSessionCheckpoint:
 # ---------------------------------------------------------------------------
 # Test: session checkpoint contains correct state after run
 # ---------------------------------------------------------------------------
+
 
 class TestRunExecutorSessionCheckpointState:
     """Session checkpoint has accurate state reflecting the run."""

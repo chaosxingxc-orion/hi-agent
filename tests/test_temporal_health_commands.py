@@ -49,4 +49,3 @@ def test_cmd_temporal_probe_check_connected_and_degraded() -> None:
     assert payload["connected"] is True
     assert payload["degraded"] is True
     assert payload["latency_ms"] == 800.0
-

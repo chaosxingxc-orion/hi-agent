@@ -2,30 +2,34 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestManifestRuntimeInventory:
     def test_manifest_has_required_keys(self):
         """Manifest response always has required top-level keys."""
-        import json
-        from unittest.mock import AsyncMock, MagicMock
-        from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         client = TestClient(server.app)
         response = client.get("/manifest")
         assert response.status_code == 200
         data = response.json()
-        for key in ("name", "version", "stages", "capabilities", "profiles", "mcp_servers", "endpoints"):
+        for key in (
+            "name",
+            "version",
+            "stages",
+            "capabilities",
+            "profiles",
+            "mcp_servers",
+            "endpoints",
+        ):
             assert key in data, f"Missing key: {key}"
 
     def test_manifest_stages_from_stage_graph(self):
         """Stages in manifest come from the server's stage_graph, not hardcoded."""
-        from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
         from hi_agent.trajectory.stage_graph import StageGraph
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         # Replace stage_graph with a custom 3-stage graph
@@ -44,8 +48,8 @@ class TestManifestRuntimeInventory:
 
     def test_manifest_profiles_empty_by_default(self):
         """No profiles registered → profiles list is empty."""
-        from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         client = TestClient(server.app)
@@ -55,18 +59,20 @@ class TestManifestRuntimeInventory:
 
     def test_manifest_profiles_after_registration(self):
         """Profiles registered in builder's ProfileRegistry appear in manifest."""
-        from starlette.testclient import TestClient
-        from hi_agent.server.app import AgentServer
         from hi_agent.profiles.contracts import ProfileSpec
+        from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         # Register a profile in the builder's registry
         reg = server._builder.build_profile_registry()
-        reg.register(ProfileSpec(
-            profile_id="test_profile",
-            display_name="Test Profile",
-            stage_actions={"s1": "action_a"},
-        ))
+        reg.register(
+            ProfileSpec(
+                profile_id="test_profile",
+                display_name="Test Profile",
+                stage_actions={"s1": "action_a"},
+            )
+        )
 
         client = TestClient(server.app)
         response = client.get("/manifest")
@@ -76,8 +82,8 @@ class TestManifestRuntimeInventory:
 
     def test_manifest_mcp_servers_list(self):
         """mcp_servers key present and is a list."""
-        from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         client = TestClient(server.app)
@@ -87,8 +93,8 @@ class TestManifestRuntimeInventory:
 
     def test_manifest_has_runtime_mode(self):
         """Manifest reports runtime_mode key with a valid resolved value (not hardcoded)."""
-        from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         client = TestClient(server.app)
@@ -100,8 +106,8 @@ class TestManifestRuntimeInventory:
 
     def test_manifest_active_profile_is_none_at_startup(self):
         """Without a resolved profile, manifest reports active_profile=None."""
-        from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         client = TestClient(server.app)
@@ -114,6 +120,7 @@ class TestManifestRuntimeInventory:
 class TestMCPBindingPolicy:
     def test_bind_all_without_transport_returns_zero(self):
         from unittest.mock import MagicMock
+
         from hi_agent.mcp.binding import MCPBinding
 
         mock_registry = MagicMock()
@@ -130,6 +137,7 @@ class TestMCPBindingPolicy:
 
     def test_bind_all_without_transport_tracks_unavailable(self):
         from unittest.mock import MagicMock
+
         from hi_agent.mcp.binding import MCPBinding
 
         mock_registry = MagicMock()
@@ -143,6 +151,7 @@ class TestMCPBindingPolicy:
 
     def test_bind_all_with_transport_registers_tools(self):
         from unittest.mock import MagicMock
+
         from hi_agent.capability.registry import CapabilityRegistry
         from hi_agent.mcp.binding import MCPBinding
 
@@ -162,8 +171,12 @@ class TestMCPBindingPolicy:
         assert "mcp.srv1.tool_a" in cap_registry.list_names()
 
     def test_bind_all_without_transport_does_not_register_broken_stubs(self):
-        """Old behaviour was to register stubs that fail silently; new behaviour is to not register at all."""
+        """Old behavior registered silently failing stubs.
+
+        New behavior does not register stubs without transport.
+        """
         from unittest.mock import MagicMock
+
         from hi_agent.capability.registry import CapabilityRegistry
         from hi_agent.mcp.binding import MCPBinding
 
@@ -181,8 +194,10 @@ class TestMCPBindingPolicy:
     def test_bind_all_with_transport_does_not_register_unverified_servers(self):
         """P0 fix: servers with status='registered' (not yet health-checked) must NOT
         be bound into the capability registry even when a transport is present.
-        Only 'healthy' servers (those that passed a real health check) are callable."""
+        Only 'healthy' servers (those that passed a real health check) are callable.
+        """
         from unittest.mock import MagicMock
+
         from hi_agent.capability.registry import CapabilityRegistry
         from hi_agent.mcp.binding import MCPBinding
 
@@ -219,8 +234,9 @@ class TestMCPStatusConsistency:
     """
 
     def _make_client(self):
-        from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
+
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         return TestClient(server.app), server
 
@@ -296,7 +312,7 @@ class TestMCPStatusConsistency:
                 )
 
     def test_manifest_contract_field_status_present(self):
-        """manifest must include contract_field_status for integrator transparency."""
+        """Manifest must include contract_field_status for integrator transparency."""
         client, _ = self._make_client()
         resp = client.get("/manifest")
         assert resp.status_code == 200

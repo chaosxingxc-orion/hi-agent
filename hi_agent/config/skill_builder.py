@@ -3,6 +3,7 @@
 Extracted from SystemBuilder in W6-003.
 SystemBuilder.build_skill_* methods are now facades to SkillBuilder.
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,6 +29,7 @@ class SkillBuilder:
     def build_skill_registry(self):
         """Build SkillRegistry using configured storage directory."""
         from hi_agent.skill.registry import SkillRegistry
+
         return SkillRegistry(storage_dir=self._config.skill_storage_dir)
 
     def build_skill_loader(self) -> Any:
@@ -41,6 +43,7 @@ class SkillBuilder:
         if self._skill_loader is not None:
             return self._skill_loader
         import pathlib
+
         from hi_agent.skill.loader import SkillLoader
 
         builtin_dir = str(pathlib.Path(__file__).parent.parent / "skills" / "builtin")
@@ -64,16 +67,14 @@ class SkillBuilder:
     def build_skill_observer(self) -> Any:
         """Build SkillObserver for execution telemetry."""
         from hi_agent.skill.observer import SkillObserver
-        return SkillObserver(
-            storage_dir=self._config.skill_storage_dir + "/observations"
-        )
+
+        return SkillObserver(storage_dir=self._config.skill_storage_dir + "/observations")
 
     def build_skill_version_manager(self) -> Any:
         """Build SkillVersionManager for champion/challenger versioning."""
         from hi_agent.skill.version import SkillVersionManager
-        mgr = SkillVersionManager(
-            storage_dir=self._config.skill_storage_dir + "/versions"
-        )
+
+        mgr = SkillVersionManager(storage_dir=self._config.skill_storage_dir + "/versions")
         try:
             mgr.load()
         except (FileNotFoundError, KeyError, ValueError):
@@ -90,6 +91,7 @@ class SkillBuilder:
         if self._skill_evolver is not None:
             return self._skill_evolver
         from hi_agent.skill.evolver import SkillEvolver
+
         observer = self.build_skill_observer()
         version_mgr = self.build_skill_version_manager()
         self._skill_evolver = SkillEvolver.from_config(

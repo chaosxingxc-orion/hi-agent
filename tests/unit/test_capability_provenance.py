@@ -1,8 +1,8 @@
 """Unit tests for capability/action-level provenance (HI-W2-002)."""
 
 from unittest.mock import MagicMock
+
 from hi_agent.capability.invoker import CapabilityInvoker
-from hi_agent.capability.registry import CapabilityRegistry
 
 
 def _make_invoker(handler_return):
@@ -39,6 +39,7 @@ def test_invoke_does_not_override_existing_provenance():
 
 def test_heuristic_handler_result_has_provenance():
     from hi_agent.capability.defaults import make_llm_capability_handler
+
     # gateway=None triggers heuristic fallback in non-prod env
     handler = make_llm_capability_handler("plan", "You are a planner.", None)
     result = handler({"goal": "test", "stage_id": "s1"})

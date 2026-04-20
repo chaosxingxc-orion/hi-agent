@@ -150,18 +150,14 @@ class RunExecutorFacade:
             RuntimeError: If :meth:`start` has not been called first.
         """
         if self._executor is None or self._contract is None:
-            raise RuntimeError(
-                "RunExecutorFacade.start() must be called before run()."
-            )
+            raise RuntimeError("RunExecutorFacade.start() must be called before run().")
 
         self._contract.goal = prompt
         self._last_execution_mode = "graph" if use_graph else "linear"
         from hi_agent.gate_protocol import GatePendingError
+
         try:
-            if use_graph:
-                run_result = self._executor.execute_graph()
-            else:
-                run_result = self._executor.execute()
+            run_result = self._executor.execute_graph() if use_graph else self._executor.execute()
         except GatePendingError as _gate_exc:
             self._last_gate_id = getattr(_gate_exc, "gate_id", None)
             raise
@@ -231,6 +227,7 @@ class RunExecutorFacade:
                 "RunExecutorFacade.start() must be called before continue_from_gate()."
             )
         from hi_agent.gate_protocol import GatePendingError
+
         try:
             if self._last_execution_mode == "graph":
                 run_result = self._executor.continue_from_gate_graph(
@@ -275,6 +272,7 @@ def check_readiness() -> ReadinessReport:
         ``subsystems``, and ``auth_posture`` populated.
     """
     import os as _os_cr
+
     from hi_agent.config.builder import SystemBuilder
     from hi_agent.server.auth_middleware import AuthMiddleware as _AM
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm

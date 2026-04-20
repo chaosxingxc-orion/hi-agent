@@ -52,9 +52,7 @@ class SkillMatcher:
             results.append(skill)
         return results
 
-    def check_preconditions(
-        self, skill: ManagedSkill, context: dict[str, Any]
-    ) -> bool:
+    def check_preconditions(self, skill: ManagedSkill, context: dict[str, Any]) -> bool:
         """Check that all preconditions are met.
 
         Each precondition is a string of the form ``"key == 'value'"`` or
@@ -72,9 +70,7 @@ class SkillMatcher:
             return True
         return all(_evaluate_condition(cond, context) for cond in skill.preconditions)
 
-    def check_forbidden(
-        self, skill: ManagedSkill, context: dict[str, Any]
-    ) -> bool:
+    def check_forbidden(self, skill: ManagedSkill, context: dict[str, Any]) -> bool:
         """Check that no forbidden conditions are present.
 
         Returns True if the skill is safe to use (none of the forbidden

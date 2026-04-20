@@ -5,8 +5,8 @@ with resolve_evolve_effective across representative runtime modes.  No internal
 mocks are used — real component instances only.
 """
 
-from hi_agent.config.trace_config import TraceConfig
 from hi_agent.config.evolve_policy import resolve_evolve_effective
+from hi_agent.config.trace_config import TraceConfig
 
 
 def test_default_auto_mode_in_dev_smoke_resolves_true():

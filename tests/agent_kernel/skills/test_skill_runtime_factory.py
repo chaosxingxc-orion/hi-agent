@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from agent_kernel.kernel.contracts import EffectClass
 from agent_kernel.skills.contracts import SkillDefinition, SkillRequest
 from agent_kernel.skills.runtime_factory import DefaultSkillRuntimeFactory

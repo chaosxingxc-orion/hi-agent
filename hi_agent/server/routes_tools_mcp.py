@@ -1,4 +1,5 @@
 """HTTP route handlers for /tools, /tools/call, /mcp/tools, /mcp/tools/list, /mcp/tools/call."""
+
 from __future__ import annotations
 
 import json
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Tools (capability registry) endpoints
 # ------------------------------------------------------------------
 
+
 async def handle_tools_list(request: Request) -> JSONResponse:
     """Return all registered capabilities as a tool list.
 
@@ -28,11 +30,13 @@ async def handle_tools_list(request: Request) -> JSONResponse:
         tools = []
         for name in registry.list_names():
             spec = registry.get(name)
-            tools.append({
-                "name": name,
-                "description": getattr(spec, "description", ""),
-                "parameters": getattr(spec, "parameters", {}),
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "description": getattr(spec, "description", ""),
+                    "parameters": getattr(spec, "parameters", {}),
+                }
+            )
         return JSONResponse({"tools": tools, "count": len(tools)})
     except Exception as exc:
         logger.warning("handle_tools_list error: %s", exc)
@@ -75,7 +79,9 @@ async def handle_tools_call(request: Request) -> JSONResponse:
     session_id = getattr(request.state, "session_id", "")
     try:
         import os as _os_tc
+
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_tc
+
         _env_tc = _os_tc.environ.get("HI_AGENT_ENV", "dev").lower()
         try:
             _readiness_tc = server._builder.readiness()
@@ -90,9 +96,12 @@ async def handle_tools_call(request: Request) -> JSONResponse:
             )
         invoker = server._builder.build_invoker()
         registry = server._builder.build_capability_registry()
-        executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode=_runtime_mode_tc)
+        executor = GovernedToolExecutor(
+            registry=registry, invoker=invoker, runtime_mode=_runtime_mode_tc
+        )
         result = executor.invoke(
-            name, arguments,
+            name,
+            arguments,
             principal=principal,
             session_id=session_id,
             source="http_tools",
@@ -120,6 +129,7 @@ async def handle_tools_call(request: Request) -> JSONResponse:
 # MCP tools endpoints
 # ------------------------------------------------------------------
 
+
 async def handle_mcp_tools(request: Request) -> JSONResponse:
     """Return all tools across registered MCP servers.
 
@@ -139,11 +149,13 @@ async def handle_mcp_tools(request: Request) -> JSONResponse:
         tools: list[dict] = []
         for srv in mcp_reg.list_servers():
             for tool_name in srv.get("tools", []):
-                tools.append({
-                    "server_id": srv["server_id"],
-                    "tool": tool_name,
-                    "capability_name": f"mcp.{srv['server_id']}.{tool_name}",
-                })
+                tools.append(
+                    {
+                        "server_id": srv["server_id"],
+                        "tool": tool_name,
+                        "capability_name": f"mcp.{srv['server_id']}.{tool_name}",
+                    }
+                )
         return JSONResponse({"tools": tools, "count": len(tools)})
     except Exception as exc:
         return JSONResponse({"error": str(exc), "tools": [], "count": 0}, status_code=500)
@@ -205,7 +217,9 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
     session_id = getattr(request.state, "session_id", "")
     try:
         import os as _os_mc
+
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_mc
+
         _env_mc = _os_mc.environ.get("HI_AGENT_ENV", "dev").lower()
         try:
             _readiness_mc = server._builder.readiness()
@@ -220,9 +234,12 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
             )
         registry = server._builder.build_capability_registry()
         invoker = server._builder.build_invoker()
-        executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode=_runtime_mode_mc)
+        executor = GovernedToolExecutor(
+            registry=registry, invoker=invoker, runtime_mode=_runtime_mode_mc
+        )
         result = executor.invoke(
-            name, arguments or {},
+            name,
+            arguments or {},
             principal=principal,
             session_id=session_id,
             source="http_mcp",
@@ -232,7 +249,9 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
         # Governance: never bypass to raw invoker — return a governed not-found error.
         logger.warning(
             "mcp_tools_call: capability_not_found tool=%r principal=%r session=%r",
-            name, principal, session_id,
+            name,
+            principal,
+            session_id,
         )
         return JSONResponse(
             {"isError": True, "error": "capability_not_found", "tool": name},

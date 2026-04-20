@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent_kernel.kernel.persistence.dispatch_outbox_reconciler import (
     ReconciliationResult,
     ScheduledOutboxReconciler,

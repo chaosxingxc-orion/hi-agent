@@ -5,17 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class FakeSession:
@@ -82,7 +81,10 @@ def test_knowledge_ingested_after_failed_run(tmp_path) -> None:
         findings=["Partial analysis completed before failure"],
     )
     executor = _make_executor(
-        tmp_path, knowledge_manager=km, session=session, force_fail=True,
+        tmp_path,
+        knowledge_manager=km,
+        session=session,
+        force_fail=True,
     )
     result = executor.execute()
 

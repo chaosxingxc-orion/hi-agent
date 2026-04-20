@@ -50,9 +50,7 @@ class ParallelDispatcher:
         done = as_completed(pending.values(), timeout=timeout)
         for future in done:
             # Reverse-lookup the node_id.
-            node_id = next(
-                nid for nid, f in pending.items() if f is future
-            )
+            node_id = next(nid for nid, f in pending.items() if f is future)
             try:
                 results.append((node_id, future.result(timeout=0)))
             except Exception as exc:
@@ -78,9 +76,7 @@ class ParallelDispatcher:
         results: dict[str, Any] = {}
         done_iter = as_completed(pending.values(), timeout=timeout)
         for future in done_iter:
-            node_id = next(
-                nid for nid, f in pending.items() if f is future
-            )
+            node_id = next(nid for nid, f in pending.items() if f is future)
             try:
                 results[node_id] = future.result(timeout=0)
             except Exception as exc:

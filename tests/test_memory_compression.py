@@ -6,7 +6,6 @@ import asyncio
 import json
 
 import pytest
-
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
 
@@ -47,6 +46,7 @@ def _make_records(n: int, stage_id: str = "S1") -> list[RawEventRecord]:
 # Test 1: direct build (< 25 evidence)
 # --------------------------------------------------------------------------- #
 
+
 @pytest.mark.asyncio
 async def test_direct_build_below_threshold() -> None:
     """When evidence < threshold, build summary directly without LLM."""
@@ -64,6 +64,7 @@ async def test_direct_build_below_threshold() -> None:
 # --------------------------------------------------------------------------- #
 # Test 2: LLM compression (mock LLM function)
 # --------------------------------------------------------------------------- #
+
 
 @pytest.mark.asyncio
 async def test_llm_compression_with_mock() -> None:
@@ -102,6 +103,7 @@ async def test_llm_compression_with_mock() -> None:
 # Test 3: timeout fallback (LLM that takes 20s)
 # --------------------------------------------------------------------------- #
 
+
 @pytest.mark.asyncio
 async def test_timeout_fallback() -> None:
     """When LLM exceeds timeout, fallback to truncation."""
@@ -130,6 +132,7 @@ async def test_timeout_fallback() -> None:
 # Test 4: LLM error fallback (LLM that raises)
 # --------------------------------------------------------------------------- #
 
+
 @pytest.mark.asyncio
 async def test_llm_error_fallback() -> None:
     """When LLM raises an exception, fallback to truncation."""
@@ -154,6 +157,7 @@ async def test_llm_error_fallback() -> None:
 # --------------------------------------------------------------------------- #
 # Test 5: contradiction detection in L0
 # --------------------------------------------------------------------------- #
+
 
 def test_contradiction_detection_in_l0() -> None:
     """Adding a contradicting record should auto-tag it."""
@@ -208,6 +212,7 @@ def test_no_contradiction_different_stage() -> None:
 # --------------------------------------------------------------------------- #
 # Test 6: compression metrics tracking
 # --------------------------------------------------------------------------- #
+
 
 @pytest.mark.asyncio
 async def test_compression_metrics_tracking() -> None:

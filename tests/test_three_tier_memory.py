@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
-
 from hi_agent.memory.long_term import (
     LongTermConsolidator,
     LongTermMemoryGraph,
@@ -21,7 +19,6 @@ from hi_agent.memory.mid_term import (
 )
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
 from hi_agent.memory.unified_retriever import MemoryContext, UnifiedMemoryRetriever
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -273,7 +270,7 @@ class TestDreamConsolidator:
         # The longer version should survive
         assert any("module X" in f for f in result)
         # No exact duplicates
-        assert len(result) == len(set(r.strip().lower() for r in result))
+        assert len(result) == len({r.strip().lower() for r in result})
 
     def test_extract_patterns(
         self, st_store: ShortTermMemoryStore, mt_store: MidTermMemoryStore
@@ -402,12 +399,12 @@ class TestLongTermMemoryGraph:
         lt_graph.add_edge(MemoryEdge(source_id="n3", target_id="n4", relation_type="r"))
 
         # depth=1 from n1 -> should get n1, n2
-        nodes, edges = lt_graph.get_subgraph("n1", depth=1)
+        nodes, _edges = lt_graph.get_subgraph("n1", depth=1)
         node_ids = {n.node_id for n in nodes}
         assert node_ids == {"n1", "n2"}
 
         # depth=2 from n1 -> should get n1, n2, n3
-        nodes, edges = lt_graph.get_subgraph("n1", depth=2)
+        nodes, _edges = lt_graph.get_subgraph("n1", depth=2)
         node_ids = {n.node_id for n in nodes}
         assert node_ids == {"n1", "n2", "n3"}
 
@@ -491,7 +488,7 @@ class TestLongTermConsolidator:
         assert merged == 1
         assert lt_graph.node_count() == 1
         # Keeper should have higher confidence
-        remaining = list(lt_graph._nodes.values())[0]
+        remaining = next(iter(lt_graph._nodes.values()))
         assert remaining.confidence == 0.9
 
 

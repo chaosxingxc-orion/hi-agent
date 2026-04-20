@@ -6,13 +6,13 @@ delegating runtime behavior to hi_agent's agent-kernel adapter.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import AsyncIterator
 from typing import Any
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
-from hi_agent.runtime_adapter.errors import IllegalStateTransitionError
-from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
+from hi_agent.runtime_adapter.errors import IllegalStateTransitionError, RuntimeAdapterBackendError
 from hi_agent.runtime_adapter.kernel_facade_adapter import create_local_adapter
 
 IllegalStateTransition = IllegalStateTransitionError
@@ -66,10 +66,8 @@ class MockKernel:
             raise AssertionError(f"{stage_id}: expected {expected}, got {actual}")
 
     def open_stage(self, run_id: str, stage_id: str) -> None:
-        try:
+        with contextlib.suppress(RuntimeAdapterBackendError):
             self._adapter.open_stage(run_id, stage_id)
-        except RuntimeAdapterBackendError:
-            pass
         if stage_id in self.stages:
             return
         self.stages[stage_id] = StageState.PENDING
@@ -83,10 +81,8 @@ class MockKernel:
             return
         if self.strict_mode and target not in _STAGE_TRANSITIONS[current]:
             raise IllegalStateTransitionError(f"{stage_id}: {current} -> {target} is illegal")
-        try:
+        with contextlib.suppress(RuntimeAdapterBackendError):
             self._adapter.mark_stage_state(run_id, stage_id, target)
-        except RuntimeAdapterBackendError:
-            pass
         self.stages[stage_id] = target
         self._record(
             "StageStateChanged",
@@ -116,7 +112,9 @@ class MockKernel:
         existing = self.task_view_decisions.get(task_view_id)
         if existing is not None and existing != decision_ref:
             raise ValueError(
-                f"Task view {task_view_id} already bound to {existing}, cannot rebind to {decision_ref}"
+                "Task view "
+                f"{task_view_id} already bound to {existing}, "
+                f"cannot rebind to {decision_ref}"
             )
         try:
             self._adapter.bind_task_view_to_decision(task_view_id, decision_ref)
@@ -124,9 +122,7 @@ class MockKernel:
             if "task_view_log" not in str(exc) and "run context" not in str(exc):
                 raise
         self.task_view_decisions[task_view_id] = decision_ref
-        self._record(
-            "TaskViewDecisionBound", task_view_id=task_view_id, decision_ref=decision_ref
-        )
+        self._record("TaskViewDecisionBound", task_view_id=task_view_id, decision_ref=decision_ref)
 
     def start_run(self, task_id: str) -> str:
         actual_run_id = self._adapter.start_run(task_id)
@@ -197,10 +193,8 @@ class MockKernel:
             yield event
 
     def open_branch(self, run_id: str, stage_id: str, branch_id: str) -> None:
-        try:
+        with contextlib.suppress(RuntimeAdapterBackendError):
             self._adapter.open_branch(self._actual_run_id(run_id), stage_id, branch_id)
-        except RuntimeAdapterBackendError:
-            pass
         self.branches[(run_id, stage_id, branch_id)] = {
             "state": "proposed",
             "failure_code": None,
@@ -221,12 +215,10 @@ class MockKernel:
             return
         if self.strict_mode and state not in _BRANCH_TRANSITIONS.get(current, set()):
             raise IllegalStateTransitionError(f"{branch_id}: {current} -> {state} is illegal")
-        try:
+        with contextlib.suppress(RuntimeAdapterBackendError):
             self._adapter.mark_branch_state(
                 self._actual_run_id(run_id), stage_id, branch_id, state, failure_code
             )
-        except RuntimeAdapterBackendError:
-            pass
         self.branches[key] = {
             "state": state,
             "failure_code": failure_code,
@@ -286,9 +278,7 @@ class MockKernel:
     def spawn_child_run(
         self, parent_run_id: str, task_id: str, config: dict[str, Any] | None = None
     ) -> str:
-        return self._adapter.spawn_child_run(
-            self._actual_run_id(parent_run_id), task_id, config
-        )
+        return self._adapter.spawn_child_run(self._actual_run_id(parent_run_id), task_id, config)
 
     def query_child_runs(self, parent_run_id: str) -> list[dict[str, Any]]:
         return self._adapter.query_child_runs(self._actual_run_id(parent_run_id))
@@ -301,6 +291,4 @@ class MockKernel:
         )
 
     async def query_child_runs_async(self, parent_run_id: str) -> list[dict[str, Any]]:
-        return await self._adapter.query_child_runs_async(
-            self._actual_run_id(parent_run_id)
-        )
+        return await self._adapter.query_child_runs_async(self._actual_run_id(parent_run_id))

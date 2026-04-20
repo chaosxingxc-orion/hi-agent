@@ -46,4 +46,3 @@ def secure_cmd_gate_resolve(
         rbac=rbac,
         approver_role=role_value.strip(),
     )
-

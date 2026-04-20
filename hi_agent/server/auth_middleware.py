@@ -27,7 +27,6 @@ import os
 from typing import Any, Literal
 
 import jwt as pyjwt
-
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -125,9 +124,7 @@ class AuthMiddleware:
                 "Set this variable in production to prevent forged tokens."
             )
         if self._enabled:
-            _logger.info(
-                "AuthMiddleware enabled (%d key(s) configured)", len(self._api_keys)
-            )
+            _logger.info("AuthMiddleware enabled (%d key(s) configured)", len(self._api_keys))
         else:
             _logger.warning(
                 "AuthMiddleware disabled: HI_AGENT_API_KEY not set. "
@@ -163,9 +160,7 @@ class AuthMiddleware:
         # Prod fail-closed: reject non-exempt requests when auth is unconfigured in prod.
         if not self._enabled:
             if self._runtime_mode == "prod-real":
-                await self._reject(
-                    scope, receive, send, "auth_not_configured", status=503
-                )
+                await self._reject(scope, receive, send, "auth_not_configured", status=503)
                 return
             # Auth disabled in dev/smoke mode: inject an anonymous TenantContext so
             # workspace-scoped handlers have a valid context to work with.
@@ -260,7 +255,9 @@ class AuthMiddleware:
             # Signature verification mode: PyJWT verifies signature AND decodes claims
             # When enforce_sig=true but jwt_secret is absent, _verify_jwt will fail,
             # causing the token to be rejected (fail-closed).
-            claims = _verify_jwt(token, self._jwt_secret, self._audience) if self._jwt_secret else None
+            claims = (
+                _verify_jwt(token, self._jwt_secret, self._audience) if self._jwt_secret else None
+            )
             if claims is None:
                 return None
             # PyJWT already validated exp and aud; only run additional claims checks

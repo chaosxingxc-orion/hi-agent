@@ -18,4 +18,3 @@ def deterministic_id(*parts: str) -> str:
     raw = "/".join(parts).encode("utf-8")
     digest = hashlib.sha256(raw).digest()[:16]
     return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
-

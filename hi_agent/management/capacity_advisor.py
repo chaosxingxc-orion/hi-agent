@@ -117,4 +117,3 @@ def _metric_total(metrics_snapshot: dict[str, Any], metric_name: str) -> float:
         return 0.0
     first_key = next(iter(metric))
     return float(metric.get(first_key, 0.0))
-

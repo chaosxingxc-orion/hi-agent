@@ -5,9 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-
-from hi_agent.capability.circuit_breaker import CircuitBreaker, CircuitState
-
+from hi_agent.capability.circuit_breaker import CircuitBreaker
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -214,5 +212,5 @@ class TestFilePersistence:
 
         cb2 = CircuitBreaker(failure_threshold=1, cooldown_seconds=9999.0, db_path=db_file)
         assert cb2.allow("alpha") is False  # still open
-        assert cb2.allow("beta") is True   # was reset, not in _states → default closed
+        assert cb2.allow("beta") is True  # was reset, not in _states → default closed
         cb2.close()

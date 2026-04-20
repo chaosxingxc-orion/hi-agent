@@ -2,13 +2,14 @@
 
 Responds to JSON-RPC initialize and tools/list over stdin/stdout.
 """
+
 from __future__ import annotations
 
 import contextlib
 import subprocess
 import sys
 import textwrap
-from typing import Iterator
+from collections.abc import Iterator
 
 # Minimal Python script that speaks JSON-RPC 2.0 over stdin/stdout.
 # Handles "initialize" and "tools/list" methods; exits on EOF.

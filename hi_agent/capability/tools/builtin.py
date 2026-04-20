@@ -1,4 +1,5 @@
 """Real builtin tool handlers — no LLM, no mocks, real I/O."""
+
 from __future__ import annotations
 
 import subprocess
@@ -27,7 +28,12 @@ def file_read_handler(payload: dict) -> dict:
         content = p.read_text(encoding=encoding)
         return {"success": True, "content": content, "size": len(content), "error": None}
     except PathPolicyViolation as exc:
-        return {"success": False, "content": "", "size": 0, "error": f"Path policy violation: {exc}"}
+        return {
+            "success": False,
+            "content": "",
+            "size": 0,
+            "error": f"Path policy violation: {exc}",
+        }
     except Exception as exc:
         return {"success": False, "content": "", "size": 0, "error": str(exc)}
 
@@ -75,7 +81,12 @@ def web_fetch_handler(payload: dict) -> dict:
     try:
         URLPolicy().validate(url)
     except URLPolicyViolation as e:
-        return {"success": False, "error": f"URL policy violation: {e}", "status_code": 0, "content": ""}
+        return {
+            "success": False,
+            "error": f"URL policy violation: {e}",
+            "status_code": 0,
+            "content": "",
+        }
     try:
         # Build a fresh opener each call so env-var proxy settings are current.
         opener = urllib.request.build_opener(urllib.request.ProxyHandler())
@@ -100,9 +111,15 @@ def shell_exec_handler(payload: dict) -> dict:
     """
     command = payload.get("command", "")
     timeout = float(payload.get("timeout", 30.0))
-    cwd = payload.get("cwd", None)
+    cwd = payload.get("cwd")
     if not command:
-        return {"success": False, "stdout": "", "stderr": "", "returncode": -1, "error": "command is required"}
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "",
+            "returncode": -1,
+            "error": "command is required",
+        }
     try:
         result = subprocess.run(
             command,

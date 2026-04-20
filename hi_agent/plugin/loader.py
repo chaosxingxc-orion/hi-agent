@@ -94,6 +94,7 @@ class PluginLoader:
             logger.warning("PluginLoader.activate: plugin %r is not loaded.", name)
             return False
         from hi_agent.plugin.lifecycle import PluginLifecycle
+
         lifecycle = PluginLifecycle(context=context)
         if lifecycle.on_load(manifest) and lifecycle.on_activate(manifest):
             manifest.status = "active"
@@ -115,15 +116,14 @@ class PluginLoader:
             Number of plugins successfully activated.
         """
         from hi_agent.plugin.lifecycle import PluginLifecycle
+
         lifecycle = PluginLifecycle(context=context)
         activated = 0
         for manifest in list(self._loaded.values()):
             if lifecycle.on_load(manifest) and lifecycle.on_activate(manifest):
                 manifest.status = "active"
                 activated += 1
-                logger.info(
-                    "PluginLoader.activate_all: plugin %r is now active.", manifest.name
-                )
+                logger.info("PluginLoader.activate_all: plugin %r is now active.", manifest.name)
         return activated
 
     def list_loaded(self) -> list[dict[str, Any]]:

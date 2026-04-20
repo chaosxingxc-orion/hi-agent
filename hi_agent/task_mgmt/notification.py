@@ -4,6 +4,7 @@ Inspired by:
 - claude-code task-notification XML protocol
 - Temporal signal/query mechanism
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -17,7 +18,7 @@ class TaskNotification:
     """Notification sent when a task changes state."""
 
     task_id: str
-    event: str           # started, completed, failed, yielded, resumed, progress
+    event: str  # started, completed, failed, yielded, resumed, progress
     payload: dict[str, Any] = field(default_factory=dict)
     timestamp: str = ""
     # For completion:
@@ -30,7 +31,7 @@ class TaskNotification:
 class TaskSignal:
     """Signal sent to a running/yielded task."""
 
-    signal_type: str     # resume, cancel, update_priority, inject_data
+    signal_type: str  # resume, cancel, update_priority, inject_data
     target_task_id: str
     payload: dict[str, Any] = field(default_factory=dict)
     source_task_id: str = ""
@@ -41,10 +42,10 @@ class TaskCommunicator:
 
     def __init__(self) -> None:
         """Initialize TaskCommunicator."""
-        self._subscribers: dict[str, list[Callable]] = {}       # event_type -> [callbacks]
+        self._subscribers: dict[str, list[Callable]] = {}  # event_type -> [callbacks]
         self._task_subscribers: dict[str, list[Callable]] = {}  # task_id -> [callbacks]
         self._message_log: list[TaskNotification | TaskSignal] = []
-        self._signal_queue: dict[str, list[TaskSignal]] = {}    # task_id -> pending signals
+        self._signal_queue: dict[str, list[TaskSignal]] = {}  # task_id -> pending signals
 
     def notify(self, notification: TaskNotification) -> None:
         """Broadcast a task notification.

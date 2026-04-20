@@ -28,10 +28,8 @@ import time
 from pathlib import Path
 
 import pytest
-
 from hi_agent.llm.http_gateway import HttpLLMGateway
 from hi_agent.llm.protocol import LLMRequest
-
 
 # ---------------------------------------------------------------------------
 # Load config from config/llm_config.json (providers.volces)
@@ -53,13 +51,14 @@ _ALL_MODELS: list[str] = _vcfg.get("all_models", [])
 pytestmark = pytest.mark.skipif(
     not os.environ.get(_API_KEY_ENV),
     reason=f"{_API_KEY_ENV} not set — skip live API tests. "
-           f"Run: pytest tests/integration/test_live_llm_api.py -m live_api -v",
+    f"Run: pytest tests/integration/test_live_llm_api.py -m live_api -v",
 )
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module", autouse=True)
 def _inject_api_key() -> None:
@@ -87,6 +86,7 @@ def gateway() -> HttpLLMGateway:
 # Helper
 # ---------------------------------------------------------------------------
 
+
 def _minimal_request(model: str, content: str = "Reply with the single word: ready") -> LLMRequest:
     """Build a short, cheap LLMRequest for smoke testing."""
     return LLMRequest(
@@ -99,7 +99,7 @@ def _minimal_request(model: str, content: str = "Reply with the single word: rea
 
 def _assert_valid_response(resp: object, model: str) -> None:
     """Assert that the response satisfies the LLMResponse contract."""
-    from hi_agent.llm.protocol import LLMResponse  # noqa: PLC0415
+    from hi_agent.llm.protocol import LLMResponse
 
     assert isinstance(resp, LLMResponse), f"Expected LLMResponse, got {type(resp)}"
     assert resp.content, f"[{model}] response.content is empty"
@@ -114,6 +114,7 @@ def _assert_valid_response(resp: object, model: str) -> None:
 # ---------------------------------------------------------------------------
 # TC-1: Smoke completion — one call per model
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.live_api
 @pytest.mark.parametrize("model", _ALL_MODELS)
@@ -136,6 +137,7 @@ def test_smoke_completion(gateway: HttpLLMGateway, model: str) -> None:
 # TC-2: Multi-turn conversation — context is preserved across turns
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.live_api
 @pytest.mark.parametrize("model", _ALL_MODELS)
 def test_multi_turn_conversation(gateway: HttpLLMGateway, model: str) -> None:
@@ -151,15 +153,21 @@ def test_multi_turn_conversation(gateway: HttpLLMGateway, model: str) -> None:
     ]
 
     # Turn 1
-    resp1 = gateway.complete(LLMRequest(messages=messages, model=model, temperature=0.0, max_tokens=32))
+    resp1 = gateway.complete(
+        LLMRequest(messages=messages, model=model, temperature=0.0, max_tokens=32)
+    )
     _assert_valid_response(resp1, model)
 
     # Append assistant reply and ask follow-up
     messages.append({"role": "assistant", "content": resp1.content})
-    messages.append({"role": "user", "content": "What was the secret number? Reply with the number only."})
+    messages.append(
+        {"role": "user", "content": "What was the secret number? Reply with the number only."}
+    )
 
     # Turn 2
-    resp2 = gateway.complete(LLMRequest(messages=messages, model=model, temperature=0.0, max_tokens=16))
+    resp2 = gateway.complete(
+        LLMRequest(messages=messages, model=model, temperature=0.0, max_tokens=16)
+    )
     _assert_valid_response(resp2, model)
 
     assert secret in resp2.content, (
@@ -171,6 +179,7 @@ def test_multi_turn_conversation(gateway: HttpLLMGateway, model: str) -> None:
 # TC-3: Code generation — code-oriented models produce syntactically useful output
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.live_api
 @pytest.mark.parametrize("model", _ALL_MODELS)
 def test_code_generation(gateway: HttpLLMGateway, model: str) -> None:
@@ -180,11 +189,13 @@ def test_code_generation(gateway: HttpLLMGateway, model: str) -> None:
     This is intentionally lenient — formatting varies across models.
     """
     request = LLMRequest(
-        messages=[{
-            "role": "user",
-            "content": "Write a Python function that returns the sum of a list of numbers. "
-                       "Output only the function definition, no explanation.",
-        }],
+        messages=[
+            {
+                "role": "user",
+                "content": "Write a Python function that returns the sum of a list of numbers. "
+                "Output only the function definition, no explanation.",
+            }
+        ],
         model=model,
         temperature=0.0,
         max_tokens=256,
@@ -201,6 +212,7 @@ def test_code_generation(gateway: HttpLLMGateway, model: str) -> None:
 # TC-4: Sequential calls — gateway state does not leak between requests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.live_api
 def test_sequential_calls_no_state_leak(gateway: HttpLLMGateway) -> None:
     """Two sequential calls with different models must not share state.
@@ -210,19 +222,23 @@ def test_sequential_calls_no_state_leak(gateway: HttpLLMGateway) -> None:
     """
     model = "doubao-seed-2.0-lite"
 
-    r1 = gateway.complete(LLMRequest(
-        messages=[{"role": "user", "content": "The colour is red. Acknowledge with 'ok'."}],
-        model=model,
-        temperature=0.0,
-        max_tokens=16,
-    ))
+    r1 = gateway.complete(
+        LLMRequest(
+            messages=[{"role": "user", "content": "The colour is red. Acknowledge with 'ok'."}],
+            model=model,
+            temperature=0.0,
+            max_tokens=16,
+        )
+    )
 
-    r2 = gateway.complete(LLMRequest(
-        messages=[{"role": "user", "content": "What colour did I mention? Reply with 'none'."}],
-        model=model,
-        temperature=0.0,
-        max_tokens=16,
-    ))
+    r2 = gateway.complete(
+        LLMRequest(
+            messages=[{"role": "user", "content": "What colour did I mention? Reply with 'none'."}],
+            model=model,
+            temperature=0.0,
+            max_tokens=16,
+        )
+    )
 
     _assert_valid_response(r1, model)
     _assert_valid_response(r2, model)
@@ -238,6 +254,7 @@ def test_sequential_calls_no_state_leak(gateway: HttpLLMGateway) -> None:
 # ---------------------------------------------------------------------------
 # TC-5: Latency guard — each model responds within 30 seconds
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.live_api
 @pytest.mark.parametrize("model", _ALL_MODELS)

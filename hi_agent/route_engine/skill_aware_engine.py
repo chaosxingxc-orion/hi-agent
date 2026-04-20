@@ -74,7 +74,10 @@ class SkillAwareRouteEngine:
     # ------------------------------------------------------------------
 
     def _skill_proposals(
-        self, stage_id: str, run_id: str, seq: int,
+        self,
+        stage_id: str,
+        run_id: str,
+        seq: int,
     ) -> list[BranchProposal]:
         """Build proposals from matched certified skills."""
         matched = self._skill_matcher.match(
@@ -85,15 +88,16 @@ class SkillAwareRouteEngine:
         proposals: list[BranchProposal] = []
         for skill in matched:
             branch_id = deterministic_id(
-                run_id, stage_id, str(seq), "skill", skill.skill_id,
+                run_id,
+                stage_id,
+                str(seq),
+                "skill",
+                skill.skill_id,
             )
             proposals.append(
                 BranchProposal(
                     branch_id=branch_id,
-                    rationale=(
-                        f"skill:{skill.skill_id}"
-                        f"(evidence={skill.evidence_count})"
-                    ),
+                    rationale=(f"skill:{skill.skill_id}(evidence={skill.evidence_count})"),
                     action_kind=skill.name,
                 )
             )

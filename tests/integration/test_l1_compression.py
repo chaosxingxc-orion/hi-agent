@@ -12,10 +12,11 @@ from __future__ import annotations
 import asyncio
 import json
 
-from hi_agent.contracts import StageState, TaskContract
+from hi_agent.contracts import TaskContract
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -27,7 +28,7 @@ def _make_evidence_records(
 ) -> list[RawEventRecord]:
     """Generate synthetic evidence records for a stage."""
     records: list[RawEventRecord] = []
-    for i in range(count):
+    for _i in range(count):
         records.append(
             RawEventRecord(
                 event_type="StageStateChanged",
@@ -188,13 +189,15 @@ class TestFallbackPath:
         """A successful LLM response should use 'llm' compression method."""
 
         async def good_llm(prompt: str) -> str:
-            return json.dumps({
-                "findings": ["llm-finding-1"],
-                "decisions": ["llm-decision-1"],
-                "outcome": "succeeded",
-                "contradiction_refs": [],
-                "key_entities": ["entity-1"],
-            })
+            return json.dumps(
+                {
+                    "findings": ["llm-finding-1"],
+                    "decisions": ["llm-decision-1"],
+                    "outcome": "succeeded",
+                    "contradiction_refs": [],
+                    "key_entities": ["entity-1"],
+                }
+            )
 
         records = _make_evidence_records("S3_build", 30)
         compressor = MemoryCompressor(
@@ -312,13 +315,10 @@ class TestCompressionWithRunnerFlow:
         all_records = executor.raw_memory.list_all()
         assert len(all_records) > 0
         stage_ids_in_memory = {
-            r.payload.get("stage_id") for r in all_records
-            if "stage_id" in r.payload
+            r.payload.get("stage_id") for r in all_records if "stage_id" in r.payload
         }
         for stage_id in STAGES:
-            assert stage_id in stage_ids_in_memory, (
-                f"No raw memory records for {stage_id}"
-            )
+            assert stage_id in stage_ids_in_memory, f"No raw memory records for {stage_id}"
 
     def test_compressor_metrics_updated_after_run(self) -> None:
         """Compressor metrics should reflect the compression calls made."""

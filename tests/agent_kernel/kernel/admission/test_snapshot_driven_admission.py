@@ -13,7 +13,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent_kernel.kernel.admission.snapshot_driven_admission import SnapshotDrivenAdmissionService
 from agent_kernel.kernel.admission.tenant_policy import (
     PolicyResolutionError,

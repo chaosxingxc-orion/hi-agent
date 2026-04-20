@@ -174,8 +174,7 @@ class HybridRouteEngine:
         try:
             selected = outcome.proposals[0].branch_id if outcome.proposals else ""
             candidates = [
-                {"branch_id": p.branch_id, "rationale": p.rationale}
-                for p in outcome.proposals
+                {"branch_id": p.branch_id, "rationale": p.rationale} for p in outcome.proposals
             ]
             persist_route_decision_audit(
                 self._audit_store,
@@ -190,7 +189,9 @@ class HybridRouteEngine:
         except Exception as _exc:
             _logger.debug(
                 "HybridRouteEngine: audit persist failed (run_id=%s stage_id=%s): %s",
-                run_id, stage_id, _exc,
+                run_id,
+                stage_id,
+                _exc,
             )
 
     def apply_evolve_changes(self, changes: list) -> None:
@@ -215,7 +216,11 @@ class HybridRouteEngine:
                 _logger.info(
                     "route_engine.apply_evolve_changes type=%s target=%s "
                     "confidence=%.2f threshold %.2f -> %.2f",
-                    change_type, target_id, confidence, old, self._confidence_threshold,
+                    change_type,
+                    target_id,
+                    confidence,
+                    old,
+                    self._confidence_threshold,
                 )
             elif change_type == "efficiency_heuristic" and confidence >= 0.7:
                 # Efficiency signal — raise threshold to prefer deterministic rules.
@@ -224,7 +229,11 @@ class HybridRouteEngine:
                 _logger.info(
                     "route_engine.apply_evolve_changes type=%s target=%s "
                     "confidence=%.2f threshold %.2f -> %.2f",
-                    change_type, target_id, confidence, old, self._confidence_threshold,
+                    change_type,
+                    target_id,
+                    confidence,
+                    old,
+                    self._confidence_threshold,
                 )
             elif change_type == "route_config_updated" and confidence >= 0.6:
                 # Structured config update: target_id encodes "key:value"
@@ -234,7 +243,9 @@ class HybridRouteEngine:
                 _logger.info(
                     "route_engine.apply_evolve_changes skipped type=%s target=%s "
                     "confidence=%.2f (below threshold or unrecognised type)",
-                    change_type, target_id, confidence,
+                    change_type,
+                    target_id,
+                    confidence,
                 )
 
     def _apply_route_config_update(self, target_id: str, confidence: float) -> None:
@@ -243,9 +254,7 @@ class HybridRouteEngine:
         Format: ``"key:value"`` e.g. ``"confidence_threshold:0.75"``.
         """
         if ":" not in target_id:
-            _logger.debug(
-                "route_engine.route_config_update invalid target_id=%s", target_id
-            )
+            _logger.debug("route_engine.route_config_update invalid target_id=%s", target_id)
             return
         key, _, raw_value = target_id.partition(":")
         key = key.strip()
@@ -259,17 +268,19 @@ class HybridRouteEngine:
                 _logger.info(
                     "route_engine.route_config_updated key=%s confidence=%.2f "
                     "threshold %.2f -> %.2f",
-                    key, confidence, old, new_val,
+                    key,
+                    confidence,
+                    old,
+                    new_val,
                 )
             except ValueError:
                 _logger.debug(
                     "route_engine.route_config_update bad value key=%s value=%s",
-                    key, raw_value,
+                    key,
+                    raw_value,
                 )
         else:
-            _logger.debug(
-                "route_engine.route_config_update unknown key=%s", key
-            )
+            _logger.debug("route_engine.route_config_update unknown key=%s", key)
 
     def _filter_unavailable(self, proposals: list[BranchProposal]) -> list[BranchProposal]:
         """W4-003: Remove proposals whose action_kind maps to an unavailable capability."""
@@ -292,4 +303,3 @@ class HybridRouteEngine:
         if proposals[0].action_kind == "unknown":
             return 0.0
         return 1.0
-

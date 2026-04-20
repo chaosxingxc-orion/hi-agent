@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.llm import (
     HttpLLMGateway,
     LLMBudgetExhaustedError,
@@ -18,8 +18,8 @@ from hi_agent.llm import (
     ModelRouter,
     TokenUsage,
 )
-from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
+from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
 # ---------------------------------------------------------------------------
 # Error hierarchy
@@ -191,7 +191,7 @@ class TestBudgetTracker:
 class TestHttpGateway:
     """HttpLLMGateway builds correct requests and parses responses."""
 
-    _FAKE_RAW: dict = {
+    _FAKE_RAW: ClassVar[dict] = {
         "id": "chatcmpl-abc",
         "model": "gpt-4o",
         "choices": [
@@ -272,9 +272,10 @@ class TestHttpGateway:
         import urllib.error
 
         url_err = urllib.error.URLError(reason="timed out")
-        with patch("hi_agent.llm.http_gateway.urllib.request.urlopen", side_effect=url_err):
-            with pytest.raises(LLMTimeoutError):
-                gw.complete(req)
+        with patch(
+            "hi_agent.llm.http_gateway.urllib.request.urlopen", side_effect=url_err
+        ), pytest.raises(LLMTimeoutError):
+            gw.complete(req)
 
     def test_supports_model_always_true(self) -> None:
         gw = HttpLLMGateway()
@@ -290,7 +291,9 @@ class TestHttpGateway:
 async def test_http_gateway_uses_async_client():
     """Verify that HTTPGateway.call() is a coroutine (non-blocking)."""
     import inspect
+
     from hi_agent.llm.http_gateway import HTTPGateway
+
     gw = HTTPGateway(base_url="http://localhost:9999", api_key="test")
     assert inspect.iscoroutinefunction(gw.call)
     await gw.aclose()
@@ -303,10 +306,13 @@ async def test_http_gateway_connection_pool_reused(respx_mock):
     from hi_agent.llm.http_gateway import HTTPGateway
 
     respx_mock.post("http://test-llm/v1/chat/completions").mock(
-        return_value=httpx.Response(200, json={
-            "choices": [{"message": {"content": "hello"}}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        })
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "hello"}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+        )
     )
 
     gw = HTTPGateway(base_url="http://test-llm", api_key="key")

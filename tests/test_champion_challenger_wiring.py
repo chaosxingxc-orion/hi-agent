@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from hi_agent.evolve.champion_challenger import ChampionChallenger, ComparisonResult
+from hi_agent.evolve.champion_challenger import ChampionChallenger
 from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.skill.version import SkillVersionManager
@@ -88,8 +86,7 @@ class TestEvolveEngineChampionWiring:
         result = engine.on_run_completed(pm)
 
         promo_changes = [
-            c for c in result.changes
-            if c.change_type == "champion_challenger_promotion"
+            c for c in result.changes if c.change_type == "champion_challenger_promotion"
         ]
         assert len(promo_changes) == 1
 

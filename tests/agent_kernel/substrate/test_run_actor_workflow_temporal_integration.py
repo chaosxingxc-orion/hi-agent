@@ -7,7 +7,6 @@ import inspect
 from datetime import timedelta
 
 import pytest
-
 from agent_kernel.kernel.contracts import SignalRunRequest, StartRunRequest
 from agent_kernel.kernel.minimal_runtime import (
     AsyncExecutorService,

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-
 from agent_kernel.kernel.capability_snapshot import (
     CapabilitySnapshot,
     CapabilitySnapshotBuildError,

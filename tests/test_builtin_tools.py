@@ -3,9 +3,8 @@
 P3 constraint: all tests use real I/O, real subprocess, real network.
 No mocks allowed — test must reflect actual capability.
 """
-import sys
 
-import pytest
+import sys
 
 from hi_agent.capability.registry import CapabilityRegistry
 from hi_agent.capability.tools.builtin import (
@@ -43,17 +42,23 @@ class TestFileRead:
 
 class TestFileWrite:
     def test_writes_file(self, tmp_path):
-        result = file_write_handler({"path": "out.txt", "base_dir": str(tmp_path), "content": "data"})
+        result = file_write_handler(
+            {"path": "out.txt", "base_dir": str(tmp_path), "content": "data"}
+        )
         assert result["success"] is True
         assert (tmp_path / "out.txt").read_text() == "data"
 
     def test_creates_parent_dirs(self, tmp_path):
-        result = file_write_handler({"path": "a/b/c.txt", "base_dir": str(tmp_path), "content": "x"})
+        result = file_write_handler(
+            {"path": "a/b/c.txt", "base_dir": str(tmp_path), "content": "x"}
+        )
         assert result["success"] is True
         assert (tmp_path / "a" / "b" / "c.txt").exists()
 
     def test_path_traversal_blocked(self, tmp_path):
-        result = file_write_handler({"path": "../escape.txt", "base_dir": str(tmp_path), "content": "x"})
+        result = file_write_handler(
+            {"path": "../escape.txt", "base_dir": str(tmp_path), "content": "x"}
+        )
         assert result["success"] is False
         assert "policy" in result["error"].lower()
 
@@ -71,7 +76,7 @@ class TestShellExec:
         assert result["returncode"] != 0
 
     def test_timeout(self):
-        cmd = f"{sys.executable} -c \"import time; time.sleep(100)\""
+        cmd = f'{sys.executable} -c "import time; time.sleep(100)"'
         result = shell_exec_handler({"command": cmd, "timeout": 1.0})
         assert result["success"] is False
         assert "timed out" in result["error"]

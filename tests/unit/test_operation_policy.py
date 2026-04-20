@@ -1,7 +1,7 @@
 """Unit tests for operation_policy RBAC/SOC decorator (HI-W1-D5-001)."""
 
 import pytest
-from hi_agent.auth.operation_policy import OPERATION_POLICIES, RoutePolicy, require_operation
+from hi_agent.auth.operation_policy import OPERATION_POLICIES, require_operation
 
 
 def test_policy_table_exhaustive():
@@ -31,8 +31,9 @@ def test_dev_bypass_enabled_by_default():
 def test_require_operation_raises_403_missing_role_in_prod():
     """Decorator produces 403 for wrong role in prod-real."""
     import asyncio
-    from fastapi import HTTPException
     from unittest.mock import MagicMock
+
+    from fastapi import HTTPException
 
     @require_operation("skill.promote")
     async def handler(request):
@@ -68,8 +69,9 @@ def test_require_operation_allows_dev_bypass():
 def test_require_operation_raises_403_soc_violation_in_prod():
     """Decorator produces 403 when submitter == approver for SOC-required operations."""
     import asyncio
-    from fastapi import HTTPException
     from unittest.mock import MagicMock
+
+    from fastapi import HTTPException
 
     @require_operation("skill.promote")
     async def handler(request):

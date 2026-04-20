@@ -1,6 +1,8 @@
 """Tests: MemoryBuilder workspace_key parameter threads WorkspaceKey into store paths."""
-import pytest
+
 from pathlib import Path
+
+import pytest
 from hi_agent.config.memory_builder import MemoryBuilder
 from hi_agent.server.workspace_path import WorkspaceKey
 
@@ -8,6 +10,7 @@ from hi_agent.server.workspace_path import WorkspaceKey
 @pytest.fixture
 def builder(tmp_path):
     from hi_agent.config.trace_config import TraceConfig
+
     cfg = TraceConfig(episodic_storage_dir=str(tmp_path / "episodes"))
     return MemoryBuilder(cfg)
 
@@ -42,7 +45,7 @@ def test_no_workspace_key_uses_profile_fallback(builder):
     store = builder.build_mid_term_store(profile_id="p1", workspace_key=None)
     path = str(store._storage_dir)
     assert "profiles" in path or "p1" in path  # profile-scoped path was taken
-    assert "workspaces" not in path             # workspace branch was NOT taken
+    assert "workspaces" not in path  # workspace branch was NOT taken
 
 
 def test_no_workspace_key_no_profile_uses_default_path(builder):

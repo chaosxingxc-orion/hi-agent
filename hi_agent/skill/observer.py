@@ -14,6 +14,7 @@ import threading
 import uuid
 from dataclasses import asdict, dataclass, field
 
+
 @dataclass
 class SkillObservation:
     """A single skill execution observation."""
@@ -41,9 +42,9 @@ class SkillObservation:
     def __post_init__(self) -> None:
         """Truncate summaries to max length."""
         if len(self.input_summary) > self.max_summary_len:
-            self.input_summary = self.input_summary[:self.max_summary_len]
+            self.input_summary = self.input_summary[: self.max_summary_len]
         if len(self.output_summary) > self.max_summary_len:
-            self.output_summary = self.output_summary[:self.max_summary_len]
+            self.output_summary = self.output_summary[: self.max_summary_len]
 
 
 @dataclass
@@ -88,9 +89,7 @@ class SkillObserver:
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(asdict(obs), default=str) + "\n")
 
-    def get_observations(
-        self, skill_id: str, limit: int = 100
-    ) -> list[SkillObservation]:
+    def get_observations(self, skill_id: str, limit: int = 100) -> list[SkillObservation]:
         """Load observations for a skill from disk."""
         path = os.path.join(self._storage_dir, f"{skill_id}.jsonl")
         if not os.path.exists(path):
@@ -127,9 +126,7 @@ class SkillObserver:
         return result
 
 
-def _aggregate_metrics(
-    skill_id: str, observations: list[SkillObservation]
-) -> SkillMetrics:
+def _aggregate_metrics(skill_id: str, observations: list[SkillObservation]) -> SkillMetrics:
     """Compute aggregated metrics from a list of observations."""
     metrics = SkillMetrics(skill_id=skill_id)
     if not observations:
@@ -139,30 +136,20 @@ def _aggregate_metrics(
     metrics.success_count = sum(1 for o in observations if o.success)
     metrics.failure_count = metrics.total_executions - metrics.success_count
     metrics.success_rate = (
-        metrics.success_count / metrics.total_executions
-        if metrics.total_executions > 0
-        else 0.0
+        metrics.success_count / metrics.total_executions if metrics.total_executions > 0 else 0.0
     )
 
     # Average quality (only from observations that have a score)
-    quality_scores = [
-        o.quality_score for o in observations if o.quality_score is not None
-    ]
-    metrics.avg_quality = (
-        sum(quality_scores) / len(quality_scores) if quality_scores else 0.0
-    )
+    quality_scores = [o.quality_score for o in observations if o.quality_score is not None]
+    metrics.avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.0
 
     # Average tokens
     token_values = [o.tokens_used for o in observations]
-    metrics.avg_tokens = (
-        sum(token_values) / len(token_values) if token_values else 0.0
-    )
+    metrics.avg_tokens = sum(token_values) / len(token_values) if token_values else 0.0
 
     # Average latency
     latency_values = [o.latency_ms for o in observations]
-    metrics.avg_latency_ms = (
-        sum(latency_values) / len(latency_values) if latency_values else 0.0
-    )
+    metrics.avg_latency_ms = sum(latency_values) / len(latency_values) if latency_values else 0.0
 
     # Top failure codes
     failure_codes: dict[str, int] = {}
@@ -180,16 +167,12 @@ def _aggregate_metrics(
     for ver, ver_obs in version_buckets.items():
         ver_success = sum(1 for o in ver_obs if o.success)
         ver_total = len(ver_obs)
-        ver_quality = [
-            o.quality_score for o in ver_obs if o.quality_score is not None
-        ]
+        ver_quality = [o.quality_score for o in ver_obs if o.quality_score is not None]
         metrics.version_stats[ver] = {
             "total": ver_total,
             "success_count": ver_success,
             "success_rate": ver_success / ver_total if ver_total > 0 else 0.0,
-            "avg_quality": (
-                sum(ver_quality) / len(ver_quality) if ver_quality else 0.0
-            ),
+            "avg_quality": (sum(ver_quality) / len(ver_quality) if ver_quality else 0.0),
         }
 
     return metrics

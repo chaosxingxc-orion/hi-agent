@@ -1,4 +1,5 @@
 """Pytest fixtures for fake external servers (W11-002)."""
+
 from __future__ import annotations
 
 import pytest

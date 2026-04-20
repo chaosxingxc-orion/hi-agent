@@ -1,8 +1,9 @@
 """Unit tests for ReadinessProbe — extracted from SystemBuilder.readiness()."""
+
 import pytest
 from hi_agent.config.builder import SystemBuilder
-from hi_agent.config.trace_config import TraceConfig
 from hi_agent.config.readiness import ReadinessProbe
+from hi_agent.config.trace_config import TraceConfig
 
 
 @pytest.fixture(scope="module")

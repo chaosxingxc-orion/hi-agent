@@ -2,6 +2,7 @@
 
 Returns deterministic heuristic responses so tests run without real API keys.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -9,18 +10,18 @@ import json
 import socketserver
 import threading
 import uuid
+from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Iterator
 
 
 class _FakeLLMHandler(BaseHTTPRequestHandler):
     """Handle POST /v1/chat/completions with a deterministic heuristic response."""
 
-    def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+    def log_message(self, format: str, *args: object) -> None:
         # Suppress default stdout logging to keep test output clean.
         pass
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         if self.path == "/v1/chat/completions":
             content_length = int(self.headers.get("Content-Length", 0))
             if content_length > 0:

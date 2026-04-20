@@ -1,10 +1,10 @@
 """Tests for release gate prod-real hard gate (HI-W12-002)."""
+
 import datetime
 import json
-import pytest
 from pathlib import Path
 
-from hi_agent.ops.release_gate import check_prod_e2e_recent, ProdE2EResult
+from hi_agent.ops.release_gate import ProdE2EResult, check_prod_e2e_recent
 
 
 def _write_episode(directory: Path, filename: str, runtime_mode: str, age_hours: float) -> None:

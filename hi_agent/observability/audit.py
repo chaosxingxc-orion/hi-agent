@@ -16,33 +16,33 @@ import json
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
-
 
 # ---------------------------------------------------------------------------
 # P1-2d: structured audit dataclass + store
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ToolCallAuditEvent:
     """Structured audit record for a single tool invocation decision."""
 
-    event_id: str          # uuid4 hex
+    event_id: str  # uuid4 hex
     session_id: str
-    run_id: str            # empty string if not in a run
+    run_id: str  # empty string if not in a run
     principal: str
     tool_name: str
-    risk_class: str        # from CapabilityDescriptor, or "unknown"
-    source: str            # "runner" | "http_tools" | "http_mcp" | "cli"
-    argument_digest: str   # sha256[:16] of redacted args JSON
+    risk_class: str  # from CapabilityDescriptor, or "unknown"
+    source: str  # "runner" | "http_tools" | "http_mcp" | "cli"
+    argument_digest: str  # sha256[:16] of redacted args JSON
     decision: Literal["allow", "deny", "approval_required"]
     denial_reason: str | None
     approval_id: str | None
     result_status: Literal["ok", "error", "timeout"] | None
     duration_ms: float | None
-    timestamp: str         # ISO8601
+    timestamp: str  # ISO8601
 
 
 class AuditStore:
@@ -69,7 +69,7 @@ class AuditStore:
         approval_id: str | None = None,
     ) -> None:
         """Create a ToolCallAuditEvent and persist it."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         event = ToolCallAuditEvent(
             event_id=uuid.uuid4().hex,
             session_id=session_id,
@@ -129,6 +129,7 @@ def emit(event_name: str, payload: dict) -> None:
 # ---------------------------------------------------------------------------
 # W10-005: typed helpers for M4 audit trail
 # ---------------------------------------------------------------------------
+
 
 def emit_capability_invoke(
     capability_name: str,

@@ -11,11 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from typing import get_type_hints
-from unittest.mock import AsyncMock, MagicMock
-
-import pytest
-
+from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
 # Shared helpers — mirror _bare_executor from round-6 tests
@@ -325,6 +321,7 @@ class TestExecuteRemainingAnnotation:
             assert "RunResult" in ann, f"Expected 'RunResult' in annotation, got: {ann!r}"
         else:
             from hi_agent.contracts.requests import RunResult
+
             assert ann is RunResult, f"Expected RunResult class, got: {ann!r}"
 
 

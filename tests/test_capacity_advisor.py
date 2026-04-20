@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from hi_agent.management.capacity_advisor import (
-    recommendations_to_payload,
     recommend_server_capacity_tuning,
+    recommendations_to_payload,
 )
 
 
@@ -60,4 +60,3 @@ def test_recommendations_to_payload_shape() -> None:
     assert isinstance(rows, list)
     assert rows
     assert {"code", "severity", "summary", "action"}.issubset(rows[0].keys())
-

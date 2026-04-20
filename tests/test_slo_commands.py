@@ -43,4 +43,3 @@ def test_cmd_slo_burn_rate_computes_and_validates_inputs() -> None:
         cmd_slo_burn_rate(1.1, 4)
     with pytest.raises(ValueError, match="window_hours must be > 0"):
         cmd_slo_burn_rate(0.8, 0)
-

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import uuid
 from collections.abc import Callable
 from typing import Any
@@ -20,11 +19,8 @@ from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine
-from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
-from hi_agent.llm.http_gateway import HttpLLMGateway
 from hi_agent.llm.protocol import LLMGateway
-from hi_agent.llm.registry import ModelRegistry
-from hi_agent.llm.tier_router import TierAwareLLMGateway, TierRouter
+from hi_agent.llm.tier_router import TierAwareLLMGateway
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
@@ -33,10 +29,6 @@ from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.kernel_facade_adapter import (
-    create_local_adapter,
-)
-from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.skill.matcher import SkillMatcher
@@ -78,6 +70,7 @@ class SystemBuilder:
                 build_artifact_registry() returns it directly without creating a new one.
         """
         import threading as _threading
+
         self._config = config if config is not None else TraceConfig()
         self._stack = config_stack
         # Protects lazy singleton cache against concurrent build_executor() calls.
@@ -210,12 +203,15 @@ class SystemBuilder:
         from hi_agent.capability.circuit_breaker import CircuitBreaker
         from hi_agent.capability.invoker import CapabilityInvoker
 
-        registry = self.build_capability_registry()  # shared singleton — NOT a fresh CapabilityRegistry()
+        registry = (
+            self.build_capability_registry()
+        )  # shared singleton — NOT a fresh CapabilityRegistry()
         if registry is None:
             # Registry construction failed — create a minimal empty registry so
             # the invoker is never constructed with None, preventing AttributeError
             # downstream. The invoker will be usable but have no capabilities.
             from hi_agent.capability.registry import CapabilityRegistry
+
             registry = CapabilityRegistry()
             logger.warning("build_invoker: registry is None, using empty fallback registry.")
         breaker = CircuitBreaker()
@@ -241,6 +237,7 @@ class SystemBuilder:
                     )
                     from hi_agent.capability.registry import CapabilityRegistry
                     from hi_agent.capability.tools import register_builtin_tools
+
                     registry = CapabilityRegistry()
                     gateway = self.build_llm_gateway()
                     try:
@@ -252,9 +249,11 @@ class SystemBuilder:
                             exc,
                         )
                     import os as _os_rbt
+
                     from hi_agent.server.runtime_mode_resolver import (
                         resolve_runtime_mode as _rrm_rbt,
                     )
+
                     _env_rbt = _os_rbt.environ.get("HI_AGENT_ENV", "dev").lower()
                     try:
                         _readiness_rbt = self.readiness()
@@ -277,6 +276,7 @@ class SystemBuilder:
         if not hasattr(self, "_artifact_registry") or self._artifact_registry is None:
             try:
                 from hi_agent.artifacts.registry import ArtifactRegistry
+
                 self._artifact_registry = ArtifactRegistry()
                 logger.info("build_artifact_registry: ArtifactRegistry created.")
             except Exception as exc:
@@ -290,6 +290,7 @@ class SystemBuilder:
             if self._mcp_registry is None:
                 try:
                     from hi_agent.mcp.registry import MCPRegistry
+
                     self._mcp_registry = MCPRegistry()
                     logger.info("build_mcp_registry: MCPRegistry created.")
                 except Exception as exc:
@@ -310,15 +311,15 @@ class SystemBuilder:
             registry = self.build_mcp_registry()
             if registry is None:
                 return None
-            stdio_servers = [
-                s for s in registry.list_servers()
-                if s.get("transport") == "stdio"
-            ]
+            stdio_servers = [s for s in registry.list_servers() if s.get("transport") == "stdio"]
             if not stdio_servers:
-                logger.debug("build_mcp_transport: no stdio MCP servers registered; transport not created.")
+                logger.debug(
+                    "build_mcp_transport: no stdio MCP servers registered; transport not created."
+                )
                 return None
             try:
                 from hi_agent.mcp.transport import MultiStdioTransport
+
                 self._mcp_transport = MultiStdioTransport(mcp_registry=registry)
                 logger.info(
                     "build_mcp_transport: MultiStdioTransport created for %d stdio server(s).",
@@ -365,30 +366,37 @@ class SystemBuilder:
     def _get_skill_builder(self):
         if self._skill_builder is None:
             from hi_agent.config.skill_builder import SkillBuilder
+
             self._skill_builder = SkillBuilder(self._config)
         return self._skill_builder
 
     def _get_memory_builder(self):
         if self._memory_builder is None:
             from hi_agent.config.memory_builder import MemoryBuilder
+
             self._memory_builder = MemoryBuilder(self._config)
         return self._memory_builder
 
     def _get_server_builder(self):
         if self._server_builder is None:
             from hi_agent.config.server_builder import ServerBuilder
+
             self._server_builder = ServerBuilder(self._config)
         return self._server_builder
 
     def _get_knowledge_builder(self):
         if not hasattr(self, "_knowledge_builder_inst") or self._knowledge_builder_inst is None:
             from hi_agent.config.knowledge_builder import KnowledgeBuilder
-            self._knowledge_builder_inst = KnowledgeBuilder(self._config, long_term_graph_factory=self.build_long_term_graph)
+
+            self._knowledge_builder_inst = KnowledgeBuilder(
+                self._config, long_term_graph_factory=self.build_long_term_graph
+            )
         return self._knowledge_builder_inst
 
     def _get_capability_plane_builder(self):
         if self._capability_plane_builder is None:
             from hi_agent.config.capability_plane_builder import CapabilityPlaneBuilder
+
             self._capability_plane_builder = CapabilityPlaneBuilder(
                 self._config,
                 llm_gateway=self.build_llm_gateway(),
@@ -399,6 +407,7 @@ class SystemBuilder:
         """Return shared CognitionBuilder singleton (LLM gateway, evolve engine)."""
         if self._cognition_builder is None:
             from hi_agent.config.cognition_builder import CognitionBuilder
+
             self._cognition_builder = CognitionBuilder(
                 self._config,
                 self._singleton_lock,
@@ -410,6 +419,7 @@ class SystemBuilder:
         """Return shared RuntimeBuilder singleton (kernel, metrics, middleware, executor)."""
         if self._runtime_builder is None:
             from hi_agent.config.runtime_builder import RuntimeBuilder
+
             self._runtime_builder = RuntimeBuilder(
                 self._config,
                 self._singleton_lock,
@@ -437,6 +447,7 @@ class SystemBuilder:
         """
         if self._plugin_loader is None:
             from hi_agent.plugin.loader import PluginLoader
+
             self._plugin_loader = PluginLoader()
             self._plugin_loader.load_all()
             activated = self._plugin_loader.activate_all()
@@ -461,6 +472,7 @@ class SystemBuilder:
             # Wire skill_dirs into the SkillLoader search paths.
             if manifest.skill_dirs and self._skill_loader is not None:
                 import os
+
                 for skill_dir in manifest.skill_dirs:
                     resolved = os.path.join(plugin_dir, skill_dir) if plugin_dir else skill_dir
                     search_dirs = getattr(self._skill_loader, "_search_dirs", [])
@@ -470,12 +482,14 @@ class SystemBuilder:
                             self._skill_loader.load_dir(resolved, source=f"plugin:{manifest.name}")
                             logger.info(
                                 "_wire_plugin_contributions: loaded skills from %r (plugin %r).",
-                                resolved, manifest.name,
+                                resolved,
+                                manifest.name,
                             )
                         except Exception as exc:
                             logger.warning(
                                 "_wire_plugin_contributions: could not load skill_dir %r: %s",
-                                resolved, exc,
+                                resolved,
+                                exc,
                             )
 
             # Register mcp_servers into MCPRegistry.
@@ -493,12 +507,14 @@ class SystemBuilder:
                         )
                         logger.info(
                             "_wire_plugin_contributions: registered MCP server %r from plugin %r.",
-                            srv_name, manifest.name,
+                            srv_name,
+                            manifest.name,
                         )
                     except Exception as exc:
                         logger.warning(
                             "_wire_plugin_contributions: failed to register MCP server %r: %s",
-                            srv_name, exc,
+                            srv_name,
+                            exc,
                         )
 
             # Log declared capabilities (actual handler registration requires entry_point).
@@ -506,15 +522,15 @@ class SystemBuilder:
                 logger.info(
                     "_wire_plugin_contributions: plugin %r declares capabilities %s; "
                     "set entry_point to auto-register handlers.",
-                    manifest.name, manifest.capabilities,
+                    manifest.name,
+                    manifest.capabilities,
                 )
 
         # After all plugin MCP servers are registered, (re-)build the transport
         # and close the provider circuit by calling MCPBinding.bind_all().
         if self._mcp_registry is not None:
             stdio_count = sum(
-                1 for s in self._mcp_registry.list_servers()
-                if s.get("transport") == "stdio"
+                1 for s in self._mcp_registry.list_servers() if s.get("transport") == "stdio"
             )
             if stdio_count > 0 and self._mcp_transport is None:
                 self.build_mcp_transport()
@@ -525,6 +541,7 @@ class SystemBuilder:
             if self._mcp_transport is not None:
                 try:
                     from hi_agent.mcp.health import MCPHealth
+
                     _hc = MCPHealth(self._mcp_registry, transport=self._mcp_transport)
                     _hc.check_all()
                     logger.debug("_wire_plugin_contributions: MCP health probe completed.")
@@ -538,6 +555,7 @@ class SystemBuilder:
             if self._mcp_transport is not None:
                 try:
                     from hi_agent.mcp.binding import MCPBinding
+
                     cap_registry = self.build_capability_registry()
                     mcp_reg = self.build_mcp_registry()
                     _binding = MCPBinding(
@@ -644,7 +662,9 @@ class SystemBuilder:
         return self._get_knowledge_builder().build_user_knowledge_store()
 
     def build_knowledge_manager(self, profile_id: str = "", long_term_graph: Any = None) -> Any:
-        return self._get_knowledge_builder().build_knowledge_manager(profile_id=profile_id, long_term_graph=long_term_graph)
+        return self._get_knowledge_builder().build_knowledge_manager(
+            profile_id=profile_id, long_term_graph=long_term_graph
+        )
 
     # ------------------------------------------------------------------
     # Composite builders
@@ -673,6 +693,7 @@ class SystemBuilder:
         if not hasattr(self, "_profile_registry") or self._profile_registry is None:
             try:
                 from hi_agent.profiles.registry import ProfileRegistry
+
                 self._profile_registry = ProfileRegistry()
                 logger.info("build_profile_registry: ProfileRegistry created.")
             except Exception as exc:
@@ -715,6 +736,7 @@ class SystemBuilder:
             return None
         try:
             from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
+
             registry = self.build_profile_registry()
             if registry is None:
                 return None
@@ -795,15 +817,11 @@ class SystemBuilder:
             from hi_agent.task_mgmt.delegation import DelegationConfig, DelegationManager
 
             config = DelegationConfig(
-                max_concurrent=getattr(
-                    self._config, "delegation_max_concurrent", 3
-                ),
+                max_concurrent=getattr(self._config, "delegation_max_concurrent", 3),
                 poll_interval_seconds=getattr(
                     self._config, "delegation_poll_interval_seconds", 2.0
                 ),
-                summary_max_chars=getattr(
-                    self._config, "delegation_summary_max_chars", 2000
-                ),
+                summary_max_chars=getattr(self._config, "delegation_summary_max_chars", 2000),
             )
             kernel = self.build_kernel()
 
@@ -834,9 +852,7 @@ class SystemBuilder:
                             base_url=base_url,
                             api_key=_os.environ[env_var],
                             default_model=default_model,
-                            timeout=float(
-                                getattr(self._config, "llm_timeout_seconds", 120)
-                            ),
+                            timeout=float(getattr(self._config, "llm_timeout_seconds", 120)),
                         )
                         # Wrap with TierAwareLLMGateway so async callers
                         # go through tier routing (TierAwareLLMGateway now
@@ -871,9 +887,7 @@ class SystemBuilder:
             )
             return manager
         except Exception as exc:
-            logger.warning(
-                "_build_delegation_manager: failed to create DelegationManager: %s", exc
-            )
+            logger.warning("_build_delegation_manager: failed to create DelegationManager: %s", exc)
             return None
 
     def _resolve_with_patch(self, patch: dict) -> TraceConfig:
@@ -890,6 +904,7 @@ class SystemBuilder:
         from dataclasses import fields as dc_fields
 
         from hi_agent.config.profile import deep_merge
+
         base = asdict(self._config)
         merged = deep_merge(base, patch)
         known = {f.name for f in dc_fields(TraceConfig)}
@@ -931,6 +946,7 @@ class SystemBuilder:
             export_dir = getattr(self._config, "trace_export_dir", "")
             if export_dir:
                 from hi_agent.observability.tracing import JsonFileTraceExporter, Tracer
+
                 _tracer = Tracer(exporters=[JsonFileTraceExporter(export_dir)])
         except Exception as exc:
             logger.warning("_build_executor_impl: Tracer build failed: %s", exc)
@@ -954,7 +970,9 @@ class SystemBuilder:
                     list(stage_actions.keys()),
                 )
 
-        if resolved_profile is not None and (resolved_profile.has_custom_graph or resolved_profile.has_custom_actions):
+        if resolved_profile is not None and (
+            resolved_profile.has_custom_graph or resolved_profile.has_custom_actions
+        ):
             logger.info(
                 "runtime mode=profile-runtime profile_id=%s has_custom_graph=%s has_custom_actions=%s",
                 resolved_profile.profile_id,
@@ -962,7 +980,9 @@ class SystemBuilder:
                 resolved_profile.has_custom_actions,
             )
         else:
-            logger.info("runtime mode=trace-sample-fallback (no resolved profile or profile has no custom topology)")
+            logger.info(
+                "runtime mode=trace-sample-fallback (no resolved profile or profile has no custom topology)"
+            )
 
         # Validate required capabilities are available before building executor.
         if resolved_profile is not None and resolved_profile.required_capabilities:
@@ -977,17 +997,23 @@ class SystemBuilder:
                 workspace_key = None  # fall back to profile-scoped paths
         if workspace_key is not None:
             from pathlib import Path as _Path
+
             from hi_agent.server.workspace_path import WorkspacePathHelper
-            _raw_base = str(WorkspacePathHelper.private(
-                _Path(self._config.episodic_storage_dir).parent,
-                workspace_key,
-                "L0",
-            ))
-            _session_storage_dir = str(WorkspacePathHelper.private(
-                _Path(self._config.episodic_storage_dir).parent,
-                workspace_key,
-                "checkpoints",
-            ))
+
+            _raw_base = str(
+                WorkspacePathHelper.private(
+                    _Path(self._config.episodic_storage_dir).parent,
+                    workspace_key,
+                    "L0",
+                )
+            )
+            _session_storage_dir = str(
+                WorkspacePathHelper.private(
+                    _Path(self._config.episodic_storage_dir).parent,
+                    workspace_key,
+                    "checkpoints",
+                )
+            )
         else:
             _raw_base = self._config.episodic_storage_dir
             _session_storage_dir = None
@@ -1007,6 +1033,7 @@ class SystemBuilder:
         )
         try:
             from hi_agent.memory.long_term import LongTermConsolidator
+
             _long_term_consolidator = LongTermConsolidator(
                 mid_term_store=_mid_term_store,
                 graph=_long_term_graph,
@@ -1168,9 +1195,7 @@ class SystemBuilder:
             contract, resolved_profile=resolved_profile, workspace_key=workspace_key
         )
 
-    def build_executor_from_checkpoint(
-        self, checkpoint_path: str
-    ) -> Callable[[], str]:
+    def build_executor_from_checkpoint(self, checkpoint_path: str) -> Callable[[], str]:
         """Build a callable that resumes execution from a checkpoint.
 
         Args:
@@ -1181,6 +1206,7 @@ class SystemBuilder:
             completion and returns the outcome string.
         """
         import json as _json
+
         with open(checkpoint_path, encoding="utf-8") as _f:
             _cp_data = _json.load(_f)
         _profile_id = _cp_data.get("task_contract", {}).get("profile_id", "") or ""
@@ -1241,5 +1267,6 @@ class SystemBuilder:
 
         Delegates to ReadinessProbe — see hi_agent/config/readiness.py.
         """
-        from hi_agent.config.readiness import ReadinessProbe  # noqa: PLC0415
+        from hi_agent.config.readiness import ReadinessProbe
+
         return ReadinessProbe(self).snapshot()

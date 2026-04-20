@@ -63,14 +63,9 @@ from hi_agent.config.watcher import ConfigFileWatcher
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
-from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.idempotency import IdempotencyStore
-from hi_agent.server.run_manager import RunManager
-from hi_agent.server.run_store import SQLiteRunStore
-from hi_agent.server.session_store import SessionStore
-from hi_agent.server.team_event_store import TeamEventStore
-from hi_agent.server.routes_team import handle_list_team_events
 from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
+from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.routes_events import handle_run_events_sse
 from hi_agent.server.routes_runs import (
     handle_create_run,
@@ -88,6 +83,7 @@ from hi_agent.server.routes_sessions import (
     handle_list_sessions,
     handle_patch_session,
 )
+from hi_agent.server.routes_team import handle_list_team_events
 from hi_agent.server.routes_tools_mcp import (
     handle_mcp_tools,
     handle_mcp_tools_call,
@@ -95,6 +91,10 @@ from hi_agent.server.routes_tools_mcp import (
     handle_tools_call,
     handle_tools_list,
 )
+from hi_agent.server.run_manager import RunManager
+from hi_agent.server.run_store import SQLiteRunStore
+from hi_agent.server.session_store import SessionStore
+from hi_agent.server.team_event_store import TeamEventStore
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +200,9 @@ async def handle_health(request: Request) -> JSONResponse:
 
     # --- kernel adapter (ResilientKernelAdapter health: error rate, circuit state) ---
     try:
-        kernel = getattr(getattr(server, "_builder", None), "_kernel", None)  # cached adapter; None if not yet built
+        kernel = getattr(
+            getattr(server, "_builder", None), "_kernel", None
+        )  # cached adapter; None if not yet built
         if kernel is not None and hasattr(kernel, "get_health"):
             kh = kernel.get_health()
             ka_status = kh.get("status", "ok")
@@ -210,18 +212,22 @@ async def handle_health(request: Request) -> JSONResponse:
                 "status": ka_status,
                 "error_rate": kh.get("error_rate", 0.0),
                 "total_calls": kh.get("total_calls", 0),
-                "buffer_size": kernel.get_buffer_size() if hasattr(kernel, "get_buffer_size") else 0,
+                "buffer_size": kernel.get_buffer_size()
+                if hasattr(kernel, "get_buffer_size")
+                else 0,
             }
         else:
             subsystems["kernel_adapter"] = {"status": "not_built"}
     except Exception:
         subsystems["kernel_adapter"] = {"status": "error"}
 
-    return JSONResponse({
-        "status": overall,
-        "subsystems": subsystems,
-        "timestamp": datetime.now(UTC).isoformat(),
-    })
+    return JSONResponse(
+        {
+            "status": overall,
+            "subsystems": subsystems,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+    )
 
 
 async def handle_ready(request: Request) -> JSONResponse:
@@ -235,6 +241,7 @@ async def handle_ready(request: Request) -> JSONResponse:
     reconstructed default snapshot.
     """
     import os as _os_rdy
+
     from hi_agent.server.auth_middleware import AuthMiddleware as _AM_rdy
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_rdy
 
@@ -244,6 +251,7 @@ async def handle_ready(request: Request) -> JSONResponse:
         if builder is None:
             # Fallback: server not fully initialized yet
             from hi_agent.config.builder import SystemBuilder
+
             builder = SystemBuilder(config=getattr(server, "_config", None))
         snapshot = builder.readiness()
     except Exception as exc:
@@ -293,16 +301,26 @@ async def handle_manifest(request: Request) -> JSONResponse:
                             {
                                 "name": name,
                                 "status": status,
-                                "toolset_id": getattr(desc, "toolset_id", "default") if desc else "default",
-                                "required_env": list(getattr(desc, "required_env", {}).keys()) if desc else [],
-                                "effect_class": getattr(desc, "effect_class", "unknown_effect") if desc else "unknown_effect",
-                                "output_budget_tokens": getattr(desc, "output_budget_tokens", 0) if desc else 0,
+                                "toolset_id": getattr(desc, "toolset_id", "default")
+                                if desc
+                                else "default",
+                                "required_env": list(getattr(desc, "required_env", {}).keys())
+                                if desc
+                                else [],
+                                "effect_class": getattr(desc, "effect_class", "unknown_effect")
+                                if desc
+                                else "unknown_effect",
+                                "output_budget_tokens": getattr(desc, "output_budget_tokens", 0)
+                                if desc
+                                else 0,
                                 "availability_reason": reason,
                             }
                             for name, desc, status, reason in registry.list_with_views()
                         ]
                     except Exception as _views_exc:
-                        logger.warning("manifest: capability_views enumeration failed: %s", _views_exc)
+                        logger.warning(
+                            "manifest: capability_views enumeration failed: %s", _views_exc
+                        )
     except Exception as _cap_exc:
         logger.warning("manifest: capability enumeration failed: %s", _cap_exc)
 
@@ -334,12 +352,14 @@ async def handle_manifest(request: Request) -> JSONResponse:
             reg = builder.build_profile_registry()
             if reg is not None and hasattr(reg, "list_profiles"):
                 for p in reg.list_profiles():
-                    profiles.append({
-                        "profile_id": p.profile_id,
-                        "display_name": p.display_name,
-                        "stage_count": len(p.stage_actions),
-                        "has_evaluator": p.evaluator_factory is not None,
-                    })
+                    profiles.append(
+                        {
+                            "profile_id": p.profile_id,
+                            "display_name": p.display_name,
+                            "stage_count": len(p.stage_actions),
+                            "has_evaluator": p.evaluator_factory is not None,
+                        }
+                    )
     except Exception as _prof_exc:
         logger.warning("manifest: profile enumeration failed: %s", _prof_exc)
 
@@ -355,17 +375,19 @@ async def handle_manifest(request: Request) -> JSONResponse:
                     unavailable = set(getattr(binding, "_unavailable", []))
                     tools = srv.get("tools", [])
                     server_id = srv["server_id"]
-                    mcp_servers.append({
-                        "server_id": server_id,
-                        "status": srv.get("status", "unknown"),
-                        "tools": [
-                            {
-                                "name": t,
-                                "available": f"mcp.{server_id}.{t}" not in unavailable,
-                            }
-                            for t in tools
-                        ],
-                    })
+                    mcp_servers.append(
+                        {
+                            "server_id": server_id,
+                            "status": srv.get("status", "unknown"),
+                            "tools": [
+                                {
+                                    "name": t,
+                                    "available": f"mcp.{server_id}.{t}" not in unavailable,
+                                }
+                                for t in tools
+                            ],
+                        }
+                    )
     except Exception as _mcp_exc:
         logger.warning("manifest: MCP server enumeration failed: %s", _mcp_exc)
 
@@ -388,7 +410,10 @@ async def handle_manifest(request: Request) -> JSONResponse:
                 registry = getattr(tier_router, "_registry", None)
                 if registry is not None and hasattr(registry, "list_models"):
                     models = [
-                        {"name": m if isinstance(m, str) else getattr(m, "name", str(m)), "status": "configured"}
+                        {
+                            "name": m if isinstance(m, str) else getattr(m, "name", str(m)),
+                            "status": "configured",
+                        }
                         for m in registry.list_models()
                     ]
     except Exception as _model_exc:
@@ -403,6 +428,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
             plugin_loader = getattr(builder, "_plugin_loader", None)
             if plugin_loader is None:
                 from hi_agent.plugin.loader import PluginLoader
+
                 plugin_loader = PluginLoader()
                 plugin_loader.load_all()  # trigger discovery before listing
                 builder._plugin_loader = plugin_loader
@@ -418,7 +444,9 @@ async def handle_manifest(request: Request) -> JSONResponse:
         if builder is not None:
             cfg = getattr(builder, "_config", None)
             if cfg is not None:
-                active_profile = getattr(cfg, "active_profile", None) or getattr(cfg, "profile", None)
+                active_profile = getattr(cfg, "active_profile", None) or getattr(
+                    cfg, "profile", None
+                )
     except Exception as _active_prof_exc:
         logger.warning("manifest: active profile lookup failed: %s", _active_prof_exc)
 
@@ -434,9 +462,11 @@ async def handle_manifest(request: Request) -> JSONResponse:
     provenance_contract_version: str = "unknown"
     try:
         import os as _os_ep
+
         from hi_agent.config.evolve_policy import resolve_evolve_effective as _rep
-        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
         from hi_agent.contracts.execution_provenance import CONTRACT_VERSION as _cv
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
+
         provenance_contract_version = _cv
         _builder = getattr(server, "_builder", None)
         _ev_mode = "auto"
@@ -449,10 +479,8 @@ async def handle_manifest(request: Request) -> JSONResponse:
         # llm_mode/kernel_mode keys that resolve_runtime_mode expects.
         _readiness_snap: dict = {}
         if _builder is not None:
-            try:
+            with contextlib.suppress(Exception):
                 _readiness_snap = _builder.readiness()
-            except Exception:
-                pass
         runtime_mode = _rrm(manifest_env, _readiness_snap)
         manifest_llm_mode = _readiness_snap.get("llm_mode", "unknown")
         manifest_kernel_mode = _readiness_snap.get("kernel_mode", "local-fsm")
@@ -462,145 +490,148 @@ async def handle_manifest(request: Request) -> JSONResponse:
     except Exception as _ep_exc:
         logger.warning("manifest: runtime_mode/evolve_policy lookup failed: %s", _ep_exc)
 
-    return JSONResponse({
-        "name": "hi-agent",
-        "version": "0.1.0",
-        "framework": "TRACE",
-        "stages": stages,
-        "capabilities": capabilities,
-        "capability_views": capability_views,
-        "capability_contract_version": "2026-04-17",
-        "profiles": profiles,
-        "skills": skills,
-        "models": models,
-        "mcp_servers": mcp_servers,
-        "plugins": plugins,
-        "evolve_policy": evolve_policy,
-        "endpoints": [
-            # Core
-            "GET /health",
-            "GET /ready",
-            "GET /manifest",
-            # Runs
-            "POST /runs",
-            "GET /runs",
-            "GET /runs/active",
-            "GET /runs/{run_id}",
-            "GET /runs/{run_id}/artifacts",
-            "POST /runs/{run_id}/signal",
-            "POST /runs/{run_id}/resume",
-            "GET /runs/{run_id}/events",
-            # Metrics
-            "GET /metrics",
-            "GET /metrics/json",
-            # Cost
-            "GET /cost",
-            # Memory
-            "POST /memory/dream",
-            "POST /memory/consolidate",
-            "GET /memory/status",
-            # Knowledge
-            "POST /knowledge/ingest",
-            "POST /knowledge/ingest-structured",
-            "GET /knowledge/query",
-            "GET /knowledge/status",
-            "POST /knowledge/lint",
-            "POST /knowledge/sync",
-            # Skills
-            "GET /skills/list",
-            "GET /skills/status",
-            "POST /skills/evolve",
-            "GET /skills/{skill_id}/metrics",
-            "GET /skills/{skill_id}/versions",
-            "POST /skills/{skill_id}/optimize",
-            "POST /skills/{skill_id}/promote",
-            # Context
-            "GET /context/health",
-            # MCP
-            "GET /mcp/status",
-            "GET /mcp/tools",
-            "POST /mcp/tools/list",
-            "POST /mcp/tools/call",
-            # Plugins
-            "GET /plugins/list",
-            "GET /plugins/status",
-            # Replay
-            "POST /replay/{run_id}",
-            "GET /replay/{run_id}/status",
-            # Management
-            "GET /management/capacity",
-            # Tools
-            "GET /tools",
-            "POST /tools/call",
-            # Artifacts
-            "GET /artifacts",
-            "GET /artifacts/{artifact_id}",
-        ],
-        "active_profile": active_profile,
-        "runtime_mode": runtime_mode,
-        "environment": manifest_env,
-        "llm_mode": manifest_llm_mode,
-        "kernel_mode": manifest_kernel_mode,
-        "execution_mode": manifest_execution_mode,
-        "provenance_contract_version": provenance_contract_version,
-        # Contract field consumption levels — integrators must read this to understand
-        # which TaskContract fields the default TRACE pipeline actually acts on.
-        # ACTIVE: drives execution behavior or outcome
-        # PASSTHROUGH: stored/returned but not consumed by default pipeline
-        # QUEUE_ONLY: affects scheduling before execution, not stage behavior
-        "contract_field_status": {
-            "goal": "ACTIVE",
-            "task_family": "ACTIVE",
-            "risk_level": "ACTIVE",
-            "constraints": "ACTIVE",
-            "acceptance_criteria": "ACTIVE",
-            "budget": "ACTIVE",
-            "deadline": "ACTIVE",
-            "profile_id": "ACTIVE",
-            "decomposition_strategy": "ACTIVE",
-            "priority": "QUEUE_ONLY",
-            "environment_scope": "PASSTHROUGH",
-            "input_refs": "PASSTHROUGH",
-            "parent_task_id": "PASSTHROUGH",
-        },
-        # Explicit platform E2E contract — integrators must read this to understand
-        # what "working" means and under what conditions.
-        "e2e_contract": {
-            "dev_smoke_path": {
-                "status": "available",
-                "description": (
-                    "Default service mode runs in dev/fallback mode. "
-                    "POST /runs → GET /runs/{id} → GET /runs/{id}/artifacts is functional. "
-                    "This is a smoke path using heuristic fallback — not production E2E."
-                ),
+    return JSONResponse(
+        {
+            "name": "hi-agent",
+            "version": "0.1.0",
+            "framework": "TRACE",
+            "stages": stages,
+            "capabilities": capabilities,
+            "capability_views": capability_views,
+            "capability_contract_version": "2026-04-17",
+            "profiles": profiles,
+            "skills": skills,
+            "models": models,
+            "mcp_servers": mcp_servers,
+            "plugins": plugins,
+            "evolve_policy": evolve_policy,
+            "endpoints": [
+                # Core
+                "GET /health",
+                "GET /ready",
+                "GET /manifest",
+                # Runs
+                "POST /runs",
+                "GET /runs",
+                "GET /runs/active",
+                "GET /runs/{run_id}",
+                "GET /runs/{run_id}/artifacts",
+                "POST /runs/{run_id}/signal",
+                "POST /runs/{run_id}/resume",
+                "GET /runs/{run_id}/events",
+                # Metrics
+                "GET /metrics",
+                "GET /metrics/json",
+                # Cost
+                "GET /cost",
+                # Memory
+                "POST /memory/dream",
+                "POST /memory/consolidate",
+                "GET /memory/status",
+                # Knowledge
+                "POST /knowledge/ingest",
+                "POST /knowledge/ingest-structured",
+                "GET /knowledge/query",
+                "GET /knowledge/status",
+                "POST /knowledge/lint",
+                "POST /knowledge/sync",
+                # Skills
+                "GET /skills/list",
+                "GET /skills/status",
+                "POST /skills/evolve",
+                "GET /skills/{skill_id}/metrics",
+                "GET /skills/{skill_id}/versions",
+                "POST /skills/{skill_id}/optimize",
+                "POST /skills/{skill_id}/promote",
+                # Context
+                "GET /context/health",
+                # MCP
+                "GET /mcp/status",
+                "GET /mcp/tools",
+                "POST /mcp/tools/list",
+                "POST /mcp/tools/call",
+                # Plugins
+                "GET /plugins/list",
+                "GET /plugins/status",
+                # Replay
+                "POST /replay/{run_id}",
+                "GET /replay/{run_id}/status",
+                # Management
+                "GET /management/capacity",
+                # Tools
+                "GET /tools",
+                "POST /tools/call",
+                # Artifacts
+                "GET /artifacts",
+                "GET /artifacts/{artifact_id}",
+            ],
+            "active_profile": active_profile,
+            "runtime_mode": runtime_mode,
+            "environment": manifest_env,
+            "llm_mode": manifest_llm_mode,
+            "kernel_mode": manifest_kernel_mode,
+            "execution_mode": manifest_execution_mode,
+            "provenance_contract_version": provenance_contract_version,
+            # Contract field consumption levels — integrators must read this to understand
+            # which TaskContract fields the default TRACE pipeline actually acts on.
+            # ACTIVE: drives execution behavior or outcome
+            # PASSTHROUGH: stored/returned but not consumed by default pipeline
+            # QUEUE_ONLY: affects scheduling before execution, not stage behavior
+            "contract_field_status": {
+                "goal": "ACTIVE",
+                "task_family": "ACTIVE",
+                "risk_level": "ACTIVE",
+                "constraints": "ACTIVE",
+                "acceptance_criteria": "ACTIVE",
+                "budget": "ACTIVE",
+                "deadline": "ACTIVE",
+                "profile_id": "ACTIVE",
+                "decomposition_strategy": "ACTIVE",
+                "priority": "QUEUE_ONLY",
+                "environment_scope": "PASSTHROUGH",
+                "input_refs": "PASSTHROUGH",
+                "parent_task_id": "PASSTHROUGH",
             },
-            "production_e2e": {
-                "status": "requires_prerequisites",
-                "prerequisites": [
-                    "OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable",
-                    "kernel_base_url set to a real agent-kernel HTTP endpoint",
-                    "HI_AGENT_ENV=prod",
-                ],
-                "description": (
-                    "Formal production E2E is not available in default (dev) mode. "
-                    "Set HI_AGENT_ENV=prod and provide real credentials + kernel endpoint."
-                ),
+            # Explicit platform E2E contract — integrators must read this to understand
+            # what "working" means and under what conditions.
+            "e2e_contract": {
+                "dev_smoke_path": {
+                    "status": "available",
+                    "description": (
+                        "Default service mode runs in dev/fallback mode. "
+                        "POST /runs → GET /runs/{id} → GET /runs/{id}/artifacts is functional. "
+                        "This is a smoke path using heuristic fallback — not production E2E."
+                    ),
+                },
+                "production_e2e": {
+                    "status": "requires_prerequisites",
+                    "prerequisites": [
+                        "OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable",
+                        "kernel_base_url set to a real agent-kernel HTTP endpoint",
+                        "HI_AGENT_ENV=prod",
+                    ],
+                    "description": (
+                        "Formal production E2E is not available in default (dev) mode. "
+                        "Set HI_AGENT_ENV=prod and provide real credentials + kernel endpoint."
+                    ),
+                },
+                "mcp_provider": {
+                    "status": "infrastructure_only",
+                    "description": (
+                        "External MCP server transport (stdio/SSE/HTTP) is not yet implemented. "
+                        "Platform tools are accessible as MCP-compatible endpoints, but "
+                        "external server registration and invocation forwarding are deferred."
+                    ),
+                },
             },
-            "mcp_provider": {
-                "status": "infrastructure_only",
-                "description": (
-                    "External MCP server transport (stdio/SSE/HTTP) is not yet implemented. "
-                    "Platform tools are accessible as MCP-compatible endpoints, but "
-                    "external server registration and invocation forwarding are deferred."
-                ),
-            },
-        },
-    })
+        }
+    )
 
 
 # ------------------------------------------------------------------
 # Metrics endpoints
 # ------------------------------------------------------------------
+
 
 async def handle_metrics_prometheus(request: Request) -> Response:
     """Return metrics in Prometheus exposition format."""
@@ -639,13 +670,15 @@ async def handle_cost(request: Request) -> JSONResponse:
     server: AgentServer = request.app.state.agent_server
     collector = getattr(server, "metrics_collector", None)
     if collector is None:
-        return JSONResponse({
-            "total_usd": 0.0,
-            "per_model_breakdown": {},
-            "per_tier_breakdown": {},
-            "run_count": 0,
-            "avg_cost_per_run": 0.0,
-        })
+        return JSONResponse(
+            {
+                "total_usd": 0.0,
+                "per_model_breakdown": {},
+                "per_tier_breakdown": {},
+                "run_count": 0,
+                "avg_cost_per_run": 0.0,
+            }
+        )
     snap = collector.snapshot()
 
     # Extract total cost from the counter.
@@ -676,18 +709,21 @@ async def handle_cost(request: Request) -> JSONResponse:
                     tier_name = part.split("=", 1)[1].strip('"')
                     per_tier[tier_name] = per_tier.get(tier_name, 0.0) + value
 
-    return JSONResponse({
-        "total_usd": total_usd,
-        "per_model_breakdown": per_model,
-        "per_tier_breakdown": per_tier,
-        "run_count": run_count,
-        "avg_cost_per_run": avg_cost,
-    })
+    return JSONResponse(
+        {
+            "total_usd": total_usd,
+            "per_model_breakdown": per_model,
+            "per_tier_breakdown": per_tier,
+            "run_count": run_count,
+            "avg_cost_per_run": avg_cost,
+        }
+    )
 
 
 # ------------------------------------------------------------------
 # Memory lifecycle handlers
 # ------------------------------------------------------------------
+
 
 async def handle_memory_dream(request: Request) -> JSONResponse:
     """Trigger dream consolidation (short-term -> mid-term)."""
@@ -702,6 +738,7 @@ async def handle_memory_dream(request: Request) -> JSONResponse:
         # K-9: Build a per-request scoped manager for profile deployments.
         try:
             from hi_agent.config.builder import SystemBuilder
+
             _builder = SystemBuilder()
             manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
         except Exception as _build_exc:
@@ -732,6 +769,7 @@ async def handle_memory_consolidate(request: Request) -> JSONResponse:
         # K-9: Build a per-request scoped manager for profile deployments.
         try:
             from hi_agent.config.builder import SystemBuilder
+
             _builder = SystemBuilder()
             manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
         except Exception as _build_exc:
@@ -761,6 +799,7 @@ async def handle_memory_status(request: Request) -> JSONResponse:
         # K-9: Build a per-request scoped manager for profile deployments.
         try:
             from hi_agent.config.builder import SystemBuilder
+
             _builder = SystemBuilder()
             manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
         except Exception as _build_exc:
@@ -781,13 +820,15 @@ async def handle_memory_status(request: Request) -> JSONResponse:
 # Knowledge handlers
 # ------------------------------------------------------------------
 
+
 async def handle_knowledge_ingest(request: Request) -> JSONResponse:
     """Ingest text knowledge as a wiki page."""
     server: AgentServer = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     try:
         body = await request.json()
@@ -797,7 +838,8 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
     content = body.get("content", "")
     if not title or not content:
         return JSONResponse(
-            {"error": "missing_title_or_content"}, status_code=400,
+            {"error": "missing_title_or_content"},
+            status_code=400,
         )
     tags = body.get("tags", [])
     page_id = km.ingest_text(title, content, tags)
@@ -810,7 +852,8 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     try:
         body = await request.json()
@@ -819,7 +862,8 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
     facts = body.get("facts", [])
     count = km.ingest_structured(facts)
     return JSONResponse(
-        {"nodes_created": count, "status": "created"}, status_code=201,
+        {"nodes_created": count, "status": "created"},
+        status_code=201,
     )
 
 
@@ -829,22 +873,26 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     q = request.query_params.get("q", "")
     limit = int(request.query_params.get("limit", "10"))
     budget = int(request.query_params.get("budget", "1500"))
     if not q:
         return JSONResponse(
-            {"error": "missing_query_param_q"}, status_code=400,
+            {"error": "missing_query_param_q"},
+            status_code=400,
         )
     context = km.query_for_context(q, budget_tokens=budget)
     result = km.query(q, limit=limit)
-    return JSONResponse({
-        "query": q,
-        "total_results": result.total_results,
-        "context": context,
-    })
+    return JSONResponse(
+        {
+            "query": q,
+            "total_results": result.total_results,
+            "context": context,
+        }
+    )
 
 
 async def handle_knowledge_status(request: Request) -> JSONResponse:
@@ -853,7 +901,8 @@ async def handle_knowledge_status(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     stats = km.get_stats()
     return JSONResponse(stats)
@@ -865,7 +914,8 @@ async def handle_knowledge_lint(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     issues = km.lint()
     return JSONResponse({"issues": issues, "count": len(issues)})
@@ -877,19 +927,23 @@ async def handle_knowledge_sync(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     pages_synced = km.renderer.to_wiki_pages(km.wiki)
     km.wiki.rebuild_index()
-    return JSONResponse({
-        "pages_synced": pages_synced,
-        "status": "completed",
-    })
+    return JSONResponse(
+        {
+            "pages_synced": pages_synced,
+            "status": "completed",
+        }
+    )
 
 
 # ------------------------------------------------------------------
 # Skill handlers
 # ------------------------------------------------------------------
+
 
 async def handle_skills_list(request: Request) -> JSONResponse:
     """List all discovered skills with eligibility status."""
@@ -897,7 +951,8 @@ async def handle_skills_list(request: Request) -> JSONResponse:
     loader = server.skill_loader
     if loader is None:
         return JSONResponse(
-            {"error": "skills_not_configured"}, status_code=503,
+            {"error": "skills_not_configured"},
+            status_code=503,
         )
     try:
         loader.discover()
@@ -905,17 +960,19 @@ async def handle_skills_list(request: Request) -> JSONResponse:
         items = []
         for s in skills:
             eligible, reason = s.check_eligibility()
-            items.append({
-                "skill_id": s.skill_id,
-                "name": s.name,
-                "version": s.version,
-                "description": s.description,
-                "lifecycle_stage": s.lifecycle_stage,
-                "confidence": s.confidence,
-                "eligible": eligible,
-                "eligibility_reason": reason,
-                "tags": s.tags,
-            })
+            items.append(
+                {
+                    "skill_id": s.skill_id,
+                    "name": s.name,
+                    "version": s.version,
+                    "description": s.description,
+                    "lifecycle_stage": s.lifecycle_stage,
+                    "confidence": s.confidence,
+                    "eligible": eligible,
+                    "eligibility_reason": reason,
+                    "tags": s.tags,
+                }
+            )
         return JSONResponse({"skills": items, "count": len(items)})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -928,7 +985,8 @@ async def handle_skills_status(request: Request) -> JSONResponse:
     loader = server.skill_loader
     if evolver is None or loader is None:
         return JSONResponse(
-            {"error": "skills_not_configured"}, status_code=503,
+            {"error": "skills_not_configured"},
+            status_code=503,
         )
     try:
         loader.discover()
@@ -950,12 +1008,14 @@ async def handle_skills_status(request: Request) -> JSONResponse:
             for sid, m in top
         ]
 
-        return JSONResponse({
-            "total_skills": len(all_skills),
-            "eligible_skills": len(eligible),
-            "observed_skills": len(all_metrics),
-            "top_performers": top_performers,
-        })
+        return JSONResponse(
+            {
+                "total_skills": len(all_skills),
+                "eligible_skills": len(eligible),
+                "observed_skills": len(all_metrics),
+                "top_performers": top_performers,
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -967,10 +1027,12 @@ async def handle_skills_evolve(request: Request) -> JSONResponse:
     evolver = server.skill_evolver
     if evolver is None:
         return JSONResponse(
-            {"error": "skills_not_configured"}, status_code=503,
+            {"error": "skills_not_configured"},
+            status_code=503,
         )
     try:
         from dataclasses import asdict
+
         report = evolver.evolve_cycle()
         return JSONResponse(asdict(report))
     except Exception as exc:
@@ -984,10 +1046,12 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
     evolver = server.skill_evolver
     if evolver is None:
         return JSONResponse(
-            {"error": "skills_not_configured"}, status_code=503,
+            {"error": "skills_not_configured"},
+            status_code=503,
         )
     try:
         from dataclasses import asdict
+
         metrics = evolver._observer.get_metrics(skill_id)
         return JSONResponse(asdict(metrics))
     except Exception as exc:
@@ -1001,23 +1065,28 @@ async def handle_skill_versions(request: Request) -> JSONResponse:
     evolver = server.skill_evolver
     if evolver is None:
         return JSONResponse(
-            {"error": "skills_not_configured"}, status_code=503,
+            {"error": "skills_not_configured"},
+            status_code=503,
         )
     try:
         versions = evolver._version_manager.list_versions(skill_id)
         items = []
         for v in versions:
-            items.append({
-                "version": v.version,
-                "is_champion": v.is_champion,
-                "is_challenger": v.is_challenger,
-                "created_at": v.created_at,
-            })
-        return JSONResponse({
-            "skill_id": skill_id,
-            "versions": items,
-            "count": len(items),
-        })
+            items.append(
+                {
+                    "version": v.version,
+                    "is_champion": v.is_champion,
+                    "is_challenger": v.is_challenger,
+                    "created_at": v.created_at,
+                }
+            )
+        return JSONResponse(
+            {
+                "skill_id": skill_id,
+                "versions": items,
+                "count": len(items),
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -1029,23 +1098,28 @@ async def handle_skill_optimize(request: Request) -> JSONResponse:
     evolver = server.skill_evolver
     if evolver is None:
         return JSONResponse(
-            {"error": "skills_not_configured"}, status_code=503,
+            {"error": "skills_not_configured"},
+            status_code=503,
         )
     try:
         new_prompt = evolver.optimize_prompt(skill_id)
         if new_prompt is None:
-            return JSONResponse({
-                "skill_id": skill_id,
-                "optimized": False,
-                "reason": "no_optimization_needed",
-            })
+            return JSONResponse(
+                {
+                    "skill_id": skill_id,
+                    "optimized": False,
+                    "reason": "no_optimization_needed",
+                }
+            )
         record = evolver.deploy_optimization(skill_id, new_prompt)
-        return JSONResponse({
-            "skill_id": skill_id,
-            "optimized": True,
-            "new_version": record.version,
-            "is_challenger": record.is_challenger,
-        })
+        return JSONResponse(
+            {
+                "skill_id": skill_id,
+                "optimized": True,
+                "new_version": record.version,
+                "is_challenger": record.is_challenger,
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -1058,14 +1132,17 @@ async def handle_skill_promote(request: Request) -> JSONResponse:
     evolver = server.skill_evolver
     if evolver is None:
         return JSONResponse(
-            {"error": "skills_not_configured"}, status_code=503,
+            {"error": "skills_not_configured"},
+            status_code=503,
         )
     try:
         promoted = evolver._version_manager.promote_challenger(skill_id)
-        return JSONResponse({
-            "skill_id": skill_id,
-            "promoted": promoted,
-        })
+        return JSONResponse(
+            {
+                "skill_id": skill_id,
+                "promoted": promoted,
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -1074,27 +1151,31 @@ async def handle_skill_promote(request: Request) -> JSONResponse:
 # Context health handler
 # ------------------------------------------------------------------
 
+
 async def handle_context_health(request: Request) -> JSONResponse:
     """Return context health report."""
     server: AgentServer = request.app.state.agent_server
     cm = server.context_manager
     if cm is None:
         return JSONResponse(
-            {"error": "context_manager_not_configured"}, status_code=503,
+            {"error": "context_manager_not_configured"},
+            status_code=503,
         )
     try:
         report = cm.get_health_report()
-        return JSONResponse({
-            "health": report.health.value,
-            "utilization_pct": report.utilization_pct,
-            "total_tokens": report.total_tokens,
-            "budget_tokens": report.budget_tokens,
-            "per_section": report.per_section,
-            "compressions_total": report.compressions_total,
-            "compression_failures": report.compression_failures,
-            "circuit_breaker_open": report.circuit_breaker_open,
-            "diminishing_returns": report.diminishing_returns,
-        })
+        return JSONResponse(
+            {
+                "health": report.health.value,
+                "utilization_pct": report.utilization_pct,
+                "total_tokens": report.total_tokens,
+                "budget_tokens": report.budget_tokens,
+                "per_section": report.per_section,
+                "compressions_total": report.compressions_total,
+                "compression_failures": report.compression_failures,
+                "circuit_breaker_open": report.circuit_breaker_open,
+                "diminishing_returns": report.diminishing_returns,
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -1145,13 +1226,15 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
                 status_code=404,
             )
         report = ReplayEngine().replay(run_events)
-        return JSONResponse({
-            "run_id": run_id,
-            "status": "completed",
-            "success": report.success,
-            "stage_states": report.stage_states,
-            "task_view_count": report.task_view_count,
-        })
+        return JSONResponse(
+            {
+                "run_id": run_id,
+                "status": "completed",
+                "success": report.success,
+                "stage_states": report.stage_states,
+                "task_view_count": report.task_view_count,
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -1168,20 +1251,25 @@ async def handle_replay_status(request: Request) -> JSONResponse:
     ]
     for candidate in candidates:
         if await _loop.run_in_executor(None, os.path.exists, candidate):
-            return JSONResponse({
-                "run_id": run_id,
-                "replay_available": True,
-                "event_file": candidate,
-            })
-    return JSONResponse({
-        "run_id": run_id,
-        "replay_available": False,
-    })
+            return JSONResponse(
+                {
+                    "run_id": run_id,
+                    "replay_available": True,
+                    "event_file": candidate,
+                }
+            )
+    return JSONResponse(
+        {
+            "run_id": run_id,
+            "replay_available": False,
+        }
+    )
 
 
 # ------------------------------------------------------------------
 # Management: capacity advice
 # ------------------------------------------------------------------
+
 
 async def handle_capacity_advice(request: Request) -> JSONResponse:
     """Return capacity tuning recommendations based on current server health.
@@ -1233,13 +1321,13 @@ async def handle_capacity_advice(request: Request) -> JSONResponse:
         except Exception:
             pass
 
-        recommendations = recommend_server_capacity_tuning(
-            health_payload, metrics_snapshot
+        recommendations = recommend_server_capacity_tuning(health_payload, metrics_snapshot)
+        return JSONResponse(
+            {
+                "recommendations": recommendations_to_payload(recommendations),
+                "status": "ok",
+            }
         )
-        return JSONResponse({
-            "recommendations": recommendations_to_payload(recommendations),
-            "status": "ok",
-        })
     except Exception as exc:
         logger.warning("handle_capacity_advice error: %s", exc)
         return JSONResponse({"error": str(exc), "status": "error"}, status_code=500)
@@ -1249,6 +1337,7 @@ async def handle_capacity_advice(request: Request) -> JSONResponse:
 # Catch-all for 404
 # ------------------------------------------------------------------
 
+
 async def handle_not_found(request: Request) -> JSONResponse:
     """Return 404 for unmatched routes."""
     return JSONResponse({"error": "not_found"}, status_code=404)
@@ -1257,6 +1346,7 @@ async def handle_not_found(request: Request) -> JSONResponse:
 # ------------------------------------------------------------------
 # MCP endpoints
 # ------------------------------------------------------------------
+
 
 async def handle_mcp_status(request: Request) -> JSONResponse:
     """Return MCP server registry status.
@@ -1268,16 +1358,15 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
     """
     try:
         from hi_agent.mcp.health import MCPHealth
+
         server: AgentServer = request.app.state.agent_server
         mcp_reg = server.mcp_registry
         # Include tool count from _mcp_server so status and tools endpoints agree.
         tool_count = 0
         mcp_srv = getattr(server, "_mcp_server", None)
         if mcp_srv is not None:
-            try:
+            with contextlib.suppress(Exception):
                 tool_count = len(mcp_srv.list_tools().get("tools", []))
-            except Exception:
-                pass
         # Derive transport status from a real health probe, not merely from
         # whether the transport object exists.  A server whose subprocess fails
         # to answer the JSON-RPC initialize handshake must NOT be reported as
@@ -1320,20 +1409,22 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
                 except TypeError:
                     try:
                         stderr_tails[sid] = _transport.get_stderr_tail(sid)
-                    except Exception:  # noqa: BLE001
+                    except Exception:
                         stderr_tails[sid] = []
-                except Exception:  # noqa: BLE001
+                except Exception:
                     stderr_tails[sid] = []
-        return JSONResponse({
-            "servers": mcp_reg.list_servers(),
-            "health": health.snapshot(),
-            "count": len(mcp_reg),
-            "tool_count": tool_count,
-            "transport_status": transport_status,
-            "capability_mode": capability_mode,
-            "note": note,
-            "stderr_tails": stderr_tails,
-        })
+        return JSONResponse(
+            {
+                "servers": mcp_reg.list_servers(),
+                "health": health.snapshot(),
+                "count": len(mcp_reg),
+                "tool_count": tool_count,
+                "transport_status": transport_status,
+                "capability_mode": capability_mode,
+                "note": note,
+                "stderr_tails": stderr_tails,
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc), "servers": [], "count": 0}, status_code=500)
 
@@ -1342,15 +1433,18 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
 # Plugin endpoints
 # ------------------------------------------------------------------
 
+
 async def handle_plugins_list(request: Request) -> JSONResponse:
     """Return list of loaded plugins."""
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
-        return JSONResponse({
-            "plugins": plugin_loader.list_loaded(),
-            "count": len(plugin_loader),
-        })
+        return JSONResponse(
+            {
+                "plugins": plugin_loader.list_loaded(),
+                "count": len(plugin_loader),
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc), "plugins": [], "count": 0}, status_code=500)
 
@@ -1362,12 +1456,16 @@ async def handle_plugins_status(request: Request) -> JSONResponse:
         plugin_loader = server.plugin_loader
         plugins = plugin_loader.list_loaded()
         active = sum(1 for p in plugins if p.get("status") == "active")
-        return JSONResponse({
-            "total": len(plugins),
-            "active": active,
-            "inactive": len(plugins) - active,
-            "plugins": [{"name": p["name"], "status": p.get("status", "loaded")} for p in plugins],
-        })
+        return JSONResponse(
+            {
+                "total": len(plugins),
+                "active": active,
+                "inactive": len(plugins) - active,
+                "plugins": [
+                    {"name": p["name"], "status": p.get("status", "loaded")} for p in plugins
+                ],
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -1406,6 +1504,7 @@ async def handle_get_artifact(request: Request) -> JSONResponse:
 # build_app: construct Starlette application
 # ------------------------------------------------------------------
 
+
 def build_app(agent_server: AgentServer) -> Starlette:
     """Build a Starlette application with all routes.
 
@@ -1422,7 +1521,6 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/manifest", handle_manifest, methods=["GET"]),
         Route("/doctor", handle_doctor, methods=["GET"]),
         Route("/ops/release-gate", handle_release_gate, methods=["GET"]),
-
         # Runs
         Route("/runs", handle_list_runs, methods=["GET"]),
         Route("/runs", handle_create_run, methods=["POST"]),
@@ -1434,19 +1532,15 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/runs/{run_id}/feedback", handle_get_feedback, methods=["GET"]),
         Route("/runs/{run_id}/resume", handle_resume_run, methods=["POST"]),
         Route("/runs/{run_id}/events", handle_run_events_sse, methods=["GET"]),
-
         # Metrics
         Route("/metrics", handle_metrics_prometheus, methods=["GET"]),
         Route("/metrics/json", handle_metrics_json, methods=["GET"]),
-
         # Cost
         Route("/cost", handle_cost, methods=["GET"]),
-
         # Memory
         Route("/memory/dream", handle_memory_dream, methods=["POST"]),
         Route("/memory/consolidate", handle_memory_consolidate, methods=["POST"]),
         Route("/memory/status", handle_memory_status, methods=["GET"]),
-
         # Knowledge
         Route("/knowledge/ingest", handle_knowledge_ingest, methods=["POST"]),
         Route(
@@ -1458,7 +1552,6 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/knowledge/status", handle_knowledge_status, methods=["GET"]),
         Route("/knowledge/lint", handle_knowledge_lint, methods=["POST"]),
         Route("/knowledge/sync", handle_knowledge_sync, methods=["POST"]),
-
         # Skills
         Route("/skills/list", handle_skills_list, methods=["GET"]),
         Route("/skills/status", handle_skills_status, methods=["GET"]),
@@ -1467,40 +1560,31 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/skills/{skill_id}/versions", handle_skill_versions, methods=["GET"]),
         Route("/skills/{skill_id}/optimize", handle_skill_optimize, methods=["POST"]),
         Route("/skills/{skill_id}/promote", handle_skill_promote, methods=["POST"]),
-
         # Context
         Route("/context/health", handle_context_health, methods=["GET"]),
-
         # MCP
         Route("/mcp/status", handle_mcp_status, methods=["GET"]),
         Route("/mcp/tools", handle_mcp_tools, methods=["GET"]),
         Route("/mcp/tools/list", handle_mcp_tools_list, methods=["POST"]),
         Route("/mcp/tools/call", handle_mcp_tools_call, methods=["POST"]),
-
         # Plugins
         Route("/plugins/list", handle_plugins_list, methods=["GET"]),
         Route("/plugins/status", handle_plugins_status, methods=["GET"]),
-
         # Replay
         Route("/replay/{run_id}", handle_replay_trigger, methods=["POST"]),
         Route("/replay/{run_id}/status", handle_replay_status, methods=["GET"]),
-
         # Management
         Route("/management/capacity", handle_capacity_advice, methods=["GET"]),
-
         # Tools (capability registry)
         Route("/tools", handle_tools_list, methods=["GET"]),
         Route("/tools/call", handle_tools_call, methods=["POST"]),
-
         # Artifacts
         Route("/artifacts", handle_list_artifacts, methods=["GET"]),
         Route("/artifacts/{artifact_id}", handle_get_artifact, methods=["GET"]),
-
         # Sessions
         Route("/sessions", handle_list_sessions, methods=["GET"]),
         Route("/sessions/{session_id}/runs", handle_get_session_runs, methods=["GET"]),
         Route("/sessions/{session_id}", handle_patch_session, methods=["PATCH"]),
-
         # Team
         Route("/team/events", handle_list_team_events, methods=["GET"]),
     ]
@@ -1520,7 +1604,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
                 on_reload=agent_server._on_config_reload,
                 poll_interval_seconds=2.0,
             )
-            asyncio.create_task(agent_server._watcher.start())
+            agent_server._watcher_task = asyncio.create_task(agent_server._watcher.start())
             logger.info(
                 "ConfigFileWatcher started for %s",
                 agent_server._config_stack._base_path,
@@ -1535,6 +1619,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
                 await slo.stop()
             if agent_server._watcher is not None:
                 agent_server._watcher.stop()
+            if agent_server._watcher_task is not None:
+                agent_server._watcher_task.cancel()
+                agent_server._watcher_task = None
             mcp_transport = getattr(agent_server._builder, "_mcp_transport", None)
             if mcp_transport is not None and hasattr(mcp_transport, "close_all"):
                 mcp_transport.close_all()
@@ -1550,15 +1637,15 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # they reach rate limiting or route handlers).
     # Enabled only when HI_AGENT_API_KEY env-var is set; no-op otherwise.
     import os as _os_auth
+
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_auth
+
     _env_auth = _os_auth.environ.get("HI_AGENT_ENV", "dev").lower()
     _builder_auth = getattr(agent_server, "_builder", None)
     _readiness_auth: dict = {}
     if _builder_auth is not None:
-        try:
+        with contextlib.suppress(Exception):
             _readiness_auth = _builder_auth.readiness()
-        except Exception:
-            pass
     _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
     app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)
 
@@ -1566,6 +1653,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # calls so that Starlette's reverse execution order places it AFTER Auth
     # (i.e. Auth executes first, sets TenantContext, then SessionMiddleware runs).
     from hi_agent.server.session_middleware import SessionMiddleware
+
     _session_store = getattr(agent_server, "session_store", None)
     if _session_store is not None:
         app.add_middleware(SessionMiddleware, session_store=_session_store)
@@ -1591,7 +1679,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
     from starlette.exceptions import HTTPException
 
     async def http_exception_handler(
-        request: Request, exc: HTTPException,
+        request: Request,
+        exc: HTTPException,
     ) -> JSONResponse:
         if exc.status_code == 404:
             return JSONResponse({"error": "not_found"}, status_code=404)
@@ -1608,6 +1697,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
 # ------------------------------------------------------------------
 # AgentServer: main server class (backward compatible)
 # ------------------------------------------------------------------
+
 
 class AgentServer:
     """Agent server that holds agent state and runs via uvicorn."""
@@ -1657,6 +1747,7 @@ class AgentServer:
         # attribute so the /manifest endpoint reflects the real topology.
         # Defaults to the sample TRACE S1-S5 graph; can be replaced at startup.
         from hi_agent.trajectory.stage_graph import default_trace_stage_graph
+
         self.stage_graph = default_trace_stage_graph()
 
         import os
@@ -1683,6 +1774,7 @@ class AgentServer:
             # Use stack-resolved config (incorporates file + profile + env).
             self._config = self._config_stack.resolve()
         self._watcher: ConfigFileWatcher | None = None
+        self._watcher_task: asyncio.Task[None] | None = None
 
         # RunManager respects server_max_concurrent_runs from config.
         # Durable stores are opt-in: only instantiated when a db_dir is configured.
@@ -1690,9 +1782,7 @@ class AgentServer:
         _idempotency_store: IdempotencyStore | None = None
         _run_store: SQLiteRunStore | None = None
         if _db_dir:
-            _idempotency_store = IdempotencyStore(
-                db_path=f"{_db_dir}/idempotency.db"
-            )
+            _idempotency_store = IdempotencyStore(db_path=f"{_db_dir}/idempotency.db")
             _run_store = SQLiteRunStore(db_path=f"{_db_dir}/runs.db")
             _session_store = SessionStore(db_path=f"{_db_dir}/sessions.db")
             _session_store.initialize()
@@ -1724,13 +1814,18 @@ class AgentServer:
         # Build a shared CapabilityInvoker and wire MCPServer.
         try:
             from hi_agent.server.mcp import MCPServer
+
             _invoker = self._builder.build_invoker()
             self._mcp_server: Any | None = MCPServer(
                 registry=_invoker.registry,
                 invoker=_invoker,
             )
         except Exception as _exc:
-            logger.warning("MCPServer initialization failed (%s: %s); /mcp/tools/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+            logger.warning(
+                "MCPServer initialization failed (%s: %s); /mcp/tools/* endpoints will be unavailable.",
+                type(_exc).__name__,
+                _exc,
+            )
             self._mcp_server = None
 
         # Build shared ArtifactRegistry so artifact endpoints can serve stored artifacts.
@@ -1748,41 +1843,72 @@ class AgentServer:
         try:
             self.memory_manager = self._builder.build_memory_lifecycle_manager()
         except Exception as _exc:
-            logger.warning("MemoryLifecycleManager initialization failed (%s: %s); /memory/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+            logger.warning(
+                "MemoryLifecycleManager initialization failed (%s: %s); /memory/* endpoints will be unavailable.",
+                type(_exc).__name__,
+                _exc,
+            )
         try:
             self.knowledge_manager = self._builder.build_knowledge_manager()
         except Exception as _exc:
-            logger.warning("KnowledgeManager initialization failed (%s: %s); /knowledge/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+            logger.warning(
+                "KnowledgeManager initialization failed (%s: %s); /knowledge/* endpoints will be unavailable.",
+                type(_exc).__name__,
+                _exc,
+            )
         try:
             self.skill_evolver = self._builder.build_skill_evolver()
             self.skill_loader = self._builder.build_skill_loader()
         except Exception as _exc:
-            logger.warning("SkillEvolver/SkillLoader initialization failed (%s: %s); /skills/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+            logger.warning(
+                "SkillEvolver/SkillLoader initialization failed (%s: %s); /skills/* endpoints will be unavailable.",
+                type(_exc).__name__,
+                _exc,
+            )
         try:
             self.metrics_collector = self._builder.build_metrics_collector()
         except Exception as _exc:
-            logger.warning("MetricsCollector initialization failed (%s: %s); metrics endpoints will be unavailable.", type(_exc).__name__, _exc)
+            logger.warning(
+                "MetricsCollector initialization failed (%s: %s); metrics endpoints will be unavailable.",
+                type(_exc).__name__,
+                _exc,
+            )
         try:
             self.run_context_manager = self._builder._build_run_context_manager()
         except Exception as _exc:
-            logger.warning("RunContextManager initialization failed (%s: %s).", type(_exc).__name__, _exc)
+            logger.warning(
+                "RunContextManager initialization failed (%s: %s).", type(_exc).__name__, _exc
+            )
         try:
             self.context_manager = self._builder.build_context_manager()
         except Exception as _exc:
-            logger.warning("ContextManager initialization failed (%s: %s); /context/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+            logger.warning(
+                "ContextManager initialization failed (%s: %s); /context/* endpoints will be unavailable.",
+                type(_exc).__name__,
+                _exc,
+            )
         try:
             from hi_agent.management.slo import SLOMonitor
+
             if self.metrics_collector is not None:
                 self.slo_monitor = SLOMonitor(self.metrics_collector)
         except Exception as _exc:
-            logger.warning("SLOMonitor initialization failed (%s: %s); SLO monitoring disabled.", type(_exc).__name__, _exc)
+            logger.warning(
+                "SLOMonitor initialization failed (%s: %s); SLO monitoring disabled.",
+                type(_exc).__name__,
+                _exc,
+            )
 
         # Wire plugin contributions (skill_dirs, mcp_servers) into live subsystems
         # now that all subsystems are built.
         try:
             self._builder._wire_plugin_contributions()
         except Exception as _exc:
-            logger.warning("Plugin contribution wiring failed (%s: %s); plugin capabilities may be unavailable.", type(_exc).__name__, _exc)
+            logger.warning(
+                "Plugin contribution wiring failed (%s: %s); plugin capabilities may be unavailable.",
+                type(_exc).__name__,
+                _exc,
+            )
 
         # Sync file-discovered skills into SkillRegistry so both subsystems
         # share the same skill set.
@@ -1791,7 +1917,9 @@ class AgentServer:
                 _skill_registry = self._builder.build_skill_registry()
                 self.skill_loader.sync_to_registry(_skill_registry)
         except Exception as _exc:
-            logger.warning("SkillLoader→SkillRegistry sync failed (%s: %s).", type(_exc).__name__, _exc)
+            logger.warning(
+                "SkillLoader→SkillRegistry sync failed (%s: %s).", type(_exc).__name__, _exc
+            )
 
         # Build the Starlette app.
         self._app = build_app(self)
@@ -1802,7 +1930,8 @@ class AgentServer:
         return self._app
 
     def _default_executor_factory(
-        self, run_data: dict[str, Any],
+        self,
+        run_data: dict[str, Any],
     ) -> Callable[..., Any]:
         """Create a callable that runs a task to completion.
 
@@ -1824,11 +1953,7 @@ class AgentServer:
         from hi_agent.contracts import TaskContract
         from hi_agent.contracts.task import TaskBudget
 
-        task_id = (
-            run_data.get("task_id")
-            or run_data.get("run_id")
-            or uuid.uuid4().hex[:12]
-        )
+        task_id = run_data.get("task_id") or run_data.get("run_id") or uuid.uuid4().hex[:12]
 
         # Reconstruct TaskBudget from dict if the caller supplied one.
         budget: TaskBudget | None = None
@@ -1913,6 +2038,7 @@ class AgentServer:
         old_builder = self._builder
         self._config = new_cfg
         from hi_agent.config.builder import SystemBuilder
+
         new_builder = SystemBuilder(config=new_cfg, config_stack=self._config_stack)
         # Inherit subsystem singletons so in-flight server-level references remain valid.
         new_builder._skill_loader = old_builder._skill_loader
@@ -1931,6 +2057,7 @@ class AgentServer:
 # ------------------------------------------------------------------
 # Backward-compatible AgentAPIHandler shim
 # ------------------------------------------------------------------
+
 
 class AgentAPIHandler:
     """Backward-compatible shim for code that references AgentAPIHandler.
@@ -1994,17 +2121,20 @@ class AgentAPIHandler:
             return
         try:
             report = cm.get_health_report()
-            self._send_json(200, {
-                "health": report.health.value,
-                "utilization_pct": report.utilization_pct,
-                "total_tokens": report.total_tokens,
-                "budget_tokens": report.budget_tokens,
-                "per_section": report.per_section,
-                "compressions_total": report.compressions_total,
-                "compression_failures": report.compression_failures,
-                "circuit_breaker_open": report.circuit_breaker_open,
-                "diminishing_returns": report.diminishing_returns,
-            })
+            self._send_json(
+                200,
+                {
+                    "health": report.health.value,
+                    "utilization_pct": report.utilization_pct,
+                    "total_tokens": report.total_tokens,
+                    "budget_tokens": report.budget_tokens,
+                    "per_section": report.per_section,
+                    "compressions_total": report.compressions_total,
+                    "compression_failures": report.compression_failures,
+                    "circuit_breaker_open": report.circuit_breaker_open,
+                    "diminishing_returns": report.diminishing_returns,
+                },
+            )
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
 
@@ -2020,17 +2150,19 @@ class AgentAPIHandler:
             items = []
             for s in skills:
                 eligible, reason = s.check_eligibility()
-                items.append({
-                    "skill_id": s.skill_id,
-                    "name": s.name,
-                    "version": s.version,
-                    "description": s.description,
-                    "lifecycle_stage": s.lifecycle_stage,
-                    "confidence": s.confidence,
-                    "eligible": eligible,
-                    "eligibility_reason": reason,
-                    "tags": s.tags,
-                })
+                items.append(
+                    {
+                        "skill_id": s.skill_id,
+                        "name": s.name,
+                        "version": s.version,
+                        "description": s.description,
+                        "lifecycle_stage": s.lifecycle_stage,
+                        "confidence": s.confidence,
+                        "eligible": eligible,
+                        "eligibility_reason": reason,
+                        "tags": s.tags,
+                    }
+                )
             self._send_json(200, {"skills": items, "count": len(items)})
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
@@ -2043,6 +2175,7 @@ class AgentAPIHandler:
             return
         try:
             from dataclasses import asdict
+
             report = evolver.evolve_cycle()
             self._send_json(200, asdict(report))
         except Exception as exc:
@@ -2056,6 +2189,7 @@ class AgentAPIHandler:
             return
         try:
             from dataclasses import asdict
+
             metrics = evolver._observer.get_metrics(skill_id)
             self._send_json(200, asdict(metrics))
         except Exception as exc:
@@ -2071,17 +2205,22 @@ class AgentAPIHandler:
             versions = evolver._version_manager.list_versions(skill_id)
             items = []
             for v in versions:
-                items.append({
-                    "version": v.version,
-                    "is_champion": v.is_champion,
-                    "is_challenger": v.is_challenger,
-                    "created_at": v.created_at,
-                })
-            self._send_json(200, {
-                "skill_id": skill_id,
-                "versions": items,
-                "count": len(items),
-            })
+                items.append(
+                    {
+                        "version": v.version,
+                        "is_champion": v.is_champion,
+                        "is_challenger": v.is_challenger,
+                        "created_at": v.created_at,
+                    }
+                )
+            self._send_json(
+                200,
+                {
+                    "skill_id": skill_id,
+                    "versions": items,
+                    "count": len(items),
+                },
+            )
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
 
@@ -2094,19 +2233,25 @@ class AgentAPIHandler:
         try:
             new_prompt = evolver.optimize_prompt(skill_id)
             if new_prompt is None:
-                self._send_json(200, {
-                    "skill_id": skill_id,
-                    "optimized": False,
-                    "reason": "no_optimization_needed",
-                })
+                self._send_json(
+                    200,
+                    {
+                        "skill_id": skill_id,
+                        "optimized": False,
+                        "reason": "no_optimization_needed",
+                    },
+                )
                 return
             record = evolver.deploy_optimization(skill_id, new_prompt)
-            self._send_json(200, {
-                "skill_id": skill_id,
-                "optimized": True,
-                "new_version": record.version,
-                "is_challenger": record.is_challenger,
-            })
+            self._send_json(
+                200,
+                {
+                    "skill_id": skill_id,
+                    "optimized": True,
+                    "new_version": record.version,
+                    "is_challenger": record.is_challenger,
+                },
+            )
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
 
@@ -2118,10 +2263,13 @@ class AgentAPIHandler:
             return
         try:
             promoted = evolver._version_manager.promote_challenger(skill_id)
-            self._send_json(200, {
-                "skill_id": skill_id,
-                "promoted": promoted,
-            })
+            self._send_json(
+                200,
+                {
+                    "skill_id": skill_id,
+                    "promoted": promoted,
+                },
+            )
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
 
@@ -2152,12 +2300,15 @@ class AgentAPIHandler:
                 for sid, m in top
             ]
 
-            self._send_json(200, {
-                "total_skills": len(all_skills),
-                "eligible_skills": len(eligible),
-                "observed_skills": len(all_metrics),
-                "top_performers": top_performers,
-            })
+            self._send_json(
+                200,
+                {
+                    "total_skills": len(all_skills),
+                    "eligible_skills": len(eligible),
+                    "observed_skills": len(all_metrics),
+                    "top_performers": top_performers,
+                },
+            )
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
 
@@ -2218,10 +2369,13 @@ class AgentAPIHandler:
                     break
 
         if not checkpoint_path or not os.path.exists(checkpoint_path):
-            self._send_json(404, {
-                "error": "checkpoint_not_found",
-                "run_id": run_id,
-            })
+            self._send_json(
+                404,
+                {
+                    "error": "checkpoint_not_found",
+                    "run_id": run_id,
+                },
+            )
             return
 
         server = self.server
@@ -2241,12 +2395,16 @@ class AgentAPIHandler:
                 pass
 
         thread = threading.Thread(
-            target=_resume_in_background, daemon=True,
+            target=_resume_in_background,
+            daemon=True,
         )
         thread.start()
 
-        self._send_json(200, {
-            "status": "resuming",
-            "run_id": run_id,
-            "checkpoint_path": checkpoint_path,
-        })
+        self._send_json(
+            200,
+            {
+                "status": "resuming",
+                "run_id": run_id,
+                "checkpoint_path": checkpoint_path,
+            },
+        )

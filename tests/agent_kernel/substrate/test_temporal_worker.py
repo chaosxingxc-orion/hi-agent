@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from unittest.mock import AsyncMock
 
 import pytest
-
 from agent_kernel.kernel.contracts import RunProjection
 from agent_kernel.substrate.temporal.run_actor_workflow import (
     RunActorDependencyBundle,

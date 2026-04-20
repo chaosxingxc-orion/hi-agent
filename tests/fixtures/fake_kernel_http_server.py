@@ -2,6 +2,7 @@
 
 Simulates agent-kernel run lifecycle endpoints.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -9,8 +10,8 @@ import json
 import socketserver
 import threading
 import uuid
+from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Iterator
 
 
 class _FakeKernelHandler(BaseHTTPRequestHandler):
@@ -23,7 +24,7 @@ class _FakeKernelHandler(BaseHTTPRequestHandler):
       GET  /health        -> 200 {"status": "ok"}
     """
 
-    def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+    def log_message(self, format: str, *args: object) -> None:
         pass
 
     def _read_body(self) -> bytes:
@@ -38,21 +39,24 @@ class _FakeKernelHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if self.path == "/health":
             self._send_json(200, {"status": "ok"})
         elif self.path.startswith("/runs/"):
             run_id = self.path.split("/runs/")[1].split("/")[0]
-            self._send_json(200, {
-                "run_id": run_id,
-                "status": "completed",
-                "outcome": "completed",
-            })
+            self._send_json(
+                200,
+                {
+                    "run_id": run_id,
+                    "status": "completed",
+                    "outcome": "completed",
+                },
+            )
         else:
             self.send_response(404)
             self.end_headers()
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         self._read_body()
         if self.path == "/runs":
             run_id = uuid.uuid4().hex

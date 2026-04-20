@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.workflows.contracts import (
     FallbackPolicy,
     WorkflowNode,
@@ -11,10 +9,10 @@ from hi_agent.workflows.contracts import (
     WorkflowTransition,
 )
 
-
 # ---------------------------------------------------------------------------
 # WorkflowNode
 # ---------------------------------------------------------------------------
+
 
 class TestWorkflowNode:
     def test_defaults(self):
@@ -39,6 +37,7 @@ class TestWorkflowNode:
 # WorkflowTransition
 # ---------------------------------------------------------------------------
 
+
 class TestWorkflowTransition:
     def test_defaults(self):
         t = WorkflowTransition(source="s1", target="s2")
@@ -55,6 +54,7 @@ class TestWorkflowTransition:
 # FallbackPolicy
 # ---------------------------------------------------------------------------
 
+
 class TestFallbackPolicy:
     def test_values(self):
         assert FallbackPolicy.FAIL.value == "fail"
@@ -65,6 +65,7 @@ class TestFallbackPolicy:
 # ---------------------------------------------------------------------------
 # WorkflowSpec
 # ---------------------------------------------------------------------------
+
 
 def _make_support_workflow() -> WorkflowSpec:
     return WorkflowSpec(
@@ -215,6 +216,7 @@ class TestWorkflowSpec:
         """WorkflowSpec.to_stage_graph() is accepted by RunExecutor."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         wf = _make_support_workflow()

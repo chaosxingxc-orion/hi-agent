@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import time
@@ -180,10 +178,8 @@ class Tracer:
     def flush(self) -> None:
         """Flush all exporters' buffers."""
         for exporter in self._exporters:
-            try:
+            with suppress(Exception):
                 exporter.flush()
-            except Exception:
-                pass
 
     def clear(self) -> None:
         """Clear in-memory records."""

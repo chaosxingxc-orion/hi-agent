@@ -14,6 +14,7 @@ Usage:
     finally:
         bus.unsubscribe(run_id, q)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,7 +26,10 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
+import contextlib
+
 from agent_kernel.kernel.contracts import RuntimeEvent
+
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 
 
@@ -72,10 +76,8 @@ class EventBus:
     def _put_nowait_in_loop(self, q: asyncio.Queue[RuntimeEvent], event: RuntimeEvent) -> None:
         """Enqueue one event into *q*.  Must be called from the loop thread."""
         if q.full():
-            try:
+            with contextlib.suppress(asyncio.QueueEmpty):
                 q.get_nowait()
-            except asyncio.QueueEmpty:
-                pass
             self._total_dropped += 1
         q.put_nowait(event)
         self._total_published += 1
@@ -147,10 +149,8 @@ class EventBus:
         with self._lock:
             observers = list(self._sync_observers)
         for obs in observers:
-            try:
+            with contextlib.suppress(Exception):
                 obs(event)
-            except Exception:
-                pass
 
     def add_sync_observer(self, callback) -> None:
         """Register a thread-safe sync callback invoked on every publish().
@@ -171,7 +171,9 @@ class EventBus:
             loop = asyncio.get_running_loop()
             self._loop = loop
         except RuntimeError:
-            logger.debug("subscribe() called outside running event loop; loop will be captured on first publish")
+            logger.debug(
+                "subscribe() called outside running event loop; loop will be captured on first publish"
+            )
         q: asyncio.Queue[RuntimeEvent] = asyncio.Queue(maxsize=self._max_queue_size)
         with self._lock:
             self._queues[run_id].append(q)

@@ -7,7 +7,6 @@ from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l2_index import RunMemoryIndex
 from hi_agent.task_view.builder import (
     TaskView,
-    TaskViewSection,
     build_task_view,
     format_episodes,
     format_knowledge,
@@ -22,15 +21,16 @@ from hi_agent.task_view.token_budget import (
     set_token_counter,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _make_index(run_id: str = "run-1", stages: list[tuple[str, str]] | None = None) -> RunMemoryIndex:
+def _make_index(
+    run_id: str = "run-1", stages: list[tuple[str, str]] | None = None
+) -> RunMemoryIndex:
     idx = RunMemoryIndex(run_id=run_id)
-    for sid, outcome in (stages or []):
+    for sid, outcome in stages or []:
         idx.add_stage(sid, outcome)
     return idx
 
@@ -288,20 +288,20 @@ class TestBuildTaskViewLayered:
 
     def test_deterministic(self) -> None:
         """Same inputs always produce the same output."""
-        kwargs = dict(
-            run_index=_make_index("r", [("S1", "ok")]),
-            current_stage_summary=_make_stage("S1"),
-            episodes=[{"x": 1}],
-            knowledge_records=["fact"],
-            budget=5000,
-        )
+        kwargs = {
+            "run_index": _make_index("r", [("S1", "ok")]),
+            "current_stage_summary": _make_stage("S1"),
+            "episodes": [{"x": 1}],
+            "knowledge_records": ["fact"],
+            "budget": 5000,
+        }
         v1 = build_task_view(**kwargs)
         v2 = build_task_view(**kwargs)
         assert isinstance(v1, TaskView)
         assert isinstance(v2, TaskView)
         assert v1.total_tokens == v2.total_tokens
         assert len(v1.sections) == len(v2.sections)
-        for s1, s2 in zip(v1.sections, v2.sections):
+        for s1, s2 in zip(v1.sections, v2.sections, strict=False):
             assert s1.layer == s2.layer
             assert s1.content == s2.content
             assert s1.token_count == s2.token_count

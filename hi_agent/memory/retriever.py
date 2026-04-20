@@ -49,9 +49,7 @@ class MemoryRetriever:
 
         # 2. Similar failures if the current run has failure codes
         if current_failures:
-            failures = self._episodic.get_similar_failures(
-                current_failures, limit=3
-            )
+            failures = self._episodic.get_similar_failures(current_failures, limit=3)
             for ep in failures:
                 snippet = self._format_episode(ep, prefix="[past-failure]")
                 if len(snippet) > remaining_chars:

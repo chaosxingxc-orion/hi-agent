@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
-from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -26,14 +24,16 @@ class _Bucket:
 # API traffic has consumed the per-client token bucket.  /runs/{id} GET is
 # NOT listed here — it carries path parameters and is matched by prefix check
 # in the middleware.
-_EXEMPT_PATHS: frozenset[str] = frozenset({
-    "/health",
-    "/metrics",
-    "/metrics/json",
-    "/ready",
-    "/manifest",
-    "/mcp/status",
-})
+_EXEMPT_PATHS: frozenset[str] = frozenset(
+    {
+        "/health",
+        "/metrics",
+        "/metrics/json",
+        "/ready",
+        "/manifest",
+        "/mcp/status",
+    }
+)
 
 # Path prefixes whose GET requests are also exempt (e.g. /runs/{id} polling).
 _EXEMPT_GET_PREFIXES: tuple[str, ...] = ("/runs/",)
@@ -112,9 +112,7 @@ class RateLimiter:
     # Token bucket logic (thread-safe)
     # ------------------------------------------------------------------
 
-    def _consume(
-        self, client_ip: str, *, tenant_id: str = ""
-    ) -> tuple[bool, float]:
+    def _consume(self, client_ip: str, *, tenant_id: str = "") -> tuple[bool, float]:
         """Try to consume one token for the request bucket.
 
         When *tenant_id* is non-empty the bucket key is ``tenant:<tenant_id>``;
@@ -169,10 +167,6 @@ class RateLimiter:
         """Remove stale buckets.  Safe to call externally with lock held."""
         if now is None:
             now = time.monotonic()
-        stale = [
-            key
-            for key, b in self._buckets.items()
-            if now - b.last_refill > _STALE_SECONDS
-        ]
+        stale = [key for key, b in self._buckets.items() if now - b.last_refill > _STALE_SECONDS]
         for key in stale:
             del self._buckets[key]

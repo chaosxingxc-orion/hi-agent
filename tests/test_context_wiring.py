@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from hi_agent.context.manager import (
     ContextBudget,
     ContextHealth,
-    ContextHealthReport,
     ContextManager,
     ContextSnapshot,
 )
@@ -20,8 +16,8 @@ from hi_agent.events import EventEmitter
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ======================================================================
 # Helpers
@@ -75,8 +71,10 @@ class TestRunExecutorContextManagerRouting:
         cm = ContextManager(budget=ContextBudget(total_window=50_000))
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
-        executor = _make_executor(
-            context_manager=cm, route_engine=engine, session=None,
+        _make_executor(
+            context_manager=cm,
+            route_engine=engine,
+            session=None,
         )
         # The context provider should have been overwritten
         assert engine._context_provider is not None
@@ -90,7 +88,9 @@ class TestRunExecutorContextManagerRouting:
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
         _make_executor(
-            context_manager=cm, route_engine=engine, session=None,
+            context_manager=cm,
+            route_engine=engine,
+            session=None,
         )
         ctx = engine._context_provider()
         assert isinstance(ctx, dict)
@@ -106,8 +106,10 @@ class TestRunExecutorContextManagerRouting:
 
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
-        executor = _make_executor(
-            context_manager=cm, route_engine=engine, session=session,
+        _make_executor(
+            context_manager=cm,
+            route_engine=engine,
+            session=session,
         )
         ctx = engine._context_provider()
         assert ctx == {"fallback": True}
@@ -159,7 +161,9 @@ class TestRunExecutorContextManagerHealthEmission:
             events.append((name, payload))
 
         executor = _make_executor(
-            context_manager=cm, session=None, observability_hook=hook,
+            context_manager=cm,
+            session=None,
+            observability_hook=hook,
         )
         executor.execute()
         health_events = [e for e in events if e[0] == "context_health"]
@@ -193,8 +197,10 @@ class TestRunExecutorBackwardCompat:
         session.l1_summaries = {}
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
-        executor = _make_executor(
-            context_manager=None, route_engine=engine, session=session,
+        _make_executor(
+            context_manager=None,
+            route_engine=engine,
+            session=session,
         )
         # With CM=None, the session-based provider should be set
         ctx = engine._context_provider()
@@ -240,8 +246,9 @@ class TestAPIContextHealth:
 
     def test_context_health_endpoint_no_cm(self):
         """503 when no context_manager configured."""
-        from hi_agent.server.app import AgentAPIHandler, AgentServer
         import io
+
+        from hi_agent.server.app import AgentAPIHandler, AgentServer
 
         server = AgentServer.__new__(AgentServer)
         server.context_manager = None
@@ -254,7 +261,6 @@ class TestAPIContextHealth:
         handler._headers_buffer = []
 
         sent: list[tuple[int, dict]] = []
-        original_send = handler._send_json
 
         def mock_send_json(status: int, body: dict) -> None:
             sent.append((status, body))
@@ -327,7 +333,9 @@ class TestFullCycleContextManager:
             events.append((name, payload))
 
         executor = _make_executor(
-            context_manager=cm, session=None, observability_hook=hook,
+            context_manager=cm,
+            session=None,
+            observability_hook=hook,
         )
         result = executor.execute()
         assert result in ("completed", "failed")
@@ -370,6 +378,6 @@ class TestFullCycleContextManager:
             ContextHealth.RED,
         )
         # Compressions may have been applied
-        report = cm.get_health_report()
+        cm.get_health_report()
         # The snapshot should be bounded by budget
         assert snapshot.total_tokens <= budget.effective_window or snapshot.compressions_applied > 0

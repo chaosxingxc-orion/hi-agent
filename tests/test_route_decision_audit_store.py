@@ -59,4 +59,3 @@ def test_append_validates_required_fields(audit: dict[str, object]) -> None:
     store = InMemoryDecisionAuditStore()
     with pytest.raises(ValueError):
         store.append(audit)
-

@@ -1,4 +1,5 @@
-﻿"""Integration coverage for retrieval construction-time embedding wiring."""
+"""Integration coverage for retrieval construction-time embedding wiring."""
+
 import uuid
 
 from hi_agent.config.builder import SystemBuilder

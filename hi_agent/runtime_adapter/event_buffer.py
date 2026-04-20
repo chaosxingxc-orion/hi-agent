@@ -74,7 +74,7 @@ class EventBuffer:
             except Exception:
                 remaining.append((event_type, payload))
                 # Keep all subsequent events too
-                remaining.extend(snapshot[flushed + len(remaining):])
+                remaining.extend(snapshot[flushed + len(remaining) :])
                 break
 
         if remaining:

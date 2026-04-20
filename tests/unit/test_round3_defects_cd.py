@@ -6,14 +6,14 @@ D-4: L2->L3 consolidation must be auto-triggered in _finalize_run
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from unittest.mock import MagicMock
-
-import pytest
 
 from hi_agent.contracts import TaskContract
 from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -64,11 +64,10 @@ class TestD3FinalizeSavesToMidTerm:
         executor.raw_memory = fake_raw
 
         # Patch L0Summarizer to return our fake summary so we test the save path
-        import hi_agent.runner as runner_mod
-        original_finalize = executor._finalize_run
 
         # Directly mock the summarizer call inside _finalize_run via monkeypatching
         import unittest.mock as mock
+
         with mock.patch("hi_agent.memory.l0_summarizer.L0Summarizer") as mock_summarizer_cls:
             mock_summarizer_cls.return_value.summarize_run.return_value = fake_summary
             # Drive _finalize_run with minimal fake state
@@ -79,10 +78,8 @@ class TestD3FinalizeSavesToMidTerm:
             executor.cts_budget = MagicMock()
             executor.cts_budget.total_actions_used = 0
             executor.failure_collector = None
-            try:
+            with contextlib.suppress(Exception):
                 executor._finalize_run(outcome="completed")
-            except Exception:
-                pass  # finalize may fail on missing state — what matters is save call
 
         store.save.assert_called_once_with(fake_summary)
 
@@ -127,9 +124,7 @@ class TestD4FinalizeCallsConsolidate:
         executor.cts_budget = MagicMock()
         executor.cts_budget.total_actions_used = 0
         executor.failure_collector = None
-        try:
+        with contextlib.suppress(Exception):
             executor._finalize_run(outcome="completed")
-        except Exception:
-            pass  # finalize may fail on missing state — what matters is consolidate call
 
         mock_consolidator.consolidate.assert_called_once_with(days=1)

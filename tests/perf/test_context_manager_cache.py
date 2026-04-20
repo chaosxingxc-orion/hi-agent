@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from hi_agent.context.manager import ContextManager
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,7 +41,8 @@ def test_cache_initialized_on_construction():
 
 def test_stable_section_cache_hit():
     """Second call with the same system prompt must return a cached section
-    and increment the metrics counter when a metrics sink is present."""
+    and increment the metrics counter when a metrics sink is present.
+    """
     mgr = _make_manager()
 
     # Attach a mock metrics sink
@@ -59,9 +57,7 @@ def test_stable_section_cache_hit():
 
     # Second call — cache hit expected
     section2 = mgr._assemble_system(prompt)
-    metrics.increment.assert_called_once_with(
-        "context_cache_hit", {"section": "system"}
-    )
+    metrics.increment.assert_called_once_with("context_cache_hit", {"section": "system"})
 
     # Both calls must return equal content
     assert section1.content == section2.content
@@ -75,7 +71,8 @@ def test_stable_section_cache_hit():
 
 def test_stable_sections_invalidate_on_change():
     """Changing the system prompt content must produce a cache miss and a
-    new fingerprint entry in _section_cache."""
+    new fingerprint entry in _section_cache.
+    """
     mgr = _make_manager()
 
     prompt_a = "System prompt A"
@@ -112,6 +109,7 @@ def test_history_dirty_after_compact():
 
     # Now compact — this should re-set the dirty flag
     from hi_agent.context.manager import ContextSection
+
     history_section = ContextSection(
         name="history",
         content="[user] hello\n[assistant] hi there",
@@ -133,11 +131,12 @@ def test_history_dirty_after_compact():
 
 def test_dynamic_section_rebuilds_when_dirty():
     """add_history_entry must mark the history section dirty so subsequent
-    calls to _assemble_history produce a fresh section, not a stale cache."""
+    calls to _assemble_history produce a fresh section, not a stale cache.
+    """
     mgr = _make_manager()
 
     # First build — populates cache
-    s1 = mgr._assemble_history()
+    mgr._assemble_history()
     assert mgr._section_dirty["history"] is False
 
     # Add a new entry — marks dirty
@@ -157,7 +156,8 @@ def test_dynamic_section_rebuilds_when_dirty():
 
 def test_reflection_dirty_after_set():
     """set_reflection_context must mark reflection dirty so next assemble
-    rebuilds the section with the new content."""
+    rebuilds the section with the new content.
+    """
     mgr = _make_manager()
 
     # First assemble — clears dirty

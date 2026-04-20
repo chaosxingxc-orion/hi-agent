@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
-from hi_agent.observability.trace_context import TraceContext, TraceContextManager
 from hi_agent.events.envelope import EventEnvelope, make_envelope
+from hi_agent.observability.trace_context import TraceContextManager
 
 
 class TestTraceContextManager:
@@ -58,7 +57,7 @@ class TestTraceContextManager:
         mgr = TraceContextManager()
         mgr.clear()
         assert mgr.current() is None
-        with mgr.span("root") as root:
+        with mgr.span("root"):
             assert mgr.current() is not None
         # After span exits, previous (None) is restored
         assert mgr.current() is None

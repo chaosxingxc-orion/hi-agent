@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-
 from agent_kernel.kernel.contracts import Action, ActionCommit, EffectClass, RuntimeEvent
 
 # ---------------------------------------------------------------------------

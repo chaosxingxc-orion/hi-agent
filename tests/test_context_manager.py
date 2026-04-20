@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-
+from hi_agent.context.health import ContextMonitor
 from hi_agent.context.manager import (
     ContextBudget,
     ContextHealth,
@@ -12,8 +12,6 @@ from hi_agent.context.manager import (
     ContextSection,
     ContextSnapshot,
 )
-from hi_agent.context.health import ContextMonitor
-
 
 # ======================================================================
 # Budget tests
@@ -219,9 +217,7 @@ class TestContextSnapshot:
         assert "tools" not in d  # empty content excluded
 
     def test_get_section_found(self):
-        snap = ContextSnapshot(
-            sections=[ContextSection(name="foo", content="bar", tokens=1)]
-        )
+        snap = ContextSnapshot(sections=[ContextSection(name="foo", content="bar", tokens=1)])
         assert snap.get_section("foo") is not None
         assert snap.get_section("foo").content == "bar"
 
@@ -344,9 +340,7 @@ class TestCompressionFallback:
 
         # Simulate 3 failures
         for _ in range(3):
-            section = ContextSection(
-                name="history", content="x" * 800, tokens=200, budget=500
-            )
+            section = ContextSection(name="history", content="x" * 800, tokens=200, budget=500)
             try:
                 mgr._compact_history(section, target_tokens=50)
             except RuntimeError:
@@ -454,9 +448,7 @@ class TestContextMonitor:
     def test_record_snapshot_stores_data(self):
         monitor = ContextMonitor()
         snap = ContextSnapshot(
-            sections=[
-                ContextSection(name="system", content="hi", tokens=1, budget=100)
-            ],
+            sections=[ContextSection(name="system", content="hi", tokens=1, budget=100)],
             total_tokens=1,
             budget_tokens=100,
             utilization_pct=0.01,
@@ -503,9 +495,7 @@ class TestContextMonitor:
     def test_get_recommendations_balanced(self):
         monitor = ContextMonitor()
         snap = ContextSnapshot(
-            sections=[
-                ContextSection(name="system", content="s", tokens=100, budget=1000)
-            ],
+            sections=[ContextSection(name="system", content="s", tokens=100, budget=1000)],
             total_tokens=100,
             budget_tokens=192_000,
             utilization_pct=0.001,
@@ -683,10 +673,7 @@ class TestIntegration:
         snap2 = mgr.prepare_context(system_prompt="Be brief.")
 
         # Either compression was applied or tokens grew
-        assert (
-            snap2.compressions_applied > 0
-            or snap2.total_tokens >= initial_tokens
-        )
+        assert snap2.compressions_applied > 0 or snap2.total_tokens >= initial_tokens
 
     def test_monitor_integration(self):
         """ContextMonitor tracks snapshots from ContextManager."""

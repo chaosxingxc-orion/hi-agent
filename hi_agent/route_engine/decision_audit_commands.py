@@ -56,4 +56,3 @@ def _non_empty(value: str, field: str) -> str:
     if not normalized:
         raise ValueError(f"{field} must be a non-empty string")
     return normalized
-

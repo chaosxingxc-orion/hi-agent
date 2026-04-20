@@ -3,6 +3,7 @@
 import pytest
 from hi_agent.contracts import StageState
 from hi_agent.runtime_adapter.errors import IllegalStateTransitionError
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -24,4 +25,3 @@ def test_illegal_stage_transition_rejected() -> None:
 
     with pytest.raises(IllegalStateTransitionError):
         kernel.mark_stage_state("run-1", "S2_gather", StageState.COMPLETED)
-

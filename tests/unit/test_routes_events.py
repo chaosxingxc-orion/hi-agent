@@ -8,11 +8,9 @@ no real asyncio queues are created.
 from __future__ import annotations
 
 import asyncio
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.server.tenant_context import TenantContext, reset_tenant_context, set_tenant_context
 
 _DEFAULT_CTX = TenantContext(tenant_id="t1", user_id="u1", session_id="s1")
@@ -41,8 +39,8 @@ class TestHandleRunEventsSse:
     @pytest.mark.asyncio
     async def test_returns_streaming_response(self) -> None:
         """StreamingResponse is returned with correct media type."""
-        from starlette.responses import StreamingResponse
         from hi_agent.server.routes_events import handle_run_events_sse
+        from starlette.responses import StreamingResponse
 
         req = _make_sse_request()
 

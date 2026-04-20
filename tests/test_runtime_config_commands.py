@@ -51,4 +51,3 @@ def test_cmd_runtime_config_history_returns_empty_entries_when_no_data() -> None
         "count": 0,
         "entries": [],
     }
-

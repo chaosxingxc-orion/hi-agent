@@ -1,8 +1,6 @@
 """Integration tests for run-level provenance aggregation — HI-W2-001."""
-import pytest
 
 from hi_agent.contracts.execution_provenance import (
-    CONTRACT_VERSION,
     ExecutionProvenance,
     StageProvenance,
 )

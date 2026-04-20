@@ -13,10 +13,7 @@ import time
 from unittest.mock import MagicMock, patch
 
 import jwt as pyjwt
-import pytest
-
 from hi_agent.server.auth_middleware import AuthMiddleware, _verify_jwt
-
 
 _SECRET = "test-secret-key-for-h5"
 _AUDIENCE = "hi-agent"

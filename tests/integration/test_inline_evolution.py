@@ -22,4 +22,3 @@ def test_inline_ingest_then_query_roundtrip() -> None:
 
     hits = query_knowledge(store=store, query="schema rollback", top_k=3)
     assert [record.key for record in hits] == ["run-inline-1"]
-

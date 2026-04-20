@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
-
-import pytest
 
 from hi_agent.server.event_bus import EventBus
 
@@ -30,11 +27,13 @@ def _make_event(run_id: str = "r1", event_type: str = "test"):
             wake_policy="always",
             created_at="2026-01-01T00:00:00Z",
         )
+
     # Fallback dataclass if import fails
     @dataclass
     class _FakeEvent:
         run_id: str
         event_type: str = "test"
+
     return _FakeEvent(run_id=run_id, event_type=event_type)
 
 
@@ -85,7 +84,7 @@ class TestEventBus:
 
     def test_dropped_count(self):
         bus = EventBus(max_queue_size=1)
-        q = bus.subscribe("r1")
+        bus.subscribe("r1")
         bus.publish(_make_event("r1"))
         bus.publish(_make_event("r1"))
         bus.publish(_make_event("r1"))

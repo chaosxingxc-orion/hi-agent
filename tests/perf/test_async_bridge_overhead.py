@@ -6,7 +6,6 @@ import asyncio
 import time
 
 import pytest
-
 from hi_agent.runtime.async_bridge import AsyncBridgeService
 
 

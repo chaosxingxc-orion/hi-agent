@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 
+from hi_agent.capability.registry import CapabilityDescriptor, CapabilityRegistry, CapabilitySpec
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.route_engine.capability_filter import filter_proposal
-from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec
-from hi_agent.capability.registry import CapabilityDescriptor
 
 
 def _make_registry() -> CapabilityRegistry:

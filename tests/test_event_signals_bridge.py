@@ -65,4 +65,3 @@ def test_bridge_validates_inputs(summary: dict[str, object], backlog_threshold: 
     """Invalid summary payload should raise ValueError."""
     with pytest.raises(ValueError):
         build_signals_from_event_summary(summary, backlog_threshold=backlog_threshold)
-

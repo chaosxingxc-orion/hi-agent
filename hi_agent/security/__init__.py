@@ -1,4 +1,5 @@
 """Security module for hi-agent."""
+
 from hi_agent.security.injection_scanner import (
     InjectionPattern,
     InjectionScanner,
@@ -12,11 +13,11 @@ from hi_agent.security.url_policy import URLPolicy, URLPolicyViolation
 __all__ = [
     "InjectionPattern",
     "InjectionScanner",
+    "PathPolicyViolation",
     "ScanResult",
     "SecurityEvent",
     "SecurityEventSeverity",
-    "PathPolicyViolation",
-    "safe_resolve",
     "URLPolicy",
     "URLPolicyViolation",
+    "safe_resolve",
 ]

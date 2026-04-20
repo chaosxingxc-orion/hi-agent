@@ -1,5 +1,4 @@
-"""
-Structured Context Compression for hi-agent.
+"""Structured Context Compression for hi-agent.
 
 Provides a structured compression template that preserves critical
 information across compression cycles. Instead of naive summarization,
@@ -17,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -37,11 +36,11 @@ logger = logging.getLogger(__name__)
 class CompressionField(StrEnum):
     """Field identifiers for the structured summary schema."""
 
-    GOAL = "goal"                    # User's original task goal (immutable across compression cycles)
-    PROGRESS = "progress"            # Work completed so far
-    DECISIONS = "decisions"          # Key decisions and choices made
+    GOAL = "goal"  # User's original task goal (immutable across compression cycles)
+    PROGRESS = "progress"  # Work completed so far
+    DECISIONS = "decisions"  # Key decisions and choices made
     MODIFIED_FILES = "modified_files"  # List of files that were changed
-    NEXT_STEPS = "next_steps"        # Remaining work to be done
+    NEXT_STEPS = "next_steps"  # Remaining work to be done
 
 
 # ---------------------------------------------------------------------------
@@ -63,8 +62,8 @@ class StructuredSummary:
     decisions: str
     modified_files: list[str]
     next_steps: str
-    compressed_at: str            # ISO 8601 timestamp
-    source_message_count: int     # Number of messages that were compressed
+    compressed_at: str  # ISO 8601 timestamp
+    source_message_count: int  # Number of messages that were compressed
 
     def to_context_block(self) -> str:
         """Return a formatted context block suitable for injection into a TaskView.
@@ -97,8 +96,8 @@ class StructuredSummary:
             f"[END COMPACTION - 压缩自 {self.source_message_count} 条消息]"
         )
 
-    def merge(self, newer: "StructuredSummary") -> "StructuredSummary":
-        """Produce an incremental merged summary from *self* (older) and *newer*.
+    def merge(self, newer: StructuredSummary) -> StructuredSummary:
+        r"""Produce an incremental merged summary from *self* (older) and *newer*.
 
         Merge rules:
         - **goal**: keep the older one — the original task goal does not change.
@@ -146,7 +145,7 @@ class StructuredSummary:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "StructuredSummary":
+    def from_dict(cls, d: dict) -> StructuredSummary:
         """Reconstruct a StructuredSummary from a dict (e.g., loaded from JSON)."""
         return cls(
             goal=d.get(CompressionField.GOAL, ""),
@@ -282,7 +281,7 @@ class StructuredCompressorConfig:
     head_count: int = 3
     tail_token_budget: int = 8000
     max_middle_chars_per_compress: int = 16000
-    model_tier: str = "light"   # use a lightweight model for compression
+    model_tier: str = "light"  # use a lightweight model for compression
 
 
 # ---------------------------------------------------------------------------
@@ -343,9 +342,7 @@ class StructuredCompressor:
                 fallback = existing_summary.merge(fallback)
             return list(messages), fallback
 
-        new_summary = await self._call_llm_for_summary(
-            section.middle_messages, existing_summary
-        )
+        new_summary = await self._call_llm_for_summary(section.middle_messages, existing_summary)
 
         if existing_summary is not None:
             new_summary = existing_summary.merge(new_summary)
@@ -355,7 +352,7 @@ class StructuredCompressor:
             "content": new_summary.to_context_block(),
         }
 
-        new_messages = [injection_message] + section.head_messages + section.tail_messages
+        new_messages = [injection_message, *section.head_messages, *section.tail_messages]
         return new_messages, new_summary
 
     # ------------------------------------------------------------------
@@ -379,9 +376,7 @@ class StructuredCompressor:
             response: LLMResponse = await self._llm.complete(request)
             return self._parse_llm_response(response.content, middle_messages)
         except Exception as exc:
-            logger.warning(
-                "StructuredCompressor: LLM call failed (%s); using fallback.", exc
-            )
+            logger.warning("StructuredCompressor: LLM call failed (%s); using fallback.", exc)
             return self._minimal_summary(middle_messages)
 
     def _build_compression_prompt(
@@ -533,8 +528,7 @@ class StructuredCompressor:
             content = msg.get("content", "")
             if isinstance(content, list):
                 content = " ".join(
-                    b.get("text", "") if isinstance(b, dict) else str(b)
-                    for b in content
+                    b.get("text", "") if isinstance(b, dict) else str(b) for b in content
                 )
             content_str = str(content)[:500]
             if role == "user" and not goal:

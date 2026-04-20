@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from agent_kernel.runtime.drain_coordinator import DrainCoordinator
 
 

@@ -53,7 +53,8 @@ async def handle_run_events_sse(request: Request) -> StreamingResponse | JSONRes
         # Replay missed events before subscribing to the live queue.
         if since_sequence > 0 and _store is not None:
             missed = _store.list_since(
-                run_id, since_sequence,
+                run_id,
+                since_sequence,
                 tenant_id=ctx.tenant_id,
                 user_id=ctx.user_id,
                 session_id=ctx.session_id,
@@ -65,12 +66,14 @@ async def handle_run_events_sse(request: Request) -> StreamingResponse | JSONRes
         try:
             while True:
                 event = await q.get()
-                data = json.dumps({
-                    "run_id": event.run_id,
-                    "event_type": event.event_type,
-                    "commit_offset": event.commit_offset,
-                    "payload": event.payload_json,
-                })
+                data = json.dumps(
+                    {
+                        "run_id": event.run_id,
+                        "event_type": event.event_type,
+                        "commit_offset": event.commit_offset,
+                        "payload": event.payload_json,
+                    }
+                )
                 yield f"id: {event.commit_offset}\ndata: {data}\n\n"
         except asyncio.CancelledError:
             pass

@@ -1,4 +1,4 @@
-﻿"""KnowledgeBuilder - extracted from the central builder (HI-W7-001).
+"""KnowledgeBuilder - extracted from the central builder (HI-W7-001).
 
 Builds wiki, user knowledge store, and knowledge manager.
 Takes TraceConfig plus an optional long-term graph factory callable.
@@ -39,17 +39,13 @@ class KnowledgeBuilder:
         except (FileNotFoundError, KeyError, ValueError):
             pass  # expected on fresh installs
         except Exception as exc:
-            logger.warning(
-                "build_knowledge_wiki: failed to load prior wiki state: %s", exc
-            )
+            logger.warning("build_knowledge_wiki: failed to load prior wiki state: %s", exc)
         return wiki
 
     def build_user_knowledge_store(self) -> Any:
         from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
 
-        return UserKnowledgeStore(
-            os.path.join(self._knowledge_base_dir(), "knowledge", "user")
-        )
+        return UserKnowledgeStore(os.path.join(self._knowledge_base_dir(), "knowledge", "user"))
 
     def build_knowledge_manager(
         self,

@@ -39,10 +39,9 @@ class RegisteredModel:
 
     def estimated_cost(self, input_tokens: int, output_tokens: int) -> float:
         """Estimate USD cost for a given token count."""
-        return (
-            (input_tokens / 1_000_000) * self.cost_input_per_mtok
-            + (output_tokens / 1_000_000) * self.cost_output_per_mtok
-        )
+        return (input_tokens / 1_000_000) * self.cost_input_per_mtok + (
+            output_tokens / 1_000_000
+        ) * self.cost_output_per_mtok
 
 
 class ModelRegistry:
@@ -80,9 +79,7 @@ class ModelRegistry:
 
     def list_by_capability(self, capability: str) -> list[RegisteredModel]:
         """Get models with a specific capability."""
-        return [
-            m for m in self._models.values() if capability in m.capabilities
-        ]
+        return [m for m in self._models.values() if capability in m.capabilities]
 
     def list_available(self) -> list[RegisteredModel]:
         """Get all currently available models."""
@@ -90,10 +87,7 @@ class ModelRegistry:
 
     def cheapest_in_tier(self, tier: str) -> RegisteredModel | None:
         """Get the cheapest available model in a tier."""
-        candidates = [
-            m for m in self._models.values()
-            if m.tier == tier and m.is_available
-        ]
+        candidates = [m for m in self._models.values() if m.tier == tier and m.is_available]
         if not candidates:
             return None
         return min(
@@ -101,9 +95,7 @@ class ModelRegistry:
             key=lambda m: m.cost_input_per_mtok + m.cost_output_per_mtok,
         )
 
-    def get_or_cheapest(
-        self, model_id: str, fallback_tier: str = "medium"
-    ) -> RegisteredModel:
+    def get_or_cheapest(self, model_id: str, fallback_tier: str = "medium") -> RegisteredModel:
         """Get specific model, or cheapest in fallback_tier if not found.
 
         Raises:
@@ -123,9 +115,7 @@ class ModelRegistry:
                 available,
                 key=lambda m: m.cost_input_per_mtok + m.cost_output_per_mtok,
             )
-        raise KeyError(
-            f"Model {model_id!r} not found and no models in tier {fallback_tier!r}"
-        )
+        raise KeyError(f"Model {model_id!r} not found and no models in tier {fallback_tier!r}")
 
     def register_defaults(self) -> None:
         """Register well-known models with standard pricing.

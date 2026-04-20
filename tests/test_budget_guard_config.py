@@ -1,6 +1,7 @@
 # tests/test_budget_guard_config.py
 from hi_agent.config.trace_config import TraceConfig
-from hi_agent.task_mgmt.budget_guard import BudgetGuard, TierDecision
+from hi_agent.task_mgmt.budget_guard import BudgetGuard
+
 
 def test_budget_guard_from_config_thresholds():
     cfg = TraceConfig(
@@ -13,6 +14,7 @@ def test_budget_guard_from_config_thresholds():
     guard.consume(450)
     decision = guard.decide_tier("strong")
     assert decision.tier == "medium"
+
 
 def test_budget_guard_default_thresholds_match_config_defaults():
     cfg = TraceConfig()

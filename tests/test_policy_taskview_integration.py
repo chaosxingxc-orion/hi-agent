@@ -1,11 +1,10 @@
 """Integration tests for policy version pinning, episodic memory in task view,
-and knowledge store enhancements."""
+and knowledge store enhancements.
+"""
 
 from __future__ import annotations
 
 import pytest
-from dataclasses import asdict
-
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.knowledge.entry import KnowledgeEntry
 from hi_agent.knowledge.store import InMemoryKnowledgeStore
@@ -14,8 +13,6 @@ from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l2_index import RunMemoryIndex
 from hi_agent.memory.retriever import MemoryRetriever
 from hi_agent.task_view.builder import TaskView, build_task_view
-from hi_agent.task_view.token_budget import DEFAULT_BUDGET
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -26,7 +23,7 @@ def _make_index(
     run_id: str = "run-1", stages: list[tuple[str, str]] | None = None
 ) -> RunMemoryIndex:
     idx = RunMemoryIndex(run_id=run_id)
-    for sid, outcome in (stages or []):
+    for sid, outcome in stages or []:
         idx.add_stage(sid, outcome)
     return idx
 
@@ -101,6 +98,7 @@ class TestPolicyVersionSetFrozen:
         """RunExecutor stores policy_versions and it is frozen."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         contract = TaskContract(
@@ -109,9 +107,7 @@ class TestPolicyVersionSetFrozen:
             task_family="quick_task",
         )
         custom_pvs = PolicyVersionSet(route_policy="route_v99")
-        executor = RunExecutor(
-            contract, MockKernel(strict_mode=True), policy_versions=custom_pvs
-        )
+        executor = RunExecutor(contract, MockKernel(strict_mode=True), policy_versions=custom_pvs)
         assert executor.policy_versions is custom_pvs
         assert executor.policy_versions.route_policy == "route_v99"
         # Frozen
@@ -122,6 +118,7 @@ class TestPolicyVersionSetFrozen:
         """RunExecutor defaults to PolicyVersionSet() when none provided."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         contract = TaskContract(
@@ -143,6 +140,7 @@ class TestPolicyVersionsInPostmortem:
     def test_postmortem_includes_policy_versions(self) -> None:
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         pvs = PolicyVersionSet(route_policy="route_v5", skill_policy="skill_v3")
@@ -151,9 +149,7 @@ class TestPolicyVersionsInPostmortem:
             goal="postmortem test",
             task_family="quick_task",
         )
-        executor = RunExecutor(
-            contract, MockKernel(strict_mode=True), policy_versions=pvs
-        )
+        executor = RunExecutor(contract, MockKernel(strict_mode=True), policy_versions=pvs)
         postmortem = executor._build_postmortem("completed")
         assert postmortem.policy_versions["route_policy"] == "route_v5"
         assert postmortem.policy_versions["skill_policy"] == "skill_v3"
@@ -290,12 +286,16 @@ class TestKnowledgeStoreBatch:
 
     def test_upsert_batch_overwrites(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="old", source="s"),
-        ])
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="new", source="s"),
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="old", source="s"),
+            ]
+        )
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="new", source="s"),
+            ]
+        )
         rec = store.get(source="s", key="e1")
         assert rec is not None
         assert rec.content == "new"
@@ -308,11 +308,13 @@ class TestKnowledgeStoreBatch:
 class TestKnowledgeStoreTagSearch:
     def test_search_by_single_tag(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="A", tags=["alpha"]),
-            KnowledgeEntry(entry_id="e2", content="B", tags=["beta"]),
-            KnowledgeEntry(entry_id="e3", content="C", tags=["alpha", "beta"]),
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="A", tags=["alpha"]),
+                KnowledgeEntry(entry_id="e2", content="B", tags=["beta"]),
+                KnowledgeEntry(entry_id="e3", content="C", tags=["alpha", "beta"]),
+            ]
+        )
         results = store.search_by_tags(["alpha"])
         assert len(results) == 2
         ids = {r.entry_id for r in results}
@@ -320,11 +322,13 @@ class TestKnowledgeStoreTagSearch:
 
     def test_search_by_multiple_tags(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="A", tags=["x", "y"]),
-            KnowledgeEntry(entry_id="e2", content="B", tags=["x"]),
-            KnowledgeEntry(entry_id="e3", content="C", tags=["x", "y", "z"]),
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="A", tags=["x", "y"]),
+                KnowledgeEntry(entry_id="e2", content="B", tags=["x"]),
+                KnowledgeEntry(entry_id="e3", content="C", tags=["x", "y", "z"]),
+            ]
+        )
         results = store.search_by_tags(["x", "y"])
         assert len(results) == 2
         ids = {r.entry_id for r in results}
@@ -336,10 +340,12 @@ class TestKnowledgeStoreTagSearch:
 
     def test_search_by_tags_respects_limit(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id=f"e{i}", content=f"fact {i}", tags=["common"])
-            for i in range(20)
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id=f"e{i}", content=f"fact {i}", tags=["common"])
+                for i in range(20)
+            ]
+        )
         results = store.search_by_tags(["common"], limit=5)
         assert len(results) == 5
 
@@ -354,11 +360,13 @@ class TestKnowledgeStoreStats:
 
     def test_get_stats_populated(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="A", tags=["t1", "t2"], source="s1"),
-            KnowledgeEntry(entry_id="e2", content="B", tags=["t1"], source="s1"),
-            KnowledgeEntry(entry_id="e3", content="C", tags=["t2"], source="s2"),
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="A", tags=["t1", "t2"], source="s1"),
+                KnowledgeEntry(entry_id="e2", content="B", tags=["t1"], source="s1"),
+                KnowledgeEntry(entry_id="e3", content="C", tags=["t2"], source="s2"),
+            ]
+        )
         stats = store.get_stats()
         assert stats["total"] == 3
         assert stats["by_source"]["s1"] == 2
@@ -386,6 +394,7 @@ class TestBackwardCompatibility:
     def test_runner_without_policy_versions(self) -> None:
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         contract = TaskContract(

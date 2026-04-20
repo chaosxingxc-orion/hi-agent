@@ -47,9 +47,7 @@ def _default_timeout_call(
         return future.result(timeout=timeout_seconds)
     except FutureTimeoutError as exc:
         future.cancel()
-        raise TimeoutError(
-            f"Capability call timed out after {timeout_seconds} seconds"
-        ) from exc
+        raise TimeoutError(f"Capability call timed out after {timeout_seconds} seconds") from exc
 
 
 class CapabilityInvoker:
@@ -63,8 +61,7 @@ class CapabilityInvoker:
         max_retries: int = 0,
         retry_exceptions: tuple[type[Exception], ...] = (Exception,),
         call_timeout_seconds: float | None = None,
-        timeout_call: Callable[[Callable[[dict], dict], dict, float], dict]
-        | None = None,
+        timeout_call: Callable[[Callable[[dict], dict], dict, float], dict] | None = None,
     ) -> None:
         """Initialize invoker dependencies.
 
@@ -148,9 +145,7 @@ class CapabilityInvoker:
                 if self.call_timeout_seconds is None:
                     response = spec.handler(payload)
                 else:
-                    response = self.timeout_call(
-                        spec.handler, payload, self.call_timeout_seconds
-                    )
+                    response = self.timeout_call(spec.handler, payload, self.call_timeout_seconds)
                 elapsed_ms = int(time.monotonic() * 1000) - start_ms
                 self.breaker.mark_success(capability_name)
                 if isinstance(response, dict):

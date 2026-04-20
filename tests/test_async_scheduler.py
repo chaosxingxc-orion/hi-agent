@@ -1,9 +1,12 @@
 """Tests for AsyncTaskScheduler."""
+
 import asyncio
+
 import pytest
-from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler, ScheduleResult
-from tests.helpers.kernel_facade_fixture import MockKernelFacade
+from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
 from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
+
+from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 
 def make_node(node_id: str) -> TrajNode:
@@ -32,6 +35,7 @@ async def test_linear_graph_executes_in_order():
         async def _h(action, grant):
             order.append(node_id)
             return {"node_id": node_id}
+
         return _h
 
     graph = make_linear_graph("A", "B", "C")
@@ -58,6 +62,7 @@ async def test_parallel_nodes_execute_concurrently():
                 barrier.set()
             await barrier.wait()
             return {}
+
         return _h
 
     # A, B, C with no deps �?all run in parallel
@@ -87,6 +92,7 @@ async def test_semaphore_limits_concurrency():
             await asyncio.sleep(0.01)
             active -= 1
             return {}
+
         return _h
 
     g = TrajectoryGraph()
@@ -111,6 +117,7 @@ async def test_dynamic_node_added_during_execution():
             if node_id == "A":
                 scheduler.add_node(make_node("B"), depends_on=["A"])
             return {}
+
         return _h
 
     g = TrajectoryGraph()
@@ -132,6 +139,7 @@ async def test_empty_graph_sets_done_event():
     async def make_handler(node_id):
         async def _h(action, grant):
             return {}
+
         return _h
 
     # Empty graph with no nodes

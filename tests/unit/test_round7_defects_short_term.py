@@ -6,11 +6,8 @@ files instead of triggering FileNotFoundError from os.replace().
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from pathlib import Path
-
-import pytest
 
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
 

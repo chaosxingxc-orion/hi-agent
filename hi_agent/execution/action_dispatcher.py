@@ -35,9 +35,7 @@ class ActionDispatcher:
     def __init__(self, ctx: ActionDispatchContext) -> None:
         self._ctx = ctx
 
-    def _invoke_capability_via_hooks(
-        self, proposal: object, payload: dict
-    ) -> dict:
+    def _invoke_capability_via_hooks(self, proposal: object, payload: dict) -> dict:
         """Invoke capability through ExecutionHookManager pre/post tool hooks.
 
         When _hook_manager is available, wraps the raw capability invocation
@@ -86,21 +84,19 @@ class ActionDispatcher:
                         self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn)
                     )
             except RuntimeError:
-                asyncio.run(
-                    self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn)
-                )
+                asyncio.run(self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn))
 
             return _call_fn._last_result  # type: ignore[attr-defined]
         except Exception as exc:
             _logger.debug(
                 "runner.hook_wrap_failed run_id=%s stage_id=%s error=%s",
-                self._ctx.run_id, payload.get("stage_id", ""), exc,
+                self._ctx.run_id,
+                payload.get("stage_id", ""),
+                exc,
             )
             return self._invoke_capability(proposal, payload)
 
-    def _invoke_capability(
-        self, proposal: object, payload: dict
-    ) -> dict:
+    def _invoke_capability(self, proposal: object, payload: dict) -> dict:
         """Invoke capability with optional role and action metadata propagation.
 
         When a harness_executor is configured, actions are routed through the
@@ -122,9 +118,7 @@ class ActionDispatcher:
                 "attempt": payload["attempt"],
             }
         if kwargs:
-            return self._ctx.invoker.invoke(
-                proposal.action_kind, payload, **kwargs
-            )
+            return self._ctx.invoker.invoke(proposal.action_kind, payload, **kwargs)
         return self._ctx.invoker.invoke(proposal.action_kind, payload)
 
     @staticmethod
@@ -170,8 +164,7 @@ class ActionDispatcher:
                 "action_kind": proposal.action_kind,
                 "seq": self._ctx.action_seq,
                 "attempt": attempt,
-                "should_fail": proposal.action_kind
-                in self._ctx.force_fail_actions,
+                "should_fail": proposal.action_kind in self._ctx.force_fail_actions,
                 "upstream_artifact_ids": upstream_artifact_ids or [],
             }
             self._ctx.record_event_fn("ActionPlanned", payload)
@@ -181,7 +174,9 @@ class ActionDispatcher:
                 result = self._invoke_capability_via_hooks(proposal, payload)
                 # W2-002: collect capability provenance for StageProvenance derivation
                 if isinstance(result, dict) and "_provenance" in result:
-                    self._ctx.capability_provenance_store.setdefault(stage_id, []).append(result["_provenance"])
+                    self._ctx.capability_provenance_store.setdefault(stage_id, []).append(
+                        result["_provenance"]
+                    )
                 success = bool(result.get("success", False))
                 self._ctx.record_event_fn(
                     "ActionExecuted",
@@ -235,9 +230,7 @@ class ActionDispatcher:
 
         return False, None, max_attempts
 
-    def _invoke_via_harness(
-        self, proposal: object, payload: dict
-    ) -> dict:
+    def _invoke_via_harness(self, proposal: object, payload: dict) -> dict:
         """Route action through HarnessExecutor and convert result to dict.
 
         Args:
@@ -259,16 +252,11 @@ class ActionDispatcher:
             action_type="mutate",
             capability_name=proposal.action_kind,
             payload=payload,
-            side_effect_class=SideEffectClass(
-                getattr(proposal, "side_effect_class", "read_only")
-            )
+            side_effect_class=SideEffectClass(getattr(proposal, "side_effect_class", "read_only"))
             if hasattr(proposal, "side_effect_class")
-            and proposal.side_effect_class
-            in {e.value for e in SideEffectClass}
+            and proposal.side_effect_class in {e.value for e in SideEffectClass}
             else SideEffectClass.READ_ONLY,
-            upstream_artifact_ids=list(
-                payload.get("upstream_artifact_ids") or []
-            ),
+            upstream_artifact_ids=list(payload.get("upstream_artifact_ids") or []),
         )
 
         result = self._ctx.harness_executor.execute(spec)

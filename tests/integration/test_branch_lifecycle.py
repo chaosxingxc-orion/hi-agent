@@ -10,8 +10,9 @@ Validates branch state machine transitions including:
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from hi_agent.contracts import (
-    BranchState,
     NodeState,
     StageState,
     TaskContract,
@@ -19,6 +20,7 @@ from hi_agent.contracts import (
 )
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -29,7 +31,10 @@ class _MultiBranchRouteEngine:
         self.branch_count = branch_count
 
     def propose(
-        self, stage_id: str, run_id: str, seq: int,
+        self,
+        stage_id: str,
+        run_id: str,
+        seq: int,
     ) -> list[BranchProposal]:
         proposals = []
         for i in range(self.branch_count):
@@ -47,7 +52,7 @@ class _MultiBranchRouteEngine:
 class _PartialFailRouteEngine:
     """Route engine with 3 branches: first two succeed, third fails."""
 
-    STAGE_ACTIONS: dict[str, str] = {
+    STAGE_ACTIONS: ClassVar[dict[str, str]] = {
         "S1_understand": "analyze_goal",
         "S2_gather": "search_evidence",
         "S3_build": "build_draft",
@@ -56,7 +61,10 @@ class _PartialFailRouteEngine:
     }
 
     def propose(
-        self, stage_id: str, run_id: str, seq: int,
+        self,
+        stage_id: str,
+        run_id: str,
+        seq: int,
     ) -> list[BranchProposal]:
         action = self.STAGE_ACTIONS.get(stage_id, "analyze_goal")
         proposals = []
@@ -88,9 +96,7 @@ class TestBranchHappyPath:
         assert result == "completed"
         for key, info in kernel.branches.items():
             if key[0] == executor.run_id:
-                assert info["state"] == "succeeded", (
-                    f"Branch {key} in state {info['state']}"
-                )
+                assert info["state"] == "succeeded", f"Branch {key} in state {info['state']}"
 
     def test_branch_state_history_in_kernel_events(self) -> None:
         """Kernel events should record proposed->active->succeeded transitions."""
@@ -102,9 +108,9 @@ class TestBranchHappyPath:
 
         for stage_id in STAGES:
             opened = [
-                e for e in kernel.events
-                if e["event_type"] == "BranchOpened"
-                and e.get("stage_id") == stage_id
+                e
+                for e in kernel.events
+                if e["event_type"] == "BranchOpened" and e.get("stage_id") == stage_id
             ]
             assert len(opened) >= 1, f"No branch opened for {stage_id}"
 
@@ -127,7 +133,8 @@ class TestBranchFailurePath:
         assert result == "failed"
         # S1 branch should be in failed state
         s1_branches = [
-            (key, info) for key, info in kernel.branches.items()
+            (key, info)
+            for key, info in kernel.branches.items()
             if key[0] == executor.run_id and key[1] == "S1_understand"
         ]
         assert len(s1_branches) >= 1
@@ -156,8 +163,7 @@ class TestDeadEndDetection:
 
         # The stage should have had recovery triggered (event recorded)
         recovery_events = [
-            e for e in executor.event_emitter.events
-            if e.event_type == "RecoveryTriggered"
+            e for e in executor.event_emitter.events if e.event_type == "RecoveryTriggered"
         ]
         assert len(recovery_events) >= 1
 
@@ -193,8 +199,7 @@ class TestMultipleBranchesPerStage:
         assert result == "completed"
         for stage_id in STAGES:
             stage_branches = [
-                key for key in kernel.branches
-                if key[0] == executor.run_id and key[1] == stage_id
+                key for key in kernel.branches if key[0] == executor.run_id and key[1] == stage_id
             ]
             assert len(stage_branches) == 2, (
                 f"{stage_id} has {len(stage_branches)} branches, expected 2"
@@ -249,7 +254,8 @@ class TestBranchPruningAndTrajectoryState:
         executor.execute()
 
         s3_branches = [
-            (key, info) for key, info in kernel.branches.items()
+            (key, info)
+            for key, info in kernel.branches.items()
             if key[0] == executor.run_id and key[1] == "S3_build"
         ]
         states = {info["state"] for _, info in s3_branches}
@@ -269,13 +275,7 @@ class TestBranchPruningAndTrajectoryState:
 
         executor.execute()
 
-        succeeded_count = sum(
-            1 for n in executor.dag.values()
-            if n.state == NodeState.SUCCEEDED
-        )
-        failed_count = sum(
-            1 for n in executor.dag.values()
-            if n.state == NodeState.FAILED
-        )
+        succeeded_count = sum(1 for n in executor.dag.values() if n.state == NodeState.SUCCEEDED)
+        failed_count = sum(1 for n in executor.dag.values() if n.state == NodeState.FAILED)
         assert succeeded_count > 0
         assert failed_count > 0

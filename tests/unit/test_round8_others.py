@@ -22,8 +22,10 @@ def test_facade_stop_logs_finalize_failure(caplog):
     with caplog.at_level(logging.WARNING, logger="hi_agent.executor_facade"):
         facade.stop()
 
-    assert any("finalize" in r.message.lower() or "finalize" in r.getMessage().lower()
-               for r in caplog.records), "Expected warning about _finalize_run failure"
+    assert any(
+        "finalize" in r.message.lower() or "finalize" in r.getMessage().lower()
+        for r in caplog.records
+    ), "Expected warning about _finalize_run failure"
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +44,7 @@ def test_assemble_memory_logs_retrieval_failure(caplog):
     retriever.retrieve = MagicMock(side_effect=OSError("disk error"))
 
     from hi_agent.context.manager import ContextBudget
+
     budget = ContextBudget()
 
     mgr = ContextManager(budget=budget, memory_retriever=retriever)
@@ -50,8 +53,10 @@ def test_assemble_memory_logs_retrieval_failure(caplog):
         section = mgr._assemble_memory()
 
     assert section.content == ""  # fallback still works
-    assert any("memory_retrieval_failed" in r.getMessage() or "disk error" in r.getMessage()
-               for r in caplog.records), "Expected warning about retrieval failure"
+    assert any(
+        "memory_retrieval_failed" in r.getMessage() or "disk error" in r.getMessage()
+        for r in caplog.records
+    ), "Expected warning about retrieval failure"
 
 
 # ---------------------------------------------------------------------------
@@ -80,8 +85,14 @@ def test_dream_not_double_triggered():
 
     def counting_trigger(date=None):
         trigger_count.append(1)
-        return {"status": "completed", "date": date, "sessions_count": 0,
-                "tasks_completed": 0, "key_learnings": 0, "patterns_observed": 0}
+        return {
+            "status": "completed",
+            "date": date,
+            "sessions_count": 0,
+            "tasks_completed": 0,
+            "key_learnings": 0,
+            "patterns_observed": 0,
+        }
 
     mgr.trigger_dream = counting_trigger
 
@@ -163,6 +174,7 @@ def test_checkpoint_builder_uses_profile_id():
     try:
         builder = SystemBuilder()
         import contextlib
+
         with (
             patch.object(builder, "build_short_term_store") as mock_sts,
             patch.object(builder, "build_kernel", return_value=MagicMock()),

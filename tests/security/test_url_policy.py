@@ -1,10 +1,10 @@
 """Unit tests for URLPolicy SSRF prevention (P0-1d)."""
+
 from __future__ import annotations
 
 from unittest.mock import patch
 
 import pytest
-
 from hi_agent.security.url_policy import URLPolicy, URLPolicyViolation
 
 
@@ -87,6 +87,7 @@ def test_ipv4_mapped_ipv6_loopback_blocked():
     # AF_INET6=10, sockaddr includes scope_id for IPv6
     ipv4_mapped_loopback = [(10, 1, 6, "", ("::ffff:127.0.0.1", 0, 0, 0))]
     policy = URLPolicy()
-    with patch("hi_agent.security.url_policy.socket.getaddrinfo", return_value=ipv4_mapped_loopback):
-        with pytest.raises(URLPolicyViolation, match="blocked"):
-            policy.validate("http://evil.com/")
+    with patch(
+        "hi_agent.security.url_policy.socket.getaddrinfo", return_value=ipv4_mapped_loopback
+    ), pytest.raises(URLPolicyViolation, match="blocked"):
+        policy.validate("http://evil.com/")

@@ -20,7 +20,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-
 from agent_kernel.kernel.contracts import ActionCommit, RuntimeEvent
 from agent_kernel.kernel.dedupe_store import IdempotencyEnvelope, InMemoryDedupeStore
 from agent_kernel.kernel.minimal_runtime import InMemoryKernelRuntimeEventLog

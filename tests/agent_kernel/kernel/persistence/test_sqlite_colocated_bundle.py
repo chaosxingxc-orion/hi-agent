@@ -11,7 +11,6 @@ import threading
 from datetime import UTC, datetime
 
 import pytest
-
 from agent_kernel.kernel.contracts import ActionCommit, RuntimeEvent
 from agent_kernel.kernel.dedupe_store import (
     DedupeRecord,

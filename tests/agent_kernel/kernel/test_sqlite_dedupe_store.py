@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from agent_kernel.kernel.dedupe_store import DedupeStoreStateError, IdempotencyEnvelope
 from agent_kernel.kernel.persistence.sqlite_dedupe_store import SQLiteDedupeStore
 

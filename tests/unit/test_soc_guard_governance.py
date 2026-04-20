@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.auth.soc_guard import SeparationOfConcernError
 from hi_agent.harness.contracts import ActionSpec, EffectClass, SideEffectClass
 from hi_agent.harness.governance import GovernanceEngine
@@ -36,7 +35,9 @@ class TestSocGuardGovernance:
         spec = _approval_pending_spec(action_id="act-1", submitter_id="alice")
         gov.request_approval(spec)
 
-        with pytest.raises(SeparationOfConcernError, match="submitter and approver must be different"):
+        with pytest.raises(
+            SeparationOfConcernError, match="submitter and approver must be different"
+        ):
             gov.approve("act-1", approver_id="alice")
 
         # Action should NOT be in approved set after error
@@ -57,7 +58,7 @@ class TestSocGuardGovernance:
         assert not any(s.action_id == "act-2" for s in gov._approval_queue)
 
     def test_approve_missing_identities_backward_compatible(self) -> None:
-        """Test 3: approve() with missing identities (empty strings) succeeds (backward-compatible)."""
+        """Test 3: `approve()` with missing identities remains backward compatible."""
         gov = GovernanceEngine()
         spec = _approval_pending_spec(action_id="act-3", submitter_id="")
         gov.request_approval(spec)
@@ -69,7 +70,7 @@ class TestSocGuardGovernance:
         assert "act-3" in gov._approved
 
     def test_approve_only_approver_id_backward_compatible(self) -> None:
-        """Test 4: approve() with only approver_id (no submitter_id on spec) succeeds (backward-compatible)."""
+        """Test 4: `approve()` with only `approver_id` remains backward compatible."""
         gov = GovernanceEngine()
         spec = _approval_pending_spec(action_id="act-4", submitter_id="")
         gov.request_approval(spec)

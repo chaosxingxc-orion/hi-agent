@@ -4,21 +4,19 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 from hi_agent.capability.async_invoker import AsyncCapabilityInvoker
 from hi_agent.capability.circuit_breaker import CircuitBreaker
-from hi_agent.capability.policy import CapabilityPolicy
 from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec
 from hi_agent.contracts import TaskContract
 from hi_agent.events import EventEmitter
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -79,9 +77,7 @@ async def test_async_invoke_timeout():
 
     reg = _registry_with("slow", slow_handler)
     breaker = CircuitBreaker()
-    invoker = AsyncCapabilityInvoker(
-        registry=reg, breaker=breaker, call_timeout_seconds=0.05
-    )
+    invoker = AsyncCapabilityInvoker(registry=reg, breaker=breaker, call_timeout_seconds=0.05)
 
     with pytest.raises((TimeoutError, asyncio.TimeoutError)):
         await invoker.invoke("slow", {})
@@ -190,7 +186,6 @@ def test_runner_exception_protection():
     executor = _make_executor()
 
     # Make _execute_stage raise an unexpected error
-    original_execute_stage = executor._execute_stage
 
     def exploding_stage(stage_id: str):
         raise RuntimeError("unexpected kaboom")

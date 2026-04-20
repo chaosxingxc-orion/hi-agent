@@ -56,10 +56,45 @@ src = ["hi_agent", "agent_kernel", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "RUF", "D"]
-ignore = ["D203", "D213", "E402"]
+ignore = [
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D107",
+    "D205",
+    "D203",
+    "D213",
+    "D417",
+    "E402",
+    "E501",
+    "E741",
+    "N802",
+    "N806",
+    "N811",
+    "N813",
+    "N814",
+    "N817",
+    "N818",
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    "RUF012",
+    "SIM102",
+    "SIM105",
+    "SIM117",
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D", "N806"]
+"tests/integration/test_e2e_customer_scenarios.py" = ["E501", "RUF002", "RUF003"]
+"tests/test_mcp_integration.py" = ["E501", "RUF002", "RUF003"]
+"tests/test_nudge.py" = ["RUF001"]
 
 [tool.coverage.run]
 source = ["hi_agent"]

@@ -108,9 +108,7 @@ class RunSession:
             os.makedirs(self._storage_dir, exist_ok=True)
 
     # --- L0 Raw Memory ---
-    def append_record(
-        self, event_type: str, payload: dict, stage_id: str | None = None
-    ) -> int:
+    def append_record(self, event_type: str, payload: dict, stage_id: str | None = None) -> int:
         """Append raw event record. Returns record index.
 
         If storage_dir set, also appends to JSONL file.
@@ -211,9 +209,7 @@ class RunSession:
         by_purpose: dict[str, float] = {}
         for call in self.llm_calls:
             by_stage[call.stage_id] = by_stage.get(call.stage_id, 0) + call.cost_usd
-            by_purpose[call.purpose] = (
-                by_purpose.get(call.purpose, 0) + call.cost_usd
-            )
+            by_purpose[call.purpose] = by_purpose.get(call.purpose, 0) + call.cost_usd
         return {
             "total_cost_usd": self.total_cost_usd,
             "total_input_tokens": self.total_input_tokens,
@@ -266,9 +262,7 @@ class RunSession:
         }
 
     @classmethod
-    def from_checkpoint(
-        cls, data: dict, task_contract: Any = None
-    ) -> RunSession:
+    def from_checkpoint(cls, data: dict, task_contract: Any = None) -> RunSession:
         """Restore session from checkpoint data."""
         session = cls(
             run_id=data["run_id"],
@@ -297,9 +291,7 @@ class RunSession:
         """Save checkpoint to JSON file. Returns file path."""
         if path is None:
             if self._storage_dir:
-                path = os.path.join(
-                    self._storage_dir, f"checkpoint_{self.run_id}.json"
-                )
+                path = os.path.join(self._storage_dir, f"checkpoint_{self.run_id}.json")
             else:
                 path = os.path.join(".checkpoint", f"checkpoint_{self.run_id}.json")
         parent = os.path.dirname(path)
@@ -310,9 +302,7 @@ class RunSession:
         return path
 
     @classmethod
-    def load_checkpoint(
-        cls, path: str, task_contract: Any = None
-    ) -> RunSession:
+    def load_checkpoint(cls, path: str, task_contract: Any = None) -> RunSession:
         """Load session from checkpoint file."""
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -343,9 +333,7 @@ class RunSession:
         return loaded
 
     # --- Context Building (dedup-aware) ---
-    def build_context_for_llm(
-        self, purpose: str, budget_tokens: int = 8192
-    ) -> dict[str, Any]:
+    def build_context_for_llm(self, purpose: str, budget_tokens: int = 8192) -> dict[str, Any]:
         """Build deduplicated context for an LLM call.
 
         Uses compact boundary to avoid resending compressed content.
@@ -380,9 +368,7 @@ class RunSession:
         fresh_records = self.get_records_after_boundary()
         records_text = []
         for r in fresh_records:
-            r_text = (
-                f"[{r['event_type']}] {json.dumps(r['payload'], default=str)}"
-            )
+            r_text = f"[{r['event_type']}] {json.dumps(r['payload'], default=str)}"
             r_tokens = len(r_text) // 4
             if used_tokens + r_tokens < budget_tokens * 0.85:
                 records_text.append(r_text)
@@ -408,9 +394,7 @@ class RunSession:
 def _serialize_contract(contract: Any) -> dict:
     """Serialize TaskContract to dict."""
     if hasattr(contract, "__dict__"):
-        return {
-            k: v for k, v in contract.__dict__.items() if not k.startswith("_")
-        }
+        return {k: v for k, v in contract.__dict__.items() if not k.startswith("_")}
     return {"raw": str(contract)}
 
 

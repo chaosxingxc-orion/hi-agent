@@ -1,12 +1,11 @@
 """Tests for hi_agent.middleware.hooks — fine-grained execution hook system."""
+
 from __future__ import annotations
 
-import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, TokenUsage
 from hi_agent.middleware.hooks import (
     ExecutionHookManager,
@@ -20,7 +19,6 @@ from hi_agent.middleware.hooks import (
     llm_cost_logger_hook,
     tool_result_size_hook,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

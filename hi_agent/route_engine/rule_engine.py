@@ -168,7 +168,11 @@ class RuleRouteEngine:
             )
             for _idx, skill in enumerate(matched):
                 skill_branch_id = deterministic_id(
-                    run_id, stage_id, str(seq), "skill", skill.skill_id,
+                    run_id,
+                    stage_id,
+                    str(seq),
+                    "skill",
+                    skill.skill_id,
                 )
                 skill_proposals.append(
                     BranchProposal(
@@ -184,10 +188,10 @@ class RuleRouteEngine:
         # threshold (> 0.5), the rule proposal is promoted to the front.
         if stage_id in self._stage_confidence and stage_conf > _DEFAULT_STAGE_CONFIDENCE:
             # Evolve has increased confidence in the rule: rule first, then skills.
-            return [rule_proposal] + skill_proposals
+            return [rule_proposal, *skill_proposals]
         else:
             # Default or low confidence: prefer skills, fallback to rule.
-            return skill_proposals + [rule_proposal]
+            return [*skill_proposals, rule_proposal]
 
     # ------------------------------------------------------------------
     # Evolve integration
@@ -238,9 +242,10 @@ class RuleRouteEngine:
                 updated = max(_CONFIDENCE_MIN, min(_CONFIDENCE_MAX, current + delta))
                 self._stage_confidence[stage_key] = updated
                 _logger.info(
-                    "rule_engine.evolve routing_heuristic target=%s "
-                    "confidence %.2f→%.2f",
-                    stage_key, current, updated,
+                    "rule_engine.evolve routing_heuristic target=%s confidence %.2f→%.2f",
+                    stage_key,
+                    current,
+                    updated,
                 )
                 applied += 1
 
@@ -250,24 +255,25 @@ class RuleRouteEngine:
                 weights = self._action_weights.setdefault(stage_key, {})
                 # Attempt to infer an action name from the description, falling
                 # back to the stage's default action.
-                action = _infer_action_from_description(
-                    description, self.STAGE_ACTIONS, stage_key
-                )
+                action = _infer_action_from_description(description, self.STAGE_ACTIONS, stage_key)
                 old_weight = weights.get(action, _DEFAULT_ACTION_WEIGHT)
                 # Weight grows with repeated positive signals.
                 weights[action] = max(0.01, confidence)
                 _logger.info(
-                    "rule_engine.evolve skill_update stage=%s action=%s "
-                    "weight %.2f→%.2f",
-                    stage_key, action, old_weight, weights[action],
+                    "rule_engine.evolve skill_update stage=%s action=%s weight %.2f→%.2f",
+                    stage_key,
+                    action,
+                    old_weight,
+                    weights[action],
                 )
                 applied += 1
 
             else:
                 _logger.debug(
-                    "rule_engine.apply_evolve_changes ignored type=%s target=%s "
-                    "confidence=%.2f",
-                    change_type, target_id, confidence,
+                    "rule_engine.apply_evolve_changes ignored type=%s target=%s confidence=%.2f",
+                    change_type,
+                    target_id,
+                    confidence,
                 )
 
         if applied:
@@ -297,8 +303,7 @@ class RuleRouteEngine:
                 with open(self._evolve_state_path, encoding="utf-8") as fh:
                     data = json.load(fh)
                 self._stage_confidence = {
-                    k: float(v)
-                    for k, v in data.get("stage_confidence", {}).items()
+                    k: float(v) for k, v in data.get("stage_confidence", {}).items()
                 }
                 self._action_weights = {
                     k: {ak: float(av) for ak, av in v.items()}
@@ -308,10 +313,11 @@ class RuleRouteEngine:
                     "rule_engine: loaded evolve state from %s",
                     self._evolve_state_path,
                 )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _logger.warning(
                 "rule_engine: failed to load evolve state from %s: %s",
-                self._evolve_state_path, exc,
+                self._evolve_state_path,
+                exc,
             )
 
     def _persist_evolve_state(self) -> None:
@@ -329,16 +335,18 @@ class RuleRouteEngine:
                 "rule_engine: persisted evolve state to %s",
                 self._evolve_state_path,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _logger.warning(
                 "rule_engine: failed to persist evolve state to %s: %s",
-                self._evolve_state_path, exc,
+                self._evolve_state_path,
+                exc,
             )
 
 
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
+
 
 def _extract_stage_key(target_id: str, stage_actions: dict[str, str]) -> str:
     """Extract a usable lookup key from a change target_id.

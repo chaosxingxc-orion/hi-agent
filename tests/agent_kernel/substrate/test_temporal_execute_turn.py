@@ -10,7 +10,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from agent_kernel.kernel.contracts import MCPActivityInput, ToolActivityInput
 from agent_kernel.substrate.temporal.gateway import TemporalSDKWorkflowGateway
 

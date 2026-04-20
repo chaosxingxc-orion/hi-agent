@@ -156,13 +156,9 @@ class DAGExecutor:
                 break
 
         completed_ids = [
-            nid for nid, n in self.dag.nodes.items()
-            if n.state == TaskNodeState.COMPLETED
+            nid for nid, n in self.dag.nodes.items() if n.state == TaskNodeState.COMPLETED
         ]
-        failed_ids = [
-            nid for nid, n in self.dag.nodes.items()
-            if n.state == TaskNodeState.FAILED
-        ]
+        failed_ids = [nid for nid, n in self.dag.nodes.items() if n.state == TaskNodeState.FAILED]
 
         return DAGResult(
             success=self.dag.is_complete(),
@@ -222,26 +218,14 @@ class DAGExecutor:
 
     def _has_running(self) -> bool:
         """Check if any node is currently in RUNNING state."""
-        return any(
-            n.state == TaskNodeState.RUNNING
-            for n in self.dag.nodes.values()
-        )
+        return any(n.state == TaskNodeState.RUNNING for n in self.dag.nodes.values())
 
     def _make_progress(self) -> DAGProgress:
         """Build a progress snapshot."""
         nodes = self.dag.nodes
         return DAGProgress(
-            completed=sum(
-                1 for n in nodes.values()
-                if n.state == TaskNodeState.COMPLETED
-            ),
+            completed=sum(1 for n in nodes.values() if n.state == TaskNodeState.COMPLETED),
             total=len(nodes),
-            running=[
-                nid for nid, n in nodes.items()
-                if n.state == TaskNodeState.RUNNING
-            ],
-            failed=[
-                nid for nid, n in nodes.items()
-                if n.state == TaskNodeState.FAILED
-            ],
+            running=[nid for nid, n in nodes.items() if n.state == TaskNodeState.RUNNING],
+            failed=[nid for nid, n in nodes.items() if n.state == TaskNodeState.FAILED],
         )

@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import math
-
 import pytest
-
 from hi_agent.knowledge.granularity import (
     KnowledgeItem,
     estimate_tokens,
@@ -23,7 +20,6 @@ from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryEdge, MemoryNode
 from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
-
 
 # ===================================================================
 # Granularity tests
@@ -44,7 +40,10 @@ class TestEstimateTokens:
 
 class TestExtractFacts:
     def test_splits_sentences(self):
-        text = "Revenue grew by 20% in Q4. Costs remained stable. Profit margins improved significantly."
+        text = (
+            "Revenue grew by 20% in Q4. Costs remained stable. "
+            "Profit margins improved significantly."
+        )
         facts = extract_facts(text)
         assert len(facts) >= 2
 
@@ -147,8 +146,8 @@ class TestTFIDFIndex:
         bm25_results = idx.bm25("machine learning")
 
         # BM25 with length normalization should penalize the long doc more
-        bm25_ids = [r[0] for r in bm25_results]
-        tfidf_ids = [r[0] for r in tfidf_results]
+        [r[0] for r in bm25_results]
+        [r[0] for r in tfidf_results]
         # Both should return results, but rankings may differ
         assert len(bm25_results) >= 1
         assert len(tfidf_results) >= 1
@@ -232,16 +231,25 @@ class TestHybridRanker:
 
         items = [
             KnowledgeItem(
-                item_id="low", content="x", level=1,
-                source_type="long_term_text", relevance_score=0.1,
+                item_id="low",
+                content="x",
+                level=1,
+                source_type="long_term_text",
+                relevance_score=0.1,
             ),
             KnowledgeItem(
-                item_id="high", content="y", level=1,
-                source_type="long_term_text", relevance_score=0.9,
+                item_id="high",
+                content="y",
+                level=1,
+                source_type="long_term_text",
+                relevance_score=0.9,
             ),
             KnowledgeItem(
-                item_id="mid", content="z", level=1,
-                source_type="long_term_text", relevance_score=0.5,
+                item_id="mid",
+                content="z",
+                level=1,
+                source_type="long_term_text",
+                relevance_score=0.5,
             ),
         ]
         result = ranker.rank("", items)
@@ -256,32 +264,44 @@ class TestHybridRanker:
 
 def _make_wiki() -> KnowledgeWiki:
     wiki = KnowledgeWiki()
-    wiki.add_page(WikiPage(
-        page_id="revenue-q4",
-        title="Revenue Analysis Q4",
-        content="Revenue grew by 20% in Q4 2026 driven by new product launches.",
-        tags=["revenue", "q4", "finance"],
-    ))
-    wiki.add_page(WikiPage(
-        page_id="cost-analysis",
-        title="Cost Analysis",
-        content="Operating costs decreased by 5% due to efficiency improvements.",
-        tags=["cost", "operations"],
-    ))
-    wiki.add_page(WikiPage(
-        page_id="ml-models",
-        title="Machine Learning Models",
-        content="We deployed three ML models for demand forecasting in production.",
-        tags=["ml", "forecasting"],
-    ))
+    wiki.add_page(
+        WikiPage(
+            page_id="revenue-q4",
+            title="Revenue Analysis Q4",
+            content="Revenue grew by 20% in Q4 2026 driven by new product launches.",
+            tags=["revenue", "q4", "finance"],
+        )
+    )
+    wiki.add_page(
+        WikiPage(
+            page_id="cost-analysis",
+            title="Cost Analysis",
+            content="Operating costs decreased by 5% due to efficiency improvements.",
+            tags=["cost", "operations"],
+        )
+    )
+    wiki.add_page(
+        WikiPage(
+            page_id="ml-models",
+            title="Machine Learning Models",
+            content="We deployed three ML models for demand forecasting in production.",
+            tags=["ml", "forecasting"],
+        )
+    )
     return wiki
 
 
 def _make_graph() -> LongTermMemoryGraph:
     graph = LongTermMemoryGraph()
-    n1 = MemoryNode(node_id="n1", content="Revenue growth pattern", node_type="fact", tags=["revenue"])
-    n2 = MemoryNode(node_id="n2", content="Cost reduction strategy", node_type="method", tags=["cost"])
-    n3 = MemoryNode(node_id="n3", content="Q4 performance metrics", node_type="fact", tags=["q4", "metrics"])
+    n1 = MemoryNode(
+        node_id="n1", content="Revenue growth pattern", node_type="fact", tags=["revenue"]
+    )
+    n2 = MemoryNode(
+        node_id="n2", content="Cost reduction strategy", node_type="method", tags=["cost"]
+    )
+    n3 = MemoryNode(
+        node_id="n3", content="Q4 performance metrics", node_type="fact", tags=["q4", "metrics"]
+    )
     graph.add_node(n1)
     graph.add_node(n2)
     graph.add_node(n3)
@@ -393,11 +413,15 @@ class TestRetrievalEngineLayer4:
         engine = RetrievalEngine(embedding_fn=mock_embedding)
         items = [
             KnowledgeItem(
-                item_id="a", content="cost reduction", level=1,
+                item_id="a",
+                content="cost reduction",
+                level=1,
                 source_type="long_term_text",
             ),
             KnowledgeItem(
-                item_id="b", content="revenue growth", level=1,
+                item_id="b",
+                content="revenue growth",
+                level=1,
                 source_type="long_term_text",
             ),
         ]
@@ -459,7 +483,10 @@ class TestRetrievalEngineIntegration:
         mid_term = _make_mid_term(tmp_path)
 
         engine = RetrievalEngine(
-            wiki=wiki, graph=graph, short_term=short_term, mid_term=mid_term,
+            wiki=wiki,
+            graph=graph,
+            short_term=short_term,
+            mid_term=mid_term,
             storage_dir=str(tmp_path / "knowledge"),
         )
         count = engine.build_index()
@@ -490,8 +517,12 @@ class TestRetrievalResult:
     def test_to_context_string(self):
         result = RetrievalResult(
             items=[
-                KnowledgeItem(item_id="a", content="First item", level=1, source_type="long_term_text"),
-                KnowledgeItem(item_id="b", content="Second item", level=1, source_type="short_term"),
+                KnowledgeItem(
+                    item_id="a", content="First item", level=1, source_type="long_term_text"
+                ),
+                KnowledgeItem(
+                    item_id="b", content="Second item", level=1, source_type="short_term"
+                ),
             ]
         )
         text = result.to_context_string()
@@ -508,7 +539,9 @@ class TestRetrievalResult:
             items=[
                 KnowledgeItem(item_id="a", content="Wiki A", level=3, source_type="long_term_text"),
                 KnowledgeItem(item_id="b", content="Wiki B", level=3, source_type="long_term_text"),
-                KnowledgeItem(item_id="c", content="Graph C", level=4, source_type="long_term_graph"),
+                KnowledgeItem(
+                    item_id="c", content="Graph C", level=4, source_type="long_term_graph"
+                ),
                 KnowledgeItem(item_id="d", content="Short D", level=2, source_type="short_term"),
             ]
         )

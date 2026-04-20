@@ -11,7 +11,8 @@ import random
 import time
 import urllib.error
 import urllib.request
-from typing import TYPE_CHECKING, Any, Iterator
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -20,9 +21,9 @@ from hi_agent.llm.protocol import LLMRequest, LLMResponse, LLMStreamChunk, Token
 from hi_agent.runtime.async_bridge import AsyncBridgeService
 
 if TYPE_CHECKING:
-    from hi_agent.llm.failover import FailoverChain
-    from hi_agent.llm.cache import PromptCacheInjector
     from hi_agent.llm.budget_tracker import LLMBudgetTracker
+    from hi_agent.llm.cache import PromptCacheInjector
+    from hi_agent.llm.failover import FailoverChain
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,9 @@ class HttpLLMGateway:
         timeout_seconds: int = 120,
         max_retries: int = 3,
         retry_base_seconds: float = 1.0,
-        failover_chain: "FailoverChain | None" = None,
-        cache_injector: "PromptCacheInjector | None" = None,
-        budget_tracker: "LLMBudgetTracker | None" = None,
+        failover_chain: FailoverChain | None = None,
+        cache_injector: PromptCacheInjector | None = None,
+        budget_tracker: LLMBudgetTracker | None = None,
         runtime_mode: str = "",
     ) -> None:
         """Initialize HttpLLMGateway.
@@ -142,6 +143,7 @@ class HttpLLMGateway:
             # 2. Route through failover chain if configured.
             if self._failover_chain is not None:
                 import asyncio as _asyncio
+
                 try:
                     loop = _asyncio.get_event_loop()
                     if loop.is_running():
@@ -151,9 +153,7 @@ class HttpLLMGateway:
                         )
                         return future.result()
                     else:
-                        return loop.run_until_complete(
-                            self._failover_chain.complete(request)
-                        )
+                        return loop.run_until_complete(self._failover_chain.complete(request))
                 except Exception as exc:
                     logger.warning(
                         "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
@@ -295,7 +295,7 @@ class HttpLLMGateway:
                     raise provider_exc from exc
                 last_exc = provider_exc
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     time.sleep(delay)
             except urllib.error.URLError as exc:
                 if "timed out" in str(exc.reason):
@@ -305,15 +305,16 @@ class HttpLLMGateway:
                     raise LLMProviderError(str(exc.reason)) from exc
                 last_exc = LLMProviderError(str(exc.reason))
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     time.sleep(delay)
             except TimeoutError as exc:
                 raise LLMTimeoutError(str(exc)) from exc
         try:
-            from hi_agent.observability.fallback import (  # noqa: PLC0415
+            from hi_agent.observability.fallback import (
                 FallbackTaxonomy,
                 record_fallback,
             )
+
             record_fallback(
                 FallbackTaxonomy.DEPENDENCY_UNAVAILABLE,
                 "http_llm_gateway",
@@ -359,9 +360,9 @@ class HTTPGateway:
         default_model: str = "gpt-4o",
         max_retries: int = 3,
         retry_base_seconds: float = 1.0,
-        failover_chain: "FailoverChain | None" = None,
-        cache_injector: "PromptCacheInjector | None" = None,
-        budget_tracker: "LLMBudgetTracker | None" = None,
+        failover_chain: FailoverChain | None = None,
+        cache_injector: PromptCacheInjector | None = None,
+        budget_tracker: LLMBudgetTracker | None = None,
     ) -> None:
         """Initialize HTTPGateway."""
         self._base_url = base_url.rstrip("/")
@@ -484,14 +485,14 @@ class HTTPGateway:
                     status_code=status,
                 )
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     await asyncio.sleep(delay)
             except httpx.TimeoutException as exc:
                 raise LLMTimeoutError(str(exc)) from exc
             except httpx.RequestError as exc:
                 last_exc = LLMProviderError(str(exc))
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     await asyncio.sleep(delay)
         raise last_exc  # type: ignore[misc]
 

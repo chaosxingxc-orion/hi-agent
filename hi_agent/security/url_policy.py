@@ -2,6 +2,7 @@
 
 Provides URLPolicy to validate URLs against private/reserved network ranges.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -16,26 +17,24 @@ class URLPolicyViolation(Exception):
 
 # Private/reserved networks to block
 _BLOCKED_NETWORKS_V4 = [
-    IPv4Network("127.0.0.0/8"),      # loopback
-    IPv4Network("10.0.0.0/8"),       # private
-    IPv4Network("172.16.0.0/12"),    # private
-    IPv4Network("192.168.0.0/16"),   # private
-    IPv4Network("169.254.0.0/16"),   # link-local + metadata (169.254.169.254)
-    IPv4Network("0.0.0.0/8"),        # "this" network
-    IPv4Network("100.64.0.0/10"),    # shared address space (RFC 6598)
+    IPv4Network("127.0.0.0/8"),  # loopback
+    IPv4Network("10.0.0.0/8"),  # private
+    IPv4Network("172.16.0.0/12"),  # private
+    IPv4Network("192.168.0.0/16"),  # private
+    IPv4Network("169.254.0.0/16"),  # link-local + metadata (169.254.169.254)
+    IPv4Network("0.0.0.0/8"),  # "this" network
+    IPv4Network("100.64.0.0/10"),  # shared address space (RFC 6598)
 ]
 _BLOCKED_NETWORKS_V6 = [
-    IPv6Network("::1/128"),          # loopback
-    IPv6Network("fc00::/7"),         # unique local
-    IPv6Network("fe80::/10"),        # link-local
+    IPv6Network("::1/128"),  # loopback
+    IPv6Network("fc00::/7"),  # unique local
+    IPv6Network("fe80::/10"),  # link-local
 ]
 
 
 class URLPolicy:
     def __init__(self, *, allow_private: bool = False) -> None:
-        """
-        allow_private=True disables private network blocking (for dev/trusted-backend use).
-        """
+        """allow_private=True disables private network blocking (for dev/trusted-backend use)."""
         self._allow_private = allow_private
 
     def validate(self, url: str) -> None:
@@ -53,9 +52,7 @@ class URLPolicy:
 
         # Rule 1: Only http/https
         if parsed.scheme not in ("http", "https"):
-            raise URLPolicyViolation(
-                f"Scheme {parsed.scheme!r} is not allowed (only http/https)"
-            )
+            raise URLPolicyViolation(f"Scheme {parsed.scheme!r} is not allowed (only http/https)")
 
         hostname = parsed.hostname
         if not hostname:
@@ -67,12 +64,10 @@ class URLPolicy:
         # Rule 2: Resolve and check IP
         try:
             addr_info = socket.getaddrinfo(hostname, None)
-        except socket.gaierror as e:
-            raise URLPolicyViolation(
-                f"Cannot resolve hostname {hostname!r}: {e}"
-            )
+        except socket.gaierror as err:
+            raise URLPolicyViolation(f"Cannot resolve hostname {hostname!r}: {err}") from err
 
-        for family, _, _, _, sockaddr in addr_info:
+        for _family, _, _, _, sockaddr in addr_info:
             ip_str = sockaddr[0]
             self._check_ip(ip_str, hostname)
 

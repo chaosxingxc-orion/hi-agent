@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 from hi_agent.knowledge.embedding import (
     TFIDFEmbeddingProvider,
     make_tfidf_embedding_fn,
@@ -13,10 +11,10 @@ from hi_agent.knowledge.embedding import (
 from hi_agent.knowledge.retrieval_engine import cosine_similarity
 from hi_agent.knowledge.tfidf import TFIDFIndex
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _build_index(*docs: str) -> TFIDFIndex:
     """Build a TFIDFIndex populated with the given documents."""
@@ -32,6 +30,7 @@ def _build_index(*docs: str) -> TFIDFIndex:
 # 1. embed() returns a vector with correct dimension
 # ---------------------------------------------------------------------------
 
+
 def test_embed_dimension_matches_vocabulary() -> None:
     """embed() must return a vector whose length equals the vocab size."""
     idx = _build_index(
@@ -44,14 +43,13 @@ def test_embed_dimension_matches_vocabulary() -> None:
 
     vec = provider.embed("machine learning")
     assert isinstance(vec, list)
-    assert len(vec) == vocab_size, (
-        f"Expected vector length {vocab_size}, got {len(vec)}"
-    )
+    assert len(vec) == vocab_size, f"Expected vector length {vocab_size}, got {len(vec)}"
 
 
 # ---------------------------------------------------------------------------
 # 2. Returned vector is L2-normalized (unit length)
 # ---------------------------------------------------------------------------
+
 
 def test_embed_vector_is_unit_length() -> None:
     """embed() must return a unit-length (L2-normalized) vector."""
@@ -64,14 +62,13 @@ def test_embed_vector_is_unit_length() -> None:
     vec = provider.embed("neural network deep learning")
     norm = math.sqrt(sum(v * v for v in vec))
     # Allow small floating-point tolerance.
-    assert abs(norm - 1.0) < 1e-9 or norm == 0.0, (
-        f"Expected unit norm, got {norm}"
-    )
+    assert abs(norm - 1.0) < 1e-9 or norm == 0.0, f"Expected unit norm, got {norm}"
 
 
 # ---------------------------------------------------------------------------
 # 3. Similar texts score higher than dissimilar texts
 # ---------------------------------------------------------------------------
+
 
 def test_similar_texts_score_higher_than_dissimilar() -> None:
     """Cosine similarity must be higher for similar text pairs."""
@@ -98,6 +95,7 @@ def test_similar_texts_score_higher_than_dissimilar() -> None:
 # 4. make_tfidf_embedding_fn returns a callable
 # ---------------------------------------------------------------------------
 
+
 def test_make_tfidf_embedding_fn_returns_callable() -> None:
     """make_tfidf_embedding_fn must return a callable."""
     idx = _build_index("hello world", "foo bar baz")
@@ -112,6 +110,7 @@ def test_make_tfidf_embedding_fn_returns_callable() -> None:
 # ---------------------------------------------------------------------------
 # 5. embed() on empty/unknown text returns zero vector of correct dimension
 # ---------------------------------------------------------------------------
+
 
 def test_embed_unknown_text_returns_zero_vector() -> None:
     """embed() on text with no vocabulary overlap must return a zero vector."""

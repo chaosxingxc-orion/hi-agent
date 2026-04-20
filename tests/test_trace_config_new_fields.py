@@ -1,6 +1,7 @@
 # tests/test_trace_config_new_fields.py
 from hi_agent.config.trace_config import TraceConfig
 
+
 def test_new_context_fields_exist():
     cfg = TraceConfig()
     assert cfg.context_total_window == 200_000
@@ -15,6 +16,7 @@ def test_new_context_fields_exist():
     assert cfg.context_diminishing_window == 3
     assert cfg.context_diminishing_threshold == 100
 
+
 def test_new_perception_fields_exist():
     cfg = TraceConfig()
     assert cfg.perception_summary_threshold_tokens == 2_000
@@ -23,11 +25,13 @@ def test_new_perception_fields_exist():
     assert cfg.perception_summarize_temperature == 0.3
     assert cfg.perception_summarize_max_tokens == 200
 
+
 def test_new_budget_guard_fields_exist():
     cfg = TraceConfig()
     assert cfg.budget_guard_low_threshold == 0.10
     assert cfg.budget_guard_mid_threshold == 0.30
     assert cfg.budget_guard_high_threshold == 0.70
+
 
 def test_new_skill_fields_exist():
     cfg = TraceConfig()
@@ -37,9 +41,11 @@ def test_new_skill_fields_exist():
     assert cfg.skill_loader_max_prompt_tokens == 10_000
     assert cfg.skill_observer_max_summary_len == 500
 
+
 def test_new_llm_fields_exist():
     cfg = TraceConfig()
     assert cfg.llm_retry_base_seconds == 1.0
+
 
 def test_new_fields_override_via_json(tmp_path):
     cfg_file = tmp_path / "config.json"
@@ -47,6 +53,7 @@ def test_new_fields_override_via_json(tmp_path):
     cfg = TraceConfig.from_file(str(cfg_file))
     assert cfg.context_total_window == 128_000
     assert cfg.budget_guard_high_threshold == 0.80
+
 
 def test_new_fields_override_via_env(monkeypatch):
     monkeypatch.setenv("HI_AGENT_CONTEXT_TOTAL_WINDOW", "64000")

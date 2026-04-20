@@ -1,4 +1,7 @@
-"""Tests for AsyncKernelFacadeAdapter — protocol compliance for resolve_escalation and spawn_child_run."""
+"""Tests for AsyncKernelFacadeAdapter protocol compliance.
+
+Covers `resolve_escalation` and `spawn_child_run`.
+"""
 
 from __future__ import annotations
 
@@ -6,9 +9,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.runtime_adapter.async_kernel_facade_adapter import AsyncKernelFacadeAdapter
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -107,12 +108,12 @@ def test_spawn_child_run_sync_no_config() -> None:
 
 def test_protocol_no_missing_methods() -> None:
     """AsyncKernelFacadeAdapter must implement every method in RuntimeAdapter."""
-    from hi_agent.runtime_adapter.protocol import RuntimeAdapter
     import inspect
 
+    from hi_agent.runtime_adapter.protocol import RuntimeAdapter
+
     proto_methods = {
-        m for m, v in inspect.getmembers(RuntimeAdapter)
-        if not m.startswith("_") and callable(v)
+        m for m, v in inspect.getmembers(RuntimeAdapter) if not m.startswith("_") and callable(v)
     }
     adapter_methods = {m for m in dir(AsyncKernelFacadeAdapter) if not m.startswith("_")}
     missing = proto_methods - adapter_methods

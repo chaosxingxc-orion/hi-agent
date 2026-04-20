@@ -6,10 +6,7 @@ stage_actions and stage_graph when injected via profile_id.
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.profiles.contracts import ProfileSpec
-from hi_agent.profiles.registry import ProfileRegistry
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
 from hi_agent.workflows.contracts import WorkflowNode, WorkflowSpec, WorkflowTransition
 
@@ -32,11 +29,13 @@ class TestProfileStageActionsInRouteEngine:
 
     def test_non_trace_stage_names_work(self):
         """Custom stage names (not S1-S5) route correctly."""
-        engine = RuleRouteEngine(stage_actions={
-            "ingest": "load_data",
-            "transform": "apply_rules",
-            "export": "write_output",
-        })
+        engine = RuleRouteEngine(
+            stage_actions={
+                "ingest": "load_data",
+                "transform": "apply_rules",
+                "export": "write_output",
+            }
+        )
         proposals = engine.propose("transform", "run-002", 1)
         kinds = [p.action_kind for p in proposals]
         assert "apply_rules" in kinds
@@ -101,11 +100,13 @@ class TestBuilderWiresProfileActions:
 
         builder = SystemBuilder()
         reg = builder.build_profile_registry()
-        reg.register(ProfileSpec(
-            profile_id="custom",
-            display_name="Custom",
-            stage_actions={"step_a": "do_thing_a", "step_b": "do_thing_b"},
-        ))
+        reg.register(
+            ProfileSpec(
+                profile_id="custom",
+                display_name="Custom",
+                stage_actions={"step_a": "do_thing_a", "step_b": "do_thing_b"},
+            )
+        )
         resolved = builder._resolve_profile("custom")
         assert resolved is not None
         # Build route engine with profile's stage_actions

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
+
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _make_contract(
@@ -109,8 +110,10 @@ class TestExecuteGraphWithBacktrack:
         graph.add_edge("D", "C")
         graph.add_backtrack("B", "D")
 
-        executor, kernel, stages = _make_executor_with_stub(
-            graph, fail_once_stages={"B"}, task_id="bt-002",
+        executor, _kernel, stages = _make_executor_with_stub(
+            graph,
+            fail_once_stages={"B"},
+            task_id="bt-002",
         )
 
         result = executor.execute_graph()
@@ -128,8 +131,10 @@ class TestExecuteGraphWithBacktrack:
         # Backtrack from C to A (already completed when C runs)
         graph.add_backtrack("C", "A")
 
-        executor, kernel, stages = _make_executor_with_stub(
-            graph, fail_stages={"C"}, task_id="bt-003",
+        executor, _kernel, _stages = _make_executor_with_stub(
+            graph,
+            fail_stages={"C"},
+            task_id="bt-003",
         )
 
         result = executor.execute_graph()
@@ -141,8 +146,10 @@ class TestExecuteGraphWithBacktrack:
         graph = StageGraph()
         graph.add_edge("A", "B")
 
-        executor, kernel, stages = _make_executor_with_stub(
-            graph, fail_stages={"B"}, task_id="bt-004",
+        executor, _kernel, stages = _make_executor_with_stub(
+            graph,
+            fail_stages={"B"},
+            task_id="bt-004",
         )
 
         result = executor.execute_graph()
@@ -162,8 +169,9 @@ class TestExecuteGraphMultipleSuccessors:
         graph.add_edge("B", "D")
         graph.add_edge("C", "D")
 
-        executor, kernel, stages = _make_executor_with_stub(
-            graph, task_id="multi-001",
+        executor, _kernel, stages = _make_executor_with_stub(
+            graph,
+            task_id="multi-001",
         )
 
         result = executor.execute_graph()
@@ -185,6 +193,7 @@ class TestExecuteGraphMultipleSuccessors:
         class MockRouteEngine:
             def propose(self, *args: object, **kwargs: object) -> list:
                 from hi_agent.route_engine.rule_engine import RuleRouteEngine
+
                 return RuleRouteEngine().propose(*args, **kwargs)
 
             def select_stage(
@@ -197,7 +206,9 @@ class TestExecuteGraphMultipleSuccessors:
                 return candidates[-1]
 
         executor = RunExecutor(
-            contract, kernel, stage_graph=graph,
+            contract,
+            kernel,
+            stage_graph=graph,
             route_engine=MockRouteEngine(),
         )
 
@@ -226,8 +237,9 @@ class TestExecuteGraphMaxStepsSafety:
         graph.add_edge("A", "B")
         graph.add_edge("B", "A")
 
-        executor, kernel, stages = _make_executor_with_stub(
-            graph, task_id="cycle-001",
+        executor, _kernel, stages = _make_executor_with_stub(
+            graph,
+            task_id="cycle-001",
         )
 
         result = executor.execute_graph()
@@ -245,8 +257,10 @@ class TestExecuteGraphMaxStepsSafety:
         graph.add_edge("A", "B")
         graph.add_backtrack("B", "A")
 
-        executor, kernel, stages = _make_executor_with_stub(
-            graph, fail_stages={"B"}, task_id="cycle-002",
+        executor, _kernel, stages = _make_executor_with_stub(
+            graph,
+            fail_stages={"B"},
+            task_id="cycle-002",
         )
 
         result = executor.execute_graph()
@@ -361,7 +375,9 @@ class TestSelectNextStage:
                 return candidates[-1]  # pick last
 
         executor = RunExecutor(
-            contract, kernel, route_engine=CustomRouter(),
+            contract,
+            kernel,
+            route_engine=CustomRouter(),
         )
         executor._run_id = "test-run"
 
@@ -381,7 +397,9 @@ class TestSelectNextStage:
                 raise RuntimeError("broken")
 
         executor = RunExecutor(
-            contract, kernel, route_engine=BrokenRouter(),
+            contract,
+            kernel,
+            route_engine=BrokenRouter(),
         )
         executor._run_id = "test-run"
 

@@ -7,8 +7,6 @@ and the default safe rule set.
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.harness.permission_rules import (
     DenialCounter,
     DenialRecord,
@@ -19,7 +17,6 @@ from hi_agent.harness.permission_rules import (
     ToolPermissionRule,
     ToolPermissionRules,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -154,29 +151,54 @@ class TestToolPermissionRuleMatchesInput:
 class TestToolPermissionRulesEvaluate:
     def test_permission_rules_evaluate_first_match_wins(self) -> None:
         """The first matching rule takes precedence over subsequent rules."""
-        rules = ToolPermissionRules([
-            _deny_rule(name="deny-rm-rf", tool_name="bash", input_field="command", glob_pattern="rm -rf *"),
-            _allow_rule(name="allow-bash", tool_name="bash", input_field=None, glob_pattern=None),
-        ])
+        rules = ToolPermissionRules(
+            [
+                _deny_rule(
+                    name="deny-rm-rf",
+                    tool_name="bash",
+                    input_field="command",
+                    glob_pattern="rm -rf *",
+                ),
+                _allow_rule(
+                    name="allow-bash", tool_name="bash", input_field=None, glob_pattern=None
+                ),
+            ]
+        )
         decision = rules.evaluate("bash", {"command": "rm -rf /tmp"})
         assert decision.action == PermissionAction.DENY
         assert decision.rule_name == "deny-rm-rf"
 
     def test_permission_rules_evaluate_second_rule_when_first_no_match(self) -> None:
         """When the first rule does not match, the second rule is tried."""
-        rules = ToolPermissionRules([
-            _deny_rule(name="deny-rm-rf", tool_name="bash", input_field="command", glob_pattern="rm -rf *"),
-            _allow_rule(name="allow-bash-ls", tool_name="bash", input_field=None, glob_pattern=None),
-        ])
+        rules = ToolPermissionRules(
+            [
+                _deny_rule(
+                    name="deny-rm-rf",
+                    tool_name="bash",
+                    input_field="command",
+                    glob_pattern="rm -rf *",
+                ),
+                _allow_rule(
+                    name="allow-bash-ls", tool_name="bash", input_field=None, glob_pattern=None
+                ),
+            ]
+        )
         decision = rules.evaluate("bash", {"command": "ls -la"})
         assert decision.action == PermissionAction.ALLOW
         assert decision.rule_name == "allow-bash-ls"
 
     def test_permission_rules_evaluate_no_match_returns_ask(self) -> None:
         """When no rule matches, the default decision is ASK."""
-        rules = ToolPermissionRules([
-            _deny_rule(name="deny-rm-rf", tool_name="bash", input_field="command", glob_pattern="rm -rf *"),
-        ])
+        rules = ToolPermissionRules(
+            [
+                _deny_rule(
+                    name="deny-rm-rf",
+                    tool_name="bash",
+                    input_field="command",
+                    glob_pattern="rm -rf *",
+                ),
+            ]
+        )
         decision = rules.evaluate("web_search", {"query": "hello"})
         assert decision.action == PermissionAction.ASK
         assert decision.rule_name is None
@@ -208,7 +230,7 @@ class TestToolPermissionRulesEvaluate:
 
 class TestToolPermissionRulesFromConfig:
     def test_permission_rules_from_config(self) -> None:
-        """dict list with tool/field/pattern/action keys is correctly converted."""
+        """Dict list with tool/field/pattern/action keys is correctly converted."""
         config = [
             {
                 "name": "deny-rm",
@@ -410,10 +432,14 @@ class TestPermissionGate:
 
     def test_permission_gate_allow_resets_counter(self) -> None:
         """An ALLOW decision resets the consecutive denial counter."""
-        allow_rules = ToolPermissionRules([
-            _deny_rule(name="deny-rm", tool_name="bash", input_field="command", glob_pattern="rm -rf *"),
-            _allow_rule(name="allow-ls", tool_name="bash", input_field=None, glob_pattern=None),
-        ])
+        allow_rules = ToolPermissionRules(
+            [
+                _deny_rule(
+                    name="deny-rm", tool_name="bash", input_field="command", glob_pattern="rm -rf *"
+                ),
+                _allow_rule(name="allow-ls", tool_name="bash", input_field=None, glob_pattern=None),
+            ]
+        )
         counter = DenialCounter(escalation_threshold=5)
         gate = PermissionGate(rules=allow_rules, denial_counter=counter)
 

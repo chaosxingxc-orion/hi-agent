@@ -116,12 +116,16 @@ class GovernedToolExecutor:
             self._registry.get(capability_name)
         except KeyError:
             self._write_audit(
-                capability_name, principal, session_id, source,
-                "deny", "not_found", arguments, descriptor=None,
+                capability_name,
+                principal,
+                session_id,
+                source,
+                "deny",
+                "not_found",
+                arguments,
+                descriptor=None,
             )
-            raise CapabilityNotFoundError(
-                f"Unknown capability: {capability_name!r}"
-            ) from None
+            raise CapabilityNotFoundError(f"Unknown capability: {capability_name!r}") from None
 
         descriptor = self._registry.get_descriptor(capability_name)
 
@@ -129,8 +133,14 @@ class GovernedToolExecutor:
             # Capability registered without a descriptor.
             if self._runtime_mode == "prod-real":
                 self._write_audit(
-                    capability_name, principal, session_id, source,
-                    "deny", "no_descriptor_in_prod", arguments, descriptor=None,
+                    capability_name,
+                    principal,
+                    session_id,
+                    source,
+                    "deny",
+                    "no_descriptor_in_prod",
+                    arguments,
+                    descriptor=None,
                 )
                 raise CapabilityDisabledError(
                     f"Capability {capability_name!r} has no risk descriptor "
@@ -139,32 +149,60 @@ class GovernedToolExecutor:
             # dev mode: allow without descriptor — track result
             start = time.monotonic()
             self._write_audit(
-                capability_name, principal, session_id, source,
-                "allow", None, arguments, descriptor=None,
+                capability_name,
+                principal,
+                session_id,
+                source,
+                "allow",
+                None,
+                arguments,
+                descriptor=None,
             )
             try:
-                result = self._invoker.invoke(capability_name, arguments, role=role, metadata=metadata)
+                result = self._invoker.invoke(
+                    capability_name, arguments, role=role, metadata=metadata
+                )
                 duration = (time.monotonic() - start) * 1000
                 self._write_audit(
-                    capability_name, principal, session_id, source,
-                    "allow", None, arguments, descriptor=None,
-                    result_status="ok", duration_ms=duration,
+                    capability_name,
+                    principal,
+                    session_id,
+                    source,
+                    "allow",
+                    None,
+                    arguments,
+                    descriptor=None,
+                    result_status="ok",
+                    duration_ms=duration,
                 )
                 return result
             except Exception:
                 duration = (time.monotonic() - start) * 1000
                 self._write_audit(
-                    capability_name, principal, session_id, source,
-                    "allow", None, arguments, descriptor=None,
-                    result_status="error", duration_ms=duration,
+                    capability_name,
+                    principal,
+                    session_id,
+                    source,
+                    "allow",
+                    None,
+                    arguments,
+                    descriptor=None,
+                    result_status="error",
+                    duration_ms=duration,
                 )
                 raise
 
         # Step 2: prod_enabled_default check
         if not descriptor.prod_enabled_default and self._runtime_mode == "prod-real":
             self._write_audit(
-                capability_name, principal, session_id, source,
-                "deny", "prod_disabled", arguments, descriptor=descriptor,
+                capability_name,
+                principal,
+                session_id,
+                source,
+                "deny",
+                "prod_disabled",
+                arguments,
+                descriptor=descriptor,
             )
             raise CapabilityDisabledError(
                 f"Capability {capability_name!r} is disabled in prod-real mode "
@@ -177,8 +215,14 @@ class GovernedToolExecutor:
             if missing:
                 reason = f"missing_env:{','.join(missing)}"
                 self._write_audit(
-                    capability_name, principal, session_id, source,
-                    "deny", reason, arguments, descriptor=descriptor,
+                    capability_name,
+                    principal,
+                    session_id,
+                    source,
+                    "deny",
+                    reason,
+                    arguments,
+                    descriptor=descriptor,
                 )
                 raise CapabilityUnavailableError(
                     f"Capability {capability_name!r} requires env vars: {missing}"
@@ -191,18 +235,28 @@ class GovernedToolExecutor:
             and descriptor.requires_auth
         ):
             self._write_audit(
-                capability_name, principal, session_id, source,
-                "deny", "unauthenticated", arguments, descriptor=descriptor,
+                capability_name,
+                principal,
+                session_id,
+                source,
+                "deny",
+                "unauthenticated",
+                arguments,
+                descriptor=descriptor,
             )
-            raise PermissionDeniedError(
-                f"Capability {capability_name!r} requires authentication"
-            )
+            raise PermissionDeniedError(f"Capability {capability_name!r} requires authentication")
 
         # Step 5: Approval check
         if descriptor.requires_approval:
             self._write_audit(
-                capability_name, principal, session_id, source,
-                "approval_required", "requires_approval", arguments, descriptor=descriptor,
+                capability_name,
+                principal,
+                session_id,
+                source,
+                "approval_required",
+                "requires_approval",
+                arguments,
+                descriptor=descriptor,
             )
             raise ApprovalRequiredError(
                 f"Capability {capability_name!r} requires explicit approval before execution",
@@ -224,8 +278,14 @@ class GovernedToolExecutor:
                     safe_resolve(base, path_arg)
                 except PathPolicyViolation as exc:
                     self._write_audit(
-                        capability_name, principal, session_id, source,
-                        "deny", "path_policy_violation", arguments, descriptor=descriptor,
+                        capability_name,
+                        principal,
+                        session_id,
+                        source,
+                        "deny",
+                        "path_policy_violation",
+                        arguments,
+                        descriptor=descriptor,
                     )
                     raise PolicyViolationError(str(exc)) from exc
 
@@ -236,32 +296,58 @@ class GovernedToolExecutor:
                     URLPolicy().validate(url_arg)
                 except URLPolicyViolation as exc:
                     self._write_audit(
-                        capability_name, principal, session_id, source,
-                        "deny", "url_policy_violation", arguments, descriptor=descriptor,
+                        capability_name,
+                        principal,
+                        session_id,
+                        source,
+                        "deny",
+                        "url_policy_violation",
+                        arguments,
+                        descriptor=descriptor,
                     )
                     raise PolicyViolationError(str(exc)) from exc
 
         # Step 7: Execute — write pre-decision audit then track result
         self._write_audit(
-            capability_name, principal, session_id, source,
-            "allow", None, arguments, descriptor=descriptor,
+            capability_name,
+            principal,
+            session_id,
+            source,
+            "allow",
+            None,
+            arguments,
+            descriptor=descriptor,
         )
         start = time.monotonic()
         try:
             result = self._invoker.invoke(capability_name, arguments, role=role, metadata=metadata)
             duration = (time.monotonic() - start) * 1000
             self._write_audit(
-                capability_name, principal, session_id, source,
-                "allow", None, arguments, descriptor=descriptor,
-                result_status="ok", duration_ms=duration,
+                capability_name,
+                principal,
+                session_id,
+                source,
+                "allow",
+                None,
+                arguments,
+                descriptor=descriptor,
+                result_status="ok",
+                duration_ms=duration,
             )
             return result
         except Exception:
             duration = (time.monotonic() - start) * 1000
             self._write_audit(
-                capability_name, principal, session_id, source,
-                "allow", None, arguments, descriptor=descriptor,
-                result_status="error", duration_ms=duration,
+                capability_name,
+                principal,
+                session_id,
+                source,
+                "allow",
+                None,
+                arguments,
+                descriptor=descriptor,
+                result_status="error",
+                duration_ms=duration,
             )
             raise
 
@@ -288,8 +374,7 @@ class GovernedToolExecutor:
             return
         # Redact sensitive fields before hashing
         redacted = {
-            k: "[REDACTED]" if k in _SENSITIVE_ARG_FIELDS else v
-            for k, v in arguments.items()
+            k: "[REDACTED]" if k in _SENSITIVE_ARG_FIELDS else v for k, v in arguments.items()
         }
         arg_digest = hashlib.sha256(
             json.dumps(redacted, sort_keys=True, default=str).encode()

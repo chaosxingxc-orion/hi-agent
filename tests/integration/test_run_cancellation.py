@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.runtime.cancellation import CancellationToken, RunCancelledError
 from hi_agent.server.run_queue import RunQueue
 

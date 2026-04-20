@@ -3,7 +3,6 @@
 import inspect
 
 import pytest
-
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.server.app import AgentServer
 from hi_agent.server.run_manager import RunManager
@@ -58,9 +57,7 @@ def test_injected_metrics_wired_to_slo(fake_agent_server):
     from hi_agent.config.server_builder import ServerBuilder
 
     metrics_collector = object()
-    server = ServerBuilder(TraceConfig()).build_server(
-        metrics_collector=metrics_collector
-    )
+    server = ServerBuilder(TraceConfig()).build_server(metrics_collector=metrics_collector)
 
     assert server.metrics_collector is metrics_collector
     assert server.slo_monitor._metrics is metrics_collector
@@ -77,16 +74,12 @@ def test_system_builder_build_server_works(monkeypatch, fake_agent_server):
     metrics_collector = object()
     run_context_manager = object()
 
-    monkeypatch.setattr(
-        builder, "build_memory_lifecycle_manager", lambda: memory_manager
-    )
+    monkeypatch.setattr(builder, "build_memory_lifecycle_manager", lambda: memory_manager)
     monkeypatch.setattr(builder, "build_knowledge_manager", lambda: knowledge_manager)
     monkeypatch.setattr(builder, "build_skill_evolver", lambda: skill_evolver)
     monkeypatch.setattr(builder, "build_skill_loader", lambda: skill_loader)
     monkeypatch.setattr(builder, "build_metrics_collector", lambda: metrics_collector)
-    monkeypatch.setattr(
-        builder, "_build_run_context_manager", lambda: run_context_manager
-    )
+    monkeypatch.setattr(builder, "_build_run_context_manager", lambda: run_context_manager)
 
     server = builder.build_server()
 

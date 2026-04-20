@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from hi_agent.server.tenant_context import (
     TenantContext,
     get_tenant_context,
@@ -17,7 +16,6 @@ from hi_agent.server.tenant_context import (
     reset_tenant_context,
     set_tenant_context,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

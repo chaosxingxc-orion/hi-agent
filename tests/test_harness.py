@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.harness.contracts import (
-    ActionResult,
     ActionSpec,
     ActionState,
     EffectClass,
@@ -14,12 +12,12 @@ from hi_agent.harness.contracts import (
 )
 from hi_agent.harness.evidence_store import EvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine, RetryPolicy
-
+from hi_agent.harness.governance import GovernanceEngine
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _read_only_spec(action_id: str = "act-1") -> ActionSpec:
     return ActionSpec(
@@ -99,6 +97,7 @@ class _MockInvoker:
 # GovernanceEngine.validate
 # ===========================================================================
 
+
 class TestGovernanceValidate:
     """Test governance validation rules."""
 
@@ -170,6 +169,7 @@ class TestGovernanceValidate:
 # GovernanceEngine.can_execute
 # ===========================================================================
 
+
 class TestGovernanceCanExecute:
     """Test governance execution gating."""
 
@@ -190,7 +190,7 @@ class TestGovernanceCanExecute:
         gov = GovernanceEngine()
         spec = _irreversible_spec(approval=True, idempotency_key="k")
         gov.approve(spec.action_id)
-        allowed, reason = gov.can_execute(spec)
+        allowed, _reason = gov.can_execute(spec)
         assert allowed is True
 
     def test_rejected_action_blocked(self) -> None:
@@ -204,13 +204,14 @@ class TestGovernanceCanExecute:
     def test_validation_failure_blocks(self) -> None:
         gov = GovernanceEngine()
         spec = _irreversible_spec(approval=False, idempotency_key="")
-        allowed, reason = gov.can_execute(spec)
+        allowed, _reason = gov.can_execute(spec)
         assert allowed is False
 
 
 # ===========================================================================
 # GovernanceEngine.approve / reject flow
 # ===========================================================================
+
 
 class TestGovernanceApprovalFlow:
     """Test approval queue management."""
@@ -236,6 +237,7 @@ class TestGovernanceApprovalFlow:
 # ===========================================================================
 # GovernanceEngine.get_retry_policy
 # ===========================================================================
+
 
 class TestGovernanceRetryPolicy:
     """Test retry policy derivation."""
@@ -294,6 +296,7 @@ class TestGovernanceRetryPolicy:
 # ===========================================================================
 # HarnessExecutor.execute
 # ===========================================================================
+
 
 class TestHarnessExecutorExecute:
     """Test full execution pipeline."""
@@ -391,6 +394,7 @@ class TestHarnessExecutorExecute:
 # HarnessExecutor evidence collection
 # ===========================================================================
 
+
 class TestHarnessExecutorEvidence:
     """Test evidence collection through executor."""
 
@@ -442,6 +446,7 @@ class TestHarnessExecutorEvidence:
 # EvidenceStore CRUD
 # ===========================================================================
 
+
 class TestEvidenceStore:
     """Test evidence store operations."""
 
@@ -465,16 +470,20 @@ class TestEvidenceStore:
     def test_get_by_action(self) -> None:
         store = EvidenceStore()
         for i in range(3):
-            store.store(EvidenceRecord(
-                evidence_ref=f"ev-{i}",
-                action_id="act-1",
+            store.store(
+                EvidenceRecord(
+                    evidence_ref=f"ev-{i}",
+                    action_id="act-1",
+                    evidence_type="output",
+                )
+            )
+        store.store(
+            EvidenceRecord(
+                evidence_ref="ev-other",
+                action_id="act-2",
                 evidence_type="output",
-            ))
-        store.store(EvidenceRecord(
-            evidence_ref="ev-other",
-            action_id="act-2",
-            evidence_type="output",
-        ))
+            )
+        )
         assert len(store.get_by_action("act-1")) == 3
         assert len(store.get_by_action("act-2")) == 1
         assert len(store.get_by_action("act-missing")) == 0
@@ -482,22 +491,19 @@ class TestEvidenceStore:
     def test_count(self) -> None:
         store = EvidenceStore()
         assert store.count() == 0
-        store.store(EvidenceRecord(
-            evidence_ref="ev-1", action_id="a", evidence_type="output"
-        ))
+        store.store(EvidenceRecord(evidence_ref="ev-1", action_id="a", evidence_type="output"))
         assert store.count() == 1
 
     def test_empty_ref_raises(self) -> None:
         store = EvidenceStore()
         with pytest.raises(ValueError, match="evidence_ref"):
-            store.store(EvidenceRecord(
-                evidence_ref="", action_id="a", evidence_type="output"
-            ))
+            store.store(EvidenceRecord(evidence_ref="", action_id="a", evidence_type="output"))
 
 
 # ===========================================================================
 # ActionState transitions
 # ===========================================================================
+
 
 class TestActionStateTransitions:
     """Test that executor tracks correct state transitions."""
@@ -532,6 +538,7 @@ class TestActionStateTransitions:
 # ===========================================================================
 # Dual-dimension classification combinations
 # ===========================================================================
+
 
 class TestDualDimensionCombinations:
     """Test various effect_class x side_effect_class combinations."""

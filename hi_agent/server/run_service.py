@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from hi_agent.server.run_manager import RunManager
-    from hi_agent.server.event_store import SQLiteEventStore
 
 
 class RunService:
@@ -33,7 +32,7 @@ class RunService:
     # ------------------------------------------------------------------
 
     @property
-    def run_manager(self) -> "RunManager":
+    def run_manager(self) -> RunManager:
         return self._server.run_manager  # type: ignore[return-value]
 
     @property

@@ -7,7 +7,6 @@ from contextlib import suppress
 from typing import Any, ClassVar
 
 import pytest
-
 from agent_kernel.adapters.agent_core.session_adapter import AgentCoreCallbackInput
 from agent_kernel.kernel.contracts import (
     QueryRunRequest,

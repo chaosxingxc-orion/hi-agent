@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from hi_agent.evolve.contracts import RunPostmortem
 
 if TYPE_CHECKING:
-    from hi_agent.evolve.champion_challenger import ChampionChallenger, ComparisonResult
+    from hi_agent.evolve.champion_challenger import ChampionChallenger
     from hi_agent.skill.version import SkillVersionManager
 
 _logger = logging.getLogger(__name__)
@@ -259,12 +259,14 @@ class SkillPromotionPipeline:
                     except Exception as exc:
                         _logger.debug(
                             "skill_promotion_pipeline.save_failed skill_id=%s error=%s",
-                            skill_id, exc,
+                            skill_id,
+                            exc,
                         )
                 except Exception as exc:
                     _logger.warning(
                         "skill_promotion_pipeline.promote_failed skill_id=%s error=%s",
-                        skill_id, exc,
+                        skill_id,
+                        exc,
                     )
 
         return result

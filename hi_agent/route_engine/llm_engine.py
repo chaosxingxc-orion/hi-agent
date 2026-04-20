@@ -72,12 +72,12 @@ class LLMRouteEngine:
         self._context_provider = context_provider
         self.last_decision: LLMRouteDecision | None = None
 
-    def set_context_provider(self, provider: "Callable[[], dict] | None") -> None:
+    def set_context_provider(self, provider: Callable[[], dict] | None) -> None:
         """Update the context provider without accessing the private field directly."""
         self._context_provider = provider
 
     @property
-    def context_provider(self) -> "Callable[[], dict] | None":
+    def context_provider(self) -> Callable[[], dict] | None:
         """Read the current context provider."""
         return self._context_provider
 
@@ -125,9 +125,7 @@ class LLMRouteEngine:
         elif self._client is not None:
             raw = self._client(prompt)
         else:
-            raise LLMRouteParseError(
-                "LLMRouteEngine has no gateway and no client; cannot decide"
-            )
+            raise LLMRouteParseError("LLMRouteEngine has no gateway and no client; cannot decide")
 
         payload = self._parse_payload(raw)
         decision = self._validate_payload(payload)
@@ -242,4 +240,3 @@ class LLMRouteEngine:
             rationale=rationale.strip(),
             action_kind=action_kind.strip(),
         )
-

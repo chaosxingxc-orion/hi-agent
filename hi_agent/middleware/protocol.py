@@ -14,6 +14,7 @@ Hook actions (inspired by agent-core's FilterAction):
   BLOCK    -- stop the entire pipeline
   RETRY    -- re-execute this middleware (up to max_retries)
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -24,6 +25,7 @@ from typing import Any, Protocol
 
 class HookAction(Enum):
     """HookAction class."""
+
     CONTINUE = "continue"
     MODIFY = "modify"
     SKIP = "skip"
@@ -33,6 +35,7 @@ class HookAction(Enum):
 
 class LifecyclePhase(Enum):
     """LifecyclePhase class."""
+
     PRE_CREATE = "pre_create"
     PRE_EXECUTE = "pre_execute"
     EXECUTE = "execute"
@@ -56,8 +59,8 @@ class MiddlewareMessage:
 
     source: str
     target: str
-    msg_type: str       # perception_result, execution_plan, execution_result,
-                        # evaluation_result, reflection, escalation
+    msg_type: str  # perception_result, execution_plan, execution_result,
+    # evaluation_result, reflection, escalation
     payload: dict[str, Any]
     token_cost: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -69,22 +72,23 @@ class LifecycleHook:
 
     phase: LifecyclePhase
     callback: Callable[[MiddlewareMessage, dict[str, Any]], HookResult]
-    priority: int = 0        # higher = runs first
+    priority: int = 0  # higher = runs first
     name: str = ""
-    once: bool = False       # execute only once then auto-remove
-    max_retries: int = 3     # for RETRY action
+    once: bool = False  # execute only once then auto-remove
+    max_retries: int = 3  # for RETRY action
     _executed: bool = False
 
 
 # --- Result dataclasses ---
 
+
 @dataclass
 class Entity:
     """An extracted entity from perception."""
 
-    entity_type: str    # person, date, number, code_block, url, etc
+    entity_type: str  # person, date, number, code_block, url, etc
     value: str
-    position: int = 0   # character position in input
+    position: int = 0  # character position in input
 
 
 @dataclass
@@ -95,7 +99,7 @@ class PerceptionResult:
     entities: list[Entity] = field(default_factory=list)
     summary: str | None = None
     modality: str = "text"  # text, image, audio, multimodal
-    context: str = ""       # assembled session context
+    context: str = ""  # assembled session context
     token_count: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
 

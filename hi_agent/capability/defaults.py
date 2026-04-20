@@ -17,7 +17,7 @@ import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec
+from hi_agent.capability.registry import CapabilityRegistry
 
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
@@ -36,7 +36,7 @@ def _allow_heuristic_fallback() -> bool:
 def make_llm_capability_handler(
     capability_name: str,
     system_prompt: str,
-    gateway: "LLMGateway | None",
+    gateway: LLMGateway | None,
 ) -> Callable[[dict], dict]:
     """Build a generic LLM-backed capability handler.
 
@@ -80,8 +80,8 @@ def make_llm_capability_handler(
 
                 user_msg = (
                     f"Stage: {stage_id}\nGoal: {goal}\nContext: {context}\n\n"
-                    "Respond in JSON: {\"output\": \"...\", \"evidence\": [\"...\"], "
-                    "\"score\": 0.0-1.0, \"done\": true|false}"
+                    'Respond in JSON: {"output": "...", "evidence": ["..."], '
+                    '"score": 0.0-1.0, "done": true|false}'
                 )
                 request = LLMRequest(
                     messages=[
@@ -142,7 +142,7 @@ def make_llm_capability_handler(
             "output": f"[{capability_name}] processed: {label[:200]}",
             "evidence": [f"{capability_name}:heuristic:{stage_id}"],
             "stage_id": stage_id,
-            "_heuristic": True,   # marks as non-real execution
+            "_heuristic": True,  # marks as non-real execution
             "_provenance": {
                 "mode": "sample",
                 "capability_name": capability_name,
@@ -161,7 +161,7 @@ _make_llm_handler = make_llm_capability_handler
 def register_default_capabilities(
     registry: CapabilityRegistry,
     *,
-    llm_gateway: "LLMGateway | None" = None,
+    llm_gateway: LLMGateway | None = None,
 ) -> None:
     """Register TRACE stage capability handlers.
 
@@ -172,5 +172,6 @@ def register_default_capabilities(
         Business agents with different stage topologies should register their
         own handlers.  This function is kept for backward compatibility only.
     """
-    from hi_agent.samples.trace_pipeline import register_trace_capabilities  # noqa: PLC0415
+    from hi_agent.samples.trace_pipeline import register_trace_capabilities
+
     register_trace_capabilities(registry, llm_gateway=llm_gateway)

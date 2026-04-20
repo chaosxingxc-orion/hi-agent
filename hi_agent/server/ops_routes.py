@@ -1,5 +1,7 @@
 """Ops HTTP route handlers: /doctor, /ops/release-gate."""
+
 from __future__ import annotations
+
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -13,6 +15,7 @@ async def handle_doctor(request: Request) -> JSONResponse:
     builder = getattr(server, "_builder", None)
     if builder is None:
         from hi_agent.config.builder import SystemBuilder
+
         builder = SystemBuilder(config=getattr(server, "_config", None))
     report = build_doctor_report(builder)
     status_code = 200 if report.status == "ready" else 503
@@ -25,6 +28,7 @@ async def handle_release_gate(request: Request) -> JSONResponse:
     builder = getattr(server, "_builder", None)
     if builder is None:
         from hi_agent.config.builder import SystemBuilder
+
         builder = SystemBuilder(config=getattr(server, "_config", None))
     report = build_release_gate_report(builder)
     status_code = 200 if report.passed else 503

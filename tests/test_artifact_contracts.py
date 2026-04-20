@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.artifacts.contracts import (
     Artifact,
     DocumentArtifact,
@@ -14,10 +12,10 @@ from hi_agent.artifacts.contracts import (
 )
 from hi_agent.artifacts.registry import ArtifactRegistry
 
-
 # ---------------------------------------------------------------------------
 # Artifact base
 # ---------------------------------------------------------------------------
+
 
 class TestArtifactBase:
     def test_default_id_generated(self):
@@ -31,6 +29,7 @@ class TestArtifactBase:
     def test_created_at_is_iso(self):
         a = Artifact()
         from datetime import datetime
+
         # Must parse without error
         datetime.fromisoformat(a.created_at)
 
@@ -54,6 +53,7 @@ class TestArtifactBase:
 # ---------------------------------------------------------------------------
 # ResourceArtifact
 # ---------------------------------------------------------------------------
+
 
 class TestResourceArtifact:
     def test_type_forced(self):
@@ -86,6 +86,7 @@ class TestResourceArtifact:
 # DocumentArtifact
 # ---------------------------------------------------------------------------
 
+
 class TestDocumentArtifact:
     def test_type_forced(self):
         d = DocumentArtifact()
@@ -103,7 +104,9 @@ class TestDocumentArtifact:
         assert d["word_count"] == 2
 
     def test_from_dict_roundtrip(self):
-        doc = DocumentArtifact(artifact_id="d001", url="http://x.com", title="X", text="body", word_count=1)
+        doc = DocumentArtifact(
+            artifact_id="d001", url="http://x.com", title="X", text="body", word_count=1
+        )
         restored = DocumentArtifact.from_dict(doc.to_dict())
         assert restored.text == "body"
         assert restored.artifact_type == "document"
@@ -112,6 +115,7 @@ class TestDocumentArtifact:
 # ---------------------------------------------------------------------------
 # StructuredDataArtifact
 # ---------------------------------------------------------------------------
+
 
 class TestStructuredDataArtifact:
     def test_type_forced(self):
@@ -132,6 +136,7 @@ class TestStructuredDataArtifact:
 # ---------------------------------------------------------------------------
 # EvidenceArtifact
 # ---------------------------------------------------------------------------
+
 
 class TestEvidenceArtifact:
     def test_type_forced(self):
@@ -158,6 +163,7 @@ class TestEvidenceArtifact:
 # EvaluationArtifact
 # ---------------------------------------------------------------------------
 
+
 class TestEvaluationArtifact:
     def test_type_forced(self):
         ev = EvaluationArtifact()
@@ -180,6 +186,7 @@ class TestEvaluationArtifact:
 # ---------------------------------------------------------------------------
 # ArtifactRegistry
 # ---------------------------------------------------------------------------
+
 
 class TestArtifactRegistry:
     def test_store_and_get(self):

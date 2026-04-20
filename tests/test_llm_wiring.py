@@ -2,22 +2,20 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 
 import pytest
-
-from tests.helpers.llm_gateway_fixture import MockLLMGateway
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
 from hi_agent.route_engine.llm_engine import LLMRouteEngine, LLMRouteParseError
-from hi_agent.route_engine.rule_engine import RuleRouteEngine
 
+from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
+
 
 def _make_route_response(
     next_stage: str = "S3_build",
@@ -126,9 +124,7 @@ class TestLLMRouteEngineGateway:
 
     def test_gateway_takes_precedence_over_client(self) -> None:
         """When both gateway and client are provided, gateway wins."""
-        gw = MockLLMGateway(
-            default_response=_make_route_response(rationale="from gateway")
-        )
+        gw = MockLLMGateway(default_response=_make_route_response(rationale="from gateway"))
 
         def client(_: str) -> str:
             return _make_route_response(rationale="from client")
@@ -186,9 +182,7 @@ class TestHybridRouteEngineGateway:
         )
         hybrid = HybridRouteEngine(gateway=gw, confidence_threshold=0.7)
 
-        result = hybrid.propose_with_provenance(
-            stage_id="SX_unknown", run_id="run-2", seq=3
-        )
+        result = hybrid.propose_with_provenance(stage_id="SX_unknown", run_id="run-2", seq=3)
         assert result.source == "llm"
         assert result.confidence == pytest.approx(0.76)
         assert gw.call_count == 1
@@ -197,9 +191,7 @@ class TestHybridRouteEngineGateway:
         gw = MockLLMGateway(default_response=_make_route_response())
         hybrid = HybridRouteEngine(gateway=gw, confidence_threshold=0.7)
 
-        result = hybrid.propose_with_provenance(
-            stage_id="S2_gather", run_id="run-1", seq=1
-        )
+        result = hybrid.propose_with_provenance(stage_id="S2_gather", run_id="run-1", seq=1)
         assert result.source == "rule"
         assert gw.call_count == 0  # gateway never called
 
@@ -213,9 +205,7 @@ class TestHybridRouteEngineGateway:
             llm_engine=LLMRouteEngine(client),
             confidence_threshold=0.7,
         )
-        result = hybrid.propose_with_provenance(
-            stage_id="SX_unknown", run_id="run-1", seq=1
-        )
+        result = hybrid.propose_with_provenance(stage_id="SX_unknown", run_id="run-1", seq=1)
         assert result.source == "llm"
 
 

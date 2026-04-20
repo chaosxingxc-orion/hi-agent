@@ -26,7 +26,7 @@ class CapabilityBundle(ABC):
     """
 
     @abstractmethod
-    def register(self, registry: "CapabilityRegistry") -> int:
+    def register(self, registry: CapabilityRegistry) -> int:
         """Register all capabilities in this bundle into the registry.
 
         Args:

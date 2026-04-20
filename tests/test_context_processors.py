@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.task_view.processors import (
     CompressionProcessor,
     ContextProcessorChain,
@@ -12,7 +10,6 @@ from hi_agent.task_view.processors import (
     WindowLimitProcessor,
     _estimate_tokens,
 )
-
 
 # ---------------------------------------------------------------------------
 # TaskViewContext

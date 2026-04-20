@@ -94,9 +94,7 @@ class SkillVersionManager:
             else:
                 rec.is_champion = False
         if not found:
-            raise KeyError(
-                f"Version '{version}' not found for skill '{skill_id}'"
-            )
+            raise KeyError(f"Version '{version}' not found for skill '{skill_id}'")
 
     def set_challenger(self, skill_id: str, version: str) -> None:
         """Set a specific version as challenger, clearing previous challenger."""
@@ -109,9 +107,7 @@ class SkillVersionManager:
             else:
                 rec.is_challenger = False
         if not found:
-            raise KeyError(
-                f"Version '{version}' not found for skill '{skill_id}'"
-            )
+            raise KeyError(f"Version '{version}' not found for skill '{skill_id}'")
 
     def promote_challenger(self, skill_id: str) -> bool:
         """Promote challenger to champion (if metrics are better).
@@ -145,9 +141,7 @@ class SkillVersionManager:
 
         return False
 
-    def select_version(
-        self, skill_id: str, traffic_split: float = 0.1
-    ) -> SkillVersionRecord:
+    def select_version(self, skill_id: str, traffic_split: float = 0.1) -> SkillVersionRecord:
         """Select version for execution: champion or challenger.
 
         Traffic split is the fraction going to challenger.

@@ -4,6 +4,7 @@
 Prod mode: raise ConfigValidationError on any violation.
 Dev mode: log WARNING, replace invalid fields with TraceConfig defaults.
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,12 +17,14 @@ logger = logging.getLogger(__name__)
 
 def _get_defaults() -> dict[str, Any]:
     from hi_agent.config.trace_config import TraceConfig
+
     cfg = TraceConfig()
     return {f.name: getattr(cfg, f.name) for f in dc_fields(cfg)}
 
 
 def _get_field_types() -> dict[str, type]:
     from hi_agent.config.trace_config import TraceConfig
+
     type_map: dict[str, type] = {}
     for f in dc_fields(TraceConfig):
         hint = f.type
@@ -70,7 +73,7 @@ class ConfigValidator:
         self.env = env  # "prod" | "dev"
 
     @classmethod
-    def from_env(cls) -> "ConfigValidator":
+    def from_env(cls) -> ConfigValidator:
         env = os.environ.get("HI_AGENT_ENV", "prod")
         return cls(env=env)
 
@@ -90,7 +93,9 @@ class ConfigValidator:
 
             expected_type = type_map.get(key)
             if expected_type and not isinstance(val, expected_type):
-                msg = f"{key}: expected {expected_type.__name__}, got {type(val).__name__} ({val!r})"
+                msg = (
+                    f"{key}: expected {expected_type.__name__}, got {type(val).__name__} ({val!r})"
+                )
                 errors.append(msg)
                 result[key] = defaults[key]  # use default as fallback
                 continue
@@ -106,8 +111,12 @@ class ConfigValidator:
 
         # Cross-field constraints: green < yellow < orange
         g = result.get("context_health_green_threshold", defaults["context_health_green_threshold"])
-        y = result.get("context_health_yellow_threshold", defaults["context_health_yellow_threshold"])
-        o = result.get("context_health_orange_threshold", defaults["context_health_orange_threshold"])
+        y = result.get(
+            "context_health_yellow_threshold", defaults["context_health_yellow_threshold"]
+        )
+        o = result.get(
+            "context_health_orange_threshold", defaults["context_health_orange_threshold"]
+        )
         if not (g < y < o):
             msg = f"green_threshold ({g}) must be < yellow_threshold ({y}) < orange_threshold ({o})"
             errors.append(msg)

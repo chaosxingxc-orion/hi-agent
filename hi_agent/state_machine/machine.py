@@ -84,8 +84,7 @@ class StateMachine:
         """Move to *to_state*, raising :class:`InvalidTransitionError` on failure."""
         if not self.can_transition(to_state):
             raise InvalidTransitionError(
-                f"[{self._name}] Cannot transition from "
-                f"{self._current!r} to {to_state!r}"
+                f"[{self._name}] Cannot transition from {self._current!r} to {to_state!r}"
             )
         from_state = self._current
         self._current = to_state

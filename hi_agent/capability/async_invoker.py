@@ -101,12 +101,10 @@ class AsyncCapabilityInvoker:
                     raise
                 attempt += 1
                 # Exponential backoff with jitter
-                delay = self.base_delay * (2 ** attempt) + random.uniform(0, self.jitter)
+                delay = self.base_delay * (2**attempt) + random.uniform(0, self.jitter)
                 await asyncio.sleep(delay)
 
-    async def _call_handler(
-        self, handler: Callable[[dict], dict], payload: dict
-    ) -> dict:
+    async def _call_handler(self, handler: Callable[[dict], dict], payload: dict) -> dict:
         """Call handler with optional timeout, supporting both sync and async handlers."""
         if inspect.iscoroutinefunction(handler):
             coro = handler(payload)

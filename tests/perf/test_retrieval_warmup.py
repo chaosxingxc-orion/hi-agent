@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
-
 from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
-
 
 # ---------------------------------------------------------------------------
 # LongTermMemoryGraph public API

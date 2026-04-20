@@ -1,9 +1,11 @@
 """Integration tests: invoker raises CapabilityUnavailableError for unavailable caps."""
-import pytest
+
 from unittest.mock import MagicMock
+
+import pytest
+from hi_agent.capability.adapters.descriptor_factory import CapabilityDescriptor
 from hi_agent.capability.invoker import CapabilityInvoker, CapabilityUnavailableError
 from hi_agent.capability.registry import CapabilityRegistry
-from hi_agent.capability.adapters.descriptor_factory import CapabilityDescriptor
 
 
 def test_invoker_raises_for_unavailable_capability(monkeypatch):

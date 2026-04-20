@@ -2,6 +2,7 @@
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.middleware.perception import PerceptionMiddleware
 
+
 def test_perception_from_config_thresholds():
     cfg = TraceConfig(
         perception_summary_threshold_tokens=5_000,
@@ -12,6 +13,7 @@ def test_perception_from_config_thresholds():
     assert p._summary_threshold == 5_000
     assert p._llm_summarize_char_threshold == 1_000
     assert p._max_entities == 25
+
 
 def test_perception_from_config_llm_params():
     cfg = TraceConfig(

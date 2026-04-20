@@ -8,10 +8,9 @@ fault injection boundary).
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from hi_agent.server.tenant_context import TenantContext, reset_tenant_context, set_tenant_context
 
 _DEFAULT_CTX = TenantContext(tenant_id="t1", user_id="u1", session_id="s1")
@@ -50,6 +49,7 @@ class TestHandleListRuns:
         resp = await handle_list_runs(req)
         assert resp.status_code == 200
         import json
+
         body = json.loads(resp.body)
         assert body["runs"] == [{"run_id": "r1"}]
 
@@ -66,6 +66,7 @@ class TestHandleRunsActive:
 
         resp = await handle_runs_active(req)
         import json
+
         body = json.loads(resp.body)
         assert body["status"] == "not_configured"
         assert body["count"] == 0
@@ -88,6 +89,7 @@ class TestHandleRunsActive:
 
         resp = await handle_runs_active(req)
         import json
+
         body = json.loads(resp.body)
         assert body["count"] == 2
         assert body["status"] == "ok"
@@ -102,6 +104,7 @@ class TestHandleCreateRun:
         resp = await handle_create_run(req)
         assert resp.status_code == 400
         import json
+
         body = json.loads(resp.body)
         assert body["error"] == "missing_goal"
 
@@ -128,6 +131,7 @@ class TestHandleCreateRun:
         resp = await handle_create_run(req)
         assert resp.status_code == 201
         import json
+
         body = json.loads(resp.body)
         assert body["run_id"] == "run-abc"
 
@@ -173,6 +177,7 @@ class TestHandleSignalRun:
         resp = await handle_signal_run(req)
         assert resp.status_code == 200
         import json
+
         body = json.loads(resp.body)
         assert body["state"] == "cancelled"
 

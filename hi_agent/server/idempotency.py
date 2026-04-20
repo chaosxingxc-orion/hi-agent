@@ -22,10 +22,10 @@ class IdempotencyRecord:
 
     tenant_id: str
     idempotency_key: str
-    request_hash: str          # SHA-256 of canonical sorted-key JSON payload
+    request_hash: str  # SHA-256 of canonical sorted-key JSON payload
     run_id: str
-    status: str                # "pending" | "completed" | "failed"
-    response_snapshot: str     # JSON-serialized final result, empty until complete
+    status: str  # "pending" | "completed" | "failed"
+    response_snapshot: str  # JSON-serialized final result, empty until complete
     created_at: float
     updated_at: float
     expires_at: float
@@ -79,7 +79,8 @@ ON idempotency_records (tenant_id, idempotency_key)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(
-            str(self._db_path), check_same_thread=False,
+            str(self._db_path),
+            check_same_thread=False,
         )
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(self._CREATE_TABLE)

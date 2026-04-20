@@ -5,23 +5,20 @@ from __future__ import annotations
 import threading
 import time
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.requests import RunResult
 from hi_agent.orchestrator.parallel_dispatcher import ParallelDispatcher
 from hi_agent.orchestrator.result_aggregator import ResultAggregator
 from hi_agent.orchestrator.task_orchestrator import (
-    OrchestratorResult,
     SubTaskResult,
     TaskOrchestrator,
 )
-from tests.helpers.kernel_adapter_fixture import MockKernel
-from hi_agent.task_decomposition.dag import TaskDAG, TaskNode, TaskNodeState
-from hi_agent.task_decomposition.decomposer import TaskDecomposer
 from hi_agent.task_decomposition.feedback import DecompositionFeedback
+
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # The patch target must match where RunExecutor is looked up at call time.
 # TaskOrchestrator imports it inside methods via ``from hi_agent.runner import RunExecutor``.
@@ -78,7 +75,9 @@ class TestSimpleExecution:
 
         with patch(_RUNNER_PATCH) as MockRunner:
             instance = MockRunner.return_value
-            instance.execute.return_value = RunResult(run_id="run-1", status="failed", error="stage_failed")
+            instance.execute.return_value = RunResult(
+                run_id="run-1", status="failed", error="stage_failed"
+            )
 
             result = orchestrator.execute(contract)
 

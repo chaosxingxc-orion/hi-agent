@@ -1,8 +1,10 @@
 """Unit tests for StageOrchestrator (HI-W10-001)."""
+
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, call
 from hi_agent.execution.stage_orchestrator import StageOrchestrator, StageOrchestratorContext
 from hi_agent.gate_protocol import GatePendingError
 
@@ -25,7 +27,6 @@ def _make_ctx(
     **kwargs,
 ) -> StageOrchestratorContext:
     graph = graph or _make_graph({"s1": ["s2"], "s2": []})
-    finalize_results = {}
     attrs = {}
     return StageOrchestratorContext(
         run_id="run-test",
@@ -33,8 +34,12 @@ def _make_ctx(
         stage_graph=graph,
         stage_summaries={},
         policy_versions=MagicMock(
-            route_policy="v1", acceptance_policy="v1", memory_policy="v1",
-            evaluation_policy="v1", task_view_policy="v1", skill_policy="v1",
+            route_policy="v1",
+            acceptance_policy="v1",
+            memory_policy="v1",
+            evaluation_policy="v1",
+            task_view_policy="v1",
+            skill_policy="v1",
         ),
         session=None,
         route_engine=MagicMock(spec=[]),  # no select_stage

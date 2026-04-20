@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-
 from agent_kernel.kernel.contracts import (
     Action,
     AdmissionActivityInput,

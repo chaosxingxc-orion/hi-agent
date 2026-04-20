@@ -6,9 +6,6 @@ G-5: build_retrieval_engine() created unscoped stores; F-2 isolation incomplete.
 
 from __future__ import annotations
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -2,17 +2,19 @@
 
 P3: tests must reflect real path, not mock shortcuts.
 """
+
 import json
 import os
+
 import pytest
 
 os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
-from hi_agent.server.mcp import MCPServer
+from hi_agent.capability.circuit_breaker import CircuitBreaker
+from hi_agent.capability.invoker import CapabilityInvoker
 from hi_agent.capability.registry import CapabilityRegistry
 from hi_agent.capability.tools.builtin import register_builtin_tools
-from hi_agent.capability.invoker import CapabilityInvoker
-from hi_agent.capability.circuit_breaker import CircuitBreaker
+from hi_agent.server.mcp import MCPServer
 
 
 @pytest.fixture

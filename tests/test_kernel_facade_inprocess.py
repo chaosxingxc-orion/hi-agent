@@ -1,9 +1,11 @@
 # tests/test_kernel_facade_inprocess.py
 import asyncio
+
 import pytest
-from tests.helpers.kernel_facade_fixture import MockKernelFacade
 from agent_kernel.kernel.contracts import Action
 from hi_agent.runtime_adapter.kernel_facade_adapter import create_local_adapter
+
+from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 
 @pytest.mark.asyncio
@@ -47,8 +49,10 @@ async def test_subscribe_events_yields_after_execute():
 
     async def execute():
         await asyncio.sleep(0.01)
+
         async def simple_handler(a, s):
             return {"output": "ok"}
+
         await facade.execute_turn(
             run_id="run-002",
             action=action,

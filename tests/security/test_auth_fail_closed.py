@@ -17,9 +17,7 @@ from unittest.mock import patch
 
 import jwt as pyjwt
 import pytest
-
 from hi_agent.server.auth_middleware import AuthMiddleware
-
 
 # ---------------------------------------------------------------------------
 # ASGI test harness
@@ -100,7 +98,8 @@ def _make_jwt(sub: str = "user-1", role: str = "read", exp_offset: int = 3600) -
 
 class TestProdRealFailClosed:
     """AuthMiddleware must return 503 for all requests in prod-real mode
-    when HI_AGENT_API_KEY is not configured."""
+    when HI_AGENT_API_KEY is not configured.
+    """
 
     @pytest.mark.asyncio
     async def test_no_key_prod_real_returns_503(self) -> None:
@@ -188,9 +187,7 @@ class TestProdRealWithKey:
     _API_KEY = "secure-prod-key-123"
 
     def _make_mw(self) -> AuthMiddleware:
-        with patch.dict(
-            "os.environ", {"HI_AGENT_API_KEY": self._API_KEY}, clear=False
-        ):
+        with patch.dict("os.environ", {"HI_AGENT_API_KEY": self._API_KEY}, clear=False):
             return AuthMiddleware(_capture_app, runtime_mode="prod-real")
 
     @pytest.mark.asyncio

@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
 
 

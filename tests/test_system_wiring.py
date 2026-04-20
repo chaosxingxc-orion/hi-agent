@@ -7,33 +7,31 @@ import time
 from typing import Any
 from unittest.mock import patch
 
-import pytest
-
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.contracts import TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
+from hi_agent.failures.collector import FailureCollector
+from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
 from hi_agent.llm.http_gateway import HttpLLMGateway
 from hi_agent.llm.tier_router import TierAwareLLMGateway
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
-from hi_agent.contracts.policy import PolicyVersionSet
-from hi_agent.failures.collector import FailureCollector
-from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.state import RunStateStore
 
-
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
 
+
 def _make_contract(**overrides: Any) -> TaskContract:
-    defaults: dict[str, Any] = dict(task_id="test_t1", goal="test goal")
+    defaults: dict[str, Any] = {"task_id": "test_t1", "goal": "test goal"}
     defaults.update(overrides)
     return TaskContract(**defaults)
 
@@ -160,8 +158,12 @@ class TestLLMGatewayActivation:
         builder = SystemBuilder(config)
         # Ensure no API keys leak from the real env; suppress config-file fallback
         # so this test exercises the "truly no credentials" path.
-        with patch.dict(os.environ, {"HI_AGENT_ENV": "dev"}, clear=True), \
-             patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+        with (
+            patch.dict(os.environ, {"HI_AGENT_ENV": "dev"}, clear=True),
+            patch(
+                "hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None
+            ),
+        ):
             # Reset cached gateway
             builder._llm_gateway = None
             gateway = builder.build_llm_gateway()
@@ -175,7 +177,9 @@ class TestLLMGatewayActivation:
         builder = SystemBuilder(config)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-123")
         # Suppress config-file path so test exercises the env-var fallback.
-        with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+        with patch(
+            "hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None
+        ):
             gateway = builder.build_llm_gateway()
         assert isinstance(gateway, TierAwareLLMGateway)
         assert isinstance(gateway._inner, HttpLLMGateway)
@@ -190,7 +194,9 @@ class TestLLMGatewayActivation:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
         # Suppress config-file path so test exercises the env-var fallback.
-        with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+        with patch(
+            "hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None
+        ):
             gateway = builder.build_llm_gateway()
         assert isinstance(gateway, TierAwareLLMGateway)
         assert isinstance(gateway._inner, AnthropicLLMGateway)
@@ -217,15 +223,22 @@ class TestCLIRun:
     """Verify CLI run command with --local flag."""
 
     def test_local_run_executes(self, capsys: Any) -> None:
-        from hi_agent.cli import build_parser, _cmd_run
+        from hi_agent.cli import _cmd_run, build_parser
 
         parser = build_parser()
-        args = parser.parse_args([
-            "run", "--goal", "say hello", "--local",
-        ])
+        args = parser.parse_args(
+            [
+                "run",
+                "--goal",
+                "say hello",
+                "--local",
+            ]
+        )
         # Suppress config-file gateway fallback: this CLI test must run in
         # heuristic mode without real network calls.
-        with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+        with patch(
+            "hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None
+        ):
             _cmd_run(args)
         captured = capsys.readouterr()
         assert "Run completed" in captured.out
@@ -240,9 +253,8 @@ class TestServerRoundTrip:
     """Full round-trip: create server, POST /runs, verify run executes."""
 
     def test_post_run_creates_and_starts(self) -> None:
-        from starlette.testclient import TestClient
-
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=9999)
 

@@ -1,7 +1,4 @@
 # tests/test_config_stack.py
-import json
-import os
-import pytest
 from hi_agent.config.stack import ConfigStack
 from hi_agent.config.trace_config import TraceConfig
 

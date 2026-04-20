@@ -104,9 +104,7 @@ def _find_heavy_models(per_model_breakdown: dict[str, float]) -> list[str]:
     if total <= 0:
         return []
     heavy: list[str] = []
-    for model, cost in sorted(
-        per_model_breakdown.items(), key=lambda kv: kv[1], reverse=True
-    ):
+    for model, cost in sorted(per_model_breakdown.items(), key=lambda kv: kv[1], reverse=True):
         share = cost / total
         if share >= 0.40 or cost >= 10.0:
             heavy.append(model)
@@ -152,4 +150,3 @@ def hints_to_payload(hints: list[CostOptimizationHint]) -> list[dict[str, Any]]:
         }
         for hint in hints
     ]
-

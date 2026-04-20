@@ -2,9 +2,9 @@
 
 import pytest
 from hi_agent.task_mgmt.handle import (
+    InvalidTransitionError,
     TaskHandle,
     TaskStatus,
-    InvalidTransitionError,
 )
 
 
@@ -141,7 +141,6 @@ class TestTaskHandleTransitions:
     def test_lock_prevents_concurrent_modification(self):
         """Lock is acquired during state transition."""
         import threading
-        import time
 
         handle = TaskHandle(task_id="task-1", node_id="node-1", status=TaskStatus.PENDING)
         transition_order = []

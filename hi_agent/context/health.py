@@ -36,15 +36,11 @@ class ContextMonitor:
             "budget_tokens": snapshot.budget_tokens,
             "utilization_pct": snapshot.utilization_pct,
             "health": (
-                snapshot.health.value
-                if hasattr(snapshot.health, "value")
-                else str(snapshot.health)
+                snapshot.health.value if hasattr(snapshot.health, "value") else str(snapshot.health)
             ),
             "compressions_applied": snapshot.compressions_applied,
             "purpose": snapshot.purpose,
-            "section_tokens": {
-                s.name: s.tokens for s in snapshot.sections
-            },
+            "section_tokens": {s.name: s.tokens for s in snapshot.sections},
         }
         self._snapshots.append(entry)
 
@@ -69,14 +65,16 @@ class ContextMonitor:
             Additional tokens consumed by the compression itself
             (e.g. LLM call for summarization).
         """
-        self._compression_events.append({
-            "timestamp": time.time(),
-            "method": method,
-            "tokens_before": tokens_before,
-            "tokens_after": tokens_after,
-            "tokens_saved": tokens_before - tokens_after,
-            "cost_tokens": cost_tokens,
-        })
+        self._compression_events.append(
+            {
+                "timestamp": time.time(),
+                "method": method,
+                "tokens_before": tokens_before,
+                "tokens_after": tokens_after,
+                "tokens_saved": tokens_before - tokens_after,
+                "cost_tokens": cost_tokens,
+            }
+        )
 
     def get_trend(self, last_n: int = 10) -> dict[str, Any]:
         """Return utilization trend over last N snapshots.
@@ -100,9 +98,7 @@ class ContextMonitor:
         growth_rate = utilizations[-1] - utilizations[0] if len(utilizations) >= 2 else 0.0
 
         # Compression frequency: fraction of snapshots that had compression
-        compressions = sum(
-            1 for s in recent if s.get("compressions_applied", 0) > 0
-        )
+        compressions = sum(1 for s in recent if s.get("compressions_applied", 0) > 0)
         compression_freq = compressions / len(recent) if recent else 0.0
 
         return {
@@ -134,8 +130,7 @@ class ContextMonitor:
         # Rapidly growing
         if trend["growth_rate"] > 0.15:
             recommendations.append(
-                "Utilization growing rapidly. History may need more "
-                "frequent compression."
+                "Utilization growing rapidly. History may need more frequent compression."
             )
 
         # Frequent compression
@@ -170,12 +165,8 @@ class ContextMonitor:
         """Return full monitoring summary."""
         trend = self.get_trend()
         total_compressions = len(self._compression_events)
-        tokens_saved = sum(
-            e["tokens_saved"] for e in self._compression_events
-        )
-        compression_cost = sum(
-            e["cost_tokens"] for e in self._compression_events
-        )
+        tokens_saved = sum(e["tokens_saved"] for e in self._compression_events)
+        compression_cost = sum(e["cost_tokens"] for e in self._compression_events)
 
         return {
             "total_snapshots": len(self._snapshots),

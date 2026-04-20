@@ -6,10 +6,8 @@ import os
 import textwrap
 
 import pytest
-
 from hi_agent.skill.definition import SkillDefinition
 from hi_agent.skill.loader import SkillLoader, SkillPrompt
-
 
 # ===================================================================
 # Fixtures — reusable SKILL.md content
@@ -151,7 +149,8 @@ class TestSkillDefinitionEligibility:
 
     def test_missing_binary(self) -> None:
         skill = SkillDefinition(
-            skill_id="s1", name="s1",
+            skill_id="s1",
+            name="s1",
             requires_bins=["__nonexistent_binary_xyz__"],
         )
         ok, reason = skill.check_eligibility()
@@ -161,7 +160,8 @@ class TestSkillDefinitionEligibility:
     def test_missing_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("TOTALLY_FAKE_VAR_XYZ", raising=False)
         skill = SkillDefinition(
-            skill_id="s1", name="s1",
+            skill_id="s1",
+            name="s1",
             requires_env=["TOTALLY_FAKE_VAR_XYZ"],
         )
         ok, reason = skill.check_eligibility()
@@ -171,7 +171,8 @@ class TestSkillDefinitionEligibility:
     def test_eligible_when_env_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MY_TEST_VAR_123", "1")
         skill = SkillDefinition(
-            skill_id="s1", name="s1",
+            skill_id="s1",
+            name="s1",
             requires_env=["MY_TEST_VAR_123"],
         )
         ok, _ = skill.check_eligibility()
@@ -187,7 +188,8 @@ class TestSkillDefinitionEstimateTokens:
 
     def test_estimates_from_prompt(self) -> None:
         skill = SkillDefinition(
-            skill_id="s1", name="s1",
+            skill_id="s1",
+            name="s1",
             prompt_content="A" * 400,  # 400 chars ~ 100 tokens
         )
         tokens = skill.estimate_tokens()
@@ -371,7 +373,8 @@ class TestBuildPrompt:
         # 10 skills, each ~100 chars full prompt
         for i in range(10):
             _write_skill(
-                d, f"sk-{i:02d}",
+                d,
+                f"sk-{i:02d}",
                 _make_simple_skill(f"sk-{i:02d}", 0.95 - i * 0.05, 200),
             )
 

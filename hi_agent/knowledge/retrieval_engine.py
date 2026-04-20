@@ -14,6 +14,7 @@ Searches across all knowledge tiers:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -22,7 +23,7 @@ import os
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from hi_agent.knowledge.granularity import KnowledgeItem, estimate_tokens
 from hi_agent.knowledge.graph_renderer import GraphRenderer
@@ -129,15 +130,13 @@ class RetrievalEngine:
             # Clean up the old binary cache file if it exists.
             legacy_path = os.path.join(self._storage_dir, ".index_cache" + ".pkl")
             if os.path.exists(legacy_path):
-                try:
+                with contextlib.suppress(OSError):
                     os.remove(legacy_path)
-                except OSError:
-                    pass
 
             payload = {
                 "schema_version": self._CACHE_SCHEMA_VERSION,
                 "fingerprint": self._compute_fingerprint(self._tfidf._docs),
-                "built_at": datetime.now(tz=timezone.utc).isoformat(),
+                "built_at": datetime.now(tz=UTC).isoformat(),
                 "docs": self._tfidf._docs,
                 "doc_tokens": self._tfidf._doc_tokens,
                 "idf": self._tfidf._idf,
@@ -145,7 +144,7 @@ class RetrievalEngine:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(payload, f)
             logger.debug("Index cache saved to %s", path)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Failed to save index cache: %s", exc)
 
     def _load_index(self) -> bool:
@@ -189,7 +188,7 @@ class RetrievalEngine:
                 data.get("built_at", "unknown"),
             )
             return True
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Failed to load index cache: %s", exc)
             return False
 
@@ -208,7 +207,7 @@ class RetrievalEngine:
         an optional dependency.
         """
         try:
-            from hi_agent.security.injection_scanner import InjectionScanner  # noqa: PLC0415
+            from hi_agent.security.injection_scanner import InjectionScanner
 
             if self._injection_scanner is None:
                 self._injection_scanner = InjectionScanner()
@@ -437,9 +436,7 @@ class RetrievalEngine:
 
         return candidates[:50]
 
-    def _layer2_rank(
-        self, query: str, candidates: list[KnowledgeItem]
-    ) -> list[KnowledgeItem]:
+    def _layer2_rank(self, query: str, candidates: list[KnowledgeItem]) -> list[KnowledgeItem]:
         """Layer 2: BM25 ranking of candidates. Returns top ~10."""
         if not candidates:
             return []
@@ -472,29 +469,21 @@ class RetrievalEngine:
         for item in candidates:
             if item.source_type == "long_term_graph" and self._graph is not None:
                 # Get subgraph (depth=2)
-                nodes, _edges = self._graph.get_subgraph(
-                    item.source_id, depth=2
-                )
+                nodes, _edges = self._graph.get_subgraph(item.source_id, depth=2)
                 if not nodes:
                     continue
 
                 if include_viz and self._renderer is not None:
                     mermaid = self._renderer.to_mermaid(max_nodes=15)
-                    summary_lines = [
-                        f"- {n.content[:100]}" for n in nodes[:5]
-                    ]
-                    item.content = (
-                        f"```mermaid\n{mermaid}\n```\n"
-                        f"Key entities:\n" + "\n".join(summary_lines)
+                    summary_lines = [f"- {n.content[:100]}" for n in nodes[:5]]
+                    item.content = f"```mermaid\n{mermaid}\n```\nKey entities:\n" + "\n".join(
+                        summary_lines
                     )
                     item.level = 4  # subgraph level
                     item.token_estimate = estimate_tokens(item.content)
                 else:
                     # Text-only expansion
-                    summary_lines = [
-                        f"- [{n.node_type}] {n.content[:100]}"
-                        for n in nodes[:5]
-                    ]
+                    summary_lines = [f"- [{n.node_type}] {n.content[:100]}" for n in nodes[:5]]
                     item.content = "Key entities:\n" + "\n".join(summary_lines)
                     item.level = 4
                     item.token_estimate = estimate_tokens(item.content)
@@ -515,9 +504,7 @@ class RetrievalEngine:
         for item in candidates:
             item_emb = self._embedding_fn(item.content[:500])
             item.relevance_score = cosine_similarity(query_emb, item_emb)
-        return sorted(
-            candidates, key=lambda x: x.relevance_score, reverse=True
-        )
+        return sorted(candidates, key=lambda x: x.relevance_score, reverse=True)
 
     def _score_and_trim(
         self, query: str, candidates: list[KnowledgeItem], budget_tokens: int

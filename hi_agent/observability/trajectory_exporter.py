@@ -1,5 +1,4 @@
-"""
-RL Trajectory Exporter for hi-agent.
+"""RL Trajectory Exporter for hi-agent.
 
 Exports agent conversation trajectories to JSONL format for
 reinforcement learning training. Each trajectory captures a complete
@@ -17,7 +16,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -189,10 +187,7 @@ class TrajectoryFilter:
 
         # Status gate (only enforced when metadata carries a "status" key)
         status = record.metadata.get("status")
-        if status is not None and status not in self.allowed_statuses:
-            return False
-
-        return True
+        return not (status is not None and status not in self.allowed_statuses)
 
 
 # ---------------------------------------------------------------------------
@@ -350,7 +345,7 @@ class TrajectoryExporter:
             export_session returns None.
     """
 
-    def __init__(self, filter: TrajectoryFilter | None = None) -> None:  # noqa: A002
+    def __init__(self, filter: TrajectoryFilter | None = None) -> None:
         self._filter = filter
 
     # ------------------------------------------------------------------
@@ -481,12 +476,8 @@ class TrajectoryExporter:
         skill_id: str | None = session_dict.get("skill_id")
 
         # Derive counters
-        total_turns = sum(
-            1 for m in messages if m.role in ("user", "assistant")
-        ) // 2
-        total_tool_calls = sum(
-            len(m.tool_calls) for m in messages if m.tool_calls
-        )
+        total_turns = sum(1 for m in messages if m.role in ("user", "assistant")) // 2
+        total_tool_calls = sum(len(m.tool_calls) for m in messages if m.tool_calls)
 
         # Timestamp
         created_at = session_dict.get(

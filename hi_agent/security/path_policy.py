@@ -2,6 +2,7 @@
 
 Provides safe_resolve() to validate user-supplied paths against a base directory.
 """
+
 from __future__ import annotations
 
 import sys
@@ -12,8 +13,8 @@ class PathPolicyViolation(Exception):
     """Raised when a path fails security policy."""
 
 
-def safe_resolve(base_dir: "Path | str", user_path: str, *, allow_absolute: bool = False) -> Path:
-    """Resolve user_path relative to base_dir.
+def safe_resolve(base_dir: Path | str, user_path: str, *, allow_absolute: bool = False) -> Path:
+    r"""Resolve user_path relative to base_dir.
 
     Raises PathPolicyViolation if the resolved path escapes base_dir.
 
@@ -28,8 +29,10 @@ def safe_resolve(base_dir: "Path | str", user_path: str, *, allow_absolute: bool
         raise PathPolicyViolation("Null byte detected in path")
 
     # Windows-specific checks: UNC paths and drive-letter paths
-    if sys.platform == "win32" or user_path.startswith("\\\\") or (
-        len(user_path) >= 2 and user_path[1] == ":"
+    if (
+        sys.platform == "win32"
+        or user_path.startswith("\\\\")
+        or (len(user_path) >= 2 and user_path[1] == ":")
     ):
         if user_path.startswith("\\\\"):
             raise PathPolicyViolation(f"UNC path not allowed: {user_path!r}")
@@ -46,9 +49,9 @@ def safe_resolve(base_dir: "Path | str", user_path: str, *, allow_absolute: bool
     # Verify candidate is within base_dir
     try:
         candidate.relative_to(base)
-    except ValueError:
+    except ValueError as err:
         raise PathPolicyViolation(
             f"Path {user_path!r} resolves outside base directory {str(base)!r}"
-        )
+        ) from err
 
     return candidate

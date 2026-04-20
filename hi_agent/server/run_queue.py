@@ -235,9 +235,7 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
         now = time.time()
         with self._lock:
             self._conn.execute(
-                "UPDATE run_queue "
-                "SET cancellation_flag = 1, updated_at = ? "
-                "WHERE run_id = ?",
+                "UPDATE run_queue SET cancellation_flag = 1, updated_at = ? WHERE run_id = ?",
                 (now, run_id),
             )
             self._conn.commit()

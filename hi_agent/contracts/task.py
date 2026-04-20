@@ -112,4 +112,3 @@ class TaskContract:
     # Runtime profile injection — business agents pass a profile_id to activate
     # a ProfileSpec from the platform's ProfileRegistry.
     profile_id: str | None = None
-

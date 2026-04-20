@@ -7,14 +7,13 @@ using the same resolvers as /ready, so the two endpoints never drift.
 from __future__ import annotations
 
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.server.app import AgentServer
-
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
@@ -35,6 +34,7 @@ def test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 def test_manifest_runtime_mode_reflects_env_dev(test_client: TestClient) -> None:
     """In dev env, runtime_mode must be dev-smoke (no real LLM/kernel)."""
@@ -69,5 +69,6 @@ def test_manifest_evolve_policy_present(test_client: TestClient) -> None:
 def test_manifest_provenance_contract_version_present(test_client: TestClient) -> None:
     """provenance_contract_version must match the locked CONTRACT_VERSION."""
     from hi_agent.contracts.execution_provenance import CONTRACT_VERSION
+
     data = test_client.get("/manifest").json()
     assert data.get("provenance_contract_version") == CONTRACT_VERSION

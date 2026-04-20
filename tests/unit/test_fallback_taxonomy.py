@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from hi_agent.observability.fallback import FallbackTaxonomy, record_fallback
-
 
 # ---------------------------------------------------------------------------
 # Taxonomy membership
@@ -132,12 +130,9 @@ def test_context_manager_records_fallback_on_compression_failure():
         "hi_agent.context.manager.record_fallback",
         side_effect=_fake_record,
         create=True,
-    ):
+    ), contextlib.suppress(Exception):
         # Simulate the auto-compress path by calling the internal method directly.
-        try:
-            cm._auto_compress_if_needed(sections, total_tokens=190_001)
-        except Exception:
-            pass  # may raise due to missing context; we only care about the record
+        cm._auto_compress_if_needed(sections, total_tokens=190_001)
 
     # If record_fallback was called, check its arguments.
     # (It may not be called if the budget threshold wasn't hit on first call —
@@ -145,5 +140,6 @@ def test_context_manager_records_fallback_on_compression_failure():
     for kind, component, detail in recorded:
         assert component == "context_manager"
         assert "compression_failed" in detail
-        from hi_agent.observability.fallback import FallbackTaxonomy as FT
-        assert kind == FT.UNEXPECTED_EXCEPTION
+        from hi_agent.observability.fallback import FallbackTaxonomy
+
+        assert kind == FallbackTaxonomy.UNEXPECTED_EXCEPTION

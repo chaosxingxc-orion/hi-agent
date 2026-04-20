@@ -14,6 +14,7 @@ from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskAttempt, 
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_attempt(task_id: str, seq: int, outcome: str = "failed") -> TaskAttempt:
     return TaskAttempt(
         attempt_id=f"att-{seq}",
@@ -75,10 +76,13 @@ def _get_task_attempt_record_alias() -> type[TaskAttempt]:
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_decide_retry_within_budget():
     """Returns 'retry' when attempts < max_attempts and on_exhausted != 'reflect'."""
-    policy = TaskRestartPolicy(max_attempts=3, on_exhausted="escalate", backoff_base_ms=0, max_backoff_ms=0)
+    policy = TaskRestartPolicy(
+        max_attempts=3, on_exhausted="escalate", backoff_base_ms=0, max_backoff_ms=0
+    )
     attempts = [_make_attempt("t1", 1)]
     task_attempt_record = _get_task_attempt_record_alias()
 
@@ -139,14 +143,18 @@ async def test_decide_abort_on_non_retryable():
 @pytest.mark.asyncio
 async def test_handle_failure_retry_launches_new_run():
     """handle_failure with a retry_launcher actually launches a new run."""
-    policy = TaskRestartPolicy(max_attempts=3, on_exhausted="escalate", backoff_base_ms=0, max_backoff_ms=0)
+    policy = TaskRestartPolicy(
+        max_attempts=3, on_exhausted="escalate", backoff_base_ms=0, max_backoff_ms=0
+    )
     attempts = [_make_attempt("t1", 1)]
 
     async def launcher(task_id: str, seq: int) -> str:
         return f"new-run-{seq}"
 
     engine, state_log = _build_engine(
-        attempts=attempts, policy=policy, retry_launcher=launcher,
+        attempts=attempts,
+        policy=policy,
+        retry_launcher=launcher,
     )
 
     decision = await engine.handle_failure("t1", "run-1")
@@ -160,11 +168,15 @@ async def test_handle_failure_retry_launches_new_run():
 @pytest.mark.asyncio
 async def test_handle_failure_no_launcher():
     """Without a retry_launcher, retry decision degrades to abort."""
-    policy = TaskRestartPolicy(max_attempts=3, on_exhausted="escalate", backoff_base_ms=0, max_backoff_ms=0)
+    policy = TaskRestartPolicy(
+        max_attempts=3, on_exhausted="escalate", backoff_base_ms=0, max_backoff_ms=0
+    )
     attempts = [_make_attempt("t1", 1)]
 
     engine, _state_log = _build_engine(
-        attempts=attempts, policy=policy, retry_launcher=None,
+        attempts=attempts,
+        policy=policy,
+        retry_launcher=None,
     )
 
     decision = await engine.handle_failure("t1", "run-1")

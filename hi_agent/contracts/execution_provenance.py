@@ -6,6 +6,7 @@ llm_mode / kernel_mode / capability_mode are "unknown" in W1 — filled in W2.
 
 W2-001 adds StageProvenance per stage; build_from_stages aggregates from those.
 """
+
 from __future__ import annotations
 
 import logging
@@ -76,7 +77,7 @@ class ExecutionProvenance:
         cls,
         stage_summaries: list[dict],
         runtime_context: dict,
-    ) -> "ExecutionProvenance":
+    ) -> ExecutionProvenance:
         """Aggregate run-level provenance from per-stage StageProvenance objects.
 
         If stage has "provenance" key (StageProvenance), use it.
@@ -93,19 +94,19 @@ class ExecutionProvenance:
                 stage_provs.append(s["provenance"])
             elif s.get("type") == "heuristic":
                 # W1 backward compat: synthesize a StageProvenance
-                stage_provs.append(StageProvenance(
-                    stage_id=s.get("stage_id", "unknown"),
-                    llm_mode="heuristic",
-                    capability_mode="sample",
-                    fallback_used=True,
-                    fallback_reasons=["heuristic_stage"],
-                    duration_ms=0,
-                ))
+                stage_provs.append(
+                    StageProvenance(
+                        stage_id=s.get("stage_id", "unknown"),
+                        llm_mode="heuristic",
+                        capability_mode="sample",
+                        fallback_used=True,
+                        fallback_reasons=["heuristic_stage"],
+                        duration_ms=0,
+                    )
+                )
             else:
                 if s:
-                    _logger.warning(
-                        "build_from_stages: unexpected stage shape %r — skipped", s
-                    )
+                    _logger.warning("build_from_stages: unexpected stage shape %r — skipped", s)
 
         if not stage_provs:
             # No stage data — keep old W1 behavior

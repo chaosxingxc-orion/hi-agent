@@ -13,26 +13,22 @@ Covers:
 
 from __future__ import annotations
 
-import io
 import json
 import os
-import tempfile
-
-import pytest
 
 from hi_agent.contracts import TaskContract
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.runner import RunExecutor
-from hi_agent.skill.observer import SkillObservation, SkillObserver
-from hi_agent.skill.version import SkillVersionManager
 from hi_agent.skill.evolver import SkillEvolver
 from hi_agent.skill.loader import SkillLoader
-from hi_agent.skill.definition import SkillDefinition
+from hi_agent.skill.observer import SkillObserver
+from hi_agent.skill.version import SkillVersionManager
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_contract(**kw: object) -> TaskContract:
     defaults = {
@@ -73,6 +69,7 @@ This is a test skill prompt.
 # Part 1: RunExecutor with skill_observer
 # ---------------------------------------------------------------------------
 
+
 class TestRunExecutorSkillObserver:
     """Test that RunExecutor records skill observations after action execution."""
 
@@ -93,10 +90,11 @@ class TestRunExecutorSkillObserver:
         assert outcome in ("completed", "failed")
         # Check that observations were written
         # Observer writes to {storage}/{skill_id}.jsonl files
-        jsonl_files = [
-            f for f in os.listdir(storage)
-            if f.endswith(".jsonl")
-        ] if os.path.isdir(storage) else []
+        jsonl_files = (
+            [f for f in os.listdir(storage) if f.endswith(".jsonl")]
+            if os.path.isdir(storage)
+            else []
+        )
         # At least some observations should be recorded
         assert len(jsonl_files) > 0, "Expected at least one observation JSONL file"
 
@@ -207,6 +205,7 @@ class TestRunExecutorBackwardCompat:
 # ---------------------------------------------------------------------------
 # Part 2: API endpoint tests
 # ---------------------------------------------------------------------------
+
 
 class TestSkillAPIEndpoints:
     """Test skill API endpoints via the AgentServer handler."""
@@ -320,9 +319,7 @@ class TestSkillAPIEndpoints:
         server = self._make_server(str(tmp_path))
 
         # Create a version first
-        server.skill_evolver._version_manager.create_version(
-            "test-skill", "prompt content"
-        )
+        server.skill_evolver._version_manager.create_version("test-skill", "prompt content")
 
         handler = AgentAPIHandler.__new__(AgentAPIHandler)
         handler.server = server
@@ -392,6 +389,7 @@ class TestSkillAPIEndpoints:
 # Part 3: SystemBuilder builds all skill components
 # ---------------------------------------------------------------------------
 
+
 class TestSystemBuilderSkillComponents:
     """Test that SystemBuilder can create all skill lifecycle components."""
 
@@ -450,6 +448,7 @@ class TestSystemBuilderSkillComponents:
 # ---------------------------------------------------------------------------
 # Part 4: Full lifecycle integration test
 # ---------------------------------------------------------------------------
+
 
 class TestSkillLifecycleIntegration:
     """Full lifecycle: discover -> execute -> observe -> metrics -> evolve."""
@@ -540,7 +539,7 @@ class TestSkillLifecycleIntegration:
         )
 
         # The route_engine should have a context provider that includes skills
-        if hasattr(executor.route_engine, '_context_provider'):
+        if hasattr(executor.route_engine, "_context_provider"):
             ctx = executor.route_engine._context_provider()
             assert "skill_prompt" in ctx
             assert "test-inject" in ctx["skill_prompt"]

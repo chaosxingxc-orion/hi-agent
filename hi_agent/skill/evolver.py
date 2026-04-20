@@ -20,10 +20,10 @@ from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
+from hi_agent.failures.taxonomy import is_budget_exhausted_failure_code
 from hi_agent.skill.definition import SkillDefinition
 from hi_agent.skill.observer import SkillObserver
 from hi_agent.skill.version import SkillVersionManager, SkillVersionRecord
-from hi_agent.failures.taxonomy import is_budget_exhausted_failure_code
 
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
@@ -81,23 +81,13 @@ _FAILURE_FIXES: dict[str, str] = {
     "missing_evidence": (
         "Add explicit instructions to gather all required evidence before proceeding."
     ),
-    "invalid_context": (
-        "Add context validation step at the start of the prompt."
-    ),
-    "model_output_invalid": (
-        "Add output format constraints and examples to the prompt."
-    ),
-    "model_refusal": (
-        "Rephrase instructions to avoid triggering safety refusals."
-    ),
-    "no_progress": (
-        "Add a fallback strategy section for when the primary approach stalls."
-    ),
+    "invalid_context": ("Add context validation step at the start of the prompt."),
+    "model_output_invalid": ("Add output format constraints and examples to the prompt."),
+    "model_refusal": ("Rephrase instructions to avoid triggering safety refusals."),
+    "no_progress": ("Add a fallback strategy section for when the primary approach stalls."),
 }
 
-_BUDGET_FAILURE_FIX = (
-    "Add token-efficiency instructions: be concise, avoid repetition."
-)
+_BUDGET_FAILURE_FIX = "Add token-efficiency instructions: be concise, avoid repetition."
 
 # ---------------------------------------------------------------------------
 # SkillEvolver
@@ -170,7 +160,7 @@ class SkillEvolver:
         llm_gateway: Any | None = None,
         observer: Any | None = None,
         version_manager: Any | None = None,
-    ) -> "SkillEvolver":
+    ) -> SkillEvolver:
         """Create a SkillEvolver from a TraceConfig."""
         return cls(
             observer=observer,
@@ -204,9 +194,7 @@ class SkillEvolver:
                 suggestions.append(fix)
 
         if metrics.avg_quality > 0 and metrics.avg_quality < 0.5:
-            suggestions.append(
-                "Quality score is low — consider adding more detailed instructions."
-            )
+            suggestions.append("Quality score is low — consider adding more detailed instructions.")
 
         optimization_needed = metrics.success_rate < self._success_threshold
 
@@ -266,8 +254,7 @@ class SkillEvolver:
         observations = self._observer.get_observations(skill_id, limit=20)
         failed_obs = [o for o in observations if not o.success]
         failure_examples = "\n".join(
-            f"- [{o.failure_code}] input={o.input_summary[:100]}, "
-            f"output={o.output_summary[:100]}"
+            f"- [{o.failure_code}] input={o.input_summary[:100]}, output={o.output_summary[:100]}"
             for o in failed_obs[:5]
         )
 
@@ -321,14 +308,9 @@ class SkillEvolver:
                 additions.append(f"- {suggestion}")
 
         if not additions:
-            additions.append(
-                "- Review the task requirements carefully before proceeding."
-            )
+            additions.append("- Review the task requirements carefully before proceeding.")
 
-        improvement_block = (
-            "\n\n## Improvement Notes\n"
-            + "\n".join(additions)
-        )
+        improvement_block = "\n\n## Improvement Notes\n" + "\n".join(additions)
         return current_prompt + improvement_block
 
     @staticmethod
@@ -338,9 +320,7 @@ class SkillEvolver:
             return _BUDGET_FAILURE_FIX
         return _FAILURE_FIXES.get(code)
 
-    def deploy_optimization(
-        self, skill_id: str, new_prompt: str
-    ) -> SkillVersionRecord:
+    def deploy_optimization(self, skill_id: str, new_prompt: str) -> SkillVersionRecord:
         """Deploy optimized prompt as challenger version for A/B testing."""
         if self._version_manager is None:
             raise RuntimeError(
@@ -376,9 +356,7 @@ class SkillEvolver:
 
     # --- Discover patterns ---
 
-    def discover_patterns(
-        self, min_occurrences: int | None = None
-    ) -> list[SkillPattern]:
+    def discover_patterns(self, min_occurrences: int | None = None) -> list[SkillPattern]:
         """Analyze observation history to find recurring patterns.
 
         Looks for:
@@ -425,13 +403,9 @@ class SkillEvolver:
                 tag_counts: dict[str, int] = {}
                 for t in bucket["tags"]:
                     tag_counts[t] = tag_counts.get(t, 0) + 1
-                sorted_tags = sorted(
-                    tag_counts.keys(), key=lambda t: tag_counts[t], reverse=True
-                )
+                sorted_tags = sorted(tag_counts.keys(), key=lambda t: tag_counts[t], reverse=True)
 
-                pattern_id = (
-                    f"pat_{hashlib.sha256(key.encode()).hexdigest()[:12]}"
-                )
+                pattern_id = f"pat_{hashlib.sha256(key.encode()).hexdigest()[:12]}"
                 confidence = min(bucket["count"] / 10.0, 1.0)
 
                 patterns.append(
@@ -455,9 +429,7 @@ class SkillEvolver:
 
     # --- Create new skills ---
 
-    def create_skill_from_pattern(
-        self, pattern: SkillPattern
-    ) -> SkillDefinition | None:
+    def create_skill_from_pattern(self, pattern: SkillPattern) -> SkillDefinition | None:
         """Generate a new skill definition from a discovered pattern.
 
         With LLM: generate full SKILL.md content.
@@ -467,7 +439,9 @@ class SkillEvolver:
             try:
                 return self._llm_create_skill(pattern)
             except Exception as exc:
-                logger.debug("SkillEvolver: LLM skill creation failed, falling back to template: %s", exc)
+                logger.debug(
+                    "SkillEvolver: LLM skill creation failed, falling back to template: %s", exc
+                )
 
         return self._template_create_skill(pattern)
 
@@ -543,12 +517,14 @@ class SkillEvolver:
         for i, tool in enumerate(pattern.tool_sequence, 1):
             prompt_lines.append(f"{i}. Execute: {tool}")
 
-        prompt_lines.extend([
-            "",
-            "## Quality Checks",
-            "- Verify each step completed successfully before proceeding",
-            "- If a step fails, report the failure and stop",
-        ])
+        prompt_lines.extend(
+            [
+                "",
+                "## Quality Checks",
+                "- Verify each step completed successfully before proceeding",
+                "- If a step fails, report the failure and stop",
+            ]
+        )
 
         return SkillDefinition(
             skill_id=skill_id,
@@ -567,9 +543,7 @@ class SkillEvolver:
 
     # --- Full evolution cycle ---
 
-    def evolve_cycle(
-        self, min_observations: int = 10
-    ) -> EvolutionReport:
+    def evolve_cycle(self, min_observations: int = 10) -> EvolutionReport:
         """Run a full evolution cycle.
 
         1. Analyze all skills with enough observations
@@ -580,8 +554,12 @@ class SkillEvolver:
         """
         if self._observer is None:
             return EvolutionReport(
-                skills_analyzed=0, skills_optimized=0, patterns_discovered=0,
-                skills_created=0, challenger_deployed=0, details=[],
+                skills_analyzed=0,
+                skills_optimized=0,
+                patterns_discovered=0,
+                skills_created=0,
+                challenger_deployed=0,
+                details=[],
             )
         all_metrics = self._observer.get_all_metrics()
         details: list[str] = []
@@ -606,17 +584,14 @@ class SkillEvolver:
                     skills_optimized += 1
                     challenger_deployed += 1
                     details.append(
-                        f"Optimized '{skill_id}' "
-                        f"(success_rate={analysis.success_rate:.1%})"
+                        f"Optimized '{skill_id}' (success_rate={analysis.success_rate:.1%})"
                     )
 
         # 3. Discover patterns
         patterns = self.discover_patterns()
         patterns_discovered = len(patterns)
         for pattern in patterns:
-            details.append(
-                f"Pattern '{pattern.pattern_id}': {pattern.description}"
-            )
+            details.append(f"Pattern '{pattern.pattern_id}': {pattern.description}")
 
         # 4. Create skills from strong patterns
         for pattern in patterns:
@@ -624,9 +599,7 @@ class SkillEvolver:
                 skill_def = self.create_skill_from_pattern(pattern)
                 if skill_def is not None:
                     skills_created += 1
-                    details.append(
-                        f"Created skill '{skill_def.name}' from pattern"
-                    )
+                    details.append(f"Created skill '{skill_def.name}' from pattern")
 
         return EvolutionReport(
             skills_analyzed=skills_analyzed,

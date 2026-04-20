@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from agent_kernel.kernel.contracts import Action, EffectClass, RunProjection
 from agent_kernel.kernel.minimal_runtime import StaticDispatchAdmissionService
 

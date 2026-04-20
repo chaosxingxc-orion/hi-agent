@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.artifacts.adapters import OutputToArtifactAdapter
 from hi_agent.artifacts.contracts import (
     Artifact,
@@ -24,7 +22,9 @@ class TestOutputToArtifactAdapter:
         assert self._adapt(None) == []
 
     def test_resource_artifact_from_url_and_title(self):
-        artifacts = self._adapt({"url": "http://example.com", "title": "Example", "snippet": "A snippet"})
+        artifacts = self._adapt(
+            {"url": "http://example.com", "title": "Example", "snippet": "A snippet"}
+        )
         assert len(artifacts) == 1
         a = artifacts[0]
         assert isinstance(a, ResourceArtifact)
@@ -91,10 +91,9 @@ class TestOutputToArtifactAdapter:
 
 class TestHarnessExecutorArtifactRegistry:
     def test_harness_stores_artifacts_on_execute(self):
-        from hi_agent.artifacts.registry import ArtifactRegistry
+        from hi_agent.harness.contracts import ActionSpec
         from hi_agent.harness.executor import HarnessExecutor
         from hi_agent.harness.governance import GovernanceEngine
-        from hi_agent.harness.contracts import ActionSpec
 
         registry = ArtifactRegistry()
         output = {"url": "http://example.com", "title": "Test", "snippet": "snip"}
@@ -115,7 +114,7 @@ class TestHarnessExecutorArtifactRegistry:
             capability_name="search",
             payload={"query": "test"},
         )
-        result = harness.execute(spec)
+        harness.execute(spec)
         # Artifact should be stored
         assert registry.count() == 1
         arts = registry.query(artifact_type="resource")
@@ -124,9 +123,9 @@ class TestHarnessExecutorArtifactRegistry:
 
     def test_harness_without_registry_still_works(self):
         """HarnessExecutor works normally without artifact_registry."""
+        from hi_agent.harness.contracts import ActionSpec
         from hi_agent.harness.executor import HarnessExecutor
         from hi_agent.harness.governance import GovernanceEngine
-        from hi_agent.harness.contracts import ActionSpec
 
         class MockInvoker:
             def invoke(self, name, payload):
@@ -145,12 +144,14 @@ class TestHarnessExecutorArtifactRegistry:
 class TestBuilderCreatesArtifactRegistry:
     def test_builder_builds_artifact_registry(self):
         from hi_agent.config.builder import SystemBuilder
+
         builder = SystemBuilder()
         reg = builder.build_artifact_registry()
         assert reg is not None
 
     def test_builder_artifact_registry_is_singleton(self):
         from hi_agent.config.builder import SystemBuilder
+
         builder = SystemBuilder()
         r1 = builder.build_artifact_registry()
         r2 = builder.build_artifact_registry()
@@ -159,6 +160,7 @@ class TestBuilderCreatesArtifactRegistry:
     def test_artifact_has_provenance_fields(self):
         """Artifact base class has provenance and upstream_artifact_ids fields."""
         from hi_agent.artifacts.contracts import Artifact
+
         a = Artifact(producer_action_id="test-action")
         assert hasattr(a, "provenance")
         assert hasattr(a, "upstream_artifact_ids")
@@ -169,7 +171,6 @@ class TestBuilderCreatesArtifactRegistry:
 class TestArtifactRegistryQuerySurface:
     def test_query_by_source_ref(self):
         """Can query artifacts by source_ref."""
-        from hi_agent.artifacts.registry import ArtifactRegistry
         from hi_agent.artifacts.contracts import EvidenceArtifact
 
         registry = ArtifactRegistry()
@@ -186,7 +187,6 @@ class TestArtifactRegistryQuerySurface:
 
     def test_query_by_upstream(self):
         """Can query artifacts by upstream_artifact_ids."""
-        from hi_agent.artifacts.registry import ArtifactRegistry
         from hi_agent.artifacts.contracts import Artifact
 
         registry = ArtifactRegistry()

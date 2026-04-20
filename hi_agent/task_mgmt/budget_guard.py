@@ -6,6 +6,7 @@ Thresholds (remaining budget):
   10-30% → force light; skip optional nodes
   < 10%  → skip optional; force light for required
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ TIER_ORDER = ["light", "medium", "strong"]
 @dataclass(frozen=True)
 class TierDecision:
     """TierDecision class."""
+
     tier: str
     skipped: bool = False
 
@@ -79,7 +81,7 @@ class BudgetGuard:
         return TierDecision(tier=requested_tier)
 
     @classmethod
-    def from_config(cls, cfg: object, total_budget_tokens: int) -> "BudgetGuard":
+    def from_config(cls, cfg: object, total_budget_tokens: int) -> BudgetGuard:
         """Construct BudgetGuard from a TraceConfig instance."""
         return cls(
             total_budget_tokens=total_budget_tokens,

@@ -9,19 +9,15 @@ Verifies that:
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.profiles.contracts import ProfileSpec
 from hi_agent.profiles.registry import ProfileRegistry
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
-from hi_agent.trajectory.stage_graph import StageGraph
 
 
 class TestTraceFallback:
     def test_no_profile_uses_trace_defaults(self):
         """Without a profile, TRACE S1-S5 defaults are used."""
         from hi_agent.config.builder import SystemBuilder
-        from hi_agent.contracts.task import TaskContract
 
         builder = SystemBuilder()
         resolved = builder._resolve_profile(None)
@@ -35,6 +31,7 @@ class TestTraceFallback:
     def test_trace_stage_graph_is_default(self):
         """RunExecutor defaults to TRACE stage graph when no profile given."""
         from hi_agent.trajectory.stage_graph import default_trace_stage_graph
+
         graph = default_trace_stage_graph()
         assert graph is not None
         assert "S1_understand" in graph.transitions
@@ -140,16 +137,20 @@ class TestProfileIsolation:
         from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
 
         reg = ProfileRegistry()
-        reg.register(ProfileSpec(
-            profile_id="prof_a",
-            display_name="A",
-            stage_actions={"step": "do_a"},
-        ))
-        reg.register(ProfileSpec(
-            profile_id="prof_b",
-            display_name="B",
-            stage_actions={"step": "do_b"},
-        ))
+        reg.register(
+            ProfileSpec(
+                profile_id="prof_a",
+                display_name="A",
+                stage_actions={"step": "do_a"},
+            )
+        )
+        reg.register(
+            ProfileSpec(
+                profile_id="prof_b",
+                display_name="B",
+                stage_actions={"step": "do_b"},
+            )
+        )
 
         resolver = ProfileRuntimeResolver(reg)
         a = resolver.resolve("prof_a")

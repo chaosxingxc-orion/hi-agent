@@ -1,8 +1,8 @@
 """Tests for CapabilityDescriptor risk metadata on builtin tools."""
+
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.capability.registry import CapabilityDescriptor, CapabilityRegistry
 from hi_agent.capability.tools.builtin import register_builtin_tools
 

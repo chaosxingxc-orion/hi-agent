@@ -9,6 +9,7 @@ from hi_agent.contracts import TaskContract
 from hi_agent.events import append_event, load_events
 from hi_agent.replay import ReplayEngine
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

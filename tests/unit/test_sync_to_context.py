@@ -6,11 +6,10 @@ to prevent unintended shared state mutations.
 
 from __future__ import annotations
 
-import pytest
-
-from hi_agent.contracts import TaskContract
 from hi_agent.context.run_context import RunContext
+from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -62,7 +61,7 @@ class TestSyncToContextMutableCopies:
         assert executor.run_context.gate_seq == 7
 
     def test_dag_dict_is_copied(self):
-        """dag dict is shallow copied; mutation does not affect run_context."""
+        """Dag dict is shallow copied; mutation does not affect run_context."""
         executor = _make_executor_with_context()
         executor.dag = {"node1": "value1"}
         executor._sync_to_context()

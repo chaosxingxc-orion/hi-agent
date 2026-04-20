@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.route_engine.conditional_router import (
     ConditionalRoute,
     ConditionalRouter,
     RouteContext,
     RouteExplanation,
 )
-
 
 # ---------------------------------------------------------------------------
 # RouteContext

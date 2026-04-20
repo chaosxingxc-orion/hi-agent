@@ -103,4 +103,3 @@ def test_gate_pending_property() -> None:
     coordinator.register_gate("gate-1")
 
     assert coordinator.gate_pending == "gate-1"
-

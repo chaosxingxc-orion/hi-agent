@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
-
 from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
 from hi_agent.memory.l0_summarizer import L0Summarizer
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
-
 
 # ===========================================================================
 # H-2: LongTermMemoryGraph auto-load on init

@@ -6,10 +6,8 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.llm import AnthropicLLMGateway, LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -99,9 +97,8 @@ class TestRequestFormatting:
     def test_x_api_key_header(self) -> None:
         gw = AnthropicLLMGateway(api_key_env="MY_KEY")
         req = _make_request()
-        with patch.dict("os.environ", {"MY_KEY": "sk-ant-test123"}):
-            with _patch_urlopen() as mock_open:
-                gw.complete(req)
+        with patch.dict("os.environ", {"MY_KEY": "sk-ant-test123"}), _patch_urlopen() as mock_open:
+            gw.complete(req)
         sent_req = mock_open.call_args[0][0]
         assert sent_req.get_header("X-api-key") == "sk-ant-test123"
         assert sent_req.get_header("Anthropic-version") == "2023-06-01"
@@ -220,24 +217,28 @@ class TestErrorHandling:
 
         gw = AnthropicLLMGateway()
         url_err = urllib.error.URLError(reason="timed out")
-        with patch(
-            "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
-            side_effect=url_err,
+        with (
+            patch(
+                "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
+                side_effect=url_err,
+            ),
+            pytest.raises(LLMTimeoutError),
         ):
-            with pytest.raises(LLMTimeoutError):
-                gw.complete(_make_request())
+            gw.complete(_make_request())
 
     def test_connection_error_raises_provider_error(self) -> None:
         import urllib.error
 
         gw = AnthropicLLMGateway()
         url_err = urllib.error.URLError(reason="connection refused")
-        with patch(
-            "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
-            side_effect=url_err,
+        with (
+            patch(
+                "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
+                side_effect=url_err,
+            ),
+            pytest.raises(LLMProviderError, match="connection refused"),
         ):
-            with pytest.raises(LLMProviderError, match="connection refused"):
-                gw.complete(_make_request())
+            gw.complete(_make_request())
 
 
 # ---------------------------------------------------------------------------

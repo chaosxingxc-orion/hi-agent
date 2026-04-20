@@ -51,4 +51,3 @@ def test_cmd_decision_audit_append_validates_mapping() -> None:
     store = InMemoryDecisionAuditStore()
     with pytest.raises(TypeError):
         cmd_decision_audit_append(store, ["bad"])  # type: ignore[arg-type]
-

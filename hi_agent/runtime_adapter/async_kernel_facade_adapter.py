@@ -41,21 +41,13 @@ class AsyncKernelFacadeAdapter:
         """Run mark_stage_state."""
         await asyncio.to_thread(self._sync.mark_stage_state, run_id, stage_id, target)
 
-    async def record_task_view(
-        self, task_view_id: str, content: dict[str, Any]
-    ) -> str:
+    async def record_task_view(self, task_view_id: str, content: dict[str, Any]) -> str:
         """Run record_task_view."""
-        return await asyncio.to_thread(
-            self._sync.record_task_view, task_view_id, content
-        )
+        return await asyncio.to_thread(self._sync.record_task_view, task_view_id, content)
 
-    async def bind_task_view_to_decision(
-        self, task_view_id: str, decision_ref: str
-    ) -> None:
+    async def bind_task_view_to_decision(self, task_view_id: str, decision_ref: str) -> None:
         """Run bind_task_view_to_decision."""
-        await asyncio.to_thread(
-            self._sync.bind_task_view_to_decision, task_view_id, decision_ref
-        )
+        await asyncio.to_thread(self._sync.bind_task_view_to_decision, task_view_id, decision_ref)
 
     async def start_run(self, task_id: str) -> str:
         """Start run and return run ID."""
@@ -80,30 +72,20 @@ class AsyncKernelFacadeAdapter:
         payload: dict[str, Any] | None = None,
     ) -> None:
         """Run signal_run."""
-        await asyncio.to_thread(
-            self._sync.signal_run, run_id, signal, payload
-        )
+        await asyncio.to_thread(self._sync.signal_run, run_id, signal, payload)
 
     async def query_trace_runtime(self, run_id: str) -> dict[str, Any]:
         """Run query_trace_runtime."""
-        return await asyncio.to_thread(
-            self._sync.query_trace_runtime, run_id
-        )
+        return await asyncio.to_thread(self._sync.query_trace_runtime, run_id)
 
-    async def stream_run_events(
-        self, run_id: str
-    ) -> AsyncIterator[dict[str, Any]]:
+    async def stream_run_events(self, run_id: str) -> AsyncIterator[dict[str, Any]]:
         """Run stream_run_events."""
         async for event in self._sync.stream_run_events(run_id):
             yield event
 
-    async def open_branch(
-        self, run_id: str, stage_id: str, branch_id: str
-    ) -> None:
+    async def open_branch(self, run_id: str, stage_id: str, branch_id: str) -> None:
         """Run open_branch."""
-        await asyncio.to_thread(
-            self._sync.open_branch, run_id, stage_id, branch_id
-        )
+        await asyncio.to_thread(self._sync.open_branch, run_id, stage_id, branch_id)
 
     async def mark_branch_state(
         self,
@@ -210,13 +192,9 @@ class AsyncKernelFacadeAdapter:
         Returns:
             The child run identifier string.
         """
-        return await asyncio.to_thread(
-            self._sync.spawn_child_run, parent_run_id, task_id, config
-        )
+        return await asyncio.to_thread(self._sync.spawn_child_run, parent_run_id, task_id, config)
 
-    async def query_child_runs_async(
-        self, parent_run_id: str
-    ) -> list[dict[str, Any]]:
+    async def query_child_runs_async(self, parent_run_id: str) -> list[dict[str, Any]]:
         """Async version of query_child_runs.
 
         Delegates to the underlying sync implementation via
@@ -228,13 +206,9 @@ class AsyncKernelFacadeAdapter:
         Returns:
             A list of dicts, each representing one child run summary.
         """
-        return await asyncio.to_thread(
-            self._sync.query_child_runs, parent_run_id
-        )
+        return await asyncio.to_thread(self._sync.query_child_runs, parent_run_id)
 
-    async def subscribe_events(
-        self, run_id: str
-    ) -> AsyncIterator[dict[str, Any]]:
+    async def subscribe_events(self, run_id: str) -> AsyncIterator[dict[str, Any]]:
         """Subscribe to events for a run."""
         method = getattr(self._facade, "subscribe_events", None)
         if callable(method):

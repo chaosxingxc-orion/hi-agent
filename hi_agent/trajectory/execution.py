@@ -3,6 +3,7 @@
 Pregel-inspired: each step processes all ready nodes in parallel,
 collects results, updates state, evaluates conditional edges, repeats.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -124,20 +125,12 @@ class GraphExecutor:
                 break
 
         completed = [
-            n.node_id for n in self.graph._nodes.values()
-            if n.state == NodeState.COMPLETED
+            n.node_id for n in self.graph._nodes.values() if n.state == NodeState.COMPLETED
         ]
-        failed = [
-            n.node_id for n in self.graph._nodes.values()
-            if n.state == NodeState.FAILED
-        ]
-        skipped = [
-            n.node_id for n in self.graph._nodes.values()
-            if n.state == NodeState.SKIPPED
-        ]
+        failed = [n.node_id for n in self.graph._nodes.values() if n.state == NodeState.FAILED]
+        skipped = [n.node_id for n in self.graph._nodes.values() if n.state == NodeState.SKIPPED]
         total_cost = sum(
-            n.cost_estimate for n in self.graph._nodes.values()
-            if n.state == NodeState.COMPLETED
+            n.cost_estimate for n in self.graph._nodes.values() if n.state == NodeState.COMPLETED
         )
 
         success = len(failed) == 0 and len(completed) > 0

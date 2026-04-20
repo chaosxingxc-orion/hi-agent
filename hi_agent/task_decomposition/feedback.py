@@ -46,9 +46,7 @@ class DecompositionFeedback:
         """Initialize DecompositionFeedback."""
         self._records: list[FeedbackRecord] = []
 
-    def record(
-        self, task_family: str, strategy: str, result: DAGResult
-    ) -> None:
+    def record(self, task_family: str, strategy: str, result: DAGResult) -> None:
         """Record a feedback observation from a completed DAG execution.
 
         Args:
@@ -56,8 +54,8 @@ class DecompositionFeedback:
             strategy: The decomposition strategy that was used.
             result: The DAGResult from the executor.
         """
-        total = len(result.completed_nodes) + len(result.failed_nodes) + len(
-            result.rolled_back_nodes
+        total = (
+            len(result.completed_nodes) + len(result.failed_nodes) + len(result.rolled_back_nodes)
         )
         total = max(total, 1)  # prevent division by zero
         failure_rate = len(result.failed_nodes) / total
@@ -88,9 +86,7 @@ class DecompositionFeedback:
         Returns:
             The recommended strategy string.
         """
-        family_records = [
-            r for r in self._records if r.task_family == task_family
-        ]
+        family_records = [r for r in self._records if r.task_family == task_family]
         if not family_records:
             return "linear"
 
@@ -141,9 +137,7 @@ class DecompositionFeedback:
         return {
             "total_records": len(records),
             "success_rate": success_count / len(records),
-            "avg_parallelism": sum(r.parallelism_ratio for r in records)
-            / len(records),
-            "avg_failure_rate": sum(r.failure_rate for r in records)
-            / len(records),
+            "avg_parallelism": sum(r.parallelism_ratio for r in records) / len(records),
+            "avg_failure_rate": sum(r.failure_rate for r in records) / len(records),
             "strategies": strategies,
         }

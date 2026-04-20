@@ -1,4 +1,5 @@
 """Provenance data contract — structured source reference for capability outputs."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -7,7 +7,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from agent_kernel.kernel.minimal_runtime import (
     AsyncExecutorService,
     InMemoryDecisionDeduper,

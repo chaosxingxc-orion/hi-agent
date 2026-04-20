@@ -7,9 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
-import pytest
-
 import agent_kernel.substrate.temporal.run_actor_workflow as run_actor_workflow_module
+import pytest
 from agent_kernel.kernel.contracts import (
     Action,
     ActionCommit,

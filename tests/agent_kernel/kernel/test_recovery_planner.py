@@ -6,7 +6,6 @@ import asyncio
 from typing import Literal
 
 import pytest
-
 from agent_kernel.kernel.contracts import (
     RecoveryDecision,
     RecoveryInput,

@@ -11,15 +11,13 @@ import inspect
 import os
 from typing import Any
 
-import pytest
-
 # Allow heuristic fallback so tests can run without real LLM credentials.
 os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -35,28 +33,17 @@ def _make_contract(
 
 def _get_envelopes_of_type(executor: RunExecutor, event_type: str) -> list[Any]:
     """Return event envelopes of a given type from the executor's emitter."""
-    return [
-        e
-        for e in executor.event_emitter.events
-        if e.event_type == event_type
-    ]
+    return [e for e in executor.event_emitter.events if e.event_type == event_type]
 
 
 def _get_branch_envelopes(executor: RunExecutor) -> list[Any]:
     """Return all event envelopes that carry a branch_id in their payload."""
-    return [
-        e
-        for e in executor.event_emitter.events
-        if "branch_id" in e.payload and e.payload["branch_id"]
-    ]
+    return [e for e in executor.event_emitter.events if e.payload.get("branch_id")]
 
 
 def _proposed_branch_ids(executor: RunExecutor) -> list[str]:
     """Return branch_ids from BranchProposed events."""
-    return [
-        e.payload["branch_id"]
-        for e in _get_envelopes_of_type(executor, "BranchProposed")
-    ]
+    return [e.payload["branch_id"] for e in _get_envelopes_of_type(executor, "BranchProposed")]
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +92,8 @@ class TestBranchIdConsistency:
 
     def test_all_branch_events_share_proposal_branch_id(self) -> None:
         """ActionDispatched / ActionSucceeded / BranchSucceeded must all use
-        the same branch_id as the corresponding BranchProposed event."""
+        the same branch_id as the corresponding BranchProposed event.
+        """
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
         executor = RunExecutor(contract, kernel)

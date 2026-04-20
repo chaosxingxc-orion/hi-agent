@@ -1,5 +1,4 @@
-"""
-LLM Provider Failover Chain for hi-agent.
+"""LLM Provider Failover Chain for hi-agent.
 
 Implements HTTP-error-aware failover, credential pool rotation,
 and exponential backoff. Operates at the LLM level (not action level —
@@ -14,7 +13,7 @@ import os
 import random
 import time
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -223,9 +222,7 @@ class CredentialPool:
                 return entry
         return None
 
-    def mark_failed(
-        self, api_key: str, cooldown_seconds: float = 60.0
-    ) -> None:
+    def mark_failed(self, api_key: str, cooldown_seconds: float = 60.0) -> None:
         """Record a failure for *api_key* and apply a cooldown.
 
         Args:
@@ -301,7 +298,7 @@ class RetryPolicy:
         Returns:
             Delay in seconds as a float.
         """
-        raw_ms = self.base_delay_ms * (2 ** attempt)
+        raw_ms = self.base_delay_ms * (2**attempt)
         clamped_ms = min(raw_ms, self.max_delay_ms)
         if self.jitter:
             clamped_ms += random.uniform(0, self.base_delay_ms)
@@ -445,18 +442,14 @@ class FailoverChain:
 
                 if attempt < self._policy.max_retries:
                     delay = (
-                        retry_after
-                        if retry_after is not None
-                        else self._policy.delay_for(attempt)
+                        retry_after if retry_after is not None else self._policy.delay_for(attempt)
                     )
                     logger.debug("Backing off %.2fs before retry %d", delay, attempt + 1)
                     await asyncio.sleep(delay)
 
             except httpx.TimeoutException as exc:
                 last_reason = FailoverReason.timeout
-                logger.warning(
-                    "LLM timeout: provider=%s attempt=%d", entry.provider, attempt
-                )
+                logger.warning("LLM timeout: provider=%s attempt=%d", entry.provider, attempt)
                 self._pool.mark_failed(entry.api_key, _TRANSIENT_COOLDOWN)
                 if attempt < self._policy.max_retries:
                     await asyncio.sleep(self._policy.delay_for(attempt))
@@ -495,9 +488,7 @@ class FailoverChain:
             provider=last_provider,
         )
 
-    async def stream(
-        self, request: LLMRequest
-    ) -> AsyncIterator[object]:
+    async def stream(self, request: LLMRequest) -> AsyncIterator[object]:
         """Stream *request* to an LLM with the same failover logic as :meth:`complete`.
 
         Yields:
@@ -548,7 +539,9 @@ class FailoverChain:
                     last_status = status
                     self._pool.mark_failed(
                         entry.api_key,
-                        _PERMANENT_COOLDOWN if reason in _PERMANENT_REASONS else _TRANSIENT_COOLDOWN,
+                        _PERMANENT_COOLDOWN
+                        if reason in _PERMANENT_REASONS
+                        else _TRANSIENT_COOLDOWN,
                     )
                     if reason in _PERMANENT_REASONS and self._pool.all_cooling_down():
                         raise FailoverError(
@@ -599,7 +592,9 @@ class FailoverChain:
                     ) from exc
 
                 if attempt < self._policy.max_retries:
-                    delay = retry_after if retry_after is not None else self._policy.delay_for(attempt)
+                    delay = (
+                        retry_after if retry_after is not None else self._policy.delay_for(attempt)
+                    )
                     await asyncio.sleep(delay)
 
             except httpx.TimeoutException as exc:
@@ -633,9 +628,7 @@ class FailoverChain:
 
         Returns ``None`` if the header is absent or cannot be parsed.
         """
-        header = exc.response.headers.get("retry-after") or exc.response.headers.get(
-            "Retry-After"
-        )
+        header = exc.response.headers.get("retry-after") or exc.response.headers.get("Retry-After")
         if header is None:
             return None
         try:
@@ -674,15 +667,12 @@ def make_credential_pool_from_env(
     raw = os.environ.get(env_var, "").strip()
     if not raw:
         raise ValueError(
-            f"Environment variable {env_var!r} is not set or is empty. "
-            "Cannot build CredentialPool."
+            f"Environment variable {env_var!r} is not set or is empty. Cannot build CredentialPool."
         )
 
     keys = [k.strip() for k in raw.split(",") if k.strip()]
     if not keys:
-        raise ValueError(
-            f"Environment variable {env_var!r} contains no valid API keys."
-        )
+        raise ValueError(f"Environment variable {env_var!r} contains no valid API keys.")
 
     entries = [CredentialEntry(api_key=key, provider=provider) for key in keys]
     logger.info(

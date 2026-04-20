@@ -1,12 +1,10 @@
 """Unit tests for PathPolicy safe_resolve (P0-1c)."""
+
 from __future__ import annotations
 
-import os
 import sys
-from pathlib import Path
 
 import pytest
-
 from hi_agent.security.path_policy import PathPolicyViolation, safe_resolve
 
 
@@ -24,13 +22,13 @@ def test_absolute_path_blocked(tmp_path):
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only: UNC paths")
 def test_windows_unc_blocked(tmp_path):
-    """Windows UNC paths (\\\\server\\share) must be rejected."""
+    r"""Windows UNC paths (\\\\server\\share) must be rejected."""
     with pytest.raises(PathPolicyViolation):
         safe_resolve(tmp_path, "\\\\server\\share\\file")
 
 
 def test_windows_drive_blocked(tmp_path):
-    """Windows drive-letter paths (C:\\...) must be rejected."""
+    r"""Windows drive-letter paths (C:\\...) must be rejected."""
     with pytest.raises(PathPolicyViolation):
         safe_resolve(tmp_path, "C:\\Windows\\System32\\cmd.exe")
 

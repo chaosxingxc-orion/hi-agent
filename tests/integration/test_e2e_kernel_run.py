@@ -10,8 +10,9 @@ Validates the complete quick_task Run lifecycle S1->S5 including:
 
 from __future__ import annotations
 
-from hi_agent.contracts import BranchState, StageState, TaskContract
+from hi_agent.contracts import StageState, TaskContract
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -60,17 +61,13 @@ class TestCompleteQuickTaskRun:
         executor, kernel = _run_quick_task()
 
         branches_by_stage: dict[str, list[str]] = {}
-        for (run_id, stage_id, branch_id), info in kernel.branches.items():
+        for (run_id, stage_id, _branch_id), info in kernel.branches.items():
             if run_id == executor.run_id:
                 branches_by_stage.setdefault(stage_id, []).append(info["state"])
 
         for stage_id in STAGES:
-            assert stage_id in branches_by_stage, (
-                f"No branches found for {stage_id}"
-            )
-            assert "succeeded" in branches_by_stage[stage_id], (
-                f"No succeeded branch in {stage_id}"
-            )
+            assert stage_id in branches_by_stage, f"No branches found for {stage_id}"
+            assert "succeeded" in branches_by_stage[stage_id], f"No succeeded branch in {stage_id}"
 
 
 class TestEventLogIntegrity:
@@ -89,7 +86,7 @@ class TestEventLogIntegrity:
         events = executor.event_emitter.events
         assert len(events) > 0
         # Envelopes are appended in order; verify sequential indexing
-        for idx, envelope in enumerate(events):
+        for _idx, envelope in enumerate(events):
             assert envelope.event_type is not None
             assert envelope.run_id == executor.run_id
             # Verify no None gaps
@@ -113,14 +110,12 @@ class TestStageTransitions:
 
         for stage_id in STAGES:
             stage_events = [
-                e for e in kernel.events
-                if e.get("stage_id") == stage_id
-                and e["event_type"] == "StageStateChanged"
+                e
+                for e in kernel.events
+                if e.get("stage_id") == stage_id and e["event_type"] == "StageStateChanged"
             ]
             # Must have at least 2 transitions: PENDING->ACTIVE and ACTIVE->COMPLETED
-            assert len(stage_events) >= 2, (
-                f"{stage_id} has only {len(stage_events)} transitions"
-            )
+            assert len(stage_events) >= 2, f"{stage_id} has only {len(stage_events)} transitions"
             # First transition should be to active
             assert stage_events[0]["to_state"] == StageState.ACTIVE
             # Last transition should be to completed
@@ -132,7 +127,7 @@ class TestBranchTransitions:
 
     def test_all_branches_transition_proposed_active_succeeded(self) -> None:
         """Each branch should follow proposed->active->succeeded in kernel events."""
-        executor, kernel = _run_quick_task()
+        _executor, kernel = _run_quick_task()
 
         branch_events: dict[str, list[dict]] = {}
         for e in kernel.events:
@@ -144,9 +139,7 @@ class TestBranchTransitions:
 
         for bid, events in branch_events.items():
             states = [e["to_state"] for e in events]
-            assert states == ["active", "succeeded"], (
-                f"Branch {bid} transitions: {states}"
-            )
+            assert states == ["active", "succeeded"], f"Branch {bid} transitions: {states}"
 
 
 class TestDeterministicIDs:
@@ -163,9 +156,7 @@ class TestDeterministicIDs:
         # pattern relative to their run_id.
         def relative_branch_ids(kernel: MockKernel, run_id: str) -> list[str]:
             return sorted(
-                bid.replace(run_id, "RUN")
-                for (rid, _, bid) in kernel.branches
-                if rid == run_id
+                bid.replace(run_id, "RUN") for (rid, _, bid) in kernel.branches if rid == run_id
             )
 
         ids1 = relative_branch_ids(kernel1, executor1.run_id)
@@ -179,12 +170,10 @@ class TestDeterministicIDs:
         executor2, kernel2 = _run_quick_task(task_id="det-002", goal="decision ref check")
 
         def relative_decision_refs(
-            kernel: MockKernel, run_id: str,
+            kernel: MockKernel,
+            run_id: str,
         ) -> list[str]:
-            return sorted(
-                ref.replace(run_id, "RUN")
-                for ref in kernel.task_view_decisions.values()
-            )
+            return sorted(ref.replace(run_id, "RUN") for ref in kernel.task_view_decisions.values())
 
         refs1 = relative_decision_refs(kernel1, executor1.run_id)
         refs2 = relative_decision_refs(kernel2, executor2.run_id)

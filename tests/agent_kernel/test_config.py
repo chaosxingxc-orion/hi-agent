@@ -6,7 +6,6 @@ from dataclasses import FrozenInstanceError
 from typing import ClassVar
 
 import pytest
-
 from agent_kernel.config import KernelConfig
 
 

@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import threading
 
-import pytest
-
 from hi_agent.observability.collector import (
-    Alert,
     AlertRule,
     MetricsCollector,
     default_alert_rules,

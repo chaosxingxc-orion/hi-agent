@@ -6,15 +6,13 @@ import json
 from typing import Any
 
 import pytest
-from starlette.testclient import TestClient
-
-from hi_agent.knowledge.knowledge_manager import KnowledgeManager
-from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
-from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
 from hi_agent.knowledge.graph_renderer import GraphRenderer
+from hi_agent.knowledge.knowledge_manager import KnowledgeManager
+from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+from hi_agent.knowledge.wiki import KnowledgeWiki
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
 from hi_agent.server.app import AgentServer
-
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -44,7 +42,10 @@ def renderer(graph):
 @pytest.fixture()
 def km(wiki, user_store, graph, renderer):
     return KnowledgeManager(
-        wiki=wiki, user_store=user_store, graph=graph, renderer=renderer,
+        wiki=wiki,
+        user_store=user_store,
+        graph=graph,
+        renderer=renderer,
     )
 
 
@@ -90,20 +91,30 @@ class TestKnowledgeIngest:
 
     def test_ingest_creates_wiki_page(self, live_server: TestClient) -> None:
         """Ingesting text creates a wiki page and returns 201."""
-        status, body = _request(live_server, "POST", "/knowledge/ingest", {
-            "title": "Revenue Analysis",
-            "content": "Q4 revenue grew 15% year-over-year.",
-            "tags": ["finance", "q4"],
-        })
+        status, body = _request(
+            live_server,
+            "POST",
+            "/knowledge/ingest",
+            {
+                "title": "Revenue Analysis",
+                "content": "Q4 revenue grew 15% year-over-year.",
+                "tags": ["finance", "q4"],
+            },
+        )
         assert status == 201
         assert body["status"] == "created"
         assert body["page_id"]
 
     def test_ingest_missing_fields_returns_400(self, live_server: TestClient) -> None:
         """Missing title or content returns 400."""
-        status, body = _request(live_server, "POST", "/knowledge/ingest", {
-            "title": "Only title",
-        })
+        status, _body = _request(
+            live_server,
+            "POST",
+            "/knowledge/ingest",
+            {
+                "title": "Only title",
+            },
+        )
         assert status == 400
 
     def test_ingest_no_knowledge_manager_returns_503(self) -> None:
@@ -111,9 +122,15 @@ class TestKnowledgeIngest:
         server = AgentServer(host="127.0.0.1", port=9999)
         server.knowledge_manager = None  # Explicitly remove to test unconfigured path
         with TestClient(server.app) as client:
-            status, body = _request(client, "POST", "/knowledge/ingest", {
-                "title": "t", "content": "c",
-            })
+            status, body = _request(
+                client,
+                "POST",
+                "/knowledge/ingest",
+                {
+                    "title": "t",
+                    "content": "c",
+                },
+            )
             assert status == 503
             assert body["error"] == "knowledge_not_configured"
 
@@ -122,15 +139,26 @@ class TestKnowledgeIngestStructured:
     """Test POST /knowledge/ingest-structured."""
 
     def test_ingest_structured_creates_graph_nodes(
-        self, live_server: TestClient, graph: LongTermMemoryGraph,
+        self,
+        live_server: TestClient,
+        graph: LongTermMemoryGraph,
     ) -> None:
         """Ingesting structured facts creates graph nodes."""
-        status, body = _request(live_server, "POST", "/knowledge/ingest-structured", {
-            "facts": [
-                {"content": "Python is a programming language", "type": "fact", "tags": ["tech"]},
-                {"content": "Flask is a web framework", "type": "fact", "tags": ["tech"]},
-            ],
-        })
+        status, body = _request(
+            live_server,
+            "POST",
+            "/knowledge/ingest-structured",
+            {
+                "facts": [
+                    {
+                        "content": "Python is a programming language",
+                        "type": "fact",
+                        "tags": ["tech"],
+                    },
+                    {"content": "Flask is a web framework", "type": "fact", "tags": ["tech"]},
+                ],
+            },
+        )
         assert status == 201
         assert body["nodes_created"] == 2
         assert body["status"] == "created"
@@ -141,12 +169,16 @@ class TestKnowledgeQuery:
     """Test GET /knowledge/query."""
 
     def test_query_returns_results(
-        self, live_server: TestClient, km: KnowledgeManager,
+        self,
+        live_server: TestClient,
+        km: KnowledgeManager,
     ) -> None:
         """Query returns results after ingesting content."""
         km.ingest_text("Revenue Report", "Q4 revenue was strong.", ["finance"])
         status, body = _request(
-            live_server, "GET", "/knowledge/query?q=revenue&limit=5&budget=1000",
+            live_server,
+            "GET",
+            "/knowledge/query?q=revenue&limit=5&budget=1000",
         )
         assert status == 200
         assert body["query"] == "revenue"
@@ -164,7 +196,9 @@ class TestKnowledgeStatus:
     """Test GET /knowledge/status."""
 
     def test_status_returns_counts(
-        self, live_server: TestClient, km: KnowledgeManager,
+        self,
+        live_server: TestClient,
+        km: KnowledgeManager,
     ) -> None:
         """Status returns wiki_pages, graph_nodes, etc."""
         km.ingest_text("Test Page", "Some content", ["test"])
@@ -193,17 +227,29 @@ class TestKnowledgeSync:
     """Test POST /knowledge/sync."""
 
     def test_sync_transfers_graph_to_wiki(
-        self, live_server: TestClient, graph: LongTermMemoryGraph,
+        self,
+        live_server: TestClient,
+        graph: LongTermMemoryGraph,
         wiki: KnowledgeWiki,
     ) -> None:
         """Sync creates wiki pages from graph nodes."""
         # Add nodes to graph directly
-        graph.add_node(MemoryNode(
-            node_id="node-a", content="Alpha concept", node_type="fact", tags=["a"],
-        ))
-        graph.add_node(MemoryNode(
-            node_id="node-b", content="Beta concept", node_type="fact", tags=["b"],
-        ))
+        graph.add_node(
+            MemoryNode(
+                node_id="node-a",
+                content="Alpha concept",
+                node_type="fact",
+                tags=["a"],
+            )
+        )
+        graph.add_node(
+            MemoryNode(
+                node_id="node-b",
+                content="Beta concept",
+                node_type="fact",
+                tags=["b"],
+            )
+        )
         status, body = _request(live_server, "POST", "/knowledge/sync")
         assert status == 200
         assert body["pages_synced"] == 2
@@ -222,7 +268,8 @@ class TestSystemBuilderKnowledge:
     """Test SystemBuilder.build_knowledge_manager and related wiring."""
 
     def test_build_knowledge_manager_creates_working_instance(
-        self, tmp_path,
+        self,
+        tmp_path,
     ) -> None:
         """build_knowledge_manager returns a functional KnowledgeManager."""
         from hi_agent.config.builder import SystemBuilder
@@ -245,7 +292,8 @@ class TestSystemBuilderKnowledge:
         assert result.total_results >= 1
 
     def test_build_executor_includes_knowledge_query_fn(
-        self, tmp_path,
+        self,
+        tmp_path,
     ) -> None:
         """build_executor wires knowledge_query_fn from knowledge_manager."""
         from hi_agent.config.builder import SystemBuilder
@@ -255,8 +303,10 @@ class TestSystemBuilderKnowledge:
         config = TraceConfig(episodic_storage_dir=str(tmp_path / "episodes"))
         builder = SystemBuilder(config)
         contract = TaskContract(
-            task_id="test-123", goal="test goal",
-            task_family="quick_task", risk_level="low",
+            task_id="test-123",
+            goal="test goal",
+            task_family="quick_task",
+            risk_level="low",
         )
         executor = builder.build_executor(contract)
         assert executor.knowledge_query_fn is not None
@@ -285,40 +335,65 @@ class TestKnowledgeFullLifecycle:
     """End-to-end: ingest text -> query -> ingest structured -> query -> sync -> verify."""
 
     def test_full_lifecycle(
-        self, live_server: TestClient, km: KnowledgeManager,
-        graph: LongTermMemoryGraph, wiki: KnowledgeWiki,
+        self,
+        live_server: TestClient,
+        km: KnowledgeManager,
+        graph: LongTermMemoryGraph,
+        wiki: KnowledgeWiki,
     ) -> None:
         """Full lifecycle: ingest, query, structured ingest, sync, verify."""
         # Step 1: Ingest text knowledge
-        status, body = _request(live_server, "POST", "/knowledge/ingest", {
-            "title": "Machine Learning Basics",
-            "content": "ML is a subset of AI that learns from data.",
-            "tags": ["ml", "ai"],
-        })
+        status, body = _request(
+            live_server,
+            "POST",
+            "/knowledge/ingest",
+            {
+                "title": "Machine Learning Basics",
+                "content": "ML is a subset of AI that learns from data.",
+                "tags": ["ml", "ai"],
+            },
+        )
         assert status == 201
         text_page_id = body["page_id"]
 
         # Step 2: Query finds the text knowledge
         status, body = _request(
-            live_server, "GET", "/knowledge/query?q=machine+learning&limit=5",
+            live_server,
+            "GET",
+            "/knowledge/query?q=machine+learning&limit=5",
         )
         assert status == 200
         assert body["total_results"] >= 1
         assert "ML" in body["context"] or "machine" in body["context"].lower()
 
         # Step 3: Ingest structured facts
-        status, body = _request(live_server, "POST", "/knowledge/ingest-structured", {
-            "facts": [
-                {"content": "Neural networks are a key ML technique", "type": "fact", "tags": ["ml"]},
-                {"content": "Deep learning uses multiple layers", "type": "method", "tags": ["ml", "dl"]},
-            ],
-        })
+        status, body = _request(
+            live_server,
+            "POST",
+            "/knowledge/ingest-structured",
+            {
+                "facts": [
+                    {
+                        "content": "Neural networks are a key ML technique",
+                        "type": "fact",
+                        "tags": ["ml"],
+                    },
+                    {
+                        "content": "Deep learning uses multiple layers",
+                        "type": "method",
+                        "tags": ["ml", "dl"],
+                    },
+                ],
+            },
+        )
         assert status == 201
         assert body["nodes_created"] == 2
 
         # Step 4: Query finds both text and structured knowledge
         status, body = _request(
-            live_server, "GET", "/knowledge/query?q=ML+technique&limit=10",
+            live_server,
+            "GET",
+            "/knowledge/query?q=ML+technique&limit=10",
         )
         assert status == 200
         assert body["total_results"] >= 1

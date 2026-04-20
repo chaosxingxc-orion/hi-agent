@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 
 import pytest
-
 from hi_agent.server.run_queue import RunQueue
 
 
@@ -48,7 +47,8 @@ class TestEnqueueAndClaimNext:
 class TestTwoWorkersCantClaimSameRun:
     def test_two_workers_cannot_claim_same_run(self, q: RunQueue) -> None:
         """Two sequential claim_next calls on a single-item queue return
-        the run to only one worker."""
+        the run to only one worker.
+        """
         q.enqueue("run-1", priority=0)
         first = q.claim_next("worker-A")
         second = q.claim_next("worker-B")
@@ -57,9 +57,7 @@ class TestTwoWorkersCantClaimSameRun:
 
 
 class TestExpiredLeases:
-    def test_release_expired_leases_makes_run_claimable_again(
-        self, q: RunQueue
-    ) -> None:
+    def test_release_expired_leases_makes_run_claimable_again(self, q: RunQueue) -> None:
         rq = RunQueue(db_path=":memory:", lease_timeout_seconds=0.05)
         try:
             rq.enqueue("run-1", priority=0)
@@ -102,9 +100,7 @@ class TestFailWithMaxAttempts:
         assert item is not None
         assert item["run_id"] == "run-1"
 
-    def test_fail_at_max_attempts_marks_failed_not_requeued(
-        self, q: RunQueue
-    ) -> None:
+    def test_fail_at_max_attempts_marks_failed_not_requeued(self, q: RunQueue) -> None:
         q.enqueue("run-1", priority=0)
         # Exhaust all 3 attempts
         for attempt in range(3):

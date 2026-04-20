@@ -26,15 +26,19 @@ async def handle_list_sessions(request: Request) -> JSONResponse:
     server: Any = request.app.state.agent_server
     store = server.session_store
     sessions = store.list_active(tenant_id=ctx.tenant_id, user_id=ctx.user_id)
-    return JSONResponse({"sessions": [
+    return JSONResponse(
         {
-            "session_id": s.session_id,
-            "name": s.name,
-            "status": s.status,
-            "created_at": s.created_at,
+            "sessions": [
+                {
+                    "session_id": s.session_id,
+                    "name": s.name,
+                    "status": s.status,
+                    "created_at": s.created_at,
+                }
+                for s in sessions
+            ]
         }
-        for s in sessions
-    ]})
+    )
 
 
 async def handle_get_session_runs(request: Request) -> JSONResponse:

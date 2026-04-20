@@ -11,7 +11,6 @@ from __future__ import annotations
 import random
 
 import pytest
-
 from agent_kernel.kernel.capability_snapshot import (
     CapabilitySnapshotBuilder,
     CapabilitySnapshotInput,

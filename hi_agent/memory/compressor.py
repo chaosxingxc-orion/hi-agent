@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
-
-import logging
 
 from hi_agent.llm.protocol import LLMGateway, LLMRequest
 from hi_agent.memory.compress_prompts import STAGE_COMPRESSION_PROMPT
@@ -261,9 +260,7 @@ class MemoryCompressor:
                 if sid and sid not in key_entities:
                     key_entities.append(sid)
             if record.event_type == "TaskViewRecorded":
-                decisions.append(
-                    f"task_view:{record.payload.get('task_view_id')}"
-                )
+                decisions.append(f"task_view:{record.payload.get('task_view_id')}")
             for tag in getattr(record, "tags", []):
                 if tag.startswith("contradiction:"):
                     contradiction_refs.append(tag)
@@ -277,11 +274,11 @@ class MemoryCompressor:
 
         return CompressedStageMemory(
             stage_id=stage_id,
-            findings=findings[:self.max_findings],
-            decisions=decisions[:self.max_decisions],
+            findings=findings[: self.max_findings],
+            decisions=decisions[: self.max_decisions],
             outcome=outcome,
             contradiction_refs=contradiction_refs,
-            key_entities=key_entities[:self.max_entities],
+            key_entities=key_entities[: self.max_entities],
             source_evidence_count=len(records),
             compression_method="direct",
         )
@@ -294,9 +291,7 @@ class MemoryCompressor:
         """Use :class:`LLMGateway` to compress evidence into structured summary."""
         evidence_lines: list[str] = []
         for idx, rec in enumerate(records):
-            evidence_lines.append(
-                f"[{idx}] {rec.event_type}: {json.dumps(rec.payload)}"
-            )
+            evidence_lines.append(f"[{idx}] {rec.event_type}: {json.dumps(rec.payload)}")
         evidence_text = "\n".join(evidence_lines)
 
         user_prompt = STAGE_COMPRESSION_PROMPT.format(
@@ -329,7 +324,9 @@ class MemoryCompressor:
         # Gateway.complete is synchronous; run in executor to keep async contract
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
-            None, self._gateway.complete, request  # type: ignore[union-attr]
+            None,
+            self._gateway.complete,
+            request,  # type: ignore[union-attr]
         )
         parsed = json.loads(response.content)
 
@@ -352,9 +349,7 @@ class MemoryCompressor:
         """Synchronous gateway compression (for :meth:`compress_stage`)."""
         evidence_lines: list[str] = []
         for idx, rec in enumerate(records):
-            evidence_lines.append(
-                f"[{idx}] {rec.event_type}: {json.dumps(rec.payload)}"
-            )
+            evidence_lines.append(f"[{idx}] {rec.event_type}: {json.dumps(rec.payload)}")
         evidence_text = "\n".join(evidence_lines)
 
         user_prompt = STAGE_COMPRESSION_PROMPT.format(
@@ -406,9 +401,7 @@ class MemoryCompressor:
         """Use LLM to compress evidence into structured summary."""
         evidence_lines: list[str] = []
         for idx, rec in enumerate(records):
-            evidence_lines.append(
-                f"[{idx}] {rec.event_type}: {json.dumps(rec.payload)}"
-            )
+            evidence_lines.append(f"[{idx}] {rec.event_type}: {json.dumps(rec.payload)}")
         evidence_text = "\n".join(evidence_lines)
 
         prompt = STAGE_COMPRESSION_PROMPT.format(

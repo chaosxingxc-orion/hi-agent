@@ -106,6 +106,7 @@ class RunManager:
         # Subscribe to EventBus for stage transition events (sync observer path).
         try:
             from hi_agent.server.event_bus import event_bus as _event_bus
+
             _event_bus.add_sync_observer(self._on_stage_event)
         except Exception:
             pass
@@ -118,6 +119,7 @@ class RunManager:
         if isinstance(payload, str):
             try:
                 import json as _json
+
                 payload = _json.loads(payload)
             except Exception:
                 return
@@ -131,7 +133,7 @@ class RunManager:
                 run.current_stage = stage_name
                 run.stage_updated_at = datetime.now(UTC).isoformat()
 
-    def _owns(self, run: ManagedRun, ctx: "TenantContext") -> bool:
+    def _owns(self, run: ManagedRun, ctx: TenantContext) -> bool:
         """Return True if the run belongs to the given workspace context.
 
         session_id is only enforced when the caller provides one (non-empty).
@@ -235,30 +237,31 @@ class RunManager:
         client_task_id = task_contract_dict.get("task_id", "")
         with self._lock:
             if client_task_id and self._task_id_exists_unlocked(client_task_id, workspace):
-                raise ValueError(
-                    f"run with task_id '{client_task_id}' already exists in workspace"
-                )
+                raise ValueError(f"run with task_id '{client_task_id}' already exists in workspace")
             self._runs[run_id] = run
 
         # --- persist to run_store if available ------------------------------
         if self._run_store is not None:
             import time as _time
+
             now_ts = _time.time()
-            self._run_store.upsert(RunRecord(
-                run_id=run_id,
-                tenant_id=tenant_id,
-                user_id=workspace.user_id if workspace else "__legacy__",
-                session_id=workspace.session_id if workspace else "__legacy__",
-                task_contract_json=json.dumps(task_contract_dict),
-                status="queued",
-                priority=int(task_contract_dict.get("priority", 5)),
-                attempt_count=0,
-                cancellation_flag=False,
-                result_summary="",
-                error_summary="",
-                created_at=now_ts,
-                updated_at=now_ts,
-            ))
+            self._run_store.upsert(
+                RunRecord(
+                    run_id=run_id,
+                    tenant_id=tenant_id,
+                    user_id=workspace.user_id if workspace else "__legacy__",
+                    session_id=workspace.session_id if workspace else "__legacy__",
+                    task_contract_json=json.dumps(task_contract_dict),
+                    status="queued",
+                    priority=int(task_contract_dict.get("priority", 5)),
+                    attempt_count=0,
+                    cancellation_flag=False,
+                    result_summary="",
+                    error_summary="",
+                    created_at=now_ts,
+                    updated_at=now_ts,
+                )
+            )
 
         # --- enqueue to durable run_queue if available ----------------------
         if self._run_queue is not None:
@@ -288,6 +291,7 @@ class RunManager:
                 claim = self._run_queue.claim_next(worker_id="run_manager")
                 if claim is None:
                     import time as _time
+
                     idle_cycles += 1
                     with self._lock:
                         can_stop = self._active_count == 0 and not self._pending_executors
@@ -362,9 +366,7 @@ class RunManager:
             self._worker = threading.Thread(target=self._queue_worker, daemon=True)
             self._worker.start()
 
-    def _execute_run(
-        self, run: ManagedRun, executor_fn: Callable[[ManagedRun], Any]
-    ) -> None:
+    def _execute_run(self, run: ManagedRun, executor_fn: Callable[[ManagedRun], Any]) -> None:
         """Execute a single run under the semaphore (already acquired)."""
         with self._lock:
             self._active_count += 1
@@ -507,9 +509,7 @@ class RunManager:
             "queue_utilization": queued / self._queue_size if self._queue_size else 0.0,
         }
 
-    def get_run(
-        self, run_id: str, workspace: TenantContext | None = None
-    ) -> ManagedRun | None:
+    def get_run(self, run_id: str, workspace: TenantContext | None = None) -> ManagedRun | None:
         """Retrieve a run by id.
 
         When ``workspace`` is provided, returns None if the run does not belong

@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import time
-
 import pytest
-
 from hi_agent.orchestrator.parallel_dispatcher import ParallelDispatcher
 from hi_agent.orchestrator.result_aggregator import ResultAggregator
 from hi_agent.orchestrator.task_orchestrator import SubTaskResult
-
 
 # ---------------------------------------------------------------------------
 # ParallelDispatcher
@@ -33,6 +29,7 @@ class TestParallelDispatcher:
     def test_failure_captured_as_exception(self) -> None:
         dispatcher = ParallelDispatcher(max_workers=2)
         try:
+
             def fail():
                 raise ValueError("task error")
 
@@ -50,7 +47,7 @@ class TestParallelDispatcher:
             dispatcher.dispatch("b", lambda: "done-b")
             results = dispatcher.wait_any(timeout=5)
             assert len(results) >= 1
-            node_id, value = results[0]
+            node_id, _value = results[0]
             assert node_id in ("a", "b")
         finally:
             dispatcher.shutdown()

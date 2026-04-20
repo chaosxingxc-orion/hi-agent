@@ -30,9 +30,9 @@ class CapabilityDescriptor:
     extra: dict = field(default_factory=dict)
     # Governance metadata (W4-001)
     toolset_id: str = "default"
-    required_env: dict = field(default_factory=dict)   # {"ENV_VAR": "description"}
-    output_budget_tokens: int = 0                       # 0 = unlimited
-    availability_probe: object = field(default=None)   # Callable[[], tuple[bool, str]] | None
+    required_env: dict = field(default_factory=dict)  # {"ENV_VAR": "description"}
+    output_budget_tokens: int = 0  # 0 = unlimited
+    availability_probe: object = field(default=None)  # Callable[[], tuple[bool, str]] | None
 
 
 class CapabilityDescriptorFactory:
@@ -79,7 +79,7 @@ class CapabilityDescriptorFactory:
 
     def build_descriptor(
         self,
-        tool_info: "dict | str",
+        tool_info: dict | str,
         overrides: dict | None = None,
     ) -> CapabilityDescriptor:
         """Build a full descriptor with auto-inferred + manual override fields.
@@ -130,14 +130,16 @@ class CapabilityDescriptorFactory:
             inferred_required_env: dict = {"ANTHROPIC_API_KEY": "LLM API key (or OPENAI_API_KEY)"}
         else:
             inferred_required_env = {}
-        required_env = overrides.get("required_env", tool_info.get("required_env", inferred_required_env))
+        required_env = overrides.get(
+            "required_env", tool_info.get("required_env", inferred_required_env)
+        )
 
         toolset_id = overrides.get("toolset_id", tool_info.get("toolset_id", "default"))
         output_budget_tokens = overrides.get(
             "output_budget_tokens", tool_info.get("output_budget_tokens", 0)
         )
         availability_probe = overrides.get(
-            "availability_probe", tool_info.get("availability_probe", None)
+            "availability_probe", tool_info.get("availability_probe")
         )
 
         return CapabilityDescriptor(

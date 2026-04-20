@@ -7,17 +7,15 @@ F-5: reflect fires loop.create_task() when an async loop is running.
 
 from __future__ import annotations
 
-import asyncio
 import types
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.gate_protocol import GatePendingError
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -141,9 +139,7 @@ class TestF5ReflectAsyncLoop:
             pass
 
         mock_orchestrator = MagicMock()
-        mock_orchestrator.reflect_and_infer = MagicMock(
-            return_value=_fake_reflect_coro()
-        )
+        mock_orchestrator.reflect_and_infer = MagicMock(return_value=_fake_reflect_coro())
         executor._reflection_orchestrator = mock_orchestrator
 
         # Set up a mock restart policy so _handle_stage_failure reaches reflect branch

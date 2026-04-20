@@ -2,22 +2,20 @@
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 
 import pytest
-
 from hi_agent.evolve.skill_extractor import SkillCandidate
 from hi_agent.skill.matcher import SkillMatcher
 from hi_agent.skill.recorder import SkillUsageRecorder
-from hi_agent.skill.registry import ManagedSkill, PromotionRecord, SkillRegistry
+from hi_agent.skill.registry import ManagedSkill, SkillRegistry
 from hi_agent.skill.validator import SkillValidator
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_candidate(
     skill_id: str = "skill_abc",
@@ -56,6 +54,7 @@ def _promote_to_certified(registry: SkillRegistry, skill_id: str) -> ManagedSkil
 # ---------------------------------------------------------------------------
 # SkillRegistry tests
 # ---------------------------------------------------------------------------
+
 
 class TestSkillRegistry:
     def test_register_candidate(self) -> None:
@@ -164,21 +163,15 @@ class TestSkillRegistry:
     def test_list_applicable(self) -> None:
         reg = SkillRegistry()
         # Skill matching python_backend
-        reg.register_candidate(
-            _make_candidate("s1", scope="python_backend", evidence=2)
-        )
+        reg.register_candidate(_make_candidate("s1", scope="python_backend", evidence=2))
         _promote_to_certified(reg, "s1")
 
         # Skill matching wildcard
-        reg.register_candidate(
-            _make_candidate("s2", scope="*", evidence=2)
-        )
+        reg.register_candidate(_make_candidate("s2", scope="*", evidence=2))
         _promote_to_certified(reg, "s2")
 
         # Skill matching different scope
-        reg.register_candidate(
-            _make_candidate("s3", scope="java_backend", evidence=2)
-        )
+        reg.register_candidate(_make_candidate("s3", scope="java_backend", evidence=2))
         _promote_to_certified(reg, "s3")
 
         applicable = reg.list_applicable("python_backend", "S1")
@@ -219,21 +212,28 @@ class TestSkillRegistry:
 # SkillValidator tests
 # ---------------------------------------------------------------------------
 
+
 class TestSkillValidator:
     def test_valid_candidate_to_provisional(self) -> None:
         v = SkillValidator()
         skill = ManagedSkill(
-            skill_id="s1", name="S", description="D",
-            lifecycle_stage="candidate", evidence_count=3,
+            skill_id="s1",
+            name="S",
+            description="D",
+            lifecycle_stage="candidate",
+            evidence_count=3,
         )
-        ok, reason = v.can_promote(skill, "provisional")
+        ok, _reason = v.can_promote(skill, "provisional")
         assert ok is True
 
     def test_insufficient_evidence_for_provisional(self) -> None:
         v = SkillValidator()
         skill = ManagedSkill(
-            skill_id="s1", name="S", description="D",
-            lifecycle_stage="candidate", evidence_count=1,
+            skill_id="s1",
+            name="S",
+            description="D",
+            lifecycle_stage="candidate",
+            evidence_count=1,
         )
         ok, reason = v.can_promote(skill, "provisional")
         assert ok is False
@@ -242,9 +242,13 @@ class TestSkillValidator:
     def test_valid_provisional_to_certified(self) -> None:
         v = SkillValidator()
         skill = ManagedSkill(
-            skill_id="s1", name="S", description="D",
+            skill_id="s1",
+            name="S",
+            description="D",
             lifecycle_stage="provisional",
-            evidence_count=5, success_count=4, failure_count=1,
+            evidence_count=5,
+            success_count=4,
+            failure_count=1,
         )
         ok, _ = v.can_promote(skill, "certified")
         assert ok is True
@@ -252,9 +256,13 @@ class TestSkillValidator:
     def test_low_success_rate_blocks_certified(self) -> None:
         v = SkillValidator()
         skill = ManagedSkill(
-            skill_id="s1", name="S", description="D",
+            skill_id="s1",
+            name="S",
+            description="D",
             lifecycle_stage="provisional",
-            evidence_count=5, success_count=3, failure_count=2,
+            evidence_count=5,
+            success_count=3,
+            failure_count=2,
         )
         ok, reason = v.can_promote(skill, "certified")
         assert ok is False
@@ -263,8 +271,11 @@ class TestSkillValidator:
     def test_no_usage_data_blocks_certified(self) -> None:
         v = SkillValidator()
         skill = ManagedSkill(
-            skill_id="s1", name="S", description="D",
-            lifecycle_stage="provisional", evidence_count=5,
+            skill_id="s1",
+            name="S",
+            description="D",
+            lifecycle_stage="provisional",
+            evidence_count=5,
         )
         ok, reason = v.can_promote(skill, "certified")
         assert ok is False
@@ -289,8 +300,11 @@ class TestSkillValidator:
             min_certified_success_rate=0.5,
         )
         skill = ManagedSkill(
-            skill_id="s1", name="S", description="D",
-            lifecycle_stage="candidate", evidence_count=1,
+            skill_id="s1",
+            name="S",
+            description="D",
+            lifecycle_stage="candidate",
+            evidence_count=1,
         )
         ok, _ = v.can_promote(skill, "provisional")
         assert ok is True
@@ -299,6 +313,7 @@ class TestSkillValidator:
 # ---------------------------------------------------------------------------
 # SkillMatcher tests
 # ---------------------------------------------------------------------------
+
 
 class TestSkillMatcher:
     def _setup_certified_skill(
@@ -348,28 +363,28 @@ class TestSkillMatcher:
     def test_precondition_check_filters(self) -> None:
         reg = SkillRegistry()
         self._setup_certified_skill(
-            reg, "s1", scope="*",
+            reg,
+            "s1",
+            scope="*",
             preconditions=["task_family == 'python_backend'"],
         )
 
         matcher = SkillMatcher(reg)
 
         # Matching context
-        results = matcher.match(
-            "*", "S1", context={"task_family": "python_backend"}
-        )
+        results = matcher.match("*", "S1", context={"task_family": "python_backend"})
         assert len(results) == 1
 
         # Non-matching context
-        results = matcher.match(
-            "*", "S1", context={"task_family": "java_backend"}
-        )
+        results = matcher.match("*", "S1", context={"task_family": "java_backend"})
         assert len(results) == 0
 
     def test_forbidden_check_filters(self) -> None:
         reg = SkillRegistry()
         self._setup_certified_skill(
-            reg, "s1", scope="*",
+            reg,
+            "s1",
+            scope="*",
             forbidden=["dangerous_mode"],
         )
 
@@ -380,15 +395,15 @@ class TestSkillMatcher:
         assert len(results) == 1
 
         # Forbidden present
-        results = matcher.match(
-            "*", "S1", context={"dangerous_mode": True}
-        )
+        results = matcher.match("*", "S1", context={"dangerous_mode": True})
         assert len(results) == 0
 
     def test_no_context_passes_all_conditions(self) -> None:
         reg = SkillRegistry()
         self._setup_certified_skill(
-            reg, "s1", scope="*",
+            reg,
+            "s1",
+            scope="*",
             preconditions=["some_key == 'val'"],
             forbidden=["bad_key"],
         )
@@ -401,6 +416,7 @@ class TestSkillMatcher:
 # ---------------------------------------------------------------------------
 # SkillUsageRecorder tests
 # ---------------------------------------------------------------------------
+
 
 class TestSkillUsageRecorder:
     def test_record_success(self) -> None:
@@ -479,6 +495,7 @@ class TestSkillUsageRecorder:
 # Full lifecycle integration test
 # ---------------------------------------------------------------------------
 
+
 class TestFullLifecycle:
     def test_candidate_to_certified_with_usage(self) -> None:
         """End-to-end: extract candidate, record usage, promote through lifecycle."""
@@ -503,9 +520,7 @@ class TestFullLifecycle:
 
             # Step 4: More usage
             for i in range(3, 7):
-                recorder.record_usage(
-                    "skill_abc", f"run_{i:03d}", success=(i != 5)
-                )
+                recorder.record_usage("skill_abc", f"run_{i:03d}", success=(i != 5))
             # evidence = 2 + 4 = 6, success = 1 + 3 = 4, failure = 0 + 1 = 1
             # rate = 4/5 = 0.8
 

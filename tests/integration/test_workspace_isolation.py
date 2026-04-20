@@ -16,14 +16,6 @@ from __future__ import annotations
 import os
 
 import pytest
-from starlette.applications import Starlette
-from starlette.middleware import Middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.routing import Route
-from starlette.testclient import TestClient
-
 from hi_agent.server import routes_events, routes_runs
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.session_middleware import SessionMiddleware
@@ -33,7 +25,12 @@ from hi_agent.server.tenant_context import (
     reset_tenant_context,
     set_tenant_context,
 )
-
+from starlette.applications import Starlette
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -136,6 +133,7 @@ class _RawInjectCtxMiddleware:
             # Make a copy of ctx per request so mutation (e.g. session_id set
             # by SessionMiddleware) is local to this request invocation.
             import copy
+
             req_ctx = copy.copy(self._ctx)
             scope["tenant_context"] = req_ctx
             token = set_tenant_context(req_ctx)

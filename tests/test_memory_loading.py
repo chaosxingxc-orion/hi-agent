@@ -1,42 +1,48 @@
 """Tests for memory loading: RetrievalEngine feeds knowledge into routing context."""
 
-import pytest
 from hi_agent.contracts import TaskContract
-from hi_agent.knowledge.retrieval_engine import RetrievalEngine, RetrievalResult
+from hi_agent.knowledge.graph_renderer import GraphRenderer
+from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
-from hi_agent.knowledge.graph_renderer import GraphRenderer
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _make_wiki() -> KnowledgeWiki:
     """Create a small wiki with test pages."""
     wiki = KnowledgeWiki(wiki_dir=".hi_agent_test/wiki")
-    wiki.add_page(WikiPage(
-        page_id="revenue-q4",
-        title="Revenue Analysis Q4",
-        content="Q4 revenue was $10M, up 20% from Q3. Key drivers: cloud and SaaS.",
-        tags=["revenue", "quarterly", "analysis"],
-    ))
-    wiki.add_page(WikiPage(
-        page_id="cost-analysis",
-        title="Cost Analysis",
-        content="Operating costs rose 5% due to hiring. Margins improved overall.",
-        tags=["cost", "analysis"],
-    ))
+    wiki.add_page(
+        WikiPage(
+            page_id="revenue-q4",
+            title="Revenue Analysis Q4",
+            content="Q4 revenue was $10M, up 20% from Q3. Key drivers: cloud and SaaS.",
+            tags=["revenue", "quarterly", "analysis"],
+        )
+    )
+    wiki.add_page(
+        WikiPage(
+            page_id="cost-analysis",
+            title="Cost Analysis",
+            content="Operating costs rose 5% due to hiring. Margins improved overall.",
+            tags=["cost", "analysis"],
+        )
+    )
     return wiki
 
 
 def _make_graph() -> LongTermMemoryGraph:
     """Create a small graph with test nodes."""
     graph = LongTermMemoryGraph(storage_path=".hi_agent_test/graph.json")
-    graph.add_node(MemoryNode(
-        node_id="entity-revenue",
-        content="Revenue entity: tracks quarterly financial data",
-        node_type="entity",
-        tags=["revenue", "finance"],
-    ))
+    graph.add_node(
+        MemoryNode(
+            node_id="entity-revenue",
+            content="Revenue entity: tracks quarterly financial data",
+            node_type="entity",
+            tags=["revenue", "finance"],
+        )
+    )
     return graph
 
 
@@ -90,8 +96,7 @@ def test_knowledge_retrieved_event_injected() -> None:
     # Check session has knowledge_retrieved events
     assert executor.session is not None
     kr_records = [
-        r for r in executor.session.l0_records
-        if r["event_type"] == "knowledge_retrieved"
+        r for r in executor.session.l0_records if r["event_type"] == "knowledge_retrieved"
     ]
     # Should have at least one knowledge_retrieved record (for stages that match)
     assert len(kr_records) > 0
@@ -111,6 +116,7 @@ def test_retrieval_called_per_stage() -> None:
 
     class CountingEngine:
         """Wrapper that counts retrieve() calls."""
+
         def retrieve(self, query, budget_tokens=2000):
             nonlocal call_count
             call_count += 1
@@ -144,7 +150,7 @@ def test_enriched_context_includes_retrieved_knowledge() -> None:
     executor = RunExecutor(contract, kernel, retrieval_engine=engine)
 
     # The enriched context provider should be wired to the route engine
-    if hasattr(executor.route_engine, '_context_provider'):
+    if hasattr(executor.route_engine, "_context_provider"):
         # Set stage so the query has content
         if executor.session is not None:
             executor.session.current_stage = "S1_understand"
@@ -174,7 +180,7 @@ def test_enriched_context_fallback_on_no_results() -> None:
     kernel = MockKernel()
     executor = RunExecutor(contract, kernel, retrieval_engine=engine)
 
-    if hasattr(executor.route_engine, '_context_provider'):
+    if hasattr(executor.route_engine, "_context_provider"):
         if executor.session is not None:
             executor.session.current_stage = "S1_understand"
         ctx = executor.route_engine._context_provider()

@@ -7,8 +7,7 @@ together, no internal mocking.
 from __future__ import annotations
 
 import pytest
-
-from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
+from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.run_store import SQLiteRunStore
 

@@ -1,8 +1,7 @@
-import os
-import pytest
 from unittest.mock import MagicMock
-from hi_agent.capability.registry import CapabilityRegistry
+
 from hi_agent.capability.adapters.descriptor_factory import CapabilityDescriptor
+from hi_agent.capability.registry import CapabilityRegistry
 
 
 def _make_spec(name, required_env=None, probe=None):
@@ -42,7 +41,7 @@ def test_probe_unavailable_when_env_var_missing(monkeypatch):
 def test_probe_available_when_env_var_present(monkeypatch):
     monkeypatch.setenv("FAKE_KEY_XYZ", "sk-test")
     registry = _make_registry(_make_spec("llm_cap", required_env={"FAKE_KEY_XYZ": "test key"}))
-    ok, reason = registry.probe_availability("llm_cap")
+    ok, _reason = registry.probe_availability("llm_cap")
     assert ok is True
 
 
@@ -65,6 +64,7 @@ def test_probe_returns_false_for_unregistered():
 def test_probe_handles_probe_exception_gracefully():
     def bad_probe():
         raise RuntimeError("boom")
+
     registry = _make_registry(_make_spec("cap", probe=bad_probe))
     ok, reason = registry.probe_availability("cap")
     assert ok is False

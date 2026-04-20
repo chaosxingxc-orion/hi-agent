@@ -12,12 +12,9 @@ from dataclasses import fields
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
-
 from hi_agent.contracts.memory import StageSummary
 from hi_agent.harness.contracts import ActionResult, ActionSpec, ActionState
 from hi_agent.harness.executor import HarnessExecutor
-
 
 # ---------------------------------------------------------------------------
 # D4-1: StageSummary has artifact_ids field
@@ -30,9 +27,7 @@ class TestStageSummaryArtifactIds:
     def test_stage_summary_has_artifact_ids_field(self) -> None:
         """StageSummary dataclass must declare artifact_ids."""
         field_names = {f.name for f in fields(StageSummary)}
-        assert "artifact_ids" in field_names, (
-            "StageSummary must have an artifact_ids field"
-        )
+        assert "artifact_ids" in field_names, "StageSummary must have an artifact_ids field"
 
     def test_stage_summary_artifact_ids_defaults_to_empty_list(self) -> None:
         """Default value for artifact_ids must be an empty list."""
@@ -54,9 +49,7 @@ class TestStageSummaryArtifactIds:
         s1 = StageSummary(stage_id="S1", stage_name="A")
         s2 = StageSummary(stage_id="S2", stage_name="B")
         s1.artifact_ids.append("id-1")
-        assert s2.artifact_ids == [], (
-            "artifact_ids must not be a shared default mutable"
-        )
+        assert s2.artifact_ids == [], "artifact_ids must not be a shared default mutable"
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +78,7 @@ class TestInvokeViaHarnessArtifactIds:
         """The dict returned by _invoke_via_harness must have artifact_ids key."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         kernel = MockKernel(strict_mode=True)
@@ -97,6 +91,7 @@ class TestInvokeViaHarnessArtifactIds:
 
         # Build a minimal proposal and payload
         from hi_agent.route_engine.rule_engine import BranchProposal
+
         proposal = BranchProposal(
             branch_id="branch-abc",
             rationale="test",
@@ -124,6 +119,7 @@ class TestInvokeViaHarnessArtifactIds:
         """When harness returns a failed result, artifact_ids should still be present."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         kernel = MockKernel(strict_mode=True)
@@ -143,6 +139,7 @@ class TestInvokeViaHarnessArtifactIds:
         executor.run_id = "run-0001"
 
         from hi_agent.route_engine.rule_engine import BranchProposal
+
         proposal = BranchProposal(
             branch_id="branch-xyz",
             rationale="test",

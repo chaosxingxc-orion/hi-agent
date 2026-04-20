@@ -62,4 +62,3 @@ def test_human_gate_rejects_duplicate_resolution() -> None:
             action="approve",
             approver="reviewer-2",
         )
-

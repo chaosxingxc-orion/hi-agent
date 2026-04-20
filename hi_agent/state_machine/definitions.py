@@ -10,7 +10,16 @@ def run_state_machine() -> StateMachine:
 
     created -> active -> waiting -> recovering -> completed / failed / aborted
     """
-    states = {"created", "active", "waiting", "recovering", "completed", "failed", "aborted", "cancelled"}
+    states = {
+        "created",
+        "active",
+        "waiting",
+        "recovering",
+        "completed",
+        "failed",
+        "aborted",
+        "cancelled",
+    }
     terminal = {"completed", "failed", "aborted", "cancelled"}
     transitions = {
         "created": {"active", "cancelled"},
@@ -75,8 +84,13 @@ def action_state_machine() -> StateMachine:
     prepared -> dispatched -> acknowledged -> succeeded / effect_unknown / failed / compensated
     """
     states = {
-        "prepared", "dispatched", "acknowledged",
-        "succeeded", "effect_unknown", "failed", "compensated",
+        "prepared",
+        "dispatched",
+        "acknowledged",
+        "succeeded",
+        "effect_unknown",
+        "failed",
+        "compensated",
     }
     terminal = {"succeeded", "effect_unknown", "failed", "compensated"}
     transitions = {

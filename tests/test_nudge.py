@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.context.nudge import (
     ActionDetector,
     NudgeConfig,
@@ -12,7 +10,6 @@ from hi_agent.context.nudge import (
     NudgeTrigger,
     NudgeType,
 )
-
 
 # ---------------------------------------------------------------------------
 # NudgeState — counter helpers
@@ -243,7 +240,7 @@ def test_format_message_interpolation_skill():
 def test_format_message_custom_template():
     """Custom message templates are used when provided, with placeholder substitution."""
     config = NudgeConfig(
-        memory_nudge_message="已 {turns} 轮未保存，请保存！",
+        memory_nudge_message="已 {turns} 轮未保存, 请保存!",
     )
     injector = NudgeInjector(config)
     trigger = NudgeTrigger(
@@ -254,7 +251,7 @@ def test_format_message_custom_template():
     )
     msg = injector.format_message(trigger)
 
-    assert msg == "已 7 轮未保存，请保存！"
+    assert msg == "已 7 轮未保存, 请保存!"
 
 
 # ---------------------------------------------------------------------------

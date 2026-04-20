@@ -1,34 +1,33 @@
 """Tests for the failure taxonomy and structured error system."""
 
 import pytest
-
-from hi_agent.failures.taxonomy import (
-    FailureCode,
-    FailureRecord,
-    FAILURE_RECOVERY_MAP,
-    FAILURE_GATE_MAP,
-    is_budget_exhausted_failure_code,
-)
 from hi_agent.failures.collector import FailureCollector
-from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.failures.exceptions import (
-    TraceFailure,
-    MissingEvidenceError,
-    InvalidContextError,
+    BudgetExhaustedError,
+    CallbackTimeoutError,
+    ContradictoryEvidenceError,
     HarnessDeniedError,
+    InvalidContextError,
+    MissingEvidenceError,
     ModelOutputInvalidError,
     ModelRefusalError,
-    CallbackTimeoutError,
     NoProgressError,
-    ContradictoryEvidenceError,
+    TraceFailure,
     UnsafeActionBlockedError,
-    BudgetExhaustedError,
 )
-
+from hi_agent.failures.taxonomy import (
+    FAILURE_GATE_MAP,
+    FAILURE_RECOVERY_MAP,
+    FailureCode,
+    FailureRecord,
+    is_budget_exhausted_failure_code,
+)
+from hi_agent.failures.watchdog import ProgressWatchdog
 
 # ---------------------------------------------------------------------------
 # FailureCode enum
 # ---------------------------------------------------------------------------
+
 
 class TestFailureCode:
     def test_at_least_11_values(self) -> None:
@@ -74,6 +73,7 @@ class TestFailureCode:
 # Recovery and gate maps
 # ---------------------------------------------------------------------------
 
+
 class TestMaps:
     def test_recovery_map_covers_all_codes(self) -> None:
         for code in FailureCode:
@@ -84,17 +84,18 @@ class TestMaps:
             assert code in FAILURE_GATE_MAP, f"{code} missing from FAILURE_GATE_MAP"
 
     def test_recovery_map_values_are_strings(self) -> None:
-        for code, action in FAILURE_RECOVERY_MAP.items():
+        for _code, action in FAILURE_RECOVERY_MAP.items():
             assert isinstance(action, str)
 
     def test_gate_map_values_are_str_or_none(self) -> None:
-        for code, gate in FAILURE_GATE_MAP.items():
+        for _code, gate in FAILURE_GATE_MAP.items():
             assert gate is None or isinstance(gate, str)
 
 
 # ---------------------------------------------------------------------------
 # FailureRecord
 # ---------------------------------------------------------------------------
+
 
 class TestFailureRecord:
     def test_creation_minimal(self) -> None:
@@ -136,6 +137,7 @@ class TestFailureRecord:
 # ---------------------------------------------------------------------------
 # FailureCollector
 # ---------------------------------------------------------------------------
+
 
 class TestFailureCollector:
     def _make_record(
@@ -238,6 +240,7 @@ class TestFailureCollector:
 # ProgressWatchdog
 # ---------------------------------------------------------------------------
 
+
 class TestProgressWatchdog:
     def test_initial_state(self) -> None:
         w = ProgressWatchdog()
@@ -314,6 +317,7 @@ class TestProgressWatchdog:
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
+
 
 class TestExceptions:
     def test_trace_failure_base(self) -> None:

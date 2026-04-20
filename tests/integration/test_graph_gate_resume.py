@@ -11,8 +11,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
-from hi_agent.executor_facade import RunExecutorFacade, RunFacadeResult
+from hi_agent.executor_facade import RunExecutorFacade
 from hi_agent.gate_protocol import GatePendingError
 
 
@@ -39,9 +38,7 @@ def _make_facade_with_mock_executor(
     if execute_graph_side_effect is not None:
         mock_executor.execute_graph.side_effect = execute_graph_side_effect
     if continue_from_gate_graph_return is not None:
-        mock_executor.continue_from_gate_graph.return_value = (
-            continue_from_gate_graph_return
-        )
+        mock_executor.continue_from_gate_graph.return_value = continue_from_gate_graph_return
     facade._executor = mock_executor
     return facade, mock_executor
 

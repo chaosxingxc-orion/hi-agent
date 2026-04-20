@@ -37,9 +37,7 @@ class RuntimeAdapter(Protocol):
     def record_task_view(self, task_view_id: str, content: dict[str, Any]) -> str:
         """Persist task view payload and return stored task view ID."""
 
-    def bind_task_view_to_decision(
-        self, task_view_id: str, decision_ref: str
-    ) -> None:
+    def bind_task_view_to_decision(self, task_view_id: str, decision_ref: str) -> None:
         """Persist immutable binding between task-view and decision reference."""
 
     # --- Run lifecycle ---
@@ -56,9 +54,7 @@ class RuntimeAdapter(Protocol):
     def resume_run(self, run_id: str) -> None:
         """Resume a suspended or cancelled run."""
 
-    def signal_run(
-        self, run_id: str, signal: str, payload: dict[str, Any] | None = None
-    ) -> None:
+    def signal_run(self, run_id: str, signal: str, payload: dict[str, Any] | None = None) -> None:
         """Push an external signal to a run."""
 
     # --- Trace runtime ---
@@ -123,9 +119,7 @@ class RuntimeAdapter(Protocol):
     ) -> str:
         """Async version of spawn_child_run. Returns child run_id."""
 
-    async def query_child_runs_async(
-        self, parent_run_id: str
-    ) -> Any:
+    async def query_child_runs_async(self, parent_run_id: str) -> Any:
         """Async version of query_child_runs."""
 
     # --- Escalation resolution ---
@@ -143,5 +137,3 @@ class RuntimeAdapter(Protocol):
         can continue.  Corresponds to ``KernelFacade.resolve_escalation``
         (marked *Public caller-facing API* in agent-kernel).
         """
-
-

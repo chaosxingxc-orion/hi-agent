@@ -4,6 +4,7 @@ Extracted from SystemBuilder to reduce builder.py god-object footprint.
 Holds all kernel adapter, metrics collector, middleware orchestrator,
 and executor construction logic.
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,7 +30,7 @@ class RuntimeBuilder:
 
     def __init__(
         self,
-        config: "TraceConfig",
+        config: TraceConfig,
         singleton_lock: Any,
         parent: Any,  # SystemBuilder — avoids circular import at module level
     ) -> None:
@@ -37,8 +38,8 @@ class RuntimeBuilder:
         self._lock = singleton_lock
         self._parent = parent
         # Cached singletons
-        self._kernel: "RuntimeAdapter | None" = None
-        self._metrics_collector: "MetricsCollector | None" = None
+        self._kernel: RuntimeAdapter | None = None
+        self._metrics_collector: MetricsCollector | None = None
         self._run_context_manager: Any | None = None
         self._middleware_orchestrator: Any | None = None
 
@@ -46,7 +47,7 @@ class RuntimeBuilder:
     # Kernel
     # ------------------------------------------------------------------
 
-    def build_kernel(self) -> "RuntimeAdapter":
+    def build_kernel(self) -> RuntimeAdapter:
         """Build kernel adapter (HTTP or in-process LocalFSM)."""
         from hi_agent.runtime_adapter.kernel_facade_adapter import create_local_adapter
         from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
@@ -83,6 +84,7 @@ class RuntimeBuilder:
                     )
                     self._kernel = create_local_adapter()
                 from hi_agent.runtime_adapter import ResilientKernelAdapter
+
                 self._kernel = ResilientKernelAdapter(
                     self._kernel,
                     max_retries=self._config.kernel_max_retries,
@@ -93,7 +95,7 @@ class RuntimeBuilder:
     # Metrics
     # ------------------------------------------------------------------
 
-    def build_metrics_collector(self) -> "MetricsCollector":
+    def build_metrics_collector(self) -> MetricsCollector:
         """Build or return the shared MetricsCollector singleton."""
         from hi_agent.observability.collector import MetricsCollector, default_alert_rules
 
@@ -105,10 +107,12 @@ class RuntimeBuilder:
                 _webhook_url = os.environ.get("WEBHOOK_URL", "")
                 if _webhook_url:
                     import time as _time
+
                     from hi_agent.observability.notification import (
                         build_notification_backend,
                         send_notification,
                     )
+
                     _backend = build_notification_backend(_webhook_url)
 
                     def _alert_cb(alert: object) -> None:
@@ -141,6 +145,7 @@ class RuntimeBuilder:
             if self._run_context_manager is None:
                 try:
                     from hi_agent.context.run_context import RunContextManager
+
                     self._run_context_manager = RunContextManager()
                     _logger.info("build_run_context_manager: RunContextManager created.")
                 except Exception as exc:
@@ -154,15 +159,24 @@ class RuntimeBuilder:
         if self._middleware_orchestrator is None:
             try:
                 from hi_agent.middleware.defaults import create_default_orchestrator
+
                 gateway = self._parent.build_llm_gateway()
                 self._middleware_orchestrator = create_default_orchestrator(
                     llm_gateway=gateway,
                     quality_threshold=getattr(self._config, "gate_quality_threshold", 0.7),
-                    summary_threshold=getattr(self._config, "perception_summary_threshold_tokens", 2000),
+                    summary_threshold=getattr(
+                        self._config, "perception_summary_threshold_tokens", 2000
+                    ),
                     max_entities=getattr(self._config, "perception_max_entities", 50),
-                    llm_summarize_char_threshold=getattr(self._config, "perception_summarize_char_threshold", 500),
-                    summarize_temperature=getattr(self._config, "perception_summarize_temperature", 0.3),
-                    summarize_max_tokens=getattr(self._config, "perception_summarize_max_tokens", 200),
+                    llm_summarize_char_threshold=getattr(
+                        self._config, "perception_summarize_char_threshold", 500
+                    ),
+                    summarize_temperature=getattr(
+                        self._config, "perception_summarize_temperature", 0.3
+                    ),
+                    summarize_max_tokens=getattr(
+                        self._config, "perception_summarize_max_tokens", 200
+                    ),
                 )
                 _logger.info("build_middleware_orchestrator: MiddlewareOrchestrator created.")
             except Exception as exc:

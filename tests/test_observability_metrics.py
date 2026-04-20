@@ -36,8 +36,7 @@ def test_avg_token_per_run_handles_empty_and_non_empty() -> None:
 def test_p95_latency_uses_nearest_rank() -> None:
     """p95 should use nearest-rank percentile."""
     records = [
-        RunMetricsRecord(f"run-{index}", "completed", 1, 1, float(index))
-        for index in range(1, 21)
+        RunMetricsRecord(f"run-{index}", "completed", 1, 1, float(index)) for index in range(1, 21)
     ]
     # rank = ceil(0.95 * 20) = 19
     assert p95_latency(records) == 19.0

@@ -3,29 +3,24 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
-from dataclasses import dataclass
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
+from hi_agent.skill.definition import SkillDefinition
+from hi_agent.skill.evolver import (
+    EvolutionReport,
+    SkillEvolver,
+    SkillPattern,
+)
 from hi_agent.skill.observer import (
     SkillMetrics,
     SkillObservation,
     SkillObserver,
     make_observation_id,
 )
-from hi_agent.skill.version import SkillVersionManager, SkillVersionRecord
-from hi_agent.skill.evolver import (
-    EvolutionReport,
-    SkillAnalysis,
-    SkillEvolver,
-    SkillPattern,
-)
-from hi_agent.skill.definition import SkillDefinition
-
+from hi_agent.skill.version import SkillVersionManager
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -137,9 +132,7 @@ class TestSkillObserver:
         def _write(tid: int) -> None:
             try:
                 for i in range(20):
-                    observer.observe(
-                        _make_obs(run_id=f"t{tid}-r{i}")
-                    )
+                    observer.observe(_make_obs(run_id=f"t{tid}-r{i}"))
             except Exception as e:
                 errors.append(e)
 
@@ -384,7 +377,7 @@ class TestSkillEvolver:
         return observer, version_mgr, evolver
 
     def test_analyze_skill_identifies_underperforming(self, tmp_path: Any) -> None:
-        observer, version_mgr, evolver = self._setup(tmp_path)
+        observer, _version_mgr, evolver = self._setup(tmp_path)
 
         # 3 successes, 7 failures => 30% success rate
         for i in range(3):
@@ -404,7 +397,7 @@ class TestSkillEvolver:
         assert len(analysis.top_failures) > 0
 
     def test_analyze_skill_healthy(self, tmp_path: Any) -> None:
-        observer, version_mgr, evolver = self._setup(tmp_path)
+        observer, _version_mgr, evolver = self._setup(tmp_path)
         for i in range(10):
             observer.observe(_make_obs(run_id=f"s-{i}"))
 
@@ -433,7 +426,7 @@ class TestSkillEvolver:
         assert "Improvement Notes" in result
 
     def test_optimize_prompt_not_needed(self, tmp_path: Any) -> None:
-        observer, version_mgr, evolver = self._setup(tmp_path)
+        observer, _version_mgr, evolver = self._setup(tmp_path)
         for i in range(10):
             observer.observe(_make_obs(run_id=f"s-{i}"))
 
@@ -453,9 +446,7 @@ class TestSkillEvolver:
         version_mgr.create_version("skill_abc", "Original prompt")
 
         for i in range(8):
-            observer.observe(
-                _make_obs(run_id=f"f-{i}", success=False, failure_code="no_progress")
-            )
+            observer.observe(_make_obs(run_id=f"f-{i}", success=False, failure_code="no_progress"))
         for i in range(2):
             observer.observe(_make_obs(run_id=f"s-{i}"))
 
@@ -464,7 +455,7 @@ class TestSkillEvolver:
         mock_llm.complete.assert_called_once()
 
     def test_deploy_optimization(self, tmp_path: Any) -> None:
-        observer, version_mgr, evolver = self._setup(tmp_path)
+        _observer, version_mgr, evolver = self._setup(tmp_path)
         version_mgr.create_version("skill_abc", "Original")
 
         record = evolver.deploy_optimization("skill_abc", "Improved prompt")
@@ -476,7 +467,7 @@ class TestSkillEvolver:
         assert challenger.version == record.version
 
     def test_discover_patterns(self, tmp_path: Any) -> None:
-        observer, version_mgr, evolver = self._setup(tmp_path)
+        observer, _version_mgr, evolver = self._setup(tmp_path)
 
         # Create observations with a recurring pattern
         for i in range(5):
@@ -496,12 +487,12 @@ class TestSkillEvolver:
         assert "data_analysis" in p.task_families
 
     def test_discover_patterns_empty(self, tmp_path: Any) -> None:
-        observer, version_mgr, evolver = self._setup(tmp_path)
+        _observer, _version_mgr, evolver = self._setup(tmp_path)
         patterns = evolver.discover_patterns()
         assert patterns == []
 
     def test_create_skill_from_pattern(self, tmp_path: Any) -> None:
-        observer, version_mgr, evolver = self._setup(tmp_path)
+        _observer, _version_mgr, evolver = self._setup(tmp_path)
 
         pattern = SkillPattern(
             pattern_id="pat_test123456",
@@ -571,7 +562,7 @@ class TestSkillEvolver:
         assert report.challenger_deployed >= 1
 
     def test_evolve_cycle_skips_low_observation_skills(self, tmp_path: Any) -> None:
-        observer, version_mgr, evolver = self._setup(tmp_path)
+        observer, _version_mgr, evolver = self._setup(tmp_path)
 
         # Only 3 observations — below min_observations=10
         for i in range(3):

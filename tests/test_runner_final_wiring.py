@@ -12,8 +12,7 @@ from __future__ import annotations
 
 import tempfile
 from dataclasses import dataclass
-from typing import Any
-from unittest.mock import MagicMock
+from typing import Any, ClassVar
 
 from hi_agent.contracts import TaskContract
 from hi_agent.failures.collector import FailureCollector
@@ -22,9 +21,10 @@ from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import ManagedSkill, SkillRegistry
+
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _make_contract(
@@ -79,7 +79,7 @@ class _SkillRouteEngine:
     Uses the same action mapping as RuleRouteEngine so actions succeed.
     """
 
-    STAGE_ACTIONS: dict[str, str] = {
+    STAGE_ACTIONS: ClassVar[dict[str, str]] = {
         "S1_understand": "analyze_goal",
         "S2_gather": "search_evidence",
         "S3_build": "build_draft",
@@ -201,18 +201,11 @@ def test_watchdog_triggers_gate_b_on_repeated_failures():
 
     # Watchdog should have detected no-progress
     no_progress_records = collector.get_by_code(FailureCode.NO_PROGRESS)
-    assert len(no_progress_records) > 0, (
-        "Watchdog should have recorded NO_PROGRESS failures"
-    )
+    assert len(no_progress_records) > 0, "Watchdog should have recorded NO_PROGRESS failures"
 
     # Gate B (route_direction) should have been opened
-    gate_b_requests = [
-        g for g in kernel.gates.values()
-        if g["gate_type"] == "route_direction"
-    ]
-    assert len(gate_b_requests) > 0, (
-        "Gate B should be triggered by watchdog"
-    )
+    gate_b_requests = [g for g in kernel.gates.values() if g["gate_type"] == "route_direction"]
+    assert len(gate_b_requests) > 0, "Gate B should be triggered by watchdog"
 
 
 def test_watchdog_reset_at_stage_transition():

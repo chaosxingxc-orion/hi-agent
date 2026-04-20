@@ -8,26 +8,24 @@ P3: no mocks for internal components; subprocess-based fake server counts as
 "external process" and is permitted.
 """
 
+
 from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import textwrap
 import time
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
-from hi_agent.mcp.transport import MCPTransportError, StdioMCPTransport
+from hi_agent.capability.registry import CapabilityRegistry
 from hi_agent.mcp.binding import MCPBinding
 from hi_agent.mcp.registry import MCPRegistry
-from hi_agent.capability.registry import CapabilityRegistry
-
+from hi_agent.mcp.transport import MCPTransportError, StdioMCPTransport
 
 # ---------------------------------------------------------------------------
 # FakeMCPServer helper — write a small Python script to tmp_path
@@ -331,9 +329,7 @@ def test_mi07_binding_skips_unhealthy_server(fake_mcp_server, tmp_path):
 
 def test_mi08_binding_bound_tool_invokable(fake_mcp_server, tmp_path):
     """A tool bound via MCPBinding is invokable through CapabilityRegistry."""
-    _, binding, cap_reg = _make_mcp_setup(
-        fake_mcp_server, tools=["echo"], status="healthy"
-    )
+    _, binding, cap_reg = _make_mcp_setup(fake_mcp_server, tools=["echo"], status="healthy")
     binding.bind_all()
     spec = cap_reg.get("mcp.test_srv.echo")
     assert spec is not None
@@ -381,9 +377,7 @@ def test_mi11_tools_list_invalid_schema(fake_mcp_server_bad_schema, tmp_path):
 
 def test_mi12_tools_list_timeout(tmp_path):
     """tools/list raises MCPTransportError on timeout."""
-    slow_server = _write_server_script(
-        tmp_path, "slow_server.py", _FAKE_SERVER_SLOW_LIST_TEMPLATE
-    )
+    slow_server = _write_server_script(tmp_path, "slow_server.py", _FAKE_SERVER_SLOW_LIST_TEMPLATE)
     # Very short timeout to keep test fast
     t = StdioMCPTransport(command=_server_command(slow_server), timeout=1.0)
     try:
@@ -546,7 +540,6 @@ def test_mi16_stderr_captured_on_crash(tmp_path):
 
 def test_mi17_stderr_tail_in_mcp_status(fake_mcp_server, tmp_path):
     """GET /mcp/status response includes a 'stderr_tails' dict."""
-    from hi_agent.mcp.health import MCPHealth
     from hi_agent.mcp.registry import MCPRegistry
 
     mcp_reg = MCPRegistry()
@@ -585,9 +578,7 @@ def test_mi18_degraded_server_reported_correctly(tmp_path):
 
     # Use a server that writes error keywords to stderr but stays alive
     stderr_lines = ["ERROR: connection pool exhausted"]
-    script_content = _FAKE_SERVER_STDERR_TEMPLATE.format(
-        stderr_lines_json=json.dumps(stderr_lines)
-    )
+    script_content = _FAKE_SERVER_STDERR_TEMPLATE.format(stderr_lines_json=json.dumps(stderr_lines))
     script = _write_server_script(tmp_path, "stderr_error_server.py", script_content)
 
     mcp_reg = MCPRegistry()

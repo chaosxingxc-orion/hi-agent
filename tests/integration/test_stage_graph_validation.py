@@ -13,6 +13,7 @@ from hi_agent.contracts import StageState, TaskContract, deterministic_id
 from hi_agent.contracts.cts_budget import CTSBudget
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -20,7 +21,10 @@ class _AnalyzeGoalRouteEngine:
     """Route engine that always proposes 'analyze_goal' for any stage."""
 
     def propose(
-        self, stage_id: str, run_id: str, seq: int,
+        self,
+        stage_id: str,
+        run_id: str,
+        seq: int,
     ) -> list[BranchProposal]:
         branch_id = deterministic_id(run_id, stage_id, str(seq))
         return [
@@ -30,11 +34,12 @@ class _AnalyzeGoalRouteEngine:
                 action_kind="analyze_goal",
             )
         ]
+
+
 from hi_agent.trajectory.stage_graph import (
     StageGraph,
     ValidationReport,
     build_default_trace_graph,
-    default_trace_stage_graph,
 )
 
 
@@ -160,9 +165,7 @@ class TestGateDStageGraph:
         """Gate stage with two outgoing edges should pass completeness check."""
         graph = self._build_gated_graph()
 
-        incomplete = graph.validate_gate_completeness(
-            {"S4_gate_d": "final_approval"}
-        )
+        incomplete = graph.validate_gate_completeness({"S4_gate_d": "final_approval"})
 
         assert incomplete == []
 
@@ -248,7 +251,8 @@ class TestStageGraphWithRunner:
         contract = TaskContract(task_id="graph-run-002", goal="custom graph")
         kernel = MockKernel(strict_mode=True)
         executor = RunExecutor(
-            contract, kernel,
+            contract,
+            kernel,
             stage_graph=graph,
             route_engine=_AnalyzeGoalRouteEngine(),
         )
@@ -269,7 +273,8 @@ class TestStageGraphWithRunner:
         contract = TaskContract(task_id="graph-run-003", goal="order check")
         kernel = MockKernel(strict_mode=True)
         executor = RunExecutor(
-            contract, kernel,
+            contract,
+            kernel,
             stage_graph=graph,
             route_engine=_AnalyzeGoalRouteEngine(),
         )
@@ -277,10 +282,7 @@ class TestStageGraphWithRunner:
         executor.execute()
 
         # Verify stages were opened in order via kernel events
-        opened = [
-            e["stage_id"] for e in kernel.events
-            if e["event_type"] == "StageOpened"
-        ]
+        opened = [e["stage_id"] for e in kernel.events if e["event_type"] == "StageOpened"]
         assert opened == ["X1", "X2", "X3"]
 
     def test_validated_graph_before_runner_execution(self) -> None:

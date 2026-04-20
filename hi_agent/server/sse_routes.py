@@ -1,4 +1,5 @@
 """SSE HTTP endpoints for streaming run events to external clients."""
+
 from __future__ import annotations
 
 import asyncio
@@ -40,12 +41,14 @@ async def stream_run_events(run_id: str, request: Request):
         try:
             while True:
                 event = await q.get()
-                data = json.dumps({
-                    "run_id": event.run_id,
-                    "event_type": event.event_type,
-                    "commit_offset": event.commit_offset,
-                    "payload": event.payload_json,
-                })
+                data = json.dumps(
+                    {
+                        "run_id": event.run_id,
+                        "event_type": event.event_type,
+                        "commit_offset": event.commit_offset,
+                        "payload": event.payload_json,
+                    }
+                )
                 yield f"id: {event.commit_offset}\ndata: {data}\n\n"
         except asyncio.CancelledError:
             pass

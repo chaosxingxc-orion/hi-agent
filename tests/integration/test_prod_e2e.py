@@ -1,4 +1,4 @@
-"""Official production E2E verification tests.
+r"""Official production E2E verification tests.
 
 These tests answer the downstream P0 blocker:
   "dev smoke path ≠ production E2E — you have not proven a formal production
@@ -62,6 +62,7 @@ pytestmark = pytest.mark.skipif(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _wait_terminal(
     client: Any,
     run_id: str,
@@ -79,9 +80,7 @@ def _wait_terminal(
         if data.get("state") in terminal:
             return data
         time.sleep(poll_interval)
-    raise TimeoutError(
-        f"Run {run_id!r} did not reach terminal state within {timeout:.0f}s"
-    )
+    raise TimeoutError(f"Run {run_id!r} did not reach terminal state within {timeout:.0f}s")
 
 
 def _assert_provenance_contract(result: dict[str, Any], context: str) -> None:
@@ -99,9 +98,15 @@ def _assert_provenance_contract(result: dict[str, Any], context: str) -> None:
         "RunResult.to_dict() must include execution_provenance."
     )
     expected_keys = {
-        "contract_version", "runtime_mode", "llm_mode", "kernel_mode",
-        "capability_mode", "mcp_transport", "fallback_used",
-        "fallback_reasons", "evidence",
+        "contract_version",
+        "runtime_mode",
+        "llm_mode",
+        "kernel_mode",
+        "capability_mode",
+        "mcp_transport",
+        "fallback_used",
+        "fallback_reasons",
+        "evidence",
     }
     assert set(prov.keys()) == expected_keys, (
         f"{context}: execution_provenance keys mismatch. "
@@ -116,6 +121,7 @@ def _assert_provenance_contract(result: dict[str, Any], context: str) -> None:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def prod_client():
     """TestClient against a server wired for production mode.
@@ -125,9 +131,10 @@ def prod_client():
     LLM provider is resolved from env: OPENAI_API_KEY / ANTHROPIC_API_KEY / VOLCE_API_KEY.
     """
     import os as _os
-    from starlette.testclient import TestClient
-    from hi_agent.server.app import AgentServer
+
     from hi_agent.config.trace_config import TraceConfig
+    from hi_agent.server.app import AgentServer
+    from starlette.testclient import TestClient
 
     _prev_env = _os.environ.get("HI_AGENT_ENV")
     _prev_api_key = _os.environ.get("HI_AGENT_API_KEY")
@@ -156,6 +163,7 @@ def prod_client():
 # PE-01: Server starts and /health returns 200
 # ---------------------------------------------------------------------------
 
+
 def test_pe01_health_ok(prod_client: Any) -> None:
     """Server must respond to /health with 200 in prod mode."""
     resp = prod_client.get("/health")
@@ -166,6 +174,7 @@ def test_pe01_health_ok(prod_client: Any) -> None:
 # ---------------------------------------------------------------------------
 # PE-02: POST /runs → 201, run reaches terminal state
 # ---------------------------------------------------------------------------
+
 
 def test_pe02_run_lifecycle(prod_client: Any) -> None:
     """POST /runs succeeds and run reaches terminal state with a structured result.
@@ -196,12 +205,13 @@ def test_pe02_run_lifecycle(prod_client: Any) -> None:
     assert isinstance(result, dict), (
         f"result must be a structured dict, got {type(result).__name__!r}: {result!r}"
     )
-    _assert_provenance_contract(result,"pe02")
+    _assert_provenance_contract(result, "pe02")
 
 
 # ---------------------------------------------------------------------------
 # PE-03: Semantically different goals produce different outputs
 # ---------------------------------------------------------------------------
+
 
 def test_pe03_goals_produce_distinct_outputs(prod_client: Any) -> None:
     """Two semantically different goals must produce observably different outputs.
@@ -226,10 +236,8 @@ def test_pe03_goals_produce_distinct_outputs(prod_client: Any) -> None:
         run_id = resp.json()["run_id"]
         final = _wait_terminal(prod_client, run_id)
         result = final.get("result", {})
-        _assert_provenance_contract(result,f"pe03[{goal[:30]}]")
-        stage_outputs = [
-            s.get("output", "") for s in result.get("stages", []) if s.get("output")
-        ]
+        _assert_provenance_contract(result, f"pe03[{goal[:30]}]")
+        stage_outputs = [s.get("output", "") for s in result.get("stages", []) if s.get("output")]
         outputs.append(stage_outputs)
 
     # If both runs produced stage outputs, verify they differ
@@ -246,6 +254,7 @@ def test_pe03_goals_produce_distinct_outputs(prod_client: Any) -> None:
 # ---------------------------------------------------------------------------
 # PE-04: No duplicate run_id on second identical submission
 # ---------------------------------------------------------------------------
+
 
 def test_pe04_no_duplicate_run_id(prod_client: Any) -> None:
     """Two POST /runs with the same goal must produce distinct run_ids."""
@@ -265,6 +274,7 @@ def test_pe04_no_duplicate_run_id(prod_client: Any) -> None:
 # ---------------------------------------------------------------------------
 # PE-05: Service stays healthy after a completed run
 # ---------------------------------------------------------------------------
+
 
 def test_pe05_service_healthy_after_run(prod_client: Any) -> None:
     """Service must remain healthy after a run completes.

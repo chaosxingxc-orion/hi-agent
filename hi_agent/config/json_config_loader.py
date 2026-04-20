@@ -21,6 +21,7 @@ Usage::
     from hi_agent.config.json_config_loader import build_gateway_from_config
     gateway = build_gateway_from_config()
 """
+
 from __future__ import annotations
 
 import json
@@ -164,11 +165,15 @@ def build_gateway_from_config(
 
     # --- Inject API key into a stable env var ---
     _ENV_VAR_MAP = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
-    env_var = _ENV_VAR_MAP.get(default_provider) or f"HI_AGENT_LLM_API_KEY_{default_provider.upper()}"
+    env_var = (
+        _ENV_VAR_MAP.get(default_provider) or f"HI_AGENT_LLM_API_KEY_{default_provider.upper()}"
+    )
     os.environ[env_var] = api_key
     _logger.info(
         "build_gateway_from_config: provider=%r format=%r key_env=%s",
-        default_provider, api_format, env_var,
+        default_provider,
+        api_format,
+        env_var,
     )
 
     # --- Build model registry with provider's declared models only ---
@@ -184,17 +189,19 @@ def build_gateway_from_config(
     for tier_name, model_id in models_cfg.items():
         tier = _tier_map.get(tier_name)
         if tier and model_id:
-            registry.register(RegisteredModel(
-                model_id=model_id,
-                provider=default_provider,
-                tier=tier,
-                cost_input_per_mtok=0.0,
-                cost_output_per_mtok=0.0,
-                speed="standard",
-                context_window=128_000,
-                max_output_tokens=8_192,
-                capabilities=["code", "tool_use"],
-            ))
+            registry.register(
+                RegisteredModel(
+                    model_id=model_id,
+                    provider=default_provider,
+                    tier=tier,
+                    cost_input_per_mtok=0.0,
+                    cost_output_per_mtok=0.0,
+                    speed="standard",
+                    context_window=128_000,
+                    max_output_tokens=8_192,
+                    capabilities=["code", "tool_use"],
+                )
+            )
 
     # --- Build raw gateway ---
     features = provider_cfg.get("features", {})
@@ -203,6 +210,7 @@ def build_gateway_from_config(
 
     if api_format == "anthropic":
         from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
+
         raw_gw: object = AnthropicLLMGateway(
             api_key_env=env_var,
             default_model=default_model or "claude-sonnet-4-6",
@@ -212,6 +220,7 @@ def build_gateway_from_config(
         )
     else:
         from hi_agent.llm.http_gateway import HttpLLMGateway
+
         raw_gw = HttpLLMGateway(
             base_url=base_url or "https://api.openai.com/v1",
             api_key_env=env_var,

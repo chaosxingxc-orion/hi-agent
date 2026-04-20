@@ -9,6 +9,7 @@ JSON array of stages.  On any failure (missing gateway, parse error,
 LLM exception) the middleware falls back to the deterministic
 ``_DEFAULT_STAGES`` five-stage plan.
 """
+
 from __future__ import annotations
 
 import json
@@ -88,10 +89,9 @@ class ControlMiddleware:
         node_count = len(graph_json.get("nodes", []))
         # Estimate cost proportional to decomposed node count; default stages have
         # a known cost of 0 (heuristic path, no LLM calls consumed for planning).
-        is_default_plan = (
-            [(n["node_id"], n["payload"].get("description", "")) for n in graph_json.get("nodes", [])]
-            == [(s[0], s[1]) for s in _DEFAULT_STAGES]
-        )
+        is_default_plan = [
+            (n["node_id"], n["payload"].get("description", "")) for n in graph_json.get("nodes", [])
+        ] == [(s[0], s[1]) for s in _DEFAULT_STAGES]
         estimated_cost = 0.0 if is_default_plan else float(node_count) * 0.01
         plan = ExecutionPlan(
             graph_json=graph_json,
@@ -134,7 +134,9 @@ class ControlMiddleware:
     )
 
     def _llm_decompose(
-        self, task_description: str, context: dict[str, Any],
+        self,
+        task_description: str,
+        context: dict[str, Any],
     ) -> list[dict[str, Any]]:
         """Ask the LLM to decompose *task_description* into stages.
 
@@ -179,9 +181,7 @@ class ControlMiddleware:
             )
         for s in stages:
             if "stage_id" not in s or "stage_name" not in s:
-                raise ValueError(
-                    f"Stage missing required keys (stage_id, stage_name): {s}"
-                )
+                raise ValueError(f"Stage missing required keys (stage_id, stage_name): {s}")
         return stages
 
     # ------------------------------------------------------------------
@@ -202,8 +202,7 @@ class ControlMiddleware:
                 )
                 # Convert to the (stage_id, description) tuple format
                 stages = [
-                    (s["stage_id"], s.get("description", s["stage_name"]))
-                    for s in llm_stages
+                    (s["stage_id"], s.get("description", s["stage_name"])) for s in llm_stages
                 ]
             except Exception:
                 logger.warning(
@@ -218,20 +217,24 @@ class ControlMiddleware:
         nodes = []
         edges = []
         for i, (stage_id, desc) in enumerate(stages):
-            nodes.append({
-                "node_id": stage_id,
-                "node_type": "stage",
-                "payload": {
-                    "description": desc,
-                    "input_text": perception.raw_text if i == 0 else "",
-                },
-            })
+            nodes.append(
+                {
+                    "node_id": stage_id,
+                    "node_type": "stage",
+                    "payload": {
+                        "description": desc,
+                        "input_text": perception.raw_text if i == 0 else "",
+                    },
+                }
+            )
             if i > 0:
-                edges.append({
-                    "source": stages[i - 1][0],
-                    "target": stage_id,
-                    "edge_type": "sequence",
-                })
+                edges.append(
+                    {
+                        "source": stages[i - 1][0],
+                        "target": stage_id,
+                        "edge_type": "sequence",
+                    }
+                )
 
         return {
             "graph_id": "trace_plan",
@@ -240,7 +243,9 @@ class ControlMiddleware:
         }
 
     def _bind_resources(
-        self, graph_json: dict[str, Any], perception: PerceptionResult,
+        self,
+        graph_json: dict[str, Any],
+        perception: PerceptionResult,
     ) -> dict[str, dict[str, Any]]:
         """Resolve skill, memory, knowledge, and tool resources per node."""
         resources: dict[str, dict[str, Any]] = {}
@@ -279,7 +284,9 @@ class ControlMiddleware:
         return resources
 
     def _validate_executability(
-        self, graph_json: dict[str, Any], resources: dict[str, dict[str, Any]],
+        self,
+        graph_json: dict[str, Any],
+        resources: dict[str, dict[str, Any]],
     ) -> list[str]:
         """Validate node executability and return issue list."""
         issues: list[str] = []

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from time import time
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hi_agent.observability.collector import MetricsCollector
@@ -73,7 +75,7 @@ class SLOViolation:
     """A single SLO violation event emitted by :class:`SLOMonitor`."""
 
     timestamp: float
-    dimension: str          # "success_rate" or "latency_p95_ms"
+    dimension: str  # "success_rate" or "latency_p95_ms"
     current_value: float
     target_value: float
     snapshot: SLOSnapshot
@@ -96,7 +98,7 @@ class SLOMonitor:
 
     def __init__(
         self,
-        metrics: "MetricsCollector",
+        metrics: MetricsCollector,
         *,
         interval_s: float = 60.0,
         success_target: float = 0.99,
@@ -131,10 +133,8 @@ class SLOMonitor:
         """Stop the background monitoring loop gracefully."""
         if self._task is not None and not self._task.done():
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         self._task = None
 
     def check_now(self) -> SLOSnapshot | None:

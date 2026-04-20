@@ -5,14 +5,12 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from hi_agent.runner_stage import StageExecutor
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_kernel() -> MagicMock:
     """Return a minimal mock kernel that satisfies StageExecutor."""
@@ -59,6 +57,7 @@ def _make_acceptance_policy() -> MagicMock:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestStageExecutorCallsMiddlewareRunTwice:
     """Verify run() is called exactly twice per stage (pre_execute + post_execute)."""

@@ -19,9 +19,7 @@ class SkillUsageRecorder:
         # run_id -> list of skill_ids used in that run
         self._run_skills: dict[str, list[str]] = {}
 
-    def record_usage(
-        self, skill_id: str, run_id: str, success: bool
-    ) -> None:
+    def record_usage(self, skill_id: str, run_id: str, success: bool) -> None:
         """Record that a skill was used in a run with given outcome.
 
         Updates the skill's evidence_count, success_count or failure_count,

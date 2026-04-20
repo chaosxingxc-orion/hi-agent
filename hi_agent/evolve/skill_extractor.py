@@ -139,9 +139,7 @@ class SkillExtractor:
         response = self._gateway.complete(request)
         return self._parse_llm_skills(response.content, postmortem)
 
-    def _parse_llm_skills(
-        self, content: str, postmortem: RunPostmortem
-    ) -> list[SkillCandidate]:
+    def _parse_llm_skills(self, content: str, postmortem: RunPostmortem) -> list[SkillCandidate]:
         """Parse JSON response from LLM into SkillCandidate objects."""
         try:
             items = _json.loads(content)
@@ -199,9 +197,7 @@ class SkillExtractor:
                             f"{', '.join(postmortem.stages_completed)}."
                         ),
                         applicability_scope=postmortem.task_family,
-                        preconditions=[
-                            f"task_family == '{postmortem.task_family}'"
-                        ],
+                        preconditions=[f"task_family == '{postmortem.task_family}'"],
                         confidence=confidence,
                         source_run_ids=[postmortem.run_id],
                     )
@@ -262,9 +258,7 @@ class SkillExtractor:
             if candidate.skill_id in index:
                 found = index[candidate.skill_id]
                 found.evidence_count += candidate.evidence_count
-                found.confidence = min(
-                    found.confidence + 0.05 * candidate.evidence_count, 1.0
-                )
+                found.confidence = min(found.confidence + 0.05 * candidate.evidence_count, 1.0)
                 for rid in candidate.source_run_ids:
                     if rid not in found.source_run_ids:
                         found.source_run_ids.append(rid)

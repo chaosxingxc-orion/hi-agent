@@ -23,7 +23,7 @@ def test_different_profile_ids_use_different_paths() -> None:
     assert "profile-beta" in str(g2._storage_path)
 
 
-def test_profile_id_path_contains_L3_segment() -> None:
+def test_profile_id_path_contains_l3_segment() -> None:
     """profile_id path must include the L3 namespace segment."""
     g = LongTermMemoryGraph(
         storage_path=".hi_agent/memory/long_term/graph.json",

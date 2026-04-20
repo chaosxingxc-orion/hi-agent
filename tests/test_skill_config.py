@@ -15,7 +15,7 @@ def test_skill_evolver_thresholds_from_config():
 
 
 def test_skill_observer_summary_len_from_config():
-    cfg = TraceConfig(skill_observer_max_summary_len=200)
+    TraceConfig(skill_observer_max_summary_len=200)
     obs = SkillObservation(
         observation_id="obs_test",
         skill_id="s1",
@@ -34,6 +34,7 @@ def test_skill_observer_summary_len_from_config():
 
 def test_skill_loader_limits_from_config():
     from hi_agent.skill.loader import SkillLoader
+
     cfg = TraceConfig(
         skill_loader_max_skills_in_prompt=10,
         skill_loader_max_prompt_tokens=3_000,

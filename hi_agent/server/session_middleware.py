@@ -10,9 +10,9 @@ Route-aware rules:
 
 from __future__ import annotations
 
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
-from starlette.requests import Request
 
 from hi_agent.server.session_store import SessionStore
 from hi_agent.server.tenant_context import get_tenant_context
@@ -65,9 +65,7 @@ class SessionMiddleware:
 
         if header_sid:
             # Validate ownership
-            if not self._store.validate_ownership(
-                header_sid, ctx.tenant_id, ctx.user_id
-            ):
+            if not self._store.validate_ownership(header_sid, ctx.tenant_id, ctx.user_id):
                 resp = JSONResponse(
                     {"error": "session not found or access denied"}, status_code=403
                 )
@@ -92,9 +90,7 @@ class SessionMiddleware:
 
         else:
             # All other workspace routes require a valid session
-            resp = JSONResponse(
-                {"error": "X-Session-Id header required"}, status_code=400
-            )
+            resp = JSONResponse({"error": "X-Session-Id header required"}, status_code=400)
             await resp(scope, receive, send)
             return
 

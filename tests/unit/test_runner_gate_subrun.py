@@ -7,16 +7,15 @@ C-1: register_gate must block stage execution; resume unblocks it
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.gate_protocol import GatePendingError
 from hi_agent.runner import RunExecutor
-from hi_agent.task_mgmt.restart_policy import RestartDecision, RestartPolicyEngine
-from tests.helpers.kernel_adapter_fixture import MockKernel
+from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -58,9 +57,7 @@ class TestDispatchSubrunGoal:
 
         import asyncio
 
-        handle = asyncio.run(
-            _dispatch_subrun_async(executor, goal="Write the introduction")
-        )
+        asyncio.run(_dispatch_subrun_async(executor, goal="Write the introduction"))
 
         assert len(captured) == 1, "exactly one DelegationRequest should be created"
         assert captured[0].goal == "Write the introduction"
@@ -85,14 +82,12 @@ class TestDispatchSubrunGoal:
 
         import asyncio
 
-        asyncio.run(
-            _dispatch_subrun_async(executor, goal="")
-        )
+        asyncio.run(_dispatch_subrun_async(executor, goal=""))
 
         assert captured[0].goal == "agent=writer"
 
     def test_config_retains_agent_metadata(self):
-        """config dict still carries agent/profile/strategy/restart_policy."""
+        """Config dict still carries agent/profile/strategy/restart_policy."""
         captured: list = []
 
         class _FakeDelegationManager:
@@ -129,13 +124,18 @@ class TestDispatchSubrunGoal:
         assert cfg["restart_policy"] == "retry(1)"
 
 
-async def _dispatch_subrun_async(executor, *, agent="writer", profile_id="p-1",
-                                  strategy="sequential", restart_policy="reflect(2)",
-                                  goal=""):
+async def _dispatch_subrun_async(
+    executor,
+    *,
+    agent="writer",
+    profile_id="p-1",
+    strategy="sequential",
+    restart_policy="reflect(2)",
+    goal="",
+):
     """Helper: dispatch_subrun uses asyncio internally; drive it through asyncio.run."""
     # dispatch_subrun detects the running loop and creates a task; we need to
     # call it from inside the loop and also await the pending future.
-    import asyncio
 
     handle = executor.dispatch_subrun(
         agent=agent,
@@ -269,7 +269,7 @@ class TestGateBlocksExecution:
         assert executor._gate_pending is None
 
     def test_resume_backtrack_sets_terminated(self):
-        """resume with 'backtrack' decision sets _run_terminated=True."""
+        """Resume with 'backtrack' decision sets _run_terminated=True."""
         executor = self._make_executor()
         executor.register_gate("g2")
         executor.resume("g2", "backtrack")
@@ -285,7 +285,7 @@ class TestGateBlocksExecution:
         assert executor._gate_pending == "gate-x"
 
     def test_unrelated_resume_does_not_clear_gate(self):
-        """resume with a different gate_id does not clear the pending gate."""
+        """Resume with a different gate_id does not clear the pending gate."""
         executor = self._make_executor()
         executor.register_gate("g-real")
         executor.resume("g-other", "approved")  # wrong gate_id

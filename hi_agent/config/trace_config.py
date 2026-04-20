@@ -186,16 +186,16 @@ class TraceConfig:
     gate_default_timeout_seconds: float = 300.0
 
     # --- Memory auto-consolidation (NEW) ---
-    auto_dream_interval: int = 5     # trigger dream every N runs (0=disabled)
+    auto_dream_interval: int = 5  # trigger dream every N runs (0=disabled)
     auto_consolidate_interval: int = 20  # trigger LTM consolidation every N runs (0=disabled)
 
     # --- Async scheduler (NEW) ---
-    max_concurrency: int = 64        # AsyncTaskScheduler Semaphore limit
+    max_concurrency: int = 64  # AsyncTaskScheduler Semaphore limit
 
     # --- Prompt caching (Track C) ---
     prompt_cache_enabled: bool = True
-    prompt_cache_anchor_messages: int = 3   # lock first N messages as cache prefix
-    prompt_cache_min_tokens: int = 1024     # skip caching if system prompt is tiny
+    prompt_cache_anchor_messages: int = 3  # lock first N messages as cache prefix
+    prompt_cache_min_tokens: int = 1024  # skip caching if system prompt is tiny
 
     # --- LLM Failover (Track B) ---
     llm_failover_enabled: bool = True
@@ -205,14 +205,14 @@ class TraceConfig:
     llm_credential_pool_env_var: str = "ANTHROPIC_API_KEY"  # comma-sep multi-key
 
     # --- Tool result budget (Track D) ---
-    tool_result_max_single_chars: int = 32_000   # per-result char limit (~8k tokens)
+    tool_result_max_single_chars: int = 32_000  # per-result char limit (~8k tokens)
     tool_result_max_cumulative_chars: int = 128_000  # cross-turn cumulative limit
     tool_result_budget_enabled: bool = True
 
     # --- Memory & Skill Nudge (Track I) ---
     nudge_enabled: bool = True
-    memory_nudge_interval: int = 10    # nudge every N turns without memory save
-    skill_nudge_interval: int = 15     # nudge every N tool-iters without skill create
+    memory_nudge_interval: int = 10  # nudge every N turns without memory save
+    skill_nudge_interval: int = 15  # nudge every N tool-iters without skill create
 
     # --- Delegation (Track F) ---
     delegation_max_concurrent: int = 3
@@ -220,7 +220,7 @@ class TraceConfig:
     delegation_summary_max_chars: int = 2000
 
     # --- Trajectory export ---
-    trajectory_export_enabled: bool = False   # 默认关闭，避免生产环境磁盘爆满
+    trajectory_export_enabled: bool = False  # 默认关闭，避免生产环境磁盘爆满
     trajectory_export_dir: str = ".hi_agent/trajectories"
 
     # --- Context window budget (新增) ---
@@ -261,7 +261,7 @@ class TraceConfig:
 
     # --- Restart policy ---
     restart_max_attempts: int = 3
-    restart_on_exhausted: str = "reflect"   # "reflect" | "escalate" | "abort"
+    restart_on_exhausted: str = "reflect"  # "reflect" | "escalate" | "abort"
 
     # ------------------------------------------------------------------
     # Deprecated field registry
@@ -281,16 +281,18 @@ class TraceConfig:
         "max_actions_per_run": (100, "task_budget_max_actions"),
     }
 
-    _DEPRECATED_DEAD: ClassVar[frozenset[str]] = frozenset({
-        "l1_compression_enabled",
-        "max_episodic_query_results",
-        "route_max_proposals",
-        "skill_min_provisional_evidence",
-        "skill_min_certified_evidence",
-        "skill_min_certified_success_rate",
-        "kernel_circuit_breaker_threshold",
-        "task_default_priority",
-    })
+    _DEPRECATED_DEAD: ClassVar[frozenset[str]] = frozenset(
+        {
+            "l1_compression_enabled",
+            "max_episodic_query_results",
+            "route_max_proposals",
+            "skill_min_provisional_evidence",
+            "skill_min_certified_evidence",
+            "skill_min_certified_success_rate",
+            "kernel_circuit_breaker_threshold",
+            "task_default_priority",
+        }
+    )
 
     @property
     def evolve_enabled(self) -> bool:
@@ -304,6 +306,7 @@ class TraceConfig:
             stacklevel=2,
         )
         from hi_agent.config.evolve_policy import resolve_evolve_effective
+
         enabled, _ = resolve_evolve_effective(self.evolve_mode, "dev-smoke")
         return enabled
 
@@ -324,9 +327,7 @@ class TraceConfig:
                 logger.warning(msg)
                 warnings.append(msg)
         for field_name in self._DEPRECATED_DEAD:
-            default_val = next(
-                (f.default for f in fields(self) if f.name == field_name), None
-            )
+            default_val = next((f.default for f in fields(self) if f.name == field_name), None)
             current = getattr(self, field_name, None)
             if current != default_val:
                 msg = (
@@ -393,6 +394,7 @@ class TraceConfig:
 # ------------------------------------------------------------------
 # Internal helpers
 # ------------------------------------------------------------------
+
 
 def _cast(value: str, type_hint: str) -> Any:
     """Cast a string environment variable value to the target type."""

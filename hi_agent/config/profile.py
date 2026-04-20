@@ -1,5 +1,6 @@
 # hi_agent/config/profile.py
 """Profile-aware deep merge utilities for ConfigStack."""
+
 from __future__ import annotations
 
 import json

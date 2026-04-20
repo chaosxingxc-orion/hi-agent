@@ -2,7 +2,8 @@
 
 Run these BEFORE implementing execution_provenance.py to confirm red state.
 """
-from hi_agent.contracts.execution_provenance import ExecutionProvenance, CONTRACT_VERSION
+
+from hi_agent.contracts.execution_provenance import CONTRACT_VERSION, ExecutionProvenance
 
 
 def test_contract_version_is_set():
@@ -23,18 +24,28 @@ def test_to_dict_contains_all_required_keys():
     )
     d = prov.to_dict()
     required_keys = {
-        "contract_version", "runtime_mode", "llm_mode", "kernel_mode",
-        "capability_mode", "mcp_transport", "fallback_used",
-        "fallback_reasons", "evidence",
+        "contract_version",
+        "runtime_mode",
+        "llm_mode",
+        "kernel_mode",
+        "capability_mode",
+        "mcp_transport",
+        "fallback_used",
+        "fallback_reasons",
+        "evidence",
     }
     assert set(d.keys()) == required_keys
 
 
 def test_fallback_reasons_deduplicated_and_sorted():
     prov = ExecutionProvenance(
-        contract_version=CONTRACT_VERSION, runtime_mode="dev-smoke",
-        llm_mode="unknown", kernel_mode="unknown", capability_mode="unknown",
-        mcp_transport="not_wired", fallback_used=True,
+        contract_version=CONTRACT_VERSION,
+        runtime_mode="dev-smoke",
+        llm_mode="unknown",
+        kernel_mode="unknown",
+        capability_mode="unknown",
+        mcp_transport="not_wired",
+        fallback_used=True,
         fallback_reasons=["b_reason", "a_reason", "b_reason"],
         evidence={"heuristic_stage_count": 0},
     )
@@ -42,9 +53,7 @@ def test_fallback_reasons_deduplicated_and_sorted():
 
 
 def test_build_from_stages_counts_heuristic_stages():
-    stage_summaries = [
-        {"type": "heuristic"}, {"type": "heuristic"}, {"type": "real"}
-    ]
+    stage_summaries = [{"type": "heuristic"}, {"type": "heuristic"}, {"type": "real"}]
     prov = ExecutionProvenance.build_from_stages(
         stage_summaries=stage_summaries,
         runtime_context={"runtime_mode": "dev-smoke", "mcp_transport": "not_wired"},

@@ -13,10 +13,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-
 # ---------------------------------------------------------------------------
 # Data contracts
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class EvaluationContext:
@@ -45,6 +45,7 @@ class EvaluationResult:
 # Evaluator protocol
 # ---------------------------------------------------------------------------
 
+
 @runtime_checkable
 class Evaluator(Protocol):
     """Protocol that all evaluators must satisfy.
@@ -53,14 +54,13 @@ class Evaluator(Protocol):
     rules without modifying the platform core.
     """
 
-    def evaluate(
-        self, context: EvaluationContext, output: dict[str, Any]
-    ) -> EvaluationResult: ...
+    def evaluate(self, context: EvaluationContext, output: dict[str, Any]) -> EvaluationResult: ...
 
 
 # ---------------------------------------------------------------------------
 # Default platform evaluator (generic, domain-agnostic)
 # ---------------------------------------------------------------------------
+
 
 class DefaultEvaluator:
     """Generic platform evaluator for baseline quality assessment.
@@ -75,9 +75,7 @@ class DefaultEvaluator:
     def __init__(self, threshold: float = 0.5) -> None:
         self._threshold = threshold
 
-    def evaluate(
-        self, context: EvaluationContext, output: dict[str, Any]
-    ) -> EvaluationResult:
+    def evaluate(self, context: EvaluationContext, output: dict[str, Any]) -> EvaluationResult:
         criteria: dict[str, bool] = {}
 
         # C1: output is non-empty
@@ -104,17 +102,13 @@ class DefaultEvaluator:
 
         # C5: no explicit error indicators
         criteria["no_error"] = not (
-            output.get("error")
-            or output.get("success") is False
-            or output.get("failed")
+            output.get("error") or output.get("success") is False or output.get("failed")
         )
 
         score = sum(criteria.values()) / len(criteria)
         passed = score >= self._threshold
 
-        feedback_parts = [
-            f"{k}: {'✓' if v else '✗'}" for k, v in criteria.items()
-        ]
+        feedback_parts = [f"{k}: {'✓' if v else '✗'}" for k, v in criteria.items()]
         feedback = f"score={score:.2f} [{', '.join(feedback_parts)}]"
 
         suggestions = []
@@ -136,6 +130,7 @@ class DefaultEvaluator:
 # Composite evaluator (mix platform + business-layer evaluators)
 # ---------------------------------------------------------------------------
 
+
 class CompositeEvaluator:
     """Weighted combination of multiple evaluators.
 
@@ -152,22 +147,16 @@ class CompositeEvaluator:
     """
 
     def __init__(self, evaluators: list[tuple[Any, float]]) -> None:
-        """
-        Args:
-            evaluators: List of (evaluator, weight) pairs.
-                Weights need not sum to 1 — they are normalized internally.
+        """Args:
+        evaluators: List of (evaluator, weight) pairs.
+            Weights need not sum to 1 — they are normalized internally.
         """
         if not evaluators:
             raise ValueError("CompositeEvaluator requires at least one evaluator")
         self._evaluators = evaluators
 
-    def evaluate(
-        self, context: EvaluationContext, output: dict[str, Any]
-    ) -> EvaluationResult:
-        results = [
-            (ev.evaluate(context, output), weight)
-            for ev, weight in self._evaluators
-        ]
+    def evaluate(self, context: EvaluationContext, output: dict[str, Any]) -> EvaluationResult:
+        results = [(ev.evaluate(context, output), weight) for ev, weight in self._evaluators]
         total_weight = sum(w for _, w in results)
         if total_weight == 0:
             total_weight = 1.0

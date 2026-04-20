@@ -1,4 +1,4 @@
-"""MCP transport implementations.
+r"""MCP transport implementations.
 
 Currently provides ``StdioMCPTransport`` — a JSON-RPC 2.0 client that
 communicates with an MCP server subprocess over its stdin/stdout.
@@ -218,7 +218,7 @@ class StdioMCPTransport:
         try:
             lines = list(self._stderr_buf)
             return lines[-n:] if len(lines) > n else lines
-        except Exception:  # noqa: BLE001
+        except Exception:
             return []
 
     def close(self) -> None:
@@ -229,7 +229,7 @@ class StdioMCPTransport:
                     self._proc.stdin.close()
                     self._proc.terminate()
                     self._proc.wait(timeout=5)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
                 finally:
                     self._proc = None
@@ -240,6 +240,7 @@ class StdioMCPTransport:
 
     def _start_stderr_reader(self) -> None:
         """Start background thread draining subprocess stderr into ring buffer."""
+
         def _read_stderr(proc: subprocess.Popen, buf: collections.deque) -> None:
             try:
                 for raw in proc.stderr:
@@ -248,7 +249,7 @@ class StdioMCPTransport:
                     else:
                         line = raw.rstrip(b"\n").decode("utf-8", errors="replace")
                     buf.append(line)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass  # Process closed — exit quietly
 
         self._stderr_thread = threading.Thread(
@@ -290,7 +291,8 @@ class StdioMCPTransport:
             )
             time.sleep(delay)
 
-        import os  # noqa: PLC0415
+        import os
+
         env = os.environ.copy()
         if self._env:
             env.update(self._env)
@@ -322,13 +324,14 @@ class StdioMCPTransport:
                 self._unavailable = True
                 try:
                     from hi_agent.observability.audit import emit_mcp_server_restart
+
                     emit_mcp_server_restart(
                         self._server_id or repr(self._command),
                         self._restart_attempts,
                         success=False,
                         error=str(exc),
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
             raise MCPTransportError(
                 f"Failed to spawn MCP server command {self._command!r}: {exc}"
@@ -339,12 +342,13 @@ class StdioMCPTransport:
             # Emit audit event for successful restart
             try:
                 from hi_agent.observability.audit import emit_mcp_server_restart
+
                 emit_mcp_server_restart(
                     self._server_id or repr(self._command),
                     self._restart_attempts,
                     success=True,
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         self._restart_attempts += 1
         if self._restart_attempts >= _MAX_RESTART_ATTEMPTS:
@@ -363,8 +367,8 @@ class StdioMCPTransport:
         Raises:
             MCPTransportError: On timeout, EOF, or JSON-RPC error response.
         """
-        import select  # noqa: PLC0415
-        import sys  # noqa: PLC0415
+        import select
+        import sys
 
         deadline_remaining = self._timeout
         buf = self._proc.stdout
@@ -395,9 +399,7 @@ class StdioMCPTransport:
                 continue
             raw = buf.readline()
             if not raw:
-                raise MCPTransportError(
-                    f"MCP server {server_id!r} closed stdout (EOF)."
-                )
+                raise MCPTransportError(f"MCP server {server_id!r} closed stdout (EOF).")
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
@@ -434,9 +436,7 @@ class StdioMCPTransport:
                 raw = buf.readline()
                 if not raw:
                     exc_holder.append(
-                        MCPTransportError(
-                            f"MCP server {server_id!r} closed stdout (EOF)."
-                        )
+                        MCPTransportError(f"MCP server {server_id!r} closed stdout (EOF).")
                     )
                     return
                 try:

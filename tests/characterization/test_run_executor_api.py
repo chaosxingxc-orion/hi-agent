@@ -7,6 +7,7 @@ collaborator methods needed to make each outcome deterministic.
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 import uuid
 from dataclasses import fields
@@ -15,13 +16,13 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
-
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.contracts import StageSummary, TaskContract
 from hi_agent.contracts.requests import RunResult
 from hi_agent.gate_protocol import GatePendingError
 from hi_agent.runner import RunExecutor, execute_async
+
 from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 
@@ -85,10 +86,8 @@ def _stage_behavior(
 
 
 def _close_raw_memory(executor: RunExecutor) -> None:
-    try:
+    with contextlib.suppress(Exception):
         executor.raw_memory.close()
-    except Exception:
-        pass
 
 
 class TestRunResultContract:
@@ -387,9 +386,6 @@ class TestExecuteAsyncOutcomes:
         assert calls == ["S1", "S3", "S5"]
         finalize.assert_called_once()
         assert finalize.call_args.args[0] == "completed"
-
-
-
 
     @pytest.mark.asyncio
     async def test_execute_async_gate_pending_returns_failed_async_result(

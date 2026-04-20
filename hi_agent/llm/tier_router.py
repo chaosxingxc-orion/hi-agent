@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Iterator
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
 
@@ -153,9 +153,7 @@ class TierRouter:
         target_tier = self._resolve_tier(
             purpose, complexity, budget_remaining_usd, skill_confidence
         )
-        model = self._find_in_tier(
-            target_tier, required_capabilities, min_context_window
-        )
+        model = self._find_in_tier(target_tier, required_capabilities, min_context_window)
         if model is not None:
             _logger.info(
                 '{"event": "tier_routing", "tier": "%s", "model": "%s", "purpose": "%s"}',
@@ -203,8 +201,7 @@ class TierRouter:
             return best
 
         raise KeyError(
-            f"No suitable model found for purpose={purpose!r}, "
-            f"complexity={complexity!r}"
+            f"No suitable model found for purpose={purpose!r}, complexity={complexity!r}"
         )
 
     def _find_in_tier(
@@ -221,9 +218,7 @@ class TierRouter:
         ]
         if required_capabilities:
             candidates = [
-                m
-                for m in candidates
-                if all(cap in m.capabilities for cap in required_capabilities)
+                m for m in candidates if all(cap in m.capabilities for cap in required_capabilities)
             ]
         if not candidates:
             return None
@@ -368,9 +363,7 @@ class TierAwareLLMGateway:
     actually honoured during model selection.
     """
 
-    def __init__(
-        self, inner: object, tier_router: TierRouter, registry: ModelRegistry
-    ) -> None:
+    def __init__(self, inner: object, tier_router: TierRouter, registry: ModelRegistry) -> None:
         """Initialize TierAwareLLMGateway."""
         self._inner = inner
         self._tier_router = tier_router
@@ -459,9 +452,7 @@ class TierAwareLLMGateway:
                     thinking_budget=getattr(request, "thinking_budget", None),
                 )
             except Exception as _tier_exc:
-                _logger.warning(
-                    "TierAwareLLMGateway.stream: select_model failed: %s", _tier_exc
-                )
+                _logger.warning("TierAwareLLMGateway.stream: select_model failed: %s", _tier_exc)
 
         inner_stream = getattr(self._inner, "stream", None)
         if callable(inner_stream):

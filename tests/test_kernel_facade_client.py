@@ -5,15 +5,13 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
 from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -39,9 +37,11 @@ class FakeFacade:
         """Accept StartRunRequest DTO."""
         self._record("start_run", request)
         self._run_counter += 1
+
         # Return a response object with run_id attribute
-        class _Resp:  # noqa: N801
+        class _Resp:
             run_id = f"run-{self._run_counter:04d}"  # type: ignore[assignment]
+
         return _Resp()
 
     def open_stage(self, stage_id: str, run_id: str) -> None:
@@ -57,9 +57,7 @@ class FakeFacade:
         self._task_views[task_view_id] = content
         return task_view_id
 
-    def bind_task_view_to_decision(
-        self, task_view_id: str, decision_ref: str
-    ) -> None:
+    def bind_task_view_to_decision(self, task_view_id: str, decision_ref: str) -> None:
         self._record("bind_task_view_to_decision", task_view_id, decision_ref)
 
     def query_run(self, request: Any) -> dict[str, Any]:
@@ -80,9 +78,7 @@ class FakeFacade:
         """Accept SignalRunRequest DTO."""
         self._record("signal_run", request)
 
-    def open_branch(
-        self, run_id: str, stage_id: str, branch_id: str
-    ) -> None:
+    def open_branch(self, run_id: str, stage_id: str, branch_id: str) -> None:
         self._record("open_branch", run_id, stage_id, branch_id)
 
     def mark_branch_state(
@@ -93,9 +89,7 @@ class FakeFacade:
         state: str,
         failure_code: str | None = None,
     ) -> None:
-        self._record(
-            "mark_branch_state", run_id, stage_id, branch_id, state, failure_code
-        )
+        self._record("mark_branch_state", run_id, stage_id, branch_id, state, failure_code)
 
     def open_human_gate(self, request: HumanGateRequest) -> None:
         self._record("open_human_gate", request)
@@ -109,8 +103,14 @@ class FakeFacade:
 
     def query_run_postmortem(self, run_id: str) -> dict[str, Any]:
         self._record("query_run_postmortem", run_id)
-        return {"run_id": run_id, "total_action_count": 0, "failed_action_count": 0,
-                "failure_codes": [], "stage_timings": {}, "completed_at": None}
+        return {
+            "run_id": run_id,
+            "total_action_count": 0,
+            "failed_action_count": 0,
+            "failure_codes": [],
+            "stage_timings": {},
+            "completed_at": None,
+        }
 
     def query_trace_runtime(self, run_id: str) -> dict[str, Any]:
         self._record("query_trace_runtime", run_id)
@@ -125,7 +125,7 @@ class FakeFacade:
         parent_run_id = getattr(request, "parent_run_id", "unknown")
         self._record("spawn_child_run", request)
 
-        class _Resp:  # noqa: N801
+        class _Resp:
             child_run_id = f"child-run-of-{parent_run_id}"
 
         return _Resp()
@@ -174,15 +174,11 @@ class TestDirectMode:
         client.open_stage("run-1", "S1")
         assert facade.calls[-1] == ("open_stage", ("S1", "run-1"))
 
-    def test_mark_stage_state(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_mark_stage_state(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         client.mark_stage_state("run-1", "S1", StageState.ACTIVE)
         assert facade.calls[-1] == ("mark_stage_state", ("run-1", "S1", "active"))
 
-    def test_record_task_view(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_record_task_view(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         result = client.record_task_view("tv-1", {"key": "val"})
         assert result == "tv-1"
         assert facade.calls[-1] == (
@@ -199,33 +195,25 @@ class TestDirectMode:
             ("tv-1", "dec-1"),
         )
 
-    def test_query_run(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_query_run(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         result = client.query_run("run-0001")
         assert result == {"run_id": "run-0001", "status": "running"}
         req = facade.calls[-1][1][0]
         assert hasattr(req, "run_id") and req.run_id == "run-0001"
 
-    def test_cancel_run(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_cancel_run(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         client.cancel_run("run-0001", "budget")
         assert facade.calls[-1][0] == "cancel_run"
         req = facade.calls[-1][1][0]
         assert req.run_id == "run-0001" and req.reason == "budget"
 
-    def test_resume_run(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_resume_run(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         client.resume_run("run-0001")
         assert facade.calls[-1][0] == "resume_run"
         req = facade.calls[-1][1][0]
         assert req.run_id == "run-0001"
 
-    def test_signal_run(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_signal_run(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         client.signal_run("run-0001", "pause", {"info": "test"})
         assert facade.calls[-1][0] == "signal_run"
         req = facade.calls[-1][1][0]
@@ -233,18 +221,14 @@ class TestDirectMode:
         assert req.signal_type == "pause"
         assert req.signal_payload == {"info": "test"}
 
-    def test_open_branch(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_open_branch(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         client.open_branch("run-0001", "S1", "b-1")
         assert facade.calls[-1] == (
             "open_branch",
             ("run-0001", "S1", "b-1"),
         )
 
-    def test_mark_branch_state(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_mark_branch_state(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         client.mark_branch_state("run-0001", "S1", "b-1", "active")
         assert facade.calls[-1] == (
             "mark_branch_state",
@@ -262,9 +246,7 @@ class TestDirectMode:
             ("run-0001", "S1", "b-1", "failed", "exploration_budget_exhausted"),
         )
 
-    def test_open_human_gate(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_open_human_gate(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         req = HumanGateRequest(
             run_id="run-0001",
             gate_type="final_approval",
@@ -273,35 +255,25 @@ class TestDirectMode:
         client.open_human_gate(req)
         assert facade.calls[-1][0] == "open_human_gate"
 
-    def test_submit_approval(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_submit_approval(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         req = ApprovalRequest(gate_ref="gate-1", decision="approved")
         client.submit_approval(req)
         assert facade.calls[-1][0] == "submit_approval"
 
-    def test_get_manifest(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_get_manifest(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         result = client.get_manifest()
         assert result["name"] == "fake_facade"
 
-    def test_query_run_postmortem(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_query_run_postmortem(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         result = client.query_run_postmortem("run-0001")
         assert facade.calls[-1] == ("query_run_postmortem", ("run-0001",))
         assert result["run_id"] == "run-0001"
 
-    def test_query_trace_runtime(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_query_trace_runtime(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         result = client.query_trace_runtime("run-0001")
         assert result["run_id"] == "run-0001"
 
-    def test_stream_run_events(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_stream_run_events(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         events = []
 
         async def _collect():
@@ -312,12 +284,8 @@ class TestDirectMode:
         assert len(events) == 1
         assert events[0]["event_type"] == "RunStarted"
 
-    def test_spawn_child_run_async(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
-        child_run_id = asyncio.run(
-            client.spawn_child_run_async("run-0001", "task-child", None)
-        )
+    def test_spawn_child_run_async(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
+        child_run_id = asyncio.run(client.spawn_child_run_async("run-0001", "task-child", None))
         assert isinstance(child_run_id, str)
         assert "run-0001" in child_run_id
         assert facade.calls[-1][0] == "spawn_child_run"
@@ -326,9 +294,7 @@ class TestDirectMode:
         assert req.parent_run_id == "run-0001"
         assert req.child_kind == "delegate"
 
-    def test_query_child_runs_async(
-        self, client: KernelFacadeClient, facade: FakeFacade
-    ) -> None:
+    def test_query_child_runs_async(self, client: KernelFacadeClient, facade: FakeFacade) -> None:
         result = asyncio.run(client.query_child_runs_async("run-0001"))
         assert isinstance(result, list)
         assert facade.calls[-1] == ("query_child_runs", ("run-0001",))
@@ -361,9 +327,7 @@ class TestHTTPMode:
 
     @pytest.fixture()
     def client(self) -> KernelFacadeClient:
-        return KernelFacadeClient(
-            mode="http", base_url="http://localhost:9090", timeout_seconds=5
-        )
+        return KernelFacadeClient(mode="http", base_url="http://localhost:9090", timeout_seconds=5)
 
     @patch("urllib.request.urlopen")
     def test_start_run_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
@@ -380,9 +344,7 @@ class TestHTTPMode:
 
     @patch("urllib.request.urlopen")
     def test_query_run_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
-        mock_urlopen.return_value = _FakeHTTPResponse(
-            {"run_id": "r1", "status": "running"}
-        )
+        mock_urlopen.return_value = _FakeHTTPResponse({"run_id": "r1", "status": "running"})
         result = client.query_run("r1")
         assert result == {"run_id": "r1", "status": "running"}
         req = mock_urlopen.call_args[0][0]
@@ -423,9 +385,7 @@ class TestHTTPMode:
         assert req.method == "POST"
 
     @patch("urllib.request.urlopen")
-    def test_mark_stage_state_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_mark_stage_state_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({})
         client.mark_stage_state("r1", "S1", StageState.ACTIVE)
         req = mock_urlopen.call_args[0][0]
@@ -435,17 +395,13 @@ class TestHTTPMode:
         assert body["state"] == "active"
 
     @patch("urllib.request.urlopen")
-    def test_record_task_view_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_record_task_view_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({"task_view_id": "tv-1"})
         result = client.record_task_view("tv-1", {"data": True})
         assert result == "tv-1"
 
     @patch("urllib.request.urlopen")
-    def test_bind_task_view_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_bind_task_view_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({})
         client.bind_task_view_to_decision("tv-1", "dec-1")
         req = mock_urlopen.call_args[0][0]
@@ -455,9 +411,7 @@ class TestHTTPMode:
         assert body["decision_ref"] == "dec-1"
 
     @patch("urllib.request.urlopen")
-    def test_open_branch_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_open_branch_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({})
         client.open_branch("r1", "S1", "b-1")
         req = mock_urlopen.call_args[0][0]
@@ -468,9 +422,7 @@ class TestHTTPMode:
         assert body["branch_id"] == "b-1"
 
     @patch("urllib.request.urlopen")
-    def test_mark_branch_state_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_mark_branch_state_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({})
         client.mark_branch_state("r1", "S1", "b-1", "failed", "exploration_budget_exhausted")
         req = mock_urlopen.call_args[0][0]
@@ -479,13 +431,9 @@ class TestHTTPMode:
         assert body["failure_code"] == "exploration_budget_exhausted"
 
     @patch("urllib.request.urlopen")
-    def test_open_human_gate_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_open_human_gate_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({})
-        req = HumanGateRequest(
-            run_id="r1", gate_type="final_approval", gate_ref="g1"
-        )
+        req = HumanGateRequest(run_id="r1", gate_type="final_approval", gate_ref="g1")
         client.open_human_gate(req)
         http_req = mock_urlopen.call_args[0][0]
         body = json.loads(http_req.data.decode("utf-8"))
@@ -493,9 +441,7 @@ class TestHTTPMode:
         assert body["gate_ref"] == "g1"
 
     @patch("urllib.request.urlopen")
-    def test_submit_approval_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_submit_approval_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({})
         req = ApprovalRequest(gate_ref="g1", decision="approved")
         client.submit_approval(req)
@@ -505,27 +451,19 @@ class TestHTTPMode:
         assert body["decision"] == "approved"
 
     @patch("urllib.request.urlopen")
-    def test_get_manifest_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_get_manifest_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({"name": "kernel", "v": "1"})
         result = client.get_manifest()
         assert result["name"] == "kernel"
 
     @patch("urllib.request.urlopen")
-    def test_query_trace_runtime_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
-        mock_urlopen.return_value = _FakeHTTPResponse(
-            {"run_id": "r1", "stages": {}}
-        )
+    def test_query_trace_runtime_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
+        mock_urlopen.return_value = _FakeHTTPResponse({"run_id": "r1", "stages": {}})
         result = client.query_trace_runtime("r1")
         assert result["run_id"] == "r1"
 
     @patch("urllib.request.urlopen")
-    def test_stream_run_events_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_stream_run_events_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse(
             {"events": [{"type": "started"}, {"type": "completed"}]}
         )
@@ -549,22 +487,14 @@ class TestHTTPMode:
             client.start_run("task-fail")
 
     @patch("urllib.request.urlopen")
-    def test_spawn_child_run_async_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
+    def test_spawn_child_run_async_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse({"child_run_id": "child-http-1"})
-        child_run_id = asyncio.run(
-            client.spawn_child_run_async("r1", "task-child", None)
-        )
+        child_run_id = asyncio.run(client.spawn_child_run_async("r1", "task-child", None))
         assert isinstance(child_run_id, str)
 
     @patch("urllib.request.urlopen")
-    def test_query_child_runs_async_http(
-        self, mock_urlopen, client: KernelFacadeClient
-    ) -> None:
-        mock_urlopen.return_value = _FakeHTTPResponse(
-            {"children": [{"child_run_id": "c1"}]}
-        )
+    def test_query_child_runs_async_http(self, mock_urlopen, client: KernelFacadeClient) -> None:
+        mock_urlopen.return_value = _FakeHTTPResponse({"children": [{"child_run_id": "c1"}]})
         result = asyncio.run(client.query_child_runs_async("r1"))
         assert isinstance(result, list)
 
@@ -583,13 +513,15 @@ class TestModeValidation:
 
     def test_direct_mode_without_facade_and_no_kernel_raises(self) -> None:
         """When agent-kernel is not importable and no facade given, ImportError."""
-        with patch.object(
-            KernelFacadeClient,
-            "_try_import_facade",
-            return_value=None,
+        with (
+            patch.object(
+                KernelFacadeClient,
+                "_try_import_facade",
+                return_value=None,
+            ),
+            pytest.raises(ImportError, match="agent-kernel is not importable"),
         ):
-            with pytest.raises(ImportError, match="agent-kernel is not importable"):
-                KernelFacadeClient(mode="direct")
+            KernelFacadeClient(mode="direct")
 
     def test_direct_mode_with_explicit_facade(self) -> None:
         facade = FakeFacade()
@@ -635,5 +567,3 @@ class TestBuilderIntegration:
         assert isinstance(inner, KernelFacadeClient)
         assert inner._mode == "http"
         assert inner._base_url == "http://kernel:9090"
-
-

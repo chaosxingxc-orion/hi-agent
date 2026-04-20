@@ -91,9 +91,7 @@ class ReflectionBridge:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _extract_failure_details(
-        self, attempts: list[TaskAttempt]
-    ) -> list[dict[str, Any]]:
+    def _extract_failure_details(self, attempts: list[TaskAttempt]) -> list[dict[str, Any]]:
         """Run _extract_failure_details."""
         details: list[dict[str, Any]] = []
         for a in attempts:
@@ -120,17 +118,12 @@ class ReflectionBridge:
         """Run _summarize_failures."""
         if not details:
             return "No attempts recorded."
-        codes = [
-            d.get("failure_code", "unknown")
-            for d in details
-            if d.get("outcome") == "failed"
-        ]
+        codes = [d.get("failure_code", "unknown") for d in details if d.get("outcome") == "failed"]
         if not codes:
             return f"{len(details)} attempt(s) made, outcomes unclear."
         unique_codes = list(dict.fromkeys(codes))
         return (
-            f"{len(details)} attempt(s) failed. "
-            f"Failure codes observed: {', '.join(unique_codes)}."
+            f"{len(details)} attempt(s) failed. Failure codes observed: {', '.join(unique_codes)}."
         )
 
     def _suggest_actions(

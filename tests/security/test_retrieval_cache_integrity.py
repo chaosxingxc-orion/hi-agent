@@ -5,16 +5,14 @@ Ensures that:
 - Tampered, stale-fingerprint, and wrong-schema caches trigger a rebuild.
 - No pickle usage remains in retrieval_engine.py.
 """
+
 from __future__ import annotations
 
 import json
 import pathlib
 
-import pytest
-
 from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -62,7 +60,8 @@ def _cache_path(tmp_path: pathlib.Path) -> pathlib.Path:
 class TestJsonCacheLoadsCorrectly:
     def test_json_cache_loads_correctly(self, tmp_path):
         """Build an index, save it, create a fresh engine that loads from JSON,
-        and verify retrieve() returns results."""
+        and verify retrieve() returns results.
+        """
         storage = str(tmp_path / "knowledge")
         engine = RetrievalEngine(wiki=_make_wiki(), storage_dir=storage)
         engine.build_index()
@@ -81,7 +80,7 @@ class TestJsonCacheLoadsCorrectly:
         assert len(result.items) >= 1
 
     def test_json_cache_schema_version_present(self, tmp_path):
-        engine = _build_engine(tmp_path)
+        _build_engine(tmp_path)
         data = json.loads(_cache_path(tmp_path).read_text(encoding="utf-8"))
         assert data["schema_version"] == RetrievalEngine._CACHE_SCHEMA_VERSION
         assert "fingerprint" in data
@@ -134,10 +133,7 @@ class TestWrongSchemaVersionTriggersRebuild:
 class TestNoPickleInModule:
     def test_no_pickle_in_module(self):
         """retrieval_engine.py must contain no pickle references."""
-        source = pathlib.Path(
-            "hi_agent/knowledge/retrieval_engine.py"
-        ).read_text(encoding="utf-8")
+        source = pathlib.Path("hi_agent/knowledge/retrieval_engine.py").read_text(encoding="utf-8")
         assert "pickle" not in source, (
-            "Found 'pickle' in hi_agent/knowledge/retrieval_engine.py — "
-            "remove all pickle usage"
+            "Found 'pickle' in hi_agent/knowledge/retrieval_engine.py — remove all pickle usage"
         )

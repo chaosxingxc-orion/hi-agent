@@ -43,6 +43,4 @@ class GateEvent:
     phase_name: str = ""
     recommendation: str = ""
     output_summary: str = ""
-    opened_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    opened_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())

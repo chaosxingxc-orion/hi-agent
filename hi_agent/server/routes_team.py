@@ -1,6 +1,8 @@
 import json
+
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+
 from hi_agent.server.tenant_context import require_tenant_context
 
 
@@ -23,15 +25,19 @@ async def handle_list_team_events(request: Request) -> JSONResponse:
         except (json.JSONDecodeError, ValueError):
             return {}
 
-    return JSONResponse({"events": [
+    return JSONResponse(
         {
-            "event_id": e.event_id,
-            "event_type": e.event_type,
-            "payload": _safe_payload(e.payload_json),
-            "source_run_id": e.source_run_id,
-            "source_user_id": e.source_user_id,
-            "created_at": e.created_at,
-            "schema_version": e.schema_version,
+            "events": [
+                {
+                    "event_id": e.event_id,
+                    "event_type": e.event_type,
+                    "payload": _safe_payload(e.payload_json),
+                    "source_run_id": e.source_run_id,
+                    "source_user_id": e.source_user_id,
+                    "created_at": e.created_at,
+                    "schema_version": e.schema_version,
+                }
+                for e in events
+            ]
         }
-        for e in events
-    ]})
+    )

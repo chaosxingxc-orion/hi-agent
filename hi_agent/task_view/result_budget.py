@@ -1,5 +1,4 @@
-"""
-Tool Result Budget Control for hi-agent.
+"""Tool Result Budget Control for hi-agent.
 
 Prevents large tool results from exploding the context window.
 Results exceeding the per-result token limit are replaced with
@@ -13,9 +12,8 @@ from __future__ import annotations
 
 import copy
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -246,9 +244,7 @@ class ToolResultBudget:
                     for block in content:
                         if isinstance(block, dict) and block.get("type") == "text":
                             new_block = dict(block)
-                            new_block["text"] = self.process(
-                                tool_name, block.get("text", "")
-                            )
+                            new_block["text"] = self.process(tool_name, block.get("text", ""))
                             processed_blocks.append(new_block)
                         else:
                             processed_blocks.append(block)

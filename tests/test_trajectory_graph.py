@@ -1,25 +1,24 @@
 """Tests for TrajectoryGraph and GraphExecutor."""
+
 from __future__ import annotations
 
 import pytest
-
-from hi_agent.trajectory.graph import (
-    EdgeType,
-    NodeState,
-    TrajEdge,
-    TrajNode,
-    TrajectoryGraph,
-)
 from hi_agent.trajectory.execution import (
-    ExecutionResult,
     GraphExecutor,
     StepResult,
 )
-
+from hi_agent.trajectory.graph import (
+    EdgeType,
+    NodeState,
+    TrajectoryGraph,
+    TrajEdge,
+    TrajNode,
+)
 
 # ======================================================================
 # Graph construction
 # ======================================================================
+
 
 class TestNodeCRUD:
     def test_add_get_node(self):
@@ -122,7 +121,10 @@ class TestEdgeCRUD:
         g = TrajectoryGraph()
         g.add_node(TrajNode(node_id="A"))
         g.add_node(TrajNode(node_id="B"))
-        cond = lambda state: True
+
+        def cond(state):
+            return True
+
         g.add_conditional("A", "B", cond, desc="always")
         edge = g.get_outgoing("A")[0]
         assert edge.edge_type == EdgeType.CONDITIONAL
@@ -170,6 +172,7 @@ class TestEntryTerminal:
 # Degenerate cases
 # ======================================================================
 
+
 class TestDegenerateCases:
     def test_as_chain(self):
         g = TrajectoryGraph.as_chain(["A", "B", "C"])
@@ -180,16 +183,12 @@ class TestDegenerateCases:
         assert g.terminal_nodes == ["C"]
 
     def test_as_chain_with_payloads(self):
-        g = TrajectoryGraph.as_chain(
-            ["A", "B"], payloads={"A": {"info": "first"}}
-        )
+        g = TrajectoryGraph.as_chain(["A", "B"], payloads={"A": {"info": "first"}})
         assert g.get_node("A").payload == {"info": "first"}
         assert g.get_node("B").payload == {}
 
     def test_as_tree(self):
-        g = TrajectoryGraph.as_tree(
-            "root", {"root": ["A", "B"], "A": ["C", "D"]}
-        )
+        g = TrajectoryGraph.as_tree("root", {"root": ["A", "B"], "A": ["C", "D"]})
         assert g.node_count == 5
         assert g.entry_nodes == ["root"]
         assert set(g.terminal_nodes) == {"B", "C", "D"}
@@ -209,6 +208,7 @@ class TestDegenerateCases:
 # ======================================================================
 # Dynamic modification
 # ======================================================================
+
 
 class TestDynamicModification:
     def test_add_node_during_execution(self):
@@ -241,6 +241,7 @@ class TestDynamicModification:
 # ======================================================================
 # Query
 # ======================================================================
+
 
 class TestQuery:
     def test_get_ready_nodes_respects_dependencies(self):
@@ -314,8 +315,8 @@ class TestQuery:
         g = TrajectoryGraph.as_chain(["A", "B", "C", "D"])
         sub = g.get_subgraph(["B"], depth=1)
         assert sub.node_count == 2  # B and C
-        assert "B" in [n for n in sub._nodes]
-        assert "C" in [n for n in sub._nodes]
+        assert "B" in list(sub._nodes)
+        assert "C" in list(sub._nodes)
 
     def test_get_subgraph_unlimited_depth(self):
         g = TrajectoryGraph.as_chain(["A", "B", "C", "D"])
@@ -326,6 +327,7 @@ class TestQuery:
 # ======================================================================
 # Conditional edges
 # ======================================================================
+
 
 class TestConditionalEdges:
     def test_evaluate_branches(self):
@@ -362,6 +364,7 @@ class TestConditionalEdges:
 # Backtrack edges
 # ======================================================================
 
+
 class TestBacktrackEdges:
     def test_backtrack_resets_node_to_pending(self):
         g = TrajectoryGraph.as_chain(["A", "B"])
@@ -372,7 +375,7 @@ class TestBacktrackEdges:
         g.update_node_state("B", NodeState.FAILED)
         # step() should trigger backtrack.
         # Manually call step-like logic.
-        state = g._build_graph_state()
+        g._build_graph_state()
         for e in g.get_outgoing("B"):
             if e.edge_type == EdgeType.BACKTRACK:
                 target = g.get_node(e.target)
@@ -405,6 +408,7 @@ class TestBacktrackEdges:
 # Execution
 # ======================================================================
 
+
 class TestExecution:
     def test_step_processes_ready_nodes(self):
         g = TrajectoryGraph.as_chain(["A", "B", "C"])
@@ -433,17 +437,21 @@ class TestExecution:
     def test_step_with_execute_fn(self):
         g = TrajectoryGraph.as_chain(["A", "B"])
         results = []
+
         def execute(node):
             results.append(node.node_id)
             return f"done_{node.node_id}"
+
         g.step(execute_fn=execute)
         assert results == ["A"]
         assert g.get_node("A").result == "done_A"
 
     def test_step_handles_failure(self):
         g = TrajectoryGraph.as_chain(["A", "B"])
+
         def fail_fn(node):
             raise RuntimeError("boom")
+
         g.step(execute_fn=fail_fn)
         assert g.get_node("A").state == NodeState.FAILED
         assert "boom" in g.get_node("A").failure_reason
@@ -451,9 +459,11 @@ class TestExecution:
     def test_run_to_completion_with_fn(self):
         g = TrajectoryGraph.as_chain(["A", "B", "C"])
         call_order = []
+
         def execute(node):
             call_order.append(node.node_id)
             return "ok"
+
         result = g.run_to_completion(execute_fn=execute)
         assert result is True
         assert call_order == ["A", "B", "C"]
@@ -471,9 +481,11 @@ class TestGraphExecutor:
     def test_executor_with_execute_fn(self):
         g = TrajectoryGraph.as_chain(["A", "B"])
         calls = []
+
         def fn(node):
             calls.append(node.node_id)
             return 42
+
         executor = GraphExecutor(g, execute_fn=fn)
         result = executor.run()
         assert result.success is True
@@ -485,11 +497,13 @@ class TestGraphExecutor:
         g.add_node(TrajNode(node_id="B"))
         g.add_sequence("A", "B")
         fail_count = [0]
+
         def fn(node):
             if node.node_id == "A" and fail_count[0] < 2:
                 fail_count[0] += 1
                 raise RuntimeError("fail")
             return "ok"
+
         executor = GraphExecutor(g, execute_fn=fn)
         result = executor.run()
         assert result.success is True
@@ -508,10 +522,12 @@ class TestGraphExecutor:
         g = TrajectoryGraph.as_chain(["A", "B", "C"])
         # Set max_retries=0 so first failure is permanent.
         g.get_node("A").max_retries = 0
+
         def fn(node):
             if node.node_id == "A":
                 raise RuntimeError("permanent")
             return "ok"
+
         executor = GraphExecutor(g, execute_fn=fn)
         result = executor.run()
         assert result.success is False
@@ -523,6 +539,7 @@ class TestGraphExecutor:
 # ======================================================================
 # Serialization
 # ======================================================================
+
 
 class TestSerialization:
     def test_to_mermaid(self):
@@ -587,20 +604,27 @@ class TestSerialization:
         assert g.node_count == 3
         assert g.edge_count == 2
         assert g.get_node("research").payload == {"desc": "research topic"}
-        assert g.topological_sort() == ["research", "review", "write"] or \
-               g.topological_sort() == ["research", "write", "review"]
+        assert g.topological_sort() == ["research", "review", "write"] or g.topological_sort() == [
+            "research",
+            "write",
+            "review",
+        ]
 
 
 # ======================================================================
 # Integration — replaces StageGraph and TaskDAG
 # ======================================================================
 
+
 class TestIntegration:
     def test_replaces_stage_graph_s1_to_s5(self):
         """TrajectoryGraph.as_chain can model the default TRACE stage graph."""
         stages = [
-            "S1_understand", "S2_gather", "S3_build",
-            "S4_synthesize", "S5_review",
+            "S1_understand",
+            "S2_gather",
+            "S3_build",
+            "S4_synthesize",
+            "S5_review",
         ]
         g = TrajectoryGraph.as_chain(stages, graph_id="trace_stages")
         assert g.entry_nodes == ["S1_understand"]
@@ -617,8 +641,7 @@ class TestIntegration:
         # Simulate: main splits into sub1, sub2 (parallel), then merge.
         g = TrajectoryGraph.as_dag(
             ["main", "sub1", "sub2", "merge"],
-            [("main", "sub1"), ("main", "sub2"),
-             ("sub1", "merge"), ("sub2", "merge")],
+            [("main", "sub1"), ("main", "sub2"), ("sub1", "merge"), ("sub2", "merge")],
             graph_id="decomposition",
         )
         assert g.entry_nodes == ["main"]
@@ -629,9 +652,11 @@ class TestIntegration:
         assert groups[2] == ["merge"]
         # Execute with function.
         results = {}
+
         def execute(node):
             results[node.node_id] = "done"
             return "done"
+
         completed = g.run_to_completion(execute_fn=execute)
         assert completed is True
         assert len(results) == 4

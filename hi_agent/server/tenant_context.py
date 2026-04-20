@@ -32,6 +32,7 @@ class TenantContext:
     def workspace_key(self):
         """Return a WorkspaceKey for this context."""
         from hi_agent.server.workspace_path import WorkspaceKey
+
         if not self.session_id:
             raise ValueError(
                 "session_id is required to build a WorkspaceKey. "
@@ -46,9 +47,7 @@ class TenantContext:
 
 
 # ContextVar — one slot per async task / thread context.
-_tenant_context_var: ContextVar[TenantContext | None] = ContextVar(
-    "tenant_context", default=None
-)
+_tenant_context_var: ContextVar[TenantContext | None] = ContextVar("tenant_context", default=None)
 
 
 def get_tenant_context() -> TenantContext | None:

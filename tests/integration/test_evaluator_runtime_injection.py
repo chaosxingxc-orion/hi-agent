@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.evaluation.contracts import (
     DefaultEvaluator,
-    EvaluationContext,
     EvaluationResult,
-    Evaluator,
 )
 from hi_agent.evaluation.runtime import EvaluatorRuntime
 from hi_agent.middleware.evaluation import EvaluationMiddleware
@@ -76,6 +72,7 @@ class TestEvaluationMiddlewareWithEvaluator:
 
     def test_injected_evaluator_is_used(self):
         """When an evaluator is injected, its score is used."""
+
         class HighScoreEval:
             def evaluate(self, context, output):
                 return EvaluationResult(score=1.0, passed=True)
@@ -92,6 +89,7 @@ class TestEvaluationMiddlewareWithEvaluator:
 
     def test_injected_low_score_evaluator_triggers_retry(self):
         """Low-scoring injected evaluator triggers retry verdict."""
+
         class LowScoreEval:
             def evaluate(self, context, output):
                 return EvaluationResult(score=0.1, passed=False)
@@ -109,6 +107,7 @@ class TestEvaluationMiddlewareWithEvaluator:
 
     def test_evaluator_fallback_on_failure(self):
         """If evaluator raises, falls back to heuristic scoring."""
+
         class BrokenEval:
             def evaluate(self, context, output):
                 raise RuntimeError("eval broken")
@@ -125,9 +124,11 @@ class TestEvaluationMiddlewareWithEvaluator:
 
     def test_evaluator_id_recorded_when_evaluator_used(self):
         """evaluator_id in result matches the evaluator class name."""
+
         class MyEval:
             def evaluate(self, context, output):
                 from hi_agent.evaluation.contracts import EvaluationResult
+
                 return EvaluationResult(score=0.9, passed=True)
 
         mw = EvaluationMiddleware(quality_threshold=0.5, evaluator=MyEval())
@@ -139,6 +140,7 @@ class TestEvaluationMiddlewareWithEvaluator:
 
     def test_fallback_reason_recorded_on_evaluator_failure(self):
         """When evaluator raises, fallback_reason records the exception."""
+
         class BrokenEval:
             def evaluate(self, context, output):
                 raise RuntimeError("eval broke")

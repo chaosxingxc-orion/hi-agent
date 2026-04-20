@@ -142,17 +142,17 @@ class RunResult:
         """Backward-compatible success flag used by async/integration callers."""
         return self.status == "completed"
 
-    def __str__(self) -> str:  # noqa: D105
+    def __str__(self) -> str:
         return self.status
 
-    def __eq__(self, other: object) -> bool:  # noqa: D105
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, str):
             return self.status == other
         if isinstance(other, RunResult):
             return self.status == other.status and self.run_id == other.run_id
         return NotImplemented
 
-    def __hash__(self) -> int:  # noqa: D105
+    def __hash__(self) -> int:
         # Hash matches the status string so `result in {"completed", "failed"}` works.
         return hash(self.status)
 
@@ -168,5 +168,7 @@ class RunResult:
             "failure_code": self.failure_code,
             "failed_stage_id": self.failed_stage_id,
             "is_retryable": self.is_retryable,
-            "execution_provenance": self.execution_provenance.to_dict() if self.execution_provenance else None,
+            "execution_provenance": self.execution_provenance.to_dict()
+            if self.execution_provenance
+            else None,
         }

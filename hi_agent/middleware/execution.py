@@ -4,6 +4,7 @@ Receives ExecutionPlan from Control, walks each node in topological order,
 loads per-node resources (skill, memory, knowledge, tools), executes with
 a minimal context window, records evidence, and emits ExecutionResult per node.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -33,9 +34,7 @@ class ExecutionMiddleware:
     ) -> None:
         """Initialize ExecutionMiddleware."""
         if strict and capability_invoker is None:
-            raise RuntimeError(
-                "ExecutionMiddleware requires capability_invoker in strict mode"
-            )
+            raise RuntimeError("ExecutionMiddleware requires capability_invoker in strict mode")
         self._capability_invoker = capability_invoker
         self._harness_executor = harness_executor
         self._retrieval_engine = retrieval_engine
@@ -157,7 +156,9 @@ class ExecutionMiddleware:
         return loaded
 
     def _execute_node(
-        self, node_payload: dict[str, Any], resources: dict[str, Any],
+        self,
+        node_payload: dict[str, Any],
+        resources: dict[str, Any],
     ) -> ExecutionResult:
         """Execute a single node with minimal context."""
         node_id = node_payload.get("node_id", "node")
@@ -171,15 +172,14 @@ class ExecutionMiddleware:
         if self._capability_invoker is not None:
             try:
                 if hasattr(self._capability_invoker, "invoke"):
-                    result = self._capability_invoker.invoke(
-                        node_payload, resources
-                    )
+                    result = self._capability_invoker.invoke(node_payload, resources)
                     # Extract real token count from the invoke result when available;
                     # fall back to a conservative estimate only when unavailable.
                     tokens = (
                         getattr(result, "tokens_used", None)
-                        or getattr(result, "usage", {}).get("total_tokens") if hasattr(result, "__getitem__") or hasattr(result, "get") else None
-                        or 50
+                        or getattr(result, "usage", {}).get("total_tokens")
+                        if hasattr(result, "__getitem__") or hasattr(result, "get")
+                        else 50
                     )
                     return ExecutionResult(
                         node_id=node_id,
@@ -235,7 +235,9 @@ class ExecutionMiddleware:
         )
 
     def _make_idempotency_key(
-        self, node_id: str, context: dict[str, Any],
+        self,
+        node_id: str,
+        context: dict[str, Any],
     ) -> str:
         """Generate a deterministic key for idempotency."""
         # Use a stable serialization for hashing

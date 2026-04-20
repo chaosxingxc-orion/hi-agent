@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from agent_kernel.kernel.branch_monitor import BranchHeartbeat, BranchMonitor
 from agent_kernel.kernel.contracts import ScriptFailureEvidence
 

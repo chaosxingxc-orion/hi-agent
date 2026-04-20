@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from hi_agent.contracts import StageState, TaskContract
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -164,11 +165,7 @@ class TestBranchFailure:
 
         assert result == "failed"
 
-        s1_branches = [
-            (k, v)
-            for k, v in kernel.branches.items()
-            if k[1] == "S1_understand"
-        ]
+        s1_branches = [(k, v) for k, v in kernel.branches.items() if k[1] == "S1_understand"]
         assert len(s1_branches) == 1
         _, branch_data = s1_branches[0]
         assert branch_data["state"] == "failed"
@@ -184,11 +181,7 @@ class TestBranchFailure:
 
         executor.execute()
 
-        branch_failed = [
-            e
-            for e in executor.event_emitter.events
-            if e.event_type == "BranchFailed"
-        ]
+        branch_failed = [e for e in executor.event_emitter.events if e.event_type == "BranchFailed"]
         assert len(branch_failed) >= 1
 
 
@@ -227,11 +220,7 @@ class TestTaskViewBinding:
 
         executor.execute()
 
-        tv_events = [
-            e
-            for e in executor.event_emitter.events
-            if e.event_type == "TaskViewRecorded"
-        ]
+        tv_events = [e for e in executor.event_emitter.events if e.event_type == "TaskViewRecorded"]
         assert len(tv_events) == 5
         for ev in tv_events:
             assert "decision_ref" in ev.payload
@@ -272,17 +261,11 @@ class TestFullS1ToS5WithBranches:
 
         assert event_types[0] == "RunStarted"
 
-        stage_opened_indices = [
-            i for i, t in enumerate(event_types) if t == "StageOpened"
-        ]
-        branch_opened_indices = [
-            i for i, t in enumerate(event_types) if t == "BranchOpened"
-        ]
+        stage_opened_indices = [i for i, t in enumerate(event_types) if t == "StageOpened"]
+        branch_opened_indices = [i for i, t in enumerate(event_types) if t == "BranchOpened"]
         assert len(stage_opened_indices) == 5
         assert len(branch_opened_indices) == 5
-        for s_idx, b_idx in zip(
-            stage_opened_indices, branch_opened_indices, strict=True
-        ):
+        for s_idx, b_idx in zip(stage_opened_indices, branch_opened_indices, strict=True):
             assert s_idx < b_idx
 
 
@@ -297,22 +280,16 @@ class TestMultipleBranchesPerStage:
         class TwoBranchEngine:
             """Route engine producing two branches per stage."""
 
-            def propose(
-                self, stage_id: str, run_id: str, seq: int
-            ) -> list[BranchProposal]:
+            def propose(self, stage_id: str, run_id: str, seq: int) -> list[BranchProposal]:
                 """Return two branch proposals."""
                 return [
                     BranchProposal(
-                        branch_id=deterministic_id(
-                            run_id, stage_id, str(seq), "a"
-                        ),
+                        branch_id=deterministic_id(run_id, stage_id, str(seq), "a"),
                         rationale=f"branch-a for {stage_id}",
                         action_kind="analyze_goal",
                     ),
                     BranchProposal(
-                        branch_id=deterministic_id(
-                            run_id, stage_id, str(seq), "b"
-                        ),
+                        branch_id=deterministic_id(run_id, stage_id, str(seq), "b"),
                         rationale=f"branch-b for {stage_id}",
                         action_kind="analyze_goal",
                     ),
@@ -320,9 +297,7 @@ class TestMultipleBranchesPerStage:
 
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(
-            contract, kernel, route_engine=TwoBranchEngine()
-        )
+        executor = RunExecutor(contract, kernel, route_engine=TwoBranchEngine())
 
         result = executor.execute()
 

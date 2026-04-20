@@ -9,14 +9,11 @@ Each test is self-contained with proper setup/teardown.
 
 from __future__ import annotations
 
-import json
-import threading
 import time
 from pathlib import Path
 from typing import Any
 
 import pytest
-
 from hi_agent.contracts import (
     CTSExplorationBudget,
     StageState,
@@ -29,7 +26,6 @@ from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.evolve.skill_extractor import SkillCandidate
 from hi_agent.failures.collector import FailureCollector
-from hi_agent.failures.taxonomy import FailureCode, FailureRecord
 from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.harness.contracts import (
     ActionSpec,
@@ -45,13 +41,12 @@ from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
 from hi_agent.runner import STAGES, RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.server.app import AgentServer
-from hi_agent.server.run_manager import RunManager
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry
 from hi_agent.state_machine.definitions import run_state_machine
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Test 1: Full TRACE pipeline with ALL subsystems
@@ -144,7 +139,7 @@ class TestFullTracePipelineAllSubsystems:
 
         # 7. All branches succeeded
         assert len(kernel.branches) > 0
-        for key, branch in kernel.branches.items():
+        for _key, branch in kernel.branches.items():
             assert branch["state"] == "succeeded"
 
         # 8. Task views recorded
@@ -203,10 +198,7 @@ class TestFullPipelineWithFailuresAndRecovery:
         assert watchdog.consecutive_failures >= 1
 
         # Recovery was triggered (RecoveryTriggered event)
-        recovery_events = [
-            e for e in event_emitter.events
-            if e.event_type == "RecoveryTriggered"
-        ]
+        recovery_events = [e for e in event_emitter.events if e.event_type == "RecoveryTriggered"]
         assert len(recovery_events) > 0
 
     def test_pipeline_with_retries_succeeds(self) -> None:
@@ -639,10 +631,7 @@ class TestPolicyVersionPinning:
         assert result == "completed"
 
         # Find RunStarted event
-        run_started_events = [
-            e for e in event_emitter.events
-            if e.event_type == "RunStarted"
-        ]
+        run_started_events = [e for e in event_emitter.events if e.event_type == "RunStarted"]
         assert len(run_started_events) == 1
 
         payload = run_started_events[0].payload
@@ -680,7 +669,7 @@ class TestPolicyVersionPinning:
 
         # Task views should contain policy_versions
         assert len(kernel.task_views) > 0
-        for tv_id, tv_content in kernel.task_views.items():
+        for _tv_id, tv_content in kernel.task_views.items():
             pv = tv_content.get("policy_versions", {})
             assert pv.get("route_policy") == "route_pinned"
             assert pv.get("acceptance_policy") == "accept_pinned"
@@ -719,7 +708,8 @@ class TestHarnessGovernanceBlocksUnapproved:
 
     def test_governance_allows_after_approval(self) -> None:
         """After approval, governance allows the action (dispatch may still fail
-        if no invoker, but governance does not block)."""
+        if no invoker, but governance does not block).
+        """
         governance = GovernanceEngine()
         harness = HarnessExecutor(governance=governance)
 
@@ -802,16 +792,13 @@ class TestBudgetEnforcement:
             failure_collector=failure_collector,
         )
 
-        result = executor.execute()
+        executor.execute()
 
         # Action seq should be capped near the budget
         assert executor.action_seq <= 3
 
         # BudgetExhausted event should have been emitted
-        budget_events = [
-            e for e in event_emitter.events
-            if e.event_type == "BudgetExhausted"
-        ]
+        budget_events = [e for e in event_emitter.events if e.event_type == "BudgetExhausted"]
         assert len(budget_events) >= 1
 
     def test_budget_one_action_limit(self) -> None:
@@ -834,10 +821,7 @@ class TestBudgetEnforcement:
 
         executor.execute()
 
-        budget_events = [
-            e for e in event_emitter.events
-            if e.event_type == "BudgetExhausted"
-        ]
+        budget_events = [e for e in event_emitter.events if e.event_type == "BudgetExhausted"]
         assert len(budget_events) >= 1
 
     def test_cts_total_branch_limit(self) -> None:
@@ -904,6 +888,7 @@ class TestHTTPAPIRoundTrip:
                 )
                 runner = RunExecutor(contract, kernel)
                 return runner.execute()
+
             return _run
 
         server.executor_factory = executor_factory
@@ -912,7 +897,11 @@ class TestHTTPAPIRoundTrip:
             # POST /runs -- create a new run
             resp = client.post(
                 "/runs",
-                json={"task_id": "http-e2e-001", "goal": "HTTP round-trip test", "task_family": "quick_task"},
+                json={
+                    "task_id": "http-e2e-001",
+                    "goal": "HTTP round-trip test",
+                    "task_family": "quick_task",
+                },
             )
             assert resp.status_code == 201
             run_id = resp.json()["run_id"]

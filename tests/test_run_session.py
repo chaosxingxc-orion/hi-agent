@@ -4,22 +4,19 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 from dataclasses import dataclass
 
 import pytest
-
+from hi_agent.session.cost_tracker import CostCalculator, ModelPricing
 from hi_agent.session.run_session import (
-    CompactBoundary,
     LLMCallRecord,
     RunSession,
 )
-from hi_agent.session.cost_tracker import CostCalculator, ModelPricing
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class _FakeContract:
@@ -59,6 +56,7 @@ def _make_llm_call(
 # RunSession creation and state initialization
 # ---------------------------------------------------------------------------
 
+
 class TestRunSessionCreation:
     def test_initial_state(self) -> None:
         s = _make_session()
@@ -82,6 +80,7 @@ class TestRunSessionCreation:
 # L0 append_record — in-memory and JSONL persistence
 # ---------------------------------------------------------------------------
 
+
 class TestAppendRecord:
     def test_append_stores_in_memory(self) -> None:
         s = _make_session()
@@ -103,7 +102,7 @@ class TestAppendRecord:
         jsonl_path = os.path.join(storage, "l0_run-abc.jsonl")
         assert os.path.exists(jsonl_path)
         with open(jsonl_path) as f:
-            lines = [l.strip() for l in f if l.strip()]
+            lines = [line.strip() for line in f if line.strip()]
         assert len(lines) == 2
         assert json.loads(lines[0])["payload"] == {"x": 1}
 
@@ -117,6 +116,7 @@ class TestAppendRecord:
 # ---------------------------------------------------------------------------
 # get_records_after_boundary
 # ---------------------------------------------------------------------------
+
 
 class TestRecordsAfterBoundary:
     def test_no_boundary_returns_all(self) -> None:
@@ -139,6 +139,7 @@ class TestRecordsAfterBoundary:
 # ---------------------------------------------------------------------------
 # mark_compact_boundary
 # ---------------------------------------------------------------------------
+
 
 class TestCompactBoundary:
     def test_mark_and_retrieve(self) -> None:
@@ -166,6 +167,7 @@ class TestCompactBoundary:
 # L1 stage summaries
 # ---------------------------------------------------------------------------
 
+
 class TestStageSummaries:
     def test_set_and_get(self) -> None:
         s = _make_session()
@@ -181,11 +183,14 @@ class TestStageSummaries:
 # LLM call tracking
 # ---------------------------------------------------------------------------
 
+
 class TestLLMCallTracking:
     def test_record_accumulates_costs(self) -> None:
         s = _make_session()
         s.record_llm_call(_make_llm_call(cost_usd=0.05, input_tokens=1000, output_tokens=500))
-        s.record_llm_call(_make_llm_call(call_id="c2", cost_usd=0.03, input_tokens=800, output_tokens=200))
+        s.record_llm_call(
+            _make_llm_call(call_id="c2", cost_usd=0.03, input_tokens=800, output_tokens=200)
+        )
         assert len(s.llm_calls) == 2
         assert s.total_cost_usd == pytest.approx(0.08)
         assert s.total_input_tokens == 1800
@@ -194,8 +199,12 @@ class TestLLMCallTracking:
     def test_get_cost_summary(self) -> None:
         s = _make_session()
         s.record_llm_call(_make_llm_call(stage_id="S1", purpose="routing", cost_usd=0.01))
-        s.record_llm_call(_make_llm_call(call_id="c2", stage_id="S2", purpose="action", cost_usd=0.02))
-        s.record_llm_call(_make_llm_call(call_id="c3", stage_id="S1", purpose="action", cost_usd=0.03))
+        s.record_llm_call(
+            _make_llm_call(call_id="c2", stage_id="S2", purpose="action", cost_usd=0.02)
+        )
+        s.record_llm_call(
+            _make_llm_call(call_id="c3", stage_id="S1", purpose="action", cost_usd=0.03)
+        )
         summary = s.get_cost_summary()
         assert summary["total_llm_calls"] == 3
         assert summary["total_cost_usd"] == pytest.approx(0.06)
@@ -208,6 +217,7 @@ class TestLLMCallTracking:
 # ---------------------------------------------------------------------------
 # Event tracking
 # ---------------------------------------------------------------------------
+
 
 class TestEventTracking:
     def test_emit_event_stores(self) -> None:
@@ -223,6 +233,7 @@ class TestEventTracking:
 # ---------------------------------------------------------------------------
 # Checkpoint round-trip (in-memory)
 # ---------------------------------------------------------------------------
+
 
 class TestCheckpointRoundTrip:
     def test_to_and_from_checkpoint(self) -> None:
@@ -258,6 +269,7 @@ class TestCheckpointRoundTrip:
 # Checkpoint file round-trip
 # ---------------------------------------------------------------------------
 
+
 class TestCheckpointFilePersistence:
     def test_save_and_load(self, tmp_path) -> None:
         s = _make_session()
@@ -280,6 +292,7 @@ class TestCheckpointFilePersistence:
 # ---------------------------------------------------------------------------
 # load_l0_from_disk
 # ---------------------------------------------------------------------------
+
 
 class TestLoadL0FromDisk:
     def test_restore_records(self, tmp_path) -> None:
@@ -306,12 +319,13 @@ class TestLoadL0FromDisk:
 # build_context_for_llm
 # ---------------------------------------------------------------------------
 
+
 class TestBuildContextForLLM:
     def test_respects_budget(self) -> None:
         s = _make_session()
         s.current_stage = "S1"
         # Add many records
-        for i in range(200):
+        for _i in range(200):
             s.append_record("obs", {"data": "x" * 100})
 
         ctx = s.build_context_for_llm("routing", budget_tokens=512)
@@ -350,6 +364,7 @@ class TestBuildContextForLLM:
 # ---------------------------------------------------------------------------
 # CostCalculator
 # ---------------------------------------------------------------------------
+
 
 class TestCostCalculator:
     def test_known_model(self) -> None:

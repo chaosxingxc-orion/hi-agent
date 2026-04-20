@@ -1,38 +1,41 @@
-"""
-Acceptance tests 19-20 + hardening tests for Plan B Phase 5.
-"""
+"""Acceptance tests 19-20 + hardening tests for Plan B Phase 5."""
+
 import time
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 
 def _team_writer(proc_id: int, n_events: int, db_path: str) -> None:
     """Module-level worker for multi-process team write test (must be picklable on Windows)."""
-    from hi_agent.server.team_event_store import TeamEventStore, TeamEvent
+    from hi_agent.server.team_event_store import TeamEvent, TeamEventStore
+
     store = TeamEventStore(db_path)
     store.initialize()
     for i in range(n_events):
-        store.insert(TeamEvent(
-            event_id=f"p{proc_id}-e{i}",
-            tenant_id="t1",
-            team_space_id="t1",
-            event_type="test",
-            payload_json="{}",
-            source_run_id=f"r-{proc_id}-{i}",
-            source_user_id=f"u{proc_id}",
-            source_session_id="s1",
-            publish_reason="test",
-            schema_version=1,
-            created_at=time.time(),
-        ))
+        store.insert(
+            TeamEvent(
+                event_id=f"p{proc_id}-e{i}",
+                tenant_id="t1",
+                team_space_id="t1",
+                event_type="test",
+                payload_json="{}",
+                source_run_id=f"r-{proc_id}-{i}",
+                source_user_id=f"u{proc_id}",
+                source_session_id="s1",
+                publish_reason="test",
+                schema_version=1,
+                created_at=time.time(),
+            )
+        )
 
 
 # Acceptance test 19: Legacy rows hidden from normal users
 def test_19_legacy_rows_not_visible_in_normal_list(tmp_path):
     """Runs with user_id='__legacy__' must not appear in normal user's list."""
-    from hi_agent.server.run_store import SQLiteRunStore, RunRecord
     import time
+
+    from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 
     store = SQLiteRunStore(str(tmp_path / "runs.db"))
     legacy = RunRecord(
@@ -78,14 +81,18 @@ def test_20_unsafe_ids_encoded_in_paths(tmp_path):
 
 
 # Fuzz test: path traversal across all ID positions
-@pytest.mark.parametrize("field,evil", [
-    ("tenant_id", "../hack"),
-    ("user_id", "../../root"),
-    ("session_id", "sess/../escape"),
-    ("team_id", "team/../../admin"),
-])
+@pytest.mark.parametrize(
+    "field,evil",
+    [
+        ("tenant_id", "../hack"),
+        ("user_id", "../../root"),
+        ("session_id", "sess/../escape"),
+        ("team_id", "team/../../admin"),
+    ],
+)
 def test_fuzz_path_traversal(tmp_path, field, evil):
     from hi_agent.server.workspace_path import WorkspaceKey, WorkspacePathHelper
+
     kwargs = {"tenant_id": "t1", "user_id": "u1", "session_id": "s1", "team_id": ""}
     kwargs[field] = evil
 
@@ -111,16 +118,14 @@ def test_fuzz_path_traversal(tmp_path, field, evil):
 def test_multiprocess_team_writes_no_corruption(tmp_path):
     """Multiple processes writing to the same TeamEventStore must not corrupt data."""
     import multiprocessing
+
     from hi_agent.server.team_event_store import TeamEventStore
 
     db_path = str(tmp_path / "team.db")
     init_store = TeamEventStore(db_path)
     init_store.initialize()
 
-    procs = [
-        multiprocessing.Process(target=_team_writer, args=(p, 10, db_path))
-        for p in range(3)
-    ]
+    procs = [multiprocessing.Process(target=_team_writer, args=(p, 10, db_path)) for p in range(3)]
     for p in procs:
         p.start()
     for p in procs:

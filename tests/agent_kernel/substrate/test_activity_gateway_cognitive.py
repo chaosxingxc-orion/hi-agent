@@ -6,7 +6,6 @@ import asyncio
 import uuid
 
 import pytest
-
 from agent_kernel.kernel.contracts import (
     AdmissionResult,
     ContextWindow,

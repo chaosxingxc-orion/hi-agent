@@ -6,13 +6,12 @@ These tests assert:
 - Protocol signatures (run_id param ordering) are correct
 - ResilientKernelAdapter buffers all mutating methods
 """
+
 from __future__ import annotations
 
 import inspect
 import json
 from unittest.mock import patch
-
-import pytest
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
@@ -29,7 +28,7 @@ class _FakeResponse:
     def read(self) -> bytes:
         return self._data
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, *_: object) -> None:

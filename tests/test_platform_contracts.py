@@ -1,15 +1,14 @@
 """Unit tests for P-1 (Provenance) and P-5 (confidence on Artifact base)."""
+
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.artifacts.contracts import (
     Artifact,
     EvidenceArtifact,
 )
 from hi_agent.contracts.provenance import Provenance
 from hi_agent.memory.l0_raw import RawEventRecord
-
 
 # ---------------------------------------------------------------------------
 # P-1: Provenance dataclass
@@ -56,7 +55,7 @@ class TestRawEventRecordProvenance:
     """Tests for provenance field on RawEventRecord."""
 
     def test_provenance_defaults_to_none(self) -> None:
-        """provenance field is None when not supplied."""
+        """Provenance field is None when not supplied."""
         r = RawEventRecord(event_type="test", payload={})
         assert r.provenance is None
 
@@ -91,7 +90,7 @@ class TestArtifactConfidence:
         assert a.confidence == pytest.approx(0.0)
 
     def test_confidence_settable(self) -> None:
-        """confidence can be set to an arbitrary float."""
+        """Confidence can be set to an arbitrary float."""
         a = Artifact(confidence=0.87)
         assert a.confidence == pytest.approx(0.87)
 
@@ -106,7 +105,7 @@ class TestArtifactConfidence:
         assert e.confidence == pytest.approx(0.0)
 
     def test_confidence_in_to_dict(self) -> None:
-        """confidence appears in to_dict() output."""
+        """Confidence appears in to_dict() output."""
         a = Artifact(confidence=0.5)
         d = a.to_dict()
         assert "confidence" in d

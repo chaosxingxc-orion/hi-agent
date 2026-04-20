@@ -21,4 +21,3 @@ def query_knowledge(
         query_vector=query_vector,
     )
     return [record for record, _score in rows]
-

@@ -11,6 +11,7 @@ Called by:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import threading
 from datetime import UTC, datetime
@@ -94,10 +95,8 @@ class MemoryLifecycleManager:
         if self._scheduler_task is None:
             return
         self._scheduler_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._scheduler_task
-        except asyncio.CancelledError:
-            pass
         self._scheduler_task = None
         logger.info("MemoryLifecycleManager scheduler stopped")
 
@@ -196,7 +195,8 @@ class MemoryLifecycleManager:
             try:
                 result = self.trigger_consolidation()
                 logger.info(
-                    "Scheduler: LTM consolidation result: %s", result.get("status"),
+                    "Scheduler: LTM consolidation result: %s",
+                    result.get("status"),
                 )
             except Exception as exc:
                 logger.error("Scheduler: LTM consolidation failed: %s", exc)
@@ -237,9 +237,7 @@ class MemoryLifecycleManager:
             except Exception as e:
                 return {"status": "error", "reason": str(e)}
 
-    def trigger_full_cycle(
-        self, date: str | None = None, days: int = 7
-    ) -> dict[str, Any]:
+    def trigger_full_cycle(self, date: str | None = None, days: int = 7) -> dict[str, Any]:
         """Run dream + consolidation in sequence."""
         dream = self.trigger_dream(date)
         consolidation = self.trigger_consolidation(days)

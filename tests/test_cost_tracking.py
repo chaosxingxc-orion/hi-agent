@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
-from hi_agent.session.cost_tracker import CostCalculator
 from hi_agent.observability.collector import MetricsCollector
+from hi_agent.session.cost_tracker import CostCalculator
 
 
 class TestCostCalculator:

@@ -24,4 +24,3 @@ def link_parent_child(
         parent.children_ids.append(child_id)
     if parent_id not in child.parent_ids:
         child.parent_ids.append(parent_id)
-

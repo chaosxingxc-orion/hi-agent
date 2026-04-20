@@ -96,10 +96,7 @@ def test_file_backed_journal_skips_empty_and_malformed_lines(tmp_path: Path) -> 
         '"error":"RuntimeError: open failed"}\n'
     )
     journal_path.write_text(
-        "\n"
-        "not-json\n"
-        f"{valid_line}"
-        '{"operation":"bad-context","context":"wrong","error":"oops"}\n',
+        f'\nnot-json\n{valid_line}{{"operation":"bad-context","context":"wrong","error":"oops"}}\n',
         encoding="utf-8",
     )
 

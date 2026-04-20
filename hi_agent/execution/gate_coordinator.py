@@ -52,13 +52,15 @@ class GateCoordinator:
 
         if executor.session is not None:
             try:
-                executor.session.events.append({
-                    "event": "gate_registered",
-                    "gate_id": gate_id,
-                    "gate_type": gate_type,
-                    "phase_name": phase_name,
-                    "opened_at": event.opened_at,
-                })
+                executor.session.events.append(
+                    {
+                        "event": "gate_registered",
+                        "gate_id": gate_id,
+                        "gate_type": gate_type,
+                        "phase_name": phase_name,
+                        "opened_at": event.opened_at,
+                    }
+                )
             except Exception as _exc:  # pragma: no cover
                 executor._log_best_effort_exception(
                     logging.DEBUG,
@@ -91,21 +93,26 @@ class GateCoordinator:
             decision,
         )
 
-        executor._emit_observability("gate_decision", {
-            "run_id": executor.run_id,
-            "gate_id": gate_id,
-            "decision": decision,
-            "rationale": rationale,
-        })
+        executor._emit_observability(
+            "gate_decision",
+            {
+                "run_id": executor.run_id,
+                "gate_id": gate_id,
+                "decision": decision,
+                "rationale": rationale,
+            },
+        )
 
         if executor.session is not None:
             try:
-                executor.session.events.append({
-                    "event": "gate_decision",
-                    "gate_id": gate_id,
-                    "decision": decision,
-                    "rationale": rationale,
-                })
+                executor.session.events.append(
+                    {
+                        "event": "gate_decision",
+                        "gate_id": gate_id,
+                        "decision": decision,
+                        "rationale": rationale,
+                    }
+                )
             except Exception as _exc:  # pragma: no cover
                 executor._log_best_effort_exception(
                     logging.DEBUG,
@@ -149,7 +156,8 @@ class GateCoordinator:
         if completed_stages is None:
             if executor.session is not None:
                 completed_stages = {
-                    sid for sid, state in executor.session.stage_states.items()
+                    sid
+                    for sid, state in executor.session.stage_states.items()
                     if state == "completed"
                 }
             else:
@@ -159,13 +167,9 @@ class GateCoordinator:
         if start_stage and start_stage not in completed_stages:
             current_stage: str | None = start_stage
         else:
-            successors = (
-                executor.stage_graph.successors(start_stage) if start_stage else set()
-            )
+            successors = executor.stage_graph.successors(start_stage) if start_stage else set()
             candidates = successors - completed_stages
-            current_stage = (
-                executor._select_next_stage(candidates) if candidates else None
-            )
+            current_stage = executor._select_next_stage(candidates) if candidates else None
 
         max_steps = len(executor.stage_graph.transitions) * 2
         steps = 0
@@ -175,9 +179,7 @@ class GateCoordinator:
                 if current_stage in completed_stages:
                     successors = executor.stage_graph.successors(current_stage)
                     candidates = successors - completed_stages
-                    current_stage = (
-                        executor._select_next_stage(candidates) if candidates else None
-                    )
+                    current_stage = executor._select_next_stage(candidates) if candidates else None
                     continue
 
                 result = executor._execute_stage(current_stage)
@@ -203,8 +205,11 @@ class GateCoordinator:
             raise
         except Exception as exc:
             executor._log_best_effort_exception(
-                logging.WARNING, "runner.continue_from_gate_graph_failed", exc,
-                run_id=executor.run_id, stage_id=executor.current_stage,
+                logging.WARNING,
+                "runner.continue_from_gate_graph_failed",
+                exc,
+                run_id=executor.run_id,
+                stage_id=executor.current_stage,
             )
             return executor._finalize_run("failed")
 
@@ -256,10 +261,7 @@ class GateCoordinator:
                     )
 
         quality_score = action_result.get("quality_score")
-        if (
-            quality_score is not None
-            and quality_score < executor.human_gate_quality_threshold
-        ):
+        if quality_score is not None and quality_score < executor.human_gate_quality_threshold:
             executor.kernel.open_human_gate(
                 HumanGateRequest(
                     run_id=executor.run_id,

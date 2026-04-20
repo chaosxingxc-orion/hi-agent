@@ -161,8 +161,7 @@ class SkillRegistry:
         skill = self._require(skill_id)
         if skill.lifecycle_stage != "certified":
             raise ValueError(
-                f"Can only deprecate certified skills, "
-                f"'{skill_id}' is '{skill.lifecycle_stage}'"
+                f"Can only deprecate certified skills, '{skill_id}' is '{skill.lifecycle_stage}'"
             )
 
         now = datetime.now(UTC).isoformat()
@@ -194,8 +193,7 @@ class SkillRegistry:
         skill = self._require(skill_id)
         if skill.lifecycle_stage != "deprecated":
             raise ValueError(
-                f"Can only retire deprecated skills, "
-                f"'{skill_id}' is '{skill.lifecycle_stage}'"
+                f"Can only retire deprecated skills, '{skill_id}' is '{skill.lifecycle_stage}'"
             )
 
         now = datetime.now(UTC).isoformat()
@@ -226,9 +224,7 @@ class SkillRegistry:
         """List all certified skills."""
         return self.list_by_stage("certified")
 
-    def list_applicable(
-        self, task_family: str, stage_id: str
-    ) -> list[ManagedSkill]:
+    def list_applicable(self, task_family: str, stage_id: str) -> list[ManagedSkill]:
         """Find certified skills applicable to given context.
 
         A skill is applicable if its applicability_scope matches the

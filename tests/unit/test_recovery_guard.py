@@ -6,7 +6,6 @@ import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.execution.recovery_coordinator import RecoveryContext
 from hi_agent.runner import RunExecutor
@@ -40,13 +39,13 @@ def test_trigger_recovery_no_handlers_logs_warning_and_continues(
 
     # Mock _build_recovery_context to avoid full setup
     mock_ctx = MagicMock(spec=RecoveryContext)
-    with patch.object(executor, "_build_recovery_context", return_value=mock_ctx):
-        with patch("hi_agent.runner.RecoveryCoordinator") as mock_rc:
-            executor._trigger_recovery("stage-1")
-
-            # Verify RecoveryCoordinator was still called (not skipped)
-            mock_rc.assert_called_once_with(mock_ctx)
-            mock_rc.return_value._trigger_recovery.assert_called_once_with("stage-1")
+    with patch.object(executor, "_build_recovery_context", return_value=mock_ctx), patch(
+        "hi_agent.runner.RecoveryCoordinator"
+    ) as mock_rc:
+        executor._trigger_recovery("stage-1")
+        # Verify RecoveryCoordinator was still called (not skipped)
+        mock_rc.assert_called_once_with(mock_ctx)
+        mock_rc.return_value._trigger_recovery.assert_called_once_with("stage-1")
 
 
 def test_trigger_recovery_no_handlers_with_caplog(
@@ -82,13 +81,13 @@ def test_trigger_recovery_with_handlers_proceeds(
 
     # Mock the _build_recovery_context to avoid needing full setup
     mock_ctx = MagicMock(spec=RecoveryContext)
-    with patch.object(executor, "_build_recovery_context", return_value=mock_ctx):
-        with patch("hi_agent.runner.RecoveryCoordinator") as mock_rc:
-            executor._trigger_recovery("stage-1")
-
-            # Verify RecoveryCoordinator was instantiated and _trigger_recovery called
-            mock_rc.assert_called_once_with(mock_ctx)
-            mock_rc.return_value._trigger_recovery.assert_called_once_with("stage-1")
+    with patch.object(executor, "_build_recovery_context", return_value=mock_ctx), patch(
+        "hi_agent.runner.RecoveryCoordinator"
+    ) as mock_rc:
+        executor._trigger_recovery("stage-1")
+        # Verify RecoveryCoordinator was instantiated and _trigger_recovery called
+        mock_rc.assert_called_once_with(mock_ctx)
+        mock_rc.return_value._trigger_recovery.assert_called_once_with("stage-1")
 
 
 def test_trigger_recovery_build_context_exception_wrapping(
@@ -105,9 +104,7 @@ def test_trigger_recovery_build_context_exception_wrapping(
 
     # Mock _build_recovery_context to raise an exception
     original_exc = ValueError("test build error")
-    with patch.object(
-        executor, "_build_recovery_context", side_effect=original_exc
-    ):
+    with patch.object(executor, "_build_recovery_context", side_effect=original_exc):
         with pytest.raises(RuntimeError) as exc_info:
             executor._trigger_recovery("stage-42")
 

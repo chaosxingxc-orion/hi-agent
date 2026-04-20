@@ -1,16 +1,12 @@
 """Unit tests for F-3: consolidate() must call graph.save() after adding nodes."""
-import json
-from pathlib import Path
 
-import pytest
+from pathlib import Path
 
 from hi_agent.memory.long_term import LongTermConsolidator, LongTermMemoryGraph
 from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore
 
 
-def _make_mid_term_with_summary(
-    storage_dir: Path, key_learnings: list[str]
-) -> MidTermMemoryStore:
+def _make_mid_term_with_summary(storage_dir: Path, key_learnings: list[str]) -> MidTermMemoryStore:
     """Helper: create a MidTermMemoryStore and save one DailySummary into it."""
     store = MidTermMemoryStore(storage_dir=str(storage_dir))
     summary = DailySummary(
@@ -61,9 +57,7 @@ def test_f3_consolidate_returns_node_count(tmp_path: Path) -> None:
     mid_dir = tmp_path / "mid"
     graph_path = tmp_path / "graph.json"
 
-    mid_term = _make_mid_term_with_summary(
-        mid_dir, ["learning one", "learning two"]
-    )
+    mid_term = _make_mid_term_with_summary(mid_dir, ["learning one", "learning two"])
     graph = LongTermMemoryGraph(storage_path=str(graph_path))
     consolidator = LongTermConsolidator(mid_term_store=mid_term, graph=graph)
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent_kernel.kernel.contracts import RunPolicyVersions, RunProjection
 from agent_kernel.kernel.minimal_runtime import (
     InMemoryDecisionProjectionService,

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from agent_kernel.adapters.agent_core.checkpoint_adapter import (
     AgentCoreCheckpointAdapter,
     AgentCoreResumeInput,

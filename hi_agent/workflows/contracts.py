@@ -14,15 +14,15 @@ semantics leaking into the core.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class FallbackPolicy(str, Enum):
+class FallbackPolicy(StrEnum):
     """Behaviour when a bound capability is unavailable at runtime."""
 
-    FAIL = "fail"      # Fail the stage with an explicit error
-    SKIP = "skip"      # Skip the stage and continue
+    FAIL = "fail"  # Fail the stage with an explicit error
+    SKIP = "skip"  # Skip the stage and continue
     DEGRADE = "degrade"  # Use a generic fallback capability
 
 
@@ -96,7 +96,7 @@ class WorkflowSpec:
             A :class:`~hi_agent.trajectory.stage_graph.StageGraph` with
             one edge per WorkflowTransition.
         """
-        from hi_agent.trajectory.stage_graph import StageGraph  # noqa: PLC0415
+        from hi_agent.trajectory.stage_graph import StageGraph
 
         graph = StageGraph()
         for t in self.transitions:

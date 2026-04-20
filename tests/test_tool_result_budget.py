@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.task_view.result_budget import (
     ToolResultBudget,
     ToolResultBudgetConfig,
@@ -12,7 +10,6 @@ from hi_agent.task_view.result_budget import (
     create_tool_result_budget,
     estimate_chars,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -82,6 +79,7 @@ def test_truncated_placeholder_format() -> None:
     assert f"size={len(content)}chars" in placeholder
     # hash must be present (16-char hex prefix)
     import re
+
     assert re.search(r"hash=[0-9a-f]{16}", placeholder)
 
 
@@ -117,7 +115,7 @@ def test_cumulative_tracks_across_multiple_results() -> None:
     budget = _make_budget(max_single=50, max_cumulative=200)
     for _ in range(4):
         budget.process("t", "x" * 50)
-    # 4 × 50 = 200, all should fit
+    # 4 x 50 = 200, all should fit
     assert budget.get_state().truncation_count == 0
     assert budget.get_state().cumulative_chars_used == 200
 
@@ -223,7 +221,7 @@ def test_non_tool_messages_untouched() -> None:
         {"role": "system", "content": "z" * 1000},
     ]
     processed = budget.process_message_results(messages)
-    for orig, proc in zip(messages, processed):
+    for orig, proc in zip(messages, processed, strict=False):
         assert orig["content"] == proc["content"]
     assert budget.get_state().truncation_count == 0
     assert budget.get_state().cumulative_chars_used == 0
@@ -272,23 +270,21 @@ def test_estimate_chars_nested_list() -> None:
 def test_create_tool_result_budget_defaults() -> None:
     b = create_tool_result_budget()
     assert isinstance(b, ToolResultBudget)
-    cfg = b._config  # noqa: SLF001
+    cfg = b._config
     assert cfg.max_single_result_chars == 32_000
     assert cfg.max_cumulative_chars == 128_000
 
 
 def test_create_tool_result_budget_custom() -> None:
-    b = create_tool_result_budget(
-        {"max_single_result_chars": 500, "max_cumulative_chars": 2000}
-    )
-    cfg = b._config  # noqa: SLF001
+    b = create_tool_result_budget({"max_single_result_chars": 500, "max_cumulative_chars": 2000})
+    cfg = b._config
     assert cfg.max_single_result_chars == 500
     assert cfg.max_cumulative_chars == 2000
 
 
 def test_create_tool_result_budget_ignores_unknown_keys() -> None:
     b = create_tool_result_budget({"unknown_key": 999, "max_single_result_chars": 100})
-    cfg = b._config  # noqa: SLF001
+    cfg = b._config
     assert cfg.max_single_result_chars == 100
 
 

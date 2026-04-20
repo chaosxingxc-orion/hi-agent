@@ -5,7 +5,6 @@ from __future__ import annotations
 import warnings
 
 import pytest
-
 from hi_agent.llm.http_gateway import HttpLLMGateway
 
 
@@ -54,9 +53,10 @@ def test_compat_sync_flag_suppresses_warning_in_cognition_builder(
     monkeypatch.setenv("HI_AGENT_ENV", "prod")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-    from hi_agent.config.trace_config import TraceConfig
-    from hi_agent.config.cognition_builder import CognitionBuilder
     import threading
+
+    from hi_agent.config.cognition_builder import CognitionBuilder
+    from hi_agent.config.trace_config import TraceConfig
 
     cfg = TraceConfig(compat_sync_llm=True, llm_default_provider="openai")
     builder = CognitionBuilder(cfg, threading.RLock())

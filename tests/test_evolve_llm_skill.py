@@ -6,32 +6,32 @@ import json
 
 from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
-from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
+from hi_agent.evolve.skill_extractor import SkillExtractor
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, TokenUsage
 from hi_agent.skill.registry import SkillRegistry
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_postmortem(**overrides) -> RunPostmortem:
-    defaults = dict(
-        run_id="run-001",
-        task_id="task-001",
-        task_family="code_review",
-        outcome="completed",
-        stages_completed=["understand", "gather", "build", "synthesize"],
-        stages_failed=[],
-        branches_explored=3,
-        branches_pruned=0,
-        total_actions=12,
-        failure_codes=[],
-        duration_seconds=45.0,
-        quality_score=0.85,
-        efficiency_score=0.9,
-        trajectory_summary="Reviewed code and produced summary",
-    )
+    defaults = {
+        "run_id": "run-001",
+        "task_id": "task-001",
+        "task_family": "code_review",
+        "outcome": "completed",
+        "stages_completed": ["understand", "gather", "build", "synthesize"],
+        "stages_failed": [],
+        "branches_explored": 3,
+        "branches_pruned": 0,
+        "total_actions": 12,
+        "failure_codes": [],
+        "duration_seconds": 45.0,
+        "quality_score": 0.85,
+        "efficiency_score": 0.9,
+        "trajectory_summary": "Reviewed code and produced summary",
+    }
     defaults.update(overrides)
     return RunPostmortem(**defaults)
 
@@ -69,22 +69,25 @@ class ErrorLLMGateway:
 # Tests: LLM skill extraction
 # ---------------------------------------------------------------------------
 
+
 def test_llm_extract_returns_candidates():
     """LLM gateway returns valid JSON -> skill candidates produced."""
-    llm_response = json.dumps([
-        {
-            "name": "CodeReviewPipeline",
-            "description": "End-to-end code review pattern",
-            "applicability": "code_review",
-            "preconditions": ["has_source_code"],
-        },
-        {
-            "name": "SummaryGenerator",
-            "description": "Generate summaries from analysis",
-            "applicability": "code_review",
-            "preconditions": ["analysis_complete"],
-        },
-    ])
+    llm_response = json.dumps(
+        [
+            {
+                "name": "CodeReviewPipeline",
+                "description": "End-to-end code review pattern",
+                "applicability": "code_review",
+                "preconditions": ["has_source_code"],
+            },
+            {
+                "name": "SummaryGenerator",
+                "description": "Generate summaries from analysis",
+                "applicability": "code_review",
+                "preconditions": ["analysis_complete"],
+            },
+        ]
+    )
     gateway = MockLLMGateway(content=llm_response)
     extractor = SkillExtractor(gateway=gateway)
     pm = _make_postmortem()
@@ -160,6 +163,7 @@ def test_no_gateway_uses_heuristics():
 # Tests: EvolveEngine auto-registration
 # ---------------------------------------------------------------------------
 
+
 def test_engine_auto_registers_candidates_in_registry():
     """EvolveEngine registers extracted candidates in SkillRegistry."""
     registry = SkillRegistry()
@@ -191,14 +195,16 @@ def test_engine_without_registry_backward_compat():
 
 def test_full_flow_postmortem_llm_extract_register_verify():
     """Full flow: postmortem -> LLM extract -> register -> verify in registry."""
-    llm_response = json.dumps([
-        {
-            "name": "FullReviewSkill",
-            "description": "Complete code review skill",
-            "applicability": "code_review",
-            "preconditions": ["repo_cloned", "diff_available"],
-        },
-    ])
+    llm_response = json.dumps(
+        [
+            {
+                "name": "FullReviewSkill",
+                "description": "Complete code review skill",
+                "applicability": "code_review",
+                "preconditions": ["repo_cloned", "diff_available"],
+            },
+        ]
+    )
     gateway = MockLLMGateway(content=llm_response)
     registry = SkillRegistry()
     extractor = SkillExtractor(gateway=gateway)

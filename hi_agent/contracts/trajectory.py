@@ -43,4 +43,3 @@ class TrajectoryNode:
     propagated_score: float = 0.0
     visit_count: int = 0
     state: NodeState = NodeState.OPEN
-

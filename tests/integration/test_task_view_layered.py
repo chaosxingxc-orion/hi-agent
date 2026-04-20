@@ -9,15 +9,15 @@ Validates token-budgeted task view construction including:
 
 from __future__ import annotations
 
-from hi_agent.contracts import StageState, TaskContract
+from hi_agent.contracts import TaskContract
 from hi_agent.memory.compressor import MemoryCompressor
-from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.memory.l1_compressed import CompressedStageMemory
-from hi_agent.memory.l2_index import RunMemoryIndex, StagePointer
+from hi_agent.memory.l2_index import RunMemoryIndex
 from hi_agent.runner import STAGES, RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.task_view.builder import TaskView, build_task_view
-from hi_agent.task_view.token_budget import DEFAULT_BUDGET, count_tokens
+from hi_agent.task_view.token_budget import DEFAULT_BUDGET
+
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _build_run_data() -> tuple[RunExecutor, MockKernel]:
@@ -40,13 +40,11 @@ def _build_l2_index(executor: RunExecutor) -> RunMemoryIndex:
 
 
 def _build_l1_summary(
-    executor: RunExecutor, stage_id: str,
+    executor: RunExecutor,
+    stage_id: str,
 ) -> CompressedStageMemory:
     """Build L1 compressed summary for a stage from raw memory."""
-    records = [
-        r for r in executor.raw_memory.list_all()
-        if r.payload.get("stage_id") == stage_id
-    ]
+    records = [r for r in executor.raw_memory.list_all() if r.payload.get("stage_id") == stage_id]
     compressor = MemoryCompressor(compress_threshold=100)
     return compressor.compress_stage(stage_id, records)
 
@@ -166,9 +164,7 @@ class TestLayerPriority:
         assert isinstance(tv, TaskView)
         layer_names = [s.layer for s in tv.sections]
         assert "l2_index" in layer_names, "L2 index should always be first priority"
-        assert "l1_current_stage" in layer_names, (
-            "L1 current stage should always be loaded"
-        )
+        assert "l1_current_stage" in layer_names, "L1 current stage should always be loaded"
 
     def test_lower_priority_layers_excluded_under_tight_budget(self) -> None:
         """Knowledge and episodic layers may be excluded when budget is tight."""
@@ -217,9 +213,7 @@ class TestBudgetUtilization:
 
         assert isinstance(tv, TaskView)
         # System reserved (512 tokens) is always counted, plus actual content
-        assert tv.budget_utilization > 0.05, (
-            f"Utilization too low: {tv.budget_utilization:.3f}"
-        )
+        assert tv.budget_utilization > 0.05, f"Utilization too low: {tv.budget_utilization:.3f}"
 
     def test_utilization_bounded_by_one(self) -> None:
         """Budget utilization should never exceed 1.0."""

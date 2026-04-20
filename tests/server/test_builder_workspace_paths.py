@@ -1,8 +1,7 @@
 # tests/server/test_builder_workspace_paths.py
 """Tests: WorkspaceKey threads workspace-scoped paths into RunExecutor memory stores."""
-from pathlib import Path
 
-import pytest
+from pathlib import Path
 
 from hi_agent.server.workspace_path import WorkspaceKey
 

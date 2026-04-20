@@ -1,16 +1,18 @@
-"""
-Acceptance tests 11-15: memory storage isolation.
+"""Acceptance tests 11-15: memory storage isolation.
 Same profile_id, different workspace -> zero cross-contamination.
 """
-import pytest
+
 from pathlib import Path
-from hi_agent.server.workspace_path import WorkspaceKey, WorkspacePathHelper
+
+import pytest
 from hi_agent.config.memory_builder import MemoryBuilder
+from hi_agent.server.workspace_path import WorkspaceKey, WorkspacePathHelper
 
 
 @pytest.fixture
 def builder(tmp_path):
     from hi_agent.config.trace_config import TraceConfig
+
     cfg = TraceConfig(episodic_storage_dir=str(tmp_path / "episodes"))
     return MemoryBuilder(cfg)
 
