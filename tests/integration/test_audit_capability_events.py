@@ -1,4 +1,5 @@
 """Tests for audit event helpers (HI-W10-005)."""
+
 import json
 from pathlib import Path
 
@@ -13,6 +14,7 @@ def _read_events(audit_dir: Path) -> list[dict]:
 def test_emit_capability_invoke_writes_event(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     from hi_agent.observability.audit import emit_capability_invoke
+
     emit_capability_invoke("my_cap", role="approver", duration_ms=42)
     events = _read_events(tmp_path / ".hi_agent" / "audit")
     assert len(events) == 1
@@ -27,6 +29,7 @@ def test_emit_capability_invoke_writes_event(tmp_path, monkeypatch):
 def test_emit_capability_deny_writes_event(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     from hi_agent.observability.audit import emit_capability_deny
+
     emit_capability_deny("danger_op", role="submitter", reason="missing_role")
     events = _read_events(tmp_path / ".hi_agent" / "audit")
     e = events[0]
@@ -37,6 +40,7 @@ def test_emit_capability_deny_writes_event(tmp_path, monkeypatch):
 def test_emit_mcp_tools_call_writes_event(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     from hi_agent.observability.audit import emit_mcp_tools_call
+
     emit_mcp_tools_call("srv1", "read_file", duration_ms=15)
     events = _read_events(tmp_path / ".hi_agent" / "audit")
     e = events[0]
@@ -49,6 +53,7 @@ def test_emit_mcp_tools_call_writes_event(tmp_path, monkeypatch):
 def test_emit_mcp_server_restart_writes_event(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     from hi_agent.observability.audit import emit_mcp_server_restart
+
     emit_mcp_server_restart("srv1", attempt=2, success=False, error="OSError: ENOENT")
     events = _read_events(tmp_path / ".hi_agent" / "audit")
     e = events[0]

@@ -23,7 +23,7 @@ def _make_index(
     run_id: str = "run-1", stages: list[tuple[str, str]] | None = None
 ) -> RunMemoryIndex:
     idx = RunMemoryIndex(run_id=run_id)
-    for sid, outcome in (stages or []):
+    for sid, outcome in stages or []:
         idx.add_stage(sid, outcome)
     return idx
 
@@ -107,9 +107,7 @@ class TestPolicyVersionSetFrozen:
             task_family="quick_task",
         )
         custom_pvs = PolicyVersionSet(route_policy="route_v99")
-        executor = RunExecutor(
-            contract, MockKernel(strict_mode=True), policy_versions=custom_pvs
-        )
+        executor = RunExecutor(contract, MockKernel(strict_mode=True), policy_versions=custom_pvs)
         assert executor.policy_versions is custom_pvs
         assert executor.policy_versions.route_policy == "route_v99"
         # Frozen
@@ -151,9 +149,7 @@ class TestPolicyVersionsInPostmortem:
             goal="postmortem test",
             task_family="quick_task",
         )
-        executor = RunExecutor(
-            contract, MockKernel(strict_mode=True), policy_versions=pvs
-        )
+        executor = RunExecutor(contract, MockKernel(strict_mode=True), policy_versions=pvs)
         postmortem = executor._build_postmortem("completed")
         assert postmortem.policy_versions["route_policy"] == "route_v5"
         assert postmortem.policy_versions["skill_policy"] == "skill_v3"
@@ -290,12 +286,16 @@ class TestKnowledgeStoreBatch:
 
     def test_upsert_batch_overwrites(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="old", source="s"),
-        ])
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="new", source="s"),
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="old", source="s"),
+            ]
+        )
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="new", source="s"),
+            ]
+        )
         rec = store.get(source="s", key="e1")
         assert rec is not None
         assert rec.content == "new"
@@ -308,11 +308,13 @@ class TestKnowledgeStoreBatch:
 class TestKnowledgeStoreTagSearch:
     def test_search_by_single_tag(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="A", tags=["alpha"]),
-            KnowledgeEntry(entry_id="e2", content="B", tags=["beta"]),
-            KnowledgeEntry(entry_id="e3", content="C", tags=["alpha", "beta"]),
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="A", tags=["alpha"]),
+                KnowledgeEntry(entry_id="e2", content="B", tags=["beta"]),
+                KnowledgeEntry(entry_id="e3", content="C", tags=["alpha", "beta"]),
+            ]
+        )
         results = store.search_by_tags(["alpha"])
         assert len(results) == 2
         ids = {r.entry_id for r in results}
@@ -320,11 +322,13 @@ class TestKnowledgeStoreTagSearch:
 
     def test_search_by_multiple_tags(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="A", tags=["x", "y"]),
-            KnowledgeEntry(entry_id="e2", content="B", tags=["x"]),
-            KnowledgeEntry(entry_id="e3", content="C", tags=["x", "y", "z"]),
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="A", tags=["x", "y"]),
+                KnowledgeEntry(entry_id="e2", content="B", tags=["x"]),
+                KnowledgeEntry(entry_id="e3", content="C", tags=["x", "y", "z"]),
+            ]
+        )
         results = store.search_by_tags(["x", "y"])
         assert len(results) == 2
         ids = {r.entry_id for r in results}
@@ -336,10 +340,12 @@ class TestKnowledgeStoreTagSearch:
 
     def test_search_by_tags_respects_limit(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id=f"e{i}", content=f"fact {i}", tags=["common"])
-            for i in range(20)
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id=f"e{i}", content=f"fact {i}", tags=["common"])
+                for i in range(20)
+            ]
+        )
         results = store.search_by_tags(["common"], limit=5)
         assert len(results) == 5
 
@@ -354,11 +360,13 @@ class TestKnowledgeStoreStats:
 
     def test_get_stats_populated(self) -> None:
         store = InMemoryKnowledgeStore()
-        store.upsert_batch([
-            KnowledgeEntry(entry_id="e1", content="A", tags=["t1", "t2"], source="s1"),
-            KnowledgeEntry(entry_id="e2", content="B", tags=["t1"], source="s1"),
-            KnowledgeEntry(entry_id="e3", content="C", tags=["t2"], source="s2"),
-        ])
+        store.upsert_batch(
+            [
+                KnowledgeEntry(entry_id="e1", content="A", tags=["t1", "t2"], source="s1"),
+                KnowledgeEntry(entry_id="e2", content="B", tags=["t1"], source="s1"),
+                KnowledgeEntry(entry_id="e3", content="C", tags=["t2"], source="s2"),
+            ]
+        )
         stats = store.get_stats()
         assert stats["total"] == 3
         assert stats["by_source"]["s1"] == 2

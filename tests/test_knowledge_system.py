@@ -50,9 +50,13 @@ class TestKnowledgeWiki:
 
     def test_search_by_keyword(self) -> None:
         wiki = KnowledgeWiki()
-        wiki.add_page(WikiPage(page_id="a", title="Revenue Analysis", content="Q4 revenue grew 20%."))
+        wiki.add_page(
+            WikiPage(page_id="a", title="Revenue Analysis", content="Q4 revenue grew 20%.")
+        )
         wiki.add_page(WikiPage(page_id="b", title="Cost Report", content="Costs increased."))
-        wiki.add_page(WikiPage(page_id="c", title="Revenue Forecast", content="Revenue expected to grow."))
+        wiki.add_page(
+            WikiPage(page_id="c", title="Revenue Forecast", content="Revenue expected to grow.")
+        )
 
         results = wiki.search("revenue")
         assert len(results) >= 2
@@ -91,7 +95,9 @@ class TestKnowledgeWiki:
 
     def test_get_linked_pages(self) -> None:
         wiki = KnowledgeWiki()
-        wiki.add_page(WikiPage(page_id="main", title="Main", content="See [[sub-a]] and [[sub-b]]."))
+        wiki.add_page(
+            WikiPage(page_id="main", title="Main", content="See [[sub-a]] and [[sub-b]].")
+        )
         wiki.add_page(WikiPage(page_id="sub-a", title="Sub A", content="Details A."))
         wiki.add_page(WikiPage(page_id="sub-b", title="Sub B", content="Details B."))
 
@@ -108,7 +114,9 @@ class TestKnowledgeWiki:
 
     def test_rebuild_index(self) -> None:
         wiki = KnowledgeWiki()
-        wiki.add_page(WikiPage(page_id="aaa", title="Alpha Page", content="Content A.", tags=["tag1"]))
+        wiki.add_page(
+            WikiPage(page_id="aaa", title="Alpha Page", content="Content A.", tags=["tag1"])
+        )
         wiki.add_page(WikiPage(page_id="bbb", title="Beta Page", content="Content B."))
 
         index = wiki.rebuild_index()
@@ -140,7 +148,9 @@ class TestKnowledgeWiki:
 
     def test_lint_detects_broken_links(self) -> None:
         wiki = KnowledgeWiki()
-        wiki.add_page(WikiPage(page_id="broken", title="Broken", content="Link to [[nonexistent]]."))
+        wiki.add_page(
+            WikiPage(page_id="broken", title="Broken", content="Link to [[nonexistent]].")
+        )
 
         issues = wiki.lint()
         broken = [i for i in issues if "broken_link" in i]
@@ -314,9 +324,15 @@ class TestUserKnowledgeStore:
 class TestGraphRenderer:
     def _make_graph(self) -> LongTermMemoryGraph:
         g = LongTermMemoryGraph()
-        g.add_node(MemoryNode(node_id="n1", content="Revenue Analysis", node_type="fact", tags=["finance"]))
-        g.add_node(MemoryNode(node_id="n2", content="Q4 Growth", node_type="fact", tags=["finance"]))
-        g.add_node(MemoryNode(node_id="n3", content="Cost Concerns", node_type="pattern", tags=["finance"]))
+        g.add_node(
+            MemoryNode(node_id="n1", content="Revenue Analysis", node_type="fact", tags=["finance"])
+        )
+        g.add_node(
+            MemoryNode(node_id="n2", content="Q4 Growth", node_type="fact", tags=["finance"])
+        )
+        g.add_node(
+            MemoryNode(node_id="n3", content="Cost Concerns", node_type="pattern", tags=["finance"])
+        )
         g.add_edge(MemoryEdge(source_id="n1", target_id="n2", relation_type="supports"))
         g.add_edge(MemoryEdge(source_id="n1", target_id="n3", relation_type="contradicts"))
         return g
@@ -340,7 +356,7 @@ class TestGraphRenderer:
         assert "Cost Concerns" in output
         # Should not include fact nodes in node declarations
         lines = output.split("\n")
-        node_lines = [l for l in lines if "Revenue Analysis" in l and "[" in l]
+        node_lines = [line for line in lines if "Revenue Analysis" in line and "[" in line]
         assert len(node_lines) == 0
 
     def test_to_mermaid_empty_graph(self) -> None:
@@ -457,7 +473,9 @@ class TestKnowledgeManager:
     def test_query_searches_across_sources(self) -> None:
         km = KnowledgeManager()
         km.ingest_text("Revenue Report", "Revenue grew 20% in Q4.")
-        km.ingest_structured([{"content": "Revenue trend is positive", "type": "fact", "tags": ["finance"]}])
+        km.ingest_structured(
+            [{"content": "Revenue trend is positive", "type": "fact", "tags": ["finance"]}]
+        )
         km.user_store.update_profile("default", role="analyst")
 
         result = km.query("revenue")
@@ -495,7 +513,9 @@ class TestKnowledgeManager:
 
     def test_lint(self) -> None:
         km = KnowledgeManager()
-        km.wiki.add_page(WikiPage(page_id="broken", title="Broken", content="Link to [[nonexistent]]."))
+        km.wiki.add_page(
+            WikiPage(page_id="broken", title="Broken", content="Link to [[nonexistent]].")
+        )
         issues = km.lint()
         assert any("broken_link" in i for i in issues)
 

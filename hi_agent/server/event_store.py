@@ -1,4 +1,5 @@
 """SQLite-backed durable event store for per-run event persistence and replay."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -13,11 +14,11 @@ class StoredEvent:
 
     event_id: str
     run_id: str
-    sequence: int          # = RuntimeEvent.commit_offset
+    sequence: int  # = RuntimeEvent.commit_offset
     event_type: str
-    payload_json: str      # serialized full event (JSON string)
+    payload_json: str  # serialized full event (JSON string)
     tenant_id: str = ""
-    user_id: str = "__legacy__"   # workspace owner; "__legacy__" for pre-migration rows
+    user_id: str = "__legacy__"  # workspace owner; "__legacy__" for pre-migration rows
     session_id: str = "__legacy__"  # workspace session; "__legacy__" for pre-migration rows
     trace_id: str = ""
     created_at: float = field(default_factory=time.time)
@@ -73,9 +74,13 @@ class SQLiteEventStore:
         cx = self._conn
         cols = {row[1] for row in cx.execute("PRAGMA table_info(run_events)")}
         if "user_id" not in cols:
-            cx.execute("ALTER TABLE run_events ADD COLUMN user_id TEXT NOT NULL DEFAULT '__legacy__'")
+            cx.execute(
+                "ALTER TABLE run_events ADD COLUMN user_id TEXT NOT NULL DEFAULT '__legacy__'"
+            )
         if "session_id" not in cols:
-            cx.execute("ALTER TABLE run_events ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'")
+            cx.execute(
+                "ALTER TABLE run_events ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'"
+            )
         cx.commit()
         cx.execute(
             "CREATE INDEX IF NOT EXISTS idx_run_events_workspace_run_seq "
@@ -143,11 +148,11 @@ class SQLiteEventStore:
         user_id: str | None = None,
         session_id: str | None = None,
     ) -> list[StoredEvent]:
-        """Return events for *run_id* with sequence > *since_sequence* (or *last_id*), ordered by sequence.
+        """Return events for *run_id* after the requested sequence.
 
         Args:
             run_id: Run identifier.
-            since_sequence: Return events with sequence > this value (positional, for backward compat).
+            since_sequence: Positional sequence cursor kept for backward compatibility.
             last_id: Alias for since_sequence when called with keyword syntax.
             tenant_id: Optional workspace filter.
             user_id: Optional workspace filter.

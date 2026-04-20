@@ -46,21 +46,27 @@ def require_operation(operation_name: str) -> Callable:
 
             # dev bypass — allowed but audited
             if policy.dev_bypass and ctx.runtime_mode != "prod-real":
-                emit("audit.auth.bypass", {
-                    "operation": operation_name,
-                    "mode": ctx.runtime_mode,
-                    "role": ctx.role,
-                })
+                emit(
+                    "audit.auth.bypass",
+                    {
+                        "operation": operation_name,
+                        "mode": ctx.runtime_mode,
+                        "role": ctx.role,
+                    },
+                )
                 return await func(request, *args, **kwargs)
 
             # role check
             if ctx.role not in policy.required_roles:
-                emit("audit.auth.deny", {
-                    "operation": operation_name,
-                    "role": ctx.role,
-                    "required_roles": policy.required_roles,
-                    "reason": "missing_role",
-                })
+                emit(
+                    "audit.auth.deny",
+                    {
+                        "operation": operation_name,
+                        "role": ctx.role,
+                        "required_roles": policy.required_roles,
+                        "reason": "missing_role",
+                    },
+                )
                 raise HTTPException(
                     status_code=403,
                     detail={
@@ -72,12 +78,19 @@ def require_operation(operation_name: str) -> Callable:
                 )
 
             # SOC separation check
-            if policy.require_soc_separation and ctx.submitter == ctx.approver and ctx.submitter is not None:
-                emit("audit.auth.deny", {
-                    "operation": operation_name,
-                    "reason": "soc_violation",
-                    "submitter": ctx.submitter,
-                })
+            if (
+                policy.require_soc_separation
+                and ctx.submitter == ctx.approver
+                and ctx.submitter is not None
+            ):
+                emit(
+                    "audit.auth.deny",
+                    {
+                        "operation": operation_name,
+                        "reason": "soc_violation",
+                        "submitter": ctx.submitter,
+                    },
+                )
                 raise HTTPException(
                     status_code=403,
                     detail={
@@ -90,12 +103,16 @@ def require_operation(operation_name: str) -> Callable:
 
             # success audit
             if policy.audit_event:
-                emit(policy.audit_event, {
-                    "operation": operation_name,
-                    "role": ctx.role,
-                })
+                emit(
+                    policy.audit_event,
+                    {
+                        "operation": operation_name,
+                        "role": ctx.role,
+                    },
+                )
 
             return await func(request, *args, **kwargs)
 
         return wrapper
+
     return decorator

@@ -49,6 +49,7 @@ class TestHandleListRuns:
         resp = await handle_list_runs(req)
         assert resp.status_code == 200
         import json
+
         body = json.loads(resp.body)
         assert body["runs"] == [{"run_id": "r1"}]
 
@@ -65,6 +66,7 @@ class TestHandleRunsActive:
 
         resp = await handle_runs_active(req)
         import json
+
         body = json.loads(resp.body)
         assert body["status"] == "not_configured"
         assert body["count"] == 0
@@ -87,6 +89,7 @@ class TestHandleRunsActive:
 
         resp = await handle_runs_active(req)
         import json
+
         body = json.loads(resp.body)
         assert body["count"] == 2
         assert body["status"] == "ok"
@@ -101,6 +104,7 @@ class TestHandleCreateRun:
         resp = await handle_create_run(req)
         assert resp.status_code == 400
         import json
+
         body = json.loads(resp.body)
         assert body["error"] == "missing_goal"
 
@@ -127,6 +131,7 @@ class TestHandleCreateRun:
         resp = await handle_create_run(req)
         assert resp.status_code == 201
         import json
+
         body = json.loads(resp.body)
         assert body["run_id"] == "run-abc"
 
@@ -172,6 +177,7 @@ class TestHandleSignalRun:
         resp = await handle_signal_run(req)
         assert resp.status_code == 200
         import json
+
         body = json.loads(resp.body)
         assert body["state"] == "cancelled"
 

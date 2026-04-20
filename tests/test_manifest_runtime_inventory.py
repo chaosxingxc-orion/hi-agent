@@ -14,7 +14,15 @@ class TestManifestRuntimeInventory:
         response = client.get("/manifest")
         assert response.status_code == 200
         data = response.json()
-        for key in ("name", "version", "stages", "capabilities", "profiles", "mcp_servers", "endpoints"):
+        for key in (
+            "name",
+            "version",
+            "stages",
+            "capabilities",
+            "profiles",
+            "mcp_servers",
+            "endpoints",
+        ):
             assert key in data, f"Missing key: {key}"
 
     def test_manifest_stages_from_stage_graph(self):
@@ -58,11 +66,13 @@ class TestManifestRuntimeInventory:
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         # Register a profile in the builder's registry
         reg = server._builder.build_profile_registry()
-        reg.register(ProfileSpec(
-            profile_id="test_profile",
-            display_name="Test Profile",
-            stage_actions={"s1": "action_a"},
-        ))
+        reg.register(
+            ProfileSpec(
+                profile_id="test_profile",
+                display_name="Test Profile",
+                stage_actions={"s1": "action_a"},
+            )
+        )
 
         client = TestClient(server.app)
         response = client.get("/manifest")
@@ -161,7 +171,7 @@ class TestMCPBindingPolicy:
         assert "mcp.srv1.tool_a" in cap_registry.list_names()
 
     def test_bind_all_without_transport_does_not_register_broken_stubs(self):
-        """Old behaviour was to register stubs that fail silently; new behaviour is to not register at all."""
+        """bind_all should not register broken stubs when transport is missing."""
         from unittest.mock import MagicMock
 
         from hi_agent.capability.registry import CapabilityRegistry
@@ -223,6 +233,7 @@ class TestMCPStatusConsistency:
     def _make_client(self):
         from hi_agent.server.app import AgentServer
         from starlette.testclient import TestClient
+
         server = AgentServer(host="127.0.0.1", port=8080, config=None)
         return TestClient(server.app), server
 

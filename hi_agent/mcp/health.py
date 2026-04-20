@@ -96,11 +96,11 @@ class MCPHealth:
             except Exception:
                 pass
 
-        _ERROR_KEYWORDS = ("error", "exception", "traceback", "fatal", "critical")
+        error_keywords = ("error", "exception", "traceback", "fatal", "critical")
         has_stderr_errors = False
         if isinstance(stderr_tail, list):
             has_stderr_errors = any(
-                isinstance(line, str) and any(kw in line.lower() for kw in _ERROR_KEYWORDS)
+                isinstance(line, str) and any(kw in line.lower() for kw in error_keywords)
                 for line in stderr_tail
             )
         if has_stderr_errors:

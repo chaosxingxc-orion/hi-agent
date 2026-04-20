@@ -1,4 +1,5 @@
 """Long-running operation coordinator (G-8)."""
+
 from __future__ import annotations
 
 import logging
@@ -31,7 +32,9 @@ class LongRunningOpCoordinator:
         )
         _logger.info(
             "LongRunningOp submitted op_id=%s backend=%s ext=%s",
-            op_id, backend_name, external_id,
+            op_id,
+            backend_name,
+            external_id,
         )
         return handle
 

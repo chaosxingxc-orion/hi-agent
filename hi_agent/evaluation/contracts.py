@@ -32,7 +32,7 @@ class EvaluationContext:
 class EvaluationResult:
     """Result produced by an evaluator."""
 
-    score: float  # 0.0–1.0
+    score: float  # 0.0-1.0
     passed: bool
     criteria_results: dict[str, bool] = field(default_factory=dict)
     feedback: str = ""

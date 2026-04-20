@@ -34,7 +34,7 @@ class SkillEvalSummary:
         champion_version: Champion version at evaluation time.
         challenger_version: Challenger version if one exists.
         recommendation: ``"promote"``, ``"keep"``, or ``"insufficient_data"``.
-        confidence: Confidence in the recommendation (0.0–1.0).
+        confidence: Confidence in the recommendation (0.0-1.0).
     """
 
     skill_id: str

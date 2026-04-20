@@ -129,9 +129,7 @@ class TestEvolvePostmortemOnFailure:
 
     def test_postmortem_triggered_after_failure(self) -> None:
         kernel = MockKernel(strict_mode=True)
-        contract = _make_contract(
-            constraints=["fail_action:analyze_goal"]
-        )
+        contract = _make_contract(constraints=["fail_action:analyze_goal"])
         evolve = FakeEvolveEngine()
         executor = RunExecutor(contract, kernel, evolve_engine=evolve)
 
@@ -169,9 +167,7 @@ class TestHarnessExecutorUsed:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
         harness = FakeHarnessExecutor(succeed=True)
-        executor = RunExecutor(
-            contract, kernel, harness_executor=harness
-        )
+        executor = RunExecutor(contract, kernel, harness_executor=harness)
 
         result = executor.execute()
 
@@ -186,9 +182,7 @@ class TestHarnessExecutorUsed:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
         harness = FakeHarnessExecutor(succeed=False)
-        executor = RunExecutor(
-            contract, kernel, harness_executor=harness
-        )
+        executor = RunExecutor(contract, kernel, harness_executor=harness)
 
         result = executor.execute()
 
@@ -202,9 +196,7 @@ class TestHarnessNotProvided:
     def test_direct_invocation_without_harness(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(
-            contract, kernel, harness_executor=None
-        )
+        executor = RunExecutor(contract, kernel, harness_executor=None)
 
         result = executor.execute()
 
@@ -244,9 +236,7 @@ class TestHumanGateBudgetCrisis:
 
     def test_gate_b_on_budget_crisis(self) -> None:
         kernel = MockKernel(strict_mode=True)
-        contract = _make_contract(
-            budget=TaskBudget(max_actions=10)
-        )
+        contract = _make_contract(budget=TaskBudget(max_actions=10))
         executor = RunExecutor(contract, kernel)
         executor._run_id = kernel.start_run(contract.task_id)
         # Simulate 9 actions used (90% of 10)
@@ -264,9 +254,7 @@ class TestHumanGateBudgetCrisis:
 
     def test_no_gate_b_when_viable_branch_exists(self) -> None:
         kernel = MockKernel(strict_mode=True)
-        contract = _make_contract(
-            budget=TaskBudget(max_actions=10)
-        )
+        contract = _make_contract(budget=TaskBudget(max_actions=10))
         executor = RunExecutor(contract, kernel)
         executor._run_id = kernel.start_run(contract.task_id)
         executor.action_seq = 9
@@ -289,10 +277,7 @@ class TestHumanGateBudgetCrisis:
         )
 
         # No gate should be opened because there is a viable branch
-        route_gates = [
-            g for g in kernel.gates.values()
-            if g["gate_type"] == "route_direction"
-        ]
+        route_gates = [g for g in kernel.gates.values() if g["gate_type"] == "route_direction"]
         assert len(route_gates) == 0
 
 
@@ -302,9 +287,7 @@ class TestHumanGateQualityThreshold:
     def test_gate_c_on_low_quality(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(
-            contract, kernel, human_gate_quality_threshold=0.5
-        )
+        executor = RunExecutor(contract, kernel, human_gate_quality_threshold=0.5)
         executor._run_id = kernel.start_run(contract.task_id)
 
         executor._check_human_gate_triggers(
@@ -320,9 +303,7 @@ class TestHumanGateQualityThreshold:
     def test_no_gate_c_when_quality_acceptable(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(
-            contract, kernel, human_gate_quality_threshold=0.5
-        )
+        executor = RunExecutor(contract, kernel, human_gate_quality_threshold=0.5)
         executor._run_id = kernel.start_run(contract.task_id)
 
         executor._check_human_gate_triggers(

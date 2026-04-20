@@ -104,7 +104,9 @@ def _bare_executor(task_id: str = "t-r6", run_id: str = "run-r6") -> object:
     executor.tier_router = None
     executor.budget_guard = None
     executor._feedback_store = None
-    executor.route_engine = MagicMock(spec=[])  # W10-001: needed by _build_stage_orchestrator_context
+    executor.route_engine = MagicMock(
+        spec=[]
+    )  # W10-001: needed by _build_stage_orchestrator_context
     return executor
 
 
@@ -373,7 +375,7 @@ class TestH5ContinueFromGate:
 
 
 class TestH6AwaitSubrunGatePending:
-    """await_subrun must return SubRunResult with status='gate_pending' when delegate fires a gate."""
+    """await_subrun gate-pending result tests."""
 
     def test_await_subrun_gate_pending_from_completed_results(self) -> None:
         """Synchronous dispatch path: gate_pending DelegationResult must surface to SubRunResult."""
@@ -488,7 +490,7 @@ class TestH7PinnedReflectionRetrieval:
         ctx_mgr.set_reflection_context.assert_called_once_with(prompt_text)
 
     def test_set_reflection_context_not_called_on_first_attempt(self) -> None:
-        """On first attempt (attempt==1), no prior session exists; set_reflection_context must not be called."""
+        """First attempt must not call set_reflection_context without prior session."""
         executor = _bare_executor()
 
         store = MagicMock()

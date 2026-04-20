@@ -14,6 +14,7 @@ from hi_agent.llm.tier_router import TierRouter
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_model(
     model_id: str,
     tier: str = ModelTier.MEDIUM,
@@ -44,6 +45,7 @@ def _populated_registry() -> ModelRegistry:
 # ---------------------------------------------------------------------------
 # _resolve_tier tests
 # ---------------------------------------------------------------------------
+
 
 class TestResolveTierSkillConfidence:
     def setup_method(self) -> None:
@@ -86,8 +88,12 @@ class TestResolveTierSkillConfidence:
     def test_skill_confidence_downgrade_is_one_step_only(self) -> None:
         """A single skill_confidence signal causes at most one step of downgrade."""
         self.router.set_tier("heavy_analysis", ModelTier.STRONG)
-        base_tier = self.router._resolve_tier("heavy_analysis", "moderate", None, skill_confidence=None)
-        confident_tier = self.router._resolve_tier("heavy_analysis", "moderate", None, skill_confidence=0.95)
+        base_tier = self.router._resolve_tier(
+            "heavy_analysis", "moderate", None, skill_confidence=None
+        )
+        confident_tier = self.router._resolve_tier(
+            "heavy_analysis", "moderate", None, skill_confidence=0.95
+        )
         # STRONG -> MEDIUM (one step), NOT LIGHT (two steps)
         assert base_tier == ModelTier.STRONG
         assert confident_tier == ModelTier.MEDIUM
@@ -102,6 +108,7 @@ class TestResolveTierSkillConfidence:
 # ---------------------------------------------------------------------------
 # select_model integration tests
 # ---------------------------------------------------------------------------
+
 
 class TestSelectModelSkillConfidence:
     def setup_method(self) -> None:
@@ -120,7 +127,9 @@ class TestSelectModelSkillConfidence:
     def test_select_model_skill_confidence_matches_resolve_tier(self) -> None:
         """select_model result tier matches what _resolve_tier returns."""
         base_tier = self.router._resolve_tier("execution", "moderate", None, skill_confidence=None)
-        confident_tier = self.router._resolve_tier("execution", "moderate", None, skill_confidence=0.90)
+        confident_tier = self.router._resolve_tier(
+            "execution", "moderate", None, skill_confidence=0.90
+        )
         base_model = self.router.select_model("execution", skill_confidence=None)
         confident_model = self.router.select_model("execution", skill_confidence=0.90)
         assert base_model.tier == base_tier
@@ -131,6 +140,7 @@ class TestSelectModelSkillConfidence:
 # ---------------------------------------------------------------------------
 # TierAwareLLMGateway integration tests
 # ---------------------------------------------------------------------------
+
 
 class TestTierAwareLLMGatewaySkillConfidence:
     def _make_gateway(self) -> object:
@@ -148,9 +158,7 @@ class TestTierAwareLLMGatewaySkillConfidence:
             def supports_model(self, model: str) -> bool:
                 return True
 
-        gw = TierAwareLLMGateway(
-            inner=_FakeInner(), tier_router=router, registry=registry
-        )
+        gw = TierAwareLLMGateway(inner=_FakeInner(), tier_router=router, registry=registry)
         gw._selected_models = selected_models  # type: ignore[attr-defined]
         return gw
 

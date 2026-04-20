@@ -1,4 +1,5 @@
 """LocalBackend: subprocess-based experiment execution (G-9)."""
+
 from __future__ import annotations
 
 import logging
@@ -61,7 +62,9 @@ class LocalBackend:
                 cwd=run_dir,
             )
             self._records[ext_id] = _ProcRecord(run_dir=run_dir, proc=proc)
-            _logger.info("LocalBackend submitted ext_id=%s pid=%s cmd=%s", ext_id, proc.pid, argv[:1])
+            _logger.info(
+                "LocalBackend submitted ext_id=%s pid=%s cmd=%s", ext_id, proc.pid, argv[:1]
+            )
         except (FileNotFoundError, PermissionError) as exc:
             _logger.warning("LocalBackend.submit failed: %s", exc)
             self._records[ext_id] = _ProcRecord(run_dir=run_dir, proc=None, cancelled=True)

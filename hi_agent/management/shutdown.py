@@ -117,10 +117,14 @@ class ShutdownManager:
         try:
             hook()
         except Exception as error:
-            return False, False, ShutdownHookError(
-                hook_name=hook_name,
-                error_type=type(error).__name__,
-                error_message=str(error),
+            return (
+                False,
+                False,
+                ShutdownHookError(
+                    hook_name=hook_name,
+                    error_type=type(error).__name__,
+                    error_message=str(error),
+                ),
             )
         return True, False, None
 
@@ -146,9 +150,13 @@ class ShutdownManager:
             return False, True, None
         if raised_error:
             error = raised_error[0]
-            return False, False, ShutdownHookError(
-                hook_name=hook_name,
-                error_type=type(error).__name__,
-                error_message=str(error),
+            return (
+                False,
+                False,
+                ShutdownHookError(
+                    hook_name=hook_name,
+                    error_type=type(error).__name__,
+                    error_message=str(error),
+                ),
             )
         return True, False, None

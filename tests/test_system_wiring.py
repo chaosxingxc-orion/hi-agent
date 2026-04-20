@@ -29,6 +29,7 @@ from hi_agent.state import RunStateStore
 # Helpers
 # ------------------------------------------------------------------
 
+
 def _make_contract(**overrides: Any) -> TaskContract:
     defaults: dict[str, Any] = {"task_id": "test_t1", "goal": "test goal"}
     defaults.update(overrides)
@@ -157,8 +158,12 @@ class TestLLMGatewayActivation:
         builder = SystemBuilder(config)
         # Ensure no API keys leak from the real env; suppress config-file fallback
         # so this test exercises the "truly no credentials" path.
-        with patch.dict(os.environ, {"HI_AGENT_ENV": "dev"}, clear=True), \
-             patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+        with (
+            patch.dict(os.environ, {"HI_AGENT_ENV": "dev"}, clear=True),
+            patch(
+                "hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None
+            ),
+        ):
             # Reset cached gateway
             builder._llm_gateway = None
             gateway = builder.build_llm_gateway()
@@ -173,13 +178,20 @@ class TestLLMGatewayActivation:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-123")
         # Suppress config-file path so test exercises the env-var fallback.
-        with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+        with patch(
+            "hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None
+        ):
             gateway = builder.build_llm_gateway()
         assert isinstance(gateway, TierAwareLLMGateway)
         # Default compat_sync_llm=False → AsyncHTTPGateway; True → HttpLLMGateway.
         from hi_agent.llm.async_http_gateway import AsyncHTTPGateway
+
         assert isinstance(gateway._inner, (HttpLLMGateway, AsyncHTTPGateway))
-        assert gateway._inner._inner._default_model == "gpt-4o" if isinstance(gateway._inner, AsyncHTTPGateway) else gateway._inner._default_model == "gpt-4o"
+        assert (
+            gateway._inner._inner._default_model == "gpt-4o"
+            if isinstance(gateway._inner, AsyncHTTPGateway)
+            else gateway._inner._default_model == "gpt-4o"
+        )
 
     def test_returns_gateway_with_anthropic_key(self, tmp_path: Any, monkeypatch: Any) -> None:
         config = TraceConfig(
@@ -190,7 +202,9 @@ class TestLLMGatewayActivation:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
         # Suppress config-file path so test exercises the env-var fallback.
-        with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+        with patch(
+            "hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None
+        ):
             gateway = builder.build_llm_gateway()
         assert isinstance(gateway, TierAwareLLMGateway)
         assert isinstance(gateway._inner, AnthropicLLMGateway)
@@ -220,12 +234,19 @@ class TestCLIRun:
         from hi_agent.cli import _cmd_run, build_parser
 
         parser = build_parser()
-        args = parser.parse_args([
-            "run", "--goal", "say hello", "--local",
-        ])
+        args = parser.parse_args(
+            [
+                "run",
+                "--goal",
+                "say hello",
+                "--local",
+            ]
+        )
         # Suppress config-file gateway fallback: this CLI test must run in
         # heuristic mode without real network calls.
-        with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
+        with patch(
+            "hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None
+        ):
             _cmd_run(args)
         captured = capsys.readouterr()
         assert "Run completed" in captured.out

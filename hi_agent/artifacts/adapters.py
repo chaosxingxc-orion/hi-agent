@@ -71,9 +71,7 @@ class OutputToArtifactAdapter:
     # Internals
     # ------------------------------------------------------------------
 
-    def _infer(
-        self, output: dict[str, Any], action_id: str, source_refs: list[str]
-    ) -> Artifact:
+    def _infer(self, output: dict[str, Any], action_id: str, source_refs: list[str]) -> Artifact:
         common = {
             "producer_action_id": action_id,
             "source_refs": source_refs,

@@ -6,6 +6,7 @@ Receives ExecutionResult(s), assesses quality per node, decides:
   - escalate: retries exhausted -> escalation -> control for re-planning
   - fail: terminal failure
 """
+
 from __future__ import annotations
 
 import json
@@ -85,9 +86,7 @@ class EvaluationMiddleware:
             error = result.get("error")
 
             # Detect synthetic output from ExecutionMiddleware
-            is_synthetic = (
-                isinstance(output, dict) and output.get("_synthetic") is True
-            )
+            is_synthetic = isinstance(output, dict) and output.get("_synthetic") is True
 
             if not success:
                 score = 0.0
@@ -129,27 +128,27 @@ class EvaluationMiddleware:
                 quality_score=score,
                 feedback=feedback,
                 retry_instruction=(
-                    self._make_retry_instruction(feedback)
-                    if verdict == "retry"
-                    else None
+                    self._make_retry_instruction(feedback) if verdict == "retry" else None
                 ),
                 retry_count=retry_count,
                 max_retries=self._max_retries,
             )
 
-            evaluations.append({
-                "node_id": eval_result.node_id,
-                "verdict": eval_result.verdict,
-                "quality_score": eval_result.quality_score,
-                "feedback": eval_result.feedback,
-                "retry_instruction": eval_result.retry_instruction,
-                "retry_count": eval_result.retry_count,
-                "max_retries": eval_result.max_retries,
-                "issues": issues,
-                "scoring_mode": scoring_mode,
-                "evaluator_id": evaluator_meta.get("evaluator_id", "heuristic"),
-                "fallback_reason": evaluator_meta.get("fallback_reason", ""),
-            })
+            evaluations.append(
+                {
+                    "node_id": eval_result.node_id,
+                    "verdict": eval_result.verdict,
+                    "quality_score": eval_result.quality_score,
+                    "feedback": eval_result.feedback,
+                    "retry_instruction": eval_result.retry_instruction,
+                    "retry_count": eval_result.retry_count,
+                    "max_retries": eval_result.max_retries,
+                    "issues": issues,
+                    "scoring_mode": scoring_mode,
+                    "evaluator_id": evaluator_meta.get("evaluator_id", "heuristic"),
+                    "fallback_reason": evaluator_meta.get("fallback_reason", ""),
+                }
+            )
 
             overall_score = min(overall_score, score)
 
@@ -179,7 +178,10 @@ class EvaluationMiddleware:
         )
 
     def _assess_quality(
-        self, node_id: str, output: Any, evidence: list[str],
+        self,
+        node_id: str,
+        output: Any,
+        evidence: list[str],
         task_goal: str = "",
     ) -> tuple[float, str, dict]:
         """Assess quality of execution output.
@@ -197,7 +199,10 @@ class EvaluationMiddleware:
         if self._evaluator is not None:
             try:
                 from hi_agent.evaluation.contracts import EvaluationContext
-                output_dict = output if isinstance(output, dict) else {"output": output, "evidence": evidence}
+
+                output_dict = (
+                    output if isinstance(output, dict) else {"output": output, "evidence": evidence}
+                )
                 ctx = EvaluationContext(
                     goal=task_goal,
                     stage_id=node_id,
@@ -211,8 +216,7 @@ class EvaluationMiddleware:
                 return result.score, "evaluator", evaluator_meta
             except Exception as exc:
                 logger.warning(
-                    "Pluggable evaluator failed for node '%s', "
-                    "falling back to heuristic scoring",
+                    "Pluggable evaluator failed for node '%s', falling back to heuristic scoring",
                     node_id,
                     exc_info=True,
                 )
@@ -233,8 +237,7 @@ class EvaluationMiddleware:
                 return score, "llm", {"evaluator_id": "llm", "fallback_reason": ""}
             except Exception:
                 logger.warning(
-                    "LLM evaluation failed for node '%s', "
-                    "falling back to heuristic scoring",
+                    "LLM evaluation failed for node '%s', falling back to heuristic scoring",
                     node_id,
                     exc_info=True,
                 )
@@ -263,7 +266,9 @@ class EvaluationMiddleware:
         return min(1.0, score)
 
     def _llm_evaluate(
-        self, task_goal: str, output: str,
+        self,
+        task_goal: str,
+        output: str,
     ) -> tuple[float, list[str]]:
         """Use LLM to evaluate output quality.
 
@@ -281,8 +286,8 @@ class EvaluationMiddleware:
 
         prompt = (
             "Rate the quality of this output (0.0-1.0) for the given task. "
-            "Return JSON: {\"score\": float, \"issues\": [str], "
-            "\"strengths\": [str]}\n\n"
+            'Return JSON: {"score": float, "issues": [str], '
+            '"strengths": [str]}\n\n'
             f"Task: {task_goal}\n\n"
             f"Output: {output}"
         )
@@ -302,7 +307,11 @@ class EvaluationMiddleware:
         return score, issues
 
     def _generate_feedback(
-        self, node_id: str, score: float, output: Any, error: str | None,
+        self,
+        node_id: str,
+        score: float,
+        output: Any,
+        error: str | None,
     ) -> str:
         """Generate human-readable feedback."""
         if error:

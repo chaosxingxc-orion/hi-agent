@@ -176,9 +176,7 @@ class InMemoryKnowledgeStore:
             count += 1
         return count
 
-    def search_by_tags(
-        self, tags: list[str], limit: int = 10
-    ) -> list[KnowledgeEntry]:
+    def search_by_tags(self, tags: list[str], limit: int = 10) -> list[KnowledgeEntry]:
         """Search records that contain all specified tags.
 
         Returns:

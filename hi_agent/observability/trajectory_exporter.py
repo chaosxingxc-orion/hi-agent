@@ -76,7 +76,7 @@ class TrajectoryRecord:
         task_id: Optional task contract identifier.
         messages: Ordered list of conversation messages.
         reward: Scalar reward injected by a RewardAnnotator (if any).
-        quality_score: Quality score from evaluation pipeline (0.0–1.0).
+        quality_score: Quality score from evaluation pipeline (0.0-1.0).
         skill_id: Identifier of the primary skill used (if any).
         total_turns: Number of user/assistant turn pairs.
         total_tool_calls: Total number of tool calls across all messages.

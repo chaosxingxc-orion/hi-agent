@@ -48,7 +48,9 @@ class RunContext:
         default_factory=lambda: NudgeState() if NudgeState is not None else None
     )
     tool_result_budget_state: Any = field(
-        default_factory=lambda: ToolResultBudgetState() if ToolResultBudgetState is not None else None
+        default_factory=lambda: (
+            ToolResultBudgetState() if ToolResultBudgetState is not None else None
+        )
     )
 
     def to_dict(self) -> dict[str, Any]:
@@ -56,9 +58,7 @@ class RunContext:
         return {
             "run_id": self.run_id,
             "dag": {k: _node_to_dict(v) for k, v in self.dag.items()},
-            "stage_summaries": {
-                k: _summary_to_dict(v) for k, v in self.stage_summaries.items()
-            },
+            "stage_summaries": {k: _summary_to_dict(v) for k, v in self.stage_summaries.items()},
             "action_seq": self.action_seq,
             "branch_seq": self.branch_seq,
             "decision_seq": self.decision_seq,
@@ -69,11 +69,7 @@ class RunContext:
             "skill_ids_used": list(self.skill_ids_used),
             "completed_stages": sorted(self.completed_stages),
             "metadata": dict(self.metadata),
-            "nudge_state": (
-                self.nudge_state.to_dict()
-                if self.nudge_state is not None
-                else {}
-            ),
+            "nudge_state": (self.nudge_state.to_dict() if self.nudge_state is not None else {}),
             "tool_result_budget_state": (
                 self.tool_result_budget_state.to_dict()
                 if self.tool_result_budget_state is not None
@@ -113,9 +109,7 @@ def _node_to_dict(node: TrajectoryNode) -> dict[str, Any]:
         "stage_id": node.stage_id,
         "state": node.state.value if hasattr(node.state, "value") else str(node.state),
         "node_type": (
-            node.node_type.value
-            if hasattr(node.node_type, "value")
-            else str(node.node_type)
+            node.node_type.value if hasattr(node.node_type, "value") else str(node.node_type)
         ),
         "parent_ids": list(node.parent_ids),
     }

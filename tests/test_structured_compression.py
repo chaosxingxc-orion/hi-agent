@@ -16,7 +16,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio  # noqa: F401 – ensures the plugin is imported
+import pytest_asyncio  # noqa: F401 - ensures the plugin is imported
 from hi_agent.llm import LLMResponse, TokenUsage
 from hi_agent.memory.structured_compression import (
     MessagePartitioner,

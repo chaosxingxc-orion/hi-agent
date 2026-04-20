@@ -17,9 +17,9 @@ def test_compressor_keeps_full_records_below_threshold() -> None:
         ),
     ]
 
-    compressed = MemoryCompressor(
-        compress_threshold=4, fallback_items=1
-    ).compress_stage_sync("S1", records)
+    compressed = MemoryCompressor(compress_threshold=4, fallback_items=1).compress_stage_sync(
+        "S1", records
+    )
 
     assert compressed.findings == ["S1:completed", "S1:running"]
     assert compressed.decisions == ["task_view:tv-1"]
@@ -40,9 +40,9 @@ def test_compressor_truncates_to_fallback_items_at_threshold() -> None:
         RawEventRecord(event_type="TaskViewRecorded", payload={"task_view_id": "tv-late"}),
     ]
 
-    compressed = MemoryCompressor(
-        compress_threshold=4, fallback_items=2
-    ).compress_stage_sync("S1", records)
+    compressed = MemoryCompressor(compress_threshold=4, fallback_items=2).compress_stage_sync(
+        "S1", records
+    )
 
     assert compressed.findings == ["S1:running"]
     assert compressed.decisions == ["task_view:tv-late"]

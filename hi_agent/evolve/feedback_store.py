@@ -1,4 +1,5 @@
 """FeedbackStore — collects explicit run outcome feedback from business layer."""
+
 from __future__ import annotations
 
 import json
@@ -16,7 +17,7 @@ class RunFeedback:
     """Explicit feedback for a completed run."""
 
     run_id: str
-    rating: float          # 0.0 (worst) - 1.0 (best)
+    rating: float  # 0.0 (worst) - 1.0 (best)
     notes: str = ""
     submitted_at: str = ""  # ISO 8601; set automatically if empty
 

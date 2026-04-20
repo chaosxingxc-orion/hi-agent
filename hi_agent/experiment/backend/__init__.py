@@ -1,4 +1,5 @@
 """ExperimentBackend protocol for long-running operation backends (G-9)."""
+
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable

@@ -211,9 +211,7 @@ import json
 def _make_unsigned_jwt(role: str = "write", audience: str = _AUDIENCE) -> str:
     """Build an alg=none JWT (unsigned)."""
     header = (
-        base64.urlsafe_b64encode(
-            json.dumps({"alg": "none", "typ": "JWT"}).encode()
-        )
+        base64.urlsafe_b64encode(json.dumps({"alg": "none", "typ": "JWT"}).encode())
         .rstrip(b"=")
         .decode()
     )
@@ -242,8 +240,9 @@ class TestJWTDefaultEnforce:
         monkeypatch.setenv("HI_AGENT_API_KEY", "testkey")
         monkeypatch.delenv("HI_AGENT_JWT_SECRET", raising=False)
         monkeypatch.delenv("HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS", raising=False)
-        from hi_agent.server.auth_middleware import AuthMiddleware as _AM
-        middleware = _AM(app=None, audience=_AUDIENCE)
+        from hi_agent.server.auth_middleware import AuthMiddleware
+
+        middleware = AuthMiddleware(app=None, audience=_AUDIENCE)
         token = _make_unsigned_jwt(role="admin")
         result = middleware._authenticate(token)
         assert result is None, f"Unsigned JWT accepted with role={result}"
@@ -253,8 +252,9 @@ class TestJWTDefaultEnforce:
         monkeypatch.setenv("HI_AGENT_API_KEY", "testkey")
         monkeypatch.delenv("HI_AGENT_JWT_SECRET", raising=False)
         monkeypatch.setenv("HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS", "true")
-        from hi_agent.server.auth_middleware import AuthMiddleware as _AM
-        middleware = _AM(app=None, audience=_AUDIENCE)
+        from hi_agent.server.auth_middleware import AuthMiddleware
+
+        middleware = AuthMiddleware(app=None, audience=_AUDIENCE)
         token = _make_token(_UNVERIFIED_TEST_SECRET, role="read")
         result = middleware._authenticate(token)
         assert result == "read"
@@ -264,8 +264,9 @@ class TestJWTDefaultEnforce:
         monkeypatch.setenv("HI_AGENT_API_KEY", "testkey")
         monkeypatch.delenv("HI_AGENT_JWT_SECRET", raising=False)
         monkeypatch.delenv("HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS", raising=False)
-        from hi_agent.server.auth_middleware import AuthMiddleware as _AM
-        middleware = _AM(app=None, audience=_AUDIENCE)
+        from hi_agent.server.auth_middleware import AuthMiddleware
+
+        middleware = AuthMiddleware(app=None, audience=_AUDIENCE)
         token = _make_unsigned_jwt(role="admin")
         result = middleware._authenticate(token)
         assert result is None

@@ -3,6 +3,7 @@
 Verifies that asyncio-level task failures are stored into the results dict
 so that await_subrun() callers never hang or get a KeyError.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock

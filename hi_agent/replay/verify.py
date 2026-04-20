@@ -31,8 +31,7 @@ def verify_replay_against_snapshot(
     snapshot_success = _snapshot_result_to_success(snapshot.result)
     if snapshot_success is None:
         mismatches.append(
-            "result/success mismatch: "
-            f"unsupported snapshot result={snapshot.result!r}"
+            f"result/success mismatch: unsupported snapshot result={snapshot.result!r}"
         )
     elif replay_success != snapshot_success:
         mismatches.append(

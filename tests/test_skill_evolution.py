@@ -132,9 +132,7 @@ class TestSkillObserver:
         def _write(tid: int) -> None:
             try:
                 for i in range(20):
-                    observer.observe(
-                        _make_obs(run_id=f"t{tid}-r{i}")
-                    )
+                    observer.observe(_make_obs(run_id=f"t{tid}-r{i}"))
             except Exception as e:
                 errors.append(e)
 
@@ -448,9 +446,7 @@ class TestSkillEvolver:
         version_mgr.create_version("skill_abc", "Original prompt")
 
         for i in range(8):
-            observer.observe(
-                _make_obs(run_id=f"f-{i}", success=False, failure_code="no_progress")
-            )
+            observer.observe(_make_obs(run_id=f"f-{i}", success=False, failure_code="no_progress"))
         for i in range(2):
             observer.observe(_make_obs(run_id=f"s-{i}"))
 

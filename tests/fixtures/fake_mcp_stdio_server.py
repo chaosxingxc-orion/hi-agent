@@ -2,6 +2,7 @@
 
 Responds to JSON-RPC initialize and tools/list over stdin/stdout.
 """
+
 from __future__ import annotations
 
 import contextlib

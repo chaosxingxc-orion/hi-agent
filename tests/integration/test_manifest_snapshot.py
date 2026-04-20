@@ -13,6 +13,7 @@ from starlette.testclient import TestClient
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """TestClient backed by a real AgentServer in dev mode."""
@@ -42,12 +43,17 @@ def get_stable_manifest(client: TestClient) -> dict:
 # Tests
 # ---------------------------------------------------------------------------
 
+
 def test_manifest_shape_contains_required_keys(test_client: TestClient) -> None:
     """Smoke test: manifest contains all required top-level keys."""
     data = test_client.get("/manifest").json()
     required = {
-        "runtime_mode", "environment", "llm_mode", "kernel_mode",
-        "evolve_policy", "provenance_contract_version",
+        "runtime_mode",
+        "environment",
+        "llm_mode",
+        "kernel_mode",
+        "evolve_policy",
+        "provenance_contract_version",
     }
     missing = required - set(data.keys())
     assert not missing, f"Manifest missing required keys: {missing}"

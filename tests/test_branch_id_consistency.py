@@ -33,28 +33,17 @@ def _make_contract(
 
 def _get_envelopes_of_type(executor: RunExecutor, event_type: str) -> list[Any]:
     """Return event envelopes of a given type from the executor's emitter."""
-    return [
-        e
-        for e in executor.event_emitter.events
-        if e.event_type == event_type
-    ]
+    return [e for e in executor.event_emitter.events if e.event_type == event_type]
 
 
 def _get_branch_envelopes(executor: RunExecutor) -> list[Any]:
     """Return all event envelopes that carry a branch_id in their payload."""
-    return [
-        e
-        for e in executor.event_emitter.events
-        if e.payload.get("branch_id")
-    ]
+    return [e for e in executor.event_emitter.events if e.payload.get("branch_id")]
 
 
 def _proposed_branch_ids(executor: RunExecutor) -> list[str]:
     """Return branch_ids from BranchProposed events."""
-    return [
-        e.payload["branch_id"]
-        for e in _get_envelopes_of_type(executor, "BranchProposed")
-    ]
+    return [e.payload["branch_id"] for e in _get_envelopes_of_type(executor, "BranchProposed")]
 
 
 # ---------------------------------------------------------------------------

@@ -80,16 +80,12 @@ class RecoveryCoordinator:
         if hasattr(report, "success"):
             return bool(report.success)
 
-        if hasattr(report, "execution_report") and hasattr(
-            report.execution_report, "success"
-        ):
+        if hasattr(report, "execution_report") and hasattr(report.execution_report, "success"):
             return bool(report.execution_report.success)
 
         return True
 
-    def _resolve_recovery_should_escalate(
-        self, report: object
-    ) -> bool | None:
+    def _resolve_recovery_should_escalate(self, report: object) -> bool | None:
         """Extract optional escalation signal from recovery report payload."""
         if isinstance(report, dict) and "should_escalate" in report:
             return bool(report["should_escalate"])
@@ -108,9 +104,7 @@ class RecoveryCoordinator:
 
         try:
             if self._ctx._recovery_executor_accepts_handlers:
-                report = self._ctx.recovery_executor(
-                    consumed_events, self._ctx.recovery_handlers
-                )
+                report = self._ctx.recovery_executor(consumed_events, self._ctx.recovery_handlers)
             else:
                 report = self._ctx.recovery_executor(consumed_events)
             success = self._resolve_recovery_success(report)
@@ -166,7 +160,8 @@ class RecoveryCoordinator:
         if self._ctx._run_terminated:
             _logger.info(
                 "runner.stage_failure_skipped_terminated stage_id=%s run_id=%s",
-                stage_id, self._ctx.run_id,
+                stage_id,
+                self._ctx.run_id,
             )
             return "failed"
 
@@ -191,7 +186,8 @@ class RecoveryCoordinator:
                 try:
                     from datetime import UTC, datetime
 
-                    from hi_agent.task_mgmt.restart_policy import TaskAttempt as _TA
+                    from hi_agent.task_mgmt.restart_policy import TaskAttempt
+
                     _ta_kwargs: dict = {
                         "attempt_id": f"{self._ctx.run_id}/{stage_id}/{attempt}",
                         "task_id": policy_task_id,
@@ -203,16 +199,18 @@ class RecoveryCoordinator:
                     }
                     # stage_id was added in H-1; fall back gracefully if absent.
                     try:
-                        ta_obj = _TA(**_ta_kwargs, stage_id=stage_id)
+                        ta_obj = TaskAttempt(**_ta_kwargs, stage_id=stage_id)
                     except TypeError:
-                        ta_obj = _TA(**_ta_kwargs)
+                        ta_obj = TaskAttempt(**_ta_kwargs)
                         with contextlib.suppress(AttributeError, TypeError):
                             object.__setattr__(ta_obj, "stage_id", stage_id)
                     self._ctx._restart_policy._record_attempt(ta_obj)
                 except Exception as _rec_exc:
                     _logger.debug(
                         "runner.record_attempt_failed stage_id=%s attempt=%d error=%s",
-                        stage_id, attempt, _rec_exc,
+                        stage_id,
+                        attempt,
+                        _rec_exc,
                     )
 
                 _policy = self._ctx._restart_policy._get_policy(policy_task_id)
@@ -222,6 +220,7 @@ class RecoveryCoordinator:
                         policy_task_id,
                     )
                     from hi_agent.task_mgmt.restart_policy import RestartDecision
+
                     decision = RestartDecision(
                         task_id=policy_task_id,
                         action="abort",
@@ -266,8 +265,9 @@ class RecoveryCoordinator:
                     return "failed"
 
                 if decision.action == "reflect":
-                    # Pinned retrieval: load prior reflection prompt by exact session_id to
-                    # bypass list_recent() window limits. Best-effort — retry proceeds if unavailable.
+                    # Pinned retrieval: load prior reflection prompt by exact
+                    # session_id to bypass list_recent() window limits.
+                    # Best-effort — retry proceeds if unavailable.
                     if self._ctx.short_term_store is not None and attempt > 1:
                         try:
                             prior_session = f"{self._ctx.run_id}/reflect/{stage_id}/{attempt - 1}"
@@ -306,6 +306,7 @@ class RecoveryCoordinator:
                                 from hi_agent.task_mgmt.reflection_bridge import (
                                     TaskDescriptor,
                                 )
+
                                 descriptor_cls = TaskDescriptor
                             except Exception as exc:
                                 _logger.warning(
@@ -326,12 +327,17 @@ class RecoveryCoordinator:
                                     loop = asyncio.get_running_loop()
 
                                 if loop is not None and loop.is_running():
-                                    # Save reflection prompt synchronously — must precede the retry LLM call.
-                                    if decision.reflection_prompt and self._ctx.short_term_store is not None:
+                                    # Save reflection prompt synchronously — must
+                                    # precede the retry LLM call.
+                                    if (
+                                        decision.reflection_prompt
+                                        and self._ctx.short_term_store is not None
+                                    ):
                                         try:
                                             from hi_agent.memory.short_term import (
                                                 ShortTermMemory,
                                             )
+
                                             self._ctx.short_term_store.save(
                                                 ShortTermMemory(
                                                     session_id=f"{self._ctx.run_id}/reflect/{stage_id}/{attempt}",
@@ -356,7 +362,9 @@ class RecoveryCoordinator:
                                         )
                                     )
                                     task.add_done_callback(_reflect_task_done_callback)
-                                    self._ctx._pending_reflection_tasks.append(task)  # J8-1: track for finalization
+                                    self._ctx._pending_reflection_tasks.append(
+                                        task
+                                    )  # J8-1: track for finalization
                                     _logger.info(
                                         "runner.reflect_scheduled_async stage_id=%s",
                                         stage_id,
@@ -369,12 +377,17 @@ class RecoveryCoordinator:
                                             run_id=self._ctx.run_id,
                                         )
                                     )
-                                    # Inject reflection prompt into short-term memory so retry LLM sees it.
-                                    if decision.reflection_prompt and self._ctx.short_term_store is not None:
+                                    # Inject reflection prompt into short-term
+                                    # memory so retry LLM sees it.
+                                    if (
+                                        decision.reflection_prompt
+                                        and self._ctx.short_term_store is not None
+                                    ):
                                         try:
                                             from hi_agent.memory.short_term import (
                                                 ShortTermMemory,
                                             )
+
                                             self._ctx.short_term_store.save(
                                                 ShortTermMemory(
                                                     session_id=f"{self._ctx.run_id}/reflect/{stage_id}/{attempt}",
@@ -385,7 +398,8 @@ class RecoveryCoordinator:
                                             )
                                         except Exception as _exc:
                                             _logger.warning(
-                                                "runner.reflect_context_inject_failed stage_id=%s error=%s",
+                                                "runner.reflect_context_inject_failed "
+                                                "stage_id=%s error=%s",
                                                 stage_id,
                                                 _exc,
                                             )
@@ -446,7 +460,9 @@ class RecoveryCoordinator:
 
             _logger.warning(
                 "runner.stage_failure_loop_ceiling stage_id=%s run_id=%s ceiling=%d",
-                stage_id, self._ctx.run_id, _max_total_attempts,
+                stage_id,
+                self._ctx.run_id,
+                _max_total_attempts,
             )
             return "failed"
 

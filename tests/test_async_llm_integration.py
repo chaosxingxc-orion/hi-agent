@@ -19,6 +19,7 @@ from hi_agent.memory.async_compressor import AsyncMemoryCompressor, CompressionR
 # Mock async gateway
 # ---------------------------------------------------------------------------
 
+
 class MockAsyncGateway:
     """Simple mock that satisfies AsyncLLMGateway protocol."""
 
@@ -42,6 +43,7 @@ class MockAsyncGateway:
 # 1. AsyncLLMGateway protocol shape
 # ---------------------------------------------------------------------------
 
+
 def test_async_llm_gateway_protocol():
     """AsyncLLMGateway protocol should define complete() and supports_model()."""
     # Verify protocol has the expected methods
@@ -58,6 +60,7 @@ def test_async_llm_gateway_protocol():
 # ---------------------------------------------------------------------------
 # 2. HTTPGateway.complete() with mock
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_http_gateway_complete(monkeypatch):
@@ -117,6 +120,7 @@ async def test_http_gateway_complete(monkeypatch):
 # 3. HTTPGateway.supports_model()
 # ---------------------------------------------------------------------------
 
+
 def test_http_gateway_supports_model():
     """HTTPGateway.supports_model() should return True for any model."""
     from hi_agent.llm.http_gateway import HTTPGateway
@@ -130,6 +134,7 @@ def test_http_gateway_supports_model():
 # ---------------------------------------------------------------------------
 # 4. AsyncMemoryCompressor with gateway
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_async_compressor_with_gateway():
@@ -163,6 +168,7 @@ async def test_async_compressor_with_gateway():
 # 5. AsyncMemoryCompressor without gateway (fallback)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_async_compressor_without_gateway():
     """Compressor should fall back to string concat without a gateway."""
@@ -184,6 +190,7 @@ async def test_async_compressor_without_gateway():
 # 6. AsyncMemoryCompressor with empty records
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_async_compressor_empty_records():
     """Empty records should return an empty summary with ratio 1.0."""
@@ -199,6 +206,7 @@ async def test_async_compressor_empty_records():
 # ---------------------------------------------------------------------------
 # 7. Runner._track_llm_cost
 # ---------------------------------------------------------------------------
+
 
 def test_runner_track_llm_cost():
     """_track_llm_cost should record cost to session."""
@@ -247,6 +255,7 @@ def test_runner_track_llm_cost():
 # 8. HybridRouteEngine with gateway (LLM fallback)
 # ---------------------------------------------------------------------------
 
+
 def test_hybrid_engine_with_gateway():
     """HybridRouteEngine should fall through to LLM when rules are weak."""
     import json
@@ -256,12 +265,14 @@ def test_hybrid_engine_with_gateway():
     from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
     # MockLLMGateway returns plain text by default; LLMRouteEngine expects JSON.
-    mock_decision = json.dumps({
-        "next_stage": "S2",
-        "confidence": 0.85,
-        "rationale": "Proceeding to analysis",
-        "action_kind": "analyze",
-    })
+    mock_decision = json.dumps(
+        {
+            "next_stage": "S2",
+            "confidence": 0.85,
+            "rationale": "Proceeding to analysis",
+            "action_kind": "analyze",
+        }
+    )
     gateway = MockLLMGateway(default_response=mock_decision)
     engine = HybridRouteEngine(gateway=gateway)
 

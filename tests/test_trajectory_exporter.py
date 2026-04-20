@@ -408,6 +408,7 @@ class TestTrajectoryExporter:
 
         import os
         import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as tmp:
             tmp_path = tmp.name
         try:

@@ -1,4 +1,5 @@
 """Regression tests: profile-provided topology must not be overridden by TRACE sample defaults."""
+
 from __future__ import annotations
 
 
@@ -20,11 +21,13 @@ class TestProfileDoesNotLeakTraceSampleDefaults:
 
         builder = SystemBuilder()
         reg = builder.build_profile_registry()
-        reg.register(ProfileSpec(
-            profile_id="custom",
-            display_name="Custom",
-            stage_actions={"plan": "run_planner", "execute": "run_executor"},
-        ))
+        reg.register(
+            ProfileSpec(
+                profile_id="custom",
+                display_name="Custom",
+                stage_actions={"plan": "run_planner", "execute": "run_executor"},
+            )
+        )
         resolved = builder._resolve_profile("custom")
         assert resolved is not None
 
@@ -44,7 +47,8 @@ class TestProfileDoesNotLeakTraceSampleDefaults:
         # But it should not inject TRACE defaults when a profile is active
         for p in trace_proposals:
             assert p.action_kind not in ("analyze_goal",), (
-                f"TRACE default 'analyze_goal' leaked into profile runtime for stage S1_understand: {p}"
+                "TRACE default 'analyze_goal' leaked into profile runtime for "
+                f"stage S1_understand: {p}"
             )
 
     def test_no_profile_trace_fallback_works(self):
@@ -63,15 +67,21 @@ class TestProfileDoesNotLeakTraceSampleDefaults:
         from hi_agent.profiles.contracts import ProfileSpec
 
         b1 = SystemBuilder()
-        b1.build_profile_registry().register(ProfileSpec(
-            profile_id="p1", display_name="P1",
-            stage_actions={"alpha": "do_alpha"},
-        ))
+        b1.build_profile_registry().register(
+            ProfileSpec(
+                profile_id="p1",
+                display_name="P1",
+                stage_actions={"alpha": "do_alpha"},
+            )
+        )
         b2 = SystemBuilder()
-        b2.build_profile_registry().register(ProfileSpec(
-            profile_id="p2", display_name="P2",
-            stage_actions={"beta": "do_beta"},
-        ))
+        b2.build_profile_registry().register(
+            ProfileSpec(
+                profile_id="p2",
+                display_name="P2",
+                stage_actions={"beta": "do_beta"},
+            )
+        )
 
         r1 = b1._resolve_profile("p1")
         r2 = b2._resolve_profile("p2")

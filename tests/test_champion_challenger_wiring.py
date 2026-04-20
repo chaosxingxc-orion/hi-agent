@@ -86,8 +86,7 @@ class TestEvolveEngineChampionWiring:
         result = engine.on_run_completed(pm)
 
         promo_changes = [
-            c for c in result.changes
-            if c.change_type == "champion_challenger_promotion"
+            c for c in result.changes if c.change_type == "champion_challenger_promotion"
         ]
         assert len(promo_changes) == 1
 

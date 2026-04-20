@@ -27,7 +27,9 @@ class TestReplayRecorder:
     def test_record_and_load_roundtrip(self, tmp_path):
         path = tmp_path / "events.jsonl"
         recorder = ReplayRecorder(path)
-        env1 = _make_envelope("StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"})
+        env1 = _make_envelope(
+            "StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}
+        )
         env2 = _make_envelope("TaskViewRecorded", payload={"tokens": 100})
         recorder.record(env1)
         recorder.record(env2)
@@ -61,9 +63,17 @@ class TestReplayRecorder:
     def test_mixed_stages(self, tmp_path):
         path = tmp_path / "events.jsonl"
         with ReplayRecorder(path) as rec:
-            rec.record(_make_envelope("StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}))
+            rec.record(
+                _make_envelope(
+                    "StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}
+                )
+            )
             rec.record(_make_envelope("TaskViewRecorded", payload={}))
-            rec.record(_make_envelope("StageStateChanged", payload={"stage_id": "S2", "to_state": "completed"}))
+            rec.record(
+                _make_envelope(
+                    "StageStateChanged", payload={"stage_id": "S2", "to_state": "completed"}
+                )
+            )
 
         loaded = load_event_envelopes_jsonl(path)
         assert len(loaded) == 3
@@ -81,8 +91,12 @@ class TestReplayEngine:
     def test_replay_successful_stages(self):
         engine = ReplayEngine()
         events = [
-            _make_envelope("StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}),
-            _make_envelope("StageStateChanged", payload={"stage_id": "S2", "to_state": "completed"}),
+            _make_envelope(
+                "StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}
+            ),
+            _make_envelope(
+                "StageStateChanged", payload={"stage_id": "S2", "to_state": "completed"}
+            ),
         ]
         report = engine.replay(events)
         assert report.success is True
@@ -91,7 +105,9 @@ class TestReplayEngine:
     def test_replay_with_failure(self):
         engine = ReplayEngine()
         events = [
-            _make_envelope("StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}),
+            _make_envelope(
+                "StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}
+            ),
             _make_envelope("StageStateChanged", payload={"stage_id": "S2", "to_state": "failed"}),
         ]
         report = engine.replay(events)
@@ -102,7 +118,9 @@ class TestReplayEngine:
         events = [
             _make_envelope("TaskViewRecorded"),
             _make_envelope("TaskViewRecorded"),
-            _make_envelope("StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}),
+            _make_envelope(
+                "StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}
+            ),
         ]
         report = engine.replay(events)
         assert report.task_view_count == 2
@@ -120,8 +138,16 @@ class TestVerifyIntegration:
     def test_roundtrip_verify(self, tmp_path):
         path = tmp_path / "events.jsonl"
         with ReplayRecorder(path) as rec:
-            rec.record(_make_envelope("StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}))
-            rec.record(_make_envelope("StageStateChanged", payload={"stage_id": "S2", "to_state": "completed"}))
+            rec.record(
+                _make_envelope(
+                    "StageStateChanged", payload={"stage_id": "S1", "to_state": "completed"}
+                )
+            )
+            rec.record(
+                _make_envelope(
+                    "StageStateChanged", payload={"stage_id": "S2", "to_state": "completed"}
+                )
+            )
             rec.record(_make_envelope("TaskViewRecorded"))
 
         loaded = load_event_envelopes_jsonl(path)

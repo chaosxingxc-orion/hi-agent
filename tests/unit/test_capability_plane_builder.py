@@ -6,7 +6,7 @@ from hi_agent.config.trace_config import TraceConfig
 @pytest.fixture
 def builder(tmp_path):
     cfg = TraceConfig()
-    cfg.episodic_storage_dir = str(tmp_path / 'episodes')
+    cfg.episodic_storage_dir = str(tmp_path / "episodes")
     return CapabilityPlaneBuilder(cfg, llm_gateway=None)
 
 
@@ -30,12 +30,14 @@ def test_no_llm_gateway_call():
     import inspect
 
     import hi_agent.config.capability_plane_builder as m
+
     src = inspect.getsource(m)
-    assert 'build_llm_gateway' not in src, 'Must not call build_llm_gateway internally'
+    assert "build_llm_gateway" not in src, "Must not call build_llm_gateway internally"
 
 
 def test_system_builder_delegates(tmp_path):
     from hi_agent.config.builder import SystemBuilder
+
     cfg = TraceConfig()
-    cfg.episodic_storage_dir = str(tmp_path / 'episodes')
+    cfg.episodic_storage_dir = str(tmp_path / "episodes")
     assert SystemBuilder(cfg).build_capability_registry() is not None

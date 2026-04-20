@@ -1,4 +1,5 @@
 """Integration tests: invoker raises CapabilityUnavailableError for unavailable caps."""
+
 from unittest.mock import MagicMock
 
 import pytest

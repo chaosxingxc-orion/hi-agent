@@ -1,4 +1,5 @@
 """Tests for release gate prod-real hard gate (HI-W12-002)."""
+
 import datetime
 import json
 from pathlib import Path

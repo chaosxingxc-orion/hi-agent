@@ -19,18 +19,21 @@ from tests.helpers.llm_gateway_fixture import MockLLMGateway
 # Helpers
 # --------------------------------------------------------------------------- #
 
+
 def _make_route_json(
     next_stage: str = "S3_build",
     confidence: float = 0.85,
     rationale: str = "Evidence supports building.",
     action_kind: str = "build_draft",
 ) -> str:
-    return json.dumps({
-        "next_stage": next_stage,
-        "confidence": confidence,
-        "rationale": rationale,
-        "action_kind": action_kind,
-    })
+    return json.dumps(
+        {
+            "next_stage": next_stage,
+            "confidence": confidence,
+            "rationale": rationale,
+            "action_kind": action_kind,
+        }
+    )
 
 
 def _sample_context() -> dict:
@@ -214,9 +217,7 @@ class TestAutoCompressTriggerCheckAndCompress:
     def test_snips_old_records(self):
         trigger = AutoCompressTrigger(snip_threshold=5)
         records = _make_records(20)
-        filtered, _ = trigger.check_and_compress(
-            records, "S1", budget_tokens=100000
-        )
+        filtered, _ = trigger.check_and_compress(records, "S1", budget_tokens=100000)
         assert len(filtered) <= 5
         # Should keep most recent.
         assert filtered[-1] == records[-1]
@@ -231,9 +232,7 @@ class TestAutoCompressTriggerCheckAndCompress:
             compressor=compressor,
         )
         records = _make_records(15)
-        _, summary = trigger.check_and_compress(
-            records, "S2", budget_tokens=100000
-        )
+        _, summary = trigger.check_and_compress(records, "S2", budget_tokens=100000)
         # Summary should be produced.
         assert summary is not None
         assert "stage_id" in summary
@@ -246,9 +245,7 @@ class TestAutoCompressTriggerCheckAndCompress:
             compress_threshold=999999,
         )
         records = _make_records(50)
-        filtered, _ = trigger.check_and_compress(
-            records, "S1", budget_tokens=50
-        )
+        filtered, _ = trigger.check_and_compress(records, "S1", budget_tokens=50)
         # Filtered should have fewer records than original.
         assert len(filtered) < len(records)
 

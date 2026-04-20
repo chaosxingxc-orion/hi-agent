@@ -139,8 +139,7 @@ class ResilientKernelAdapter:
                 health["error_rate"],
             )
             raise RuntimeAdapterBackendError(
-                f"Circuit open: kernel adapter unhealthy "
-                f"(error_rate={health['error_rate']:.2f})"
+                f"Circuit open: kernel adapter unhealthy (error_rate={health['error_rate']:.2f})"
             )
 
         method = getattr(self._inner, method_name)
@@ -159,11 +158,14 @@ class ResilientKernelAdapter:
                 self._health.record_call(latency_ms, success=False)
                 last_exc = exc
                 if attempt < self._max_retries:
-                    delay = self._base_delay_s * (2 ** attempt)
+                    delay = self._base_delay_s * (2**attempt)
                     logger.debug(
-                        "ResilientKernelAdapter: %r attempt %d/%d failed (%s), "
-                        "retrying in %.2fs",
-                        method_name, attempt + 1, attempts, exc, delay,
+                        "ResilientKernelAdapter: %r attempt %d/%d failed (%s), retrying in %.2fs",
+                        method_name,
+                        attempt + 1,
+                        attempts,
+                        exc,
+                        delay,
                     )
                     time.sleep(delay)
 
@@ -179,12 +181,13 @@ class ResilientKernelAdapter:
             )
             logger.warning(
                 "ResilientKernelAdapter: %r buffered after %d retries (%s)",
-                method_name, attempts, last_exc,
+                method_name,
+                attempts,
+                last_exc,
             )
 
         raise RuntimeAdapterBackendError(
-            f"kernel adapter call {method_name!r} failed after "
-            f"{attempts} attempt(s): {last_exc}"
+            f"kernel adapter call {method_name!r} failed after {attempts} attempt(s): {last_exc}"
         ) from last_exc
 
     def replay_buffered(self) -> int:
@@ -193,15 +196,14 @@ class ResilientKernelAdapter:
         Call this when the kernel connection is restored.  Events are
         replayed in FIFO order.  Returns the number of events replayed.
         """
+
         def _dispatch(method_name: str, payload: dict) -> None:
             method = getattr(self._inner, method_name)
             method(*payload.get("args", []), **payload.get("kwargs", {}))
 
         replayed = self._buffer.flush(_dispatch)
         if replayed:
-            logger.info(
-                "ResilientKernelAdapter: replayed %d buffered event(s)", replayed
-            )
+            logger.info("ResilientKernelAdapter: replayed %d buffered event(s)", replayed)
         return replayed
 
     @property

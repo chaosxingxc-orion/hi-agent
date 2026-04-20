@@ -3,6 +3,7 @@
 Verifies that error-relevant events produce log records, making them
 visible in production.
 """
+
 from __future__ import annotations
 
 import logging
@@ -56,16 +57,12 @@ class TestOrchestratorLogging:
             f"Expected 'orchestrator.middleware_error' in log records, got: {messages}"
         )
 
-    def test_pipeline_blocked_logged_on_block_hook(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_pipeline_blocked_logged_on_block_hook(self, caplog: pytest.LogCaptureFixture) -> None:
         """A BLOCK hook should emit orchestrator.pipeline_blocked log."""
         orch = MiddlewareOrchestrator()
         orch.register_middleware("perception", _NormalMiddleware())
 
-        def _blocking_hook(
-            msg: MiddlewareMessage, ctx: dict[str, Any]
-        ) -> HookResult:
+        def _blocking_hook(msg: MiddlewareMessage, ctx: dict[str, Any]) -> HookResult:
             return HookResult(action=HookAction.BLOCK, reason="test_block")
 
         orch.add_hook(
@@ -83,9 +80,7 @@ class TestOrchestratorLogging:
             f"Expected 'orchestrator.pipeline_blocked' in log records, got: {messages}"
         )
 
-    def test_run_start_and_complete_logged_at_debug(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_run_start_and_complete_logged_at_debug(self, caplog: pytest.LogCaptureFixture) -> None:
         """run() should emit run_start and run_complete debug logs."""
         orch = MiddlewareOrchestrator()
         orch.register_middleware("perception", _NormalMiddleware())

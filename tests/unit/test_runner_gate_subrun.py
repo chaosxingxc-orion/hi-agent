@@ -57,9 +57,7 @@ class TestDispatchSubrunGoal:
 
         import asyncio
 
-        _ = asyncio.run(
-            _dispatch_subrun_async(executor, goal="Write the introduction")
-        )
+        _ = asyncio.run(_dispatch_subrun_async(executor, goal="Write the introduction"))
 
         assert len(captured) == 1, "exactly one DelegationRequest should be created"
         assert captured[0].goal == "Write the introduction"
@@ -84,9 +82,7 @@ class TestDispatchSubrunGoal:
 
         import asyncio
 
-        asyncio.run(
-            _dispatch_subrun_async(executor, goal="")
-        )
+        asyncio.run(_dispatch_subrun_async(executor, goal=""))
 
         assert captured[0].goal == "agent=writer"
 
@@ -128,9 +124,15 @@ class TestDispatchSubrunGoal:
         assert cfg["restart_policy"] == "retry(1)"
 
 
-async def _dispatch_subrun_async(executor, *, agent="writer", profile_id="p-1",
-                                  strategy="sequential", restart_policy="reflect(2)",
-                                  goal=""):
+async def _dispatch_subrun_async(
+    executor,
+    *,
+    agent="writer",
+    profile_id="p-1",
+    strategy="sequential",
+    restart_policy="reflect(2)",
+    goal="",
+):
     """Helper: dispatch_subrun uses asyncio internally; drive it through asyncio.run."""
     # dispatch_subrun detects the running loop and creates a task; we need to
     # call it from inside the loop and also await the pending future.

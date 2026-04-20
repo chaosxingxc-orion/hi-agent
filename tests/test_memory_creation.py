@@ -26,9 +26,7 @@ def _make_executor(
         task_family="quick_task",
     )
     kernel = MockKernel(strict_mode=False)
-    store = short_term_store or ShortTermMemoryStore(
-        storage_dir=str(tmp_path / "stm")
-    )
+    store = short_term_store or ShortTermMemoryStore(storage_dir=str(tmp_path / "stm"))
     return RunExecutor(contract, kernel, short_term_store=store)
 
 
@@ -57,9 +55,7 @@ def _make_failing_executor(
         constraints=_ALL_FAIL_CONSTRAINTS,
     )
     kernel = MockKernel(strict_mode=False)
-    store = short_term_store or ShortTermMemoryStore(
-        storage_dir=str(tmp_path / "stm")
-    )
+    store = short_term_store or ShortTermMemoryStore(storage_dir=str(tmp_path / "stm"))
     return RunExecutor(contract, kernel, short_term_store=store)
 
 
@@ -88,9 +84,7 @@ class TestSTMAfterSuccessfulRun:
         assert memories[0].run_id == executor.run_id
 
     def test_stm_contains_goal(self, tmp_path: Path) -> None:
-        executor = _make_executor(
-            tmp_path, goal="analyze quarterly revenue data"
-        )
+        executor = _make_executor(tmp_path, goal="analyze quarterly revenue data")
         executor.execute()
 
         store = executor.short_term_store
@@ -180,9 +174,7 @@ class TestBackwardCompatibility:
     """short_term_store=None preserves existing behavior."""
 
     def test_no_store_no_error(self) -> None:
-        contract = TaskContract(
-            task_id="compat-001", goal="backward compat test"
-        )
+        contract = TaskContract(task_id="compat-001", goal="backward compat test")
         kernel = MockKernel(strict_mode=True)
         executor = RunExecutor(contract, kernel)
         assert executor.short_term_store is None

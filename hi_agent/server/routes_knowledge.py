@@ -1,4 +1,5 @@
 """Knowledge route handlers extracted from app.py (E-4 refactor)."""
+
 from __future__ import annotations
 
 import json
@@ -14,7 +15,8 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     try:
         body = await request.json()
@@ -24,7 +26,8 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
     content = body.get("content", "")
     if not title or not content:
         return JSONResponse(
-            {"error": "missing_title_or_content"}, status_code=400,
+            {"error": "missing_title_or_content"},
+            status_code=400,
         )
     tags = body.get("tags", [])
     page_id = km.ingest_text(title, content, tags)
@@ -43,7 +46,8 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     try:
         body = await request.json()
@@ -58,7 +62,8 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
     except Exception:
         pass
     return JSONResponse(
-        {"nodes_created": count, "status": "created"}, status_code=201,
+        {"nodes_created": count, "status": "created"},
+        status_code=201,
     )
 
 
@@ -68,22 +73,26 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     q = request.query_params.get("q", "")
     limit = int(request.query_params.get("limit", "10"))
     budget = int(request.query_params.get("budget", "1500"))
     if not q:
         return JSONResponse(
-            {"error": "missing_query_param_q"}, status_code=400,
+            {"error": "missing_query_param_q"},
+            status_code=400,
         )
     context = km.query_for_context(q, budget_tokens=budget)
     result = km.query(q, limit=limit)
-    return JSONResponse({
-        "query": q,
-        "total_results": result.total_results,
-        "context": context,
-    })
+    return JSONResponse(
+        {
+            "query": q,
+            "total_results": result.total_results,
+            "context": context,
+        }
+    )
 
 
 async def handle_knowledge_status(request: Request) -> JSONResponse:
@@ -92,7 +101,8 @@ async def handle_knowledge_status(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     stats = km.get_stats()
     return JSONResponse(stats)
@@ -104,7 +114,8 @@ async def handle_knowledge_lint(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     issues = km.lint()
     return JSONResponse({"issues": issues, "count": len(issues)})
@@ -116,14 +127,17 @@ async def handle_knowledge_sync(request: Request) -> JSONResponse:
     km = server.knowledge_manager
     if km is None:
         return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
+            {"error": "knowledge_not_configured"},
+            status_code=503,
         )
     pages_synced = km.renderer.to_wiki_pages(km.wiki)
     km.wiki.rebuild_index()
-    return JSONResponse({
-        "pages_synced": pages_synced,
-        "status": "completed",
-    })
+    return JSONResponse(
+        {
+            "pages_synced": pages_synced,
+            "status": "completed",
+        }
+    )
 
 
 routes = [

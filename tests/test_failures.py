@@ -28,6 +28,7 @@ from hi_agent.failures.watchdog import ProgressWatchdog
 # FailureCode enum
 # ---------------------------------------------------------------------------
 
+
 class TestFailureCode:
     def test_at_least_11_values(self) -> None:
         """TraceFailureCode from agent-kernel defines 11 codes (9 original + 2 budget variants)."""
@@ -72,6 +73,7 @@ class TestFailureCode:
 # Recovery and gate maps
 # ---------------------------------------------------------------------------
 
+
 class TestMaps:
     def test_recovery_map_covers_all_codes(self) -> None:
         for code in FailureCode:
@@ -93,6 +95,7 @@ class TestMaps:
 # ---------------------------------------------------------------------------
 # FailureRecord
 # ---------------------------------------------------------------------------
+
 
 class TestFailureRecord:
     def test_creation_minimal(self) -> None:
@@ -134,6 +137,7 @@ class TestFailureRecord:
 # ---------------------------------------------------------------------------
 # FailureCollector
 # ---------------------------------------------------------------------------
+
 
 class TestFailureCollector:
     def _make_record(
@@ -236,6 +240,7 @@ class TestFailureCollector:
 # ProgressWatchdog
 # ---------------------------------------------------------------------------
 
+
 class TestProgressWatchdog:
     def test_initial_state(self) -> None:
         w = ProgressWatchdog()
@@ -312,6 +317,7 @@ class TestProgressWatchdog:
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
+
 
 class TestExceptions:
     def test_trace_failure_base(self) -> None:

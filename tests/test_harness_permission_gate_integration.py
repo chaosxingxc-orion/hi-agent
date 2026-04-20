@@ -21,6 +21,7 @@ from hi_agent.harness.permission_rules import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_simple_spec(
     action_id: str = "act-001",
     capability_name: str = "bash",
@@ -44,8 +45,8 @@ def _make_deny_gate() -> PermissionGate:
     """Return a PermissionGate that always denies any tool call."""
     deny_rule = ToolPermissionRule(
         name="deny-all",
-        tool_name=None,          # matches any tool
-        input_field=None,        # matches any input
+        tool_name=None,  # matches any tool
+        input_field=None,  # matches any input
         glob_pattern=None,
         action=PermissionAction.DENY,
         reason="All tool calls blocked by policy.",
@@ -77,6 +78,7 @@ def _make_mock_deny_gate() -> MagicMock:
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestHarnessExecutorPermissionGateDeny:
     """HarnessExecutor must short-circuit with permission_denied on DENY gate."""
 
@@ -91,7 +93,7 @@ class TestHarnessExecutorPermissionGateDeny:
         governance = GovernanceEngine()
         executor = HarnessExecutor(
             governance=governance,
-            capability_invoker=None,   # must not be reached
+            capability_invoker=None,  # must not be reached
             permission_gate=mock_gate,
         )
         spec = _make_simple_spec()
@@ -105,7 +107,7 @@ class TestHarnessExecutorPermissionGateDeny:
         )
         assert result.state == ActionState.FAILED
         mock_gate.check.assert_called_once_with(
-            run_id="",                      # metadata["run_id"] defaults to ""
+            run_id="",  # metadata["run_id"] defaults to ""
             tool_name=spec.capability_name,
             tool_input=spec.payload,
         )
@@ -149,7 +151,7 @@ class TestHarnessExecutorPermissionGateDeny:
         governance = GovernanceEngine()
         executor = HarnessExecutor(
             governance=governance,
-            capability_invoker=None,   # will fail at dispatch — intentional
+            capability_invoker=None,  # will fail at dispatch — intentional
             permission_gate=gate,
         )
         spec = _make_simple_spec()
@@ -168,7 +170,7 @@ class TestHarnessExecutorPermissionGateDeny:
         executor = HarnessExecutor(
             governance=governance,
             capability_invoker=None,
-            permission_gate=None,     # no gate
+            permission_gate=None,  # no gate
         )
         spec = _make_simple_spec()
 

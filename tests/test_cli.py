@@ -143,7 +143,9 @@ class _FakeResponse:
 
 
 class TestApiRequestDecoding:
-    def test_http_error_with_non_json_body_is_handled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_http_error_with_non_json_body_is_handled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         err = urllib.error.HTTPError(
             url="http://127.0.0.1:8080/runs",
             code=500,

@@ -80,9 +80,7 @@ def test_metrics_endpoint_returns_text_content_type(dev_client: TestClient) -> N
         f"Expected 200 from /metrics, got {resp.status_code}: {resp.text[:200]}"
     )
     content_type = resp.headers.get("content-type", "")
-    assert "text/plain" in content_type, (
-        f"Expected text/plain content-type, got {content_type!r}"
-    )
+    assert "text/plain" in content_type, f"Expected text/plain content-type, got {content_type!r}"
     # Body is a string (possibly empty when collector has recorded nothing yet).
     assert isinstance(resp.text, str), "GET /metrics body must be a string"
 
@@ -104,9 +102,7 @@ def test_metrics_json_endpoint_returns_dict(dev_client: TestClient) -> None:
         f"Expected 200 from /metrics/json, got {resp.status_code}: {resp.text[:200]}"
     )
     content_type = resp.headers.get("content-type", "")
-    assert "application/json" in content_type, (
-        f"Expected application/json, got {content_type!r}"
-    )
+    assert "application/json" in content_type, f"Expected application/json, got {content_type!r}"
     body = resp.json()
     assert isinstance(body, dict), (
         f"GET /metrics/json body must be a JSON object (dict), got {type(body).__name__!r}"
@@ -156,16 +152,16 @@ def test_prometheus_format_after_run(dev_client: TestClient) -> None:
     # Collector is wired: validate Prometheus exposition format.
     lines = [ln for ln in body.splitlines() if ln.strip()]
     comment_lines = [ln for ln in lines if ln.startswith("#")]
-    assert comment_lines, (
-        "Prometheus output must contain at least one # HELP or # TYPE line"
-    )
+    assert comment_lines, "Prometheus output must contain at least one # HELP or # TYPE line"
     assert any(ln.startswith("# HELP") or ln.startswith("# TYPE") for ln in comment_lines), (
         "Prometheus output must contain # HELP or # TYPE directives"
     )
 
     # Every data line (non-comment, non-empty) that contains a label block
     # must match the standard pattern: identifier{...} number
-    data_line_re = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*(\{[^}]*\})?\s+[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$')
+    data_line_re = re.compile(
+        r"^[a-zA-Z_][a-zA-Z0-9_]*(\{[^}]*\})?\s+[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$"
+    )
     for ln in lines:
         if ln.startswith("#"):
             continue

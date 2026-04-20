@@ -1,4 +1,5 @@
 """Unit tests for ReadinessProbe — extracted from SystemBuilder.readiness()."""
+
 import pytest
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.readiness import ReadinessProbe

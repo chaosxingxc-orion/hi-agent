@@ -143,5 +143,6 @@ def test_context_manager_records_fallback_on_compression_failure():
     for kind, component, detail in recorded:
         assert component == "context_manager"
         assert "compression_failed" in detail
-        from hi_agent.observability.fallback import FallbackTaxonomy as FT
-        assert kind == FT.UNEXPECTED_EXCEPTION
+        from hi_agent.observability.fallback import FallbackTaxonomy
+
+        assert kind == FallbackTaxonomy.UNEXPECTED_EXCEPTION

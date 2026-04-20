@@ -27,4 +27,3 @@ class RunIndex:
     stages_status: list[dict] = field(default_factory=list)
     current_stage: str = ""
     key_decisions: list[str] = field(default_factory=list)
-

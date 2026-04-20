@@ -131,9 +131,7 @@ class KnowledgeManager:
 
         return count
 
-    def ingest_text(
-        self, title: str, content: str, tags: list[str] | None = None
-    ) -> str:
+    def ingest_text(self, title: str, content: str, tags: list[str] | None = None) -> str:
         """Ingest free-text knowledge. Creates a wiki page. Returns page_id."""
         page_id = _slugify(title)
         page = WikiPage(

@@ -134,9 +134,7 @@ class AuthMiddleware:
                 "JWT tokens will be rejected unless HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS=true."
             )
         if self._enabled:
-            _logger.info(
-                "AuthMiddleware enabled (%d key(s) configured)", len(self._api_keys)
-            )
+            _logger.info("AuthMiddleware enabled (%d key(s) configured)", len(self._api_keys))
         else:
             _logger.warning(
                 "AuthMiddleware disabled: HI_AGENT_API_KEY not set. "
@@ -172,9 +170,7 @@ class AuthMiddleware:
         # Prod fail-closed: reject non-exempt requests when auth is unconfigured in prod.
         if not self._enabled:
             if self._runtime_mode == "prod-real":
-                await self._reject(
-                    scope, receive, send, "auth_not_configured", status=503
-                )
+                await self._reject(scope, receive, send, "auth_not_configured", status=503)
                 return
             # Auth disabled in dev/smoke mode: inject an anonymous TenantContext so
             # workspace-scoped handlers have a valid context to work with.

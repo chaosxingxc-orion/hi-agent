@@ -157,10 +157,7 @@ def test_inject_skips_tool_messages():
 def test_inject_all_tool_messages():
     """If all messages are tool role, none are modified."""
     injector = PromptCacheInjector(PromptCacheConfig(anchor_messages=3))
-    messages = [
-        {"role": "tool", "content": f"result {i}"}
-        for i in range(3)
-    ]
+    messages = [{"role": "tool", "content": f"result {i}"} for i in range(3)]
 
     result = injector.inject(messages)
 
@@ -289,7 +286,7 @@ def test_cache_aware_token_usage_cost_multiplier_with_cache_hit():
         prompt_tokens=1000,
         completion_tokens=200,
         total_tokens=1200,
-        cache_read_tokens=800,   # 80% served from cache at 0.10x
+        cache_read_tokens=800,  # 80% served from cache at 0.10x
         cache_write_tokens=0,
     )
     multiplier = usage.effective_cost_multiplier()
@@ -383,7 +380,7 @@ def test_prompt_cache_stats_hit_rate():
     """hit_rate() reflects the fraction of requests with cache hits."""
     stats = PromptCacheStats()
     stats.update(CacheAwareTokenUsage(500, 100, 600, 500, 0))  # hit
-    stats.update(CacheAwareTokenUsage(500, 100, 600, 0, 0))    # miss
+    stats.update(CacheAwareTokenUsage(500, 100, 600, 0, 0))  # miss
     stats.update(CacheAwareTokenUsage(500, 100, 600, 300, 0))  # hit
 
     assert stats.hit_rate() == pytest.approx(2 / 3)

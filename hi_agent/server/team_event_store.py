@@ -71,20 +71,33 @@ class TeamEventStore:
                 "source_run_id, source_user_id, source_session_id, "
                 "publish_reason, schema_version, created_at) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (event.event_id, event.tenant_id, event.team_space_id,
-                 event.event_type, event.payload_json, event.source_run_id,
-                 event.source_user_id, event.source_session_id,
-                 event.publish_reason, event.schema_version, event.created_at),
+                (
+                    event.event_id,
+                    event.tenant_id,
+                    event.team_space_id,
+                    event.event_type,
+                    event.payload_json,
+                    event.source_run_id,
+                    event.source_user_id,
+                    event.source_session_id,
+                    event.publish_reason,
+                    event.schema_version,
+                    event.created_at,
+                ),
             )
             self._cx().commit()
 
     def list_since(self, tenant_id: str, team_space_id: str, since_id: int = 0) -> list[TeamEvent]:
-        rows = self._cx().execute(
-            f"SELECT {_SELECT_COLS} "
-            "FROM team_events WHERE tenant_id=? AND team_space_id=? AND id>? "
-            "ORDER BY id",
-            (tenant_id, team_space_id, since_id),
-        ).fetchall()
+        rows = (
+            self._cx()
+            .execute(
+                f"SELECT {_SELECT_COLS} "
+                "FROM team_events WHERE tenant_id=? AND team_space_id=? AND id>? "
+                "ORDER BY id",
+                (tenant_id, team_space_id, since_id),
+            )
+            .fetchall()
+        )
         return [TeamEvent(*r) for r in rows]
 
     def list(

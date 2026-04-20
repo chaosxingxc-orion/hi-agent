@@ -5,6 +5,7 @@ Polls config files every *poll_interval_seconds*.  When mtime changes,
 calls ``stack.invalidate()`` then invokes the ``on_reload`` callback with
 the freshly resolved config.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -74,6 +75,7 @@ class ConfigFileWatcher:
             paths.append(self._stack._base_path)
         if self._stack._profile:
             from hi_agent.config.profile import profile_path_for
+
             p = profile_path_for(self._stack._base_path, self._stack._profile)
             if p:
                 paths.append(p)

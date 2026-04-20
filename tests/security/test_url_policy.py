@@ -1,4 +1,5 @@
 """Unit tests for URLPolicy SSRF prevention (P0-1d)."""
+
 from __future__ import annotations
 
 from unittest.mock import patch

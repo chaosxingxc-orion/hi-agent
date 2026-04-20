@@ -15,6 +15,7 @@ from tests.helpers.kernel_adapter_fixture import MockKernel
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class FakeSession:
     """Minimal session stub exposing the attributes ingest_from_session reads."""
@@ -80,7 +81,10 @@ def test_knowledge_ingested_after_failed_run(tmp_path) -> None:
         findings=["Partial analysis completed before failure"],
     )
     executor = _make_executor(
-        tmp_path, knowledge_manager=km, session=session, force_fail=True,
+        tmp_path,
+        knowledge_manager=km,
+        session=session,
+        force_fail=True,
     )
     result = executor.execute()
 

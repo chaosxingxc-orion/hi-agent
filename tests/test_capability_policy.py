@@ -13,9 +13,7 @@ from hi_agent.capability import (
 def test_capability_policy_admin_allowed() -> None:
     """Admin role should be able to invoke an allowed capability."""
     registry = CapabilityRegistry()
-    registry.register(
-        CapabilitySpec(name="echo", handler=lambda payload: {"echo": payload["x"]})
-    )
+    registry.register(CapabilitySpec(name="echo", handler=lambda payload: {"echo": payload["x"]}))
     breaker = CircuitBreaker()
     policy = CapabilityPolicy({"admin": {"echo"}})
     invoker = CapabilityInvoker(registry, breaker, policy=policy)
@@ -28,9 +26,7 @@ def test_capability_policy_admin_allowed() -> None:
 def test_capability_policy_viewer_denied() -> None:
     """Viewer role should be denied if capability is not allowed."""
     registry = CapabilityRegistry()
-    registry.register(
-        CapabilitySpec(name="echo", handler=lambda payload: {"echo": payload["x"]})
-    )
+    registry.register(CapabilitySpec(name="echo", handler=lambda payload: {"echo": payload["x"]}))
     breaker = CircuitBreaker()
     policy = CapabilityPolicy({"admin": {"echo"}})
     invoker = CapabilityInvoker(registry, breaker, policy=policy)
@@ -42,9 +38,7 @@ def test_capability_policy_viewer_denied() -> None:
 def test_capability_policy_anonymous_compatible() -> None:
     """Anonymous/None role should keep backward-compatible behavior."""
     registry = CapabilityRegistry()
-    registry.register(
-        CapabilitySpec(name="echo", handler=lambda payload: {"echo": payload["x"]})
-    )
+    registry.register(CapabilitySpec(name="echo", handler=lambda payload: {"echo": payload["x"]}))
     breaker = CircuitBreaker()
     policy = CapabilityPolicy({"admin": {"echo"}})
     invoker = CapabilityInvoker(registry, breaker, policy=policy)

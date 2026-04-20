@@ -2,6 +2,7 @@
 
 Drives the full HTTP path via starlette TestClient — no running server required.
 """
+
 from __future__ import annotations
 
 import time
@@ -78,8 +79,14 @@ class TestRunsHttpProvenance:
         assert prov is not None, f"execution_provenance missing from result: {result}"
         assert prov.get("contract_version") == CONTRACT_VERSION
         expected_keys = {
-            "contract_version", "runtime_mode", "llm_mode", "kernel_mode",
-            "capability_mode", "mcp_transport", "fallback_used",
-            "fallback_reasons", "evidence",
+            "contract_version",
+            "runtime_mode",
+            "llm_mode",
+            "kernel_mode",
+            "capability_mode",
+            "mcp_transport",
+            "fallback_used",
+            "fallback_reasons",
+            "evidence",
         }
         assert set(prov.keys()) == expected_keys

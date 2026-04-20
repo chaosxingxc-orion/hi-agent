@@ -16,6 +16,7 @@ from hi_agent.skill.observer import SkillMetrics
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_postmortem(
     *,
     run_id: str = "run-001",
@@ -72,6 +73,7 @@ class _FakeVersionManager:
 # PostmortemAnalyzer
 # ---------------------------------------------------------------------------
 
+
 class TestPostmortemAnalyzer:
     """Tests for PostmortemAnalyzer."""
 
@@ -109,10 +111,7 @@ class TestPostmortemAnalyzer:
         )
         result = analyzer.analyze(pm)
 
-        high_risk_changes = [
-            c for c in result.changes
-            if "high-risk" in c.description.lower()
-        ]
+        high_risk_changes = [c for c in result.changes if "high-risk" in c.description.lower()]
         assert len(high_risk_changes) >= 1
 
     def test_legacy_budget_failure_code_detected(self) -> None:
@@ -125,9 +124,9 @@ class TestPostmortemAnalyzer:
         result = analyzer.analyze(pm)
 
         high_risk_changes = [
-            c for c in result.changes
-            if c.change_type == "routing_heuristic"
-            and "budget_exhausted" in c.target_id
+            c
+            for c in result.changes
+            if c.change_type == "routing_heuristic" and "budget_exhausted" in c.target_id
         ]
         assert len(high_risk_changes) == 1
 
@@ -137,16 +136,14 @@ class TestPostmortemAnalyzer:
         pm = _make_postmortem(branches_explored=6, branches_pruned=5)
         result = analyzer.analyze(pm)
 
-        branch_changes = [
-            c for c in result.changes
-            if "prune" in c.description.lower()
-        ]
+        branch_changes = [c for c in result.changes if "prune" in c.description.lower()]
         assert len(branch_changes) >= 1
 
 
 # ---------------------------------------------------------------------------
 # SkillExtractor
 # ---------------------------------------------------------------------------
+
 
 class TestSkillExtractor:
     """Tests for SkillExtractor."""
@@ -223,6 +220,7 @@ class TestSkillExtractor:
 # SkillEvolver
 # ---------------------------------------------------------------------------
 
+
 class TestSkillEvolver:
     """Tests for budget-aware skill evolution heuristics."""
 
@@ -234,9 +232,7 @@ class TestSkillEvolver:
             "execution_budget_exhausted",
         ],
     )
-    def test_budget_failure_codes_map_to_same_suggestion(
-        self, failure_code: str
-    ) -> None:
+    def test_budget_failure_codes_map_to_same_suggestion(self, failure_code: str) -> None:
         metrics = SkillMetrics(
             skill_id="skill_abc",
             total_executions=10,
@@ -253,14 +249,14 @@ class TestSkillEvolver:
         analysis = evolver.analyze_skill("skill_abc")
 
         assert any(
-            "token-efficiency instructions" in suggestion
-            for suggestion in analysis.suggestions
+            "token-efficiency instructions" in suggestion for suggestion in analysis.suggestions
         )
 
 
 # ---------------------------------------------------------------------------
 # RegressionDetector
 # ---------------------------------------------------------------------------
+
 
 class TestRegressionDetector:
     """Tests for RegressionDetector."""
@@ -313,6 +309,7 @@ class TestRegressionDetector:
 # ChampionChallenger
 # ---------------------------------------------------------------------------
 
+
 class TestChampionChallenger:
     """Tests for ChampionChallenger."""
 
@@ -360,6 +357,7 @@ class TestChampionChallenger:
 # ---------------------------------------------------------------------------
 # EvolveEngine
 # ---------------------------------------------------------------------------
+
 
 class TestEvolveEngine:
     """Tests for EvolveEngine."""

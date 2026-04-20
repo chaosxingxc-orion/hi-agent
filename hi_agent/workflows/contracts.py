@@ -21,8 +21,8 @@ from typing import Any
 class FallbackPolicy(str, Enum):
     """Behaviour when a bound capability is unavailable at runtime."""
 
-    FAIL = "fail"      # Fail the stage with an explicit error
-    SKIP = "skip"      # Skip the stage and continue
+    FAIL = "fail"  # Fail the stage with an explicit error
+    SKIP = "skip"  # Skip the stage and continue
     DEGRADE = "degrade"  # Use a generic fallback capability
 
 

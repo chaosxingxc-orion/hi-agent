@@ -10,6 +10,7 @@ The orchestrator IS a TrajectoryGraph. Users can:
 Default flow: perception -> control -> execution -> evaluation
   with escalation (eval->control) and reflection (eval->execution) loops.
 """
+
 from __future__ import annotations
 
 import logging as _logging
@@ -74,7 +75,9 @@ class MiddlewareOrchestrator:
             self._flow_graph.add_node(node)
             self._hooks[name] = []
             self._middleware_metrics[name] = {
-                "calls": 0, "tokens": 0, "errors": 0,
+                "calls": 0,
+                "tokens": 0,
+                "errors": 0,
             }
 
         # Linear flow
@@ -84,10 +87,14 @@ class MiddlewareOrchestrator:
 
         # Feedback loops as backtrack edges
         self._flow_graph.add_backtrack(
-            "evaluation", "execution", desc="reflection",
+            "evaluation",
+            "execution",
+            desc="reflection",
         )
         self._flow_graph.add_backtrack(
-            "evaluation", "control", desc="escalation",
+            "evaluation",
+            "control",
+            desc="escalation",
         )
 
         self._flow_order = list(default_names)
@@ -103,7 +110,9 @@ class MiddlewareOrchestrator:
                 self._hooks[name] = []
             if name not in self._middleware_metrics:
                 self._middleware_metrics[name] = {
-                    "calls": 0, "tokens": 0, "errors": 0,
+                    "calls": 0,
+                    "tokens": 0,
+                    "errors": 0,
                 }
             # Track per-middleware tier usage for cost analysis
             self._tier_usage[name] = {
@@ -144,14 +153,15 @@ class MiddlewareOrchestrator:
         self._middlewares[name] = mw
         self._hooks[name] = []
         self._middleware_metrics[name] = {
-            "calls": 0, "tokens": 0, "errors": 0,
+            "calls": 0,
+            "tokens": 0,
+            "errors": 0,
         }
 
         if after is not None:
             # Insert after 'after': find outgoing SEQUENCE edge from 'after'
             outgoing = [
-                e for e in self._flow_graph.get_outgoing(after)
-                if e.edge_type == EdgeType.SEQUENCE
+                e for e in self._flow_graph.get_outgoing(after) if e.edge_type == EdgeType.SEQUENCE
             ]
             if outgoing:
                 next_node = outgoing[0].target
@@ -175,8 +185,7 @@ class MiddlewareOrchestrator:
         elif before is not None:
             # Insert before 'before': find incoming SEQUENCE edge to 'before'
             incoming = [
-                e for e in self._flow_graph.get_incoming(before)
-                if e.edge_type == EdgeType.SEQUENCE
+                e for e in self._flow_graph.get_incoming(before) if e.edge_type == EdgeType.SEQUENCE
             ]
             if incoming:
                 prev_node = incoming[0].source
@@ -207,12 +216,10 @@ class MiddlewareOrchestrator:
 
             # Find incoming and outgoing SEQUENCE edges to reconnect
             incoming_seq = [
-                e for e in self._flow_graph.get_incoming(name)
-                if e.edge_type == EdgeType.SEQUENCE
+                e for e in self._flow_graph.get_incoming(name) if e.edge_type == EdgeType.SEQUENCE
             ]
             outgoing_seq = [
-                e for e in self._flow_graph.get_outgoing(name)
-                if e.edge_type == EdgeType.SEQUENCE
+                e for e in self._flow_graph.get_outgoing(name) if e.edge_type == EdgeType.SEQUENCE
             ]
 
             # Remove the node (removes all edges)
@@ -221,7 +228,9 @@ class MiddlewareOrchestrator:
             # Reconnect: each predecessor to each successor
             for inc in incoming_seq:
                 for out in outgoing_seq:
-                    if self._flow_graph.get_node(inc.source) and self._flow_graph.get_node(out.target):
+                    if self._flow_graph.get_node(inc.source) and self._flow_graph.get_node(
+                        out.target
+                    ):
                         self._flow_graph.add_sequence(inc.source, out.target)
 
             self._middlewares.pop(name, None)
@@ -273,9 +282,7 @@ class MiddlewareOrchestrator:
         """Remove a named hook from a middleware."""
         with self._lock:
             hooks = self._hooks.get(middleware_name, [])
-            self._hooks[middleware_name] = [
-                h for h in hooks if h.name != hook_name
-            ]
+            self._hooks[middleware_name] = [h for h in hooks if h.name != hook_name]
 
     # --- Flow customization ---
 
@@ -288,11 +295,7 @@ class MiddlewareOrchestrator:
     ) -> None:
         """Add a custom route edge between middlewares."""
         edge_types = [e.value for e in EdgeType]
-        etype = (
-            EdgeType(edge_type)
-            if edge_type in edge_types
-            else EdgeType.SEQUENCE
-        )
+        etype = EdgeType(edge_type) if edge_type in edge_types else EdgeType.SEQUENCE
         edge = TrajEdge(
             source=source,
             target=target,
@@ -312,7 +315,9 @@ class MiddlewareOrchestrator:
     # --- Execution ---
 
     def run(
-        self, user_input: str, metadata: dict[str, Any] | None = None,
+        self,
+        user_input: str,
+        metadata: dict[str, Any] | None = None,
     ) -> MiddlewareMessage:
         """Execute full pipeline with lifecycle hooks at each middleware."""
         meta = metadata or {}
@@ -346,7 +351,9 @@ class MiddlewareOrchestrator:
 
             try:
                 message = self._execute_middleware_with_lifecycle(
-                    current, message, _mw_snapshot=_mw,
+                    current,
+                    message,
+                    _mw_snapshot=_mw,
                 )
             except PipelineBlockedError:
                 _logger.info("orchestrator.pipeline_blocked name=%s", current)
@@ -391,7 +398,8 @@ class MiddlewareOrchestrator:
         if hook_result.action == HookAction.BLOCK:
             _logger.info(
                 "orchestrator.pipeline_blocked name=%s reason=%s",
-                name, getattr(hook_result, "reason", ""),
+                name,
+                getattr(hook_result, "reason", ""),
             )
             raise PipelineBlockedError(hook_result.reason)
         config = self._middleware_configs.get(name, {})
@@ -403,7 +411,8 @@ class MiddlewareOrchestrator:
         if hook_result.action == HookAction.BLOCK:
             _logger.info(
                 "orchestrator.pipeline_blocked name=%s reason=%s",
-                name, getattr(hook_result, "reason", ""),
+                name,
+                getattr(hook_result, "reason", ""),
             )
             raise PipelineBlockedError(hook_result.reason)
         if hook_result.action == HookAction.SKIP:
@@ -429,9 +438,7 @@ class MiddlewareOrchestrator:
                 break
             except Exception as exc:
                 metrics["errors"] += 1
-                _logger.warning(
-                    "orchestrator.middleware_error name=%s error=%s", name, exc
-                )
+                _logger.warning("orchestrator.middleware_error name=%s error=%s", name, exc)
                 if attempt == max_retries:
                     result = MiddlewareMessage(
                         source=name,
@@ -460,7 +467,8 @@ class MiddlewareOrchestrator:
         if hook_result.action == HookAction.BLOCK:
             _logger.info(
                 "orchestrator.pipeline_blocked name=%s reason=%s",
-                name, getattr(hook_result, "reason", ""),
+                name,
+                getattr(hook_result, "reason", ""),
             )
             raise PipelineBlockedError(hook_result.reason)
         if hook_result.action == HookAction.MODIFY and hook_result.modified_message is not None:
@@ -549,7 +557,9 @@ class MiddlewareOrchestrator:
         return combined
 
     def _route_next(
-        self, current: str, result: MiddlewareMessage,
+        self,
+        current: str,
+        result: MiddlewareMessage,
     ) -> str | None:
         """Determine next middleware based on message target and flow graph.
 
@@ -568,7 +578,8 @@ class MiddlewareOrchestrator:
 
         # Check if target is reachable via backtrack edge (feedback loop)
         backtrack_targets = {
-            e.target for e in self._flow_graph.get_outgoing(current)
+            e.target
+            for e in self._flow_graph.get_outgoing(current)
             if e.edge_type == EdgeType.BACKTRACK
         }
         if target in backtrack_targets and target in self._middlewares:
@@ -576,8 +587,7 @@ class MiddlewareOrchestrator:
 
         # Follow the flow graph sequence
         outgoing_seq = [
-            e for e in self._flow_graph.get_outgoing(current)
-            if e.edge_type == EdgeType.SEQUENCE
+            e for e in self._flow_graph.get_outgoing(current) if e.edge_type == EdgeType.SEQUENCE
         ]
         if outgoing_seq:
             seq_next = outgoing_seq[0].target

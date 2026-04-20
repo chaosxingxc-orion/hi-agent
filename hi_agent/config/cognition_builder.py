@@ -3,6 +3,7 @@
 Extracted from SystemBuilder to reduce builder.py god-object footprint.
 Holds all LLM-provider selection, failover, caching, and evolve-cycle logic.
 """
+
 from __future__ import annotations
 
 import logging
@@ -52,6 +53,7 @@ class CognitionBuilder:
             if not getattr(self._config, "prompt_cache_enabled", True):
                 return None
             from hi_agent.llm.cache import PromptCacheConfig, PromptCacheInjector
+
             return PromptCacheInjector(
                 PromptCacheConfig(
                     enabled=True,
@@ -122,6 +124,7 @@ class CognitionBuilder:
         """Build LLMBudgetTracker with config-driven limits."""
         try:
             from hi_agent.llm.budget_tracker import LLMBudgetTracker
+
             max_calls = getattr(self._config, "llm_budget_max_calls", 100)
             max_tokens = getattr(self._config, "llm_budget_max_tokens", 500_000)
             tracker = LLMBudgetTracker(max_calls=max_calls, max_tokens=max_tokens)
@@ -133,9 +136,7 @@ class CognitionBuilder:
             )
             return tracker
         except Exception as exc:
-            _logger.warning(
-                "_build_llm_budget_tracker: failed to create LLMBudgetTracker: %s", exc
-            )
+            _logger.warning("_build_llm_budget_tracker: failed to create LLMBudgetTracker: %s", exc)
             return None
 
     def _wire_cost_optimizer(
@@ -151,6 +152,7 @@ class CognitionBuilder:
                 derive_tier_overrides,
                 recommend_cost_optimizations,
             )
+
             total_usd = sum(r.get("total_usd", 0.0) for r in run_history)
             avg_cost = total_usd / len(run_history)
             merged_per_model: dict[str, float] = {}
@@ -207,6 +209,7 @@ class CognitionBuilder:
                 _DEFAULT_CONFIG_PATH,
                 build_gateway_from_config,
             )
+
             _cfg_path = _Path(_DEFAULT_CONFIG_PATH)
             if _cfg_path.exists():
                 _cfg_data = _json.loads(_cfg_path.read_text(encoding="utf-8"))
@@ -258,6 +261,7 @@ class CognitionBuilder:
                         self._llm_budget_tracker = self._build_llm_budget_tracker()
                     if provider == "anthropic":
                         from hi_agent.llm.protocol import LLMGateway  # noqa: F401
+
                         raw_gateway: LLMGateway = AnthropicLLMGateway(
                             api_key_env=env_var,
                             default_model=default_model,
@@ -271,6 +275,7 @@ class CognitionBuilder:
                         from hi_agent.server.runtime_mode_resolver import (
                             resolve_runtime_mode as _rrm,
                         )
+
                         _env = os.environ.get("HI_AGENT_ENV", "")
                         _rt_mode = _rrm(
                             _env,
@@ -295,6 +300,7 @@ class CognitionBuilder:
                             from hi_agent.llm.async_http_gateway import (
                                 AsyncHTTPGateway,
                             )
+
                             raw_gateway = AsyncHTTPGateway(
                                 base_url=base_url,
                                 api_key_env=env_var,
@@ -334,9 +340,7 @@ class CognitionBuilder:
         """Build RegressionDetector with optional persistent storage."""
         from hi_agent.evolve.regression_detector import RegressionDetector
 
-        storage_path = self._config.episodic_storage_dir.replace(
-            "episodes", "regression_data.json"
-        )
+        storage_path = self._config.episodic_storage_dir.replace("episodes", "regression_data.json")
         detector = RegressionDetector(
             baseline_window=self._config.evolve_regression_window,
             threshold=self._config.evolve_regression_threshold,
@@ -379,15 +383,19 @@ class CognitionBuilder:
 
             async def _inference_fn(**kwargs: Any) -> str:
                 import json as _json
+
                 run_id = kwargs.get("run_id", "unknown")
                 if gateway is None:
-                    return _json.dumps({
-                        "action": "retry_with_default",
-                        "reason": "no LLM gateway available",
-                        "run_id": run_id,
-                    })
+                    return _json.dumps(
+                        {
+                            "action": "retry_with_default",
+                            "reason": "no LLM gateway available",
+                            "run_id": run_id,
+                        }
+                    )
                 try:
                     from hi_agent.llm.protocol import LLMRequest
+
                     recovery_context = kwargs.get("recovery_context", {})
                     prompt = (
                         f"Reflection for run {run_id}.\n"
@@ -399,11 +407,13 @@ class CognitionBuilder:
                     return resp.content
                 except Exception as exc:
                     _logger.warning("_reflection_orchestrator inference_fn error: %s", exc)
-                    return _json.dumps({
-                        "action": "retry_with_default",
-                        "reason": f"inference failed: {exc}",
-                        "run_id": run_id,
-                    })
+                    return _json.dumps(
+                        {
+                            "action": "retry_with_default",
+                            "reason": f"inference failed: {exc}",
+                            "run_id": run_id,
+                        }
+                    )
 
             bridge = ReflectionBridge()
             orchestrator = ReflectionOrchestrator(bridge=bridge, inference_fn=_inference_fn)

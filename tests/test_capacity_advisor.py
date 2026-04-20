@@ -60,4 +60,3 @@ def test_recommendations_to_payload_shape() -> None:
     assert isinstance(rows, list)
     assert rows
     assert {"code", "severity", "summary", "action"}.issubset(rows[0].keys())
-

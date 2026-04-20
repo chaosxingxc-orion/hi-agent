@@ -139,9 +139,7 @@ class TestF5ReflectAsyncLoop:
             pass
 
         mock_orchestrator = MagicMock()
-        mock_orchestrator.reflect_and_infer = MagicMock(
-            return_value=_fake_reflect_coro()
-        )
+        mock_orchestrator.reflect_and_infer = MagicMock(return_value=_fake_reflect_coro())
         executor._reflection_orchestrator = mock_orchestrator
 
         # Set up a mock restart policy so _handle_stage_failure reaches reflect branch

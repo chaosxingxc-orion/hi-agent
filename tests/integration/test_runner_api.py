@@ -79,7 +79,8 @@ def test_register_gate_persists_to_session_events():
     executor.register_gate(gate_id="g-002", gate_type="artifact_review")
     if executor.session is not None:
         gate_events = [
-            e for e in executor.session.events
+            e
+            for e in executor.session.events
             if isinstance(e, dict) and e.get("event") == "gate_registered"
         ]
         assert len(gate_events) >= 1
@@ -103,11 +104,11 @@ def test_resume_persists_decision_to_session():
     executor.resume(gate_id="g-004", decision="backtrack", rationale="needs work")
     if executor.session is not None:
         decisions = [
-            e for e in executor.session.events
+            e
+            for e in executor.session.events
             if isinstance(e, dict) and e.get("event") == "gate_decision"
         ]
-        assert any(d["gate_id"] == "g-004" and d["decision"] == "backtrack"
-                   for d in decisions)
+        assert any(d["gate_id"] == "g-004" and d["decision"] == "backtrack" for d in decisions)
 
 
 # ---------------------------------------------------------------------------
@@ -157,22 +158,25 @@ def test_await_subrun_unknown_handle_returns_failure():
 @pytest.mark.integration
 def test_subrun_handle_importable_from_hi_agent():
     """SubRunHandle is importable from the hi_agent package namespace."""
-    from hi_agent import SubRunHandle as SRH
-    assert SRH is SubRunHandle
+    from hi_agent import SubRunHandle
+
+    assert SubRunHandle is SubRunHandle
 
 
 @pytest.mark.integration
 def test_subrun_result_importable_from_hi_agent():
     """SubRunResult is importable from the hi_agent package namespace."""
-    from hi_agent import SubRunResult as SRR
-    assert SRR is SubRunResult
+    from hi_agent import SubRunResult
+
+    assert SubRunResult is SubRunResult
 
 
 @pytest.mark.integration
 def test_gate_event_importable_from_hi_agent():
     """GateEvent is importable from the hi_agent package namespace."""
-    from hi_agent import GateEvent as GE
-    assert GE is GateEvent
+    from hi_agent import GateEvent
+
+    assert GateEvent is GateEvent
 
 
 @pytest.mark.integration

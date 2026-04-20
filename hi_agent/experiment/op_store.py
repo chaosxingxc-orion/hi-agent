@@ -1,4 +1,5 @@
 """SQLite-backed handle persistence for long-running operations (G-8)."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -61,14 +62,18 @@ class LongRunningOpStore:
             conn.execute(self._CREATE)
             conn.commit()
 
-    def create(self, *, op_id: str, backend: str, external_id: str, submitted_at: float) -> OpHandle:
+    def create(
+        self, *, op_id: str, backend: str, external_id: str, submitted_at: float
+    ) -> OpHandle:
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO ops (op_id, backend, external_id, submitted_at) VALUES (?,?,?,?)",
                 (op_id, backend, external_id, submitted_at),
             )
             conn.commit()
-        return OpHandle(op_id=op_id, backend=backend, external_id=external_id, submitted_at=submitted_at)
+        return OpHandle(
+            op_id=op_id, backend=backend, external_id=external_id, submitted_at=submitted_at
+        )
 
     def get(self, op_id: str) -> OpHandle | None:
         with self._conn() as conn:

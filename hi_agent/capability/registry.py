@@ -6,7 +6,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-RiskClass = Literal["read_only", "filesystem_read", "filesystem_write", "network", "shell", "credential"]
+RiskClass = Literal[
+    "read_only", "filesystem_read", "filesystem_write", "network", "shell", "credential"
+]
 
 
 @dataclass(frozen=True)
@@ -51,9 +53,7 @@ class CapabilityRegistry:
         """Get capability by name."""
         if name not in self._capabilities:
             available = list(self._capabilities.keys())
-            raise KeyError(
-                f"Unknown capability: {name!r}. Available: {available}"
-            )
+            raise KeyError(f"Unknown capability: {name!r}. Available: {available}")
         return self._capabilities[name]
 
     def list_names(self) -> list[str]:
@@ -90,6 +90,7 @@ class CapabilityRegistry:
             (False, reason) if unavailable
         """
         import os
+
         if name not in self._capabilities:
             return False, f"capability {name!r} not registered"
 

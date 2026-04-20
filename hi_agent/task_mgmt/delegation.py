@@ -149,16 +149,12 @@ class ChildRunPoller:
             try:
                 snapshot = self._kernel.query_run(child_run_id)
             except Exception as exc:
-                logger.warning(
-                    "query_run(%s) raised %s — will retry", child_run_id, exc
-                )
+                logger.warning("query_run(%s) raised %s — will retry", child_run_id, exc)
                 snapshot = {}
 
             state: str = snapshot.get("lifecycle_state", "")
             if self._is_terminal(state):
-                raw_output: str | None = snapshot.get("output") or snapshot.get(
-                    "result"
-                )
+                raw_output: str | None = snapshot.get("output") or snapshot.get("result")
                 if raw_output is not None and not isinstance(raw_output, str):
                     raw_output = str(raw_output)
                 return state, raw_output
@@ -303,8 +299,7 @@ class DelegationManager:
         summarizer = ResultSummarizer(self._llm)
 
         tasks = [
-            self._delegate_one(req, parent_run_id, sem, poller, summarizer)
-            for req in requests
+            self._delegate_one(req, parent_run_id, sem, poller, summarizer) for req in requests
         ]
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -349,9 +344,7 @@ class DelegationManager:
         lines: list[str] = ["## 子任务执行结果", ""]
         for idx, result in enumerate(results, start=1):
             lines.append(f"### 子任务 {idx}: {result.request.goal}")
-            lines.append(
-                f"状态: {result.status} | 耗时: {result.duration_seconds:.1f}s"
-            )
+            lines.append(f"状态: {result.status} | 耗时: {result.duration_seconds:.1f}s")
             if result.error:
                 lines.append(f"错误: {result.error}")
             if result.summary:
@@ -386,9 +379,7 @@ class DelegationManager:
                     req.task_id,
                     config=child_config,
                 )
-                logger.debug(
-                    "Spawned child run %s for task_id=%s", child_run_id, req.task_id
-                )
+                logger.debug("Spawned child run %s for task_id=%s", child_run_id, req.task_id)
 
                 status, raw_output = await poller.wait_for_completion(
                     child_run_id, req.timeout_seconds
@@ -414,9 +405,7 @@ class DelegationManager:
                 raise
             except Exception as exc:
                 duration = time.monotonic() - start_time
-                logger.exception(
-                    "Delegation failed for task_id=%s: %s", req.task_id, exc
-                )
+                logger.exception("Delegation failed for task_id=%s: %s", req.task_id, exc)
                 return DelegationResult(
                     request=req,
                     child_run_id=child_run_id,

@@ -72,7 +72,9 @@ class TestRunExecutorContextManagerRouting:
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
         _ = _make_executor(
-            context_manager=cm, route_engine=engine, session=None,
+            context_manager=cm,
+            route_engine=engine,
+            session=None,
         )
         # The context provider should have been overwritten
         assert engine._context_provider is not None
@@ -86,7 +88,9 @@ class TestRunExecutorContextManagerRouting:
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
         _make_executor(
-            context_manager=cm, route_engine=engine, session=None,
+            context_manager=cm,
+            route_engine=engine,
+            session=None,
         )
         ctx = engine._context_provider()
         assert isinstance(ctx, dict)
@@ -103,7 +107,9 @@ class TestRunExecutorContextManagerRouting:
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
         _ = _make_executor(
-            context_manager=cm, route_engine=engine, session=session,
+            context_manager=cm,
+            route_engine=engine,
+            session=session,
         )
         ctx = engine._context_provider()
         assert ctx == {"fallback": True}
@@ -155,7 +161,9 @@ class TestRunExecutorContextManagerHealthEmission:
             events.append((name, payload))
 
         executor = _make_executor(
-            context_manager=cm, session=None, observability_hook=hook,
+            context_manager=cm,
+            session=None,
+            observability_hook=hook,
         )
         executor.execute()
         health_events = [e for e in events if e[0] == "context_health"]
@@ -190,7 +198,9 @@ class TestRunExecutorBackwardCompat:
         engine = RuleRouteEngine()
         engine._context_provider = None  # type: ignore
         _ = _make_executor(
-            context_manager=None, route_engine=engine, session=session,
+            context_manager=None,
+            route_engine=engine,
+            session=session,
         )
         # With CM=None, the session-based provider should be set
         ctx = engine._context_provider()
@@ -324,7 +334,9 @@ class TestFullCycleContextManager:
             events.append((name, payload))
 
         executor = _make_executor(
-            context_manager=cm, session=None, observability_hook=hook,
+            context_manager=cm,
+            session=None,
+            observability_hook=hook,
         )
         result = executor.execute()
         assert result in ("completed", "failed")

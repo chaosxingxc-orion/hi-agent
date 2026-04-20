@@ -113,14 +113,10 @@ class KernelFacadeClient:
             )
             return resp.get("task_view_id", task_view_id)
 
-    def bind_task_view_to_decision(
-        self, task_view_id: str, decision_ref: str
-    ) -> None:
+    def bind_task_view_to_decision(self, task_view_id: str, decision_ref: str) -> None:
         """Persist immutable binding between task-view and decision reference."""
         if self._mode == "direct":
-            self._direct_call(
-                "bind_task_view_to_decision", task_view_id, decision_ref
-            )
+            self._direct_call("bind_task_view_to_decision", task_view_id, decision_ref)
         else:
             self._http_put(
                 f"/task-views/{task_view_id}/decision",
@@ -139,6 +135,7 @@ class KernelFacadeClient:
             from agent_kernel.adapters.facade.kernel_facade import (
                 StartRunRequest,
             )
+
             unique_run_id = f"{task_id[:48]}-{uuid.uuid4().hex[:8]}"
             request = StartRunRequest(
                 initiator="agent_core_runner",
@@ -165,10 +162,12 @@ class KernelFacadeClient:
         """Return run lifecycle snapshot."""
         if self._mode == "direct":
             from agent_kernel.adapters.facade.kernel_facade import QueryRunRequest
+
             result = self._direct_call("query_run", QueryRunRequest(run_id=run_id))
             if isinstance(result, dict):
                 return result
             import dataclasses
+
             if dataclasses.is_dataclass(result) and not isinstance(result, type):
                 return dataclasses.asdict(result)
             raise RuntimeAdapterBackendError(
@@ -182,6 +181,7 @@ class KernelFacadeClient:
         """Cancel run with reason."""
         if self._mode == "direct":
             from agent_kernel.adapters.facade.kernel_facade import CancelRunRequest
+
             self._direct_call("cancel_run", CancelRunRequest(run_id=run_id, reason=reason))
         else:
             self._http_post(f"/runs/{run_id}/cancel", {"reason": reason})
@@ -190,16 +190,16 @@ class KernelFacadeClient:
         """Resume a suspended or cancelled run."""
         if self._mode == "direct":
             from agent_kernel.adapters.facade.kernel_facade import ResumeRunRequest
+
             self._direct_call("resume_run", ResumeRunRequest(run_id=run_id))
         else:
             self._http_post(f"/runs/{run_id}/resume", {})
 
-    def signal_run(
-        self, run_id: str, signal: str, payload: dict[str, Any] | None = None
-    ) -> None:
+    def signal_run(self, run_id: str, signal: str, payload: dict[str, Any] | None = None) -> None:
         """Push an external signal to a run."""
         if self._mode == "direct":
             from agent_kernel.adapters.facade.kernel_facade import SignalRunRequest
+
             self._direct_call(
                 "signal_run",
                 SignalRunRequest(
@@ -225,6 +225,7 @@ class KernelFacadeClient:
             if isinstance(result, dict):
                 return result
             import dataclasses
+
             if dataclasses.is_dataclass(result) and not isinstance(result, type):
                 return dataclasses.asdict(result)
             raise RuntimeAdapterBackendError(
@@ -241,9 +242,7 @@ class KernelFacadeClient:
             if not callable(method):
                 raise RuntimeAdapterBackendError(
                     "stream_run_events",
-                    cause=NotImplementedError(
-                        "facade does not implement 'stream_run_events'"
-                    ),
+                    cause=NotImplementedError("facade does not implement 'stream_run_events'"),
                 )
             try:
                 async for event in method(run_id):
@@ -289,9 +288,7 @@ class KernelFacadeClient:
     ) -> None:
         """Update branch lifecycle state."""
         if self._mode == "direct":
-            self._direct_call(
-                "mark_branch_state", run_id, stage_id, branch_id, state, failure_code
-            )
+            self._direct_call("mark_branch_state", run_id, stage_id, branch_id, state, failure_code)
         else:
             body: dict[str, Any] = {"state": state}
             if failure_code is not None:
@@ -417,6 +414,7 @@ class KernelFacadeClient:
         """Spawn a child run under parent_run_id."""
         if self._mode == "direct":
             from agent_kernel.kernel.contracts import SpawnChildRunRequest
+
             request = SpawnChildRunRequest(
                 parent_run_id=parent_run_id,
                 child_kind="delegate",
@@ -450,9 +448,12 @@ class KernelFacadeClient:
             result = self._direct_call("query_child_runs", parent_run_id)
             if isinstance(result, list):
                 return [
-                    item if isinstance(item, dict) else (
+                    item
+                    if isinstance(item, dict)
+                    else (
                         {k: v for k, v in item.__dict__.items() if not k.startswith("_")}
-                        if hasattr(item, "__dict__") else {"child_run_id": str(item)}
+                        if hasattr(item, "__dict__")
+                        else {"child_run_id": str(item)}
                     )
                     for item in result
                 ]
@@ -468,11 +469,13 @@ class KernelFacadeClient:
     ) -> str:
         """Async version of spawn_child_run via asyncio.to_thread."""
         import asyncio
+
         return await asyncio.to_thread(self.spawn_child_run, parent_run_id, task_id, config)
 
     async def query_child_runs_async(self, parent_run_id: str) -> list[dict[str, Any]]:
         """Async version of query_child_runs via asyncio.to_thread."""
         import asyncio
+
         return await asyncio.to_thread(self.query_child_runs, parent_run_id)
 
     # ------------------------------------------------------------------
@@ -490,9 +493,7 @@ class KernelFacadeClient:
         if not callable(method):
             raise RuntimeAdapterBackendError(
                 method_name,
-                cause=NotImplementedError(
-                    f"facade does not implement '{method_name}'"
-                ),
+                cause=NotImplementedError(f"facade does not implement '{method_name}'"),
             )
         try:
             result = method(*args)
@@ -523,9 +524,7 @@ class KernelFacadeClient:
         except RuntimeAdapterBackendError:
             raise
         except Exception as exc:
-            raise RuntimeAdapterBackendError(
-                method_name, cause=exc
-            ) from exc
+            raise RuntimeAdapterBackendError(method_name, cause=exc) from exc
 
     @staticmethod
     def _try_import_facade() -> Any:
@@ -572,13 +571,9 @@ class KernelFacadeClient:
                 raw = resp.read().decode("utf-8")
                 return json.loads(raw) if raw.strip() else {}
         except urllib.error.HTTPError as exc:
-            raise RuntimeAdapterBackendError(
-                path, cause=exc
-            ) from exc
+            raise RuntimeAdapterBackendError(path, cause=exc) from exc
         except urllib.error.URLError as exc:
-            raise RuntimeAdapterBackendError(
-                path, cause=exc
-            ) from exc
+            raise RuntimeAdapterBackendError(path, cause=exc) from exc
 
     def _http_put(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         """PUT JSON to agent-kernel HTTP server."""
@@ -595,13 +590,9 @@ class KernelFacadeClient:
                 raw = resp.read().decode("utf-8")
                 return json.loads(raw) if raw.strip() else {}
         except urllib.error.HTTPError as exc:
-            raise RuntimeAdapterBackendError(
-                path, cause=exc
-            ) from exc
+            raise RuntimeAdapterBackendError(path, cause=exc) from exc
         except urllib.error.URLError as exc:
-            raise RuntimeAdapterBackendError(
-                path, cause=exc
-            ) from exc
+            raise RuntimeAdapterBackendError(path, cause=exc) from exc
 
     def _http_get(self, path: str) -> dict[str, Any]:
         """GET JSON from agent-kernel HTTP server."""
@@ -612,10 +603,6 @@ class KernelFacadeClient:
                 raw = resp.read().decode("utf-8")
                 return json.loads(raw) if raw.strip() else {}
         except urllib.error.HTTPError as exc:
-            raise RuntimeAdapterBackendError(
-                path, cause=exc
-            ) from exc
+            raise RuntimeAdapterBackendError(path, cause=exc) from exc
         except urllib.error.URLError as exc:
-            raise RuntimeAdapterBackendError(
-                path, cause=exc
-            ) from exc
+            raise RuntimeAdapterBackendError(path, cause=exc) from exc

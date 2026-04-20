@@ -6,6 +6,7 @@ These tests assert:
 - Protocol signatures (run_id param ordering) are correct
 - ResilientKernelAdapter buffers all mutating methods
 """
+
 from __future__ import annotations
 
 import inspect

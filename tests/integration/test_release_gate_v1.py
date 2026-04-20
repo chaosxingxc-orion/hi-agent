@@ -1,4 +1,5 @@
 """Integration tests for GET /ops/release-gate v1."""
+
 import pytest
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
@@ -41,8 +42,13 @@ def test_release_gate_has_all_seven_gates(test_client):
     resp = test_client.get("/ops/release-gate")
     gate_names = {g["name"] for g in resp.json()["gates"]}
     expected = {
-        "readiness", "doctor", "config_validation",
-        "current_runtime_mode", "known_prerequisites", "mcp_health", "prod_e2e_recent"
+        "readiness",
+        "doctor",
+        "config_validation",
+        "current_runtime_mode",
+        "known_prerequisites",
+        "mcp_health",
+        "prod_e2e_recent",
     }
     assert expected == gate_names
 

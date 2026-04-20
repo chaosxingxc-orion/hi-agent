@@ -4,6 +4,7 @@ Routes (registered in app.py):
     GET  /long-ops/{op_id}        -- Retrieve op handle by ID
     POST /long-ops/{op_id}/cancel -- Cancel an active op
 """
+
 from __future__ import annotations
 
 from starlette.requests import Request
@@ -20,16 +21,18 @@ async def handle_get_long_op(request: Request) -> JSONResponse:
     handle = coord.get(op_id)
     if handle is None:
         return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
-    return JSONResponse({
-        "op_id": handle.op_id,
-        "backend": handle.backend,
-        "status": handle.status,
-        "artifacts_uri": handle.artifacts_uri,
-        "submitted_at": handle.submitted_at,
-        "heartbeat_at": handle.heartbeat_at,
-        "completed_at": handle.completed_at,
-        "error": handle.error,
-    })
+    return JSONResponse(
+        {
+            "op_id": handle.op_id,
+            "backend": handle.backend,
+            "status": handle.status,
+            "artifacts_uri": handle.artifacts_uri,
+            "submitted_at": handle.submitted_at,
+            "heartbeat_at": handle.heartbeat_at,
+            "completed_at": handle.completed_at,
+            "error": handle.error,
+        }
+    )
 
 
 async def handle_cancel_long_op(request: Request) -> JSONResponse:

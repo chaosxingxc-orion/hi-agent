@@ -143,6 +143,7 @@ class HttpLLMGateway:
             # 2. Route through failover chain if configured.
             if self._failover_chain is not None:
                 import asyncio as _asyncio
+
                 try:
                     loop = _asyncio.get_event_loop()
                     if loop.is_running():
@@ -152,9 +153,7 @@ class HttpLLMGateway:
                         )
                         return future.result()
                     else:
-                        return loop.run_until_complete(
-                            self._failover_chain.complete(request)
-                        )
+                        return loop.run_until_complete(self._failover_chain.complete(request))
                 except Exception as exc:
                     logger.warning(
                         "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
@@ -201,48 +200,49 @@ class HttpLLMGateway:
         timeout = httpx.Timeout(connect=30.0, read=self._timeout, write=30.0, pool=5.0)
 
         try:
-            with httpx.Client(timeout=timeout) as client, client.stream(
-                "POST", url, json=payload, headers=headers
-            ) as resp:
-                    if resp.status_code >= 400:
-                        body = resp.read().decode(errors="replace")
-                        raise LLMProviderError(
-                            f"HTTP {resp.status_code}: {body}",
-                            status_code=resp.status_code,
+            with (
+                httpx.Client(timeout=timeout) as client,
+                client.stream("POST", url, json=payload, headers=headers) as resp,
+            ):
+                if resp.status_code >= 400:
+                    body = resp.read().decode(errors="replace")
+                    raise LLMProviderError(
+                        f"HTTP {resp.status_code}: {body}",
+                        status_code=resp.status_code,
+                    )
+                for line in resp.iter_lines():
+                    # SSE format: "data: {...}" (RFC) or "data:{...}" (some proxies)
+                    if not line.startswith("data:"):
+                        continue
+                    data_str = line[5:].lstrip(" ")
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        event = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
+                    choices = event.get("choices", [])
+                    if not choices:
+                        continue
+                    choice = choices[0]
+                    delta = choice.get("delta", {})
+                    text = delta.get("content") or ""
+                    finish_reason = choice.get("finish_reason")
+                    usage_raw = event.get("usage", {})
+                    usage = None
+                    if usage_raw:
+                        usage = TokenUsage(
+                            prompt_tokens=usage_raw.get("prompt_tokens", 0),
+                            completion_tokens=usage_raw.get("completion_tokens", 0),
+                            total_tokens=usage_raw.get("total_tokens", 0),
                         )
-                    for line in resp.iter_lines():
-                        # SSE format: "data: {...}" (RFC) or "data:{...}" (some proxies)
-                        if not line.startswith("data:"):
-                            continue
-                        data_str = line[5:].lstrip(" ")
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            event = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            continue
-                        choices = event.get("choices", [])
-                        if not choices:
-                            continue
-                        choice = choices[0]
-                        delta = choice.get("delta", {})
-                        text = delta.get("content") or ""
-                        finish_reason = choice.get("finish_reason")
-                        usage_raw = event.get("usage", {})
-                        usage = None
-                        if usage_raw:
-                            usage = TokenUsage(
-                                prompt_tokens=usage_raw.get("prompt_tokens", 0),
-                                completion_tokens=usage_raw.get("completion_tokens", 0),
-                                total_tokens=usage_raw.get("total_tokens", 0),
-                            )
-                        if text or finish_reason or usage:
-                            yield LLMStreamChunk(
-                                delta=text,
-                                finish_reason=finish_reason,
-                                usage=usage,
-                                model=event.get("model", model),
-                            )
+                    if text or finish_reason or usage:
+                        yield LLMStreamChunk(
+                            delta=text,
+                            finish_reason=finish_reason,
+                            usage=usage,
+                            model=event.get("model", model),
+                        )
         except httpx.TimeoutException as exc:
             raise LLMTimeoutError(str(exc)) from exc
         except httpx.HTTPStatusError as exc:
@@ -297,7 +297,7 @@ class HttpLLMGateway:
                     raise provider_exc from exc
                 last_exc = provider_exc
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     time.sleep(delay)
             except urllib.error.URLError as exc:
                 if "timed out" in str(exc.reason):
@@ -307,7 +307,7 @@ class HttpLLMGateway:
                     raise LLMProviderError(str(exc.reason)) from exc
                 last_exc = LLMProviderError(str(exc.reason))
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     time.sleep(delay)
             except TimeoutError as exc:
                 raise LLMTimeoutError(str(exc)) from exc
@@ -316,6 +316,7 @@ class HttpLLMGateway:
                 FallbackTaxonomy,
                 record_fallback,
             )
+
             record_fallback(
                 FallbackTaxonomy.DEPENDENCY_UNAVAILABLE,
                 "http_llm_gateway",
@@ -486,14 +487,14 @@ class HTTPGateway:
                     status_code=status,
                 )
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     await asyncio.sleep(delay)
             except httpx.TimeoutException as exc:
                 raise LLMTimeoutError(str(exc)) from exc
             except httpx.RequestError as exc:
                 last_exc = LLMProviderError(str(exc))
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2 ** attempt) + random.uniform(0, 1)
+                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     await asyncio.sleep(delay)
         raise last_exc  # type: ignore[misc]
 

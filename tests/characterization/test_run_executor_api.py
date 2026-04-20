@@ -387,9 +387,6 @@ class TestExecuteAsyncOutcomes:
         finalize.assert_called_once()
         assert finalize.call_args.args[0] == "completed"
 
-
-
-
     @pytest.mark.asyncio
     async def test_execute_async_gate_pending_returns_failed_async_result(
         self,

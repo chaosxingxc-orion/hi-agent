@@ -1,4 +1,5 @@
 """Unit tests for PathPolicy safe_resolve (P0-1c)."""
+
 from __future__ import annotations
 
 import sys

@@ -110,9 +110,7 @@ class KnowledgeWiki:
         keywords = query.lower().split()
         scored: list[tuple[float, WikiPage]] = []
         for page in self._pages.values():
-            text = (
-                page.title + " " + page.content + " " + " ".join(page.tags)
-            ).lower()
+            text = (page.title + " " + page.content + " " + " ".join(page.tags)).lower()
             hits = sum(1 for kw in keywords if kw in text)
             if hits > 0:
                 scored.append((hits, page))
@@ -158,8 +156,7 @@ class KnowledgeWiki:
         for page in sorted(self._pages.values(), key=lambda p: p.page_id):
             tags_str = ", ".join(page.tags) if page.tags else "none"
             lines.append(
-                f"- **[{page.title}]({page.page_id}.md)** "
-                f"({page.page_type}) - tags: {tags_str}"
+                f"- **[{page.title}]({page.page_id}.md)** ({page.page_type}) - tags: {tags_str}"
             )
         lines.append("")
         index_content = "\n".join(lines)

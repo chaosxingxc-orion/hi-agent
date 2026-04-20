@@ -37,9 +37,7 @@ MODEL_PRICING: dict[str, ModelPricing] = {
 class CostCalculator:
     """Calculate USD cost from token usage and track cumulative spend."""
 
-    def __init__(
-        self, custom_pricing: dict[str, ModelPricing] | None = None
-    ) -> None:
+    def __init__(self, custom_pricing: dict[str, ModelPricing] | None = None) -> None:
         """Initialize CostCalculator."""
         self._pricing = dict(MODEL_PRICING)
         if custom_pricing:

@@ -14,6 +14,7 @@ Usage:
     finally:
         bus.unsubscribe(run_id, q)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -170,7 +171,10 @@ class EventBus:
             loop = asyncio.get_running_loop()
             self._loop = loop
         except RuntimeError:
-            logger.debug("subscribe() called outside running event loop; loop will be captured on first publish")
+            logger.debug(
+                "subscribe() called outside running event loop; loop will be "
+                "captured on first publish"
+            )
         q: asyncio.Queue[RuntimeEvent] = asyncio.Queue(maxsize=self._max_queue_size)
         with self._lock:
             self._queues[run_id].append(q)

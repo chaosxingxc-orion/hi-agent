@@ -11,6 +11,7 @@ Per CLAUDE.md P3 (Production Integrity Constraint):
 - unittest.mock.patch is used ONLY to intercept outbound HTTP calls that
   the LLM gateway would make to external network services (allowed per P3).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -20,6 +21,7 @@ import pytest
 # ---------------------------------------------------------------------------
 # Real capability handlers — plain Python functions, no mocks
 # ---------------------------------------------------------------------------
+
 
 def fake_analyze(payload: dict) -> dict:
     """Real Python function serving as a capability handler for 'fake_analyze'."""
@@ -42,6 +44,7 @@ def fake_summarize(payload: dict) -> dict:
 # Test class
 # ---------------------------------------------------------------------------
 
+
 class TestRealExecutorE2E:
     """End-to-end test proving capability wiring fix works through executor.execute()."""
 
@@ -60,11 +63,13 @@ class TestRealExecutorE2E:
             ("fake_summarize", fake_summarize),
         ]:
             if name not in cap_registry.list_names():
-                cap_registry.register(CapabilitySpec(
-                    name=name,
-                    handler=handler,
-                    description=f"Real handler for {name} — no mocks",
-                ))
+                cap_registry.register(
+                    CapabilitySpec(
+                        name=name,
+                        handler=handler,
+                        description=f"Real handler for {name} — no mocks",
+                    )
+                )
 
         return builder
 
@@ -111,9 +116,7 @@ class TestRealExecutorE2E:
         try:
             executor = builder.build_executor(contract)
         except MissingCapabilityError as exc:
-            pytest.fail(
-                f"build_executor() raised MissingCapabilityError unexpectedly: {exc}"
-            )
+            pytest.fail(f"build_executor() raised MissingCapabilityError unexpectedly: {exc}")
 
         assert executor is not None, "build_executor() must return a RunExecutor instance"
 
@@ -162,8 +165,10 @@ class TestRealExecutorE2E:
         # Patch urllib.request.urlopen and httpx.Client.post to block real HTTP.
         # If no API key is configured (CI), the gateway is None anyway (dev mode
         # fallback), so these patches are a no-op but present for safety.
-        with patch("urllib.request.urlopen", return_value=fake_llm_response), \
-             patch("httpx.Client.post", return_value=fake_llm_response):
+        with (
+            patch("urllib.request.urlopen", return_value=fake_llm_response),
+            patch("httpx.Client.post", return_value=fake_llm_response),
+        ):
             try:
                 result = executor.execute()
             except KeyError as exc:
@@ -181,9 +186,7 @@ class TestRealExecutorE2E:
         # ------------------------------------------------------------------
         # Assertion 3: returned result is not None
         # ------------------------------------------------------------------
-        assert result is not None, (
-            "executor.execute() must return a non-None result string"
-        )
+        assert result is not None, "executor.execute() must return a non-None result string"
 
         # ------------------------------------------------------------------
         # Assertion 4: the run reached a terminal state, not a capability error
@@ -199,7 +202,8 @@ class TestRealExecutorE2E:
         # "Unknown capability" failure event.
         if hasattr(executor, "event_emitter") and hasattr(executor.event_emitter, "events"):
             capability_errors = [
-                ev for ev in executor.event_emitter.events
+                ev
+                for ev in executor.event_emitter.events
                 if "Unknown capability" in str(getattr(ev, "payload", {}))
             ]
             assert len(capability_errors) == 0, (

@@ -33,4 +33,3 @@ def test_runtime_config_rejects_empty_actor_or_patch() -> None:
         manager.patch(changed_by="", values={"x": 1})
     with pytest.raises(ValueError):
         manager.patch(changed_by="ops", values={})
-

@@ -22,7 +22,9 @@ class TestOutputToArtifactAdapter:
         assert self._adapt(None) == []
 
     def test_resource_artifact_from_url_and_title(self):
-        artifacts = self._adapt({"url": "http://example.com", "title": "Example", "snippet": "A snippet"})
+        artifacts = self._adapt(
+            {"url": "http://example.com", "title": "Example", "snippet": "A snippet"}
+        )
         assert len(artifacts) == 1
         a = artifacts[0]
         assert isinstance(a, ResourceArtifact)
@@ -142,12 +144,14 @@ class TestHarnessExecutorArtifactRegistry:
 class TestBuilderCreatesArtifactRegistry:
     def test_builder_builds_artifact_registry(self):
         from hi_agent.config.builder import SystemBuilder
+
         builder = SystemBuilder()
         reg = builder.build_artifact_registry()
         assert reg is not None
 
     def test_builder_artifact_registry_is_singleton(self):
         from hi_agent.config.builder import SystemBuilder
+
         builder = SystemBuilder()
         r1 = builder.build_artifact_registry()
         r2 = builder.build_artifact_registry()
@@ -156,6 +160,7 @@ class TestBuilderCreatesArtifactRegistry:
     def test_artifact_has_provenance_fields(self):
         """Artifact base class has provenance and upstream_artifact_ids fields."""
         from hi_agent.artifacts.contracts import Artifact
+
         a = Artifact(producer_action_id="test-action")
         assert hasattr(a, "provenance")
         assert hasattr(a, "upstream_artifact_ids")

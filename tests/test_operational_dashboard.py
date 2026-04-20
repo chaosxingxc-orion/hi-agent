@@ -43,4 +43,3 @@ def test_operational_dashboard_payload_handles_missing_optional_sections() -> No
     )
     assert payload["temporal"] == {}
     assert payload["metadata"] == {}
-

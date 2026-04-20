@@ -1,4 +1,5 @@
 """Unit tests for memory/session infrastructure: P-2, P-3, P-6."""
+
 from __future__ import annotations
 
 import tempfile

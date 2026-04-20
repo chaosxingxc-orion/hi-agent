@@ -41,6 +41,7 @@ class GateDecisionRequest(BaseModel):
     approver_id: str
     note: str = ""
 
+
 logger = logging.getLogger(__name__)
 
 # Module-level fallback for FeedbackStore when the server does not have one.
@@ -55,6 +56,7 @@ def _get_feedback_store(server: Any) -> Any:
         return store
     if _feedback_store_fallback is None:
         from hi_agent.evolve.feedback_store import FeedbackStore
+
         _feedback_store_fallback = FeedbackStore()
     return _feedback_store_fallback
 
@@ -72,7 +74,7 @@ async def handle_list_runs(request: Request) -> JSONResponse:
 
 
 async def handle_runs_active(request: Request) -> JSONResponse:
-    """Return currently active run contexts from RunContextManager, scoped to the caller's workspace."""
+    """Return active run contexts scoped to the caller's workspace."""
     try:
         ctx = require_tenant_context()
     except RuntimeError:
@@ -88,11 +90,13 @@ async def handle_runs_active(request: Request) -> JSONResponse:
         owned_ids = {r.run_id for r in manager.list_runs(workspace=ctx)}
         all_active = rcm.list_runs()
         run_ids = [rid for rid in all_active if rid in owned_ids]
-        return JSONResponse({
-            "run_ids": run_ids,
-            "count": len(run_ids),
-            "status": "ok",
-        })
+        return JSONResponse(
+            {
+                "run_ids": run_ids,
+                "count": len(run_ids),
+                "status": "ok",
+            }
+        )
     except Exception as exc:
         logger.warning("handle_runs_active: error fetching active runs: %s", exc)
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -199,7 +203,8 @@ async def handle_get_run(request: Request) -> JSONResponse:
     run = manager.get_run(run_id, workspace=ctx)
     if run is None:
         return JSONResponse(
-            {"error": "run_not_found", "run_id": run_id}, status_code=404,
+            {"error": "run_not_found", "run_id": run_id},
+            status_code=404,
         )
     return JSONResponse(manager.to_dict(run))
 
@@ -216,7 +221,8 @@ async def handle_signal_run(request: Request) -> JSONResponse:
     run = manager.get_run(run_id, workspace=ctx)
     if run is None:
         return JSONResponse(
-            {"error": "run_not_found", "run_id": run_id}, status_code=404,
+            {"error": "run_not_found", "run_id": run_id},
+            status_code=404,
         )
 
     try:
@@ -230,10 +236,12 @@ async def handle_signal_run(request: Request) -> JSONResponse:
         if ok:
             return JSONResponse({"run_id": run_id, "state": "cancelled"})
         return JSONResponse(
-            {"error": "cannot_cancel", "run_id": run_id}, status_code=409,
+            {"error": "cannot_cancel", "run_id": run_id},
+            status_code=409,
         )
     return JSONResponse(
-        {"error": "unknown_signal", "signal": signal}, status_code=400,
+        {"error": "unknown_signal", "signal": signal},
+        status_code=400,
     )
 
 
@@ -254,13 +262,18 @@ async def handle_submit_feedback(request: Request) -> JSONResponse:
         return JSONResponse({"error": "invalid_json"}, status_code=400)
     rating = body.get("rating")
     if rating is None or not isinstance(rating, (int, float)):
-        return JSONResponse({"error": "rating_required", "detail": "rating must be a number"}, status_code=400)
+        return JSONResponse(
+            {"error": "rating_required", "detail": "rating must be a number"}, status_code=400
+        )
     notes = body.get("notes", "")
     from hi_agent.evolve.feedback_store import RunFeedback
+
     feedback = RunFeedback(run_id=run_id, rating=float(rating), notes=str(notes))
     store = _get_feedback_store(server)
     store.submit(feedback)
-    return JSONResponse({"run_id": run_id, "rating": feedback.rating, "submitted_at": feedback.submitted_at})
+    return JSONResponse(
+        {"run_id": run_id, "rating": feedback.rating, "submitted_at": feedback.submitted_at}
+    )
 
 
 async def handle_get_feedback(request: Request) -> JSONResponse:
@@ -279,6 +292,7 @@ async def handle_get_feedback(request: Request) -> JSONResponse:
     if record is None:
         return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
     from dataclasses import asdict
+
     return JSONResponse(asdict(record))
 
 
@@ -336,17 +350,21 @@ async def handle_resume_run(request: Request) -> JSONResponse:
         except Exception as exc:
             logger.error(
                 "Background checkpoint resume failed for run %r: %s",
-                run_id, exc, exc_info=True,
+                run_id,
+                exc,
+                exc_info=True,
             )
 
     thread = threading.Thread(target=_resume_in_background, daemon=True)
     thread.start()
 
-    return JSONResponse({
-        "status": "resuming",
-        "run_id": run_id,
-        "checkpoint_path": checkpoint_path,
-    })
+    return JSONResponse(
+        {
+            "status": "resuming",
+            "run_id": run_id,
+            "checkpoint_path": checkpoint_path,
+        }
+    )
 
 
 async def handle_run_artifacts(request: Request) -> JSONResponse:
@@ -372,7 +390,9 @@ async def handle_run_artifacts(request: Request) -> JSONResponse:
         artifacts_payload = [a.to_dict() for a in artifacts if a is not None]
     else:
         artifacts_payload = [{"artifact_id": aid} for aid in artifact_ids]
-    return JSONResponse({"run_id": run_id, "artifacts": artifacts_payload, "count": len(artifacts_payload)})
+    return JSONResponse(
+        {"run_id": run_id, "artifacts": artifacts_payload, "count": len(artifacts_payload)}
+    )
 
 
 async def handle_gate_decision(request: Request) -> JSONResponse:
@@ -422,9 +442,11 @@ async def handle_gate_decision(request: Request) -> JSONResponse:
         except Exception as exc:
             logger.warning("handle_gate_decision: apply_decision failed: %s", exc)
 
-    return JSONResponse({
-        "run_id": run_id,
-        "decision": body.decision,
-        "event_id": event_id,
-        "status": "accepted",
-    })
+    return JSONResponse(
+        {
+            "run_id": run_id,
+            "decision": body.decision,
+            "event_id": event_id,
+            "status": "accepted",
+        }
+    )

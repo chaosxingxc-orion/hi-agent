@@ -53,4 +53,3 @@ def test_ingest_policy_controls_write() -> None:
     )
     assert written is not None
     assert query_knowledge(store=store, query="persisted", top_k=1)[0].key == "r-4"
-

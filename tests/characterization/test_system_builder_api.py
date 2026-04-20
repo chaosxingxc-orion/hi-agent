@@ -9,6 +9,7 @@ Rules:
 - No internal mocking — use real SystemBuilder with default TraceConfig
 - Tests must complete in <60 seconds total
 """
+
 import pytest
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
@@ -23,6 +24,7 @@ def builder():
 
 # ── Observability ─────────────────────────────────────────────────────────────
 
+
 def test_build_metrics_collector_returns_object(builder):
     obj = builder.build_metrics_collector()
     assert obj is not None
@@ -33,6 +35,7 @@ def test_build_metrics_collector_is_singleton(builder):
 
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
+
 
 def test_build_kernel_returns_object(builder):
     obj = builder.build_kernel()
@@ -61,6 +64,7 @@ def test_build_evolve_engine_returns_object(builder):
 
 
 # ── Capability ────────────────────────────────────────────────────────────────
+
 
 def test_build_invoker_returns_object(builder):
     obj = builder.build_invoker()
@@ -124,6 +128,7 @@ def test_build_harness_has_execute_method(builder):
 
 # ── Skills ────────────────────────────────────────────────────────────────────
 
+
 def test_build_skill_registry_returns_object(builder):
     obj = builder.build_skill_registry()
     assert obj is not None
@@ -169,6 +174,7 @@ def test_build_skill_evolver_is_singleton(builder):
 
 # ── Memory ────────────────────────────────────────────────────────────────────
 
+
 def test_build_episodic_store_returns_object(builder):
     obj = builder.build_episodic_store()
     assert obj is not None
@@ -211,6 +217,7 @@ def test_build_memory_lifecycle_manager_returns_object(builder):
 
 # ── Knowledge ─────────────────────────────────────────────────────────────────
 
+
 def test_build_knowledge_wiki_returns_object(builder):
     obj = builder.build_knowledge_wiki()
     assert obj is not None
@@ -236,6 +243,7 @@ def test_build_profile_registry_is_singleton(builder):
 
 
 # ── Execution ─────────────────────────────────────────────────────────────────
+
 
 def test_build_context_manager_returns_object(builder):
     obj = builder.build_context_manager()
@@ -267,13 +275,11 @@ def test_build_orchestrator_returns_object(builder):
 def test_build_orchestrator_has_kernel(builder):
     obj = builder.build_orchestrator()
     # TaskOrchestrator stores kernel as _kernel or kernel
-    assert (
-        getattr(obj, "kernel", None) is not None
-        or getattr(obj, "_kernel", None) is not None
-    )
+    assert getattr(obj, "kernel", None) is not None or getattr(obj, "_kernel", None) is not None
 
 
 # ── Server ────────────────────────────────────────────────────────────────────
+
 
 def test_build_server_returns_object(builder):
     obj = builder.build_server()
@@ -293,6 +299,7 @@ def test_build_server_has_metrics_collector(builder):
 
 
 # ── Readiness snapshot ────────────────────────────────────────────────────────
+
 
 def test_readiness_returns_dict(builder):
     result = builder.readiness()

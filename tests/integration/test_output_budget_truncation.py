@@ -1,4 +1,5 @@
 """Integration tests for output budget enforcement (HI-W10-004)."""
+
 from hi_agent.capability.circuit_breaker import CircuitBreaker
 from hi_agent.capability.invoker import CapabilityInvoker
 from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec

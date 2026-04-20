@@ -29,9 +29,7 @@ class TestGraphFactoryAutoSelect:
 
     def test_compare_selects_parallel_gather(self):
         factory = GraphFactory()
-        template, graph = factory.auto_select(
-            "Compare the three pricing options side by side"
-        )
+        template, graph = factory.auto_select("Compare the three pricing options side by side")
         assert template == "parallel_gather"
         assert graph.get_node("S2-a") is not None
 
@@ -46,16 +44,12 @@ class TestGraphFactoryAutoSelect:
 
     def test_hints_override_speculative(self):
         factory = GraphFactory()
-        template, _ = factory.auto_select(
-            "Simple task", hints={"speculative": True}
-        )
+        template, _ = factory.auto_select("Simple task", hints={"speculative": True})
         assert template == "speculative"
 
     def test_hints_override_parallel(self):
         factory = GraphFactory()
-        template, _ = factory.auto_select(
-            "Simple task", hints={"parallel": True}
-        )
+        template, _ = factory.auto_select("Simple task", hints={"parallel": True})
         assert template == "parallel_gather"
 
     def test_long_goal_defaults_to_standard(self):

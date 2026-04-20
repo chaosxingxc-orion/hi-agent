@@ -28,7 +28,7 @@ class NudgeType(StrEnum):
     """Type of nudge to inject."""
 
     MEMORY = "memory"  # 提醒保存记忆
-    SKILL = "skill"    # 提醒创建技能
+    SKILL = "skill"  # 提醒创建技能
 
 
 # ---------------------------------------------------------------------------
@@ -56,11 +56,11 @@ class NudgeConfig:
         "以便在未来任务中直接调用，降低成本。"
     )
 
-    memory_nudge_interval: int = 10   # 每 N 轮触发记忆提醒
-    skill_nudge_interval: int = 15    # 每 N 次工具迭代触发技能提醒
+    memory_nudge_interval: int = 10  # 每 N 轮触发记忆提醒
+    skill_nudge_interval: int = 15  # 每 N 次工具迭代触发技能提醒
     enabled: bool = True
-    memory_nudge_message: str = ""    # 空时使用默认消息
-    skill_nudge_message: str = ""     # 空时使用默认消息
+    memory_nudge_message: str = ""  # 空时使用默认消息
+    skill_nudge_message: str = ""  # 空时使用默认消息
 
 
 # ---------------------------------------------------------------------------
@@ -212,19 +212,13 @@ class NudgeInjector:
     def format_message(self, trigger: NudgeTrigger) -> str:
         """Format the nudge message, substituting ``{turns}`` / ``{iterations}``."""
         if trigger.nudge_type == NudgeType.MEMORY:
-            template = (
-                self._config.memory_nudge_message
-                or NudgeConfig.DEFAULT_MEMORY_MESSAGE
-            )
+            template = self._config.memory_nudge_message or NudgeConfig.DEFAULT_MEMORY_MESSAGE
             return template.format(
                 turns=trigger.turns_elapsed,
                 iterations=trigger.iters_elapsed,
             )
         else:  # NudgeType.SKILL
-            template = (
-                self._config.skill_nudge_message
-                or NudgeConfig.DEFAULT_SKILL_MESSAGE
-            )
+            template = self._config.skill_nudge_message or NudgeConfig.DEFAULT_SKILL_MESSAGE
             return template.format(
                 turns=trigger.turns_elapsed,
                 iterations=trigger.iters_elapsed,
@@ -316,11 +310,7 @@ class ActionDetector:
         """
         lower = text.lower()
 
-        memory_saved = any(
-            kw in lower for kw in ActionDetector._MEMORY_SAVE_KEYWORDS
-        )
-        skill_created = any(
-            kw in lower for kw in ActionDetector._SKILL_CREATE_KEYWORDS
-        )
+        memory_saved = any(kw in lower for kw in ActionDetector._MEMORY_SAVE_KEYWORDS)
+        skill_created = any(kw in lower for kw in ActionDetector._SKILL_CREATE_KEYWORDS)
 
         return memory_saved, skill_created

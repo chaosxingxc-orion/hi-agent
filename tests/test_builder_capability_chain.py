@@ -1,4 +1,5 @@
 """Tests that capability registry and invoker share the same instance."""
+
 from __future__ import annotations
 
 
@@ -21,7 +22,9 @@ class TestCapabilityChainUnity:
 
         builder = SystemBuilder()
         registry = builder.build_capability_registry()
-        registry.register(CapabilitySpec(name="custom_test_cap", handler=lambda p: {"result": "ok"}))
+        registry.register(
+            CapabilitySpec(name="custom_test_cap", handler=lambda p: {"result": "ok"})
+        )
 
         invoker = builder.build_invoker()
         # Must find it without raising KeyError

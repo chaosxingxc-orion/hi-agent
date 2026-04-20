@@ -294,6 +294,7 @@ async def test_http_gateway_uses_async_client():
     import inspect
 
     from hi_agent.llm.http_gateway import HTTPGateway
+
     gw = HTTPGateway(base_url="http://localhost:9999", api_key="test")
     assert inspect.iscoroutinefunction(gw.call)
     await gw.aclose()
@@ -306,10 +307,13 @@ async def test_http_gateway_connection_pool_reused(respx_mock):
     from hi_agent.llm.http_gateway import HTTPGateway
 
     respx_mock.post("http://test-llm/v1/chat/completions").mock(
-        return_value=httpx.Response(200, json={
-            "choices": [{"message": {"content": "hello"}}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        })
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "hello"}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+        )
     )
 
     gw = HTTPGateway(base_url="http://test-llm", api_key="key")

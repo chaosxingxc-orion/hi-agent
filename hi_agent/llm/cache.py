@@ -69,9 +69,7 @@ class CacheAwareTokenUsage:
             self.prompt_tokens - self.cache_read_tokens - self.cache_write_tokens, 0
         )
         actual_cost = (
-            regular_tokens * 1.00
-            + self.cache_write_tokens * 1.25
-            + self.cache_read_tokens * 0.10
+            regular_tokens * 1.00 + self.cache_write_tokens * 1.25 + self.cache_read_tokens * 0.10
         )
         return actual_cost / baseline
 

@@ -108,9 +108,7 @@ def test_trigger_recovery_build_context_exception_wrapping(
 
     # Mock _build_recovery_context to raise an exception
     original_exc = ValueError("test build error")
-    with patch.object(
-        executor, "_build_recovery_context", side_effect=original_exc
-    ):
+    with patch.object(executor, "_build_recovery_context", side_effect=original_exc):
         with pytest.raises(RuntimeError) as exc_info:
             executor._trigger_recovery("stage-42")
 

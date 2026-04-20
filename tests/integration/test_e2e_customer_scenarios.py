@@ -5,7 +5,7 @@ interact with the system.  They go through the full HTTP API stack rather than
 calling internal classes directly.
 
 Design principle (CLAUDE.md Release Quality Protocol):
-  "boot 测试通过 �?可用。只有真实执行路径跑通，才算通过�?
+  "boot 测试通过 �?可用。只有真实执行路径跑通,才算通过�?
 
 Every test below corresponds to something a real user would try on day one.
 """
@@ -116,7 +116,7 @@ def client_with_knowledge(tmp_path) -> TestClient:
 
 
 # ---------------------------------------------------------------------------
-# TC01 �?服务启动后健康状态正�?# ---------------------------------------------------------------------------
+# TC01 - health check returns ok
 
 def test_tc01_health_check_returns_ok(client: TestClient) -> None:
     """A freshly started server must report healthy before any run is submitted.
@@ -194,15 +194,18 @@ def test_tc03_submit_goal_poll_completed(client: TestClient) -> None:
     # Downstream integrators must be able to inspect stage outcomes and artifacts.
     result = final.get("result")
     assert isinstance(result, dict), (
-        f"result must be a structured dict consumable by downstream, got {type(result).__name__!r}: {result!r}"
+        "result must be a structured dict consumable by downstream, "
+        f"got {type(result).__name__!r}: {result!r}"
     )
-    assert result.get("status") == "completed", f"result.status must be 'completed', got {result.get('status')!r}"
+    assert result.get("status") == "completed", (
+        f"result.status must be 'completed', got {result.get('status')!r}"
+    )
     assert "stages" in result, "result must include 'stages' list"
     assert "artifacts" in result, "result must include 'artifacts' list"
 
 
 # ---------------------------------------------------------------------------
-# TC04 �?同一目标两次提交得到两个不同 run_id，无 duplicate 错误
+# TC04 �?同一目标两次提交得到两个不同 run_id,无 duplicate 错误
 # ---------------------------------------------------------------------------
 
 def test_tc04_two_runs_same_goal_unique_ids_no_duplicate(client: TestClient) -> None:
@@ -240,7 +243,7 @@ def test_tc04_two_runs_same_goal_unique_ids_no_duplicate(client: TestClient) -> 
 
 
 # ---------------------------------------------------------------------------
-# TC05 �?缺少 goal 字段返回 400，不崩服�?# ---------------------------------------------------------------------------
+# TC05 - missing goal returns 400
 
 def test_tc05_missing_goal_returns_400(client: TestClient) -> None:
     """POST /runs without 'goal' must return 400 Bad Request.
@@ -260,7 +263,7 @@ def test_tc05_missing_goal_returns_400(client: TestClient) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TC06 �?提交多个任务后，GET /runs 列出所有任�?# ---------------------------------------------------------------------------
+# TC06 - list submitted runs
 
 def test_tc06_list_runs_shows_all_submitted(client: TestClient) -> None:
     """GET /runs must return every run that was submitted this session.
@@ -310,7 +313,7 @@ def test_tc07_unknown_run_id_returns_404(client: TestClient) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TC08 �?任务失败时服务不崩溃，状态为 failed
+# TC08 �?任务失败时服务不崩溃,状态为 failed
 # ---------------------------------------------------------------------------
 
 def test_tc08_run_failure_service_stays_healthy() -> None:
@@ -346,7 +349,7 @@ def test_tc08_run_failure_service_stays_healthy() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TC09 �?并发提交三个任务，全部独立完成，run_id 互不相同
+# TC09 �?并发提交三个任务,全部独立完成,run_id 互不相同
 # ---------------------------------------------------------------------------
 
 def test_tc09_concurrent_runs_isolated(client: TestClient) -> None:
@@ -397,7 +400,7 @@ def test_tc09_concurrent_runs_isolated(client: TestClient) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TC10 �?取消信号使运行终�?# ---------------------------------------------------------------------------
+# TC10 - cancel signal terminates run
 
 def test_tc10_cancel_signal_terminates_run(client: TestClient) -> None:
     """POST /runs/{id}/signal with 'cancel' must reach the run.
@@ -514,7 +517,7 @@ def test_tc11_sse_endpoint_returns_correct_content_type(
 
 
 # ---------------------------------------------------------------------------
-# TC12 �?知识库：摄入后可查到
+# TC12 �?知识库:摄入后可查到
 # ---------------------------------------------------------------------------
 
 def test_tc12_knowledge_ingest_then_query(client_with_knowledge: TestClient) -> None:
@@ -556,7 +559,7 @@ def test_tc12_knowledge_ingest_then_query(client_with_knowledge: TestClient) -> 
 
 
 # ---------------------------------------------------------------------------
-# TC13 �?知识库状态接口格式正�?# ---------------------------------------------------------------------------
+# TC13 - knowledge status response shape
 
 def test_tc13_knowledge_status_format(client_with_knowledge: TestClient) -> None:
     """GET /knowledge/status must return a valid stats response.

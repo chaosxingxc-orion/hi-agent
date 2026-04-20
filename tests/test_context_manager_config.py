@@ -18,6 +18,7 @@ def test_context_budget_from_config():
     assert budget.tool_definitions == 2_000
     assert budget.knowledge_context == 800
 
+
 def test_context_manager_thresholds_from_config():
     cfg = TraceConfig(
         context_health_green_threshold=0.60,

@@ -16,6 +16,7 @@ from hi_agent.memory.retriever import MemoryRetriever
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def tmp_dir(tmp_path: Path) -> str:
     return str(tmp_path / "episodes")
@@ -53,6 +54,7 @@ def _make_episode(
 # ---------------------------------------------------------------------------
 # EpisodicMemoryStore CRUD
 # ---------------------------------------------------------------------------
+
 
 class TestEpisodicMemoryStoreCRUD:
     def test_store_and_get(self, store: EpisodicMemoryStore) -> None:
@@ -92,6 +94,7 @@ class TestEpisodicMemoryStoreCRUD:
 # Query with filters
 # ---------------------------------------------------------------------------
 
+
 class TestEpisodicMemoryStoreQuery:
     def test_query_by_task_family(self, store: EpisodicMemoryStore) -> None:
         store.store(_make_episode("r1", task_family="analysis"))
@@ -119,10 +122,12 @@ class TestEpisodicMemoryStoreQuery:
 
     def test_query_limit(self, store: EpisodicMemoryStore) -> None:
         for i in range(10):
-            store.store(_make_episode(
-                f"r{i}",
-                timestamp=f"2026-04-07T{10 + i:02d}:00:00+00:00",
-            ))
+            store.store(
+                _make_episode(
+                    f"r{i}",
+                    timestamp=f"2026-04-07T{10 + i:02d}:00:00+00:00",
+                )
+            )
         results = store.query(limit=3)
         assert len(results) == 3
 
@@ -146,9 +151,12 @@ class TestEpisodicMemoryStoreQuery:
 # Similar failures
 # ---------------------------------------------------------------------------
 
+
 class TestGetSimilarFailures:
     def test_finds_matching_failures(self, store: EpisodicMemoryStore) -> None:
-        store.store(_make_episode("r1", failure_codes=["missing_evidence", "exploration_budget_exhausted"]))
+        store.store(
+            _make_episode("r1", failure_codes=["missing_evidence", "exploration_budget_exhausted"])
+        )
         store.store(_make_episode("r2", failure_codes=["model_refusal"]))
         store.store(_make_episode("r3", failure_codes=["missing_evidence", "no_progress"]))
         results = store.get_similar_failures(["missing_evidence"])
@@ -172,6 +180,7 @@ class TestGetSimilarFailures:
 # Successful patterns
 # ---------------------------------------------------------------------------
 
+
 class TestGetSuccessfulPatterns:
     def test_returns_only_successes_in_family(self, store: EpisodicMemoryStore) -> None:
         store.store(_make_episode("r1", task_family="analysis", outcome="completed"))
@@ -186,6 +195,7 @@ class TestGetSuccessfulPatterns:
 # ---------------------------------------------------------------------------
 # EpisodeBuilder
 # ---------------------------------------------------------------------------
+
 
 class TestEpisodeBuilder:
     def test_build_from_run_data(self) -> None:
@@ -279,13 +289,18 @@ class TestEpisodeBuilder:
 # MemoryRetriever
 # ---------------------------------------------------------------------------
 
+
 class TestMemoryRetriever:
     def test_retrieve_for_stage_with_episodic(self, store: EpisodicMemoryStore) -> None:
         store.store(_make_episode("r1", task_family="analysis", outcome="completed"))
-        store.store(_make_episode(
-            "r2", task_family="analysis", outcome="failed",
-            failure_codes=["missing_evidence"],
-        ))
+        store.store(
+            _make_episode(
+                "r2",
+                task_family="analysis",
+                outcome="failed",
+                failure_codes=["missing_evidence"],
+            )
+        )
         retriever = MemoryRetriever(episodic_store=store)
         snippets = retriever.retrieve_for_stage(
             task_family="analysis",
@@ -300,17 +315,19 @@ class TestMemoryRetriever:
 
     def test_retrieve_for_stage_no_episodic(self) -> None:
         retriever = MemoryRetriever(episodic_store=None)
-        snippets = retriever.retrieve_for_stage(
-            task_family="analysis", stage_id="S1"
-        )
+        snippets = retriever.retrieve_for_stage(task_family="analysis", stage_id="S1")
         assert snippets == []
 
     def test_retrieve_similar_episodes(self, store: EpisodicMemoryStore) -> None:
         store.store(_make_episode("r1", task_family="analysis", outcome="completed"))
-        store.store(_make_episode(
-            "r2", task_family="analysis", outcome="failed",
-            failure_codes=["no_progress"],
-        ))
+        store.store(
+            _make_episode(
+                "r2",
+                task_family="analysis",
+                outcome="failed",
+                failure_codes=["no_progress"],
+            )
+        )
         store.store(_make_episode("r3", task_family="coding", outcome="completed"))
         retriever = MemoryRetriever(episodic_store=store)
         episodes = retriever.retrieve_similar_episodes(
@@ -326,12 +343,14 @@ class TestMemoryRetriever:
     def test_retrieve_respects_token_budget(self, store: EpisodicMemoryStore) -> None:
         # Store many episodes
         for i in range(20):
-            store.store(_make_episode(
-                f"r{i}",
-                task_family="analysis",
-                outcome="completed",
-                timestamp=f"2026-04-07T{10 + i % 10:02d}:00:00+00:00",
-            ))
+            store.store(
+                _make_episode(
+                    f"r{i}",
+                    task_family="analysis",
+                    outcome="completed",
+                    timestamp=f"2026-04-07T{10 + i % 10:02d}:00:00+00:00",
+                )
+            )
         retriever = MemoryRetriever(episodic_store=store)
         # Very tight budget should limit results
         snippets = retriever.retrieve_for_stage(
@@ -346,6 +365,7 @@ class TestMemoryRetriever:
 # ---------------------------------------------------------------------------
 # Persistence: store -> new instance -> get
 # ---------------------------------------------------------------------------
+
 
 class TestPersistence:
     def test_survives_new_instance(self, tmp_dir: str) -> None:

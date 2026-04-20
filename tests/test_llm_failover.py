@@ -54,9 +54,7 @@ def _make_httpx_status_error(
     response.text = body
     response.headers = httpx.Headers(headers or {})
     request = MagicMock(spec=httpx.Request)
-    return httpx.HTTPStatusError(
-        message=f"HTTP {status_code}", request=request, response=response
-    )
+    return httpx.HTTPStatusError(message=f"HTTP {status_code}", request=request, response=response)
 
 
 def _make_pool(*keys: str, provider: str = "test") -> CredentialPool:

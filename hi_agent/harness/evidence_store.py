@@ -50,9 +50,7 @@ class EvidenceStore:
         if not record.evidence_ref:
             raise ValueError("evidence_ref must not be empty")
         self._records[record.evidence_ref] = record
-        self._by_action.setdefault(record.action_id, []).append(
-            record.evidence_ref
-        )
+        self._by_action.setdefault(record.action_id, []).append(record.evidence_ref)
         return record.evidence_ref
 
     def get(self, evidence_ref: str) -> EvidenceRecord | None:
@@ -119,7 +117,8 @@ ON evidence (action_id)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(
-            str(self._db_path), check_same_thread=False,
+            str(self._db_path),
+            check_same_thread=False,
         )
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(self._CREATE_TABLE)
@@ -251,8 +250,7 @@ ON evidence (action_id)
         """Return all stored evidence records."""
         with self._lock:
             cur = self._conn.execute(
-                "SELECT evidence_ref, action_id, evidence_type, content, timestamp "
-                "FROM evidence",
+                "SELECT evidence_ref, action_id, evidence_type, content, timestamp FROM evidence",
             )
             rows = cur.fetchall()
         return [self._row_to_record(r) for r in rows]

@@ -100,8 +100,11 @@ class TestG3GatePendingErrorPropagatesViaDeducatedClause:
 class _MinimalHandleStagFailureHost:
     """Minimal host that exposes _handle_stage_failure from RunExecutor."""
 
-    def __init__(self, restart_policy: MagicMock, execute_stage_side_effect: Exception | None = None) -> None:
+    def __init__(
+        self, restart_policy: MagicMock, execute_stage_side_effect: Exception | None = None
+    ) -> None:
         from hi_agent.runner import RunExecutor
+
         self._executor = RunExecutor.__new__(RunExecutor)
         self._executor.contract = _make_contract()
         self._executor._restart_policy = restart_policy
@@ -122,6 +125,7 @@ class _MinimalHandleStagFailureHost:
 
 def _make_retry_decision(task_id: str = "t-001") -> MagicMock:
     from unittest.mock import MagicMock
+
     d = MagicMock()
     d.action = "retry"
     d.reason = "test retry"
@@ -187,6 +191,7 @@ class TestG2AttemptHistoryFiltersByStageId:
 
     def _make_executor_with_attempts(self, attempts: list) -> MagicMock:
         from hi_agent.runner import RunExecutor
+
         executor = RunExecutor.__new__(RunExecutor)
         executor.contract = _make_contract()
         rp = MagicMock()
@@ -231,25 +236,29 @@ class TestG1AsyncReflectSavesToShortTermStoreBeforeCreateTask:
     """Verify G-1: short_term_store.save() is called before loop.create_task()."""
 
     def test_g1_async_reflect_saves_to_short_term_store_before_create_task(self) -> None:
-        """short_term_store.save() must be called before loop.create_task() in async reflect path."""
+        """short_term_store.save() precedes loop.create_task() in async reflect path."""
         call_order: list[str] = []
 
         # Mock short_term_store
         short_term_store = MagicMock()
+
         def _save(mem):
             call_order.append("save")
+
         short_term_store.save.side_effect = _save
 
         # Mock loop
         loop = MagicMock()
         loop.is_running.return_value = True
         mock_task = MagicMock()
+
         def _create_task(coro):
             call_order.append("create_task")
             # Consume the coroutine to avoid ResourceWarning
             with contextlib.suppress(Exception):
                 coro.close()
             return mock_task
+
         loop.create_task.side_effect = _create_task
 
         # Build a decision with a reflection_prompt
@@ -266,7 +275,9 @@ class TestG1AsyncReflectSavesToShortTermStoreBeforeCreateTask:
             return None
 
         reflection_orchestrator = MagicMock()
-        reflection_orchestrator.reflect_and_infer = MagicMock(return_value=_fake_reflect_and_infer())
+        reflection_orchestrator.reflect_and_infer = MagicMock(
+            return_value=_fake_reflect_and_infer()
+        )
 
         # Simulate just the async reflect branch logic from _handle_stage_failure
         # (mirrors the real code after G-1 fix)

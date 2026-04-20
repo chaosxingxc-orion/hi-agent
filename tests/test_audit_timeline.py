@@ -87,6 +87,4 @@ def test_build_audit_timeline_can_hide_confidence_fields() -> None:
 def test_build_audit_timeline_rejects_non_numeric_ts() -> None:
     """Non-numeric timestamp values should fail fast."""
     with pytest.raises(ValueError, match="ts must be numeric when provided"):
-        build_audit_timeline(
-            [{"ts": "not-a-number", "stage_id": "S1", "selected_branch": "b1"}]
-        )
+        build_audit_timeline([{"ts": "not-a-number", "stage_id": "S1", "selected_branch": "b1"}])

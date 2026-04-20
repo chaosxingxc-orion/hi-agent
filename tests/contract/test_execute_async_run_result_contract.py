@@ -6,6 +6,7 @@ Verifies:
 3. llm_mode is not hardcoded "heuristic" when no LLM was used
    (should be "unknown" when no capability provenance is recorded)
 """
+
 from __future__ import annotations
 
 import pytest

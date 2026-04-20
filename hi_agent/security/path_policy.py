@@ -2,6 +2,7 @@
 
 Provides safe_resolve() to validate user-supplied paths against a base directory.
 """
+
 from __future__ import annotations
 
 import sys
@@ -28,8 +29,10 @@ def safe_resolve(base_dir: Path | str, user_path: str, *, allow_absolute: bool =
         raise PathPolicyViolation("Null byte detected in path")
 
     # Windows-specific checks: UNC paths and drive-letter paths
-    if sys.platform == "win32" or user_path.startswith("\\\\") or (
-        len(user_path) >= 2 and user_path[1] == ":"
+    if (
+        sys.platform == "win32"
+        or user_path.startswith("\\\\")
+        or (len(user_path) >= 2 and user_path[1] == ":")
     ):
         if user_path.startswith("\\\\"):
             raise PathPolicyViolation(f"UNC path not allowed: {user_path!r}")

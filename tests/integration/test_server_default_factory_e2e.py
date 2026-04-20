@@ -28,6 +28,7 @@ from starlette.testclient import TestClient
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _wait_terminal(
     client: TestClient,
     run_id: str,
@@ -51,6 +52,7 @@ def _wait_terminal(
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def dev_server(monkeypatch: pytest.MonkeyPatch) -> AgentServer:
@@ -88,6 +90,7 @@ def dev_client(dev_server: AgentServer) -> TestClient:
 # SDF-01: Smoke — POST /runs → completed via real factory
 # ---------------------------------------------------------------------------
 
+
 def test_sdf01_real_factory_completes_run(dev_client: TestClient) -> None:
     """The real default executor factory must complete a minimal goal run.
 
@@ -103,9 +106,7 @@ def test_sdf01_real_factory_completes_run(dev_client: TestClient) -> None:
 
     final = _wait_terminal(dev_client, run_id)
 
-    assert final["state"] in ("completed", "failed"), (
-        f"Unexpected terminal state: {final['state']}"
-    )
+    assert final["state"] in ("completed", "failed"), f"Unexpected terminal state: {final['state']}"
     # Result must be structured (not a bare string)
     result = final.get("result")
     assert isinstance(result, dict), (
@@ -119,6 +120,7 @@ def test_sdf01_real_factory_completes_run(dev_client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # SDF-02: All TaskContract fields reach the executor via real factory
 # ---------------------------------------------------------------------------
+
 
 def test_sdf02_full_contract_fields_reach_executor(dev_client: TestClient) -> None:
     """POST /runs with all contract fields must be accepted without error.
@@ -160,6 +162,7 @@ def test_sdf02_full_contract_fields_reach_executor(dev_client: TestClient) -> No
 # SDF-03: acceptance_criteria with required_stage affects outcome via real factory
 # ---------------------------------------------------------------------------
 
+
 def test_sdf03_acceptance_criteria_required_stage_causes_failure(
     dev_client: TestClient,
 ) -> None:
@@ -189,14 +192,13 @@ def test_sdf03_acceptance_criteria_required_stage_causes_failure(
         f"result.status must be 'failed', got {result.get('status')!r}"
     )
     # failure_code should indicate the criteria failure
-    assert result.get("failure_code") is not None, (
-        "Failed run must have a non-null failure_code"
-    )
+    assert result.get("failure_code") is not None, "Failed run must have a non-null failure_code"
 
 
 # ---------------------------------------------------------------------------
 # SDF-04: /ready returns consistent state with real builder
 # ---------------------------------------------------------------------------
+
 
 def test_sdf04_readiness_uses_real_builder(dev_client: TestClient, dev_server: AgentServer) -> None:
     """/ready in real factory mode must read from the same builder used by runs.
@@ -232,6 +234,7 @@ def test_sdf04_readiness_uses_real_builder(dev_client: TestClient, dev_server: A
 # SDF-05: /manifest exposes contract_field_status section
 # ---------------------------------------------------------------------------
 
+
 def test_sdf05_manifest_exposes_contract_field_status(dev_client: TestClient) -> None:
     """GET /manifest must include contract_field_status so integrators know
     which TaskContract fields actually drive execution behavior.
@@ -248,14 +251,20 @@ def test_sdf05_manifest_exposes_contract_field_status(dev_client: TestClient) ->
     assert isinstance(field_status, dict)
 
     # ACTIVE fields that must be declared
-    active_fields = {"goal", "task_family", "risk_level", "constraints",
-                     "acceptance_criteria", "budget", "deadline", "profile_id",
-                     "decomposition_strategy"}
+    active_fields = {
+        "goal",
+        "task_family",
+        "risk_level",
+        "constraints",
+        "acceptance_criteria",
+        "budget",
+        "deadline",
+        "profile_id",
+        "decomposition_strategy",
+    }
     for f in active_fields:
         assert f in field_status, f"contract_field_status missing field: {f!r}"
-        assert field_status[f] == "ACTIVE", (
-            f"Field {f!r} should be ACTIVE, got {field_status[f]!r}"
-        )
+        assert field_status[f] == "ACTIVE", f"Field {f!r} should be ACTIVE, got {field_status[f]!r}"
 
     # PASSTHROUGH fields
     passthrough_fields = {"environment_scope", "input_refs", "parent_task_id"}

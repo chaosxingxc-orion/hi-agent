@@ -87,18 +87,19 @@ class RunFinalizer:
                     _logger.warning(
                         "runner.subrun_cancelled_at_finalization "
                         "task_id=%s run_status=%s run_id=%s",
-                        task_id, status, ctx.run_id,
+                        task_id,
+                        status,
+                        ctx.run_id,
                     )
             except Exception as _exc:
-                _logger.warning(
-                    "runner.subrun_cancel_failed task_id=%s error=%s", task_id, _exc
-                )
+                _logger.warning("runner.subrun_cancel_failed task_id=%s error=%s", task_id, _exc)
         pending.clear()
         completed = ctx.completed_subrun_results
         if completed:
             _logger.debug(
                 "runner.subrun_uncollected_results_cleared count=%d run_id=%s",
-                len(completed), ctx.run_id,
+                len(completed),
+                ctx.run_id,
             )
             completed.clear()
 
@@ -155,11 +156,13 @@ class RunFinalizer:
                 fallback_reasons=fallback_reasons,
                 duration_ms=getattr(stage, "duration_ms", 0) or 0,
             )
-            summaries.append({
-                "stage_id": str(stage_id),
-                "type": llm_mode,
-                "provenance": prov,
-            })
+            summaries.append(
+                {
+                    "stage_id": str(stage_id),
+                    "type": llm_mode,
+                    "provenance": prov,
+                }
+            )
         return summaries
 
     def _get_mcp_transport_status(self) -> str:
@@ -211,14 +214,16 @@ class RunFinalizer:
         stage_dicts: list[dict] = []
         all_artifact_ids: list[str] = []
         for stage_id, summary in ctx.stage_summaries.items():
-            stage_dicts.append({
-                "stage_id": stage_id,
-                "stage_name": getattr(summary, "stage_name", stage_id),
-                "outcome": getattr(summary, "outcome", "unknown"),
-                "findings": list(getattr(summary, "findings", [])),
-                "decisions": list(getattr(summary, "decisions", [])),
-                "artifact_ids": list(getattr(summary, "artifact_ids", [])),
-            })
+            stage_dicts.append(
+                {
+                    "stage_id": stage_id,
+                    "stage_name": getattr(summary, "stage_name", stage_id),
+                    "outcome": getattr(summary, "outcome", "unknown"),
+                    "findings": list(getattr(summary, "findings", [])),
+                    "decisions": list(getattr(summary, "decisions", [])),
+                    "artifact_ids": list(getattr(summary, "artifact_ids", [])),
+                }
+            )
             all_artifact_ids.extend(getattr(summary, "artifact_ids", []))
 
         # --- Failure attribution ---
@@ -244,18 +249,19 @@ class RunFinalizer:
                 error_detail = f"Run failed at stage {failed_stage_id!r}"
             # Precise failure attribution: query FailureCollector for structured record.
             # Map raw outcome strings to proper FailureCode enum values.
-            _OUTCOME_TO_FAILURE_CODE = {
+            outcome_to_failure_code = {
                 "failed": "no_progress",
                 "aborted": "exploration_budget_exhausted",
                 "timeout": "callback_timeout",
                 "unsafe": "unsafe_action_blocked",
             }
-            failure_code = _OUTCOME_TO_FAILURE_CODE.get(outcome, outcome)
+            failure_code = outcome_to_failure_code.get(outcome, outcome)
             is_retryable = False
             collector = ctx.failure_collector
             if collector is not None:
                 try:
                     from hi_agent.failures.taxonomy import FAILURE_RECOVERY_MAP
+
                     unresolved = collector.get_unresolved()
                     last_failure = unresolved[-1] if unresolved else None
                     if last_failure is None:
@@ -291,7 +297,11 @@ class RunFinalizer:
         # stage was interrupted before an explicit completion event was recorded.
         if outcome != "completed" and failed_stage_id is not None:
             for sd in stage_dicts:
-                if sd["stage_id"] == failed_stage_id and sd.get("outcome") in ("succeeded", "active", "unknown"):
+                if sd["stage_id"] == failed_stage_id and sd.get("outcome") in (
+                    "succeeded",
+                    "active",
+                    "unknown",
+                ):
                     sd["outcome"] = "failed"
 
         # --- Acceptance criteria evaluation ---
@@ -303,16 +313,18 @@ class RunFinalizer:
         if outcome == "completed":
             criteria = getattr(ctx.contract, "acceptance_criteria", None) or []
             criteria_failures: list[str] = []
-            completed_stage_ids = {sd["stage_id"] for sd in stage_dicts if sd.get("outcome") == "succeeded"}
+            completed_stage_ids = {
+                sd["stage_id"] for sd in stage_dicts if sd.get("outcome") == "succeeded"
+            }
             for criterion in criteria:
                 if not isinstance(criterion, str):
                     continue
                 if criterion.startswith("required_stage:"):
-                    required_sid = criterion[len("required_stage:"):]
+                    required_sid = criterion[len("required_stage:") :]
                     if required_sid not in completed_stage_ids:
                         criteria_failures.append(criterion)
                 elif criterion.startswith("required_artifact:"):
-                    required_aid = criterion[len("required_artifact:"):]
+                    required_aid = criterion[len("required_artifact:") :]
                     if required_aid not in all_artifact_ids:
                         criteria_failures.append(criterion)
             if criteria_failures:
@@ -321,7 +333,8 @@ class RunFinalizer:
                 error_detail = f"Acceptance criteria not met: {criteria_failures}"
                 _logger.warning(
                     "runner.acceptance_criteria_failed run_id=%s criteria=%s",
-                    ctx.run_id, criteria_failures,
+                    ctx.run_id,
+                    criteria_failures,
                 )
 
         # --- Exception-type → failure_code improvement (P2-NEW-03) ---
@@ -330,7 +343,7 @@ class RunFinalizer:
         if outcome != "completed" and failure_code == "no_progress":
             exc_type = ctx.last_exception_type
             if exc_type:
-                _EXC_TYPE_TO_FAILURE_CODE: dict[str, str] = {
+                exc_type_to_failure_code: dict[str, str] = {
                     "TimeoutError": "callback_timeout",
                     "asyncio.TimeoutError": "callback_timeout",
                     "concurrent.futures.TimeoutError": "callback_timeout",
@@ -341,13 +354,14 @@ class RunFinalizer:
                     "ValueError": "invalid_context",
                     "TypeError": "invalid_context",
                 }
-                mapped = _EXC_TYPE_TO_FAILURE_CODE.get(exc_type)
+                mapped = exc_type_to_failure_code.get(exc_type)
                 if mapped:
                     failure_code = mapped
 
         # --- L0 -> L2 consolidation ---
         try:
             from pathlib import Path as _Path
+
             _raw_run_id = getattr(ctx.raw_memory, "_run_id", "")
             _raw_file = getattr(ctx.raw_memory, "_file", None)
             # Attempt to derive base_dir from the log path stored on the store
@@ -357,6 +371,7 @@ class RunFinalizer:
                 _raw_base = getattr(ctx.raw_memory, "_base_dir_path", None)
             if _raw_base is not None:
                 from hi_agent.memory.l0_summarizer import L0Summarizer
+
                 _summary = L0Summarizer().summarize_run(ctx.run_id, _Path(_raw_base))
                 if _summary is not None and ctx.mid_term_store is not None:
                     ctx.mid_term_store.save(_summary)
@@ -374,11 +389,10 @@ class RunFinalizer:
         # --- FeedbackStore: submit neutral record for completed run ---
         if ctx.feedback_store is not None:
             from hi_agent.evolve.feedback_store import RunFeedback
+
             try:
                 ctx.feedback_store.submit(RunFeedback(run_id=ctx.run_id, rating=0.5))
-                _logger.debug(
-                    "feedback_store: neutral record submitted for run %s", ctx.run_id
-                )
+                _logger.debug("feedback_store: neutral record submitted for run %s", ctx.run_id)
             except Exception as _fb_exc:
                 _logger.warning("feedback_store: submit failed: %s", _fb_exc)
 

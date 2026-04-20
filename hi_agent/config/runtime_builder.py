@@ -4,6 +4,7 @@ Extracted from SystemBuilder to reduce builder.py god-object footprint.
 Holds all kernel adapter, metrics collector, middleware orchestrator,
 and executor construction logic.
 """
+
 from __future__ import annotations
 
 import logging
@@ -83,6 +84,7 @@ class RuntimeBuilder:
                     )
                     self._kernel = create_local_adapter()
                 from hi_agent.runtime_adapter import ResilientKernelAdapter
+
                 self._kernel = ResilientKernelAdapter(
                     self._kernel,
                     max_retries=self._config.kernel_max_retries,
@@ -110,6 +112,7 @@ class RuntimeBuilder:
                         build_notification_backend,
                         send_notification,
                     )
+
                     _backend = build_notification_backend(_webhook_url)
 
                     def _alert_cb(alert: object) -> None:
@@ -142,6 +145,7 @@ class RuntimeBuilder:
             if self._run_context_manager is None:
                 try:
                     from hi_agent.context.run_context import RunContextManager
+
                     self._run_context_manager = RunContextManager()
                     _logger.info("build_run_context_manager: RunContextManager created.")
                 except Exception as exc:
@@ -155,15 +159,24 @@ class RuntimeBuilder:
         if self._middleware_orchestrator is None:
             try:
                 from hi_agent.middleware.defaults import create_default_orchestrator
+
                 gateway = self._parent.build_llm_gateway()
                 self._middleware_orchestrator = create_default_orchestrator(
                     llm_gateway=gateway,
                     quality_threshold=getattr(self._config, "gate_quality_threshold", 0.7),
-                    summary_threshold=getattr(self._config, "perception_summary_threshold_tokens", 2000),
+                    summary_threshold=getattr(
+                        self._config, "perception_summary_threshold_tokens", 2000
+                    ),
                     max_entities=getattr(self._config, "perception_max_entities", 50),
-                    llm_summarize_char_threshold=getattr(self._config, "perception_summarize_char_threshold", 500),
-                    summarize_temperature=getattr(self._config, "perception_summarize_temperature", 0.3),
-                    summarize_max_tokens=getattr(self._config, "perception_summarize_max_tokens", 200),
+                    llm_summarize_char_threshold=getattr(
+                        self._config, "perception_summarize_char_threshold", 500
+                    ),
+                    summarize_temperature=getattr(
+                        self._config, "perception_summarize_temperature", 0.3
+                    ),
+                    summarize_max_tokens=getattr(
+                        self._config, "perception_summarize_max_tokens", 200
+                    ),
                 )
                 _logger.info("build_middleware_orchestrator: MiddlewareOrchestrator created.")
             except Exception as exc:
@@ -190,7 +203,7 @@ class RuntimeBuilder:
             harness = self._parent.build_harness()
             capability_inv = self._parent.build_invoker()
 
-            _ATTR_SUBSYSTEMS: list[tuple[str, Any]] = [
+            attr_subsystems: list[tuple[str, Any]] = [
                 ("_context_manager", context_mgr),
                 ("_skill_loader", skill_ldr),
                 ("_knowledge_manager", knowledge_mgr),
@@ -201,7 +214,7 @@ class RuntimeBuilder:
 
             injected: list[str] = []
             for mw_name, mw in middlewares.items():
-                for attr, value in _ATTR_SUBSYSTEMS:
+                for attr, value in attr_subsystems:
                     if hasattr(mw, attr) and getattr(mw, attr) is None and value is not None:
                         setattr(mw, attr, value)
                         injected.append(f"{mw_name}.{attr}")

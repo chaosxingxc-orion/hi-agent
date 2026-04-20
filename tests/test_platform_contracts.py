@@ -1,4 +1,5 @@
 """Unit tests for P-1 (Provenance) and P-5 (confidence on Artifact base)."""
+
 from __future__ import annotations
 
 import pytest

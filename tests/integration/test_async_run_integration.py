@@ -1,4 +1,5 @@
 """Integration tests for async execution via AsyncTaskScheduler + MockKernelFacade."""
+
 import asyncio
 
 import pytest

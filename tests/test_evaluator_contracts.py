@@ -15,6 +15,7 @@ from hi_agent.evaluation.contracts import (
 # EvaluationContext
 # ---------------------------------------------------------------------------
 
+
 class TestEvaluationContext:
     def test_defaults(self):
         ctx = EvaluationContext(goal="Do something")
@@ -39,6 +40,7 @@ class TestEvaluationContext:
 # ---------------------------------------------------------------------------
 # EvaluationResult
 # ---------------------------------------------------------------------------
+
 
 class TestEvaluationResult:
     def test_creation(self):
@@ -66,6 +68,7 @@ class TestEvaluationResult:
 # Evaluator protocol
 # ---------------------------------------------------------------------------
 
+
 class TestEvaluatorProtocol:
     def test_default_evaluator_satisfies_protocol(self):
         ev = DefaultEvaluator()
@@ -89,6 +92,7 @@ class TestEvaluatorProtocol:
 # ---------------------------------------------------------------------------
 # DefaultEvaluator
 # ---------------------------------------------------------------------------
+
 
 class TestDefaultEvaluator:
     def _ctx(self) -> EvaluationContext:
@@ -158,6 +162,7 @@ class TestDefaultEvaluator:
 # ---------------------------------------------------------------------------
 # CompositeEvaluator
 # ---------------------------------------------------------------------------
+
 
 class TestCompositeEvaluator:
     def _ctx(self) -> EvaluationContext:

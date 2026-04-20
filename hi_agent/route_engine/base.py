@@ -20,4 +20,3 @@ class RouteEngine(Protocol):
 
     def propose(self, stage_id: str, run_id: str, seq: int) -> list[BranchProposal]:
         """Propose one or more branches for current stage."""
-

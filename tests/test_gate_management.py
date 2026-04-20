@@ -78,4 +78,3 @@ def test_gate_api_rejects_double_resolution() -> None:
 
     with pytest.raises(ValueError):
         resolve_gate_api(api=api, gate_ref="gate-2", action="approve", approver="ops")
-

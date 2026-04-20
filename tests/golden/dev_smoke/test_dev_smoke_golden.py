@@ -1,4 +1,5 @@
 """Golden path: dev-smoke tier — no real LLM/kernel, heuristic execution (W12-001)."""
+
 from __future__ import annotations
 
 import uuid
@@ -49,6 +50,7 @@ class TestDevSmokeGoldenPath:
         # execution_provenance is populated when the full pipeline runs;
         # it may be None in degraded/stub modes — assert type is consistent.
         from hi_agent.contracts.requests import RunResult
+
         assert isinstance(result, RunResult)
         # Status must be a non-empty string.
         assert isinstance(result.status, str)

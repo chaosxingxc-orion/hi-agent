@@ -28,12 +28,16 @@ def make_test_app(runtime_mode="dev-smoke"):
 def test_unsigned_jwt_rejected_when_enforce_flag_set():
     """Forged unsigned JWT (alg=none) must be rejected when ENFORCE_JWT_SIGNATURE=true."""
     # JWT with alg=none: header.payload.empty_signature
-    header = base64.urlsafe_b64encode(
-        json.dumps({"alg": "none", "typ": "JWT"}).encode()
-    ).rstrip(b"=").decode()
-    payload = base64.urlsafe_b64encode(
-        json.dumps({"sub": "user1", "role": "read"}).encode()
-    ).rstrip(b"=").decode()
+    header = (
+        base64.urlsafe_b64encode(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
+    payload = (
+        base64.urlsafe_b64encode(json.dumps({"sub": "user1", "role": "read"}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
     unsigned_token = f"{header}.{payload}."
 
     with patch.dict(
@@ -45,9 +49,7 @@ def test_unsigned_jwt_rejected_when_enforce_flag_set():
     ):
         app = make_test_app()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get(
-            "/runs", headers={"Authorization": f"Bearer {unsigned_token}"}
-        )
+        resp = client.get("/runs", headers={"Authorization": f"Bearer {unsigned_token}"})
     assert resp.status_code == 401
 
 
@@ -58,12 +60,18 @@ def test_unsigned_jwt_accepted_when_enforce_flag_false():
     allows unsigned JWTs through claims-only decode (not enforcing signature rejection).
     However, the JWT still needs valid claims.
     """
-    header = base64.urlsafe_b64encode(
-        json.dumps({"alg": "none", "typ": "JWT"}).encode()
-    ).rstrip(b"=").decode()
-    payload = base64.urlsafe_b64encode(
-        json.dumps({"sub": "user1", "role": "write", "aud": "hi-agent"}).encode()
-    ).rstrip(b"=").decode()
+    header = (
+        base64.urlsafe_b64encode(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
+    payload = (
+        base64.urlsafe_b64encode(
+            json.dumps({"sub": "user1", "role": "write", "aud": "hi-agent"}).encode()
+        )
+        .rstrip(b"=")
+        .decode()
+    )
     unsigned_token = f"{header}.{payload}."
 
     # When ENFORCE_JWT_SIGNATURE is false (or absent), we DON'T skip claims-only decode.
@@ -79,9 +87,7 @@ def test_unsigned_jwt_accepted_when_enforce_flag_false():
         os.environ.pop("ENFORCE_JWT_SIGNATURE", None)
         app = make_test_app()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get(
-            "/runs", headers={"Authorization": f"Bearer {unsigned_token}"}
-        )
+        resp = client.get("/runs", headers={"Authorization": f"Bearer {unsigned_token}"})
     # Should succeed (or at least not reject for signature reasons)
     # It may still fail for other reasons, but the signature enforcement shouldn't block it
     assert resp.status_code in (200, 401)  # Accept both to be lenient on claims validation

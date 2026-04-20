@@ -12,6 +12,7 @@ Design:
 - Supports both sync and async hooks
 - Built-in hooks: LLMCostLoggerHook, ToolResultSizeHook
 """
+
 from __future__ import annotations
 
 import inspect
@@ -317,6 +318,7 @@ class ExecutionHookManager:
         if error is not None:
             # Build a minimal result so post hooks can observe the failure.
             from hi_agent.llm import TokenUsage
+
             dummy_response = LLMResponse(
                 content="",
                 model="unknown",

@@ -3,6 +3,7 @@
 Run with UPDATE_SNAPSHOTS=1 pytest tests/integration/test_contract_snapshots.py
 to regenerate snapshot files after intentional shape changes.
 """
+
 from __future__ import annotations
 
 import json
@@ -16,14 +17,19 @@ from starlette.testclient import TestClient
 
 SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "..", "snapshots")
 EXCLUDED_VOLATILE = {
-    "timestamp", "started_at", "completed_at", "run_id",
-    "uptime_seconds", "version",
+    "timestamp",
+    "started_at",
+    "completed_at",
+    "run_id",
+    "uptime_seconds",
+    "version",
 }
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
@@ -40,6 +46,7 @@ def test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _strip_volatile(d: dict) -> dict:
     return {k: v for k, v in d.items() if k not in EXCLUDED_VOLATILE}
@@ -93,6 +100,7 @@ def _wait_terminal(
 
 # ── /manifest ──────────────────────────────────────────────────────────────────
 
+
 def test_manifest_dev_smoke_shape_stable(test_client: TestClient) -> None:
     """Snapshot the stable structural keys of /manifest in dev-smoke mode."""
     resp = test_client.get("/manifest")
@@ -108,6 +116,7 @@ def test_manifest_dev_smoke_shape_stable(test_client: TestClient) -> None:
 
 # ── /ready ─────────────────────────────────────────────────────────────────────
 
+
 def test_ready_dev_smoke_shape_stable(test_client: TestClient) -> None:
     """Snapshot the stable structural keys of /ready in dev-smoke mode."""
     resp = test_client.get("/ready")
@@ -119,12 +128,11 @@ def test_ready_dev_smoke_shape_stable(test_client: TestClient) -> None:
 
 # ── RunResult ──────────────────────────────────────────────────────────────────
 
+
 def test_run_result_provenance_shape_stable(test_client: TestClient) -> None:
     """Snapshot the execution_provenance shape inside RunResult after a completed run."""
     resp = test_client.post("/runs", json={"goal": "snapshot test"})
-    assert resp.status_code in (200, 201, 202), (
-        f"POST /runs failed: {resp.status_code} {resp.text}"
-    )
+    assert resp.status_code in (200, 201, 202), f"POST /runs failed: {resp.status_code} {resp.text}"
     run_id = resp.json().get("run_id")
     assert run_id, "run_id must be present"
 

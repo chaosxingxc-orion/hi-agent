@@ -6,6 +6,7 @@ wrapper matches the ``HttpLLMGateway`` constructor signature so that
 ``CognitionBuilder`` can instantiate either class with identical arguments
 depending on ``compat_sync_llm``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -108,7 +109,7 @@ class AsyncHTTPGateway:
             except LLMProviderError as exc:
                 last_exc = exc
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2 ** attempt)
+                    delay = self._retry_base * (2**attempt)
                     logger.warning(
                         "AsyncHTTPGateway retry %d/%d after %.1fs: %s",
                         attempt + 1,

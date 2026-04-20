@@ -51,4 +51,3 @@ def ingest_run_summary(
         tags=tags,
         vector=vector,
     )
-

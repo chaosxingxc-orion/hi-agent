@@ -80,12 +80,15 @@ def build_route_decision_prompt(
     context: dict[str, Any] | None = None,
 ) -> str:
     """Backward-compatible strict JSON prompt used by ``LLMRouteEngine``."""
-    return build_route_prompt(
-        stage_id=stage_id,
-        run_id=run_id,
-        seq=seq,
-        allowed_next_stages=None,
-    ) + f"\ncontext={json.dumps(context or {}, ensure_ascii=False, sort_keys=True)}"
+    return (
+        build_route_prompt(
+            stage_id=stage_id,
+            run_id=run_id,
+            seq=seq,
+            allowed_next_stages=None,
+        )
+        + f"\ncontext={json.dumps(context or {}, ensure_ascii=False, sort_keys=True)}"
+    )
 
 
 def build_context_aware_route_prompt(

@@ -198,10 +198,7 @@ class TestFullPipelineWithFailuresAndRecovery:
         assert watchdog.consecutive_failures >= 1
 
         # Recovery was triggered (RecoveryTriggered event)
-        recovery_events = [
-            e for e in event_emitter.events
-            if e.event_type == "RecoveryTriggered"
-        ]
+        recovery_events = [e for e in event_emitter.events if e.event_type == "RecoveryTriggered"]
         assert len(recovery_events) > 0
 
     def test_pipeline_with_retries_succeeds(self) -> None:
@@ -634,10 +631,7 @@ class TestPolicyVersionPinning:
         assert result == "completed"
 
         # Find RunStarted event
-        run_started_events = [
-            e for e in event_emitter.events
-            if e.event_type == "RunStarted"
-        ]
+        run_started_events = [e for e in event_emitter.events if e.event_type == "RunStarted"]
         assert len(run_started_events) == 1
 
         payload = run_started_events[0].payload
@@ -804,10 +798,7 @@ class TestBudgetEnforcement:
         assert executor.action_seq <= 3
 
         # BudgetExhausted event should have been emitted
-        budget_events = [
-            e for e in event_emitter.events
-            if e.event_type == "BudgetExhausted"
-        ]
+        budget_events = [e for e in event_emitter.events if e.event_type == "BudgetExhausted"]
         assert len(budget_events) >= 1
 
     def test_budget_one_action_limit(self) -> None:
@@ -830,10 +821,7 @@ class TestBudgetEnforcement:
 
         executor.execute()
 
-        budget_events = [
-            e for e in event_emitter.events
-            if e.event_type == "BudgetExhausted"
-        ]
+        budget_events = [e for e in event_emitter.events if e.event_type == "BudgetExhausted"]
         assert len(budget_events) >= 1
 
     def test_cts_total_branch_limit(self) -> None:
@@ -900,6 +888,7 @@ class TestHTTPAPIRoundTrip:
                 )
                 runner = RunExecutor(contract, kernel)
                 return runner.execute()
+
             return _run
 
         server.executor_factory = executor_factory
@@ -908,7 +897,11 @@ class TestHTTPAPIRoundTrip:
             # POST /runs -- create a new run
             resp = client.post(
                 "/runs",
-                json={"task_id": "http-e2e-001", "goal": "HTTP round-trip test", "task_family": "quick_task"},
+                json={
+                    "task_id": "http-e2e-001",
+                    "goal": "HTTP round-trip test",
+                    "task_family": "quick_task",
+                },
             )
             assert resp.status_code == 201
             run_id = resp.json()["run_id"]

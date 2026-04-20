@@ -16,7 +16,9 @@ import os
 # ---------------------------------------------------------------------------
 
 
-def _make_builder(tmp_path, *, restart_on_exhausted: str = "reflect", restart_max_attempts: int = 3):
+def _make_builder(
+    tmp_path, *, restart_on_exhausted: str = "reflect", restart_max_attempts: int = 3
+):
     """Return a SystemBuilder with a temp episodic_storage_dir."""
     from hi_agent.config.builder import SystemBuilder
     from hi_agent.config.trace_config import TraceConfig
@@ -70,12 +72,11 @@ class TestI7MemoryLifecycleManagerProfileStores:
         assert short is not None, "MLM._short must not be None"
         actual_path = str(short._storage_dir)
         assert actual_path.endswith(os.path.join("profiles", "proj1", "short_term")), (
-            f"MLM._short storage_dir {actual_path!r} should end with "
-            f"profiles/proj1/short_term"
+            f"MLM._short storage_dir {actual_path!r} should end with profiles/proj1/short_term"
         )
 
     def test_memory_lifecycle_manager_retrieval_engine_shares_stores(self, tmp_path):
-        """MLM's retrieval engine and executor's retrieval engine share the same short_term_store."""
+        """MLM and executor retrieval engines share the same short_term_store."""
         builder = _make_builder(tmp_path)
         contract = _make_contract(profile_id="proj1")
 
@@ -85,7 +86,9 @@ class TestI7MemoryLifecycleManagerProfileStores:
         assert mlm is not None
 
         # MLM._short and the retrieval engine inside MLM must be the same instance
-        mlm_retrieval_short = mlm._retrieval._short_term if hasattr(mlm._retrieval, "_short_term") else None
+        mlm_retrieval_short = (
+            mlm._retrieval._short_term if hasattr(mlm._retrieval, "_short_term") else None
+        )
         if mlm_retrieval_short is not None:
             assert mlm_retrieval_short is mlm._short, (
                 "MLM retrieval engine's short_term must be the same instance as MLM._short"
@@ -110,7 +113,7 @@ class TestI8RestartPolicyDefault:
     """I-8: Default config must produce on_exhausted='reflect', enabling the reflect path."""
 
     def test_build_restart_policy_defaults_reflect(self, tmp_path):
-        """With default config (restart_on_exhausted='reflect'), _decide returns action='reflect'."""
+        """Default restart policy returns the reflect action."""
         builder = _make_builder(tmp_path, restart_on_exhausted="reflect", restart_max_attempts=3)
         engine = builder._build_restart_policy_engine()
         assert engine is not None, "_build_restart_policy_engine() must succeed"

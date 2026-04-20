@@ -38,5 +38,6 @@ def test_kernel_mode_defaults_to_unknown_when_absent():
 def test_local_fsm_adapter_mode_property():
     """KernelFacadeAdapter (local) must expose mode='local-fsm'."""
     from hi_agent.runtime_adapter import KernelFacadeAdapter
+
     adapter = KernelFacadeAdapter.__new__(KernelFacadeAdapter)
     assert adapter.mode == "local-fsm"

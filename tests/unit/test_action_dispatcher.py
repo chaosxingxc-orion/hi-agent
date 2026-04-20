@@ -79,9 +79,7 @@ def test_execute_action_retries_after_exception() -> None:
 
 
 def test_parse_invoker_role_returns_role_string() -> None:
-    assert ActionDispatcher._parse_invoker_role(
-        ["fast", "invoker_role:researcher"]
-    ) == "researcher"
+    assert ActionDispatcher._parse_invoker_role(["fast", "invoker_role:researcher"]) == "researcher"
 
 
 def test_parse_invoker_role_with_empty_list_returns_none() -> None:

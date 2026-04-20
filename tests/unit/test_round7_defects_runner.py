@@ -321,6 +321,7 @@ class TestExecuteRemainingAnnotation:
             assert "RunResult" in ann, f"Expected 'RunResult' in annotation, got: {ann!r}"
         else:
             from hi_agent.contracts.requests import RunResult
+
             assert ann is RunResult, f"Expected RunResult class, got: {ann!r}"
 
 

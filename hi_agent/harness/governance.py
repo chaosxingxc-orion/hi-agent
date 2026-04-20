@@ -81,13 +81,8 @@ class GovernanceEngine:
         violations: list[str] = []
 
         # Rule 1: Irreversible actions require approval
-        if (
-            spec.effect_class == EffectClass.IRREVERSIBLE_WRITE
-            and not spec.approval_required
-        ):
-            violations.append(
-                "IRREVERSIBLE_WRITE effect_class requires approval_required=True"
-            )
+        if spec.effect_class == EffectClass.IRREVERSIBLE_WRITE and not spec.approval_required:
+            violations.append("IRREVERSIBLE_WRITE effect_class requires approval_required=True")
         if (
             spec.side_effect_class == SideEffectClass.IRREVERSIBLE_SUBMIT
             and not spec.approval_required
@@ -101,10 +96,7 @@ class GovernanceEngine:
             SideEffectClass.EXTERNAL_WRITE,
             SideEffectClass.IRREVERSIBLE_SUBMIT,
         }
-        if (
-            spec.side_effect_class in _external_side_effects
-            and not spec.idempotency_key
-        ):
+        if spec.side_effect_class in _external_side_effects and not spec.idempotency_key:
             violations.append(
                 f"{spec.side_effect_class.value} requires a non-empty idempotency_key"
             )
@@ -173,9 +165,7 @@ class GovernanceEngine:
         )
 
         self._approved.add(action_id)
-        self._approval_queue = [
-            s for s in self._approval_queue if s.action_id != action_id
-        ]
+        self._approval_queue = [s for s in self._approval_queue if s.action_id != action_id]
 
     def reject(self, action_id: str, reason: str) -> None:
         """Reject an action with a reason.
@@ -185,13 +175,9 @@ class GovernanceEngine:
             reason: Human-readable rejection reason.
         """
         self._rejected[action_id] = reason
-        self._approval_queue = [
-            s for s in self._approval_queue if s.action_id != action_id
-        ]
+        self._approval_queue = [s for s in self._approval_queue if s.action_id != action_id]
 
-    def register_compensation(
-        self, action_type: str, handler: Callable
-    ) -> None:
+    def register_compensation(self, action_type: str, handler: Callable) -> None:
         """Register a compensation handler for an action type.
 
         Args:
@@ -200,9 +186,7 @@ class GovernanceEngine:
         """
         self._compensation_handlers[action_type] = handler
 
-    def get_compensation_handler(
-        self, action_type: str
-    ) -> Callable | None:
+    def get_compensation_handler(self, action_type: str) -> Callable | None:
         """Retrieve compensation handler for an action type.
 
         Args:

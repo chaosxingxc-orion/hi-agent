@@ -17,6 +17,7 @@ from hi_agent.harness.contracts import ActionSpec, EffectClass, SideEffectClass
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_builder() -> SystemBuilder:
     config = TraceConfig()
     return SystemBuilder(config=config)

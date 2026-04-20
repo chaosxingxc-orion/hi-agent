@@ -2,6 +2,7 @@
 
 P3: tests must reflect real path, not mock shortcuts.
 """
+
 import json
 import os
 import sys

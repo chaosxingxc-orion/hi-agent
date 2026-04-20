@@ -57,9 +57,7 @@ class TestTwoWorkersCantClaimSameRun:
 
 
 class TestExpiredLeases:
-    def test_release_expired_leases_makes_run_claimable_again(
-        self, q: RunQueue
-    ) -> None:
+    def test_release_expired_leases_makes_run_claimable_again(self, q: RunQueue) -> None:
         rq = RunQueue(db_path=":memory:", lease_timeout_seconds=0.05)
         try:
             rq.enqueue("run-1", priority=0)
@@ -102,9 +100,7 @@ class TestFailWithMaxAttempts:
         assert item is not None
         assert item["run_id"] == "run-1"
 
-    def test_fail_at_max_attempts_marks_failed_not_requeued(
-        self, q: RunQueue
-    ) -> None:
+    def test_fail_at_max_attempts_marks_failed_not_requeued(self, q: RunQueue) -> None:
         q.enqueue("run-1", priority=0)
         # Exhaust all 3 attempts
         for attempt in range(3):

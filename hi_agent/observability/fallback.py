@@ -57,9 +57,7 @@ def record_fallback(
         from hi_agent.observability.collector import MetricsCollector
 
         # Access the process-level singleton if one has been set.
-        _mc: MetricsCollector | None = getattr(
-            MetricsCollector, "_singleton", None
-        )
+        _mc: MetricsCollector | None = getattr(MetricsCollector, "_singleton", None)
         if _mc is not None:
             _mc.increment(
                 f"fallback.{kind}",

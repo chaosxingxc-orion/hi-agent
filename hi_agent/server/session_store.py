@@ -72,9 +72,7 @@ class SessionStore:
             raise RuntimeError("SessionStore not initialized — call initialize() first")
         return self._conn
 
-    def create(
-        self, tenant_id: str, user_id: str, team_id: str = "", name: str = ""
-    ) -> str:
+    def create(self, tenant_id: str, user_id: str, team_id: str = "", name: str = "") -> str:
         """Create a new session and return its ID.
 
         Args:
@@ -105,11 +103,15 @@ class SessionStore:
         Returns:
             SessionRecord if found, None otherwise.
         """
-        row = self._cx().execute(
-            "SELECT session_id, tenant_id, user_id, team_id, name, status, created_at, archived_at "
-            "FROM sessions WHERE session_id = ?",
-            (session_id,),
-        ).fetchone()
+        row = (
+            self._cx()
+            .execute(
+                "SELECT session_id, tenant_id, user_id, team_id, name, status, "
+                "created_at, archived_at FROM sessions WHERE session_id = ?",
+                (session_id,),
+            )
+            .fetchone()
+        )
         return self._row(row) if row else None
 
     def validate_ownership(self, session_id: str, tenant_id: str, user_id: str) -> bool:
@@ -123,10 +125,15 @@ class SessionStore:
         Returns:
             True if the session is owned by the tenant/user, False otherwise.
         """
-        row = self._cx().execute(
-            "SELECT 1 FROM sessions WHERE session_id = ? AND tenant_id = ? AND user_id = ? AND status = 'active'",
-            (session_id, tenant_id, user_id),
-        ).fetchone()
+        row = (
+            self._cx()
+            .execute(
+                "SELECT 1 FROM sessions WHERE session_id = ? AND tenant_id = ? "
+                "AND user_id = ? AND status = 'active'",
+                (session_id, tenant_id, user_id),
+            )
+            .fetchone()
+        )
         return row is not None
 
     def list_active(self, tenant_id: str, user_id: str) -> list[SessionRecord]:
@@ -139,12 +146,16 @@ class SessionStore:
         Returns:
             List of active SessionRecords, ordered by creation time (newest first).
         """
-        rows = self._cx().execute(
-            "SELECT session_id, tenant_id, user_id, team_id, name, status, created_at, archived_at "
-            "FROM sessions WHERE tenant_id = ? AND user_id = ? AND status = 'active' "
-            "ORDER BY created_at DESC",
-            (tenant_id, user_id),
-        ).fetchall()
+        rows = (
+            self._cx()
+            .execute(
+                "SELECT session_id, tenant_id, user_id, team_id, name, status, "
+                "created_at, archived_at FROM sessions WHERE tenant_id = ? AND "
+                "user_id = ? AND status = 'active' ORDER BY created_at DESC",
+                (tenant_id, user_id),
+            )
+            .fetchall()
+        )
         return [self._row(r) for r in rows]
 
     def archive(self, session_id: str, tenant_id: str, user_id: str) -> None:
@@ -161,7 +172,8 @@ class SessionStore:
         with self._lock:
             cur = self._cx().execute(
                 "UPDATE sessions SET status = 'archived', archived_at = ? "
-                "WHERE session_id = ? AND tenant_id = ? AND user_id = ? AND status = 'active'",
+                "WHERE session_id = ? AND tenant_id = ? AND user_id = ? AND "
+                "status = 'active'",
                 (time.time(), session_id, tenant_id, user_id),
             )
             self._cx().commit()

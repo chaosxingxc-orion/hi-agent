@@ -318,9 +318,7 @@ class RunLifecycle:
                 {"run_id": run_id, "stage_id": current_stage},
             )
         else:
-            persist_snapshot_fn(
-                stage_id=current_stage, result="completed"
-            )
+            persist_snapshot_fn(stage_id=current_stage, result="completed")
             emit_observability_fn(
                 "run_completed",
                 {"run_id": run_id, "stage_id": current_stage},
@@ -329,20 +327,20 @@ class RunLifecycle:
         _env = os.environ.get("HI_AGENT_ENV", "dev").lower()
         _runtime_mode = "dev-smoke" if _env == "dev" else "prod-real"
         from hi_agent.config.evolve_policy import resolve_evolve_effective
+
         _resolved_enabled, _evolve_source = resolve_evolve_effective(
             self._evolve_mode, _runtime_mode
         )
         if _evolve_source == "explicit_on":
             try:
                 from hi_agent.observability.audit import emit as _audit_emit
+
                 _audit_emit(
                     "evolve.explicit_on_in_prod",
                     {"run_id": run_id, "runtime_mode": _runtime_mode},
                 )
             except Exception as _audit_exc:
-                _logger.debug(
-                    "run.audit_emit_failed run_id=%s error=%s", run_id, _audit_exc
-                )
+                _logger.debug("run.audit_emit_failed run_id=%s error=%s", run_id, _audit_exc)
         if self.evolve_engine is not None and _resolved_enabled:
             try:
                 postmortem = self.build_postmortem(
@@ -430,11 +428,14 @@ class RunLifecycle:
             try:
                 stm = self.short_term_store.build_from_session(self.session)
                 self.short_term_store.save(stm)
-                emit_observability_fn("short_term_memory_saved", {
-                    "run_id": run_id,
-                    "session_id": stm.session_id,
-                    "outcome": stm.outcome,
-                })
+                emit_observability_fn(
+                    "short_term_memory_saved",
+                    {
+                        "run_id": run_id,
+                        "session_id": stm.session_id,
+                        "outcome": stm.outcome,
+                    },
+                )
             except Exception as exc:
                 _logger.debug(
                     "run.short_term_memory_save_failed run_id=%s stage_id=%s error=%s",
@@ -457,9 +458,13 @@ class RunLifecycle:
         if self.knowledge_manager is not None and self.session is not None:
             try:
                 count = self.knowledge_manager.ingest_from_session(self.session)
-                emit_observability_fn("knowledge_ingested", {
-                    "run_id": run_id, "items_ingested": count,
-                })
+                emit_observability_fn(
+                    "knowledge_ingested",
+                    {
+                        "run_id": run_id,
+                        "items_ingested": count,
+                    },
+                )
             except Exception as exc:
                 _logger.debug(
                     "run.knowledge_ingest_failed run_id=%s stage_id=%s error=%s",
@@ -474,14 +479,12 @@ class RunLifecycle:
                     derive_tier_overrides,
                     recommend_cost_optimizations,
                 )
+
                 summary = self.session.get_cost_summary()
                 # Get cumulative run count from metrics collector so that
                 # historical-trend thresholds in cost_optimizer can trigger.
                 run_count = 1  # default for first/isolated run
-                if (
-                    hasattr(self, "metrics_collector")
-                    and self.metrics_collector is not None
-                ):
+                if hasattr(self, "metrics_collector") and self.metrics_collector is not None:
                     run_count = max(1, self.metrics_collector.completed_run_count)
                 hints = recommend_cost_optimizations(
                     run_count=run_count,
@@ -511,17 +514,13 @@ class RunLifecycle:
                 _logger.debug("run.cost_hints_failed run_id=%s error=%s", run_id, exc)
         sync_to_context_fn()
         # Auto-export trajectory for RL training (only when enabled via config)
-        trajectory_enabled = getattr(self, '_trajectory_export_enabled', True)
+        trajectory_enabled = getattr(self, "_trajectory_export_enabled", True)
         if trajectory_enabled and self.trajectory_exporter is not None and self.session is not None:
             try:
                 output_path = f"{self.trajectory_export_dir}/{run_id}.jsonl"
-                self.trajectory_exporter.export_session(
-                    self.session.to_checkpoint(), output_path
-                )
+                self.trajectory_exporter.export_session(self.session.to_checkpoint(), output_path)
             except Exception as exc:
-                _logger.debug(
-                    "trajectory_export_failed run_id=%s error=%s", run_id, exc
-                )
+                _logger.debug("trajectory_export_failed run_id=%s error=%s", run_id, exc)
         # Auto-trigger skill evolve_cycle every N runs.
         # Delegates to notify_run_completed() which owns the cross-run counter
         # on the shared SkillEvolver singleton; the per-request RunLifecycle

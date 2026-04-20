@@ -125,4 +125,3 @@ class TaskContract:
     #   the platform; access to sibling project profiles is not supported.
     #   Example: ["hi_agent_global/memory/l3", "hi_agent_global/skills"]
     cross_profile_read: list[str] = field(default_factory=list)
-

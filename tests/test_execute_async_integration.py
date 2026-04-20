@@ -5,6 +5,7 @@ MockKernelFacade and exercises graph factory auto-selection, budget guard
 integration, metrics recording, failure handling, and equivalence with
 the synchronous execute() path for simple tasks.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +25,7 @@ from tests.helpers.kernel_facade_fixture import MockKernelFacade
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _simple_contract(goal: str = "Say hello", task_family: str = "quick_task") -> TaskContract:
     """Build a minimal TaskContract."""
@@ -106,6 +108,7 @@ async def test_async_execution_respects_budget_guard():
         async def handler(action, grant):
             guard.consume(consumed_per_node)
             return {"node_id": node_id}
+
         return handler
 
     result = await scheduler.run(graph, run_id="run-bg", make_handler=make_handler)
@@ -156,6 +159,7 @@ async def test_async_execution_handles_stage_failure():
             if node_id == "B":
                 raise RuntimeError("Stage B exploded")
             return {"node_id": node_id}
+
         return handler
 
     result = await scheduler.run(graph, run_id="run-fail", make_handler=make_handler)
@@ -201,6 +205,7 @@ async def test_async_execution_with_graph_factory_auto_select():
     async def make_handler(node_id):
         async def handler(action, grant):
             return {"node_id": node_id}
+
         return handler
 
     result = await scheduler.run(graph_par, run_id="run-par", make_handler=make_handler)
@@ -260,6 +265,7 @@ async def test_async_execution_with_concurrency_limit():
             await asyncio.sleep(0.01)
             active -= 1
             return {"node_id": node_id}
+
         return handler
 
     result = await scheduler.run(graph, run_id="run-conc", make_handler=make_handler)

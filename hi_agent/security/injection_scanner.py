@@ -26,6 +26,7 @@ from enum import StrEnum
 # Severity
 # ---------------------------------------------------------------------------
 
+
 class SecurityEventSeverity(StrEnum):
     """Severity levels for security events, ordered from lowest to highest."""
 
@@ -63,6 +64,7 @@ class SecurityEventSeverity(StrEnum):
 # ---------------------------------------------------------------------------
 # InjectionPattern
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class InjectionPattern:
@@ -228,6 +230,7 @@ class ScanResult:
 # SecurityEvent
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SecurityEvent:
     """A structured security event produced after a scan."""
@@ -258,6 +261,7 @@ class SecurityEvent:
 # InjectionDetectedError
 # ---------------------------------------------------------------------------
 
+
 class InjectionDetectedError(Exception):
     """Raised by InjectionScanner.scan_and_raise() when content is blocked."""
 
@@ -272,6 +276,7 @@ class InjectionDetectedError(Exception):
 # ---------------------------------------------------------------------------
 # InjectionScanner
 # ---------------------------------------------------------------------------
+
 
 class InjectionScanner:
     """Scans text for prompt injection patterns before ingestion.

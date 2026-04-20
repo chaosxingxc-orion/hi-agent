@@ -53,8 +53,8 @@ class TestSimpleExecution:
         orchestrator = TaskOrchestrator(kernel)
         contract = _simple_contract()
 
-        with patch(_RUNNER_PATCH) as MockRunner:
-            instance = MockRunner.return_value
+        with patch(_RUNNER_PATCH) as mock_runner_cls:
+            instance = mock_runner_cls.return_value
             instance.execute.return_value = RunResult(run_id="run-1", status="completed")
 
             result = orchestrator.execute(contract)
@@ -66,16 +66,18 @@ class TestSimpleExecution:
         assert result.sub_results[0].outcome == "completed"
         # result payload is now structured RunResult dict
         assert result.sub_results[0].result["status"] == "completed"
-        MockRunner.assert_called_once_with(contract, kernel)
+        mock_runner_cls.assert_called_once_with(contract, kernel)
 
     def test_simple_task_failure_propagates(self) -> None:
         kernel = MockKernel(strict_mode=False)
         orchestrator = TaskOrchestrator(kernel)
         contract = _simple_contract()
 
-        with patch(_RUNNER_PATCH) as MockRunner:
-            instance = MockRunner.return_value
-            instance.execute.return_value = RunResult(run_id="run-1", status="failed", error="stage_failed")
+        with patch(_RUNNER_PATCH) as mock_runner_cls:
+            instance = mock_runner_cls.return_value
+            instance.execute.return_value = RunResult(
+                run_id="run-1", status="failed", error="stage_failed"
+            )
 
             result = orchestrator.execute(contract)
 
@@ -97,8 +99,8 @@ class TestDecomposedExecution:
         orchestrator = TaskOrchestrator(kernel)
         contract = _simple_contract(decomposition_strategy="linear")
 
-        with patch(_RUNNER_PATCH) as MockRunner:
-            instance = MockRunner.return_value
+        with patch(_RUNNER_PATCH) as mock_runner_cls:
+            instance = mock_runner_cls.return_value
             instance.execute.return_value = "completed"
 
             result = orchestrator.execute(contract)
@@ -115,8 +117,8 @@ class TestDecomposedExecution:
         orchestrator = TaskOrchestrator(kernel)
         contract = _simple_contract(decomposition_strategy="dag")
 
-        with patch(_RUNNER_PATCH) as MockRunner:
-            instance = MockRunner.return_value
+        with patch(_RUNNER_PATCH) as mock_runner_cls:
+            instance = mock_runner_cls.return_value
             instance.execute.return_value = "completed"
 
             result = orchestrator.execute(contract)
@@ -139,8 +141,8 @@ class TestDecomposedExecution:
                 return "failed"
             return "completed"
 
-        with patch(_RUNNER_PATCH) as MockRunner:
-            instance = MockRunner.return_value
+        with patch(_RUNNER_PATCH) as mock_runner_cls:
+            instance = mock_runner_cls.return_value
             instance.execute.side_effect = _execute_side_effect
 
             result = orchestrator.execute(contract)
@@ -158,8 +160,8 @@ class TestDecomposedExecution:
         )
         contract = _simple_contract(decomposition_strategy="linear")
 
-        with patch(_RUNNER_PATCH) as MockRunner:
-            instance = MockRunner.return_value
+        with patch(_RUNNER_PATCH) as mock_runner_cls:
+            instance = mock_runner_cls.return_value
             instance.execute.return_value = "completed"
 
             orchestrator.execute(contract)
@@ -176,8 +178,8 @@ class TestDecomposedExecution:
             task_family="code_gen",
         )
 
-        with patch(_RUNNER_PATCH) as MockRunner:
-            instance = MockRunner.return_value
+        with patch(_RUNNER_PATCH) as mock_runner_cls:
+            instance = mock_runner_cls.return_value
             instance.execute.return_value = "completed"
 
             orchestrator.execute(contract)
@@ -210,8 +212,8 @@ class TestRollback:
                 return "failed"
             return "completed"
 
-        with patch(_RUNNER_PATCH) as MockRunner:
-            instance = MockRunner.return_value
+        with patch(_RUNNER_PATCH) as mock_runner_cls:
+            instance = mock_runner_cls.return_value
             instance.execute.side_effect = _execute_side_effect
 
             result = orchestrator.execute(contract)
@@ -315,8 +317,8 @@ class TestDAGDependencyRespected:
             execution_order.append(f"call-{len(execution_order)}")
             return "completed"
 
-        with patch(_RUNNER_PATCH) as MockRunner:
-            instance = MockRunner.return_value
+        with patch(_RUNNER_PATCH) as mock_runner_cls:
+            instance = mock_runner_cls.return_value
             instance.execute.side_effect = _track_execute
 
             result = orchestrator.execute(contract)

@@ -110,7 +110,7 @@ class SLOMonitor:
         Args:
             metrics: The shared :class:`MetricsCollector` to read from.
             interval_s: Seconds between evaluation cycles.
-            success_target: Minimum acceptable run success rate (0–1).
+            success_target: Minimum acceptable run success rate (0-1).
             latency_target_ms: Maximum acceptable p95 stage latency in ms.
             on_violation: Optional callback invoked for each violated dimension.
         """

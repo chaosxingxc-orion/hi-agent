@@ -64,15 +64,13 @@ def _add_mcp_gate(gates: list, health) -> None:
     unhealthy = [sid for sid, s in results.items() if s == "unhealthy"]
     degraded = [sid for sid, s in results.items() if s == "degraded"]
     if unhealthy:
-        gates.append(GateResult(
-            "mcp_health", "fail",
-            f"unhealthy: {', '.join(sorted(unhealthy))}"
-        ))
+        gates.append(GateResult("mcp_health", "fail", f"unhealthy: {', '.join(sorted(unhealthy))}"))
     elif degraded:
-        gates.append(GateResult(
-            "mcp_health", "pass",
-            f"degraded: {', '.join(sorted(degraded))} (non-blocking)"
-        ))
+        gates.append(
+            GateResult(
+                "mcp_health", "pass", f"degraded: {', '.join(sorted(degraded))} (non-blocking)"
+            )
+        )
     else:
         n = len(results)
         gates.append(GateResult("mcp_health", "pass", f"all {n} server(s) healthy"))
@@ -148,7 +146,9 @@ def check_prod_e2e_recent(
         except Exception:
             continue
 
-        mode = data.get("runtime_mode") or data.get("execution_provenance", {}).get("runtime_mode", "")
+        mode = data.get("runtime_mode") or data.get("execution_provenance", {}).get(
+            "runtime_mode", ""
+        )
         if mode != "prod-real":
             continue
 
@@ -169,7 +169,10 @@ def check_prod_e2e_recent(
         return ProdE2EResult(
             passed=False,
             reason="no prod-real executions found in episodic store",
-            details={"episodic_dir": str(episodes_path.resolve()), "total_episodes": len(episode_files)},
+            details={
+                "episodic_dir": str(episodes_path.resolve()),
+                "total_episodes": len(episode_files),
+            },
         )
 
     age_hours = (_utc_now() - latest_prod_ts).total_seconds() / 3600
@@ -177,8 +180,7 @@ def check_prod_e2e_recent(
         return ProdE2EResult(
             passed=False,
             reason=(
-                f"latest prod-real run is {age_hours:.1f}h old "
-                f"(max allowed: {max_age_hours}h)"
+                f"latest prod-real run is {age_hours:.1f}h old (max allowed: {max_age_hours}h)"
             ),
             details={
                 "latest_prod_run": _format_utc(latest_prod_ts),
@@ -211,11 +213,13 @@ def build_release_gate_report(builder) -> ReleaseGateReport:
     try:
         readiness = getattr(builder, "_readiness_snapshot", {}) or {}
         is_ready = readiness.get("ready", True)
-        gates.append(GateResult(
-            name="readiness",
-            status="pass" if is_ready else "fail",
-            evidence="ready" if is_ready else "not ready",
-        ))
+        gates.append(
+            GateResult(
+                name="readiness",
+                status="pass" if is_ready else "fail",
+                evidence="ready" if is_ready else "not ready",
+            )
+        )
     except Exception:
         gates.append(GateResult("readiness", "pass", "ready"))
 
@@ -253,9 +257,15 @@ def build_release_gate_report(builder) -> ReleaseGateReport:
     try:
         registry = getattr(builder, "_capability_registry", None)
         if registry is not None:
-            caps = getattr(registry, "_handlers", None) or getattr(registry, "_capabilities", None) or {}
+            caps = (
+                getattr(registry, "_handlers", None)
+                or getattr(registry, "_capabilities", None)
+                or {}
+            )
             if caps:
-                gates.append(GateResult("known_prerequisites", "pass", "capability registry non-empty"))
+                gates.append(
+                    GateResult("known_prerequisites", "pass", "capability registry non-empty")
+                )
             else:
                 gates.append(GateResult("known_prerequisites", "fail", "capability registry empty"))
         else:
@@ -268,9 +278,13 @@ def build_release_gate_report(builder) -> ReleaseGateReport:
         mcp_reg = getattr(builder, "_mcp_registry", None)
         mcp_transport = getattr(builder, "_mcp_transport", None)
 
-        if mcp_reg is None or len(getattr(mcp_reg, '_servers', {}) or []) == 0:
+        if mcp_reg is None or len(getattr(mcp_reg, "_servers", {}) or []) == 0:
             # Check via list_servers()
-            servers = mcp_reg.list_servers() if mcp_reg is not None and hasattr(mcp_reg, "list_servers") else []
+            servers = (
+                mcp_reg.list_servers()
+                if mcp_reg is not None and hasattr(mcp_reg, "list_servers")
+                else []
+            )
             if not servers:
                 gates.append(GateResult("mcp_health", "skipped", "no MCP servers configured"))
             else:
@@ -293,6 +307,8 @@ def build_release_gate_report(builder) -> ReleaseGateReport:
         else:
             gates.append(GateResult("prod_e2e_recent", "fail", prod_result.reason))
     else:
-        gates.append(GateResult("prod_e2e_recent", "skipped", "non-prod environment — gate skipped"))
+        gates.append(
+            GateResult("prod_e2e_recent", "skipped", "non-prod environment — gate skipped")
+        )
 
     return ReleaseGateReport(gates=gates)

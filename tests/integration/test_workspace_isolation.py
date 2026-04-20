@@ -131,6 +131,7 @@ class _RawInjectCtxMiddleware:
             # Make a copy of ctx per request so mutation (e.g. session_id set
             # by SessionMiddleware) is local to this request invocation.
             import copy
+
             req_ctx = copy.copy(self._ctx)
             scope["tenant_context"] = req_ctx
             token = set_tenant_context(req_ctx)

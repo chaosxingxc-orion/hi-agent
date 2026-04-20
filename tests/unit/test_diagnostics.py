@@ -1,4 +1,5 @@
 """Unit tests for build_doctor_report — each check in isolation."""
+
 import os
 from unittest.mock import MagicMock
 

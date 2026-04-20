@@ -107,9 +107,7 @@ class TaskDAG:
 
         if self.has_cycle():
             self._edges[from_id].discard(to_id)
-            raise ValueError(
-                f"Edge '{from_id}' -> '{to_id}' would create a cycle"
-            )
+            raise ValueError(f"Edge '{from_id}' -> '{to_id}' would create a cycle")
 
         # Maintain bidirectional bookkeeping on the nodes.
         if to_id not in self._nodes[from_id].dependents:
@@ -134,8 +132,7 @@ class TaskDAG:
             if node.state != TaskNodeState.PENDING:
                 continue
             all_deps_done = all(
-                self._nodes[dep_id].state == TaskNodeState.COMPLETED
-                for dep_id in node.dependencies
+                self._nodes[dep_id].state == TaskNodeState.COMPLETED for dep_id in node.dependencies
             )
             if all_deps_done:
                 ready.append(node)
@@ -150,14 +147,10 @@ class TaskDAG:
         """
         node = self.get_node(node_id)
         if node.state not in (TaskNodeState.PENDING, TaskNodeState.READY):
-            raise ValueError(
-                f"Cannot mark '{node_id}' as running from state {node.state.value}"
-            )
+            raise ValueError(f"Cannot mark '{node_id}' as running from state {node.state.value}")
         node.state = TaskNodeState.RUNNING
 
-    def mark_completed(
-        self, node_id: str, result: dict[str, Any] | None = None
-    ) -> None:
+    def mark_completed(self, node_id: str, result: dict[str, Any] | None = None) -> None:
         """Transition a node to COMPLETED state.
 
         Args:
@@ -170,9 +163,7 @@ class TaskDAG:
         """
         node = self.get_node(node_id)
         if node.state != TaskNodeState.RUNNING:
-            raise ValueError(
-                f"Cannot mark '{node_id}' as completed from state {node.state.value}"
-            )
+            raise ValueError(f"Cannot mark '{node_id}' as completed from state {node.state.value}")
         node.state = TaskNodeState.COMPLETED
         node.result = result
 
@@ -189,9 +180,7 @@ class TaskDAG:
         """
         node = self.get_node(node_id)
         if node.state != TaskNodeState.RUNNING:
-            raise ValueError(
-                f"Cannot mark '{node_id}' as failed from state {node.state.value}"
-            )
+            raise ValueError(f"Cannot mark '{node_id}' as failed from state {node.state.value}")
         node.state = TaskNodeState.FAILED
         node.failure_reason = reason
 
@@ -313,9 +302,7 @@ class TaskDAG:
             for tgt in targets:
                 in_degree[tgt] += 1
 
-        current_level = sorted(
-            nid for nid, deg in in_degree.items() if deg == 0
-        )
+        current_level = sorted(nid for nid, deg in in_degree.items() if deg == 0)
         groups: list[list[str]] = []
 
         while current_level:
@@ -337,9 +324,7 @@ class TaskDAG:
 
     def is_failed(self) -> bool:
         """True if any node is FAILED and not rolled back."""
-        return any(
-            n.state == TaskNodeState.FAILED for n in self._nodes.values()
-        )
+        return any(n.state == TaskNodeState.FAILED for n in self._nodes.values())
 
     def validate(self) -> list[str]:
         """Validate DAG integrity. Return list of issues (empty = valid).
@@ -363,22 +348,15 @@ class TaskDAG:
         for nid, node in self._nodes.items():
             for dep in node.dependencies:
                 if dep not in self._nodes:
-                    issues.append(
-                        f"Node '{nid}' references unknown dependency '{dep}'"
-                    )
+                    issues.append(f"Node '{nid}' references unknown dependency '{dep}'")
             for dep in node.dependents:
                 if dep not in self._nodes:
-                    issues.append(
-                        f"Node '{nid}' references unknown dependent '{dep}'"
-                    )
+                    issues.append(f"Node '{nid}' references unknown dependent '{dep}'")
 
         # Check for orphan nodes (connected to nothing, in a multi-node DAG).
         if len(self._nodes) > 1:
             for nid, _node in self._nodes.items():
-                has_incoming = any(
-                    nid in targets
-                    for targets in self._edges.values()
-                )
+                has_incoming = any(nid in targets for targets in self._edges.values())
                 has_outgoing = bool(self._edges.get(nid))
                 if not has_incoming and not has_outgoing:
                     issues.append(f"Node '{nid}' is an orphan (no edges)")

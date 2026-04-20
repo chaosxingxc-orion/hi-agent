@@ -2,6 +2,7 @@
 
 Returns deterministic heuristic responses so tests run without real API keys.
 """
+
 from __future__ import annotations
 
 import contextlib

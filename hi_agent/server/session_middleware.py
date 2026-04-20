@@ -65,9 +65,7 @@ class SessionMiddleware:
 
         if header_sid:
             # Validate ownership
-            if not self._store.validate_ownership(
-                header_sid, ctx.tenant_id, ctx.user_id
-            ):
+            if not self._store.validate_ownership(header_sid, ctx.tenant_id, ctx.user_id):
                 resp = JSONResponse(
                     {"error": "session not found or access denied"}, status_code=403
                 )
@@ -92,9 +90,7 @@ class SessionMiddleware:
 
         else:
             # All other workspace routes require a valid session
-            resp = JSONResponse(
-                {"error": "X-Session-Id header required"}, status_code=400
-            )
+            resp = JSONResponse({"error": "X-Session-Id header required"}, status_code=400)
             await resp(scope, receive, send)
             return
 

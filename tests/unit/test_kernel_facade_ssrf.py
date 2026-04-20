@@ -1,4 +1,5 @@
 """Unit tests for KernelFacadeClient SSRF protection (H-4)."""
+
 from __future__ import annotations
 
 import pytest

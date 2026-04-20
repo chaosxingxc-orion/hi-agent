@@ -15,6 +15,7 @@ from hi_agent.capability.adapters.descriptor_factory import CapabilityDescriptor
 # Helpers
 # ------------------------------------------------------------------ #
 
+
 def _echo_handler(payload: dict) -> dict:
     return {"echo": payload}
 

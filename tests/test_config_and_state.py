@@ -323,7 +323,7 @@ class TestBranchStateMachine:
 
 
 class TestActionStateMachine:
-    """Action lifecycle: prepared->dispatched->acknowledged->succeeded/effect_unknown/failed/compensated."""
+    """Action lifecycle transition tests."""
 
     def test_happy_path(self) -> None:
         sm = action_state_machine()

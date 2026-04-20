@@ -1,4 +1,5 @@
 """Tests for G-9 ExperimentBackend protocol and LocalBackend."""
+
 import sys
 import time
 from pathlib import Path
@@ -10,6 +11,7 @@ class TestExperimentBackendProtocol:
     def test_local_backend_implements_protocol(self):
         """LocalBackend must satisfy ExperimentBackend protocol."""
         from hi_agent.experiment.backend.local import LocalBackend
+
         # Runtime check that LocalBackend has all required methods
         required = ["submit", "status", "fetch_artifacts", "cancel"]
         backend = LocalBackend(work_dir=Path("."))
@@ -19,6 +21,7 @@ class TestExperimentBackendProtocol:
     def test_ssh_backend_implements_protocol(self):
         """SSHBackend must satisfy ExperimentBackend protocol."""
         from hi_agent.experiment.backend.ssh import SSHBackend
+
         required = ["submit", "status", "fetch_artifacts", "cancel"]
         backend = SSHBackend(host="localhost", user="test", work_dir="/tmp")
         for method in required:
@@ -29,6 +32,7 @@ class TestLocalBackend:
     @pytest.fixture
     def backend(self, tmp_path):
         from hi_agent.experiment.backend.local import LocalBackend
+
         return LocalBackend(work_dir=tmp_path)
 
     def test_submit_returns_external_id(self, backend):
@@ -58,6 +62,7 @@ class TestLocalBackend:
     def test_status_failed_for_bad_command(self, backend):
         """A failing command should reach 'failed' status."""
         import sys
+
         # Use a list command to avoid shell quoting issues on Windows
         ext_id = backend.submit({"command": [sys.executable, "-c", "import sys; sys.exit(1)"]})
         deadline = time.time() + 5
@@ -80,11 +85,14 @@ class TestLocalBackend:
         ext_id = backend.submit({"command": [sys.executable, "-c", "print('hello')"]})
         time.sleep(0.5)
         artifacts = backend.fetch_artifacts(ext_id)
-        assert any("stdout" in str(a) for a in artifacts), f"Expected stdout in artifacts: {artifacts}"
+        assert any("stdout" in str(a) for a in artifacts), (
+            f"Expected stdout in artifacts: {artifacts}"
+        )
 
     def test_cancel_running_process(self, backend):
         """cancel() must terminate a running process."""
         import sys
+
         # Use list form to avoid shell quoting issues on Windows
         ext_id = backend.submit({"command": [sys.executable, "-c", "import time; time.sleep(60)"]})
         time.sleep(0.2)
@@ -102,6 +110,7 @@ class TestSSHBackendStub:
     def test_ssh_backend_submit_raises_not_configured(self):
         """SSHBackend stub must raise when called without real SSH setup."""
         from hi_agent.experiment.backend.ssh import SSHBackend
+
         backend = SSHBackend(host="localhost", user="test", work_dir="/tmp")
         with pytest.raises((NotImplementedError, RuntimeError, Exception)):
             backend.submit({"command": "echo hi"})
@@ -113,6 +122,7 @@ class TestBackendIntegrationWithCoordinator:
         from hi_agent.experiment.backend.local import LocalBackend
         from hi_agent.experiment.coordinator import LongRunningOpCoordinator
         from hi_agent.experiment.op_store import LongRunningOpStore
+
         store = LongRunningOpStore(db_path=tmp_path / "ops.db")
         coord = LongRunningOpCoordinator(store=store)
         coord.register_backend("local", LocalBackend(work_dir=tmp_path / "runs"))
@@ -120,6 +130,7 @@ class TestBackendIntegrationWithCoordinator:
 
     def test_submit_via_coordinator_returns_handle(self, coord_with_local):
         from hi_agent.experiment.op_store import OpStatus
+
         h = coord_with_local.submit(
             op_spec={"command": [sys.executable, "-c", "print('hello')"]},
             backend_name="local",

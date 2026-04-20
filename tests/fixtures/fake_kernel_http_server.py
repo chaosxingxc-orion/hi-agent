@@ -2,6 +2,7 @@
 
 Simulates agent-kernel run lifecycle endpoints.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -43,11 +44,14 @@ class _FakeKernelHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "ok"})
         elif self.path.startswith("/runs/"):
             run_id = self.path.split("/runs/")[1].split("/")[0]
-            self._send_json(200, {
-                "run_id": run_id,
-                "status": "completed",
-                "outcome": "completed",
-            })
+            self._send_json(
+                200,
+                {
+                    "run_id": run_id,
+                    "status": "completed",
+                    "outcome": "completed",
+                },
+            )
         else:
             self.send_response(404)
             self.end_headers()

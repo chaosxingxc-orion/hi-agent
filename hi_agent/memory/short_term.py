@@ -61,7 +61,7 @@ class ShortTermMemory:
 
         text = "\n".join(parts)
         if len(text) > max_chars:
-            text = text[:max_chars - 3] + "..."
+            text = text[: max_chars - 3] + "..."
         return text
 
 
@@ -322,9 +322,7 @@ class ShortTermMemoryStore:
 
         # Stages completed
         stage_states: dict[str, str] = getattr(session, "stage_states", {})
-        stages_completed = [
-            sid for sid, state in stage_states.items() if state == "completed"
-        ]
+        stages_completed = [sid for sid, state in stage_states.items() if state == "completed"]
 
         # Key findings and decisions from L1 summaries
         key_findings: list[str] = []

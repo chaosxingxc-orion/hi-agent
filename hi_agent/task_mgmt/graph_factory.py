@@ -4,6 +4,7 @@ Given a TaskContract and a ComplexityScore from RouteEngine,
 builds the initial TrajectoryGraph for AsyncTaskScheduler.
 Nodes are added dynamically during execution via add_node().
 """
+
 from __future__ import annotations
 
 import re
@@ -34,7 +35,8 @@ _SIMPLE_FAMILIES = frozenset({"quick_task", "simple", ""})
 @dataclass
 class ComplexityScore:
     """ComplexityScore class."""
-    score: float                        # 0.0 (trivial) → 1.0 (very complex)
+
+    score: float  # 0.0 (trivial) → 1.0 (very complex)
     needs_parallel_gather: bool = False
     needs_speculative: bool = False
     metadata: dict = field(default_factory=dict)
@@ -145,8 +147,11 @@ class GraphFactory:
         g = TrajectoryGraph()
         stage_ids = ["S1", "S2", "S3", "S4", "S5"]
         descriptions = [
-            "Understand task", "Gather information",
-            "Build / analyze", "Synthesize", "Review output",
+            "Understand task",
+            "Gather information",
+            "Build / analyze",
+            "Synthesize",
+            "Review output",
         ]
         nodes = [_make_node(sid, desc) for sid, desc in zip(stage_ids, descriptions, strict=False)]
         for n in nodes:

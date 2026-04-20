@@ -18,6 +18,7 @@ from hi_agent.harness.governance import GovernanceEngine
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _read_only_spec(action_id: str = "act-1") -> ActionSpec:
     return ActionSpec(
         action_id=action_id,
@@ -96,6 +97,7 @@ class _MockInvoker:
 # GovernanceEngine.validate
 # ===========================================================================
 
+
 class TestGovernanceValidate:
     """Test governance validation rules."""
 
@@ -167,6 +169,7 @@ class TestGovernanceValidate:
 # GovernanceEngine.can_execute
 # ===========================================================================
 
+
 class TestGovernanceCanExecute:
     """Test governance execution gating."""
 
@@ -209,6 +212,7 @@ class TestGovernanceCanExecute:
 # GovernanceEngine.approve / reject flow
 # ===========================================================================
 
+
 class TestGovernanceApprovalFlow:
     """Test approval queue management."""
 
@@ -233,6 +237,7 @@ class TestGovernanceApprovalFlow:
 # ===========================================================================
 # GovernanceEngine.get_retry_policy
 # ===========================================================================
+
 
 class TestGovernanceRetryPolicy:
     """Test retry policy derivation."""
@@ -291,6 +296,7 @@ class TestGovernanceRetryPolicy:
 # ===========================================================================
 # HarnessExecutor.execute
 # ===========================================================================
+
 
 class TestHarnessExecutorExecute:
     """Test full execution pipeline."""
@@ -388,6 +394,7 @@ class TestHarnessExecutorExecute:
 # HarnessExecutor evidence collection
 # ===========================================================================
 
+
 class TestHarnessExecutorEvidence:
     """Test evidence collection through executor."""
 
@@ -439,6 +446,7 @@ class TestHarnessExecutorEvidence:
 # EvidenceStore CRUD
 # ===========================================================================
 
+
 class TestEvidenceStore:
     """Test evidence store operations."""
 
@@ -462,16 +470,20 @@ class TestEvidenceStore:
     def test_get_by_action(self) -> None:
         store = EvidenceStore()
         for i in range(3):
-            store.store(EvidenceRecord(
-                evidence_ref=f"ev-{i}",
-                action_id="act-1",
+            store.store(
+                EvidenceRecord(
+                    evidence_ref=f"ev-{i}",
+                    action_id="act-1",
+                    evidence_type="output",
+                )
+            )
+        store.store(
+            EvidenceRecord(
+                evidence_ref="ev-other",
+                action_id="act-2",
                 evidence_type="output",
-            ))
-        store.store(EvidenceRecord(
-            evidence_ref="ev-other",
-            action_id="act-2",
-            evidence_type="output",
-        ))
+            )
+        )
         assert len(store.get_by_action("act-1")) == 3
         assert len(store.get_by_action("act-2")) == 1
         assert len(store.get_by_action("act-missing")) == 0
@@ -479,22 +491,19 @@ class TestEvidenceStore:
     def test_count(self) -> None:
         store = EvidenceStore()
         assert store.count() == 0
-        store.store(EvidenceRecord(
-            evidence_ref="ev-1", action_id="a", evidence_type="output"
-        ))
+        store.store(EvidenceRecord(evidence_ref="ev-1", action_id="a", evidence_type="output"))
         assert store.count() == 1
 
     def test_empty_ref_raises(self) -> None:
         store = EvidenceStore()
         with pytest.raises(ValueError, match="evidence_ref"):
-            store.store(EvidenceRecord(
-                evidence_ref="", action_id="a", evidence_type="output"
-            ))
+            store.store(EvidenceRecord(evidence_ref="", action_id="a", evidence_type="output"))
 
 
 # ===========================================================================
 # ActionState transitions
 # ===========================================================================
+
 
 class TestActionStateTransitions:
     """Test that executor tracks correct state transitions."""
@@ -529,6 +538,7 @@ class TestActionStateTransitions:
 # ===========================================================================
 # Dual-dimension classification combinations
 # ===========================================================================
+
 
 class TestDualDimensionCombinations:
     """Test various effect_class x side_effect_class combinations."""

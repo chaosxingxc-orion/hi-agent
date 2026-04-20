@@ -137,9 +137,7 @@ class EvolveEngine:
     # Champion/Challenger helpers
     # ------------------------------------------------------------------
 
-    def _record_skill_metrics(
-        self, postmortem: RunPostmortem, result: EvolveResult
-    ) -> None:
+    def _record_skill_metrics(self, postmortem: RunPostmortem, result: EvolveResult) -> None:
         """Record skill metrics and trigger comparisons when due."""
         cc = self._champion_challenger
         vm = self._version_manager
@@ -201,9 +199,7 @@ class EvolveEngine:
                             f"({comparison.challenger_score:.3f} vs "
                             f"{comparison.champion_score:.3f})"
                         ),
-                        confidence=min(
-                            comparison.challenger_score, 1.0
-                        ),
+                        confidence=min(comparison.challenger_score, 1.0),
                         evidence_refs=[postmortem.run_id],
                     )
                 )
@@ -211,9 +207,7 @@ class EvolveEngine:
                 if vm is not None:
                     try:
                         vm.promote_challenger(scope)
-                        _logger.info(
-                            "Auto-promoted challenger for skill '%s'", scope
-                        )
+                        _logger.info("Auto-promoted challenger for skill '%s'", scope)
                         try:
                             vm.save()
                         except Exception:
@@ -298,20 +292,24 @@ class EvolveEngine:
         # Inline policy application: apply routing changes to route engine immediately.
         if route_engine is not None and all_changes:
             routing_changes = [
-                c for c in all_changes
-                if c.change_type in ("routing_heuristic", "efficiency_heuristic", "route_config_updated")
+                c
+                for c in all_changes
+                if c.change_type
+                in ("routing_heuristic", "efficiency_heuristic", "route_config_updated")
             ]
             if routing_changes:
                 try:
                     route_engine.apply_evolve_changes(routing_changes)  # type: ignore[union-attr]
                     _logger.info(
                         "batch_evolve.route_changes_applied scope=%s count=%d",
-                        change_scope, len(routing_changes),
+                        change_scope,
+                        len(routing_changes),
                     )
                 except Exception as exc:
                     _logger.warning(
                         "batch_evolve.route_changes_failed scope=%s error=%s",
-                        change_scope, exc,
+                        change_scope,
+                        exc,
                     )
 
         return evolve_result

@@ -3,6 +3,7 @@
 P3 constraint: all tests use real I/O, real subprocess, real network.
 No mocks allowed — test must reflect actual capability.
 """
+
 import sys
 
 from hi_agent.capability.registry import CapabilityRegistry
@@ -53,16 +54,16 @@ class TestFileWrite:
         assert (tmp_path / "a" / "b" / "c.txt").exists()
 
     def test_path_traversal_blocked(self, tmp_path):
-        result = file_write_handler({"path": "../escape.txt", "content": "x"}, workspace_root=tmp_path)
+        result = file_write_handler(
+            {"path": "../escape.txt", "content": "x"}, workspace_root=tmp_path
+        )
         assert result["success"] is False
         assert "policy" in result["error"].lower()
 
 
 class TestShellExec:
     def test_echo_command(self):
-        result = shell_exec_handler(
-            {"command": [sys.executable, "-c", "print('hello')"]}
-        )
+        result = shell_exec_handler({"command": [sys.executable, "-c", "print('hello')"]})
         assert result["success"] is True
         assert "hello" in result["stdout"]
         assert result["returncode"] == 0
@@ -76,7 +77,9 @@ class TestShellExec:
 
     def test_timeout(self):
         # Pass argv as list to avoid shlex.split breaking Windows backslash paths
-        result = shell_exec_handler({"command": [sys.executable, "-c", "import time; time.sleep(100)"], "timeout": 1.0})
+        result = shell_exec_handler(
+            {"command": [sys.executable, "-c", "import time; time.sleep(100)"], "timeout": 1.0}
+        )
         assert result["success"] is False
         assert "timed out" in result["error"]
 

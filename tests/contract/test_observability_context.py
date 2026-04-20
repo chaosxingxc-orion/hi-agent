@@ -1,4 +1,5 @@
 """Contract tests: published events carry mandatory observability fields."""
+
 from __future__ import annotations
 
 from agent_kernel.kernel.contracts import RuntimeEvent

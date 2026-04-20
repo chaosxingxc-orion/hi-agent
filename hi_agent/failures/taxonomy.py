@@ -43,6 +43,7 @@ def is_budget_exhausted_failure_code(code: FailureCode | str) -> bool:
 @dataclass
 class FailureRecord:
     """Structured failure record for audit and evolve feedback."""
+
     failure_code: FailureCode
     message: str
     run_id: str = ""

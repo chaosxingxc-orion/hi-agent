@@ -77,9 +77,7 @@ async def test_async_invoke_timeout():
 
     reg = _registry_with("slow", slow_handler)
     breaker = CircuitBreaker()
-    invoker = AsyncCapabilityInvoker(
-        registry=reg, breaker=breaker, call_timeout_seconds=0.05
-    )
+    invoker = AsyncCapabilityInvoker(registry=reg, breaker=breaker, call_timeout_seconds=0.05)
 
     with pytest.raises((TimeoutError, asyncio.TimeoutError)):
         await invoker.invoke("slow", {})

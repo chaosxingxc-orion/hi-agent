@@ -64,6 +64,7 @@ def test_probe_returns_false_for_unregistered():
 def test_probe_handles_probe_exception_gracefully():
     def bad_probe():
         raise RuntimeError("boom")
+
     registry = _make_registry(_make_spec("cap", probe=bad_probe))
     ok, reason = registry.probe_availability("cap")
     assert ok is False

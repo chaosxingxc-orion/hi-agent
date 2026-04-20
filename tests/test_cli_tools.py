@@ -1,4 +1,5 @@
 """Tests for tools CLI subcommand and /tools server endpoints."""
+
 import os
 
 os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
@@ -7,6 +8,7 @@ os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 def test_cli_tools_parser_exists():
     """Parser must have 'tools' subcommand."""
     from hi_agent.cli import build_parser
+
     parser = build_parser()
     # Parse 'tools list' — should not raise
     args = parser.parse_args(["tools", "list"])
@@ -16,6 +18,7 @@ def test_cli_tools_parser_exists():
 
 def test_cli_tools_call_parser():
     from hi_agent.cli import build_parser
+
     parser = build_parser()
     args = parser.parse_args(["tools", "call", "--name", "file_read", "--args", '{"path": "x"}'])
     assert args.tools_action == "call"
@@ -34,11 +37,13 @@ def test_tools_endpoint_list_logic():
     tools = []
     for name in registry.list_names():
         spec = registry.get(name)
-        tools.append({
-            "name": name,
-            "description": getattr(spec, "description", ""),
-            "parameters": getattr(spec, "parameters", {}),
-        })
+        tools.append(
+            {
+                "name": name,
+                "description": getattr(spec, "description", ""),
+                "parameters": getattr(spec, "parameters", {}),
+            }
+        )
 
     names = [t["name"] for t in tools]
     assert "file_read" in names

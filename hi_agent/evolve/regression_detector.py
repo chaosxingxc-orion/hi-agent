@@ -108,7 +108,9 @@ class RegressionDetector:
             ]
         with open(self._storage_path, "w", encoding="utf-8") as fh:
             json.dump(payload, fh)
-        _logger.debug("RegressionDetector: saved %d families to %s", len(payload), self._storage_path)
+        _logger.debug(
+            "RegressionDetector: saved %d families to %s", len(payload), self._storage_path
+        )
 
     def load(self) -> None:
         """Load _records from storage_path JSON if the file exists.
@@ -131,7 +133,9 @@ class RegressionDetector:
                     for r in records
                 ]
             _logger.debug(
-                "RegressionDetector: loaded %d families from %s", len(self._records), self._storage_path
+                "RegressionDetector: loaded %d families from %s",
+                len(self._records),
+                self._storage_path,
             )
         except Exception as exc:
             _logger.warning("RegressionDetector.load failed: %s", exc)
@@ -172,28 +176,18 @@ class RegressionDetector:
         latest = records[-1]
         baseline_records = records[-(self._baseline_window + 1) : -1]
 
-        baseline_quality = sum(r.quality for r in baseline_records) / len(
-            baseline_records
-        )
-        baseline_efficiency = sum(r.efficiency for r in baseline_records) / len(
-            baseline_records
-        )
+        baseline_quality = sum(r.quality for r in baseline_records) / len(baseline_records)
+        baseline_efficiency = sum(r.efficiency for r in baseline_records) / len(baseline_records)
 
         quality_delta = latest.quality - baseline_quality
         efficiency_delta = latest.efficiency - baseline_efficiency
 
-        is_regression = (
-            quality_delta < -self._threshold
-            or efficiency_delta < -self._threshold
-        )
+        is_regression = quality_delta < -self._threshold or efficiency_delta < -self._threshold
 
         recommendation = "no_action"
         if is_regression:
             # Severe regression if both quality and efficiency dropped.
-            if (
-                quality_delta < -self._threshold
-                and efficiency_delta < -self._threshold
-            ):
+            if quality_delta < -self._threshold and efficiency_delta < -self._threshold:
                 recommendation = "rollback"
             else:
                 recommendation = "investigate"

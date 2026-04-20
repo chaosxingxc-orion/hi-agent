@@ -80,8 +80,8 @@ def make_llm_capability_handler(
 
                 user_msg = (
                     f"Stage: {stage_id}\nGoal: {goal}\nContext: {context}\n\n"
-                    "Respond in JSON: {\"output\": \"...\", \"evidence\": [\"...\"], "
-                    "\"score\": 0.0-1.0, \"done\": true|false}"
+                    'Respond in JSON: {"output": "...", "evidence": ["..."], '
+                    '"score": 0.0-1.0, "done": true|false}'
                 )
                 request = LLMRequest(
                     messages=[
@@ -142,7 +142,7 @@ def make_llm_capability_handler(
             "output": f"[{capability_name}] processed: {label[:200]}",
             "evidence": [f"{capability_name}:heuristic:{stage_id}"],
             "stage_id": stage_id,
-            "_heuristic": True,   # marks as non-real execution
+            "_heuristic": True,  # marks as non-real execution
             "_provenance": {
                 "mode": "sample",
                 "capability_name": capability_name,
@@ -173,4 +173,5 @@ def register_default_capabilities(
         own handlers.  This function is kept for backward compatibility only.
     """
     from hi_agent.samples.trace_pipeline import register_trace_capabilities
+
     register_trace_capabilities(registry, llm_gateway=llm_gateway)

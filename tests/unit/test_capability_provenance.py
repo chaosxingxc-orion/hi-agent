@@ -41,6 +41,7 @@ def test_invoke_does_not_override_existing_provenance():
 
 def test_heuristic_handler_result_has_provenance():
     from hi_agent.capability.defaults import make_llm_capability_handler
+
     # gateway=None triggers heuristic fallback in non-prod env
     handler = make_llm_capability_handler("plan", "You are a planner.", None)
     result = handler({"goal": "test", "stage_id": "s1"})

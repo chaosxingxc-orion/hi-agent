@@ -119,10 +119,7 @@ class InMemoryGateAPI:
 
         record = self.get_gate(gate_ref)
         if record.status is not GateStatus.PENDING:
-            msg = (
-                f"gate {record.context.gate_ref} already resolved as "
-                f"{record.status.value}"
-            )
+            msg = f"gate {record.context.gate_ref} already resolved as {record.status.value}"
             raise ValueError(msg)
 
         if (

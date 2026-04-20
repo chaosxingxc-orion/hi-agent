@@ -25,6 +25,7 @@ from hi_agent.auth.soc_guard import (
 # JWT validation
 # ---------------------------------------------------------------------------
 
+
 class TestJWTValidation:
     def _valid_claims(self) -> dict:
         return {"sub": "user-1", "aud": "hi-agent", "exp": int(time()) + 3600}
@@ -112,6 +113,7 @@ class TestRBACEnforcer:
 # SOC guard
 # ---------------------------------------------------------------------------
 
+
 class TestSOCGuard:
     def test_different_principals_allowed(self):
         enforce_submitter_approver_separation(submitter="alice", approver="bob")
@@ -121,6 +123,4 @@ class TestSOCGuard:
             enforce_submitter_approver_separation(submitter="alice", approver="alice")
 
     def test_disabled_allows_same(self):
-        enforce_submitter_approver_separation(
-            submitter="alice", approver="alice", enabled=False
-        )
+        enforce_submitter_approver_separation(submitter="alice", approver="alice", enabled=False)

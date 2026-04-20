@@ -1,4 +1,5 @@
 """Tests for RetrievalEngine lifecycle methods (E-3)."""
+
 from __future__ import annotations
 
 import inspect

@@ -216,9 +216,7 @@ class EvidencePriorityProcessor:
             actual_other_budget -= field_used
 
         context.total_tokens = (
-            budget
-            - max(actual_other_budget, 0)
-            - (evidence_budget - evidence_used)
+            budget - max(actual_other_budget, 0) - (evidence_budget - evidence_used)
         )
         return context
 

@@ -143,9 +143,7 @@ class AsyncMemoryCompressor:
                 )
             except ImportError:
                 # structured_compression module not available — fall through
-                logger.debug(
-                    "StructuredCompressor not available; proceeding to LLM fallback"
-                )
+                logger.debug("StructuredCompressor not available; proceeding to LLM fallback")
             except Exception as exc:
                 logger.warning(
                     "StructuredCompressor failed, falling back to plain LLM compression: %s",
@@ -182,9 +180,7 @@ class AsyncMemoryCompressor:
             compression_ratio=len(summary) / max(len(input_text), 1),
         )
 
-    def _records_to_messages(
-        self, records: list[dict[str, Any]], context: str
-    ) -> list[dict]:
+    def _records_to_messages(self, records: list[dict[str, Any]], context: str) -> list[dict]:
         """Convert memory event records to message-like dicts for StructuredCompressor.
 
         Each record becomes a ``user`` message whose content describes the event.

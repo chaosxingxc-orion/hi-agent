@@ -32,9 +32,7 @@ class MockKernelFacade:
     def _actual_run_id(self, run_id: str) -> str:
         return self._run_id_map.get(run_id, run_id)
 
-    async def start_run(
-        self, run_id: str, session_id: str, metadata: dict[str, Any]
-    ) -> None:
+    async def start_run(self, run_id: str, session_id: str, metadata: dict[str, Any]) -> None:
         from agent_kernel.adapters.facade.kernel_facade import StartRunRequest
 
         request = StartRunRequest(

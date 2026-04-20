@@ -1,4 +1,5 @@
 """Unit tests for web_fetch redirect SSRF protection (H-5)."""
+
 from __future__ import annotations
 
 import urllib.error
@@ -11,7 +12,9 @@ from hi_agent.capability.tools.builtin import web_fetch_handler
 class _FakeResponse:
     """Minimal urllib response stub."""
 
-    def __init__(self, content: bytes = b"hello", status: int = 200, url: str = "http://example.com") -> None:
+    def __init__(
+        self, content: bytes = b"hello", status: int = 200, url: str = "http://example.com"
+    ) -> None:
         self._content = content
         self.status = status
         self.url = url
@@ -29,8 +32,10 @@ class _FakeResponse:
 def test_normal_fetch_succeeds() -> None:
     """A normal allowed URL fetch must succeed when opener returns a valid response."""
     fake_resp = _FakeResponse(b"page content", 200, "http://example.com")
-    with patch("hi_agent.capability.tools.builtin.URLPolicy") as mock_policy_cls, \
-         patch("urllib.request.OpenerDirector.open", return_value=fake_resp):
+    with (
+        patch("hi_agent.capability.tools.builtin.URLPolicy") as mock_policy_cls,
+        patch("urllib.request.OpenerDirector.open", return_value=fake_resp),
+    ):
         mock_policy_cls.return_value.validate.return_value = None
         result = web_fetch_handler({"url": "http://example.com"})
     assert result["success"] is True
@@ -40,6 +45,7 @@ def test_normal_fetch_succeeds() -> None:
 def test_url_policy_violation_blocks_fetch() -> None:
     """URL policy violation must block the fetch before any network call."""
     from hi_agent.security.url_policy import URLPolicyViolation
+
     with patch("hi_agent.capability.tools.builtin.URLPolicy") as mock_policy_cls:
         mock_policy_cls.return_value.validate.side_effect = URLPolicyViolation("blocked")
         result = web_fetch_handler({"url": "http://169.254.169.254"})

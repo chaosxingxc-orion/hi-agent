@@ -19,6 +19,7 @@ Key design:
   - Mermaid serialization for LLM readability
   - JSON serialization for persistence
 """
+
 from __future__ import annotations
 
 from collections import deque
@@ -30,6 +31,7 @@ from typing import Any
 
 class NodeState(Enum):
     """NodeState class."""
+
     PENDING = "pending"
     READY = "ready"
     RUNNING = "running"
@@ -41,10 +43,11 @@ class NodeState(Enum):
 
 class EdgeType(Enum):
     """EdgeType class."""
-    SEQUENCE = "sequence"        # normal flow A->B
-    BRANCH = "branch"            # parallel split A->{B,C}
+
+    SEQUENCE = "sequence"  # normal flow A->B
+    BRANCH = "branch"  # parallel split A->{B,C}
     CONDITIONAL = "conditional"  # A->B if condition, else A->C
-    BACKTRACK = "backtrack"      # B->A (retry/loop)
+    BACKTRACK = "backtrack"  # B->A (retry/loop)
 
 
 @dataclass
@@ -56,7 +59,7 @@ class TrajNode:
     state: NodeState = NodeState.PENDING
     payload: dict[str, Any] = field(default_factory=dict)
     # Execution metadata
-    priority: int = 5           # 1=highest, 10=lowest
+    priority: int = 5  # 1=highest, 10=lowest
     cost_estimate: float = 0.0  # estimated token cost
     retry_count: int = 0
     max_retries: int = 2
@@ -72,9 +75,9 @@ class TrajEdge:
     target: str
     edge_type: EdgeType = EdgeType.SEQUENCE
     condition: Callable[[dict[str, Any]], bool] | None = None
-    condition_desc: str = ""   # human-readable condition description
-    weight: float = 1.0        # for path selection (lower = preferred)
-    label: str = ""            # display label
+    condition_desc: str = ""  # human-readable condition description
+    weight: float = 1.0  # for path selection (lower = preferred)
+    label: str = ""  # display label
 
 
 class TrajectoryGraph:
@@ -88,8 +91,8 @@ class TrajectoryGraph:
         self.graph_id = graph_id
         self._nodes: dict[str, TrajNode] = {}
         self._edges: list[TrajEdge] = []
-        self._forward: dict[str, list[TrajEdge]] = {}   # source -> [edges]
-        self._backward: dict[str, list[TrajEdge]] = {}   # target -> [edges]
+        self._forward: dict[str, list[TrajEdge]] = {}  # source -> [edges]
+        self._backward: dict[str, list[TrajEdge]] = {}  # target -> [edges]
         self._entry_nodes: list[str] = []
         self._terminal_nodes: list[str] = []
 
@@ -109,22 +112,15 @@ class TrajectoryGraph:
         if node_id not in self._nodes:
             raise KeyError(f"Node '{node_id}' not found")
         # Remove all edges involving this node.
-        self._edges = [
-            e for e in self._edges
-            if e.source != node_id and e.target != node_id
-        ]
+        self._edges = [e for e in self._edges if e.source != node_id and e.target != node_id]
         # Rebuild forward/backward indexes from scratch.
         del self._nodes[node_id]
         self._forward.pop(node_id, None)
         self._backward.pop(node_id, None)
         # Clean references in other nodes' adjacency lists.
         for nid in self._nodes:
-            self._forward[nid] = [
-                e for e in self._forward.get(nid, []) if e.target != node_id
-            ]
-            self._backward[nid] = [
-                e for e in self._backward.get(nid, []) if e.source != node_id
-            ]
+            self._forward[nid] = [e for e in self._forward.get(nid, []) if e.target != node_id]
+            self._backward[nid] = [e for e in self._backward.get(nid, []) if e.source != node_id]
         self._rebuild_entry_terminal()
 
     def get_node(self, node_id: str) -> TrajNode | None:
@@ -163,17 +159,25 @@ class TrajectoryGraph:
 
     def add_sequence(self, source: str, target: str, label: str = "") -> None:
         """Convenience: add a SEQUENCE edge."""
-        self.add_edge(TrajEdge(
-            source=source, target=target,
-            edge_type=EdgeType.SEQUENCE, label=label,
-        ))
+        self.add_edge(
+            TrajEdge(
+                source=source,
+                target=target,
+                edge_type=EdgeType.SEQUENCE,
+                label=label,
+            )
+        )
 
     def add_branch(self, source: str, targets: list[str]) -> None:
         """Convenience: add BRANCH edges (parallel split)."""
         for t in targets:
-            self.add_edge(TrajEdge(
-                source=source, target=t, edge_type=EdgeType.BRANCH,
-            ))
+            self.add_edge(
+                TrajEdge(
+                    source=source,
+                    target=t,
+                    edge_type=EdgeType.BRANCH,
+                )
+            )
 
     def add_conditional(
         self,
@@ -183,11 +187,15 @@ class TrajectoryGraph:
         desc: str = "",
     ) -> None:
         """Convenience: add a CONDITIONAL edge."""
-        self.add_edge(TrajEdge(
-            source=source, target=target,
-            edge_type=EdgeType.CONDITIONAL,
-            condition=condition, condition_desc=desc,
-        ))
+        self.add_edge(
+            TrajEdge(
+                source=source,
+                target=target,
+                edge_type=EdgeType.CONDITIONAL,
+                condition=condition,
+                condition_desc=desc,
+            )
+        )
 
     def add_backtrack(
         self,
@@ -197,11 +205,15 @@ class TrajectoryGraph:
         desc: str = "",
     ) -> None:
         """Convenience: add a BACKTRACK edge (retry/loop)."""
-        self.add_edge(TrajEdge(
-            source=source, target=target,
-            edge_type=EdgeType.BACKTRACK,
-            condition=condition, condition_desc=desc,
-        ))
+        self.add_edge(
+            TrajEdge(
+                source=source,
+                target=target,
+                edge_type=EdgeType.BACKTRACK,
+                condition=condition,
+                condition_desc=desc,
+            )
+        )
 
     def remove_edge(self, source: str, target: str) -> None:
         """Remove first edge from source to target."""
@@ -248,9 +260,7 @@ class TrajectoryGraph:
             if not deps:
                 # No dependencies — check if there are conditional incoming edges.
                 incoming = self._backward.get(node.node_id, [])
-                conditional_incoming = [
-                    e for e in incoming if e.edge_type == EdgeType.CONDITIONAL
-                ]
+                conditional_incoming = [e for e in incoming if e.edge_type == EdgeType.CONDITIONAL]
                 if conditional_incoming:
                     # At least one conditional must be satisfied.
                     any_met = any(
@@ -263,15 +273,13 @@ class TrajectoryGraph:
                 ready.append(node)
                 continue
             # All non-conditional dependencies must be completed.
-            all_done = all(
-                self._nodes[dep_id].state == NodeState.COMPLETED
-                for dep_id in deps
-            )
+            all_done = all(self._nodes[dep_id].state == NodeState.COMPLETED for dep_id in deps)
             if not all_done:
                 continue
             # Check conditional incoming edges.
             incoming_cond = [
-                e for e in self._backward.get(node.node_id, [])
+                e
+                for e in self._backward.get(node.node_id, [])
                 if e.edge_type == EdgeType.CONDITIONAL
             ]
             if incoming_cond:
@@ -295,9 +303,7 @@ class TrajectoryGraph:
             if e.edge_type in (EdgeType.SEQUENCE, EdgeType.BRANCH):
                 in_degree[e.target] = in_degree.get(e.target, 0) + 1
 
-        current_level = sorted(
-            nid for nid, deg in in_degree.items() if deg == 0
-        )
+        current_level = sorted(nid for nid, deg in in_degree.items() if deg == 0)
         groups: list[list[str]] = []
         while current_level:
             groups.append(current_level)
@@ -335,7 +341,10 @@ class TrajectoryGraph:
         return result
 
     def find_paths(
-        self, source: str, target: str, max_paths: int = 5,
+        self,
+        source: str,
+        target: str,
+        max_paths: int = 5,
     ) -> list[list[str]]:
         """Find up to max_paths paths from source to target. DFS-based."""
         if source not in self._nodes or target not in self._nodes:
@@ -360,7 +369,9 @@ class TrajectoryGraph:
         return paths
 
     def get_subgraph(
-        self, root_ids: list[str], depth: int = -1,
+        self,
+        root_ids: list[str],
+        depth: int = -1,
     ) -> TrajectoryGraph:
         """Extract a subgraph rooted at given nodes, optionally limited by depth."""
         collected: set[str] = set()
@@ -400,9 +411,12 @@ class TrajectoryGraph:
         for e in self._edges:
             if e.source in collected and e.target in collected:
                 clone_edge = TrajEdge(
-                    source=e.source, target=e.target,
-                    edge_type=e.edge_type, condition=e.condition,
-                    condition_desc=e.condition_desc, weight=e.weight,
+                    source=e.source,
+                    target=e.target,
+                    edge_type=e.edge_type,
+                    condition=e.condition,
+                    condition_desc=e.condition_desc,
+                    weight=e.weight,
                     label=e.label,
                 )
                 sub._edges.append(clone_edge)
@@ -678,21 +692,13 @@ class TrajectoryGraph:
         """
         lines: list[str] = ["## Current Trajectory State", ""]
 
-        completed = [
-            n.node_id for n in self._nodes.values()
-            if n.state == NodeState.COMPLETED
-        ]
-        running = [
-            n.node_id for n in self._nodes.values()
-            if n.state == NodeState.RUNNING
-        ]
-        failed = [
-            n.node_id for n in self._nodes.values()
-            if n.state == NodeState.FAILED
-        ]
+        completed = [n.node_id for n in self._nodes.values() if n.state == NodeState.COMPLETED]
+        running = [n.node_id for n in self._nodes.values() if n.state == NodeState.RUNNING]
+        failed = [n.node_id for n in self._nodes.values() if n.state == NodeState.FAILED]
         ready = [n.node_id for n in self.get_ready_nodes()]
         pending = [
-            n.node_id for n in self._nodes.values()
+            n.node_id
+            for n in self._nodes.values()
             if n.state == NodeState.PENDING and n.node_id not in ready
         ]
 
@@ -713,7 +719,9 @@ class TrajectoryGraph:
 
     @classmethod
     def from_llm_plan(
-        cls, plan: dict[str, Any], graph_id: str = "llm_plan",
+        cls,
+        plan: dict[str, Any],
+        graph_id: str = "llm_plan",
     ) -> TrajectoryGraph:
         """Build graph from LLM-generated plan JSON.
 
@@ -741,7 +749,8 @@ class TrajectoryGraph:
     # --- Execution helpers ---
 
     def step(
-        self, execute_fn: Callable[[TrajNode], Any] | None = None,
+        self,
+        execute_fn: Callable[[TrajNode], Any] | None = None,
     ) -> list[str]:
         """Execute one superstep: find ready nodes, execute them, update state.
 
@@ -848,12 +857,8 @@ class TrajectoryGraph:
             if e.edge_type != EdgeType.BACKTRACK:
                 has_incoming.add(e.target)
                 has_outgoing.add(e.source)
-        self._entry_nodes = sorted(
-            nid for nid in self._nodes if nid not in has_incoming
-        )
-        self._terminal_nodes = sorted(
-            nid for nid in self._nodes if nid not in has_outgoing
-        )
+        self._entry_nodes = sorted(nid for nid in self._nodes if nid not in has_incoming)
+        self._terminal_nodes = sorted(nid for nid in self._nodes if nid not in has_outgoing)
 
     def _get_dependencies(self, node_id: str) -> set[str]:
         """Get all nodes that must complete before this node can run.

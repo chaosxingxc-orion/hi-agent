@@ -122,8 +122,8 @@ class LongTermMemoryGraph:
         self._adjacency: dict[str, list[str]] = {}  # node_id -> [connected_node_ids]
         self._embedding_fn = embedding_fn
         # TF-IDF index (in-memory only, rebuilt on load)
-        self._tf: dict[str, dict[str, float]] = {}   # node_id -> {term: tf}
-        self._df: dict[str, int] = {}                # term -> doc_count
+        self._tf: dict[str, dict[str, float]] = {}  # node_id -> {term: tf}
+        self._df: dict[str, int] = {}  # term -> doc_count
         # Embedding cache (lazy, in-memory only)
         self._embeddings: dict[str, list[float]] = {}
 
@@ -167,17 +167,11 @@ class LongTermMemoryGraph:
         self._unindex_node(node_id)
         del self._nodes[node_id]
         # Remove edges involving this node
-        self._edges = [
-            e
-            for e in self._edges
-            if e.source_id != node_id and e.target_id != node_id
-        ]
+        self._edges = [e for e in self._edges if e.source_id != node_id and e.target_id != node_id]
         # Clean adjacency
         self._adjacency.pop(node_id, None)
         for nid in self._adjacency:
-            self._adjacency[nid] = [
-                n for n in self._adjacency[nid] if n != node_id
-            ]
+            self._adjacency[nid] = [n for n in self._adjacency[nid] if n != node_id]
         # Remove cached embedding
         self._embeddings.pop(node_id, None)
 
@@ -192,18 +186,12 @@ class LongTermMemoryGraph:
     def remove_edge(self, source_id: str, target_id: str) -> None:
         """Remove all edges between source and target."""
         self._edges = [
-            e
-            for e in self._edges
-            if not (e.source_id == source_id and e.target_id == target_id)
+            e for e in self._edges if not (e.source_id == source_id and e.target_id == target_id)
         ]
         if source_id in self._adjacency:
-            self._adjacency[source_id] = [
-                n for n in self._adjacency[source_id] if n != target_id
-            ]
+            self._adjacency[source_id] = [n for n in self._adjacency[source_id] if n != target_id]
         if target_id in self._adjacency:
-            self._adjacency[target_id] = [
-                n for n in self._adjacency[target_id] if n != source_id
-            ]
+            self._adjacency[target_id] = [n for n in self._adjacency[target_id] if n != source_id]
 
     # ------------------------------------------------------------------ Query
 
@@ -242,8 +230,7 @@ class LongTermMemoryGraph:
             for node in self._nodes.values():
                 tf = self._tf.get(node.node_id, {})
                 tfidf_score = sum(
-                    tf.get(term, 0.0)
-                    * math.log((n_docs + 1) / (self._df.get(term, 0) + 1))
+                    tf.get(term, 0.0) * math.log((n_docs + 1) / (self._df.get(term, 0) + 1))
                     for term in query_terms
                 )
                 # Keyword hit count as minimum signal when TF-IDF is zero
@@ -287,9 +274,7 @@ class LongTermMemoryGraph:
                     break
         return results
 
-    def get_neighbors(
-        self, node_id: str, relation_type: str | None = None
-    ) -> list[MemoryNode]:
+    def get_neighbors(self, node_id: str, relation_type: str | None = None) -> list[MemoryNode]:
         """Get neighbor nodes, optionally filtered by relation type."""
         if node_id not in self._adjacency:
             return []
@@ -330,11 +315,7 @@ class LongTermMemoryGraph:
                 break
 
         nodes = [self._nodes[nid] for nid in visited if nid in self._nodes]
-        edges = [
-            e
-            for e in self._edges
-            if e.source_id in visited and e.target_id in visited
-        ]
+        edges = [e for e in self._edges if e.source_id in visited and e.target_id in visited]
         return nodes, edges
 
     # ------------------------------------------------------------------ Persistence
@@ -425,12 +406,14 @@ class LongTermMemoryGraph:
 
     def list_runs_by_project(self, project_id: str) -> list[str]:
         """Return all run_ids recorded in nodes for the given project_id."""
-        return list({
-            src
-            for node in self._nodes.values()
-            for src in node.source_sessions
-            if project_id and project_id in node.tags
-        })
+        return list(
+            {
+                src
+                for node in self._nodes.values()
+                for src in node.source_sessions
+                if project_id and project_id in node.tags
+            }
+        )
 
     # ------------------------------------------------------------------ Graph inference
 
@@ -472,9 +455,7 @@ class LongTermMemoryGraph:
             and (e.source_id == node_id or e.target_id == node_id)
         ]
 
-    def get_subgraph_with_confidence(
-        self, root_id: str, max_depth: int = 3
-    ) -> dict[str, Any]:
+    def get_subgraph_with_confidence(self, root_id: str, max_depth: int = 3) -> dict[str, Any]:
         """Return a subgraph dict with nodes and their confidence scores.
 
         Uses the existing get_subgraph() method for traversal and augments
@@ -500,9 +481,7 @@ class LongTermMemoryGraph:
         term_counts: dict[str, int] = {}
         for term in terms:
             term_counts[term] = term_counts.get(term, 0) + 1
-        tf: dict[str, float] = {
-            term: count / len(terms) for term, count in term_counts.items()
-        }
+        tf: dict[str, float] = {term: count / len(terms) for term, count in term_counts.items()}
         self._tf[node.node_id] = tf
         for term in tf:
             self._df[term] = self._df.get(term, 0) + 1
@@ -545,9 +524,7 @@ class LongTermConsolidator:
     4. Merge duplicate nodes
     """
 
-    def __init__(
-        self, mid_term_store: MidTermMemoryStore, graph: LongTermMemoryGraph
-    ) -> None:
+    def __init__(self, mid_term_store: MidTermMemoryStore, graph: LongTermMemoryGraph) -> None:
         """Initialize LongTermConsolidator."""
         self._mid_term = mid_term_store
         self._graph = graph
@@ -570,7 +547,7 @@ class LongTermConsolidator:
         # Merge duplicates at the end
         self._merge_duplicates()
         if count > 0:
-            self._graph.save()   # persist to disk after consolidation
+            self._graph.save()  # persist to disk after consolidation
         return count
 
     def _extract_facts(self, summary: DailySummary) -> list[MemoryNode]:

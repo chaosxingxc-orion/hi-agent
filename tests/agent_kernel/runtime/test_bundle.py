@@ -560,20 +560,20 @@ def test_bundle_prod_safety_rejects_echo_llm_gateway_in_prod(tmp_path: Path) -> 
                 backend="sqlite",
                 sqlite_database_path=tmp_path / "bundle-prod-dedupe2.sqlite3",
             ),
-                recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
-                    backend="sqlite",
-                    sqlite_database_path=tmp_path / "bundle-prod-recovery2.sqlite3",
-                ),
-                turn_intent_log_config=RuntimeTurnIntentLogConfig(
-                    backend="sqlite",
-                    sqlite_database_path=tmp_path / "bundle-prod-turn-intent2.sqlite3",
-                ),
-                llm_gateway=EchoLLMGateway(),
-                production_safety_config=RuntimeProductionSafetyConfig(
-                    enabled=True,
-                    environment="prod",
-                ),
-            )
+            recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
+                backend="sqlite",
+                sqlite_database_path=tmp_path / "bundle-prod-recovery2.sqlite3",
+            ),
+            turn_intent_log_config=RuntimeTurnIntentLogConfig(
+                backend="sqlite",
+                sqlite_database_path=tmp_path / "bundle-prod-turn-intent2.sqlite3",
+            ),
+            llm_gateway=EchoLLMGateway(),
+            production_safety_config=RuntimeProductionSafetyConfig(
+                enabled=True,
+                environment="prod",
+            ),
+        )
 
 
 def test_bundle_default_deduper_is_sqlite_decision_deduper() -> None:
@@ -630,19 +630,19 @@ def test_bundle_prod_safety_rejects_in_memory_decision_deduper(
                 sqlite_database_path=tmp_path / "safety-dedupe.sqlite3",
             ),
             decision_deduper_config=RuntimeDecisionDedupeConfig(backend="in_memory"),
-                recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
-                    backend="sqlite",
-                    sqlite_database_path=tmp_path / "safety-recovery.sqlite3",
-                ),
-                turn_intent_log_config=RuntimeTurnIntentLogConfig(
-                    backend="sqlite",
-                    sqlite_database_path=tmp_path / "safety-turn-intent.sqlite3",
-                ),
-                production_safety_config=RuntimeProductionSafetyConfig(
-                    enabled=True,
-                    environment="prod",
-                ),
-            )
+            recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
+                backend="sqlite",
+                sqlite_database_path=tmp_path / "safety-recovery.sqlite3",
+            ),
+            turn_intent_log_config=RuntimeTurnIntentLogConfig(
+                backend="sqlite",
+                sqlite_database_path=tmp_path / "safety-turn-intent.sqlite3",
+            ),
+            production_safety_config=RuntimeProductionSafetyConfig(
+                enabled=True,
+                environment="prod",
+            ),
+        )
 
 
 class TestBundleTaskRegistryWiring:
@@ -700,20 +700,20 @@ class TestProductionSafetyExecutorCheck:
                     backend="sqlite",
                     sqlite_database_path=tmp_path / "exec-check-dedupe.sqlite3",
                 ),
-                    recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
-                        backend="sqlite",
-                        sqlite_database_path=tmp_path / "exec-check-recovery.sqlite3",
-                    ),
-                    turn_intent_log_config=RuntimeTurnIntentLogConfig(
-                        backend="sqlite",
-                        sqlite_database_path=tmp_path / "exec-check-turn-intent.sqlite3",
-                    ),
-                    enable_activity_backed_executor=False,
-                    production_safety_config=RuntimeProductionSafetyConfig(
-                        enabled=True,
-                        environment="prod",
-                    ),
-                )
+                recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "exec-check-recovery.sqlite3",
+                ),
+                turn_intent_log_config=RuntimeTurnIntentLogConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "exec-check-turn-intent.sqlite3",
+                ),
+                enable_activity_backed_executor=False,
+                production_safety_config=RuntimeProductionSafetyConfig(
+                    enabled=True,
+                    environment="prod",
+                ),
+            )
 
     def test_production_safety_allows_activity_backed_executor(self, tmp_path: Path) -> None:
         """Prod safety should pass when enable_activity_backed_executor=True with gateway."""

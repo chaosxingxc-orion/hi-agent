@@ -114,7 +114,7 @@ def test_cumulative_tracks_across_multiple_results() -> None:
     budget = _make_budget(max_single=50, max_cumulative=200)
     for _ in range(4):
         budget.process("t", "x" * 50)
-    # 4 × 50 = 200, all should fit
+    # 4 x 50 = 200, all should fit
     assert budget.get_state().truncation_count == 0
     assert budget.get_state().cumulative_chars_used == 200
 

@@ -37,15 +37,13 @@ def build_signals_from_event_summary(
         raise ValueError("summary.total_events must be >= 0")
 
     planned = counts_by_type.get("ActionPlanned", 0)
-    executed = (
-        counts_by_type.get("ActionExecuted", 0)
-        + counts_by_type.get("ActionExecutionFailed", 0)
+    executed = counts_by_type.get("ActionExecuted", 0) + counts_by_type.get(
+        "ActionExecutionFailed", 0
     )
     reconcile_backlog = max(0, planned - executed)
 
-    recent_reconcile_failures = (
-        counts_by_type.get("ActionExecutionFailed", 0)
-        + counts_by_type.get("RecoveryTriggered", 0)
+    recent_reconcile_failures = counts_by_type.get("ActionExecutionFailed", 0) + counts_by_type.get(
+        "RecoveryTriggered", 0
     )
 
     opened_gates = counts_by_type.get("HumanGateOpened", 0)

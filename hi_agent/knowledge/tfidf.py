@@ -54,8 +54,7 @@ class TFIDFIndex:
             for unique_token in set(tokens):
                 df[unique_token] += 1
         self._idf = {
-            term: math.log((doc_count - freq + 0.5) / (freq + 0.5) + 1)
-            for term, freq in df.items()
+            term: math.log((doc_count - freq + 0.5) / (freq + 0.5) + 1) for term, freq in df.items()
         }
         self._dirty = False
 

@@ -170,11 +170,7 @@ class RestartPolicyEngine:
         stage_id: str = "",
     ) -> RestartDecision:
         """Pure decision logic -- no side effects."""
-        retryability = (
-            getattr(failure, "retryability", "unknown")
-            if failure
-            else "unknown"
-        )
+        retryability = getattr(failure, "retryability", "unknown") if failure else "unknown"
         if retryability == "non_retryable":
             action: RestartAction = policy.on_exhausted  # type: ignore[assignment]
             return RestartDecision(
@@ -182,16 +178,19 @@ class RestartPolicyEngine:
                 action=action,
                 next_attempt_seq=None,
                 reason=(
-                    "failure marked non_retryable: "
-                    f"{getattr(failure, 'failure_code', 'unknown')}"
+                    f"failure marked non_retryable: {getattr(failure, 'failure_code', 'unknown')}"
                 ),
             )
 
         failure_reason = (
-            getattr(failure, "failure_code", None)
-            or getattr(failure, "reason", None)
-            or "unknown"
-        ) if failure else "unknown"
+            (
+                getattr(failure, "failure_code", None)
+                or getattr(failure, "reason", None)
+                or "unknown"
+            )
+            if failure
+            else "unknown"
+        )
 
         if attempt_seq < policy.max_attempts:
             if policy.on_exhausted == "reflect":

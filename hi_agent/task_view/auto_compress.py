@@ -78,8 +78,7 @@ class AutoCompressTrigger:
 
         if total_tokens > self.window_threshold:
             if total_tokens > budget_tokens or (
-                self._compressor is not None
-                and total_tokens > self.compress_threshold
+                self._compressor is not None and total_tokens > self.compress_threshold
             ):
                 return "compress"
             return "window"
@@ -132,10 +131,7 @@ class AutoCompressTrigger:
         # Level 3: Compress -- if still over compress_threshold and
         # compressor is available, produce an LLM summary.
         total = self._estimate_records_tokens(working)
-        if (
-            total > self.compress_threshold
-            and self._compressor is not None
-        ):
+        if total > self.compress_threshold and self._compressor is not None:
             summary = self._run_compressor(working, stage_id)
             return working, summary
 

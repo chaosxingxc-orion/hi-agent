@@ -1,4 +1,5 @@
 """Integration tests for /manifest capability_views field — HI-W4-002."""
+
 from __future__ import annotations
 
 import pytest
@@ -8,6 +9,7 @@ from starlette.testclient import TestClient
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
@@ -24,6 +26,7 @@ def test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 def test_manifest_has_capability_views_field(test_client):
     resp = test_client.get("/manifest")

@@ -1,4 +1,5 @@
 """Tests for hi_agent.task_mgmt — scheduling, communication, observation, control."""
+
 from __future__ import annotations
 
 import threading
@@ -20,6 +21,7 @@ from hi_agent.trajectory.graph import (
 # ======================================================================
 # Handle tests
 # ======================================================================
+
 
 class TestTaskHandle:
     def test_creation_defaults(self) -> None:
@@ -88,6 +90,7 @@ class TestTaskHandle:
 # ======================================================================
 # Communication tests
 # ======================================================================
+
 
 class TestTaskCommunicator:
     def test_notify_fires_subscriber(self) -> None:
@@ -181,6 +184,7 @@ class TestTaskCommunicator:
 # ======================================================================
 # Scheduler tests
 # ======================================================================
+
 
 def _make_chain_graph() -> TrajectoryGraph:
     """A -> B -> C"""
@@ -460,6 +464,7 @@ class TestSchedulerYieldResumeManual:
 # Monitor tests
 # ======================================================================
 
+
 class TestTaskMonitor:
     def test_heartbeat_records_timestamp(self) -> None:
         mon = TaskMonitor(heartbeat_timeout_seconds=10)
@@ -493,12 +498,16 @@ class TestTaskMonitor:
         mon = TaskMonitor()
         tasks = {
             "A": TaskHandle(
-                task_id="A", node_id="A",
-                status=TaskStatus.BLOCKED, blocked_by=["B"],
+                task_id="A",
+                node_id="A",
+                status=TaskStatus.BLOCKED,
+                blocked_by=["B"],
             ),
             "B": TaskHandle(
-                task_id="B", node_id="B",
-                status=TaskStatus.BLOCKED, blocked_by=["A"],
+                task_id="B",
+                node_id="B",
+                status=TaskStatus.BLOCKED,
+                blocked_by=["A"],
             ),
         }
         cycles = mon.detect_deadlock(tasks)
@@ -512,12 +521,16 @@ class TestTaskMonitor:
         mon = TaskMonitor()
         tasks = {
             "A": TaskHandle(
-                task_id="A", node_id="A",
-                status=TaskStatus.BLOCKED, blocked_by=["B"],
+                task_id="A",
+                node_id="A",
+                status=TaskStatus.BLOCKED,
+                blocked_by=["B"],
             ),
             "B": TaskHandle(
-                task_id="B", node_id="B",
-                status=TaskStatus.RUNNING, blocked_by=[],
+                task_id="B",
+                node_id="B",
+                status=TaskStatus.RUNNING,
+                blocked_by=[],
             ),
         }
         cycles = mon.detect_deadlock(tasks)
@@ -563,6 +576,7 @@ class TestTaskMonitor:
 # Recovery tests
 # ======================================================================
 
+
 class TestTaskMonitorRecovery:
     """Tests for check_and_recover, callbacks, and auto-recovery."""
 
@@ -593,12 +607,16 @@ class TestTaskMonitorRecovery:
         )
         tasks = {
             "A": TaskHandle(
-                task_id="A", node_id="A",
-                status=TaskStatus.BLOCKED, blocked_by=["B"],
+                task_id="A",
+                node_id="A",
+                status=TaskStatus.BLOCKED,
+                blocked_by=["B"],
             ),
             "B": TaskHandle(
-                task_id="B", node_id="B",
-                status=TaskStatus.BLOCKED, blocked_by=["A"],
+                task_id="B",
+                node_id="B",
+                status=TaskStatus.BLOCKED,
+                blocked_by=["A"],
             ),
         }
         report = mon.check_and_recover(tasks)
@@ -615,7 +633,9 @@ class TestTaskMonitorRecovery:
         time.sleep(0.01)
         tasks = {
             "t1": TaskHandle(
-                task_id="t1", node_id="t1", status=TaskStatus.RUNNING,
+                task_id="t1",
+                node_id="t1",
+                status=TaskStatus.RUNNING,
             ),
         }
         report = mon.check_and_recover(tasks)
@@ -629,13 +649,17 @@ class TestTaskMonitorRecovery:
         mon = TaskMonitor(heartbeat_timeout_seconds=9999, auto_recover=True)
         tasks = {
             "A": TaskHandle(
-                task_id="A", node_id="A",
-                status=TaskStatus.BLOCKED, blocked_by=["B"],
+                task_id="A",
+                node_id="A",
+                status=TaskStatus.BLOCKED,
+                blocked_by=["B"],
                 created_at="2026-01-01T00:00:00",
             ),
             "B": TaskHandle(
-                task_id="B", node_id="B",
-                status=TaskStatus.BLOCKED, blocked_by=["A"],
+                task_id="B",
+                node_id="B",
+                status=TaskStatus.BLOCKED,
+                blocked_by=["A"],
                 created_at="2026-01-02T00:00:00",  # younger
             ),
         }
@@ -654,16 +678,22 @@ class TestTaskMonitorRecovery:
         time.sleep(0.01)
         tasks = {
             "t1": TaskHandle(
-                task_id="t1", node_id="t1", status=TaskStatus.RUNNING,
+                task_id="t1",
+                node_id="t1",
+                status=TaskStatus.RUNNING,
             ),
             "A": TaskHandle(
-                task_id="A", node_id="A",
-                status=TaskStatus.BLOCKED, blocked_by=["B"],
+                task_id="A",
+                node_id="A",
+                status=TaskStatus.BLOCKED,
+                blocked_by=["B"],
                 created_at="2026-01-01T00:00:00",
             ),
             "B": TaskHandle(
-                task_id="B", node_id="B",
-                status=TaskStatus.BLOCKED, blocked_by=["A"],
+                task_id="B",
+                node_id="B",
+                status=TaskStatus.BLOCKED,
+                blocked_by=["A"],
                 created_at="2026-01-02T00:00:00",
             ),
         }
@@ -678,7 +708,9 @@ class TestTaskMonitorRecovery:
         mon.heartbeat("t1")
         tasks = {
             "t1": TaskHandle(
-                task_id="t1", node_id="t1", status=TaskStatus.RUNNING,
+                task_id="t1",
+                node_id="t1",
+                status=TaskStatus.RUNNING,
             ),
         }
         report = mon.check_and_recover(tasks)
@@ -690,6 +722,7 @@ class TestTaskMonitorRecovery:
 # ======================================================================
 # Integration tests
 # ======================================================================
+
 
 class TestIntegration:
     def test_scheduler_communicator_completion_notifies(self) -> None:

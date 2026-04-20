@@ -18,4 +18,3 @@ def enforce_submitter_approver_separation(
         return
     if submitter == approver:
         raise SeparationOfConcernError("submitter and approver must be different principals")
-

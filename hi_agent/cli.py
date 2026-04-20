@@ -201,10 +201,13 @@ def _cmd_run(args: argparse.Namespace) -> None:
             builder = SystemBuilder(config=config, config_stack=stack)
             profile_id = getattr(args, "profile_id", None)
             import json as _json2
+
             constraints_raw = getattr(args, "constraints", None)
             constraints = _json2.loads(constraints_raw) if constraints_raw else []
             acceptance_criteria_raw = getattr(args, "acceptance_criteria", None)
-            acceptance_criteria = _json2.loads(acceptance_criteria_raw) if acceptance_criteria_raw else []
+            acceptance_criteria = (
+                _json2.loads(acceptance_criteria_raw) if acceptance_criteria_raw else []
+            )
             input_refs_raw = getattr(args, "input_refs", None)
             input_refs = _json2.loads(input_refs_raw) if input_refs_raw else []
             environment_scope_raw = getattr(args, "environment_scope", None)
@@ -231,6 +234,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
             budget_raw = getattr(args, "budget", None)
             if budget_raw is not None:
                 from hi_agent.contracts.task import TaskBudget
+
                 budget_data = _json2.loads(budget_raw)
                 _contract_kwargs["budget"] = TaskBudget(
                     max_llm_calls=budget_data.get("max_llm_calls", 100),
@@ -462,6 +466,7 @@ def _cmd_tools(args: argparse.Namespace) -> None:
             sys.exit(1)
     elif args.tools_action == "call":
         import json as _json
+
         arguments = _json.loads(args.args)
         status, data = _api_request(
             "POST", f"{base}/tools/call", {"name": args.name, "arguments": arguments}
@@ -495,8 +500,8 @@ def _run_doctor(args) -> None:
 
 def _print_doctor_report(report) -> None:
     """Print doctor report in human-readable format."""
-    STATUS_SYMBOLS = {"ready": "OK", "degraded": "WARN", "error": "FAIL"}
-    symbol = STATUS_SYMBOLS.get(report.status, "?")
+    status_symbols = {"ready": "OK", "degraded": "WARN", "error": "FAIL"}
+    symbol = status_symbols.get(report.status, "?")
     print(f"\nhi-agent doctor -- {symbol} {report.status.upper()}\n")
 
     if report.blocking:
@@ -587,7 +592,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         help="Config profile to activate (e.g. 'prod', 'dev'). "
-             "Loads config.<profile>.json next to --config file.",
+        "Loads config.<profile>.json next to --config file.",
     )
     run_parser.add_argument(
         "--config",
@@ -608,14 +613,14 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         help="Runtime profile ID to activate (e.g. 'rnd_agent'). "
-             "Selects ProfileSpec from the platform ProfileRegistry.",
+        "Selects ProfileSpec from the platform ProfileRegistry.",
     )
     run_parser.add_argument(
         "--deadline",
         required=False,
         default=None,
         help="ISO-8601 deadline (e.g. '2099-01-01T00:00:00Z'). "
-             "Stages started after this timestamp are aborted with execution_budget_exhausted.",
+        "Stages started after this timestamp are aborted with execution_budget_exhausted.",
     )
     run_parser.add_argument(
         "--priority",
@@ -623,7 +628,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         help="Run priority for queue ordering (1=highest, 10=lowest). "
-             "Lower integers are dequeued first.",
+        "Lower integers are dequeued first.",
     )
     run_parser.add_argument(
         "--constraints",
@@ -637,7 +642,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         help="Decomposition strategy hint (e.g. 'sequential', 'parallel'). "
-             "Routing hint for TaskOrchestrator; does not change linear execution path.",
+        "Routing hint for TaskOrchestrator; does not change linear execution path.",
     )
     run_parser.add_argument(
         "--acceptance-criteria",
@@ -645,7 +650,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         help="JSON array of acceptance criteria, e.g. '[\"required_stage:S3_build\"]'. "
-             "Supported patterns: required_stage:<id>, required_artifact:<id>.",
+        "Supported patterns: required_stage:<id>, required_artifact:<id>.",
     )
     run_parser.add_argument(
         "--input-refs",
@@ -653,7 +658,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         help="JSON array of input artifact URIs/IDs, e.g. '[\"artifact://abc\"]'. "
-             "PASSTHROUGH: stored and returned but not consumed by default TRACE pipeline.",
+        "PASSTHROUGH: stored and returned but not consumed by default TRACE pipeline.",
     )
     run_parser.add_argument(
         "--environment-scope",
@@ -661,7 +666,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         help="JSON array of environment identifiers, e.g. '[\"staging\"]'. "
-             "PASSTHROUGH: stored and returned but not consumed by default TRACE pipeline.",
+        "PASSTHROUGH: stored and returned but not consumed by default TRACE pipeline.",
     )
     run_parser.add_argument(
         "--parent-task-id",
@@ -669,14 +674,14 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         help="Parent task ID for sub-task hierarchy. "
-             "PASSTHROUGH: stored and returned but not consumed by default TRACE pipeline.",
+        "PASSTHROUGH: stored and returned but not consumed by default TRACE pipeline.",
     )
     run_parser.add_argument(
         "--budget",
         required=False,
         default=None,
         help="JSON object for execution budget, e.g. "
-             "'{\"max_llm_calls\": 10, \"max_wall_clock_seconds\": 300}'.",
+        '\'{"max_llm_calls": 10, "max_wall_clock_seconds": 300}\'.',
     )
     run_parser.add_argument(
         "--home",
@@ -705,7 +710,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # doctor
     doctor_parser = subparsers.add_parser("doctor", help="Diagnose platform health")
-    doctor_parser.add_argument("--json", action="store_true", help="Output JSON instead of human-readable")
+    doctor_parser.add_argument(
+        "--json", action="store_true", help="Output JSON instead of human-readable"
+    )
 
     # status
     status_parser = subparsers.add_parser("status", help="Check run status")
@@ -748,30 +755,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     tools_call_parser = tools_sub.add_parser("call", help="Call a tool")
     tools_call_parser.add_argument("--name", required=True, help="Tool name")
-    tools_call_parser.add_argument(
-        "--args", default="{}", help="JSON arguments"
-    )
+    tools_call_parser.add_argument("--args", default="{}", help="JSON arguments")
     tools_call_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     # resume
-    resume_parser = subparsers.add_parser(
-        "resume", help="Resume a run from checkpoint"
-    )
-    resume_parser.add_argument(
-        "--checkpoint", required=False, help="Path to checkpoint file"
-    )
-    resume_parser.add_argument(
-        "--run-id", required=False, help="Run ID to search for checkpoint"
-    )
-    resume_parser.add_argument(
-        "--json", action="store_true", help="Output as JSON"
-    )
+    resume_parser = subparsers.add_parser("resume", help="Resume a run from checkpoint")
+    resume_parser.add_argument("--checkpoint", required=False, help="Path to checkpoint file")
+    resume_parser.add_argument("--run-id", required=False, help="Run ID to search for checkpoint")
+    resume_parser.add_argument("--json", action="store_true", help="Output as JSON")
     resume_parser.add_argument(
         "--profile",
         required=False,
         default=None,
         help="Config profile to activate (e.g. 'prod', 'dev'). "
-             "Loads config.<profile>.json next to --config file.",
+        "Loads config.<profile>.json next to --config file.",
     )
     resume_parser.add_argument(
         "--config",

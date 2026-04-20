@@ -18,14 +18,13 @@ from hi_agent.recovery import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _action_failed_event(stage_id: str = "s1") -> EventEnvelope:
     return make_envelope("ActionExecutionFailed", "run-1", {"stage_id": stage_id})
 
 
 def _stage_failed_event(stage_id: str = "s1") -> EventEnvelope:
-    return make_envelope(
-        "StageStateChanged", "run-1", {"stage_id": stage_id, "to_state": "failed"}
-    )
+    return make_envelope("StageStateChanged", "run-1", {"stage_id": stage_id, "to_state": "failed"})
 
 
 def _benign_event() -> EventEnvelope:
@@ -36,14 +35,13 @@ def _benign_event() -> EventEnvelope:
 # 1. Register and invoke compensation handler
 # ---------------------------------------------------------------------------
 
+
 class TestRegisterAndInvokeHandler:
     def test_handler_is_called_with_plan_and_events(self):
         events = [_action_failed_event("s1")]
         handler = MagicMock(return_value="handled")
 
-        report = execute_compensation(
-            events, handlers={"retry_failed_actions": handler}
-        )
+        report = execute_compensation(events, handlers={"retry_failed_actions": handler})
 
         handler.assert_called_once()
         plan_arg, events_arg = handler.call_args[0]
@@ -56,9 +54,7 @@ class TestRegisterAndInvokeHandler:
         events = [_action_failed_event()]
         handler = MagicMock(return_value={"retried": True})
 
-        report = execute_compensation(
-            events, handlers={"retry_failed_actions": handler}
-        )
+        report = execute_compensation(events, handlers={"retry_failed_actions": handler})
 
         assert report.results[0].output == {"retried": True}
         assert report.results[0].status == "success"
@@ -67,6 +63,7 @@ class TestRegisterAndInvokeHandler:
 # ---------------------------------------------------------------------------
 # 2. Compensation succeeds
 # ---------------------------------------------------------------------------
+
 
 class TestCompensationSucceeds:
     def test_all_handlers_succeed(self):
@@ -89,6 +86,7 @@ class TestCompensationSucceeds:
 # 3. Compensation fails gracefully
 # ---------------------------------------------------------------------------
 
+
 class TestCompensationFailsGracefully:
     def test_handler_exception_captured_without_propagating(self):
         events = [_action_failed_event()]
@@ -96,9 +94,7 @@ class TestCompensationFailsGracefully:
         def boom(plan, evts):
             raise RuntimeError("disk full")
 
-        report = execute_compensation(
-            events, handlers={"retry_failed_actions": boom}
-        )
+        report = execute_compensation(events, handlers={"retry_failed_actions": boom})
 
         assert report.success is False
         assert "retry_failed_actions" in report.failed_actions
@@ -110,6 +106,7 @@ class TestCompensationFailsGracefully:
 # 4. Orchestrator sequences compensations in reverse-plan order
 # ---------------------------------------------------------------------------
 
+
 class TestOrchestratorSequencing:
     def test_actions_execute_in_plan_order(self):
         """Verify actions are invoked in the order they appear in the plan."""
@@ -119,6 +116,7 @@ class TestOrchestratorSequencing:
         def make_handler(name: str):
             def handler(p, e):
                 call_order.append(name)
+
             return handler
 
         handlers = {
@@ -156,6 +154,7 @@ class TestOrchestratorSequencing:
 # 5. Partial compensation (some succeed, some fail)
 # ---------------------------------------------------------------------------
 
+
 class TestPartialCompensation:
     def test_mixed_success_and_failure(self):
         events = [_action_failed_event(), _stage_failed_event()]
@@ -177,9 +176,7 @@ class TestPartialCompensation:
     def test_orchestrator_should_escalate_on_partial_failure(self):
         events = [_action_failed_event()]
         handlers = {
-            "retry_failed_actions": lambda p, e: (_ for _ in ()).throw(
-                RuntimeError("fail")
-            ),
+            "retry_failed_actions": lambda p, e: (_ for _ in ()).throw(RuntimeError("fail")),
             "replan_from_failed_stages": lambda p, e: "ok",
         }
 
@@ -191,6 +188,7 @@ class TestPartialCompensation:
 # ---------------------------------------------------------------------------
 # 6. No compensation registered -> skip gracefully
 # ---------------------------------------------------------------------------
+
 
 class TestNoCompensationRegistered:
     def test_no_handlers_all_skipped(self):
@@ -216,6 +214,7 @@ class TestNoCompensationRegistered:
 # ---------------------------------------------------------------------------
 # 7. Concurrent compensation safety
 # ---------------------------------------------------------------------------
+
 
 class TestConcurrentCompensationSafety:
     def test_concurrent_execute_compensation_calls(self):
@@ -258,6 +257,7 @@ class TestConcurrentCompensationSafety:
 # 8. build_compensation_plan edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestBuildCompensationPlan:
     def test_action_failure_only(self):
         plan = build_compensation_plan([_action_failed_event("s1")])
@@ -272,9 +272,11 @@ class TestBuildCompensationPlan:
         assert plan.failed_stages == ["s2"]
 
     def test_deduplicates_failed_stages(self):
-        plan = build_compensation_plan([
-            _action_failed_event("s1"),
-            _action_failed_event("s1"),
-            _stage_failed_event("s1"),
-        ])
+        plan = build_compensation_plan(
+            [
+                _action_failed_event("s1"),
+                _action_failed_event("s1"),
+                _stage_failed_event("s1"),
+            ]
+        )
         assert plan.failed_stages == ["s1"]

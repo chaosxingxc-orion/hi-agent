@@ -1,4 +1,5 @@
 """Tests for G-10 experiment artifact provenance."""
+
 import hashlib
 import json
 from unittest.mock import MagicMock
@@ -10,6 +11,7 @@ class TestArtifactHashing:
     def test_hash_artifact_sha256(self, tmp_path):
         """_hash_artifact must return correct SHA-256 hex digest."""
         from hi_agent.experiment.provenance import hash_artifact
+
         f = tmp_path / "results.json"
         content = b'{"accuracy": 0.92, "loss": 0.08}'
         f.write_bytes(content)
@@ -19,6 +21,7 @@ class TestArtifactHashing:
     def test_hash_artifact_deterministic(self, tmp_path):
         """Same content always produces same hash."""
         from hi_agent.experiment.provenance import hash_artifact
+
         f = tmp_path / "data.bin"
         f.write_bytes(b"hello world" * 1000)
         h1 = hash_artifact(f)
@@ -28,6 +31,7 @@ class TestArtifactHashing:
     def test_hash_artifact_different_content_different_hash(self, tmp_path):
         """Different content produces different hash."""
         from hi_agent.experiment.provenance import hash_artifact
+
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
         f1.write_bytes(b"content A")
@@ -37,6 +41,7 @@ class TestArtifactHashing:
     def test_hash_artifact_large_file(self, tmp_path):
         """Must handle files larger than a single read chunk."""
         from hi_agent.experiment.provenance import hash_artifact
+
         f = tmp_path / "large.bin"
         data = b"x" * (200 * 1024)  # 200 KB > 65536 chunk size
         f.write_bytes(data)
@@ -48,6 +53,7 @@ class TestArtifactRecord:
     def test_artifact_record_from_path(self, tmp_path):
         """ArtifactRecord.from_path computes all fields."""
         from hi_agent.experiment.provenance import ArtifactRecord
+
         f = tmp_path / "metrics.json"
         f.write_text('{"loss": 0.1}', encoding="utf-8")
         record = ArtifactRecord.from_path(f)
@@ -61,6 +67,7 @@ class TestArtifactRecord:
         import dataclasses
 
         from hi_agent.experiment.provenance import ArtifactRecord
+
         f = tmp_path / "out.txt"
         f.write_text("done")
         record = ArtifactRecord.from_path(f)
@@ -94,7 +101,8 @@ class TestPollerArtifactIndexing:
 
         events = []
         poller = OpPoller(
-            coordinator=coord, store=store,
+            coordinator=coord,
+            store=store,
             poll_interval=0.01,
             on_event=lambda e: events.append(e),
         )
@@ -127,7 +135,9 @@ class TestPollerArtifactIndexing:
 
         events = []
         poller = OpPoller(
-            coordinator=coord, store=store, poll_interval=0.01,
+            coordinator=coord,
+            store=store,
+            poll_interval=0.01,
             on_event=lambda e: events.append(e),
         )
         await poller.poll_once()  # must not raise
@@ -144,6 +154,7 @@ class TestExecutionProvenanceExtension:
         except ImportError:
             pytest.skip("ExecutionProvenance not found")
         import dataclasses
+
         fields = {f.name for f in dataclasses.fields(ExecutionProvenance)}
         assert "experiment_artifacts" in fields, (
             "ExecutionProvenance must have experiment_artifacts: list[dict] field"

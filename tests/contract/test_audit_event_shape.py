@@ -1,4 +1,5 @@
 """Contract tests for ToolCallAuditEvent shape and GovernedToolExecutor audit writes (P1-2d)."""
+
 from __future__ import annotations
 
 import contextlib
@@ -149,7 +150,8 @@ def test_governed_executor_writes_audit_on_allow():
     assert audit_store.record_tool_call.call_count >= 1
     # At least one call must be decision=allow
     allow_calls = [
-        c for c in audit_store.record_tool_call.call_args_list
+        c
+        for c in audit_store.record_tool_call.call_args_list
         if c.kwargs.get("decision") == "allow"
     ]
     assert allow_calls, "Expected at least one 'allow' audit call"
@@ -203,7 +205,8 @@ def test_governed_executor_writes_result_status_ok():
     executor.invoke(name, {}, principal="user-1", session_id="sess-r", source="runner")
 
     ok_calls = [
-        c for c in audit_store.record_tool_call.call_args_list
+        c
+        for c in audit_store.record_tool_call.call_args_list
         if c.kwargs.get("result_status") == "ok"
     ]
     assert ok_calls, "Expected a post-execution audit call with result_status='ok'"
@@ -229,7 +232,8 @@ def test_governed_executor_writes_result_status_error():
         executor.invoke(name, {}, principal="user-1", session_id="sess-e", source="runner")
 
     error_calls = [
-        c for c in audit_store.record_tool_call.call_args_list
+        c
+        for c in audit_store.record_tool_call.call_args_list
         if c.kwargs.get("result_status") == "error"
     ]
     assert error_calls, "Expected a post-execution audit call with result_status='error'"
@@ -267,7 +271,8 @@ def test_argument_digest_redacts_sensitive_fields():
     ).hexdigest()[:16]
 
     allow_calls = [
-        c for c in audit_store.record_tool_call.call_args_list
+        c
+        for c in audit_store.record_tool_call.call_args_list
         if c.kwargs.get("decision") == "allow"
     ]
     assert allow_calls

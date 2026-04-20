@@ -43,6 +43,7 @@ class WebhookNotificationBackend:
         import json as _json
         import logging
         import urllib.request
+
         _logger = logging.getLogger(__name__)
         try:
             data = _json.dumps(payload).encode()
@@ -65,6 +66,7 @@ class WebhookNotificationBackend:
 def build_notification_backend(url: str | None = None) -> NotificationBackend:
     """Build notification backend from URL or WEBHOOK_URL env var."""
     import os
+
     resolved = url or os.environ.get("WEBHOOK_URL", "")
     if resolved:
         return WebhookNotificationBackend(resolved)

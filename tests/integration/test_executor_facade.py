@@ -128,9 +128,7 @@ class TestCheckReadiness:
         from hi_agent import check_readiness
 
         report = check_readiness()
-        assert report.health in ("ok", "degraded"), (
-            f"Unexpected health value: {report.health!r}"
-        )
+        assert report.health in ("ok", "degraded"), f"Unexpected health value: {report.health!r}"
 
 
 # ---------------------------------------------------------------------------

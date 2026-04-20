@@ -65,6 +65,7 @@ async def test_pre_tool_hook_fires_inside_running_loop() -> None:
     # The executor registers TRACE capabilities (analyze_goal, search_evidence,
     # build_draft, synthesize, evaluate_acceptance) during __init__.
     from unittest.mock import MagicMock
+
     proposal = MagicMock()
     proposal.action_kind = "analyze_goal"
     proposal.branch_id = "branch-0"

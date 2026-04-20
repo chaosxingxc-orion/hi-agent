@@ -102,9 +102,7 @@ class EpisodicMemoryStore:
                 break
         return results
 
-    def get_similar_failures(
-        self, failure_codes: list[str], limit: int = 5
-    ) -> list[EpisodeRecord]:
+    def get_similar_failures(self, failure_codes: list[str], limit: int = 5) -> list[EpisodeRecord]:
         """Find past episodes with overlapping failure codes."""
         if not failure_codes:
             return []
@@ -121,9 +119,7 @@ class EpisodicMemoryStore:
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return [ep for _, ep in scored[:limit]]
 
-    def get_successful_patterns(
-        self, task_family: str, limit: int = 5
-    ) -> list[EpisodeRecord]:
+    def get_successful_patterns(self, task_family: str, limit: int = 5) -> list[EpisodeRecord]:
         """Find successful episodes in same task family."""
         return self.query(task_family=task_family, outcome="completed", limit=limit)
 

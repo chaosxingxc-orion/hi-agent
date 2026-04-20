@@ -97,4 +97,3 @@ def test_hybrid_route_falls_back_to_llm_when_rule_unknown() -> None:
     assert result.confidence == pytest.approx(0.76)
     assert result.proposals[0].action_kind == "evaluate_acceptance"
     assert result.proposals[0].rationale.startswith("llm(conf=0.76)")
-

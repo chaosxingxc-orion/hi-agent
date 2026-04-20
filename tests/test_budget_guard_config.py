@@ -15,6 +15,7 @@ def test_budget_guard_from_config_thresholds():
     decision = guard.decide_tier("strong")
     assert decision.tier == "medium"
 
+
 def test_budget_guard_default_thresholds_match_config_defaults():
     cfg = TraceConfig()
     guard = BudgetGuard.from_config(cfg, total_budget_tokens=1000)

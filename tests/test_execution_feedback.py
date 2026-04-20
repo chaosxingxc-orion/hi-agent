@@ -1,4 +1,5 @@
 """Tests for P-4 StageDirective / replan_hook and P-7 FeedbackStore."""
+
 from __future__ import annotations
 
 from pathlib import Path

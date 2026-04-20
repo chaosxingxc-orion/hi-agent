@@ -1,4 +1,5 @@
 """Tests for CapabilityDescriptor risk metadata on builtin tools."""
+
 from __future__ import annotations
 
 import pytest
@@ -26,6 +27,7 @@ def test_builtin_shell_exec_descriptor(monkeypatch) -> None:
     monkeypatch.setenv("HI_AGENT_ENABLE_SHELL_EXEC", "true")
     from hi_agent.capability.registry import CapabilityRegistry
     from hi_agent.capability.tools.builtin import register_builtin_tools
+
     reg = CapabilityRegistry()
     register_builtin_tools(reg)
     desc = reg.get_descriptor("shell_exec")

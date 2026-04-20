@@ -13,4 +13,3 @@ class StageState(StrEnum):
     BLOCKED = "blocked"
     COMPLETED = "completed"
     FAILED = "failed"
-

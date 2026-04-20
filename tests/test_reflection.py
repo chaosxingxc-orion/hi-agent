@@ -21,6 +21,7 @@ from hi_agent.task_mgmt.restart_policy import TaskAttempt, TaskRestartPolicy
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_descriptor(task_id: str = "t1", goal: str = "do the thing") -> TaskDescriptor:
     return TaskDescriptor(
         task_id=task_id,
@@ -57,6 +58,7 @@ def _get_task_attempt_record_alias() -> type[TaskAttempt]:
 # ---------------------------------------------------------------------------
 # ReflectionBridge tests
 # ---------------------------------------------------------------------------
+
 
 def test_reflection_bridge_build_context():
     """build_context produces a valid ReflectionContext from descriptor + attempts."""
@@ -129,6 +131,7 @@ def test_reflection_bridge_empty_attempts():
 # ---------------------------------------------------------------------------
 # ReflectionOrchestrator tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_reflection_orchestrator_reflect_and_infer():

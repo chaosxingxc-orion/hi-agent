@@ -25,4 +25,3 @@ def detect_dead_end(stage_id: str, dag: dict[str, TrajectoryNode]) -> bool:
     all_terminal = all(node.state in terminal_states for node in stage_nodes)
     any_succeeded = any(node.state == NodeState.SUCCEEDED for node in stage_nodes)
     return all_terminal and not any_succeeded
-

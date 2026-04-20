@@ -88,9 +88,14 @@ class StageOrchestrator:
                 if ctx.replan_hook is not None:
                     try:
                         from hi_agent.contracts.directives import StageDirective
+
                         _stage_result_dict = stage_result if isinstance(stage_result, dict) else {}
                         directive = ctx.replan_hook(stage_id, _stage_result_dict)
-                        if directive is not None and isinstance(directive, StageDirective) and directive.action != "continue":
+                        if (
+                            directive is not None
+                            and isinstance(directive, StageDirective)
+                            and directive.action != "continue"
+                        ):
                             _logger.info(
                                 "replan_hook directive: %s (reason=%s)",
                                 directive.action,
@@ -98,8 +103,7 @@ class StageOrchestrator:
                             )
                             if directive.action == "skip" and directive.target_stage_id:
                                 remaining_stages = [
-                                    s for s in remaining_stages
-                                    if s != directive.target_stage_id
+                                    s for s in remaining_stages if s != directive.target_stage_id
                                 ]
                             elif directive.action == "repeat":
                                 remaining_stages.insert(0, stage_id)
@@ -161,9 +165,7 @@ class StageOrchestrator:
         completed_stages: set[str] = set()
         if ctx.session is not None:
             completed_stages = {
-                sid
-                for sid, state in ctx.session.stage_states.items()
-                if state == "completed"
+                sid for sid, state in ctx.session.stage_states.items() if state == "completed"
             }
         else:
             completed_stages = {
@@ -172,11 +174,14 @@ class StageOrchestrator:
                 if getattr(summary, "outcome", None) in ("completed", "success")
             }
 
-        ctx.emit_observability_fn("run_resumed", {
-            "run_id": ctx.run_id,
-            "completed_stages": sorted(completed_stages),
-            "resuming_from": getattr(ctx.session, "current_stage", None),
-        })
+        ctx.emit_observability_fn(
+            "run_resumed",
+            {
+                "run_id": ctx.run_id,
+                "completed_stages": sorted(completed_stages),
+                "resuming_from": getattr(ctx.session, "current_stage", None),
+            },
+        )
 
         all_completed = True
 
@@ -184,9 +189,13 @@ class StageOrchestrator:
             nonlocal all_completed
             for stage_id in ctx.stage_graph.trace_order():
                 if stage_id in completed_stages:
-                    ctx.emit_observability_fn("stage_skipped_resume", {
-                        "run_id": ctx.run_id, "stage_id": stage_id,
-                    })
+                    ctx.emit_observability_fn(
+                        "stage_skipped_resume",
+                        {
+                            "run_id": ctx.run_id,
+                            "stage_id": stage_id,
+                        },
+                    )
                     continue
                 all_completed = False
                 stage_result = self._execute_stage_with_events(stage_id)
@@ -215,10 +224,13 @@ class StageOrchestrator:
             ctx.record_event_fn("stage_start", {"stage_name": stage_id})
         result = ctx.execute_stage_fn(stage_id)
         with contextlib.suppress(Exception):
-            ctx.record_event_fn("stage_complete", {
-                "stage_name": stage_id,
-                "status": "failed" if result == "failed" else "success",
-            })
+            ctx.record_event_fn(
+                "stage_complete",
+                {
+                    "stage_name": stage_id,
+                    "status": "failed" if result == "failed" else "success",
+                },
+            )
         return result
 
     def _start_run_preamble(self) -> None:

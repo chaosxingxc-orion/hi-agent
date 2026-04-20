@@ -27,9 +27,7 @@ class TestStageSummaryArtifactIds:
     def test_stage_summary_has_artifact_ids_field(self) -> None:
         """StageSummary dataclass must declare artifact_ids."""
         field_names = {f.name for f in fields(StageSummary)}
-        assert "artifact_ids" in field_names, (
-            "StageSummary must have an artifact_ids field"
-        )
+        assert "artifact_ids" in field_names, "StageSummary must have an artifact_ids field"
 
     def test_stage_summary_artifact_ids_defaults_to_empty_list(self) -> None:
         """Default value for artifact_ids must be an empty list."""
@@ -51,9 +49,7 @@ class TestStageSummaryArtifactIds:
         s1 = StageSummary(stage_id="S1", stage_name="A")
         s2 = StageSummary(stage_id="S2", stage_name="B")
         s1.artifact_ids.append("id-1")
-        assert s2.artifact_ids == [], (
-            "artifact_ids must not be a shared default mutable"
-        )
+        assert s2.artifact_ids == [], "artifact_ids must not be a shared default mutable"
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +91,7 @@ class TestInvokeViaHarnessArtifactIds:
 
         # Build a minimal proposal and payload
         from hi_agent.route_engine.rule_engine import BranchProposal
+
         proposal = BranchProposal(
             branch_id="branch-abc",
             rationale="test",
@@ -142,6 +139,7 @@ class TestInvokeViaHarnessArtifactIds:
         executor.run_id = "run-0001"
 
         from hi_agent.route_engine.rule_engine import BranchProposal
+
         proposal = BranchProposal(
             branch_id="branch-xyz",
             rationale="test",

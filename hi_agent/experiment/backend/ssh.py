@@ -4,6 +4,7 @@ Full implementation requires paramiko or fabric. This stub satisfies the
 ExperimentBackend protocol interface and raises NotImplementedError when called.
 Wire up paramiko in a follow-on sprint when remote experiment execution is needed.
 """
+
 from __future__ import annotations
 
 import logging
@@ -19,8 +20,15 @@ class SSHBackend:
     until implemented.
     """
 
-    def __init__(self, host: str, user: str, work_dir: str, port: int = 22,
-                 key_path: str = "", password: str = ""):
+    def __init__(
+        self,
+        host: str,
+        user: str,
+        work_dir: str,
+        port: int = 22,
+        key_path: str = "",
+        password: str = "",
+    ):
         self._host = host
         self._user = user
         self._work_dir = work_dir

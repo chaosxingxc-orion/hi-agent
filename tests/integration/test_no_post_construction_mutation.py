@@ -1,10 +1,11 @@
-"""Integration test: builder.py must not mutate RunExecutor sub-components after construction (HI-W10-002).
+"""Integration test for post-construction RunExecutor component immutability.
 
 Verifies that the 3 previously-mutated sub-component attributes
 (_middleware_orchestrator, skill_evolver, _skill_evolve_interval, tracer)
 are wired at construction time via constructor params instead of
 post-construction setattr on private attributes.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -14,6 +15,7 @@ def _make_contract(goal: str = "test") -> MagicMock:
     import uuid
 
     from hi_agent.contracts import TaskContract
+
     return TaskContract(task_id=uuid.uuid4().hex, goal=goal)
 
 
@@ -26,6 +28,7 @@ class TestNoPostConstructionMutation:
 
         # Patch _build_middleware_orchestrator to return our sentinel
         from hi_agent.config.builder import SystemBuilder
+
         builder = SystemBuilder()
 
         with patch.object(
@@ -51,6 +54,7 @@ class TestNoPostConstructionMutation:
         sentinel_evolver = MagicMock(name="SkillEvolver")
 
         from hi_agent.config.builder import SystemBuilder
+
         builder = SystemBuilder()
 
         with patch.object(builder, "build_skill_evolver", return_value=sentinel_evolver):
@@ -59,14 +63,14 @@ class TestNoPostConstructionMutation:
 
             lifecycle = executor._lifecycle
             assert lifecycle.skill_evolver is sentinel_evolver, (
-                "Expected skill_evolver to be set via constructor, "
-                "not post-construction mutation"
+                "Expected skill_evolver to be set via constructor, not post-construction mutation"
             )
 
     def test_run_lifecycle_skill_evolve_interval_at_construction(self):
         """RunLifecycle._skill_evolve_interval is set via constructor."""
         from hi_agent.config.builder import SystemBuilder
         from hi_agent.config.trace_config import TraceConfig
+
         cfg = TraceConfig()
         cfg.skill_evolve_interval = 7  # custom interval
 
@@ -106,7 +110,10 @@ class TestNoPostConstructionMutation:
         mutations remain for the 3 known injection targets.
         """
         import pathlib
-        builder_path = pathlib.Path(__file__).parent.parent.parent / "hi_agent" / "config" / "builder.py"
+
+        builder_path = (
+            pathlib.Path(__file__).parent.parent.parent / "hi_agent" / "config" / "builder.py"
+        )
         source = builder_path.read_text(encoding="utf-8")
 
         # None of the 3 post-construction mutation patterns should appear
@@ -115,12 +122,10 @@ class TestNoPostConstructionMutation:
             "still present in builder.py"
         )
         assert "executor._lifecycle.skill_evolver" not in source, (
-            "Post-construction mutation of _lifecycle.skill_evolver "
-            "still present in builder.py"
+            "Post-construction mutation of _lifecycle.skill_evolver still present in builder.py"
         )
         assert "executor._telemetry.tracer" not in source, (
-            "Post-construction mutation of _telemetry.tracer "
-            "still present in builder.py"
+            "Post-construction mutation of _telemetry.tracer still present in builder.py"
         )
 
     def test_cognition_builder_provides_llm_gateway(self):

@@ -162,6 +162,7 @@ def mcp_server_command(mcp_server_script: Path) -> str:
 # Helper: verify subprocess is actually reachable before using it in tests
 # ---------------------------------------------------------------------------
 
+
 def _subprocess_reachable(command: str, timeout: float = 5.0) -> bool:
     """Return True if the MCP server subprocess responds to an initialize ping."""
     transport = StdioMCPTransport(command=command, timeout=timeout)
@@ -176,6 +177,7 @@ def _subprocess_reachable(command: str, timeout: float = 5.0) -> bool:
 # ---------------------------------------------------------------------------
 # MI-01: StdioMCPTransport can ping the real subprocess
 # ---------------------------------------------------------------------------
+
 
 def test_mi01_real_subprocess_ping(mcp_server_command: str) -> None:
     """StdioMCPTransport.ping() must return True for a real MCP server.
@@ -197,6 +199,7 @@ def test_mi01_real_subprocess_ping(mcp_server_command: str) -> None:
 # ---------------------------------------------------------------------------
 # MI-02: Health check promotes server from registered → healthy
 # ---------------------------------------------------------------------------
+
 
 def test_mi02_health_check_promotes_to_healthy(mcp_server_command: str) -> None:
     """MCPHealth.check_all() must mark a reachable server as 'healthy'.
@@ -227,6 +230,7 @@ def test_mi02_health_check_promotes_to_healthy(mcp_server_command: str) -> None:
 # ---------------------------------------------------------------------------
 # MI-03: MCPBinding registers tools from healthy server into CapabilityRegistry
 # ---------------------------------------------------------------------------
+
 
 def test_mi03_binding_registers_tools_after_health_check(mcp_server_command: str) -> None:
     """bind_all() must register echo_tool into CapabilityRegistry after health check.
@@ -263,6 +267,7 @@ def test_mi03_binding_registers_tools_after_health_check(mcp_server_command: str
 # MI-04: Bound capability can be invoked end-to-end
 # ---------------------------------------------------------------------------
 
+
 def test_mi04_bound_capability_invocable(mcp_server_command: str) -> None:
     """A bound MCP tool must be invocable through CapabilityInvoker.
 
@@ -288,7 +293,9 @@ def test_mi04_bound_capability_invocable(mcp_server_command: str) -> None:
     binding = MCPBinding(registry=cap_registry, mcp_registry=mcp_registry, transport=transport)
     binding.bind_all()
 
-    invoker = CapabilityInvoker(registry=cap_registry, breaker=CircuitBreaker(), allow_unguarded=True)
+    invoker = CapabilityInvoker(
+        registry=cap_registry, breaker=CircuitBreaker(), allow_unguarded=True
+    )
     try:
         result = invoker.invoke("mcp.test_srv.echo_tool", {"message": "hello integration"})
     finally:
@@ -309,6 +316,7 @@ def test_mi04_bound_capability_invocable(mcp_server_command: str) -> None:
 # ---------------------------------------------------------------------------
 # MI-05: /mcp/status reports wired + external_provider when server is healthy
 # ---------------------------------------------------------------------------
+
 
 def test_mi05_mcp_status_reports_wired(mcp_server_command: str) -> None:
     """/mcp/status must report transport_status=wired + capability_mode=external_provider.
@@ -368,6 +376,7 @@ def test_mi05_mcp_status_reports_wired(mcp_server_command: str) -> None:
 # MI-06: Unreachable server does NOT leak into transport_status=wired
 # ---------------------------------------------------------------------------
 
+
 def test_mi06_unreachable_server_not_reported_wired(mcp_server_command: str) -> None:
     """An unreachable MCP server must result in transport_status=registered_but_unreachable.
 
@@ -416,6 +425,7 @@ def test_mi06_unreachable_server_not_reported_wired(mcp_server_command: str) -> 
 #         → /mcp/tools/list shows external tool
 # ---------------------------------------------------------------------------
 
+
 def test_mi07_plugin_manifest_wires_mcp_to_tools_list(
     mcp_server_script: Path,
     tmp_path: Path,
@@ -458,9 +468,7 @@ def test_mi07_plugin_manifest_wires_mcp_to_tools_list(
             }
         ],
     }
-    (plugin_subdir / "plugin.json").write_text(
-        _json.dumps(manifest_data), encoding="utf-8"
-    )
+    (plugin_subdir / "plugin.json").write_text(_json.dumps(manifest_data), encoding="utf-8")
 
     # Load via PluginLoader with the temp parent dir — exactly what happens
     # at startup when a real plugin is installed under .hi_agent/plugins/.
@@ -494,20 +502,18 @@ def test_mi07_plugin_manifest_wires_mcp_to_tools_list(
         if transport is not None:
             transport.close_all()
 
-    assert resp.status_code == 200, (
-        f"POST /mcp/tools/list returned {resp.status_code}: {resp.text}"
-    )
+    assert resp.status_code == 200, f"POST /mcp/tools/list returned {resp.status_code}: {resp.text}"
     tools = resp.json().get("tools", [])
     tool_names = [t["name"] for t in tools]
     assert any("echo_tool" in name for name in tool_names), (
-        f"echo_tool must appear in /mcp/tools/list after plugin manifest wiring. "
-        f"Got: {tool_names}"
+        f"echo_tool must appear in /mcp/tools/list after plugin manifest wiring. Got: {tool_names}"
     )
 
 
 # ---------------------------------------------------------------------------
 # MI-08: HTTP POST /mcp/tools/call reaches external MCP tool end-to-end
 # ---------------------------------------------------------------------------
+
 
 def test_mi08_http_tools_call_reaches_external_mcp_tool(
     mcp_server_script: Path,
@@ -553,9 +559,7 @@ def test_mi08_http_tools_call_reaches_external_mcp_tool(
             }
         ],
     }
-    (plugin_subdir / "plugin.json").write_text(
-        _json.dumps(manifest_data), encoding="utf-8"
-    )
+    (plugin_subdir / "plugin.json").write_text(_json.dumps(manifest_data), encoding="utf-8")
 
     loader = PluginLoader(plugin_dirs=[str(tmp_path)])
     loader.load_all()
@@ -564,7 +568,7 @@ def test_mi08_http_tools_call_reaches_external_mcp_tool(
     server = AgentServer()
     server._builder._plugin_loader = loader
     server._builder._mcp_registry = None
-    server._builder.build_mcp_registry()   # must be non-None before _wire runs
+    server._builder.build_mcp_registry()  # must be non-None before _wire runs
     server._builder._mcp_transport = None
 
     transport = None
@@ -582,13 +586,9 @@ def test_mi08_http_tools_call_reaches_external_mcp_tool(
         if transport is not None:
             transport.close_all()
 
-    assert resp.status_code == 200, (
-        f"POST /mcp/tools/call returned {resp.status_code}: {resp.text}"
-    )
+    assert resp.status_code == 200, f"POST /mcp/tools/call returned {resp.status_code}: {resp.text}"
     body = resp.json()
-    assert not body.get("isError", False), (
-        f"Tool call returned isError=True: {body}"
-    )
+    assert not body.get("isError", False), f"Tool call returned isError=True: {body}"
     content = body.get("content", [])
     assert isinstance(content, list) and len(content) > 0, (
         f"Response must have non-empty content list, got: {body}"

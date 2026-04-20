@@ -40,9 +40,7 @@ class SkillValidator:
         self._min_certified_evidence = min_certified_evidence
         self._min_certified_success_rate = min_certified_success_rate
 
-    def can_promote(
-        self, skill: ManagedSkill, to_stage: str
-    ) -> tuple[bool, str]:
+    def can_promote(self, skill: ManagedSkill, to_stage: str) -> tuple[bool, str]:
         """Check if promotion is valid.
 
         Args:
@@ -81,8 +79,7 @@ class SkillValidator:
             rate = skill.success_count / total
             if rate < self._min_certified_success_rate:
                 return False, (
-                    f"Success rate {rate:.2f} is below minimum "
-                    f"{self._min_certified_success_rate}"
+                    f"Success rate {rate:.2f} is below minimum {self._min_certified_success_rate}"
                 )
 
         return True, "Promotion allowed"

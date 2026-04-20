@@ -32,9 +32,13 @@ from tests.helpers.kernel_adapter_fixture import MockKernel
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_server(*, accept_criteria: list[str] | None = None,
-                 constraints: list[str] | None = None,
-                 deadline: str | None = None) -> AgentServer:
+
+def _make_server(
+    *,
+    accept_criteria: list[str] | None = None,
+    constraints: list[str] | None = None,
+    deadline: str | None = None,
+) -> AgentServer:
     """Create a server whose executor factory builds from MockKernel."""
 
     def factory(run_data: dict[str, Any]) -> Callable[[], Any]:
@@ -74,9 +78,12 @@ def _wait_terminal(
     raise TimeoutError(f"Run {run_id!r} did not finish within {timeout:.1f}s")
 
 
-def _direct_execute(*, constraints: list[str] | None = None,
-                    acceptance_criteria: list[str] | None = None,
-                    deadline: str | None = None) -> RunResult:
+def _direct_execute(
+    *,
+    constraints: list[str] | None = None,
+    acceptance_criteria: list[str] | None = None,
+    deadline: str | None = None,
+) -> RunResult:
     """Execute a run directly (CLI-path equivalent) and return RunResult."""
     contract = TaskContract(
         task_id=uuid.uuid4().hex[:12],
@@ -92,14 +99,13 @@ def _direct_execute(*, constraints: list[str] | None = None,
 # acceptance_criteria — ACTIVE
 # ---------------------------------------------------------------------------
 
+
 class TestAcceptanceCriteriaConsumption:
     """acceptance_criteria with supported patterns must affect the final outcome."""
 
     def test_required_stage_nonexistent_causes_failure(self) -> None:
         """required_stage:<nonexistent> must downgrade completed to failed."""
-        result = _direct_execute(
-            acceptance_criteria=["required_stage:STAGE_DOES_NOT_EXIST_XYZ"]
-        )
+        result = _direct_execute(acceptance_criteria=["required_stage:STAGE_DOES_NOT_EXIST_XYZ"])
         assert result.status == "failed", (
             f"Expected failed when required stage is absent, got {result.status!r}"
         )
@@ -135,10 +141,13 @@ class TestAcceptanceCriteriaConsumption:
         server.executor_factory = factory
         client = TestClient(server.app, raise_server_exceptions=False)
 
-        resp = client.post("/runs", json={
-            "goal": "test",
-            "acceptance_criteria": ["required_stage:NONEXISTENT"],
-        })
+        resp = client.post(
+            "/runs",
+            json={
+                "goal": "test",
+                "acceptance_criteria": ["required_stage:NONEXISTENT"],
+            },
+        )
         assert resp.status_code == 201
         run_id = resp.json()["run_id"]
         final = _wait_terminal(client, run_id)
@@ -156,6 +165,7 @@ class TestAcceptanceCriteriaConsumption:
 # constraints — ACTIVE (built-in prefixes)
 # ---------------------------------------------------------------------------
 
+
 class TestConstraintsConsumption:
     """Built-in constraint prefixes must be parsed and affect execution."""
 
@@ -168,9 +178,7 @@ class TestConstraintsConsumption:
         assert result.status == "failed", (
             f"Expected failed with fail_action constraint, got {result.status!r}"
         )
-        assert result.failed_stage_id is not None, (
-            "Failed run must report failed_stage_id"
-        )
+        assert result.failed_stage_id is not None, "Failed run must report failed_stage_id"
 
     def test_action_max_retries_constraint_is_parsed(self) -> None:
         """action_max_retries:<n> constraint must be accepted without error."""
@@ -189,6 +197,7 @@ class TestConstraintsConsumption:
 # ---------------------------------------------------------------------------
 # deadline — ACTIVE
 # ---------------------------------------------------------------------------
+
 
 class TestDeadlineConsumption:
     """deadline must be checked and cause failure when already past."""
@@ -211,6 +220,7 @@ class TestDeadlineConsumption:
 # ---------------------------------------------------------------------------
 # PASSTHROUGH fields — document that they are stored but not consumed
 # ---------------------------------------------------------------------------
+
 
 class TestPassthroughFieldsDocumented:
     """PASSTHROUGH fields must be stored/returned but must not crash execution.
@@ -240,10 +250,13 @@ class TestPassthroughFieldsDocumented:
         server.executor_factory = factory
         client = TestClient(server.app, raise_server_exceptions=False)
 
-        resp = client.post("/runs", json={
-            "goal": "test",
-            "environment_scope": ["staging", "sandbox"],
-        })
+        resp = client.post(
+            "/runs",
+            json={
+                "goal": "test",
+                "environment_scope": ["staging", "sandbox"],
+            },
+        )
         assert resp.status_code == 201
         run_id = resp.json()["run_id"]
         final = _wait_terminal(client, run_id)
@@ -275,10 +288,13 @@ class TestPassthroughFieldsDocumented:
         server.executor_factory = factory
         client = TestClient(server.app, raise_server_exceptions=False)
 
-        resp = client.post("/runs", json={
-            "goal": "test",
-            "input_refs": ["artifact://abc", "s3://bucket/key"],
-        })
+        resp = client.post(
+            "/runs",
+            json={
+                "goal": "test",
+                "input_refs": ["artifact://abc", "s3://bucket/key"],
+            },
+        )
         assert resp.status_code == 201
         run_id = resp.json()["run_id"]
         _wait_terminal(client, run_id)

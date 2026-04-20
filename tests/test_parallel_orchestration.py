@@ -29,6 +29,7 @@ class TestParallelDispatcher:
     def test_failure_captured_as_exception(self) -> None:
         dispatcher = ParallelDispatcher(max_workers=2)
         try:
+
             def fail():
                 raise ValueError("task error")
 

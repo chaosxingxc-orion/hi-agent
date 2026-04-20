@@ -1,4 +1,5 @@
 """Tests for hi_agent.middleware.hooks — fine-grained execution hook system."""
+
 from __future__ import annotations
 
 import logging

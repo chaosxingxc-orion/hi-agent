@@ -49,9 +49,7 @@ def _check_contradiction(
     for idx, old in enumerate(existing):
         old_text = _payload_text(old)
         for pos, neg in _NEGATION_PAIRS:
-            if (pos in new_text and neg in old_text) or (
-                neg in new_text and pos in old_text
-            ):
+            if (pos in new_text and neg in old_text) or (neg in new_text and pos in old_text):
                 tags.append(f"contradiction:{idx}")
                 break
     return tags
@@ -108,11 +106,7 @@ class RawMemoryStore:
         if self._run_id and self._file is None:
             raise ValueError("RawMemoryStore is closed")
         if stage_id is not None:
-            same_stage = [
-                r
-                for r in self.records
-                if r.payload.get("stage_id") == stage_id
-            ]
+            same_stage = [r for r in self.records if r.payload.get("stage_id") == stage_id]
             contradiction_tags = _check_contradiction(record, same_stage)
             record.tags.extend(contradiction_tags)
         self.records.append(record)

@@ -111,59 +111,60 @@ class AnthropicLLMGateway:
         input_tokens: int = 0
 
         try:
-            with httpx.Client(timeout=timeout) as client, client.stream(
-                "POST", url, json=payload, headers=headers
-            ) as resp:
-                    if resp.status_code >= 400:
-                        body = resp.read().decode(errors="replace")
-                        raise LLMProviderError(
-                            f"HTTP {resp.status_code}: {body}",
-                            status_code=resp.status_code,
+            with (
+                httpx.Client(timeout=timeout) as client,
+                client.stream("POST", url, json=payload, headers=headers) as resp,
+            ):
+                if resp.status_code >= 400:
+                    body = resp.read().decode(errors="replace")
+                    raise LLMProviderError(
+                        f"HTTP {resp.status_code}: {body}",
+                        status_code=resp.status_code,
+                    )
+                for line in resp.iter_lines():
+                    # SSE format: "data: {...}" (RFC) or "data:{...}" (some proxies)
+                    if not line.startswith("data:"):
+                        continue
+                    data_str = line[5:].lstrip(" ")
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        event = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
+
+                    event_type = event.get("type", "")
+
+                    if event_type == "message_start":
+                        usage_raw = event.get("message", {}).get("usage", {})
+                        input_tokens = usage_raw.get("input_tokens", 0)
+                        model_id = event.get("message", {}).get("model", model)
+                        yield LLMStreamChunk(model=model_id)
+
+                    elif event_type == "content_block_delta":
+                        delta = event.get("delta", {})
+                        delta_type = delta.get("type", "")
+                        if delta_type == "text_delta":
+                            text = delta.get("text", "")
+                            if text:
+                                yield LLMStreamChunk(delta=text)
+                        elif delta_type == "thinking_delta":
+                            thinking = delta.get("thinking", "")
+                            if thinking:
+                                yield LLMStreamChunk(thinking_delta=thinking)
+
+                    elif event_type == "message_delta":
+                        delta = event.get("delta", {})
+                        usage_raw = event.get("usage", {})
+                        output_tokens = usage_raw.get("output_tokens", 0)
+                        yield LLMStreamChunk(
+                            finish_reason=delta.get("stop_reason") or "stop",
+                            usage=TokenUsage(
+                                prompt_tokens=input_tokens,
+                                completion_tokens=output_tokens,
+                                total_tokens=input_tokens + output_tokens,
+                            ),
                         )
-                    for line in resp.iter_lines():
-                        # SSE format: "data: {...}" (RFC) or "data:{...}" (some proxies)
-                        if not line.startswith("data:"):
-                            continue
-                        data_str = line[5:].lstrip(" ")
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            event = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            continue
-
-                        event_type = event.get("type", "")
-
-                        if event_type == "message_start":
-                            usage_raw = event.get("message", {}).get("usage", {})
-                            input_tokens = usage_raw.get("input_tokens", 0)
-                            model_id = event.get("message", {}).get("model", model)
-                            yield LLMStreamChunk(model=model_id)
-
-                        elif event_type == "content_block_delta":
-                            delta = event.get("delta", {})
-                            delta_type = delta.get("type", "")
-                            if delta_type == "text_delta":
-                                text = delta.get("text", "")
-                                if text:
-                                    yield LLMStreamChunk(delta=text)
-                            elif delta_type == "thinking_delta":
-                                thinking = delta.get("thinking", "")
-                                if thinking:
-                                    yield LLMStreamChunk(thinking_delta=thinking)
-
-                        elif event_type == "message_delta":
-                            delta = event.get("delta", {})
-                            usage_raw = event.get("usage", {})
-                            output_tokens = usage_raw.get("output_tokens", 0)
-                            yield LLMStreamChunk(
-                                finish_reason=delta.get("stop_reason") or "stop",
-                                usage=TokenUsage(
-                                    prompt_tokens=input_tokens,
-                                    completion_tokens=output_tokens,
-                                    total_tokens=input_tokens + output_tokens,
-                                ),
-                            )
 
         except httpx.TimeoutException as exc:
             raise LLMTimeoutError(str(exc)) from exc

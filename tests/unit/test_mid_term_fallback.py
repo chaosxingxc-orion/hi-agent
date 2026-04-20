@@ -3,6 +3,7 @@
 The fallback path (no _manifest.json) previously raised NameError because
 it returned ``summaries[:days]`` but the variable is named ``all_summaries``.
 """
+
 import json
 import time
 from pathlib import Path

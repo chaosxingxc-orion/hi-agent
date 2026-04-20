@@ -3,6 +3,7 @@
 Extracted from SystemBuilder in W6-004.
 SystemBuilder.build_short_term_store / build_mid_term_store / etc. are now facades.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -107,9 +108,7 @@ class MemoryBuilder:
             graph = LongTermMemoryGraph(storage_path, project_id=project_id)
         else:
             graph = LongTermMemoryGraph(
-                self._config.episodic_storage_dir.replace(
-                    "episodes", "long_term/graph.json"
-                ),
+                self._config.episodic_storage_dir.replace("episodes", "long_term/graph.json"),
                 profile_id=profile_id,
                 project_id=project_id,
             )
@@ -146,9 +145,21 @@ class MemoryBuilder:
             except (FileNotFoundError, KeyError, ValueError) as exc:
                 logger.debug("KnowledgeWiki state unavailable during retrieval build: %s", exc)
 
-        graph = long_term_graph if long_term_graph is not None else self.build_long_term_graph(profile_id=profile_id)
-        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
-        mid = mid_term_store if mid_term_store is not None else self.build_mid_term_store(profile_id=profile_id)
+        graph = (
+            long_term_graph
+            if long_term_graph is not None
+            else self.build_long_term_graph(profile_id=profile_id)
+        )
+        short = (
+            short_term_store
+            if short_term_store is not None
+            else self.build_short_term_store(profile_id=profile_id)
+        )
+        mid = (
+            mid_term_store
+            if mid_term_store is not None
+            else self.build_mid_term_store(profile_id=profile_id)
+        )
 
         return RetrievalBuilder(self._config).build_retrieval_engine(
             wiki=wiki,
@@ -177,9 +188,21 @@ class MemoryBuilder:
             wiki: Optional KnowledgeWiki instance forwarded to build_retrieval_engine.
                 If None, one is built inline.
         """
-        short = short_term_store if short_term_store is not None else self.build_short_term_store(profile_id=profile_id)
-        mid   = mid_term_store   if mid_term_store   is not None else self.build_mid_term_store(profile_id=profile_id)
-        graph = long_term_graph  if long_term_graph  is not None else self.build_long_term_graph(profile_id=profile_id)
+        short = (
+            short_term_store
+            if short_term_store is not None
+            else self.build_short_term_store(profile_id=profile_id)
+        )
+        mid = (
+            mid_term_store
+            if mid_term_store is not None
+            else self.build_mid_term_store(profile_id=profile_id)
+        )
+        graph = (
+            long_term_graph
+            if long_term_graph is not None
+            else self.build_long_term_graph(profile_id=profile_id)
+        )
         return MemoryLifecycleManager(
             short_term_store=short,
             mid_term_store=mid,

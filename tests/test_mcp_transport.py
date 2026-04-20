@@ -77,9 +77,9 @@ class TestStdioMCPTransport:
 
     def test_invoke_raises_on_rpc_error(self) -> None:
         t = self._transport()
-        proc = _mock_proc([
-            {"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": "Method not found"}}
-        ])
+        proc = _mock_proc(
+            [{"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": "Method not found"}}]
+        )
         with self._patch_popen(proc), pytest.raises(MCPTransportError, match="Method not found"):
             t.invoke("srv", "unknown_tool", {})
 
@@ -92,20 +92,24 @@ class TestStdioMCPTransport:
     def test_invoke_skips_non_matching_response_ids(self) -> None:
         """Transport should skip responses with wrong id and wait for the right one."""
         t = self._transport()
-        proc = _mock_proc([
-            {"jsonrpc": "2.0", "id": 99, "result": {"wrong": True}},  # wrong id
-            {"jsonrpc": "2.0", "id": 1, "result": {"correct": True}},
-        ])
+        proc = _mock_proc(
+            [
+                {"jsonrpc": "2.0", "id": 99, "result": {"wrong": True}},  # wrong id
+                {"jsonrpc": "2.0", "id": 1, "result": {"correct": True}},
+            ]
+        )
         with self._patch_popen(proc):
             result = t.invoke("srv", "tool", {})
         assert result == {"correct": True}
 
     def test_invoke_spawns_process_once_on_reuse(self) -> None:
         t = self._transport()
-        proc = _mock_proc([
-            {"jsonrpc": "2.0", "id": 1, "result": {"r": 1}},
-            {"jsonrpc": "2.0", "id": 2, "result": {"r": 2}},
-        ])
+        proc = _mock_proc(
+            [
+                {"jsonrpc": "2.0", "id": 1, "result": {"r": 1}},
+                {"jsonrpc": "2.0", "id": 2, "result": {"r": 2}},
+            ]
+        )
         with patch("subprocess.Popen", return_value=proc) as mock_popen:
             t.invoke("srv", "tool", {})
             t.invoke("srv", "tool", {})
@@ -127,7 +131,9 @@ class TestStdioMCPTransport:
 
     def test_ping_returns_true_on_initialize_response(self) -> None:
         t = self._transport()
-        proc = _mock_proc([{"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2024-11-05"}}])
+        proc = _mock_proc(
+            [{"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2024-11-05"}}]
+        )
         with self._patch_popen(proc):
             alive = t.ping()
         assert alive is True
@@ -141,8 +147,9 @@ class TestStdioMCPTransport:
 
     def test_spawn_failure_raises_transport_error(self) -> None:
         t = self._transport()
-        with patch("subprocess.Popen", side_effect=OSError("not found")), pytest.raises(
-            MCPTransportError, match="not found"
+        with (
+            patch("subprocess.Popen", side_effect=OSError("not found")),
+            pytest.raises(MCPTransportError, match="not found"),
         ):
             t.invoke("srv", "tool", {})
 
@@ -156,10 +163,12 @@ class TestMultiStdioTransport:
     """Unit tests for MultiStdioTransport registry-driven routing."""
 
     def test_invoke_routes_to_correct_server(self) -> None:
-        registry = _make_registry([
-            {"server_id": "srv_a", "endpoint": "cmd_a"},
-            {"server_id": "srv_b", "endpoint": "cmd_b"},
-        ])
+        registry = _make_registry(
+            [
+                {"server_id": "srv_a", "endpoint": "cmd_a"},
+                {"server_id": "srv_b", "endpoint": "cmd_b"},
+            ]
+        )
         multi = MultiStdioTransport(mcp_registry=registry)
 
         proc_a = _mock_proc([{"jsonrpc": "2.0", "id": 1, "result": {"from": "a"}}])
@@ -181,9 +190,9 @@ class TestMultiStdioTransport:
             multi.invoke("nonexistent", "tool", {})
 
     def test_invoke_raises_for_non_stdio_transport(self) -> None:
-        registry = _make_registry([
-            {"server_id": "http_srv", "transport": "http", "endpoint": "http://localhost"}
-        ])
+        registry = _make_registry(
+            [{"server_id": "http_srv", "transport": "http", "endpoint": "http://localhost"}]
+        )
         multi = MultiStdioTransport(mcp_registry=registry)
         with pytest.raises(MCPTransportError, match="only 'stdio' is supported"):
             multi.invoke("http_srv", "tool", {})
@@ -191,29 +200,37 @@ class TestMultiStdioTransport:
     def test_transport_reused_across_calls(self) -> None:
         registry = _make_registry([{"server_id": "srv", "endpoint": "cmd"}])
         multi = MultiStdioTransport(mcp_registry=registry)
-        proc = _mock_proc([
-            {"jsonrpc": "2.0", "id": 1, "result": {"r": 1}},
-            {"jsonrpc": "2.0", "id": 2, "result": {"r": 2}},
-        ])
+        proc = _mock_proc(
+            [
+                {"jsonrpc": "2.0", "id": 1, "result": {"r": 1}},
+                {"jsonrpc": "2.0", "id": 2, "result": {"r": 2}},
+            ]
+        )
         with patch("subprocess.Popen", return_value=proc) as mock_popen:
             multi.invoke("srv", "tool", {})
             multi.invoke("srv", "tool", {})
         mock_popen.assert_called_once()
 
     def test_close_all_terminates_all(self) -> None:
-        registry = _make_registry([
-            {"server_id": "s1", "endpoint": "c1"},
-            {"server_id": "s2", "endpoint": "c2"},
-        ])
+        registry = _make_registry(
+            [
+                {"server_id": "s1", "endpoint": "c1"},
+                {"server_id": "s2", "endpoint": "c2"},
+            ]
+        )
         multi = MultiStdioTransport(mcp_registry=registry)
-        proc1 = _mock_proc([
-            {"jsonrpc": "2.0", "id": 1, "result": {}},
-            {"jsonrpc": "2.0", "id": 2, "result": {}},
-        ])
-        proc2 = _mock_proc([
-            {"jsonrpc": "2.0", "id": 1, "result": {}},
-            {"jsonrpc": "2.0", "id": 2, "result": {}},
-        ])
+        proc1 = _mock_proc(
+            [
+                {"jsonrpc": "2.0", "id": 1, "result": {}},
+                {"jsonrpc": "2.0", "id": 2, "result": {}},
+            ]
+        )
+        proc2 = _mock_proc(
+            [
+                {"jsonrpc": "2.0", "id": 1, "result": {}},
+                {"jsonrpc": "2.0", "id": 2, "result": {}},
+            ]
+        )
         procs = {"c1": proc1, "c2": proc2}
 
         def _factory(cmd, **kwargs):
@@ -235,7 +252,9 @@ class TestMultiStdioTransport:
     def test_ping_first_server(self) -> None:
         registry = _make_registry([{"server_id": "s1", "endpoint": "cmd"}])
         multi = MultiStdioTransport(mcp_registry=registry)
-        proc = _mock_proc([{"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2024-11-05"}}])
+        proc = _mock_proc(
+            [{"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2024-11-05"}}]
+        )
         with patch("subprocess.Popen", return_value=proc):
             assert multi.ping() is True
 

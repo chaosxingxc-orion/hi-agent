@@ -104,7 +104,9 @@ class TestSseParserTextDelta:
         assert result == ("event", "content_block_delta")
 
     def test_parse_line_data(self):
-        data_str = '{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}'
+        data_str = (
+            '{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}'
+        )
         result = self.parser.parse_line(f"data: {data_str}")
         assert result == ("data", data_str)
 

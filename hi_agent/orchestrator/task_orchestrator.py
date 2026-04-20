@@ -150,9 +150,9 @@ class TaskOrchestrator:
             task_id=contract.task_id,
             outcome="completed" if succeeded else "failed",
             result=run_result.to_dict(),
-            error=None if succeeded else (
-                run_result.error or f"Run finished with status: {run_result.status}"
-            ),
+            error=None
+            if succeeded
+            else (run_result.error or f"Run finished with status: {run_result.status}"),
         )
         return OrchestratorResult(
             success=succeeded,
@@ -261,7 +261,5 @@ class TaskOrchestrator:
         runner = RunExecutor(node.task_contract, self._kernel)
         status = runner.execute()
         if status != "completed":
-            raise RuntimeError(
-                f"Sub-task {node.node_id} failed with status: {status}"
-            )
+            raise RuntimeError(f"Sub-task {node.node_id} failed with status: {status}")
         return {"status": status, "node_id": node.node_id}

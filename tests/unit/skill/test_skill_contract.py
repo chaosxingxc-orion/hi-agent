@@ -117,10 +117,12 @@ class TestSkillLoaderVersionedLookup:
         """version='challenger' resolves '{skill_id}@challenger' first."""
         champion = _make_skill("paper-reading", prompt_content="champion prompt")
         challenger = _make_skill("paper-reading@challenger", prompt_content="challenger prompt")
-        loader = self._loader_with_skills({
-            "paper-reading": champion,
-            "paper-reading@challenger": challenger,
-        })
+        loader = self._loader_with_skills(
+            {
+                "paper-reading": champion,
+                "paper-reading@challenger": challenger,
+            }
+        )
         result = loader.get_skill("paper-reading", version="challenger")
         assert result is challenger
         assert result.prompt_content == "challenger prompt"
@@ -136,10 +138,12 @@ class TestSkillLoaderVersionedLookup:
         """version='v2' resolves '{skill_id}@v2'."""
         v1 = _make_skill("paper-reading", prompt_content="v1 prompt")
         v2 = _make_skill("paper-reading@v2", prompt_content="v2 prompt")
-        loader = self._loader_with_skills({
-            "paper-reading": v1,
-            "paper-reading@v2": v2,
-        })
+        loader = self._loader_with_skills(
+            {
+                "paper-reading": v1,
+                "paper-reading@v2": v2,
+            }
+        )
         assert loader.get_skill("paper-reading", version="v2") is v2
 
     def test_version_tag_falls_back_when_absent(self) -> None:

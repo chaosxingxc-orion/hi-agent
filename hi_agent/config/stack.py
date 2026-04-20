@@ -8,6 +8,7 @@ Priority (highest → lowest):
   2. FileBaseLayer     — config.json
   1. DefaultsLayer     — TraceConfig field defaults
 """
+
 from __future__ import annotations
 
 import json

@@ -1,4 +1,5 @@
 """Tests for profile required_capabilities enforcement."""
+
 from __future__ import annotations
 
 import pytest
@@ -14,12 +15,14 @@ class TestRequiredCapabilitiesEnforcement:
         from hi_agent.profiles.contracts import ProfileSpec
 
         builder = SystemBuilder()
-        builder.build_profile_registry().register(ProfileSpec(
-            profile_id="strict_profile",
-            display_name="Strict",
-            stage_actions={"step": "do_it"},
-            required_capabilities=["web_search", "missing_cap_xyz"],
-        ))
+        builder.build_profile_registry().register(
+            ProfileSpec(
+                profile_id="strict_profile",
+                display_name="Strict",
+                stage_actions={"step": "do_it"},
+                required_capabilities=["web_search", "missing_cap_xyz"],
+            )
+        )
 
         contract = TaskContract(
             task_id=uuid.uuid4().hex[:12],
@@ -44,17 +47,21 @@ class TestRequiredCapabilitiesEnforcement:
         builder = SystemBuilder()
         # Register the required capability into the shared singleton registry.
         cap_registry = builder.build_capability_registry()
-        cap_registry.register(CapabilitySpec(
-            name="my_cap",
-            handler=lambda payload: {"output": "ok"},
-        ))
+        cap_registry.register(
+            CapabilitySpec(
+                name="my_cap",
+                handler=lambda payload: {"output": "ok"},
+            )
+        )
 
-        builder.build_profile_registry().register(ProfileSpec(
-            profile_id="satisfied_profile",
-            display_name="Satisfied",
-            stage_actions={"step": "my_cap"},
-            required_capabilities=["my_cap"],
-        ))
+        builder.build_profile_registry().register(
+            ProfileSpec(
+                profile_id="satisfied_profile",
+                display_name="Satisfied",
+                stage_actions={"step": "my_cap"},
+                required_capabilities=["my_cap"],
+            )
+        )
 
         contract = TaskContract(
             task_id=uuid.uuid4().hex[:12],
@@ -74,11 +81,13 @@ class TestRequiredCapabilitiesEnforcement:
         from hi_agent.profiles.contracts import ProfileSpec
 
         builder = SystemBuilder()
-        builder.build_profile_registry().register(ProfileSpec(
-            profile_id="open_profile",
-            display_name="Open",
-            stage_actions={"step": "anything"},
-        ))
+        builder.build_profile_registry().register(
+            ProfileSpec(
+                profile_id="open_profile",
+                display_name="Open",
+                stage_actions={"step": "anything"},
+            )
+        )
         contract = TaskContract(
             task_id=uuid.uuid4().hex[:12],
             goal="test",

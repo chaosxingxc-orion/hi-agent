@@ -20,15 +20,15 @@ class RunRecord:
     run_id: str
     tenant_id: str
     task_contract_json: str  # serialized TaskContract
-    status: str              # "queued" | "running" | "completed" | "failed" | "cancelled"
+    status: str  # "queued" | "running" | "completed" | "failed" | "cancelled"
     priority: int
     attempt_count: int
     cancellation_flag: bool
-    result_summary: str      # empty until complete
+    result_summary: str  # empty until complete
     error_summary: str
     created_at: float
     updated_at: float
-    user_id: str = "__legacy__"     # workspace owner; "__legacy__" for pre-migration rows
+    user_id: str = "__legacy__"  # workspace owner; "__legacy__" for pre-migration rows
     session_id: str = "__legacy__"  # workspace session; "__legacy__" for pre-migration rows
 
 
@@ -80,7 +80,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(
-            str(self._db_path), check_same_thread=False,
+            str(self._db_path),
+            check_same_thread=False,
         )
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(self._CREATE_TABLE)
@@ -94,9 +95,13 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         cx = self._conn
         cols = {row[1] for row in cx.execute("PRAGMA table_info(run_records)")}
         if "user_id" not in cols:
-            cx.execute("ALTER TABLE run_records ADD COLUMN user_id TEXT NOT NULL DEFAULT '__legacy__'")
+            cx.execute(
+                "ALTER TABLE run_records ADD COLUMN user_id TEXT NOT NULL DEFAULT '__legacy__'"
+            )
         if "session_id" not in cols:
-            cx.execute("ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'")
+            cx.execute(
+                "ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'"
+            )
         cx.commit()
         cx.execute(
             "CREATE INDEX IF NOT EXISTS idx_run_records_workspace "
@@ -165,9 +170,9 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         """
         with self._lock:
             cur = self._conn.execute(
-                "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, status, priority, "
-                "attempt_count, cancellation_flag, result_summary, error_summary, "
-                "created_at, updated_at "
+                "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
+                "status, priority, attempt_count, cancellation_flag, result_summary, "
+                "error_summary, created_at, updated_at "
                 "FROM run_records WHERE run_id = ?",
                 (run_id,),
             )
@@ -185,16 +190,18 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         """
         with self._lock:
             cur = self._conn.execute(
-                "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, status, priority, "
-                "attempt_count, cancellation_flag, result_summary, error_summary, "
-                "created_at, updated_at "
+                "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
+                "status, priority, attempt_count, cancellation_flag, result_summary, "
+                "error_summary, created_at, updated_at "
                 "FROM run_records WHERE tenant_id = ? ORDER BY created_at ASC",
                 (tenant_id,),
             )
             rows = cur.fetchall()
         return [self._row_to_record(r) for r in rows]
 
-    def get_by_workspace(self, run_id: str, tenant_id: str, user_id: str, session_id: str) -> RunRecord | None:
+    def get_by_workspace(
+        self, run_id: str, tenant_id: str, user_id: str, session_id: str
+    ) -> RunRecord | None:
         """Retrieve a run record filtered by workspace (tenant, user, session).
 
         Args:
@@ -208,15 +215,17 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         """
         with self._lock:
             row = self._conn.execute(
-                "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, status, priority, "
-                "attempt_count, cancellation_flag, result_summary, error_summary, "
-                "created_at, updated_at "
+                "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
+                "status, priority, attempt_count, cancellation_flag, result_summary, "
+                "error_summary, created_at, updated_at "
                 "FROM run_records WHERE run_id=? AND tenant_id=? AND user_id=? AND session_id=?",
                 (run_id, tenant_id, user_id, session_id),
             ).fetchone()
         return self._row_to_record(row) if row else None
 
-    def list_by_workspace(self, tenant_id: str, user_id: str, session_id: str | None = None) -> list[RunRecord]:
+    def list_by_workspace(
+        self, tenant_id: str, user_id: str, session_id: str | None = None
+    ) -> list[RunRecord]:
         """Return all run records for a workspace, ordered by created_at descending.
 
         Args:
@@ -230,17 +239,18 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         with self._lock:
             if session_id:
                 rows = self._conn.execute(
-                    "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, status, priority, "
-                    "attempt_count, cancellation_flag, result_summary, error_summary, "
-                    "created_at, updated_at "
-                    "FROM run_records WHERE tenant_id=? AND user_id=? AND session_id=? ORDER BY created_at DESC",
+                    "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
+                    "status, priority, attempt_count, cancellation_flag, result_summary, "
+                    "error_summary, created_at, updated_at "
+                    "FROM run_records WHERE tenant_id=? AND user_id=? AND session_id=? "
+                    "ORDER BY created_at DESC",
                     (tenant_id, user_id, session_id),
                 ).fetchall()
             else:
                 rows = self._conn.execute(
-                    "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, status, priority, "
-                    "attempt_count, cancellation_flag, result_summary, error_summary, "
-                    "created_at, updated_at "
+                    "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
+                    "status, priority, attempt_count, cancellation_flag, result_summary, "
+                    "error_summary, created_at, updated_at "
                     "FROM run_records WHERE tenant_id=? AND user_id=? ORDER BY created_at DESC",
                     (tenant_id, user_id),
                 ).fetchall()

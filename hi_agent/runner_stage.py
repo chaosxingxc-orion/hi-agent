@@ -34,7 +34,9 @@ _logger = logging.getLogger(__name__)
 # return token metadata.  Named constants so the magic numbers are explicit.
 _ROUTING_ESTIMATED_INPUT_TOKENS: int = 500
 _ROUTING_ESTIMATED_OUTPUT_TOKENS: int = 200
-_ROUTING_ESTIMATED_TOTAL_TOKENS: int = _ROUTING_ESTIMATED_INPUT_TOKENS + _ROUTING_ESTIMATED_OUTPUT_TOKENS
+_ROUTING_ESTIMATED_TOTAL_TOKENS: int = (
+    _ROUTING_ESTIMATED_INPUT_TOKENS + _ROUTING_ESTIMATED_OUTPUT_TOKENS
+)
 
 
 class StageExecutor:
@@ -133,9 +135,7 @@ class StageExecutor:
     ) -> str:
         """Resolve query text for knowledge retrieval hooks."""
         if self.knowledge_query_text_builder is not None:
-            return self.knowledge_query_text_builder(
-                stage_id, action_kind, result
-            )
+            return self.knowledge_query_text_builder(stage_id, action_kind, result)
         return f"{contract_goal} {stage_id} {action_kind}".strip()
 
     # ------------------------------------------------------------------
@@ -215,12 +215,8 @@ class StageExecutor:
                     fresh, stage_id, budget_tokens=8192
                 )
                 if summary is not None:
-                    executor.session.set_stage_summary(
-                        f"{stage_id}_auto", summary
-                    )
-                    executor.session.mark_compact_boundary(
-                        stage_id, summary_ref=f"{stage_id}_auto"
-                    )
+                    executor.session.set_stage_summary(f"{stage_id}_auto", summary)
+                    executor.session.mark_compact_boundary(stage_id, summary_ref=f"{stage_id}_auto")
             except Exception as exc:
                 _logger.debug(
                     "stage.auto_compress_failed run_id=%s stage_id=%s error=%s",
@@ -239,9 +235,7 @@ class StageExecutor:
                     if self.context_manager is not None and hasattr(
                         self.context_manager, "set_knowledge_context"
                     ):
-                        self.context_manager.set_knowledge_context(
-                            result.to_context_string()
-                        )
+                        self.context_manager.set_knowledge_context(result.to_context_string())
                     # Also record the retrieval event in the session (metadata only)
                     if executor.session is not None:
                         executor.session.append_record(
@@ -289,17 +283,18 @@ class StageExecutor:
                     exc,
                 )
 
-        proposals = self.route_engine.propose(
-            stage_id, executor.run_id, executor.action_seq
-        )
+        proposals = self.route_engine.propose(stage_id, executor.run_id, executor.action_seq)
         # Session: record routing LLM call with cost (best-effort)
         if executor.session is not None:
             try:
                 from hi_agent.session.run_session import LLMCallRecord
+
                 cost = 0.0
                 if self.cost_calculator is not None:
                     cost = self.cost_calculator.calculate(
-                        "routing_estimate", _ROUTING_ESTIMATED_INPUT_TOKENS, _ROUTING_ESTIMATED_OUTPUT_TOKENS
+                        "routing_estimate",
+                        _ROUTING_ESTIMATED_INPUT_TOKENS,
+                        _ROUTING_ESTIMATED_OUTPUT_TOKENS,
                     )
                 record = LLMCallRecord(
                     call_id=f"{executor.run_id}:llm:route:{stage_id}",
@@ -377,9 +372,7 @@ class StageExecutor:
             executor._stage_active_branches[stage_id] = (
                 executor._stage_active_branches.get(stage_id, 0) + 1
             )
-            self.kernel.open_branch(
-                executor.run_id, stage_id, branch_id
-            )
+            self.kernel.open_branch(executor.run_id, stage_id, branch_id)
             executor._record_event(
                 "BranchProposed",
                 {
@@ -389,15 +382,14 @@ class StageExecutor:
                     "rationale": proposal.rationale,
                 },
             )
-            self.kernel.mark_branch_state(
-                executor.run_id, stage_id, branch_id, BranchState.ACTIVE
-            )
+            self.kernel.mark_branch_state(executor.run_id, stage_id, branch_id, BranchState.ACTIVE)
             executor._record_skill_usage_from_proposal(proposal, stage_id)
 
             # --- Capability availability filter (P1-2b) ---
             if self._capability_registry is not None:
                 try:
                     from hi_agent.route_engine.capability_filter import filter_proposal
+
                     proposal = filter_proposal(
                         proposal,
                         self._capability_registry,
@@ -408,7 +400,10 @@ class StageExecutor:
                         "capability_filter raised unexpectedly — proceeding without filter: %s", exc
                     )
                     from hi_agent.observability.fallback import FallbackTaxonomy, record_fallback
-                    record_fallback(FallbackTaxonomy.UNEXPECTED_EXCEPTION, "capability_filter", str(exc))
+
+                    record_fallback(
+                        FallbackTaxonomy.UNEXPECTED_EXCEPTION, "capability_filter", str(exc)
+                    )
                     # proposal remains unfiltered (existing behavior)
 
             node = TrajectoryNode(
@@ -437,12 +432,10 @@ class StageExecutor:
                         "action_kind": proposal.action_kind,
                     },
                 )
-                success, result, final_attempt = (
-                    executor._execute_action_with_retry(
-                        stage_id,
-                        proposal,
-                        upstream_artifact_ids=list(stage_artifact_ids),
-                    )
+                success, result, final_attempt = executor._execute_action_with_retry(
+                    stage_id,
+                    proposal,
+                    upstream_artifact_ids=list(stage_artifact_ids),
                 )
 
                 # Collect artifact_ids from this action's result.
@@ -458,6 +451,7 @@ class StageExecutor:
                             ToolResultBudget,
                             ToolResultBudgetConfig,
                         )
+
                         _run_ctx = getattr(executor, "run_context", None)
                         _budget_state = (
                             getattr(_run_ctx, "tool_result_budget_state", None)
@@ -471,9 +465,7 @@ class StageExecutor:
                             )
                             _raw_content = str(result)
                             _processed = _budget.process(
-                                tool_name=str(
-                                    getattr(proposal, "action_kind", "unknown")
-                                ),
+                                tool_name=str(getattr(proposal, "action_kind", "unknown")),
                                 result_content=_raw_content,
                             )
                             # If truncated, record the fact in result metadata
@@ -489,15 +481,9 @@ class StageExecutor:
                             exc,
                         )
 
-                node.local_score = (
-                    float(result.get("score", 0.0)) if result else 0.0
-                )
+                node.local_score = float(result.get("score", 0.0)) if result else 0.0
                 node.propagated_score = node.local_score
-                node.state = (
-                    NodeState.SUCCEEDED
-                    if success
-                    else NodeState.FAILED
-                )
+                node.state = NodeState.SUCCEEDED if success else NodeState.FAILED
 
                 if success:
                     executor._record_event(
@@ -509,9 +495,7 @@ class StageExecutor:
                             "action_kind": proposal.action_kind,
                         },
                     )
-                    acceptance = self.acceptance_policy.evaluate(
-                        executor.contract, node
-                    )
+                    acceptance = self.acceptance_policy.evaluate(executor.contract, node)
                     if not acceptance.accepted:
                         node.state = NodeState.FAILED
                         executor._record_event(
@@ -535,26 +519,16 @@ class StageExecutor:
                             stage_id,
                             proposal.branch_id,
                             str(executor.action_seq),
-                            str(
-                                result.get(
-                                    "evidence_hash", "ev_missing"
-                                )
-                            ),
+                            str(result.get("evidence_hash", "ev_missing")),
                             executor.policy_version,
                         )
-                        knowledge_items = (
-                            self.build_task_view_knowledge(
-                                stage_id=stage_id,
-                                action_kind=proposal.action_kind,
-                                result=(
-                                    result
-                                    if isinstance(result, dict)
-                                    else None
-                                ),
-                                run_id=executor.run_id,
-                                stage_summaries=executor.stage_summaries,
-                                contract_goal=executor.contract.goal,
-                            )
+                        knowledge_items = self.build_task_view_knowledge(
+                            stage_id=stage_id,
+                            action_kind=proposal.action_kind,
+                            result=(result if isinstance(result, dict) else None),
+                            run_id=executor.run_id,
+                            stage_summaries=executor.stage_summaries,
+                            contract_goal=executor.contract.goal,
                         )
                         tv_id = self.kernel.record_task_view(
                             task_view_id,
@@ -573,12 +547,8 @@ class StageExecutor:
                                 },
                             },
                         )
-                        decision_ref = executor._make_decision_ref(
-                            stage_id, branch_id
-                        )
-                        self.kernel.bind_task_view_to_decision(
-                            tv_id, decision_ref
-                        )
+                        decision_ref = executor._make_decision_ref(stage_id, branch_id)
+                        self.kernel.bind_task_view_to_decision(tv_id, decision_ref)
                         executor._record_event(
                             "TaskViewRecorded",
                             {
@@ -626,8 +596,7 @@ class StageExecutor:
                 failure_code_for_gate: str | None = None
                 if not success:
                     failure_code_for_gate = (
-                        action_result_for_gate.get("failure_code")
-                        or "harness_denied"
+                        action_result_for_gate.get("failure_code") or "harness_denied"
                     )
                     _action_kind = getattr(proposal, "action_kind", "?")
                     _original_error = (
@@ -637,10 +606,7 @@ class StageExecutor:
                     )
                     executor._record_failure(
                         failure_code_str=failure_code_for_gate,
-                        message=(
-                            f"Action {_action_kind} "
-                            f"failed at stage {stage_id}"
-                        ),
+                        message=(f"Action {_action_kind} failed at stage {stage_id}"),
                         stage_id=stage_id,
                         branch_id=branch_id,
                         context={
@@ -655,9 +621,10 @@ class StageExecutor:
                 )
                 executor._watchdog_record_and_check(success, stage_id)
                 executor._observe_skill_execution(
-                    proposal, stage_id, success,
-                    {"action_kind": getattr(proposal, "action_kind", ""),
-                     "branch_id": branch_id},
+                    proposal,
+                    stage_id,
+                    success,
+                    {"action_kind": getattr(proposal, "action_kind", ""), "branch_id": branch_id},
                     result,
                 )
                 executor.action_seq += 1
@@ -678,11 +645,7 @@ class StageExecutor:
                     overall_score = payload.get("overall_score")
                     evaluations = payload.get("evaluations", [])
                     overall_verdict = payload.get("overall_verdict", "pass")
-                    if (
-                        overall_score is not None
-                        and overall_score < 0.5
-                        and evaluations
-                    ):
+                    if overall_score is not None and overall_score < 0.5 and evaluations:
                         issues = [
                             e.get("feedback", "")
                             for e in evaluations
@@ -705,14 +668,19 @@ class StageExecutor:
                             _logger.info(
                                 "stage.eval_verdict_trigger run_id=%s stage_id=%s "
                                 "verdict=%s score=%.2f",
-                                executor.run_id, stage_id, overall_verdict, overall_score,
+                                executor.run_id,
+                                stage_id,
+                                overall_verdict,
+                                overall_score,
                             )
                             self.kernel.mark_stage_state(
                                 executor.run_id, stage_id, StageState.FAILED
                             )
                             executor._trigger_recovery(stage_id)
                             _failed_summary = executor._compress_stage_summary(stage_id)
-                            _failed_summary.outcome = "failed"  # set at source — compressor doesn't know stage failed
+                            _failed_summary.outcome = (
+                                "failed"  # set at source — compressor doesn't know stage failed
+                            )
                             _failed_summary.artifact_ids = list(stage_artifact_ids)
                             executor.stage_summaries[stage_id] = _failed_summary
                             executor._persist_snapshot(stage_id=stage_id, result="failed")
@@ -734,12 +702,12 @@ class StageExecutor:
             )
             executor._trigger_recovery(stage_id)
             _failed_summary = executor._compress_stage_summary(stage_id)
-            _failed_summary.outcome = "failed"  # set at source — dead end confirmed, compressor doesn't know
+            _failed_summary.outcome = (
+                "failed"  # set at source — dead end confirmed, compressor doesn't know
+            )
             _failed_summary.artifact_ids = list(stage_artifact_ids)
             executor.stage_summaries[stage_id] = _failed_summary
-            executor._persist_snapshot(
-                stage_id=stage_id, result="failed"
-            )
+            executor._persist_snapshot(stage_id=stage_id, result="failed")
             executor._signal_run_safe(
                 "recovery_failed",
                 {"stage_id": stage_id},

@@ -44,16 +44,11 @@ def build_operational_signals(
         temporal_healthy = bool(temporal_healthy_raw) if temporal_healthy_raw is not None else None
 
     has_reconcile_pressure = (
-        reconcile_backlog >= reconcile_backlog_threshold
-        or recent_reconcile_failures > 0
+        reconcile_backlog >= reconcile_backlog_threshold or recent_reconcile_failures > 0
     )
     has_gate_pressure = pending_gate_count > 0 or bool(has_stale_gates)
-    has_temporal_risk = (
-        temporal_health is not None
-        and (
-            temporal_healthy is False
-            or temporal_state in {"degraded", "unreachable"}
-        )
+    has_temporal_risk = temporal_health is not None and (
+        temporal_healthy is False or temporal_state in {"degraded", "unreachable"}
     )
 
     return {
@@ -67,7 +62,5 @@ def build_operational_signals(
         "has_reconcile_pressure": has_reconcile_pressure,
         "has_gate_pressure": has_gate_pressure,
         "has_temporal_risk": has_temporal_risk,
-        "overall_pressure": (
-            has_reconcile_pressure or has_gate_pressure or has_temporal_risk
-        ),
+        "overall_pressure": (has_reconcile_pressure or has_gate_pressure or has_temporal_risk),
     }

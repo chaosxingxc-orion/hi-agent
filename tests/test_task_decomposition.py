@@ -13,6 +13,7 @@ from hi_agent.task_decomposition.feedback import DecompositionFeedback
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _contract(tid: str = "t1", goal: str = "do stuff") -> TaskContract:
     return TaskContract(task_id=tid, goal=goal)
 
@@ -28,6 +29,7 @@ def _node(nid: str, deps: list[str] | None = None) -> TaskNode:
 # ---------------------------------------------------------------------------
 # TaskDAG — structure
 # ---------------------------------------------------------------------------
+
 
 class TestTaskDAGStructure:
     """Node/edge management and structural queries."""
@@ -73,6 +75,7 @@ class TestTaskDAGStructure:
 # TaskDAG — cycle detection
 # ---------------------------------------------------------------------------
 
+
 class TestCycleDetection:
     """Cycle detection and prevention."""
 
@@ -107,6 +110,7 @@ class TestCycleDetection:
 # ---------------------------------------------------------------------------
 # TaskDAG — topological sort
 # ---------------------------------------------------------------------------
+
 
 class TestTopologicalSort:
     """Topological ordering."""
@@ -144,6 +148,7 @@ class TestTopologicalSort:
 # ---------------------------------------------------------------------------
 # TaskDAG — ready nodes and state transitions
 # ---------------------------------------------------------------------------
+
 
 class TestReadyNodesAndState:
     """get_ready_nodes and mark_* transitions."""
@@ -196,6 +201,7 @@ class TestReadyNodesAndState:
 # TaskDAG — subgraph extraction
 # ---------------------------------------------------------------------------
 
+
 class TestSubgraph:
     """get_subgraph extracts valid independent sub-DAGs."""
 
@@ -233,6 +239,7 @@ class TestSubgraph:
 # ---------------------------------------------------------------------------
 # TaskDAG — parallel groups
 # ---------------------------------------------------------------------------
+
 
 class TestParallelGroups:
     """get_parallel_groups returns correct parallelism levels."""
@@ -279,6 +286,7 @@ class TestParallelGroups:
 # TaskDAG — validate
 # ---------------------------------------------------------------------------
 
+
 class TestValidate:
     """DAG validation catches issues."""
 
@@ -321,6 +329,7 @@ class TestValidate:
 # ---------------------------------------------------------------------------
 # TaskDecomposer — linear strategy
 # ---------------------------------------------------------------------------
+
 
 class TestDecomposerLinear:
     """TaskDecomposer.decompose with linear strategy."""
@@ -388,6 +397,7 @@ class TestDecomposerLinear:
 # DAGExecutor — run to completion
 # ---------------------------------------------------------------------------
 
+
 class TestDAGExecutor:
     """DAGExecutor with mock execute_fn."""
 
@@ -447,6 +457,7 @@ class TestDAGExecutor:
 # ---------------------------------------------------------------------------
 # DAGExecutor — rollback
 # ---------------------------------------------------------------------------
+
 
 class TestRollback:
     """Rollback cascades correctly."""
@@ -519,6 +530,7 @@ class TestRollback:
 # DecompositionFeedback
 # ---------------------------------------------------------------------------
 
+
 class TestDecompositionFeedback:
     """Feedback collection and strategy recommendation."""
 
@@ -531,11 +543,15 @@ class TestDecompositionFeedback:
 
         # Record several successes for "dag" and failures for "linear".
         success_result = DAGResult(
-            success=True, completed_nodes=["a", "b"], total_steps=2,
+            success=True,
+            completed_nodes=["a", "b"],
+            total_steps=2,
         )
         failure_result = DAGResult(
-            success=False, completed_nodes=["a"],
-            failed_nodes=["b"], total_steps=2,
+            success=False,
+            completed_nodes=["a"],
+            failed_nodes=["b"],
+            total_steps=2,
         )
 
         fb.record("analysis", "dag", success_result)
@@ -553,7 +569,9 @@ class TestDecompositionFeedback:
     def test_get_stats_filtered(self) -> None:
         fb = DecompositionFeedback()
         result = DAGResult(
-            success=True, completed_nodes=["a"], total_steps=1,
+            success=True,
+            completed_nodes=["a"],
+            total_steps=1,
         )
         fb.record("family_a", "linear", result)
         fb.record("family_b", "dag", result)

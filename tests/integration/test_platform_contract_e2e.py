@@ -33,15 +33,12 @@ from tests.helpers.kernel_adapter_fixture import MockKernel
 # Helpers shared across all platform contract tests
 # ---------------------------------------------------------------------------
 
+
 def _make_mock_executor_factory(*, fail: bool = False) -> Callable:
     """Return executor factory backed by MockKernel (no real LLM/kernel)."""
 
     def factory(run_data: dict[str, Any]) -> Callable[[], Any]:
-        task_id = (
-            run_data.get("task_id")
-            or run_data.get("run_id")
-            or uuid.uuid4().hex[:12]
-        )
+        task_id = run_data.get("task_id") or run_data.get("run_id") or uuid.uuid4().hex[:12]
         constraints: list[str] = []
         if fail:
             constraints.append("fail_action:S1")
@@ -80,6 +77,7 @@ def _wait_terminal(
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def server() -> AgentServer:
     s = AgentServer()
@@ -95,6 +93,7 @@ def client(server: AgentServer) -> TestClient:
 # ---------------------------------------------------------------------------
 # PC-01: Readiness accuracy
 # ---------------------------------------------------------------------------
+
 
 def test_pc01_readiness_reflects_live_runtime(client: TestClient, server: AgentServer) -> None:
     """GET /ready must reflect the same builder that actual runs use.
@@ -144,21 +143,17 @@ def test_pc01b_readiness_subsystem_errors_not_masked(client: TestClient) -> None
     body = resp.json()
 
     subsystems = body.get("subsystems", {})
-    any_error = any(
-        s.get("status") == "error"
-        for s in subsystems.values()
-        if isinstance(s, dict)
-    )
+    any_error = any(s.get("status") == "error" for s in subsystems.values() if isinstance(s, dict))
     if any_error:
         assert body.get("health") != "ok", (
-            "A subsystem reported 'error' but health is still 'ok' — "
-            "readiness is masking failures."
+            "A subsystem reported 'error' but health is still 'ok' — readiness is masking failures."
         )
 
 
 # ---------------------------------------------------------------------------
 # PC-02: Manifest truthfulness
 # ---------------------------------------------------------------------------
+
 
 def test_pc02_manifest_capabilities_not_empty(client: TestClient) -> None:
     """GET /manifest must list the actual registered capabilities, not an empty list.
@@ -216,6 +211,7 @@ def test_pc02_manifest_no_hardcoded_lies(client: TestClient) -> None:
 # PC-03: Result consumability
 # ---------------------------------------------------------------------------
 
+
 def test_pc03_run_result_is_structured(client: TestClient) -> None:
     """Completed run result must be a structured object, not a bare status string.
 
@@ -265,6 +261,7 @@ def test_pc03_run_result_stages_have_required_fields(client: TestClient) -> None
 # PC-04: Entry point parity (CLI path vs server path)
 # ---------------------------------------------------------------------------
 
+
 def test_pc04_execute_returns_run_result_not_string() -> None:
     """RunExecutor.execute() must return a RunResult, not a bare string.
 
@@ -312,6 +309,7 @@ def test_pc04_server_and_direct_result_shapes_match(client: TestClient) -> None:
 # PC-05: Failure attribution
 # ---------------------------------------------------------------------------
 
+
 def test_pc05_failed_run_has_structured_result(client: TestClient) -> None:
     """A failed run must return a structured result with error attribution.
 
@@ -344,6 +342,7 @@ def test_pc05_failed_run_has_structured_result(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # PC-06: Failure attribution precision
 # ---------------------------------------------------------------------------
+
 
 def test_pc06_failure_code_present_on_failed_run(client: TestClient) -> None:
     """A failed run must carry a non-null failure_code for automated triage.
@@ -445,6 +444,7 @@ def test_pc06_run_state_and_result_status_always_agree() -> None:
 
         # Wait for terminal
         import time
+
         deadline = time.monotonic() + 10.0
         while time.monotonic() < deadline:
             run = manager.get_run(run_id)
@@ -481,6 +481,7 @@ def test_pc06_invalid_result_status_maps_to_failed() -> None:
     manager.start_run(run_id, bad_executor)
 
     import time
+
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
         run = manager.get_run(run_id)
@@ -498,6 +499,7 @@ def test_pc06_invalid_result_status_maps_to_failed() -> None:
 # ---------------------------------------------------------------------------
 # PC-07: Failed stage outcome is set at source, not patched post-hoc
 # ---------------------------------------------------------------------------
+
 
 def test_pc07_failed_stage_outcome_is_failed_not_active() -> None:
     """A stage that triggers a dead-end must have outcome='failed' in RunResult.stages.

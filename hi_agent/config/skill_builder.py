@@ -3,6 +3,7 @@
 Extracted from SystemBuilder in W6-003.
 SystemBuilder.build_skill_* methods are now facades to SkillBuilder.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -93,6 +94,7 @@ class SkillBuilder:
     def build_skill_registry(self):
         """Build SkillRegistry using configured storage directory."""
         from hi_agent.skill.registry import SkillRegistry
+
         return SkillRegistry(storage_dir=self._config.skill_storage_dir)
 
     def build_skill_loader(self) -> Any:
@@ -142,16 +144,14 @@ class SkillBuilder:
     def build_skill_observer(self) -> Any:
         """Build SkillObserver for execution telemetry."""
         from hi_agent.skill.observer import SkillObserver
-        return SkillObserver(
-            storage_dir=self._config.skill_storage_dir + "/observations"
-        )
+
+        return SkillObserver(storage_dir=self._config.skill_storage_dir + "/observations")
 
     def build_skill_version_manager(self) -> Any:
         """Build SkillVersionManager for champion/challenger versioning."""
         from hi_agent.skill.version import SkillVersionManager
-        mgr = SkillVersionManager(
-            storage_dir=self._config.skill_storage_dir + "/versions"
-        )
+
+        mgr = SkillVersionManager(storage_dir=self._config.skill_storage_dir + "/versions")
         with contextlib.suppress(FileNotFoundError, KeyError, ValueError):
             mgr.load()
         return mgr
@@ -166,6 +166,7 @@ class SkillBuilder:
         if self._skill_evolver is not None:
             return self._skill_evolver
         from hi_agent.skill.evolver import SkillEvolver
+
         observer = self.build_skill_observer()
         version_mgr = self.build_skill_version_manager()
         self._skill_evolver = SkillEvolver.from_config(

@@ -42,7 +42,7 @@ def test_load_events_skips_bad_lines_and_counts_them(tmp_path: Path) -> None:
     """Loader should skip malformed lines and report count."""
     event_path = tmp_path / "corrupted.jsonl"
     event_path.write_text(
-        '\n'.join(
+        "\n".join(
             [
                 '{"event_type":"A","run_id":"r1","payload":{"k":1},"timestamp":"2026-04-05T10:00:00+00:00"}',
                 '{"event_type":"B","run_id":"r1","payload":{"k":2},"timestamp":"2026-04-05T10:00:01+00:00"',

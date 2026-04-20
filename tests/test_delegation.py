@@ -13,7 +13,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio  # noqa: F401 – imported for pytest-asyncio registration
+import pytest_asyncio  # noqa: F401 - imported for pytest-asyncio registration
 from hi_agent.task_mgmt.delegation import (
     ChildRunPoller,
     DelegationConfig,
@@ -36,7 +36,10 @@ def _make_kernel(lifecycle_states: list[str], output: str | None = None) -> Magi
     """
     kernel = MagicMock()
     responses = [
-        {"lifecycle_state": s, "output": output if s in ("completed", "failed", "aborted") else None}
+        {
+            "lifecycle_state": s,
+            "output": output if s in ("completed", "failed", "aborted") else None,
+        }
         for s in lifecycle_states
     ]
     # Pad with the last response so the poller doesn't IndexError.
@@ -68,7 +71,7 @@ async def test_child_run_poller_completes() -> None:
 
     assert status == "completed"
     assert raw == "done!"
-    # query_run must have been called at least twice (running × 2, completed)
+    # query_run must have been called at least twice (running x 2, completed)
     assert kernel.query_run.call_count >= 2
 
 

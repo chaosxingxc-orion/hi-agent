@@ -244,9 +244,7 @@ class ToolResultBudget:
                     for block in content:
                         if isinstance(block, dict) and block.get("type") == "text":
                             new_block = dict(block)
-                            new_block["text"] = self.process(
-                                tool_name, block.get("text", "")
-                            )
+                            new_block["text"] = self.process(tool_name, block.get("text", ""))
                             processed_blocks.append(new_block)
                         else:
                             processed_blocks.append(block)

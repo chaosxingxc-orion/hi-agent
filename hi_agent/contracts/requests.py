@@ -168,5 +168,7 @@ class RunResult:
             "failure_code": self.failure_code,
             "failed_stage_id": self.failed_stage_id,
             "is_retryable": self.is_retryable,
-            "execution_provenance": self.execution_provenance.to_dict() if self.execution_provenance else None,
+            "execution_provenance": self.execution_provenance.to_dict()
+            if self.execution_provenance
+            else None,
         }

@@ -1,4 +1,5 @@
 """Unit tests for MemoryBuilder — extracted from SystemBuilder in W6-004."""
+
 import inspect
 
 import pytest

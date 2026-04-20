@@ -1,4 +1,5 @@
-﻿"""Unit tests for RetrievalBuilder extraction."""
+"""Unit tests for RetrievalBuilder extraction."""
+
 import importlib
 import inspect
 import uuid
@@ -23,24 +24,24 @@ def _load_retrieval_builder():
 
 class TestRetrievalBuilderBasic:
     def test_returns_retrieval_engine(self):
-        _, RetrievalBuilder = _load_retrieval_builder()
-        builder = RetrievalBuilder(_config())
+        _, retrieval_builder_cls = _load_retrieval_builder()
+        builder = retrieval_builder_cls(_config())
 
         engine = builder.build_retrieval_engine()
 
         assert isinstance(engine, RetrievalEngine)
 
     def test_embedding_fn_set_at_construction(self):
-        _, RetrievalBuilder = _load_retrieval_builder()
-        builder = RetrievalBuilder(_config())
+        _, retrieval_builder_cls = _load_retrieval_builder()
+        builder = retrieval_builder_cls(_config())
 
         engine = builder.build_retrieval_engine()
 
         assert hasattr(engine, "_embedding_fn")
 
     def test_tfidf_index_consistent_with_embedding(self):
-        _, RetrievalBuilder = _load_retrieval_builder()
-        builder = RetrievalBuilder(_config())
+        _, retrieval_builder_cls = _load_retrieval_builder()
+        builder = retrieval_builder_cls(_config())
 
         engine = builder.build_retrieval_engine()
 
@@ -48,7 +49,7 @@ class TestRetrievalBuilderBasic:
             assert engine._tfidf is not None
 
     def test_no_post_construction_mutation_needed(self, monkeypatch):
-        _, RetrievalBuilder = _load_retrieval_builder()
+        _, retrieval_builder_cls = _load_retrieval_builder()
         original_init = RetrievalEngine.__init__
         captured = {}
 
@@ -57,7 +58,7 @@ class TestRetrievalBuilderBasic:
             captured["embedding_fn"] = self._embedding_fn
 
         monkeypatch.setattr(RetrievalEngine, "__init__", capture_init)
-        builder = RetrievalBuilder(_config())
+        builder = retrieval_builder_cls(_config())
 
         engine = builder.build_retrieval_engine()
 

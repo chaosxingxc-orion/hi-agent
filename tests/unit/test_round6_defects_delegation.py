@@ -48,9 +48,7 @@ class TestGatePendingErrorPropagation:
 
         assert len(results) == 1
         result = results[0]
-        assert result.status == "gate_pending", (
-            f"Expected 'gate_pending', got {result.status!r}"
-        )
+        assert result.status == "gate_pending", f"Expected 'gate_pending', got {result.status!r}"
         assert result.gate_id == "test-gate", (
             f"Expected gate_id='test-gate', got {result.gate_id!r}"
         )
@@ -70,12 +68,8 @@ class TestGatePendingErrorPropagation:
 
         assert len(results) == 1
         result = results[0]
-        assert result.status == "failed", (
-            f"Expected 'failed', got {result.status!r}"
-        )
-        assert result.gate_id is None, (
-            f"Expected gate_id=None, got {result.gate_id!r}"
-        )
+        assert result.status == "failed", f"Expected 'failed', got {result.status!r}"
+        assert result.gate_id is None, f"Expected gate_id=None, got {result.gate_id!r}"
         assert "normal error" in (result.error or ""), (
             f"Expected error to contain 'normal error', got {result.error!r}"
         )

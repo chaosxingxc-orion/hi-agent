@@ -103,9 +103,9 @@ class SseParser:
         if not line or line.startswith(":"):
             return None
         if line.startswith("event:"):
-            return ("event", line[len("event:"):].strip())
+            return ("event", line[len("event:") :].strip())
         if line.startswith("data:"):
-            return ("data", line[len("data:"):].strip())
+            return ("data", line[len("data:") :].strip())
         return None
 
     @staticmethod
@@ -164,7 +164,8 @@ class SseParser:
                 usage = TokenUsage(
                     prompt_tokens=usage_raw.get("input_tokens", 0),
                     completion_tokens=usage_raw.get("output_tokens", 0),
-                    total_tokens=usage_raw.get("input_tokens", 0) + usage_raw.get("output_tokens", 0),
+                    total_tokens=usage_raw.get("input_tokens", 0)
+                    + usage_raw.get("output_tokens", 0),
                 )
 
             if finish_reason:
@@ -185,7 +186,8 @@ class SseParser:
                 usage = TokenUsage(
                     prompt_tokens=usage_raw.get("input_tokens", 0),
                     completion_tokens=usage_raw.get("output_tokens", 0),
-                    total_tokens=usage_raw.get("input_tokens", 0) + usage_raw.get("output_tokens", 0),
+                    total_tokens=usage_raw.get("input_tokens", 0)
+                    + usage_raw.get("output_tokens", 0),
                 )
                 return StreamDelta(type="usage", usage=usage)
             return None
@@ -310,9 +312,7 @@ class HTTPStreamingGateway:
             payload["stop_sequences"] = request.stop_sequences
         return payload
 
-    async def _parse_sse_stream(
-        self, response: httpx.Response
-    ) -> AsyncIterator[StreamDelta]:
+    async def _parse_sse_stream(self, response: httpx.Response) -> AsyncIterator[StreamDelta]:
         """Iterate over raw SSE bytes and yield parsed :class:`StreamDelta` objects.
 
         Implements stale-stream detection: if no data arrives within

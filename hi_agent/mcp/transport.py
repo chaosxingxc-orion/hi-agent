@@ -240,6 +240,7 @@ class StdioMCPTransport:
 
     def _start_stderr_reader(self) -> None:
         """Start background thread draining subprocess stderr into ring buffer."""
+
         def _read_stderr(proc: subprocess.Popen, buf: collections.deque) -> None:
             try:
                 for raw in proc.stderr:
@@ -291,6 +292,7 @@ class StdioMCPTransport:
             time.sleep(delay)
 
         import os
+
         env = os.environ.copy()
         if self._env:
             env.update(self._env)
@@ -322,6 +324,7 @@ class StdioMCPTransport:
                 self._unavailable = True
                 try:
                     from hi_agent.observability.audit import emit_mcp_server_restart
+
                     emit_mcp_server_restart(
                         self._server_id or repr(self._command),
                         self._restart_attempts,
@@ -339,6 +342,7 @@ class StdioMCPTransport:
             # Emit audit event for successful restart
             try:
                 from hi_agent.observability.audit import emit_mcp_server_restart
+
                 emit_mcp_server_restart(
                     self._server_id or repr(self._command),
                     self._restart_attempts,
@@ -395,9 +399,7 @@ class StdioMCPTransport:
                 continue
             raw = buf.readline()
             if not raw:
-                raise MCPTransportError(
-                    f"MCP server {server_id!r} closed stdout (EOF)."
-                )
+                raise MCPTransportError(f"MCP server {server_id!r} closed stdout (EOF).")
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
@@ -434,9 +436,7 @@ class StdioMCPTransport:
                 raw = buf.readline()
                 if not raw:
                     exc_holder.append(
-                        MCPTransportError(
-                            f"MCP server {server_id!r} closed stdout (EOF)."
-                        )
+                        MCPTransportError(f"MCP server {server_id!r} closed stdout (EOF).")
                     )
                     return
                 try:

@@ -11,6 +11,7 @@ from hi_agent.llm.tier_router import TierRouter
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_model(
     model_id: str,
     tier: str = ModelTier.MEDIUM,
@@ -36,9 +37,17 @@ def _make_model(
 def _populated_registry() -> ModelRegistry:
     """Registry with a few test models across tiers."""
     reg = ModelRegistry()
-    reg.register(_make_model("strong-a", ModelTier.STRONG, 15.0, 75.0, capabilities=["reasoning", "code", "vision"]))
-    reg.register(_make_model("strong-b", ModelTier.STRONG, 20.0, 80.0, capabilities=["reasoning", "code"]))
-    reg.register(_make_model("medium-a", ModelTier.MEDIUM, 3.0, 15.0, capabilities=["code", "tool_use"]))
+    reg.register(
+        _make_model(
+            "strong-a", ModelTier.STRONG, 15.0, 75.0, capabilities=["reasoning", "code", "vision"]
+        )
+    )
+    reg.register(
+        _make_model("strong-b", ModelTier.STRONG, 20.0, 80.0, capabilities=["reasoning", "code"])
+    )
+    reg.register(
+        _make_model("medium-a", ModelTier.MEDIUM, 3.0, 15.0, capabilities=["code", "tool_use"])
+    )
     reg.register(_make_model("medium-b", ModelTier.MEDIUM, 2.0, 8.0, capabilities=["code"]))
     reg.register(_make_model("light-a", ModelTier.LIGHT, 0.8, 4.0, capabilities=["code"]))
     reg.register(_make_model("light-b", ModelTier.LIGHT, 0.1, 0.4, capabilities=["code"]))
@@ -48,6 +57,7 @@ def _populated_registry() -> ModelRegistry:
 # ===========================================================================
 # Registry tests
 # ===========================================================================
+
 
 class TestModelRegistry:
     def test_register_and_get(self) -> None:
@@ -175,6 +185,7 @@ class TestModelRegistry:
 # TierRouter tests
 # ===========================================================================
 
+
 class TestTierRouter:
     def _router_with_models(self) -> TierRouter:
         return TierRouter(_populated_registry())
@@ -296,6 +307,7 @@ class TestTierRouter:
 # ModelSelector tests
 # ===========================================================================
 
+
 class TestModelSelector:
     def _selector(self, budget: float = 10.0) -> ModelSelector:
         reg = _populated_registry()
@@ -389,9 +401,10 @@ class TestModelSelector:
 # Integration tests
 # ===========================================================================
 
+
 class TestIntegration:
     def test_full_flow_register_select_track(self) -> None:
-        """Register models -> select for perception(light) -> control(medium) -> execution(complex->strong)."""
+        """Register models, select tiers, and track execution usage."""
         reg = _populated_registry()
         router = TierRouter(reg)
         selector = ModelSelector(reg, router, budget_usd=5.0)
@@ -430,8 +443,9 @@ class TestIntegration:
         selector = ModelSelector(reg, router, budget_usd=0.001)
 
         # Even requesting complex, tight budget forces downgrade
-        result = selector.select("execution", complexity="complex",
-                                 input_tokens=100_000, output_tokens=50_000)
+        result = selector.select(
+            "execution", complexity="complex", input_tokens=100_000, output_tokens=50_000
+        )
         # Should have been downgraded from strong
         assert result.model.tier in (ModelTier.LIGHT, ModelTier.MEDIUM)
 

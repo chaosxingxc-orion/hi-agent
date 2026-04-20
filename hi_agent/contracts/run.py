@@ -25,7 +25,7 @@ class RunState(StrEnum):
     FAILED = "failed"
     ABORTED = "aborted"
     # --- RunManager operational states ---
-    RUNNING = "running"          # actively executing in a worker thread
-    CANCELLED = "cancelled"      # cancelled via DELETE /runs/{id}
-    QUEUE_TIMEOUT = "queue_timeout"   # waited too long in queue for a concurrency slot
-    QUEUE_FULL = "queue_full"    # queue capacity exceeded at submission time
+    RUNNING = "running"  # actively executing in a worker thread
+    CANCELLED = "cancelled"  # cancelled via DELETE /runs/{id}
+    QUEUE_TIMEOUT = "queue_timeout"  # waited too long in queue for a concurrency slot
+    QUEUE_FULL = "queue_full"  # queue capacity exceeded at submission time

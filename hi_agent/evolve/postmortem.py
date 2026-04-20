@@ -67,6 +67,7 @@ class PostmortemAnalyzer:
                                 break
             except Exception:
                 import logging
+
                 logging.getLogger(__name__).warning(
                     "postmortem._llm_analyze failed for run %s",
                     postmortem.run_id,
@@ -76,12 +77,8 @@ class PostmortemAnalyzer:
         metrics = EvolveMetrics(
             runs_analyzed=1,
             llm_calls_used=llm_calls,
-            skill_candidates_found=sum(
-                1 for c in changes if c.change_type == "skill_candidate"
-            ),
-            regressions_detected=sum(
-                1 for c in changes if c.change_type == "baseline_update"
-            ),
+            skill_candidates_found=sum(1 for c in changes if c.change_type == "skill_candidate"),
+            regressions_detected=sum(1 for c in changes if c.change_type == "baseline_update"),
         )
 
         # Determine change_scope from the changes produced.
@@ -100,9 +97,7 @@ class PostmortemAnalyzer:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _llm_analyze(
-        self, postmortem: RunPostmortem
-    ) -> tuple[list[EvolveChange], int]:
+    def _llm_analyze(self, postmortem: RunPostmortem) -> tuple[list[EvolveChange], int]:
         """Use LLM to extract deeper improvement signals from the postmortem.
 
         Asks the LLM to:
@@ -175,19 +170,13 @@ class PostmortemAnalyzer:
         }
         detected = high_risk & set(postmortem.failure_codes)
         budget_failure_codes = sorted(
-            {
-                code
-                for code in postmortem.failure_codes
-                if is_budget_exhausted_failure_code(code)
-            }
+            {code for code in postmortem.failure_codes if is_budget_exhausted_failure_code(code)}
         )
         if budget_failure_codes:
             detected.add("budget_exhausted")
         if detected:
             budget_note = (
-                f" Budget codes observed: {budget_failure_codes}."
-                if budget_failure_codes
-                else ""
+                f" Budget codes observed: {budget_failure_codes}." if budget_failure_codes else ""
             )
             changes.append(
                 EvolveChange(
@@ -268,6 +257,7 @@ def _infer_scope(changes: list[EvolveChange]) -> str:
 # LLM prompt helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_postmortem_prompt(postmortem: RunPostmortem) -> str:
     """Build a structured prompt for LLM postmortem analysis."""
     lines = [
@@ -280,7 +270,8 @@ def _build_postmortem_prompt(postmortem: RunPostmortem) -> str:
         f"Stages failed: {postmortem.stages_failed}",
         f"Failure codes: {postmortem.failure_codes}",
         f"Branches explored: {postmortem.branches_explored}  Pruned: {postmortem.branches_pruned}",
-        f"Quality score: {postmortem.quality_score}  Efficiency score: {postmortem.efficiency_score}",
+        f"Quality score: {postmortem.quality_score}  "
+        f"Efficiency score: {postmortem.efficiency_score}",
         f"Trajectory: {postmortem.trajectory_summary}",
         "",
         'Return a JSON array. Each item must have: "change_type" (one of '
@@ -303,9 +294,7 @@ def _parse_llm_changes(content: str, run_id: str) -> list[EvolveChange]:
     # Strip markdown code fences if present
     if content.startswith("```"):
         lines = content.splitlines()
-        content = "\n".join(
-            line for line in lines if not line.startswith("```")
-        ).strip()
+        content = "\n".join(line for line in lines if not line.startswith("```")).strip()
 
     try:
         raw = json.loads(content)

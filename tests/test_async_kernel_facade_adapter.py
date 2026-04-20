@@ -1,4 +1,4 @@
-"""Tests for AsyncKernelFacadeAdapter — protocol compliance for resolve_escalation and spawn_child_run."""
+"""Tests for AsyncKernelFacadeAdapter protocol compliance."""
 
 from __future__ import annotations
 
@@ -110,8 +110,7 @@ def test_protocol_no_missing_methods() -> None:
     from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 
     proto_methods = {
-        m for m, v in inspect.getmembers(RuntimeAdapter)
-        if not m.startswith("_") and callable(v)
+        m for m, v in inspect.getmembers(RuntimeAdapter) if not m.startswith("_") and callable(v)
     }
     adapter_methods = {m for m in dir(AsyncKernelFacadeAdapter) if not m.startswith("_")}
     missing = proto_methods - adapter_methods

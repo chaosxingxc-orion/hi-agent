@@ -15,6 +15,7 @@ from hi_agent.trajectory.stage_graph import (
 # Helpers
 # ------------------------------------------------------------------
 
+
 def _linear_graph(*stage_ids: str) -> StageGraph:
     """Build a simple linear chain: s0 -> s1 -> ... -> sN."""
     g = StageGraph()
@@ -50,9 +51,7 @@ class TestDefaultTraceGraph:
 
     def test_passes_with_valid_budget(self) -> None:
         graph = build_default_trace_graph()
-        budget = CTSBudget(
-            l0_raw_tokens=4000, l1_summary_tokens=2000, l2_index_tokens=500
-        )
+        budget = CTSBudget(l0_raw_tokens=4000, l1_summary_tokens=2000, l2_index_tokens=500)
         report = graph.validate_all(
             initial_stage="S1_understand",
             terminal_stages={"S5_review"},
@@ -170,9 +169,7 @@ class TestGateCompleteness:
         g.add_edge("G1", "A")
         g.add_edge("G1", "B")
         g.add_edge("G2", "C")  # only one path
-        result = g.validate_gate_completeness(
-            {"G1": "gate_a", "G2": "gate_d"}
-        )
+        result = g.validate_gate_completeness({"G1": "gate_a", "G2": "gate_d"})
         assert result == ["G2"]
 
 
@@ -192,9 +189,7 @@ class TestCTSBudget:
         assert any("l0_raw_tokens" in v for v in violations)
 
     def test_negative_layer(self) -> None:
-        b = CTSBudget(
-            l0_raw_tokens=-1, l1_summary_tokens=50, l2_index_tokens=10
-        )
+        b = CTSBudget(l0_raw_tokens=-1, l1_summary_tokens=50, l2_index_tokens=10)
         violations = StageGraph.validate_cts_budget(b)
         assert any("l0_raw_tokens" in v for v in violations)
 
@@ -213,18 +208,14 @@ class TestCTSBudget:
 class TestValidateAll:
     def test_valid_report(self) -> None:
         g = _linear_graph("A", "B", "C")
-        report = g.validate_all(
-            initial_stage="A", terminal_stages={"C"}
-        )
+        report = g.validate_all(initial_stage="A", terminal_stages={"C"})
         assert isinstance(report, ValidationReport)
         assert report.is_valid is True
 
     def test_report_captures_unreachable(self) -> None:
         g = _linear_graph("A", "B")
         g.add_edge("X", "Y")
-        report = g.validate_all(
-            initial_stage="A", terminal_stages={"B"}
-        )
+        report = g.validate_all(initial_stage="A", terminal_stages={"B"})
         assert report.is_valid is False
         assert "X" in report.unreachable_stages
 
@@ -232,18 +223,14 @@ class TestValidateAll:
         g = StageGraph()
         g.add_edge("A", "B")
         g.transitions["B"] = set()
-        report = g.validate_all(
-            initial_stage="A", terminal_stages={"C"}
-        )
+        report = g.validate_all(initial_stage="A", terminal_stages={"C"})
         assert "B" in report.dead_end_stages
 
     def test_report_captures_terminal_unreachable(self) -> None:
         g = StageGraph()
         g.add_edge("A", "B")
         g.add_edge("B", "B")
-        report = g.validate_all(
-            initial_stage="A", terminal_stages={"C"}
-        )
+        report = g.validate_all(initial_stage="A", terminal_stages={"C"})
         assert "A" in report.terminal_unreachable_stages
 
     def test_report_captures_gate_violations(self) -> None:
@@ -258,9 +245,7 @@ class TestValidateAll:
 
     def test_report_captures_budget_violations(self) -> None:
         g = _linear_graph("A", "B")
-        bad_budget = CTSBudget(
-            l0_raw_tokens=0, l1_summary_tokens=50, l2_index_tokens=10
-        )
+        bad_budget = CTSBudget(l0_raw_tokens=0, l1_summary_tokens=50, l2_index_tokens=10)
         report = g.validate_all(
             initial_stage="A",
             terminal_stages={"B"},
@@ -285,17 +270,13 @@ class TestCycles:
         g.add_edge("S2", "S3")
         g.add_edge("S3", "S1")  # cycle back
         g.add_edge("S3", "S4")  # terminal escape
-        report = g.validate_all(
-            initial_stage="S1", terminal_stages={"S4"}
-        )
+        report = g.validate_all(initial_stage="S1", terminal_stages={"S4"})
         assert report.is_valid is True
 
     def test_self_loop_at_terminal_is_ok(self) -> None:
         g = _linear_graph("A", "B")
         g.add_edge("B", "B")
-        report = g.validate_all(
-            initial_stage="A", terminal_stages={"B"}
-        )
+        report = g.validate_all(initial_stage="A", terminal_stages={"B"})
         assert report.is_valid is True
 
 
@@ -307,9 +288,7 @@ class TestCycles:
 class TestEdgeCases:
     def test_empty_graph_is_invalid_when_initial_missing(self) -> None:
         g = StageGraph()
-        report = g.validate_all(
-            initial_stage="A", terminal_stages={"Z"}
-        )
+        report = g.validate_all(initial_stage="A", terminal_stages={"Z"})
         # Empty graph has no stages so nothing unreachable, but also
         # nothing to validate — is_valid should be True (vacuously).
         assert report.is_valid is True
@@ -318,16 +297,12 @@ class TestEdgeCases:
         """A graph with a single stage that is also the terminal."""
         g = StageGraph()
         g.transitions["ONLY"] = set()
-        report = g.validate_all(
-            initial_stage="ONLY", terminal_stages={"ONLY"}
-        )
+        report = g.validate_all(initial_stage="ONLY", terminal_stages={"ONLY"})
         assert report.is_valid is True
 
     def test_single_stage_not_terminal(self) -> None:
         g = StageGraph()
         g.transitions["ONLY"] = set()
-        report = g.validate_all(
-            initial_stage="ONLY", terminal_stages={"OTHER"}
-        )
+        report = g.validate_all(initial_stage="ONLY", terminal_stages={"OTHER"})
         assert report.is_valid is False
         assert "ONLY" in report.dead_end_stages

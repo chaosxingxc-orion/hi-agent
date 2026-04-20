@@ -44,9 +44,7 @@ class LLMBudgetTracker:
             total_calls = self._total_calls
             total_tokens = self._total_tokens
         if total_calls >= self._max_calls:
-            raise LLMBudgetExhaustedError(
-                f"Call budget exhausted: {total_calls}/{self._max_calls}"
-            )
+            raise LLMBudgetExhaustedError(f"Call budget exhausted: {total_calls}/{self._max_calls}")
         if total_tokens >= self._max_tokens:
             raise LLMBudgetExhaustedError(
                 f"Token budget exhausted: {total_tokens}/{self._max_tokens}"

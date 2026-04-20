@@ -47,9 +47,7 @@ def _make_app(max_requests: int = 5, window_seconds: float = 60.0, burst: int = 
             Route("/api/test", home),
         ]
     )
-    return RateLimiter(
-        app, max_requests=max_requests, window_seconds=window_seconds, burst=burst
-    )
+    return RateLimiter(app, max_requests=max_requests, window_seconds=window_seconds, burst=burst)
 
 
 class TestRateLimiter:
@@ -175,17 +173,18 @@ class TestRateLimiter:
 
     def test_stale_cleanup(self):
         """Verify stale bucket cleanup does not crash."""
-        from hi_agent.server.rate_limiter import RateLimiter as RL
+        from hi_agent.server.rate_limiter import RateLimiter
 
         async def noop(scope, receive, send):
             pass
 
-        limiter = RL(noop, max_requests=10, burst=10)
+        limiter = RateLimiter(noop, max_requests=10, burst=10)
         # Simulate a consume to create a bucket
         allowed, _ = limiter._consume("1.2.3.4")
         assert allowed
         # Call cleanup directly
         import time
+
         limiter._cleanup_stale_buckets(time.monotonic() + 99999)
         # Bucket should have been cleaned
         assert "1.2.3.4" not in limiter._buckets

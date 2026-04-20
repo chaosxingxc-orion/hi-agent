@@ -57,9 +57,7 @@ def test_stable_section_cache_hit():
 
     # Second call — cache hit expected
     section2 = mgr._assemble_system(prompt)
-    metrics.increment.assert_called_once_with(
-        "context_cache_hit", {"section": "system"}
-    )
+    metrics.increment.assert_called_once_with("context_cache_hit", {"section": "system"})
 
     # Both calls must return equal content
     assert section1.content == section2.content
@@ -111,6 +109,7 @@ def test_history_dirty_after_compact():
 
     # Now compact — this should re-set the dirty flag
     from hi_agent.context.manager import ContextSection
+
     history_section = ContextSection(
         name="history",
         content="[user] hello\n[assistant] hi there",

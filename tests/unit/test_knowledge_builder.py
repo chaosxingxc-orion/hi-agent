@@ -1,4 +1,5 @@
-﻿"""Unit tests for KnowledgeBuilder extracted from the central builder."""
+"""Unit tests for KnowledgeBuilder extracted from the central builder."""
+
 import inspect
 from unittest.mock import MagicMock, patch
 

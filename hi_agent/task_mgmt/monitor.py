@@ -143,9 +143,7 @@ class TaskMonitor:
                 # Cycle includes closing node repeated; deduplicate for callback
                 unique = list(dict.fromkeys(cycle))
                 self.on_deadlock(unique)
-                report.actions_taken.append(
-                    f"on_deadlock callback for cycle {unique}"
-                )
+                report.actions_taken.append(f"on_deadlock callback for cycle {unique}")
                 report.deadlocks_broken += 1
             elif self.auto_recover:
                 # Abort the youngest task (last created) to break the cycle

@@ -1,4 +1,5 @@
 """Test that RunSession checkpoint uses workspace-scoped directory."""
+
 from pathlib import Path
 
 

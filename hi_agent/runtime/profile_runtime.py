@@ -31,9 +31,9 @@ class ResolvedProfile:
     """
 
     profile_id: str
-    stage_graph: Any | None = None          # StageGraph instance
+    stage_graph: Any | None = None  # StageGraph instance
     stage_actions: dict[str, str] = field(default_factory=dict)
-    evaluator: Any | None = None            # hi_agent.evaluation.contracts.Evaluator
+    evaluator: Any | None = None  # hi_agent.evaluation.contracts.Evaluator
     config_overrides: dict[str, Any] = field(default_factory=dict)
     required_capabilities: list[str] = field(default_factory=list)
 

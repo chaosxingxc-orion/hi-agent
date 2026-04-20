@@ -10,6 +10,7 @@ from hi_agent.profiles.registry import ProfileRegistry
 # ProfileSpec
 # ---------------------------------------------------------------------------
 
+
 class TestProfileSpec:
     def test_minimal_creation(self):
         p = ProfileSpec(profile_id="minimal", display_name="Minimal Profile")
@@ -29,7 +30,11 @@ class TestProfileSpec:
             display_name="Customer Support",
             description="Routes customer queries",
             required_capabilities=["classify_intent", "lookup_kb", "generate_reply"],
-            stage_actions={"intake": "classify_intent", "resolve": "lookup_kb", "respond": "generate_reply"},
+            stage_actions={
+                "intake": "classify_intent",
+                "resolve": "lookup_kb",
+                "respond": "generate_reply",
+            },
             config_overrides={"gate_quality_threshold": 0.7},
             metadata={"owner": "support-team"},
         )
@@ -82,6 +87,7 @@ class TestProfileSpec:
 # ---------------------------------------------------------------------------
 # ProfileRegistry
 # ---------------------------------------------------------------------------
+
 
 class TestProfileRegistry:
     def test_register_and_get(self):
@@ -172,7 +178,11 @@ class TestProfileRegistry:
         profile = ProfileSpec(
             profile_id="data_pipeline",
             display_name="Data Pipeline",
-            stage_actions={"ingest": "load_data", "transform": "apply_rules", "export": "write_output"},
+            stage_actions={
+                "ingest": "load_data",
+                "transform": "apply_rules",
+                "export": "write_output",
+            },
         )
         engine = RuleRouteEngine(stage_actions=profile.stage_actions)
         proposals = engine.propose("ingest", "run-002", 1)

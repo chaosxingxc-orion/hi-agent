@@ -15,6 +15,7 @@ Yield/Resume:
   - Scheduler ensures dep_id is scheduled
   - When dep_id completes, scheduler resumes yielded task with results
 """
+
 from __future__ import annotations
 
 import threading
@@ -42,7 +43,7 @@ class ScheduleResult:
     total_steps: int
     completed_tasks: list[str] = field(default_factory=list)
     failed_tasks: list[str] = field(default_factory=list)
-    yielded_tasks: list[str] = field(default_factory=list)   # still waiting
+    yielded_tasks: list[str] = field(default_factory=list)  # still waiting
     cancelled_tasks: list[str] = field(default_factory=list)
     total_tokens: int = 0
     total_duration_ms: int = 0
@@ -192,10 +193,13 @@ class TaskScheduler:
             task.yield_reason = reason
             task.blocked_by = list(blocked_by)
 
-        self._communicator.notify(TaskNotification(
-            task_id=task_id, event="yielded",
-            payload={"blocked_by": blocked_by, "reason": reason},
-        ))
+        self._communicator.notify(
+            TaskNotification(
+                task_id=task_id,
+                event="yielded",
+                payload={"blocked_by": blocked_by, "reason": reason},
+            )
+        )
 
         # Ensure blockers are scheduled (set to PENDING if they are not yet)
         for bid in blocked_by:
@@ -219,10 +223,13 @@ class TaskScheduler:
             if dependency_results and task.session_snapshot is not None:
                 task.session_snapshot["dependency_results"] = dependency_results
 
-        self._communicator.notify(TaskNotification(
-            task_id=task_id, event="resumed",
-            payload={"dependency_results": dependency_results or {}},
-        ))
+        self._communicator.notify(
+            TaskNotification(
+                task_id=task_id,
+                event="resumed",
+                payload={"dependency_results": dependency_results or {}},
+            )
+        )
 
     def cancel_task(self, task_id: str, reason: str = "") -> None:
         """Cancel a task."""
@@ -234,10 +241,13 @@ class TaskScheduler:
             task.error = reason
             task.completed_at = datetime.now(UTC).isoformat()
 
-        self._communicator.notify(TaskNotification(
-            task_id=task_id, event="cancelled",
-            payload={"reason": reason},
-        ))
+        self._communicator.notify(
+            TaskNotification(
+                task_id=task_id,
+                event="cancelled",
+                payload={"reason": reason},
+            )
+        )
 
     # ------------------------------------------------------------------
     # Queries
@@ -282,9 +292,12 @@ class TaskScheduler:
             task.status = TaskStatus.RUNNING
             task.started_at = datetime.now(UTC).isoformat()
 
-        self._communicator.notify(TaskNotification(
-            task_id=task.task_id, event="started",
-        ))
+        self._communicator.notify(
+            TaskNotification(
+                task_id=task.task_id,
+                event="started",
+            )
+        )
         self._monitor.heartbeat(task.task_id)
 
         fn = task._execute_fn or self._default_execute_fn
@@ -292,7 +305,10 @@ class TaskScheduler:
         return self._executor.submit(fn, task)
 
     def _on_task_done(
-        self, task_id: str, result: Any, error: str | None,
+        self,
+        task_id: str,
+        result: Any,
+        error: str | None,
     ) -> None:
         """Handle task completion: update status, notify dependents."""
         with self._lock:
@@ -315,11 +331,14 @@ class TaskScheduler:
                 task.completed_at = now_iso
 
         event = "completed" if error is None else "failed"
-        self._communicator.notify(TaskNotification(
-            task_id=task_id, event=event,
-            result=result,
-            payload={"error": error} if error else {},
-        ))
+        self._communicator.notify(
+            TaskNotification(
+                task_id=task_id,
+                event=event,
+                result=result,
+                payload={"error": error} if error else {},
+            )
+        )
         self._monitor.record_event(task_id, event)
 
     def _check_unblock(self, completed_task_id: str) -> list[str]:
@@ -334,9 +353,7 @@ class TaskScheduler:
                     continue
                 if completed_task_id in task.blocked_by:
                     # Remove from blocked_by
-                    task.blocked_by = [
-                        b for b in task.blocked_by if b != completed_task_id
-                    ]
+                    task.blocked_by = [b for b in task.blocked_by if b != completed_task_id]
                     if not task.blocked_by:
                         to_resume.append(task.task_id)
         return to_resume

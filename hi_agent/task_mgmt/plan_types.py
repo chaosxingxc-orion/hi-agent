@@ -11,6 +11,7 @@ Types:
     DependencyPlan  — explicit DAG with per-node declared dependencies
     SpeculativePlan — all candidates run concurrently; winner committed externally
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,12 +22,14 @@ from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
 @dataclass(frozen=True)
 class SequentialPlan:
     """Linear chain: node_ids[0] → node_ids[1] → … → node_ids[-1]."""
+
     node_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
 class DependencyNode:
     """One node in a DependencyPlan with explicit upstream dependencies."""
+
     node_id: str
     depends_on: tuple[str, ...] = ()
 
@@ -34,18 +37,21 @@ class DependencyNode:
 @dataclass(frozen=True)
 class DependencyPlan:
     """Arbitrary DAG with per-node declared dependencies."""
+
     nodes: tuple[DependencyNode, ...]
 
 
 @dataclass(frozen=True)
 class ParallelPlan:
     """Groups run sequentially; nodes within each group run concurrently."""
+
     groups: tuple[tuple[str, ...], ...]
 
 
 @dataclass(frozen=True)
 class SpeculativePlan:
     """All candidates start simultaneously; no dependencies between them."""
+
     candidate_ids: tuple[str, ...]
 
 

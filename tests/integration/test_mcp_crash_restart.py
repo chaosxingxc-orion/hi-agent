@@ -1,4 +1,5 @@
 """Tests for MCP crash-restart with backoff (HI-W10-005)."""
+
 import contextlib
 from unittest.mock import patch
 
@@ -16,8 +17,10 @@ def test_transport_marks_unavailable_after_max_restarts():
     """After _MAX_RESTART_ATTEMPTS OSErrors, transport._unavailable is True."""
     transport = _make_failing_transport()
 
-    with patch("hi_agent.mcp.transport.time.sleep"), \
-         patch("subprocess.Popen", side_effect=OSError("not found")):
+    with (
+        patch("hi_agent.mcp.transport.time.sleep"),
+        patch("subprocess.Popen", side_effect=OSError("not found")),
+    ):
         for _ in range(_MAX_RESTART_ATTEMPTS):
             with contextlib.suppress(MCPTransportError):
                 transport._ensure_running()

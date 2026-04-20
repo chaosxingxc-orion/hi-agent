@@ -220,7 +220,7 @@ class TraceConfig:
     delegation_summary_max_chars: int = 2000
 
     # --- Trajectory export ---
-    trajectory_export_enabled: bool = False   # 默认关闭，避免生产环境磁盘爆满
+    trajectory_export_enabled: bool = False   # 默认关闭,避免生产环境磁盘爆满
     trajectory_export_dir: str = ".hi_agent/trajectories"
 
     # --- Context window budget (新增) ---

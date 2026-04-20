@@ -68,6 +68,7 @@ class TestD3FinalizeSavesToMidTerm:
 
         # Directly mock the summarizer call inside _finalize_run via monkeypatching
         import unittest.mock as mock
+
         with mock.patch("hi_agent.memory.l0_summarizer.L0Summarizer") as mock_summarizer_cls:
             mock_summarizer_cls.return_value.summarize_run.return_value = fake_summary
             # Drive _finalize_run with minimal fake state

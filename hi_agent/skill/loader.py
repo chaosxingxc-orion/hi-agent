@@ -35,6 +35,7 @@ from hi_agent.skill.definition import SkillDefinition, _estimate_tokens
 # SkillPrompt — token-optimised prompt ready for LLM injection
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SkillPrompt:
     """Token-optimized skill prompt ready for LLM injection."""
@@ -62,9 +63,7 @@ class SkillPrompt:
             sections.append("\n".join(self.compact_skills))
 
         if self.truncated_count > 0:
-            sections.append(
-                f"\n({self.truncated_count} more skill(s) omitted due to token budget)"
-            )
+            sections.append(f"\n({self.truncated_count} more skill(s) omitted due to token budget)")
 
         return "\n".join(sections)
 
@@ -188,10 +187,7 @@ class SkillLoader:
 
     def list_by_stage(self, lifecycle_stage: str) -> list[SkillDefinition]:
         """Return skills at the given lifecycle stage."""
-        return [
-            s for s in self._skills.values()
-            if s.lifecycle_stage == lifecycle_stage
-        ]
+        return [s for s in self._skills.values() if s.lifecycle_stage == lifecycle_stage]
 
     # ------------------------------------------------------------------
     # Prompt building (token-optimised, OpenClaw binary-search pattern)
@@ -250,10 +246,7 @@ class SkillLoader:
 
         while lo <= hi:
             mid = (lo + hi) // 2
-            cost = (
-                sum(full_token_costs[:mid])
-                + sum(compact_token_costs[mid:])
-            )
+            cost = sum(full_token_costs[:mid]) + sum(compact_token_costs[mid:])
             if cost <= budget:
                 best_k = mid
                 lo = mid + 1
@@ -275,9 +268,8 @@ class SkillLoader:
         total_shown = full_count + compact_count
         truncated = len(eligible) - total_shown
 
-        total_tokens = (
-            sum(full_token_costs[:full_count])
-            + sum(compact_token_costs[full_count : full_count + compact_count])
+        total_tokens = sum(full_token_costs[:full_count]) + sum(
+            compact_token_costs[full_count : full_count + compact_count]
         )
 
         return SkillPrompt(
@@ -325,6 +317,7 @@ class SkillLoader:
         from datetime import UTC, datetime
 
         from hi_agent.skill.registry import ManagedSkill
+
         synced = 0
         now = datetime.now(UTC).isoformat()
         for skill in self._skills.values():
@@ -342,6 +335,7 @@ class SkillLoader:
             registry._skills[managed.skill_id] = managed
             synced += 1
         import logging as _logging
+
         _logging.getLogger(__name__).info(
             "SkillLoader.sync_to_registry: synced %d skill(s).", synced
         )

@@ -1,4 +1,5 @@
 """Unit tests for SkillBuilder — extracted from SystemBuilder in W6-003."""
+
 import pytest
 from hi_agent.config.skill_builder import SkillBuilder
 from hi_agent.config.trace_config import TraceConfig
@@ -35,6 +36,7 @@ def test_build_skill_evolver_is_singleton(skill_builder):
 def test_skill_builder_does_not_require_builder_ref():
     """SkillBuilder takes only TraceConfig — no SystemBuilder dependency."""
     import inspect
+
     sig = inspect.signature(SkillBuilder.__init__)
     params = list(sig.parameters.keys())
     assert "builder" not in params

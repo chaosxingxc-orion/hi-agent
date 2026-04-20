@@ -98,19 +98,14 @@ class ModelSelector:
         self._selections.append(result)
         return result
 
-    def _build_reason(
-        self, requested: str, actual: str, remaining: float
-    ) -> str:
+    def _build_reason(self, requested: str, actual: str, remaining: float) -> str:
         """Build a human-readable reason for the selection."""
         if requested == actual:
             return f"Selected {actual} tier as configured"
         ri = _tier_index(requested)
         ai = _tier_index(actual)
         if ai < ri:
-            return (
-                f"Downgraded from {requested} to {actual} "
-                f"(budget remaining: ${remaining:.4f})"
-            )
+            return f"Downgraded from {requested} to {actual} (budget remaining: ${remaining:.4f})"
         return f"Upgraded from {requested} to {actual} based on complexity"
 
     def record_actual_usage(
@@ -132,9 +127,7 @@ class ModelSelector:
         self._spent += cost
         return cost
 
-    def request_upgrade(
-        self, purpose: str, reason: str = "quality"
-    ) -> SelectionResult | None:
+    def request_upgrade(self, purpose: str, reason: str = "quality") -> SelectionResult | None:
         """Request tier upgrade (e.g., light model output was poor).
 
         Returns new selection or None if already at strong.
@@ -182,12 +175,8 @@ class ModelSelector:
         by_tier: dict[str, float] = {}
         for sel in self._selections:
             purpose_key = sel.reason.split()[0] if sel.reason else "unknown"
-            by_purpose[purpose_key] = (
-                by_purpose.get(purpose_key, 0.0) + sel.estimated_cost_usd
-            )
-            by_tier[sel.tier_actual] = (
-                by_tier.get(sel.tier_actual, 0.0) + sel.estimated_cost_usd
-            )
+            by_purpose[purpose_key] = by_purpose.get(purpose_key, 0.0) + sel.estimated_cost_usd
+            by_tier[sel.tier_actual] = by_tier.get(sel.tier_actual, 0.0) + sel.estimated_cost_usd
         return {
             "total_spent": self._spent,
             "remaining_budget": self.remaining_budget,

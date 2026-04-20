@@ -125,9 +125,7 @@ class LLMRouteEngine:
         elif self._client is not None:
             raw = self._client(prompt)
         else:
-            raise LLMRouteParseError(
-                "LLMRouteEngine has no gateway and no client; cannot decide"
-            )
+            raise LLMRouteParseError("LLMRouteEngine has no gateway and no client; cannot decide")
 
         payload = self._parse_payload(raw)
         decision = self._validate_payload(payload)
@@ -242,4 +240,3 @@ class LLMRouteEngine:
             rationale=rationale.strip(),
             action_kind=action_kind.strip(),
         )
-

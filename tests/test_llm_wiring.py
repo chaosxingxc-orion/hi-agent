@@ -16,6 +16,7 @@ from tests.helpers.llm_gateway_fixture import MockLLMGateway
 # Helpers
 # --------------------------------------------------------------------------- #
 
+
 def _make_route_response(
     next_stage: str = "S3_build",
     confidence: float = 0.85,
@@ -123,9 +124,7 @@ class TestLLMRouteEngineGateway:
 
     def test_gateway_takes_precedence_over_client(self) -> None:
         """When both gateway and client are provided, gateway wins."""
-        gw = MockLLMGateway(
-            default_response=_make_route_response(rationale="from gateway")
-        )
+        gw = MockLLMGateway(default_response=_make_route_response(rationale="from gateway"))
 
         def client(_: str) -> str:
             return _make_route_response(rationale="from client")
@@ -183,9 +182,7 @@ class TestHybridRouteEngineGateway:
         )
         hybrid = HybridRouteEngine(gateway=gw, confidence_threshold=0.7)
 
-        result = hybrid.propose_with_provenance(
-            stage_id="SX_unknown", run_id="run-2", seq=3
-        )
+        result = hybrid.propose_with_provenance(stage_id="SX_unknown", run_id="run-2", seq=3)
         assert result.source == "llm"
         assert result.confidence == pytest.approx(0.76)
         assert gw.call_count == 1
@@ -194,9 +191,7 @@ class TestHybridRouteEngineGateway:
         gw = MockLLMGateway(default_response=_make_route_response())
         hybrid = HybridRouteEngine(gateway=gw, confidence_threshold=0.7)
 
-        result = hybrid.propose_with_provenance(
-            stage_id="S2_gather", run_id="run-1", seq=1
-        )
+        result = hybrid.propose_with_provenance(stage_id="S2_gather", run_id="run-1", seq=1)
         assert result.source == "rule"
         assert gw.call_count == 0  # gateway never called
 
@@ -210,9 +205,7 @@ class TestHybridRouteEngineGateway:
             llm_engine=LLMRouteEngine(client),
             confidence_threshold=0.7,
         )
-        result = hybrid.propose_with_provenance(
-            stage_id="SX_unknown", run_id="run-1", seq=1
-        )
+        result = hybrid.propose_with_provenance(stage_id="SX_unknown", run_id="run-1", seq=1)
         assert result.source == "llm"
 
 

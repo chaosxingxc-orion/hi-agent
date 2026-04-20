@@ -1,4 +1,5 @@
 """Tests for MCP schema version registry (HI-W10-005)."""
+
 import logging
 
 import pytest

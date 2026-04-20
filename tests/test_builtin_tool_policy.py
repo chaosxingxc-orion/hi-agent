@@ -42,7 +42,7 @@ class TestShellExecPolicy:
         assert "shell_exec" in registry.list_names()
 
     def test_shell_exec_present_with_default_profile(self, monkeypatch):
-        """Default profile (no arg) is dev-smoke — shell_exec present when opt-in env var is set (H-2)."""
+        """Default dev-smoke profile includes shell_exec when env opt-in is set."""
         monkeypatch.setenv("HI_AGENT_ENABLE_SHELL_EXEC", "true")
         registry = CapabilityRegistry()
         register_builtin_tools(registry)

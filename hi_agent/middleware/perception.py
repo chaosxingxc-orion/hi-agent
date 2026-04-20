@@ -8,6 +8,7 @@ Only does standard NLP-style processing:
   4. Context assembly (within token budget via ContextManager)
   5. Metadata annotation (modality, language, token_count)
 """
+
 from __future__ import annotations
 
 import logging
@@ -169,46 +170,68 @@ class PerceptionMiddleware:
 
         # Code blocks first (remove them from number/date scanning to avoid noise)
         for m in _CODE_BLOCK.finditer(text):
-            entities.append(Entity(
-                entity_type="code_block", value=m.group(), position=m.start(),
-            ))
+            entities.append(
+                Entity(
+                    entity_type="code_block",
+                    value=m.group(),
+                    position=m.start(),
+                )
+            )
 
         # URLs
         for m in _URL.finditer(text):
-            entities.append(Entity(
-                entity_type="url", value=m.group(), position=m.start(),
-            ))
+            entities.append(
+                Entity(
+                    entity_type="url",
+                    value=m.group(),
+                    position=m.start(),
+                )
+            )
 
         # Emails
         for m in _EMAIL.finditer(text):
-            entities.append(Entity(
-                entity_type="email", value=m.group(), position=m.start(),
-            ))
+            entities.append(
+                Entity(
+                    entity_type="email",
+                    value=m.group(),
+                    position=m.start(),
+                )
+            )
 
         # ISO dates
         for m in _DATE_ISO.finditer(text):
-            entities.append(Entity(
-                entity_type="date", value=m.group(), position=m.start(),
-            ))
+            entities.append(
+                Entity(
+                    entity_type="date",
+                    value=m.group(),
+                    position=m.start(),
+                )
+            )
 
         # Natural dates
         for m in _DATE_NATURAL.finditer(text):
-            entities.append(Entity(
-                entity_type="date", value=m.group(), position=m.start(),
-            ))
+            entities.append(
+                Entity(
+                    entity_type="date",
+                    value=m.group(),
+                    position=m.start(),
+                )
+            )
 
         # Numbers (exclude those already part of dates/URLs)
         existing_positions = {(e.position, e.position + len(e.value)) for e in entities}
         for m in _NUMBER.finditer(text):
             start, end = m.start(), m.end()
             # Skip if overlapping with existing entity
-            overlaps = any(
-                not (end <= es or start >= ee) for es, ee in existing_positions
-            )
+            overlaps = any(not (end <= es or start >= ee) for es, ee in existing_positions)
             if not overlaps:
-                entities.append(Entity(
-                    entity_type="number", value=m.group(), position=start,
-                ))
+                entities.append(
+                    Entity(
+                        entity_type="number",
+                        value=m.group(),
+                        position=start,
+                    )
+                )
 
         # Sort by position, limit to max_entities
         entities.sort(key=lambda e: e.position)
@@ -264,7 +287,7 @@ class PerceptionMiddleware:
         """Extractive summarization: first paragraph + last paragraph."""
         paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
         if not paragraphs:
-            return text[:threshold * 4]
+            return text[: threshold * 4]
 
         parts: list[str] = []
         if paragraphs:

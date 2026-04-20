@@ -1,4 +1,5 @@
 """Tests for the four-middleware architecture with 5-phase lifecycle hooks."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -20,6 +21,7 @@ from hi_agent.middleware.protocol import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_input_msg(text: str = "hello world") -> MiddlewareMessage:
     return MiddlewareMessage(
@@ -44,6 +46,7 @@ def _make_control_msg(text: str = "hello world") -> MiddlewareMessage:
 
 class _StubInvoker:
     """Stub capability invoker that returns a simple string result."""
+
     def invoke(self, payload: dict, resources: dict) -> str:
         desc = payload.get("description", "")
         return f"Completed: {desc}" if desc else "executed"
@@ -90,6 +93,7 @@ class DummyMiddleware:
 # Lifecycle tests
 # ===========================================================================
 
+
 class TestLifecycleHooks:
     """Tests for the 5-phase lifecycle hook system."""
 
@@ -103,15 +107,19 @@ class TestLifecycleHooks:
 
         orch = create_default_orchestrator()
         orch.add_hook(
-            "perception", LifecyclePhase.PRE_CREATE,
-            on_pre_create, name="track_create",
+            "perception",
+            LifecyclePhase.PRE_CREATE,
+            on_pre_create,
+            name="track_create",
         )
 
         # Wrap process to track order
         orig_process = orch._middlewares["perception"].process
+
         def tracked_process(msg):
             order.append("process")
             return orig_process(msg)
+
         orch._middlewares["perception"].process = tracked_process
 
         orch.run("test input")
@@ -120,6 +128,7 @@ class TestLifecycleHooks:
 
     def test_pre_execute_hooks_can_modify_input(self):
         """pre_execute hooks with MODIFY action should replace the input message."""
+
         def modify_hook(msg, ctx):
             modified = MiddlewareMessage(
                 source=msg.source,
@@ -135,8 +144,10 @@ class TestLifecycleHooks:
 
         orch = create_default_orchestrator()
         orch.add_hook(
-            "perception", LifecyclePhase.PRE_EXECUTE,
-            modify_hook, name="modifier",
+            "perception",
+            LifecyclePhase.PRE_EXECUTE,
+            modify_hook,
+            name="modifier",
         )
 
         _ = orch.run("original input")
@@ -149,13 +160,16 @@ class TestLifecycleHooks:
 
     def test_pre_execute_hooks_can_skip_middleware(self):
         """pre_execute hooks with SKIP should pass message through unchanged."""
+
         def skip_hook(msg, ctx):
             return HookResult(action=HookAction.SKIP, reason="skip control")
 
         orch = create_default_orchestrator()
         orch.add_hook(
-            "control", LifecyclePhase.PRE_EXECUTE,
-            skip_hook, name="skipper",
+            "control",
+            LifecyclePhase.PRE_EXECUTE,
+            skip_hook,
+            name="skipper",
         )
 
         _ = orch.run("test input")
@@ -165,13 +179,16 @@ class TestLifecycleHooks:
 
     def test_pre_execute_hooks_can_block_pipeline(self):
         """pre_execute hooks with BLOCK should stop the pipeline."""
+
         def block_hook(msg, ctx):
             return HookResult(action=HookAction.BLOCK, reason="blocked!")
 
         orch = create_default_orchestrator()
         orch.add_hook(
-            "perception", LifecyclePhase.PRE_EXECUTE,
-            block_hook, name="blocker",
+            "perception",
+            LifecyclePhase.PRE_EXECUTE,
+            block_hook,
+            name="blocker",
         )
 
         _ = orch.run("test input")
@@ -203,6 +220,7 @@ class TestLifecycleHooks:
 
     def test_post_execute_hooks_can_modify_output(self):
         """post_execute hooks with MODIFY should replace the output message."""
+
         def post_modify(msg, ctx):
             modified = MiddlewareMessage(
                 source=msg.source,
@@ -218,8 +236,10 @@ class TestLifecycleHooks:
 
         orch = create_default_orchestrator()
         orch.add_hook(
-            "perception", LifecyclePhase.POST_EXECUTE,
-            post_modify, name="post_mod",
+            "perception",
+            LifecyclePhase.POST_EXECUTE,
+            post_modify,
+            name="post_mod",
         )
 
         _ = orch.run("test")
@@ -238,14 +258,18 @@ class TestLifecycleHooks:
 
         orch = create_default_orchestrator()
         orch.add_hook(
-            "perception", LifecyclePhase.PRE_DESTROY,
-            on_pre_destroy, name="track_destroy",
+            "perception",
+            LifecyclePhase.PRE_DESTROY,
+            on_pre_destroy,
+            name="track_destroy",
         )
 
         orig_process = orch._middlewares["perception"].process
+
         def tracked_process(msg):
             order.append("process")
             return orig_process(msg)
+
         orch._middlewares["perception"].process = tracked_process
 
         orch.run("test")
@@ -261,12 +285,19 @@ class TestLifecycleHooks:
             def hook(msg, ctx):
                 order.append(priority)
                 return HookResult()
+
             return hook
 
         orch = create_default_orchestrator()
-        orch.add_hook("perception", LifecyclePhase.PRE_EXECUTE, make_hook(1), priority=1, name="low")
-        orch.add_hook("perception", LifecyclePhase.PRE_EXECUTE, make_hook(10), priority=10, name="high")
-        orch.add_hook("perception", LifecyclePhase.PRE_EXECUTE, make_hook(5), priority=5, name="mid")
+        orch.add_hook(
+            "perception", LifecyclePhase.PRE_EXECUTE, make_hook(1), priority=1, name="low"
+        )
+        orch.add_hook(
+            "perception", LifecyclePhase.PRE_EXECUTE, make_hook(10), priority=10, name="high"
+        )
+        orch.add_hook(
+            "perception", LifecyclePhase.PRE_EXECUTE, make_hook(5), priority=5, name="mid"
+        )
 
         orch.run("test")
         assert order[:3] == [10, 5, 1]
@@ -299,8 +330,11 @@ class TestLifecycleHooks:
 
         orch = create_default_orchestrator()
         orch.add_hook(
-            "perception", LifecyclePhase.PRE_EXECUTE,
-            once_hook, name="once_hook", once=True,
+            "perception",
+            LifecyclePhase.PRE_EXECUTE,
+            once_hook,
+            name="once_hook",
+            once=True,
         )
 
         # First run
@@ -329,8 +363,10 @@ class TestLifecycleHooks:
 
         orch = create_default_orchestrator()
         orch.add_hook(
-            "perception", LifecyclePhase.EXECUTE,
-            retry_hook, name="retrier",
+            "perception",
+            LifecyclePhase.EXECUTE,
+            retry_hook,
+            name="retrier",
         )
 
         orch.run("test")
@@ -343,6 +379,7 @@ class TestLifecycleHooks:
 # ===========================================================================
 # Middleware tests
 # ===========================================================================
+
 
 class TestPerceptionMiddleware:
     """Tests for PerceptionMiddleware entity extraction and summarization."""
@@ -401,11 +438,16 @@ class TestPerceptionLLMSummarization:
 
     def _make_long_text(self, char_count: int = 2000) -> str:
         """Create text that exceeds both the token threshold and char threshold."""
-        return "First paragraph intro.\n\n" + ("Middle content word. " * (char_count // 20)) + "\n\nFinal paragraph conclusion."
+        return (
+            "First paragraph intro.\n\n"
+            + ("Middle content word. " * (char_count // 20))
+            + "\n\nFinal paragraph conclusion."
+        )
 
     def test_llm_summarization_used_for_long_text(self):
         """When llm_gateway is available and text is long, LLM summarization is used."""
         from tests.helpers.llm_gateway_fixture import MockLLMGateway
+
         gateway = MockLLMGateway(default_response="LLM summary result")
         pm = PerceptionMiddleware(summary_threshold=10, llm_gateway=gateway)
         msg = _make_input_msg(self._make_long_text())
@@ -424,6 +466,7 @@ class TestPerceptionLLMSummarization:
     def test_short_text_skips_summarization(self):
         """Short text below threshold gets no summarization."""
         from tests.helpers.llm_gateway_fixture import MockLLMGateway
+
         gateway = MockLLMGateway(default_response="should not appear")
         pm = PerceptionMiddleware(summary_threshold=2000, llm_gateway=gateway)
         msg = _make_input_msg("short text")
@@ -438,6 +481,7 @@ class TestPerceptionLLMSummarization:
         class FailingGateway:
             def complete(self, request: _Req):
                 raise RuntimeError("LLM unavailable")
+
             def supports_model(self, model: str) -> bool:
                 return True
 
@@ -451,6 +495,7 @@ class TestPerceptionLLMSummarization:
     def test_summarization_method_correctly_set_for_all_paths(self):
         """Verify summarization_method is present in all code paths."""
         from tests.helpers.llm_gateway_fixture import MockLLMGateway
+
         # Path 1: none (short text)
         pm = PerceptionMiddleware(summary_threshold=2000)
         r1 = pm.process(_make_input_msg("hi"))
@@ -470,6 +515,7 @@ class TestPerceptionLLMSummarization:
     def test_llm_summary_shorter_than_input(self):
         """LLM summary should be shorter than the original input."""
         from tests.helpers.llm_gateway_fixture import MockLLMGateway
+
         gateway = MockLLMGateway(default_response="Brief summary.")
         pm = PerceptionMiddleware(summary_threshold=10, llm_gateway=gateway)
         long_text = self._make_long_text(3000)
@@ -522,19 +568,33 @@ class TestControlMiddlewareLLMDecomposition:
     def _make_mock_gateway(self, response_content: str):
         """Create a MockLLMGateway with the given response."""
         from tests.helpers.llm_gateway_fixture import MockLLMGateway
+
         gw = MockLLMGateway(default_response=response_content)
         return gw
 
     def test_llm_decomposition_produces_custom_stages(self):
         """When gateway returns valid JSON, custom stages are used."""
         import json
+
         stages = [
-            {"stage_id": "parse", "stage_name": "Parse input",
-             "description": "Parse the user input", "depends_on": []},
-            {"stage_id": "compute", "stage_name": "Compute result",
-             "description": "Run the computation", "depends_on": ["parse"]},
-            {"stage_id": "format", "stage_name": "Format output",
-             "description": "Format the final output", "depends_on": ["compute"]},
+            {
+                "stage_id": "parse",
+                "stage_name": "Parse input",
+                "description": "Parse the user input",
+                "depends_on": [],
+            },
+            {
+                "stage_id": "compute",
+                "stage_name": "Compute result",
+                "description": "Run the computation",
+                "depends_on": ["parse"],
+            },
+            {
+                "stage_id": "format",
+                "stage_name": "Format output",
+                "description": "Format the final output",
+                "depends_on": ["compute"],
+            },
         ]
         gw = self._make_mock_gateway(json.dumps(stages))
         cm = ControlMiddleware(llm_gateway=gw)
@@ -566,9 +626,11 @@ class TestControlMiddlewareLLMDecomposition:
 
     def test_fallback_to_default_on_llm_exception(self):
         """When the gateway raises an exception, fall back to default stages."""
+
         class ExplodingGateway:
             def complete(self, request):
                 raise RuntimeError("LLM service unavailable")
+
             def supports_model(self, model):
                 return True
 
@@ -581,8 +643,15 @@ class TestControlMiddlewareLLMDecomposition:
     def test_fallback_on_too_few_stages(self):
         """LLM returning only 1 stage should trigger fallback."""
         import json
-        stages = [{"stage_id": "only", "stage_name": "Only stage",
-                    "description": "Single", "depends_on": []}]
+
+        stages = [
+            {
+                "stage_id": "only",
+                "stage_name": "Only stage",
+                "description": "Single",
+                "depends_on": [],
+            }
+        ]
         gw = self._make_mock_gateway(json.dumps(stages))
         cm = ControlMiddleware(llm_gateway=gw)
         msg = _make_perception_msg("do something")
@@ -593,11 +662,15 @@ class TestControlMiddlewareLLMDecomposition:
     def test_custom_stages_have_correct_structure(self):
         """Each custom stage node must have node_id, node_type, and payload."""
         import json
+
         stages = [
-            {"stage_id": "a", "stage_name": "Alpha",
-             "description": "First step", "depends_on": []},
-            {"stage_id": "b", "stage_name": "Beta",
-             "description": "Second step", "depends_on": ["a"]},
+            {"stage_id": "a", "stage_name": "Alpha", "description": "First step", "depends_on": []},
+            {
+                "stage_id": "b",
+                "stage_name": "Beta",
+                "description": "Second step",
+                "depends_on": ["a"],
+            },
         ]
         gw = self._make_mock_gateway(json.dumps(stages))
         cm = ControlMiddleware(llm_gateway=gw)
@@ -710,6 +783,7 @@ class TestEvaluationMiddleware:
 # Orchestrator tests
 # ===========================================================================
 
+
 class TestMiddlewareOrchestrator:
     """Tests for the extensible orchestrator."""
 
@@ -801,7 +875,9 @@ class TestMiddlewareOrchestrator:
         # (or at least evaluation routes to control)
         eval_msgs = [m for m in log if m.source == "evaluation"]
         if eval_msgs:
-            assert any(m.target == "control" for m in eval_msgs) or any(m.target == "end" for m in eval_msgs)
+            assert any(m.target == "control" for m in eval_msgs) or any(
+                m.target == "end" for m in eval_msgs
+            )
 
     def test_get_flow_mermaid(self):
         orch = create_default_orchestrator()
@@ -868,6 +944,7 @@ class TestMiddlewareOrchestrator:
 # Defaults tests
 # ===========================================================================
 
+
 class TestDefaults:
     """Tests for the default orchestrator factory."""
 
@@ -903,6 +980,7 @@ class TestDefaults:
 # Misconfiguration handling tests
 # ===========================================================================
 
+
 class TestExecutionMiddlewareMisconfiguration:
     """Tests for strict mode and missing invoker handling."""
 
@@ -927,6 +1005,7 @@ class TestExecutionMiddlewareMisconfiguration:
     def test_non_strict_without_invoker_logs_warning(self, caplog):
         """strict=False without invoker logs a warning."""
         import logging
+
         em = ExecutionMiddleware()
         msg = _make_control_msg("test task")
         with caplog.at_level(logging.WARNING, logger="hi_agent.middleware.execution"):
@@ -935,6 +1014,7 @@ class TestExecutionMiddlewareMisconfiguration:
 
     def test_real_invoker_no_synthetic_flag(self):
         """Normal execution with a real invoker does not produce _synthetic."""
+
         class FakeInvoker:
             def invoke(self, payload, resources):
                 return "real result"
@@ -1025,11 +1105,10 @@ class TestLLMQualityScoring:
 
     def test_llm_scoring_used_when_gateway_returns_valid_json(self):
         """LLM scoring is used when gateway is available and returns valid JSON."""
-        gateway = _FakeLLMGateway(
-            '{"score": 0.85, "issues": [], "strengths": ["clear"]}'
-        )
+        gateway = _FakeLLMGateway('{"score": 0.85, "issues": [], "strengths": ["clear"]}')
         ev = EvaluationMiddleware(
-            quality_threshold=0.5, llm_gateway=gateway,
+            quality_threshold=0.5,
+            llm_gateway=gateway,
         )
         msg = _make_eval_msg_with_output("A detailed analysis of the data.")
         result = ev.process(msg)
@@ -1054,7 +1133,8 @@ class TestLLMQualityScoring:
         """Falls back to heuristic when LLM returns unparseable response."""
         gateway = _FakeLLMGateway("this is not json at all")
         ev = EvaluationMiddleware(
-            quality_threshold=0.5, llm_gateway=gateway,
+            quality_threshold=0.5,
+            llm_gateway=gateway,
         )
         msg = _make_eval_msg_with_output(
             "Some output that is long enough for heuristic scoring to work."
@@ -1067,7 +1147,8 @@ class TestLLMQualityScoring:
         """Falls back to heuristic when LLM gateway raises an exception."""
         gateway = _ErrorLLMGateway()
         ev = EvaluationMiddleware(
-            quality_threshold=0.5, llm_gateway=gateway,
+            quality_threshold=0.5,
+            llm_gateway=gateway,
         )
         msg = _make_eval_msg_with_output(
             "Some output that is long enough for heuristic scoring to work."
@@ -1079,11 +1160,10 @@ class TestLLMQualityScoring:
 
     def test_scoring_mode_reflects_method_used(self):
         """scoring_mode is 'llm' with gateway and 'heuristic' without."""
-        gateway = _FakeLLMGateway(
-            '{"score": 0.9, "issues": [], "strengths": []}'
-        )
+        gateway = _FakeLLMGateway('{"score": 0.9, "issues": [], "strengths": []}')
         ev_llm = EvaluationMiddleware(
-            quality_threshold=0.5, llm_gateway=gateway,
+            quality_threshold=0.5,
+            llm_gateway=gateway,
         )
         ev_heuristic = EvaluationMiddleware(quality_threshold=0.5)
 
@@ -1098,11 +1178,10 @@ class TestLLMQualityScoring:
     def test_llm_score_clamped_to_valid_range(self):
         """LLM scores outside [0.0, 1.0] are clamped."""
         # Score above 1.0
-        gateway_high = _FakeLLMGateway(
-            '{"score": 1.5, "issues": [], "strengths": []}'
-        )
+        gateway_high = _FakeLLMGateway('{"score": 1.5, "issues": [], "strengths": []}')
         ev = EvaluationMiddleware(
-            quality_threshold=0.5, llm_gateway=gateway_high,
+            quality_threshold=0.5,
+            llm_gateway=gateway_high,
         )
         msg = _make_eval_msg_with_output("Test output.")
         result = ev.process(msg)
@@ -1110,11 +1189,10 @@ class TestLLMQualityScoring:
         assert result.payload["evaluations"][0]["scoring_mode"] == "llm"
 
         # Score below 0.0
-        gateway_low = _FakeLLMGateway(
-            '{"score": -0.5, "issues": ["bad"], "strengths": []}'
-        )
+        gateway_low = _FakeLLMGateway('{"score": -0.5, "issues": ["bad"], "strengths": []}')
         ev2 = EvaluationMiddleware(
-            quality_threshold=0.5, llm_gateway=gateway_low,
+            quality_threshold=0.5,
+            llm_gateway=gateway_low,
         )
         result2 = ev2.process(msg)
         assert result2.payload["evaluations"][0]["quality_score"] == 0.0

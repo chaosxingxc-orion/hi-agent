@@ -1,4 +1,5 @@
 """Single source of truth for runtime_mode — HI-W1-D3-001."""
+
 from typing import Literal
 
 
@@ -23,9 +24,6 @@ def resolve_runtime_mode(
     """
     if env == "prod":
         return "prod-real"
-    if (
-        readiness.get("llm_mode") == "real"
-        and readiness.get("kernel_mode") == "http"
-    ):
+    if readiness.get("llm_mode") == "real" and readiness.get("kernel_mode") == "http":
         return "local-real"
     return "dev-smoke"

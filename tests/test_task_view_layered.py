@@ -26,9 +26,11 @@ from hi_agent.task_view.token_budget import (
 # ---------------------------------------------------------------------------
 
 
-def _make_index(run_id: str = "run-1", stages: list[tuple[str, str]] | None = None) -> RunMemoryIndex:
+def _make_index(
+    run_id: str = "run-1", stages: list[tuple[str, str]] | None = None
+) -> RunMemoryIndex:
     idx = RunMemoryIndex(run_id=run_id)
-    for sid, outcome in (stages or []):
+    for sid, outcome in stages or []:
         idx.add_stage(sid, outcome)
     return idx
 

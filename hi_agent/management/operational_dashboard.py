@@ -55,4 +55,3 @@ def build_operational_dashboard_payload(
         "metadata": meta,
         "status_badge": badge,
     }
-

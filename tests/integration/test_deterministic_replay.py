@@ -18,4 +18,3 @@ def test_same_contract_replay_produces_stable_ids_and_summaries() -> None:
     assert first.run_id == second.run_id
     assert list(first.dag.keys()) == list(second.dag.keys())
     assert list(first.stage_summaries.keys()) == list(second.stage_summaries.keys())
-

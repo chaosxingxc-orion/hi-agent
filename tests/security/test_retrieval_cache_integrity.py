@@ -5,6 +5,7 @@ Ensures that:
 - Tampered, stale-fingerprint, and wrong-schema caches trigger a rebuild.
 - No pickle usage remains in retrieval_engine.py.
 """
+
 from __future__ import annotations
 
 import json
@@ -132,10 +133,7 @@ class TestWrongSchemaVersionTriggersRebuild:
 class TestNoPickleInModule:
     def test_no_pickle_in_module(self):
         """retrieval_engine.py must contain no pickle references."""
-        source = pathlib.Path(
-            "hi_agent/knowledge/retrieval_engine.py"
-        ).read_text(encoding="utf-8")
+        source = pathlib.Path("hi_agent/knowledge/retrieval_engine.py").read_text(encoding="utf-8")
         assert "pickle" not in source, (
-            "Found 'pickle' in hi_agent/knowledge/retrieval_engine.py — "
-            "remove all pickle usage"
+            "Found 'pickle' in hi_agent/knowledge/retrieval_engine.py — remove all pickle usage"
         )

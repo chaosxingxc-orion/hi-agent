@@ -22,6 +22,7 @@ from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 # Minimal mock agent-kernel HTTP server
 # ---------------------------------------------------------------------------
 
+
 class _MockKernelHandler(BaseHTTPRequestHandler):
     """Handles the subset of agent-kernel endpoints used by KernelFacadeClient."""
 
@@ -83,7 +84,11 @@ class _MockKernelHandler(BaseHTTPRequestHandler):
             self._ok({"branch_id": branch_id})
         elif re.fullmatch(r"/runs/[^/]+/task-views", path):
             self._ok({"task_view_id": body.get("task_view_id", "tv-1")})
-        elif re.fullmatch(r"/runs/[^/]+/human-gates", path) or re.fullmatch(r"/runs/[^/]+/approval", path) or re.fullmatch(r"/runs/[^/]+/signals", path):
+        elif (
+            re.fullmatch(r"/runs/[^/]+/human-gates", path)
+            or re.fullmatch(r"/runs/[^/]+/approval", path)
+            or re.fullmatch(r"/runs/[^/]+/signals", path)
+        ):
             self._ok({"ok": True})
         else:
             self._not_found()
@@ -94,7 +99,11 @@ class _MockKernelHandler(BaseHTTPRequestHandler):
         _ = self._read_body()
         path = self.path.split("?")[0]
 
-        if re.fullmatch(r"/runs/[^/]+/stages/[^/]+/state", path) or re.fullmatch(r"/runs/[^/]+/branches/[^/]+/state", path) or re.fullmatch(r"/task-views/[^/]+/decision", path):
+        if (
+            re.fullmatch(r"/runs/[^/]+/stages/[^/]+/state", path)
+            or re.fullmatch(r"/runs/[^/]+/branches/[^/]+/state", path)
+            or re.fullmatch(r"/task-views/[^/]+/decision", path)
+        ):
             self._ok({"ok": True})
         else:
             self._not_found()
@@ -119,6 +128,7 @@ class _MockKernelHandler(BaseHTTPRequestHandler):
 # Pytest fixture: ephemeral mock server
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def mock_kernel_server(monkeypatch_module):
     """Start an in-process mock server; yield (host, port); shut it down.
@@ -139,8 +149,8 @@ def monkeypatch_module(request):
     """Module-scoped monkeypatch that clears HTTP proxy env vars."""
     import os
 
-    _PROXY_VARS = ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "NO_PROXY", "no_proxy")
-    saved = {k: os.environ.pop(k) for k in _PROXY_VARS if k in os.environ}
+    proxy_vars = ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "NO_PROXY", "no_proxy")
+    saved = {k: os.environ.pop(k) for k in proxy_vars if k in os.environ}
     yield
     os.environ.update(saved)
 
@@ -159,6 +169,7 @@ def client(mock_kernel_server) -> KernelFacadeClient:
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestKernelFacadeClientHttp:
     """Validates KernelFacadeClient HTTP mode against the mock server."""
 
@@ -172,6 +183,7 @@ class TestKernelFacadeClientHttp:
 
     def test_mark_stage_state(self, client: KernelFacadeClient) -> None:
         from hi_agent.contracts import StageState
+
         run_id = client.start_run("task-ms")
         client.mark_stage_state(run_id, "S1_understand", StageState.COMPLETED)
 
@@ -202,9 +214,7 @@ class TestKernelFacadeClientHttp:
             run_id, "S1_understand", "branch-1", "completed", failure_code=None
         )
 
-    def test_500_raises_backend_error(
-        self, mock_kernel_server, client: KernelFacadeClient
-    ) -> None:
+    def test_500_raises_backend_error(self, mock_kernel_server, client: KernelFacadeClient) -> None:
         server, _, _ = mock_kernel_server
         server._inject_error = "/runs"
         try:

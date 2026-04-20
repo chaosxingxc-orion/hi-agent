@@ -1,4 +1,4 @@
-("RetrievalBuilder ? extracted from " "Memory" "Builder (HI-W7-002).")
+"""RetrievalBuilder for retrieval subsystem construction (HI-W7-002)."""
 
 from __future__ import annotations
 

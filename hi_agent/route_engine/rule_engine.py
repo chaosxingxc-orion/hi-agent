@@ -39,11 +39,11 @@ class RuleRouteEngine:
     ``apply_evolve_changes()`` consumes :class:`~hi_agent.evolve.contracts.EvolveChange`
     objects and updates two internal tables:
 
-    * ``_stage_confidence`` – per-stage confidence overrides driven by
+    * ``_stage_confidence`` - per-stage confidence overrides driven by
       ``routing_heuristic`` changes.  Stages with higher confidence keep their
       generic rule proposal at the front of the list; stages below 0.5 have it
       moved behind skill proposals.
-    * ``_action_weights`` – per-stage action weight overrides driven by
+    * ``_action_weights`` - per-stage action weight overrides driven by
       ``skill_update`` changes.  When multiple rule proposals would be produced
       for the same stage (future extension), they are sorted by descending weight.
 

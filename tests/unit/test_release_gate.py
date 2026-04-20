@@ -34,6 +34,7 @@ def test_mcp_health_gate_skipped_when_no_servers():
 
 def test_mcp_health_gate_fails_on_unhealthy_server():
     from unittest.mock import patch
+
     builder = _make_builder()
     with patch("hi_agent.ops.release_gate.MCPHealth") as mock_health_cls:
         mock_health = mock_health_cls.return_value
@@ -49,6 +50,7 @@ def test_mcp_health_gate_fails_on_unhealthy_server():
 
 def test_mcp_health_gate_passes_with_degraded_server():
     from unittest.mock import patch
+
     builder = _make_builder()
     with patch("hi_agent.ops.release_gate.MCPHealth") as mock_health_cls:
         mock_health = mock_health_cls.return_value
@@ -84,23 +86,34 @@ def test_pass_true_when_no_failures():
 def test_to_dict_shape():
     report = build_release_gate_report(_make_builder())
     d = report.to_dict()
-    assert set(d.keys()) == {"pass", "gates", "pass_gates", "skipped_gates", "failed_gates", "last_checked_at"}
+    assert set(d.keys()) == {
+        "pass",
+        "gates",
+        "pass_gates",
+        "skipped_gates",
+        "failed_gates",
+        "last_checked_at",
+    }
     assert isinstance(d["pass"], bool)
     assert isinstance(d["gates"], list)
 
 
 def test_failed_gate_makes_pass_false():
-    report = ReleaseGateReport(gates=[
-        GateResult("readiness", "pass", "ready"),
-        GateResult("doctor", "fail", "blocking: x"),
-    ])
+    report = ReleaseGateReport(
+        gates=[
+            GateResult("readiness", "pass", "ready"),
+            GateResult("doctor", "fail", "blocking: x"),
+        ]
+    )
     assert report.passed is False
     assert report.failed_gates == 1
 
 
 def test_skipped_gate_does_not_block_pass():
-    report = ReleaseGateReport(gates=[
-        GateResult("readiness", "pass", "ready"),
-        GateResult("prod_e2e_recent", "skipped", "no nightly yet"),
-    ])
+    report = ReleaseGateReport(
+        gates=[
+            GateResult("readiness", "pass", "ready"),
+            GateResult("prod_e2e_recent", "skipped", "no nightly yet"),
+        ]
+    )
     assert report.passed is True

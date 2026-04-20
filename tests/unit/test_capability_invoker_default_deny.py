@@ -1,4 +1,5 @@
 """Unit tests for CapabilityInvoker default-deny when no policy is set (H-3)."""
+
 from __future__ import annotations
 
 import pytest

@@ -122,9 +122,7 @@ class HarnessExecutor:
         allowed, reason = self._governance.can_execute(spec)
         if not allowed:
             if spec.approval_required and "not been approved" in reason:
-                self._action_states[spec.action_id] = (
-                    ActionState.APPROVAL_PENDING
-                )
+                self._action_states[spec.action_id] = ActionState.APPROVAL_PENDING
                 self._governance.request_approval(spec)
                 result = ActionResult(
                     action_id=spec.action_id,
@@ -164,7 +162,8 @@ class HarnessExecutor:
 
                 # Step 5: Collect evidence
                 evidence_ref, artifact_ids = self._collect_evidence(
-                    spec.action_id, output,
+                    spec.action_id,
+                    output,
                     upstream_artifact_ids=spec.upstream_artifact_ids,
                 )
 
@@ -273,9 +272,11 @@ class HarnessExecutor:
         if self._artifact_registry is not None and output is not None:
             try:
                 from hi_agent.artifacts.adapters import OutputToArtifactAdapter
+
                 adapter = OutputToArtifactAdapter()
                 for artifact in adapter.adapt(
-                    action_id, output,
+                    action_id,
+                    output,
                     source_refs=upstream_artifact_ids or [],
                 ):
                     self._artifact_registry.store(artifact)

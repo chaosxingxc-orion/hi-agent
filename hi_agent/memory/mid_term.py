@@ -55,7 +55,7 @@ class DailySummary:
 
         text = "\n".join(parts)
         if len(text) > max_chars:
-            text = text[:max_chars - 3] + "..."
+            text = text[: max_chars - 3] + "..."
         return text
 
 
@@ -369,9 +369,7 @@ class DreamConsolidator:
                 stage_counts[stage] = stage_counts.get(stage, 0) + 1
         for stage, count in stage_counts.items():
             if count >= 2:
-                patterns.append(
-                    f"stage '{stage}' completed in {count}/{len(sessions)} sessions"
-                )
+                patterns.append(f"stage '{stage}' completed in {count}/{len(sessions)} sessions")
 
         return patterns
 

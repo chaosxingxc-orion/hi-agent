@@ -351,12 +351,15 @@ def test_journey_checkpoint_resume(tmp_path: Path) -> None:
     # Mark s1 and s2 as completed in the session
     for sid in ("s1", "s2"):
         session.stage_states[sid] = "completed"
-        session.set_stage_summary(sid, {
-            "stage_id": sid,
-            "findings": [f"done {sid}"],
-            "decisions": [],
-            "outcome": "completed",
-        })
+        session.set_stage_summary(
+            sid,
+            {
+                "stage_id": sid,
+                "findings": [f"done {sid}"],
+                "decisions": [],
+                "outcome": "completed",
+            },
+        )
 
     session.current_stage = "s2"
     session.action_seq = 2

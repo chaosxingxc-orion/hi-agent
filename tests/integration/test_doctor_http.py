@@ -1,4 +1,5 @@
 """Integration tests for GET /doctor HTTP endpoint."""
+
 from __future__ import annotations
 
 import pytest

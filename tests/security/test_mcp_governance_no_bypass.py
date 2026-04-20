@@ -9,6 +9,7 @@ Mock scope: Only CapabilityInvoker (external execution) and GovernedToolExecutor
 are mocked/stubbed to isolate the HTTP handler logic.  mcp_server.call_tool is
 monitored to ensure it is never called.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,14 +62,15 @@ def test_unregistered_tool_returns_capability_not_found_no_raw_call():
     mcp_server = MagicMock()
     request = _make_request({"name": "nonexistent_tool", "arguments": {}}, mcp_server=mcp_server)
 
-    with patch(
-        "hi_agent.capability.governance.GovernedToolExecutor"
-    ) as MockExecutor, patch(
-        "hi_agent.server.runtime_mode_resolver.resolve_runtime_mode",
-        return_value="dev",
+    with (
+        patch("hi_agent.capability.governance.GovernedToolExecutor") as mock_executor_cls,
+        patch(
+            "hi_agent.server.runtime_mode_resolver.resolve_runtime_mode",
+            return_value="dev",
+        ),
     ):
         # Simulate the executor raising CapabilityNotFoundError
-        instance = MockExecutor.return_value
+        instance = mock_executor_cls.return_value
         instance.invoke.side_effect = CapabilityNotFoundError("nonexistent_tool not registered")
 
         response = asyncio.run(handle_mcp_tools_call(request))
@@ -86,13 +88,14 @@ def test_permission_denied_does_not_invoke_raw_path():
     mcp_server = MagicMock()
     request = _make_request({"name": "restricted_tool", "arguments": {}}, mcp_server=mcp_server)
 
-    with patch(
-        "hi_agent.capability.governance.GovernedToolExecutor"
-    ) as MockExecutor, patch(
-        "hi_agent.server.runtime_mode_resolver.resolve_runtime_mode",
-        return_value="dev",
+    with (
+        patch("hi_agent.capability.governance.GovernedToolExecutor") as mock_executor_cls,
+        patch(
+            "hi_agent.server.runtime_mode_resolver.resolve_runtime_mode",
+            return_value="dev",
+        ),
     ):
-        instance = MockExecutor.return_value
+        instance = mock_executor_cls.return_value
         instance.invoke.side_effect = PermissionDeniedError("principal lacks permission")
 
         response = asyncio.run(handle_mcp_tools_call(request))

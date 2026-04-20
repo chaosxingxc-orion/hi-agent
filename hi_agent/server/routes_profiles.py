@@ -52,6 +52,7 @@ def _get_profile_dir_manager(request: Request):  # type: ignore[return]
     # Fallback: build one from the home default.
     try:
         from hi_agent.profile.manager import ProfileDirectoryManager
+
         return ProfileDirectoryManager()
     except Exception:
         return None

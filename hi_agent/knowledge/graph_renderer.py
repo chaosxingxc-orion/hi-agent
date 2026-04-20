@@ -21,9 +21,7 @@ class GraphRenderer:
         """Initialize GraphRenderer."""
         self._graph = graph
 
-    def to_mermaid(
-        self, max_nodes: int = 50, node_type: str | None = None
-    ) -> str:
+    def to_mermaid(self, max_nodes: int = 50, node_type: str | None = None) -> str:
         """Render graph as Mermaid flowchart.
 
         Example output:
@@ -99,9 +97,7 @@ class GraphRenderer:
                         visited.add(child_id)
                         child_node = node_map.get(child_id)
                         if child_node:
-                            label = self._sanitize_mermaid_label(
-                                child_node.content[:50]
-                            )
+                            label = self._sanitize_mermaid_label(child_node.content[:50])
                             lines.append(f"{' ' * indent}{label}")
                         next_frontier.append(child_id)
             frontier = next_frontier

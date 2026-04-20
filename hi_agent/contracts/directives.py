@@ -1,4 +1,5 @@
 """Stage execution directives — allows business layer to signal mid-run re-planning."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

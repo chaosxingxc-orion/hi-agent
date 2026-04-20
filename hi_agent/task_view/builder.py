@@ -334,9 +334,7 @@ def build_task_view(
         if raw:
             content = enforce_layer_budget(raw, layer_max)
             tokens = count_tokens(content)
-            sections.append(
-                TaskViewSection(layer="knowledge", content=content, token_count=tokens)
-            )
+            sections.append(TaskViewSection(layer="knowledge", content=content, token_count=tokens))
             remaining -= tokens
 
     # 6) Retrieval result (knowledge-base hits from runner, grouped by source_type)
@@ -364,9 +362,7 @@ def build_task_view(
             raw = "\n".join(snippets)
             content = enforce_layer_budget(raw, retriever_budget)
             tokens = count_tokens(content)
-            sections.append(
-                TaskViewSection(layer="episodic", content=content, token_count=tokens)
-            )
+            sections.append(TaskViewSection(layer="episodic", content=content, token_count=tokens))
             remaining -= tokens
 
     total = sum(s.token_count for s in sections) + system_reserved

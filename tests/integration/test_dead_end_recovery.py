@@ -18,4 +18,3 @@ def test_detect_dead_end_and_no_dead_end_in_successful_run() -> None:
     executor = RunExecutor(TaskContract(task_id="int-002", goal="dead-end"), MockKernel())
     executor.execute()
     assert detect_dead_end("S3_build", executor.dag) is False
-

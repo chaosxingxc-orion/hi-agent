@@ -27,12 +27,8 @@ class _MetricDef:
 _METRIC_DEFS: dict[str, _MetricDef] = {
     "runs_total": _MetricDef("runs_total", "counter", "Total runs by status."),
     "runs_active": _MetricDef("runs_active", "gauge", "Currently active runs."),
-    "llm_calls_total": _MetricDef(
-        "llm_calls_total", "counter", "Total LLM calls by tier."
-    ),
-    "llm_tokens_total": _MetricDef(
-        "llm_tokens_total", "counter", "Total LLM tokens by direction."
-    ),
+    "llm_calls_total": _MetricDef("llm_calls_total", "counter", "Total LLM calls by tier."),
+    "llm_tokens_total": _MetricDef("llm_tokens_total", "counter", "Total LLM tokens by direction."),
     "llm_latency_seconds": _MetricDef(
         "llm_latency_seconds",
         "histogram",
@@ -313,9 +309,7 @@ class MetricsCollector:
                                 if prom_lbl_base
                                 else f'{{quantile="{tag}"}}'
                             )
-                            lines.append(
-                                f"{name}{qlbl} {self._percentile(samples, q)}"
-                            )
+                            lines.append(f"{name}{qlbl} {self._percentile(samples, q)}")
                     count_lbl = f"{{{prom_lbl_base}}}" if prom_lbl_base else ""
                     lines.append(f"{name}_count{count_lbl} {len(samples)}")
                     lines.append(f"{name}_sum{count_lbl} {sum(samples)}")
@@ -412,9 +406,7 @@ class MetricsCollector:
     # Alert internals
     # ------------------------------------------------------------------
 
-    def _read_metric_value(
-        self, metric_name: str, labels: dict[str, str] | None
-    ) -> float | None:
+    def _read_metric_value(self, metric_name: str, labels: dict[str, str] | None) -> float | None:
         """Read a single metric value under lock (caller holds lock)."""
         lk = _labels_key(labels)
         if metric_name in self._counters:

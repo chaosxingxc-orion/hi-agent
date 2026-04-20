@@ -1,4 +1,5 @@
 """Unit tests for StageOrchestrator (HI-W10-001)."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -34,8 +35,12 @@ def _make_ctx(
         stage_graph=graph,
         stage_summaries={},
         policy_versions=MagicMock(
-            route_policy="v1", acceptance_policy="v1", memory_policy="v1",
-            evaluation_policy="v1", task_view_policy="v1", skill_policy="v1",
+            route_policy="v1",
+            acceptance_policy="v1",
+            memory_policy="v1",
+            evaluation_policy="v1",
+            task_view_policy="v1",
+            skill_policy="v1",
         ),
         session=None,
         route_engine=MagicMock(spec=[]),  # no select_stage

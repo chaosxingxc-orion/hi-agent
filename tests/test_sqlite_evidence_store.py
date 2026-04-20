@@ -73,9 +73,7 @@ class TestSqliteEvidenceStore:
 
         def writer(idx: int):
             try:
-                store.store(
-                    _make_record(ref=f"ev-{idx}", action_id=f"act-{idx}")
-                )
+                store.store(_make_record(ref=f"ev-{idx}", action_id=f"act-{idx}"))
             except Exception as e:
                 errors.append(e)
 
@@ -186,7 +184,7 @@ class TestStoreManyAndTransaction:
                     "INSERT OR REPLACE INTO evidence "
                     "(evidence_ref, action_id, evidence_type, content, timestamp) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    ("ev-rb", "act-1", "output", '{}', "2026-01-01T00:00:00Z"),
+                    ("ev-rb", "act-1", "output", "{}", "2026-01-01T00:00:00Z"),
                 )
                 raise RuntimeError("simulated failure")
         except RuntimeError:

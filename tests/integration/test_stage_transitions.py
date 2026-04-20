@@ -25,4 +25,3 @@ def test_illegal_stage_transition_rejected() -> None:
 
     with pytest.raises(IllegalStateTransitionError):
         kernel.mark_stage_state("run-1", "S2_gather", StageState.COMPLETED)
-

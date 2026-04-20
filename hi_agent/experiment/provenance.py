@@ -1,4 +1,5 @@
 """Artifact provenance utilities for experiment outputs (G-10)."""
+
 from __future__ import annotations
 
 import hashlib

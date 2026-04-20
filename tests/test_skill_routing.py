@@ -12,6 +12,7 @@ from hi_agent.skill.registry import ManagedSkill, SkillRegistry
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_certified_skill(
     skill_id: str,
     name: str = "do_something",
@@ -56,6 +57,7 @@ class _StubInnerEngine:
 # RuleRouteEngine + SkillMatcher
 # ---------------------------------------------------------------------------
 
+
 class TestRuleRouteEngineWithSkills:
     """RuleRouteEngine finds applicable skills when skill_matcher is set."""
 
@@ -94,6 +96,7 @@ class TestRuleRouteEngineWithSkills:
 # ---------------------------------------------------------------------------
 # Skill proposals have higher priority than generic proposals
 # ---------------------------------------------------------------------------
+
 
 class TestSkillPriority:
     """Skill-based proposals have higher priority (appear first)."""
@@ -134,6 +137,7 @@ class TestSkillPriority:
 # SkillAwareRouteEngine
 # ---------------------------------------------------------------------------
 
+
 class TestSkillAwareRouteEngine:
     """SkillAwareRouteEngine merges skill and inner proposals."""
 
@@ -144,7 +148,9 @@ class TestSkillAwareRouteEngine:
 
         inner = _StubInnerEngine()
         engine = SkillAwareRouteEngine(
-            inner=inner, skill_matcher=matcher, task_family="research",
+            inner=inner,
+            skill_matcher=matcher,
+            task_family="research",
         )
         proposals = engine.propose("S2_gather", "run-5", 0)
 
@@ -159,7 +165,9 @@ class TestSkillAwareRouteEngine:
         inner = _StubInnerEngine()
 
         engine = SkillAwareRouteEngine(
-            inner=inner, skill_matcher=matcher, task_family="anything",
+            inner=inner,
+            skill_matcher=matcher,
+            task_family="anything",
         )
         proposals = engine.propose("S1_understand", "run-6", 0)
 
@@ -184,7 +192,9 @@ class TestSkillAwareRouteEngine:
                 ]
 
         engine = SkillAwareRouteEngine(
-            inner=_DupInner(), skill_matcher=matcher, task_family="test",
+            inner=_DupInner(),
+            skill_matcher=matcher,
+            task_family="test",
         )
         proposals = engine.propose("S3_build", "run-7", 0)
         ids = [p.branch_id for p in proposals]
@@ -195,12 +205,14 @@ class TestSkillAwareRouteEngine:
 # Precondition filtering
 # ---------------------------------------------------------------------------
 
+
 class TestPreconditionFiltering:
     """Skills with unmet preconditions are excluded."""
 
     def test_precondition_met(self) -> None:
         skill = _make_certified_skill(
-            "sk_pre", name="guarded_action",
+            "sk_pre",
+            name="guarded_action",
             preconditions=["has_data"],
         )
         reg = _registry_with_skills(skill)
@@ -217,7 +229,8 @@ class TestPreconditionFiltering:
 
     def test_precondition_not_met(self) -> None:
         skill = _make_certified_skill(
-            "sk_pre2", name="guarded_action",
+            "sk_pre2",
+            name="guarded_action",
             preconditions=["has_data"],
         )
         reg = _registry_with_skills(skill)
@@ -234,7 +247,8 @@ class TestPreconditionFiltering:
 
     def test_forbidden_condition_blocks_skill(self) -> None:
         skill = _make_certified_skill(
-            "sk_forbid", name="risky_action",
+            "sk_forbid",
+            name="risky_action",
             forbidden=["is_production"],
         )
         reg = _registry_with_skills(skill)
@@ -251,7 +265,8 @@ class TestPreconditionFiltering:
 
     def test_no_context_assumes_preconditions_met(self) -> None:
         skill = _make_certified_skill(
-            "sk_nocheck", name="easy_action",
+            "sk_nocheck",
+            name="easy_action",
             preconditions=["something"],
         )
         reg = _registry_with_skills(skill)

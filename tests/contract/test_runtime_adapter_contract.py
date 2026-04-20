@@ -24,9 +24,7 @@ from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 # Helpers
 # ---------------------------------------------------------------------------
 
-PROTOCOL_METHODS: list[str] = [
-    m for m in dir(RuntimeAdapter) if not m.startswith("_")
-]
+PROTOCOL_METHODS: list[str] = [m for m in dir(RuntimeAdapter) if not m.startswith("_")]
 
 # Methods that are async in the protocol
 ASYNC_PROTOCOL_METHODS = {"spawn_child_run_async", "query_child_runs_async"}
@@ -127,17 +125,20 @@ class TestProtocolStructuralCompliance:
         """
         if adapter_cls_name == "KernelFacadeAdapter":
             from hi_agent.runtime_adapter.kernel_facade_adapter import (
-                KernelFacadeAdapter as adapter_cls,
+                KernelFacadeAdapter,
             )
         else:
             from hi_agent.runtime_adapter.async_kernel_facade_adapter import (
-                AsyncKernelFacadeAdapter as adapter_cls,
+                AsyncKernelFacadeAdapter,
             )
 
-        missing = [m for m in PROTOCOL_METHODS if not hasattr(adapter_cls, m)]
-        assert not missing, (
-            f"{adapter_cls_name} is missing protocol methods: {missing}"
+        adapter_cls = (
+            KernelFacadeAdapter
+            if adapter_cls_name == "KernelFacadeAdapter"
+            else AsyncKernelFacadeAdapter
         )
+        missing = [m for m in PROTOCOL_METHODS if not hasattr(adapter_cls, m)]
+        assert not missing, f"{adapter_cls_name} is missing protocol methods: {missing}"
 
     def test_protocol_methods_list_is_non_empty(self) -> None:
         """Sanity check: ensure we extracted a meaningful method list."""
@@ -149,9 +150,9 @@ class TestProtocolStructuralCompliance:
         """Mode must be a property (not a plain attribute) on KernelFacadeAdapter."""
         from hi_agent.runtime_adapter.kernel_facade_adapter import KernelFacadeAdapter
 
-        assert isinstance(
-            inspect.getattr_static(KernelFacadeAdapter, "mode"), property
-        ), "KernelFacadeAdapter.mode must be a @property"
+        assert isinstance(inspect.getattr_static(KernelFacadeAdapter, "mode"), property), (
+            "KernelFacadeAdapter.mode must be a @property"
+        )
 
     def test_async_kernel_facade_adapter_mode_is_property(self) -> None:
         """Mode must be a property on AsyncKernelFacadeAdapter."""
@@ -159,9 +160,9 @@ class TestProtocolStructuralCompliance:
             AsyncKernelFacadeAdapter,
         )
 
-        assert isinstance(
-            inspect.getattr_static(AsyncKernelFacadeAdapter, "mode"), property
-        ), "AsyncKernelFacadeAdapter.mode must be a @property"
+        assert isinstance(inspect.getattr_static(AsyncKernelFacadeAdapter, "mode"), property), (
+            "AsyncKernelFacadeAdapter.mode must be a @property"
+        )
 
     def test_async_methods_are_coroutines_on_async_adapter(self) -> None:
         """Async protocol methods must be coroutine functions on AsyncKernelFacadeAdapter."""
@@ -171,9 +172,7 @@ class TestProtocolStructuralCompliance:
 
         for method_name in ASYNC_PROTOCOL_METHODS:
             method = getattr(AsyncKernelFacadeAdapter, method_name, None)
-            assert method is not None, (
-                f"AsyncKernelFacadeAdapter missing {method_name}"
-            )
+            assert method is not None, f"AsyncKernelFacadeAdapter missing {method_name}"
             assert inspect.iscoroutinefunction(method), (
                 f"AsyncKernelFacadeAdapter.{method_name} must be async"
             )
@@ -363,7 +362,7 @@ class TestErrorHandlingContracts:
         facade.resolve_escalation.assert_not_called()
 
     def test_query_run_non_dict_result_raises_backend_error(self) -> None:
-        """query_run must raise RuntimeAdapterBackendError when facade returns non-dict/non-dataclass.
+        """query_run raises RuntimeAdapterBackendError for unsupported facade results.
 
         Mocking reason: fault injection to verify result normalisation contract.
         """
@@ -487,10 +486,7 @@ class TestProtocolSignatures:
         params = sig.parameters
         assert "resolution_notes" in params
         assert "caused_by" in params
-        assert (
-            params["resolution_notes"].kind
-            == inspect.Parameter.KEYWORD_ONLY
-        )
+        assert params["resolution_notes"].kind == inspect.Parameter.KEYWORD_ONLY
         assert params["caused_by"].kind == inspect.Parameter.KEYWORD_ONLY
 
     def test_spawn_child_run_async_is_coroutine_on_kernel_facade_adapter(

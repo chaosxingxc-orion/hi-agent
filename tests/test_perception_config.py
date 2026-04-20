@@ -14,6 +14,7 @@ def test_perception_from_config_thresholds():
     assert p._llm_summarize_char_threshold == 1_000
     assert p._max_entities == 25
 
+
 def test_perception_from_config_llm_params():
     cfg = TraceConfig(
         perception_summarize_temperature=0.5,

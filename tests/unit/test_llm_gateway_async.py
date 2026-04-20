@@ -4,6 +4,7 @@ When compat_sync_llm=False (the default), build_llm_gateway must NOT return
 an HttpLLMGateway instance — it must use the async path (AsyncHTTPGateway or
 TierAwareLLMGateway wrapping it).
 """
+
 from __future__ import annotations
 
 import threading

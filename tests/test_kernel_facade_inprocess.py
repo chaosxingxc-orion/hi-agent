@@ -49,8 +49,10 @@ async def test_subscribe_events_yields_after_execute():
 
     async def execute():
         await asyncio.sleep(0.01)
+
         async def simple_handler(a, s):
             return {"output": "ok"}
+
         await facade.execute_turn(
             run_id="run-002",
             action=action,

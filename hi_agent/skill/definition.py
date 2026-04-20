@@ -54,6 +54,7 @@ from datetime import UTC, datetime
 # Lightweight YAML-subset parser (no external deps)
 # ---------------------------------------------------------------------------
 
+
 def _parse_yaml_value(raw: str) -> str | int | float | bool | list[str]:
     """Parse a single YAML value (string, int, float, bool, or list)."""
     val = raw.strip()
@@ -148,6 +149,7 @@ def _estimate_tokens(text: str) -> int:
 # ---------------------------------------------------------------------------
 # SkillDefinition
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SkillDefinition:

@@ -187,9 +187,7 @@ class TestProdRealWithKey:
     _API_KEY = "secure-prod-key-123"
 
     def _make_mw(self) -> AuthMiddleware:
-        with patch.dict(
-            "os.environ", {"HI_AGENT_API_KEY": self._API_KEY}, clear=False
-        ):
+        with patch.dict("os.environ", {"HI_AGENT_API_KEY": self._API_KEY}, clear=False):
             return AuthMiddleware(_capture_app, runtime_mode="prod-real")
 
     @pytest.mark.asyncio

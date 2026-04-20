@@ -217,10 +217,13 @@ class TestErrorHandling:
 
         gw = AnthropicLLMGateway()
         url_err = urllib.error.URLError(reason="timed out")
-        with patch(
-            "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
-            side_effect=url_err,
-        ), pytest.raises(LLMTimeoutError):
+        with (
+            patch(
+                "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
+                side_effect=url_err,
+            ),
+            pytest.raises(LLMTimeoutError),
+        ):
             gw.complete(_make_request())
 
     def test_connection_error_raises_provider_error(self) -> None:
@@ -228,10 +231,13 @@ class TestErrorHandling:
 
         gw = AnthropicLLMGateway()
         url_err = urllib.error.URLError(reason="connection refused")
-        with patch(
-            "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
-            side_effect=url_err,
-        ), pytest.raises(LLMProviderError, match="connection refused"):
+        with (
+            patch(
+                "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
+                side_effect=url_err,
+            ),
+            pytest.raises(LLMProviderError, match="connection refused"),
+        ):
             gw.complete(_make_request())
 
 

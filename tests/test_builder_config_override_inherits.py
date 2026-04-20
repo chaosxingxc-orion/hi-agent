@@ -1,4 +1,5 @@
 """Tests that config_patch and config_overrides paths inherit registry state."""
+
 from __future__ import annotations
 
 
@@ -15,12 +16,14 @@ class TestConfigOverrideInheritsRegistries:
         builder = SystemBuilder()
 
         # Register profile with required capabilities
-        builder.register_profile(ProfileSpec(
-            profile_id="patch_test",
-            display_name="Patch Test",
-            stage_actions={"step": "patch_cap"},
-            required_capabilities=["patch_cap"],
-        ))
+        builder.register_profile(
+            ProfileSpec(
+                profile_id="patch_test",
+                display_name="Patch Test",
+                stage_actions={"step": "patch_cap"},
+                required_capabilities=["patch_cap"],
+            )
+        )
 
         # Register the required capability
         builder.build_capability_registry().register(
@@ -47,12 +50,14 @@ class TestConfigOverrideInheritsRegistries:
         from hi_agent.profiles.contracts import ProfileSpec
 
         builder = SystemBuilder()
-        builder.register_profile(ProfileSpec(
-            profile_id="consistency_test",
-            display_name="Consistency",
-            stage_actions={"step": "my_cap"},
-            required_capabilities=["my_cap"],
-        ))
+        builder.register_profile(
+            ProfileSpec(
+                profile_id="consistency_test",
+                display_name="Consistency",
+                stage_actions={"step": "my_cap"},
+                required_capabilities=["my_cap"],
+            )
+        )
         builder.build_capability_registry().register(
             CapabilitySpec(name="my_cap", handler=lambda p: {"output": "ok"})
         )

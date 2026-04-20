@@ -47,10 +47,12 @@ class EvaluatorRuntime:
         if evaluator is None:
             self._evaluator: Any = DefaultEvaluator()
         elif wrap_with_default:
-            self._evaluator = CompositeEvaluator([
-                (DefaultEvaluator(), default_weight),
-                (evaluator, custom_weight),
-            ])
+            self._evaluator = CompositeEvaluator(
+                [
+                    (DefaultEvaluator(), default_weight),
+                    (evaluator, custom_weight),
+                ]
+            )
         else:
             self._evaluator = evaluator
 

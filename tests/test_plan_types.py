@@ -1,5 +1,6 @@
 # tests/test_plan_types.py
 """Tests for hi-agent Plan types and plan_to_graph() conversion."""
+
 from hi_agent.task_mgmt.plan_types import (
     DependencyNode,
     DependencyPlan,
@@ -29,12 +30,14 @@ def test_parallel_plan_groups_have_correct_dependencies():
 
 
 def test_dependency_plan_respects_explicit_deps():
-    plan = DependencyPlan(nodes=(
-        DependencyNode("A"),
-        DependencyNode("B", depends_on=("A",)),
-        DependencyNode("C", depends_on=("A",)),
-        DependencyNode("D", depends_on=("B", "C")),
-    ))
+    plan = DependencyPlan(
+        nodes=(
+            DependencyNode("A"),
+            DependencyNode("B", depends_on=("A",)),
+            DependencyNode("C", depends_on=("A",)),
+            DependencyNode("D", depends_on=("B", "C")),
+        )
+    )
     graph = plan_to_graph(plan)
     order = graph.topological_sort()
     assert order.index("A") < order.index("B")

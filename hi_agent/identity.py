@@ -27,4 +27,3 @@ def task_view_id(
         evidence_hash,
         policy_version,
     )
-

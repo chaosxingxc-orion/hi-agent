@@ -5,6 +5,7 @@ Implements the minimum viable MCP surface:
   - tools/list  → enumerate available tools with schemas
   - tools/call  → invoke a tool by name with arguments
 """
+
 from __future__ import annotations
 
 import json
@@ -39,13 +40,15 @@ class MCPServer:
         tools = []
         for name in self._registry.list_names():
             spec = self._registry.get(name)
-            tools.append({
-                "name": name,
-                "description": getattr(spec, "description", ""),
-                "inputSchema": getattr(
-                    spec, "parameters", {"type": "object", "properties": {}}
-                ),
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "description": getattr(spec, "description", ""),
+                    "inputSchema": getattr(
+                        spec, "parameters", {"type": "object", "properties": {}}
+                    ),
+                }
+            )
         return {"tools": tools}
 
     def call_tool(self, name: str, arguments: dict) -> dict:

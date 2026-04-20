@@ -58,29 +58,36 @@ def _create_checkpoint_at_stage(
 
     for sid in stages_completed:
         session.stage_states[sid] = "completed"
-        session.set_stage_summary(sid, {
-            "stage_id": sid,
-            "findings": [f"finding from {sid}"],
-            "decisions": [f"decision from {sid}"],
-            "outcome": "completed",
-        })
+        session.set_stage_summary(
+            sid,
+            {
+                "stage_id": sid,
+                "findings": [f"finding from {sid}"],
+                "decisions": [f"decision from {sid}"],
+                "outcome": "completed",
+            },
+        )
         session.mark_compact_boundary(sid, summary_ref=sid)
 
     # Add some L0 records
     for _, sid in enumerate(stages_completed):
-        session.append_record("StageStateChanged", {"stage_id": sid, "to_state": "completed"}, stage_id=sid)
+        session.append_record(
+            "StageStateChanged", {"stage_id": sid, "to_state": "completed"}, stage_id=sid
+        )
 
     # Add LLM call records
     for sid in stages_completed:
-        session.record_llm_call(LLMCallRecord(
-            call_id=f"{run_id}:llm:route:{sid}",
-            purpose="routing",
-            stage_id=sid,
-            model="default",
-            input_tokens=500,
-            output_tokens=200,
-            cost_usd=0.01,
-        ))
+        session.record_llm_call(
+            LLMCallRecord(
+                call_id=f"{run_id}:llm:route:{sid}",
+                purpose="routing",
+                stage_id=sid,
+                model="default",
+                input_tokens=500,
+                output_tokens=200,
+                cost_usd=0.01,
+            )
+        )
 
     fd, path = tempfile.mkstemp(suffix=".json", prefix="checkpoint_")
     os.close(fd)
@@ -91,6 +98,7 @@ def _create_checkpoint_at_stage(
 # ---------------------------------------------------------------------------
 # Test: resume_from_checkpoint loads session and continues from correct stage
 # ---------------------------------------------------------------------------
+
 
 class TestResumeFromCheckpoint:
     """Core resume behavior."""
@@ -125,9 +133,7 @@ class TestResumeFromCheckpoint:
                 if name == "run_resumed":
                     captured.update(payload)
 
-            result = RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook
-            )
+            result = RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
             assert result == "completed"
             assert captured.get("run_id") == "run-resume-id-test"
         finally:
@@ -137,6 +143,7 @@ class TestResumeFromCheckpoint:
 # ---------------------------------------------------------------------------
 # Test: completed stages are skipped
 # ---------------------------------------------------------------------------
+
 
 class TestCompletedStagesSkipped:
     """Verify that already-completed stages are not re-executed."""
@@ -154,9 +161,7 @@ class TestCompletedStagesSkipped:
                 if name == "stage_skipped_resume":
                     skipped.append(payload.get("stage_id", ""))
 
-            result = RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook
-            )
+            result = RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
             assert result == "completed"
             assert "S1_understand" in skipped
             assert "S2_gather" in skipped
@@ -178,9 +183,7 @@ class TestCompletedStagesSkipped:
                 if name == "stage_started":
                     started.append(payload.get("stage_id", ""))
 
-            RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook
-            )
+            RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
             assert "S1_understand" not in started
             assert "S2_gather" not in started
             assert "S3_build" in started
@@ -191,6 +194,7 @@ class TestCompletedStagesSkipped:
 # ---------------------------------------------------------------------------
 # Test: action_seq and branch_seq are restored
 # ---------------------------------------------------------------------------
+
 
 class TestSeqRestore:
     """Verify action_seq and branch_seq are restored from checkpoint."""
@@ -230,6 +234,7 @@ class TestSeqRestore:
 # Test: L1 summaries are restored
 # ---------------------------------------------------------------------------
 
+
 class TestL1SummariesRestored:
     """Verify stage_summaries populated from session L1."""
 
@@ -263,6 +268,7 @@ class TestL1SummariesRestored:
 # Test: L0 records are available after resume
 # ---------------------------------------------------------------------------
 
+
 class TestL0RecordsAvailable:
     """Verify L0 records from checkpoint are accessible."""
 
@@ -293,6 +299,7 @@ class TestL0RecordsAvailable:
 # Test: compact boundaries are restored
 # ---------------------------------------------------------------------------
 
+
 class TestCompactBoundariesRestored:
     """Verify compact boundaries are restored from checkpoint."""
 
@@ -309,9 +316,7 @@ class TestCompactBoundariesRestored:
             def patched(self_inner):
                 if self_inner.session:
                     captured["boundary"] = self_inner.session.last_compact_boundary
-                    captured["boundary_count"] = len(
-                        self_inner.session._compact_boundaries
-                    )
+                    captured["boundary_count"] = len(self_inner.session._compact_boundaries)
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
@@ -327,6 +332,7 @@ class TestCompactBoundariesRestored:
 # ---------------------------------------------------------------------------
 # Test: LLM cost tracking continues from previous total
 # ---------------------------------------------------------------------------
+
 
 class TestLLMCostContinuation:
     """Verify LLM cost tracking continues from checkpoint totals."""
@@ -363,6 +369,7 @@ class TestLLMCostContinuation:
 # Test: resume from S3 failure �?completes S3-S5
 # ---------------------------------------------------------------------------
 
+
 class TestResumeFromS3:
     """Resume a run that failed at S3 �?should complete S3-S5."""
 
@@ -379,9 +386,7 @@ class TestResumeFromS3:
                 if name == "stage_started":
                     executed.append(payload.get("stage_id", ""))
 
-            result = RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook
-            )
+            result = RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
             assert result == "completed"
             assert executed == ["S3_build", "S4_synthesize", "S5_review"]
         finally:
@@ -391,6 +396,7 @@ class TestResumeFromS3:
 # ---------------------------------------------------------------------------
 # Test: resume of a fully completed run �?returns immediately
 # ---------------------------------------------------------------------------
+
 
 class TestResumeFullyCompleted:
     """Resume a run where all stages are completed."""
@@ -410,9 +416,7 @@ class TestResumeFullyCompleted:
                 if name == "run_already_completed":
                     already_completed.append(True)
 
-            result = RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook
-            )
+            result = RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
             assert result == "completed"
             assert executed == []  # no stages re-executed
             assert len(already_completed) == 1
@@ -423,6 +427,7 @@ class TestResumeFullyCompleted:
 # ---------------------------------------------------------------------------
 # Test: resume API endpoint returns {status: "resuming"}
 # ---------------------------------------------------------------------------
+
 
 class TestResumeAPIEndpoint:
     """Verify the POST /runs/{run_id}/resume endpoint."""
@@ -478,6 +483,7 @@ class TestResumeAPIEndpoint:
 # Test: CLI resume --checkpoint finds and resumes
 # ---------------------------------------------------------------------------
 
+
 class TestCLIResume:
     """Verify the CLI resume command parsing."""
 
@@ -530,6 +536,7 @@ class TestCLIResume:
 # ---------------------------------------------------------------------------
 # Test: backward compat �?existing execute() flow unchanged
 # ---------------------------------------------------------------------------
+
 
 class TestBackwardCompat:
     """Verify execute() still works identically after refactoring."""
@@ -606,6 +613,7 @@ class TestBackwardCompat:
 # ---------------------------------------------------------------------------
 # Test: builder build_executor_from_checkpoint
 # ---------------------------------------------------------------------------
+
 
 class TestBuilderCheckpoint:
     """Verify SystemBuilder.build_executor_from_checkpoint."""

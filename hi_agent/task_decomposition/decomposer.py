@@ -103,13 +103,16 @@ class TaskDecomposer:
         dag = TaskDAG()
 
         understand = self._create_subtask(
-            contract, "understand",
-            f"Understand requirements for: {contract.goal}", [],
+            contract,
+            "understand",
+            f"Understand requirements for: {contract.goal}",
+            [],
         )
         dag.add_node(understand)
 
         gather = self._create_subtask(
-            contract, "gather",
+            contract,
+            "gather",
             f"Gather information for: {contract.goal}",
             [understand.node_id],
         )
@@ -117,7 +120,8 @@ class TaskDecomposer:
         dag.add_edge(understand.node_id, gather.node_id)
 
         build = self._create_subtask(
-            contract, "build",
+            contract,
+            "build",
             f"Build core solution for: {contract.goal}",
             [understand.node_id],
         )
@@ -125,7 +129,8 @@ class TaskDecomposer:
         dag.add_edge(understand.node_id, build.node_id)
 
         synthesize = self._create_subtask(
-            contract, "synthesize",
+            contract,
+            "synthesize",
             f"Synthesize results for: {contract.goal}",
             [gather.node_id, build.node_id],
         )
@@ -134,7 +139,8 @@ class TaskDecomposer:
         dag.add_edge(build.node_id, synthesize.node_id)
 
         review = self._create_subtask(
-            contract, "review",
+            contract,
+            "review",
             f"Review and finalize: {contract.goal}",
             [synthesize.node_id],
         )
@@ -186,6 +192,7 @@ class TaskDecomposer:
         response = self.llm_gateway.complete(request)
 
         import json
+
         items = json.loads(response.content)
         if not isinstance(items, list) or not items:
             raise ValueError("LLM returned empty or non-list DAG plan")
@@ -242,6 +249,7 @@ class TaskDecomposer:
         response = self.llm_gateway.complete(request)
 
         import json
+
         items = json.loads(response.content)
         if not isinstance(items, list) or not items:
             raise ValueError("LLM returned empty tree plan")

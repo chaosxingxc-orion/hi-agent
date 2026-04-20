@@ -130,8 +130,7 @@ ON route_decision_audit (run_id, stage_id)
         normalized_run_id = self._normalize_required_str(run_id, "run_id")
         with self._lock:
             cur = self._conn.execute(
-                "SELECT payload_json FROM route_decision_audit "
-                "WHERE run_id = ? ORDER BY id ASC",
+                "SELECT payload_json FROM route_decision_audit WHERE run_id = ? ORDER BY id ASC",
                 (normalized_run_id,),
             )
             rows = cur.fetchall()
@@ -161,4 +160,3 @@ ON route_decision_audit (run_id, stage_id)
     def close(self) -> None:
         """Close the underlying database connection."""
         self._conn.close()
-

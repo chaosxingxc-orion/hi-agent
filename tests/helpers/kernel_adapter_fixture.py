@@ -112,7 +112,8 @@ class MockKernel:
         existing = self.task_view_decisions.get(task_view_id)
         if existing is not None and existing != decision_ref:
             raise ValueError(
-                f"Task view {task_view_id} already bound to {existing}, cannot rebind to {decision_ref}"
+                f"Task view {task_view_id} already bound to {existing}, "
+                f"cannot rebind to {decision_ref}"
             )
         try:
             self._adapter.bind_task_view_to_decision(task_view_id, decision_ref)
@@ -120,9 +121,7 @@ class MockKernel:
             if "task_view_log" not in str(exc) and "run context" not in str(exc):
                 raise
         self.task_view_decisions[task_view_id] = decision_ref
-        self._record(
-            "TaskViewDecisionBound", task_view_id=task_view_id, decision_ref=decision_ref
-        )
+        self._record("TaskViewDecisionBound", task_view_id=task_view_id, decision_ref=decision_ref)
 
     def start_run(self, task_id: str) -> str:
         actual_run_id = self._adapter.start_run(task_id)
@@ -278,9 +277,7 @@ class MockKernel:
     def spawn_child_run(
         self, parent_run_id: str, task_id: str, config: dict[str, Any] | None = None
     ) -> str:
-        return self._adapter.spawn_child_run(
-            self._actual_run_id(parent_run_id), task_id, config
-        )
+        return self._adapter.spawn_child_run(self._actual_run_id(parent_run_id), task_id, config)
 
     def query_child_runs(self, parent_run_id: str) -> list[dict[str, Any]]:
         return self._adapter.query_child_runs(self._actual_run_id(parent_run_id))
@@ -293,6 +290,4 @@ class MockKernel:
         )
 
     async def query_child_runs_async(self, parent_run_id: str) -> list[dict[str, Any]]:
-        return await self._adapter.query_child_runs_async(
-            self._actual_run_id(parent_run_id)
-        )
+        return await self._adapter.query_child_runs_async(self._actual_run_id(parent_run_id))

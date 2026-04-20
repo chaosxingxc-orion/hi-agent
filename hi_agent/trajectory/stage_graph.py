@@ -52,14 +52,9 @@ class StageGraph:
     # Legacy helpers (kept for backward compatibility)
     # ------------------------------------------------------------------
 
-    def validate_reachability(
-        self, start_stage: str, terminal_stage: str
-    ) -> bool:
+    def validate_reachability(self, start_stage: str, terminal_stage: str) -> bool:
         """Return True if terminal is reachable from start."""
-        if (
-            start_stage not in self.transitions
-            or terminal_stage not in self.transitions
-        ):
+        if start_stage not in self.transitions or terminal_stage not in self.transitions:
             return False
         visited: set[str] = set()
         queue: deque[str] = deque([start_stage])
@@ -108,9 +103,7 @@ class StageGraph:
 
         return sorted(set(self.transitions) - visited)
 
-    def validate_terminal_reachability(
-        self, terminal_stages: set[str]
-    ) -> list[str]:
+    def validate_terminal_reachability(self, terminal_stages: set[str]) -> list[str]:
         """Return stages that cannot reach **any** terminal stage.
 
         Uses reverse-BFS from each terminal stage to find all stages that
@@ -127,9 +120,7 @@ class StageGraph:
 
         # BFS backwards from every terminal stage.
         can_reach_terminal: set[str] = set()
-        queue: deque[str] = deque(
-            t for t in terminal_stages if t in self.transitions
-        )
+        queue: deque[str] = deque(t for t in terminal_stages if t in self.transitions)
         while queue:
             current = queue.popleft()
             if current in can_reach_terminal:
@@ -139,9 +130,7 @@ class StageGraph:
 
         return sorted(set(self.transitions) - can_reach_terminal)
 
-    def validate_gate_completeness(
-        self, gate_stages: dict[str, str]
-    ) -> list[str]:
+    def validate_gate_completeness(self, gate_stages: dict[str, str]) -> list[str]:
         """Check that gated stages have both approved and rejected paths.
 
         *gate_stages* maps ``stage_id`` -> ``gate_type``.  A gate is
@@ -169,23 +158,13 @@ class StageGraph:
         """
         violations: list[str] = []
         if budget.l0_raw_tokens <= 0:
-            violations.append(
-                f"l0_raw_tokens must be positive, got {budget.l0_raw_tokens}"
-            )
+            violations.append(f"l0_raw_tokens must be positive, got {budget.l0_raw_tokens}")
         if budget.l1_summary_tokens <= 0:
-            violations.append(
-                f"l1_summary_tokens must be positive, "
-                f"got {budget.l1_summary_tokens}"
-            )
+            violations.append(f"l1_summary_tokens must be positive, got {budget.l1_summary_tokens}")
         if budget.l2_index_tokens <= 0:
-            violations.append(
-                f"l2_index_tokens must be positive, "
-                f"got {budget.l2_index_tokens}"
-            )
+            violations.append(f"l2_index_tokens must be positive, got {budget.l2_index_tokens}")
         if budget.total_tokens <= 0:
-            violations.append(
-                f"total_tokens must be positive, got {budget.total_tokens}"
-            )
+            violations.append(f"total_tokens must be positive, got {budget.total_tokens}")
         return violations
 
     def validate_no_dead_ends(self, terminal_stages: set[str]) -> list[str]:
@@ -215,17 +194,11 @@ class StageGraph:
         """
         unreachable = self.validate_reachability_from(initial_stage)
         dead_ends = self.validate_no_dead_ends(terminal_stages)
-        terminal_unreachable = self.validate_terminal_reachability(
-            terminal_stages
-        )
+        terminal_unreachable = self.validate_terminal_reachability(terminal_stages)
         incomplete_gates: list[str] = (
-            self.validate_gate_completeness(gate_stages)
-            if gate_stages
-            else []
+            self.validate_gate_completeness(gate_stages) if gate_stages else []
         )
-        budget_violations: list[str] = (
-            self.validate_cts_budget(budget) if budget else []
-        )
+        budget_violations: list[str] = self.validate_cts_budget(budget) if budget else []
 
         is_valid = not any(
             [
@@ -261,9 +234,7 @@ class StageGraph:
             for next_set in self.transitions.values():
                 for target in next_set:
                     indegree[target] = indegree.get(target, 0) + 1
-            roots = sorted(
-                stage for stage, count in indegree.items() if count == 0
-            )
+            roots = sorted(stage for stage, count in indegree.items() if count == 0)
             start_stage = roots[0] if roots else sorted(self.transitions)[0]
 
         if start_stage not in self.transitions:
@@ -278,9 +249,7 @@ class StageGraph:
                 continue
             visited.add(current)
             order.append(current)
-            for successor in sorted(
-                self.transitions.get(current, set())
-            ):
+            for successor in sorted(self.transitions.get(current, set())):
                 if successor not in visited:
                     queue.append(successor)
         return order
@@ -301,6 +270,7 @@ def default_trace_stage_graph() -> StageGraph:
         default.  This function is kept for backward compatibility only.
     """
     from hi_agent.samples.trace_pipeline import build_trace_stage_graph
+
     return build_trace_stage_graph()
 
 

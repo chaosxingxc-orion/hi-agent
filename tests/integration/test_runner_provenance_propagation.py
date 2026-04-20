@@ -2,6 +2,7 @@
 
 Uses real RunExecutor + MockKernel (no internal component mocking).
 """
+
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.execution_provenance import CONTRACT_VERSION, ExecutionProvenance
 from hi_agent.runner import RunExecutor
@@ -31,9 +32,15 @@ def test_provenance_dict_shape_matches_contract() -> None:
     assert result.execution_provenance is not None
     d = result.execution_provenance.to_dict()
     expected_keys = {
-        "contract_version", "runtime_mode", "llm_mode", "kernel_mode",
-        "capability_mode", "mcp_transport", "fallback_used",
-        "fallback_reasons", "evidence",
+        "contract_version",
+        "runtime_mode",
+        "llm_mode",
+        "kernel_mode",
+        "capability_mode",
+        "mcp_transport",
+        "fallback_used",
+        "fallback_reasons",
+        "evidence",
     }
     assert set(d.keys()) == expected_keys
 

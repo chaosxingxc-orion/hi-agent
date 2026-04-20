@@ -14,6 +14,7 @@ from hi_agent.skill.registry import SkillRegistry
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_postmortem(**overrides) -> RunPostmortem:
     defaults = {
         "run_id": "run-001",
@@ -68,22 +69,25 @@ class ErrorLLMGateway:
 # Tests: LLM skill extraction
 # ---------------------------------------------------------------------------
 
+
 def test_llm_extract_returns_candidates():
     """LLM gateway returns valid JSON -> skill candidates produced."""
-    llm_response = json.dumps([
-        {
-            "name": "CodeReviewPipeline",
-            "description": "End-to-end code review pattern",
-            "applicability": "code_review",
-            "preconditions": ["has_source_code"],
-        },
-        {
-            "name": "SummaryGenerator",
-            "description": "Generate summaries from analysis",
-            "applicability": "code_review",
-            "preconditions": ["analysis_complete"],
-        },
-    ])
+    llm_response = json.dumps(
+        [
+            {
+                "name": "CodeReviewPipeline",
+                "description": "End-to-end code review pattern",
+                "applicability": "code_review",
+                "preconditions": ["has_source_code"],
+            },
+            {
+                "name": "SummaryGenerator",
+                "description": "Generate summaries from analysis",
+                "applicability": "code_review",
+                "preconditions": ["analysis_complete"],
+            },
+        ]
+    )
     gateway = MockLLMGateway(content=llm_response)
     extractor = SkillExtractor(gateway=gateway)
     pm = _make_postmortem()
@@ -159,6 +163,7 @@ def test_no_gateway_uses_heuristics():
 # Tests: EvolveEngine auto-registration
 # ---------------------------------------------------------------------------
 
+
 def test_engine_auto_registers_candidates_in_registry():
     """EvolveEngine registers extracted candidates in SkillRegistry."""
     registry = SkillRegistry()
@@ -190,14 +195,16 @@ def test_engine_without_registry_backward_compat():
 
 def test_full_flow_postmortem_llm_extract_register_verify():
     """Full flow: postmortem -> LLM extract -> register -> verify in registry."""
-    llm_response = json.dumps([
-        {
-            "name": "FullReviewSkill",
-            "description": "Complete code review skill",
-            "applicability": "code_review",
-            "preconditions": ["repo_cloned", "diff_available"],
-        },
-    ])
+    llm_response = json.dumps(
+        [
+            {
+                "name": "FullReviewSkill",
+                "description": "Complete code review skill",
+                "applicability": "code_review",
+                "preconditions": ["repo_cloned", "diff_available"],
+            },
+        ]
+    )
     gateway = MockLLMGateway(content=llm_response)
     registry = SkillRegistry()
     extractor = SkillExtractor(gateway=gateway)

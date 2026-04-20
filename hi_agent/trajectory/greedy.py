@@ -17,9 +17,7 @@ class GreedyOptimizer:
         """Select best child by propagated score among expandable nodes."""
         _ = current
         expandable = [
-            child
-            for child in children
-            if child.state in (NodeState.OPEN, NodeState.EXPANDED)
+            child for child in children if child.state in (NodeState.OPEN, NodeState.EXPANDED)
         ]
         if not expandable:
             return None

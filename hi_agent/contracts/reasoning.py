@@ -1,4 +1,5 @@
 """Reasoning trace storage contract — allows business layer to persist structured reasoning."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -13,7 +14,7 @@ class ReasoningStep:
 
     step_id: str
     stage_id: str
-    action: str    # "route" | "evaluate" | "decide" | "reflect" | custom
+    action: str  # "route" | "evaluate" | "decide" | "reflect" | custom
     thought: str
     timestamp: str = ""
 

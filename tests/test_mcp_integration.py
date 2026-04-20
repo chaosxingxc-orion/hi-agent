@@ -1,8 +1,8 @@
 """Integration tests for MCP transport + binding dynamic discovery.
 
 Uses a real Python subprocess as a fake MCP server — no internal mocks.
-Tests mi01–mi08: baseline transport + binding tests.
-Tests mi09–mi15: tools/list dynamic discovery + merge strategy (HI-W5-001+W5-002).
+Tests mi01-mi08: baseline transport + binding tests.
+Tests mi09-mi15: tools/list dynamic discovery + merge strategy (HI-W5-001+W5-002).
 
 P3: no mocks for internal components; subprocess-based fake server counts as
 "external process" and is permitted.
@@ -48,18 +48,37 @@ _FAKE_SERVER_TEMPLATE = textwrap.dedent(
             req_id = req.get("id")
             method = req.get("method", "")
             if method == "initialize":
-                resp = {{"jsonrpc": "2.0", "id": req_id, "result": {{"protocolVersion": "2024-11-05"}}}}
+                resp = {{
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {{"protocolVersion": "2024-11-05"}},
+                }}
             elif method == "tools/call":
                 tool_name = req.get("params", {{}}).get("name", "")
                 if tool_name in TOOLS:
-                    resp = {{"jsonrpc": "2.0", "id": req_id, "result": {{"output": "ok", "tool": tool_name}}}}
+                    resp = {{
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {{"output": "ok", "tool": tool_name}},
+                    }}
                 else:
-                    resp = {{"jsonrpc": "2.0", "id": req_id, "error": {{"code": -32601, "message": f"tool {{tool_name!r}} not found"}}}}
+                    resp = {{
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "error": {{
+                            "code": -32601,
+                            "message": f"tool {{tool_name!r}} not found",
+                        }},
+                    }}
             elif method == "tools/list":
                 tools_list = [{{"name": name}} for name in TOOLS]
                 resp = {{"jsonrpc": "2.0", "id": req_id, "result": {{"tools": tools_list}}}}
             else:
-                resp = {{"jsonrpc": "2.0", "id": req_id, "error": {{"code": -32601, "message": f"unknown method {{method!r}}"}}}}
+                resp = {{
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {{"code": -32601, "message": f"unknown method {{method!r}}"}},
+                }}
             sys.stdout.write(json.dumps(resp) + "\\n")
             sys.stdout.flush()
 
@@ -232,7 +251,7 @@ def _make_mcp_setup(
 
 
 # ---------------------------------------------------------------------------
-# mi01–mi08: Baseline transport and binding tests
+# mi01-mi08: Baseline transport and binding tests
 # ---------------------------------------------------------------------------
 
 
@@ -339,7 +358,7 @@ def test_mi08_binding_bound_tool_invokable(fake_mcp_server, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# mi09–mi15: tools/list dynamic discovery + merge strategy (HI-W5-001+W5-002)
+# mi09-mi15: tools/list dynamic discovery + merge strategy (HI-W5-001+W5-002)
 # ---------------------------------------------------------------------------
 
 
@@ -473,7 +492,7 @@ def test_mi15_merge_strategy_fallback_on_discovery_failure(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# mi16–mi18: stderr tail + health degradation (HI-W5-003)
+# mi16-mi18: stderr tail + health degradation (HI-W5-003)
 # ---------------------------------------------------------------------------
 
 _FAKE_SERVER_STDERR_TEMPLATE = textwrap.dedent(
@@ -497,7 +516,11 @@ _FAKE_SERVER_STDERR_TEMPLATE = textwrap.dedent(
             req_id = req.get("id")
             method = req.get("method", "")
             if method == "initialize":
-                resp = {{"jsonrpc": "2.0", "id": req_id, "result": {{"protocolVersion": "2024-11-05"}}}}
+                resp = {{
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {{"protocolVersion": "2024-11-05"}},
+                }}
             elif method == "tools/list":
                 resp = {{"jsonrpc": "2.0", "id": req_id, "result": {{"tools": []}}}}
             else:

@@ -34,4 +34,3 @@ def test_check_temporal_connection_reports_disconnected_on_exception() -> None:
     assert health.connected is False
     assert health.degraded is True
     assert health.reason == "temporal unavailable"
-

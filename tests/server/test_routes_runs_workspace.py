@@ -5,6 +5,7 @@ and two distinct user contexts to verify cross-user isolation.
 
 No mocks are used — real RunManager, real TenantContext.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -24,6 +25,7 @@ from starlette.testclient import TestClient
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_ctx(user_id: str, session_id: str, tenant_id: str = "t1") -> TenantContext:
     return TenantContext(tenant_id=tenant_id, user_id=user_id, session_id=session_id)
@@ -75,6 +77,7 @@ def _build_app(server: _FakeServer, ctx: TenantContext) -> Starlette:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def two_user_setup():
     """Create a RunManager with one run owned by user A.
@@ -91,6 +94,7 @@ def two_user_setup():
 # ---------------------------------------------------------------------------
 # Tests — workspace isolation
 # ---------------------------------------------------------------------------
+
 
 def test_get_run_cross_user_returns_404(two_user_setup):
     """User B cannot GET a run owned by User A."""

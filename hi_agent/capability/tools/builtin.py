@@ -1,4 +1,5 @@
 """Real builtin tool handlers — no LLM, no mocks, real I/O."""
+
 from __future__ import annotations
 
 import logging as _logging
@@ -41,7 +42,12 @@ def file_read_handler(payload: dict, *, workspace_root: Path | None = None) -> d
         content = p.read_text(encoding=encoding)
         return {"success": True, "content": content, "size": len(content), "error": None}
     except PathPolicyViolation as exc:
-        return {"success": False, "content": "", "size": 0, "error": f"Path policy violation: {exc}"}
+        return {
+            "success": False,
+            "content": "",
+            "size": 0,
+            "error": f"Path policy violation: {exc}",
+        }
     except Exception as exc:
         return {"success": False, "content": "", "size": 0, "error": str(exc)}
 
@@ -100,14 +106,25 @@ def web_fetch_handler(payload: dict) -> dict:
     try:
         _policy.validate(url)
     except URLPolicyViolation as e:
-        return {"success": False, "error": f"URL policy violation: {e}", "status_code": 0, "content": ""}
+        return {
+            "success": False,
+            "error": f"URL policy violation: {e}",
+            "status_code": 0,
+            "content": "",
+        }
     try:
+
         class _NoUnsafeRedirect(urllib.request.HTTPRedirectHandler):
             """Block redirects to URLs that fail URLPolicy validation."""
 
             def redirect_request(
-                self, req: urllib.request.Request, fp: object, code: int,
-                msg: str, headers: object, newurl: str
+                self,
+                req: urllib.request.Request,
+                fp: object,
+                code: int,
+                msg: str,
+                headers: object,
+                newurl: str,
             ) -> urllib.request.Request | None:
                 try:
                     _policy.validate(newurl)
@@ -146,13 +163,25 @@ def shell_exec_handler(payload: dict) -> dict:
 
     argv = shlex.split(command) if isinstance(command, str) else [str(a) for a in command]
     if not argv:
-        return {"success": False, "stdout": "", "stderr": "", "returncode": -1, "error": "empty command"}
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "",
+            "returncode": -1,
+            "error": "empty command",
+        }
 
     base_cwd = Path(".").resolve()
     try:
         safe_cwd = safe_resolve(base_cwd, cwd_raw) if cwd_raw != "." else base_cwd
     except (ValueError, PermissionError) as e:
-        return {"success": False, "stdout": "", "stderr": "", "returncode": -1, "error": f"invalid cwd: {e}"}
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "",
+            "returncode": -1,
+            "error": f"invalid cwd: {e}",
+        }
 
     try:
         result = subprocess.run(

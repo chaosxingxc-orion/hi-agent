@@ -7,6 +7,7 @@ Note: ShortTermMemoryStore stores ShortTermMemory objects (not raw key/value);
 tests use that API.  Role isolation is achieved by scoping the storage
 directory via role_id — different role_ids produce different subdirectories.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

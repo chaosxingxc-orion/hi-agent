@@ -84,9 +84,7 @@ def test_prod_disabled_capability_is_denied():
     spec = _make_spec("shell_exec", prod_enabled_default=False, risk_class="shell")
     registry = _make_registry(spec)
     invoker = _make_invoker()
-    executor = GovernedToolExecutor(
-        registry=registry, invoker=invoker, runtime_mode="prod-real"
-    )
+    executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode="prod-real")
 
     with pytest.raises(CapabilityDisabledError, match="shell_exec"):
         executor.invoke("shell_exec", {"cmd": "ls"})
@@ -116,24 +114,22 @@ def test_dev_mode_allows_shell_exec():
     spec = _make_spec("shell_exec", prod_enabled_default=False, risk_class="shell")
     registry = _make_registry(spec)
     invoker = _make_invoker({"output": "hello"})
-    executor = GovernedToolExecutor(
-        registry=registry, invoker=invoker, runtime_mode="dev-smoke"
-    )
+    executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode="dev-smoke")
 
     result = executor.invoke("shell_exec", {"cmd": "echo hello"}, principal="dev_user")
 
-    invoker.invoke.assert_called_once_with("shell_exec", {"cmd": "echo hello"}, role=None, metadata=None)
+    invoker.invoke.assert_called_once_with(
+        "shell_exec", {"cmd": "echo hello"}, role=None, metadata=None
+    )
     assert result == {"output": "hello"}
 
 
 def test_unauthenticated_denied_in_prod():
-    """requires_auth=True capability with anonymous principal in prod-real → PermissionDeniedError."""
+    """Anonymous prod-real principal is denied for requires_auth=True capability."""
     spec = _make_spec("sensitive_op", requires_auth=True)
     registry = _make_registry(spec)
     invoker = _make_invoker()
-    executor = GovernedToolExecutor(
-        registry=registry, invoker=invoker, runtime_mode="prod-real"
-    )
+    executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode="prod-real")
 
     with pytest.raises(PermissionDeniedError, match="sensitive_op"):
         executor.invoke("sensitive_op", {}, principal="anonymous")
@@ -152,15 +148,13 @@ def test_allow_decision_calls_invoker():
     registry = _make_registry(spec)
     expected = {"status": "active"}
     invoker = _make_invoker(expected)
-    executor = GovernedToolExecutor(
-        registry=registry, invoker=invoker, runtime_mode="prod-real"
-    )
+    executor = GovernedToolExecutor(registry=registry, invoker=invoker, runtime_mode="prod-real")
 
-    result = executor.invoke(
-        "read_status", {"run_id": "abc"}, principal="service_account"
-    )
+    result = executor.invoke("read_status", {"run_id": "abc"}, principal="service_account")
 
-    invoker.invoke.assert_called_once_with("read_status", {"run_id": "abc"}, role=None, metadata=None)
+    invoker.invoke.assert_called_once_with(
+        "read_status", {"run_id": "abc"}, role=None, metadata=None
+    )
     assert result == expected
 
 
@@ -184,9 +178,7 @@ def test_audit_store_receives_allow_record():
     registry = _make_registry(spec)
     invoker = _make_invoker({"ok": True})
     audit_store = MagicMock()
-    executor = GovernedToolExecutor(
-        registry=registry, invoker=invoker, audit_store=audit_store
-    )
+    executor = GovernedToolExecutor(registry=registry, invoker=invoker, audit_store=audit_store)
 
     executor.invoke("read_status", {})
 
@@ -223,9 +215,7 @@ def test_audit_store_failure_does_not_block_execution():
     invoker = _make_invoker({"ok": True})
     audit_store = MagicMock()
     audit_store.record_tool_call.side_effect = RuntimeError("audit DB down")
-    executor = GovernedToolExecutor(
-        registry=registry, invoker=invoker, audit_store=audit_store
-    )
+    executor = GovernedToolExecutor(registry=registry, invoker=invoker, audit_store=audit_store)
 
     # Should not raise despite audit failure
     result = executor.invoke("read_status", {})
