@@ -173,6 +173,7 @@ class TestLLMGatewayActivation:
         config = TraceConfig(
             skill_storage_dir=str(tmp_path / "skills"),
             episodic_storage_dir=str(tmp_path / "episodes"),
+            compat_sync_llm=True,
         )
         builder = SystemBuilder(config)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-123")
@@ -206,6 +207,7 @@ class TestLLMGatewayActivation:
         config = TraceConfig(
             skill_storage_dir=str(tmp_path / "skills"),
             episodic_storage_dir=str(tmp_path / "episodes"),
+            compat_sync_llm=True,
         )
         builder = SystemBuilder(config)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")

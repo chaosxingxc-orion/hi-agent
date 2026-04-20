@@ -65,6 +65,13 @@ class SQLiteKernelRuntimeEventLog(KernelRuntimeEventLog):
             if self._pool is None:
                 self._connection.close()
 
+    def __del__(self) -> None:
+        """Best-effort close for short-lived stores in tests and scripts."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
     async def append_action_commit(self, commit: ActionCommit) -> str:
         """Append one action commit and normalizes offsets for the run.
 

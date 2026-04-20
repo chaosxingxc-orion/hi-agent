@@ -98,6 +98,13 @@ class CircuitBreaker:
             self._db.close()
             self._db = None
 
+    def __del__(self) -> None:
+        """Best-effort close for short-lived stores in tests and scripts."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def allow(self, capability_name: str) -> bool:
         """Return whether call is allowed."""
         state = self._states.get(capability_name, CircuitState())

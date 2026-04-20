@@ -58,6 +58,13 @@ class ProjectionSnapshotCache:
         with self._lock:
             self._conn.close()
 
+    def __del__(self) -> None:
+        """Best-effort close for short-lived caches in tests and scripts."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def save(self, projection: RunProjection) -> None:
         """Serialize and upsert a RunProjection snapshot.
 

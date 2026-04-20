@@ -33,6 +33,11 @@ class SQLiteTurnIntentLog(TurnIntentLog):
         with self._lock:
             self._conn.close()
 
+    def __del__(self) -> None:
+        """Best-effort close for short-lived logs in tests and scripts."""
+        with contextlib.suppress(Exception):
+            self.close()
+
     async def write_intent(self, intent: TurnIntentRecord) -> None:
         """Write one turn intent with idempotent semantics by intent ref.
 

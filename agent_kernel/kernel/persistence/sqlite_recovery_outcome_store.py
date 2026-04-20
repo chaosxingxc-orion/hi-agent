@@ -27,6 +27,11 @@ class SQLiteRecoveryOutcomeStore(RecoveryOutcomeStore):
         """Close SQLite connection."""
         self._conn.close()
 
+    def __del__(self) -> None:
+        """Best-effort close for short-lived stores in tests and scripts."""
+        with contextlib.suppress(Exception):
+            self.close()
+
     async def write_outcome(self, outcome: RecoveryOutcome) -> None:
         """Persist one recovery outcome row.
 

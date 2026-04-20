@@ -39,6 +39,11 @@ class SQLiteTaskViewLog:
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             self._conn.close()
 
+    def __del__(self) -> None:
+        """Best-effort close for short-lived stores in tests and scripts."""
+        with contextlib.suppress(Exception):
+            self.close()
+
     def write(self, record: TaskViewRecord) -> None:
         """Persist one TaskViewRecord.  Idempotent by task_view_id."""
         with self._lock:

@@ -187,3 +187,10 @@ class SQLiteEventStore:
         """Close the underlying SQLite connection."""
         with self._lock:
             self._conn.close()
+
+    def __del__(self) -> None:
+        """Best-effort close for short-lived stores in tests and scripts."""
+        try:
+            self.close()
+        except Exception:
+            pass

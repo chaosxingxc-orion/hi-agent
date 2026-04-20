@@ -118,6 +118,11 @@ class SQLiteDecisionDeduper:
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             self._conn.close()
 
+    def __del__(self) -> None:
+        """Best-effort close for short-lived stores in tests and scripts."""
+        with contextlib.suppress(Exception):
+            self.close()
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

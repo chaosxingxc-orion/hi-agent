@@ -651,6 +651,11 @@ class ColocatedSQLiteBundle:
             self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         self._conn.close()
 
+    def __del__(self) -> None:
+        """Best-effort close for short-lived bundles in tests and scripts."""
+        with contextlib.suppress(Exception):
+            self.close()
+
     def atomic_dispatch_record(
         self,
         commit: ActionCommit,

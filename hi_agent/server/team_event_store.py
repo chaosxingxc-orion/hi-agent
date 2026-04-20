@@ -93,3 +93,15 @@ class TeamEventStore:
             .fetchall()
         )
         return [TeamEvent(*r) for r in rows]
+
+    def close(self) -> None:
+        with self._lock:
+            if self._conn is not None:
+                self._conn.close()
+                self._conn = None
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass

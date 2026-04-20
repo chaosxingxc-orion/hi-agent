@@ -13,6 +13,23 @@ except Exception:
     MCPHealth = None  # type: ignore[assignment,misc]
 
 
+def _utc_now() -> datetime.datetime:
+    return datetime.datetime.now(datetime.UTC)
+
+
+def _format_utc_z(value: datetime.datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=datetime.UTC)
+    return value.astimezone(datetime.UTC).isoformat().replace("+00:00", "Z")
+
+
+def _parse_utc_timestamp(value: str) -> datetime.datetime:
+    parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.UTC)
+    return parsed.astimezone(datetime.UTC)
+
+
 @dataclass
 class GateResult:
     name: str
@@ -26,9 +43,7 @@ class GateResult:
 @dataclass
 class ReleaseGateReport:
     gates: list[GateResult]
-    last_checked_at: str = field(
-        default_factory=lambda: datetime.datetime.utcnow().isoformat() + "Z"
-    )
+    last_checked_at: str = field(default_factory=lambda: _format_utc_z(_utc_now()))
 
     @property
     def passed(self) -> bool:
@@ -100,7 +115,7 @@ def check_prod_e2e_recent(
     Returns ProdE2EResult(passed=True) if a recent prod run exists,
     ProdE2EResult(passed=False, reason="...") otherwise.
     """
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=max_age_hours)
+    cutoff = _utc_now() - datetime.timedelta(hours=max_age_hours)
     episodes_path = Path(episodic_dir)
 
     if not episodes_path.exists():
@@ -138,7 +153,7 @@ def check_prod_e2e_recent(
             continue
 
         try:
-            ts = datetime.datetime.fromisoformat(ts_str.rstrip("Z"))
+            ts = _parse_utc_timestamp(ts_str)
         except ValueError:
             continue
 
@@ -156,7 +171,7 @@ def check_prod_e2e_recent(
             },
         )
 
-    age_hours = (datetime.datetime.utcnow() - latest_prod_ts).total_seconds() / 3600
+    age_hours = (_utc_now() - latest_prod_ts).total_seconds() / 3600
     if latest_prod_ts < cutoff:
         return ProdE2EResult(
             passed=False,
@@ -164,7 +179,7 @@ def check_prod_e2e_recent(
                 f"latest prod-real run is {age_hours:.1f}h old (max allowed: {max_age_hours}h)"
             ),
             details={
-                "latest_prod_run": latest_prod_ts.isoformat() + "Z",
+                "latest_prod_run": _format_utc_z(latest_prod_ts),
                 "age_hours": round(age_hours, 2),
                 "max_age_hours": max_age_hours,
                 "prod_run_count": prod_run_count,
@@ -175,7 +190,7 @@ def check_prod_e2e_recent(
         passed=True,
         reason=f"prod-real run found {age_hours:.1f}h ago (within {max_age_hours}h window)",
         details={
-            "latest_prod_run": latest_prod_ts.isoformat() + "Z",
+            "latest_prod_run": _format_utc_z(latest_prod_ts),
             "age_hours": round(age_hours, 2),
             "max_age_hours": max_age_hours,
             "prod_run_count": prod_run_count,

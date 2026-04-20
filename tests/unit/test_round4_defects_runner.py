@@ -161,7 +161,13 @@ class TestF5ReflectAsyncLoop:
         # Build a mock loop with is_running() == True
         mock_loop = MagicMock()
         mock_loop.is_running.return_value = True
-        mock_loop.create_task = MagicMock()
+        mock_task = MagicMock()
+
+        def _create_task(coro):
+            coro.close()
+            return mock_task
+
+        mock_loop.create_task = MagicMock(side_effect=_create_task)
 
         # Mock descriptor class to bypass goal= vs goal_description= mismatch
         mock_descriptor = MagicMock()

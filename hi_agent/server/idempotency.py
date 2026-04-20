@@ -214,3 +214,10 @@ ON idempotency_records (tenant_id, idempotency_key)
     def close(self) -> None:
         """Close the underlying database connection."""
         self._conn.close()
+
+    def __del__(self) -> None:
+        """Best-effort close for short-lived stores in tests and scripts."""
+        try:
+            self.close()
+        except Exception:
+            pass

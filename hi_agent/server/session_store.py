@@ -180,6 +180,20 @@ class SessionStore:
                     f"session {session_id} not owned by {tenant_id}/{user_id} or already archived"
                 )
 
+    def close(self) -> None:
+        """Close the underlying database connection if initialized."""
+        with self._lock:
+            if self._conn is not None:
+                self._conn.close()
+                self._conn = None
+
+    def __del__(self) -> None:
+        """Best-effort close for short-lived stores in tests and scripts."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
     @staticmethod
     def _row(row: tuple) -> SessionRecord:
         """Convert a database row tuple to a SessionRecord."""

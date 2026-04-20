@@ -160,3 +160,10 @@ ON route_decision_audit (run_id, stage_id)
     def close(self) -> None:
         """Close the underlying database connection."""
         self._conn.close()
+
+    def __del__(self) -> None:
+        """Best-effort close for short-lived stores in tests and scripts."""
+        try:
+            self.close()
+        except Exception:
+            pass

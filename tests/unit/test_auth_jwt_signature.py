@@ -15,7 +15,11 @@ from unittest.mock import MagicMock, patch
 import jwt as pyjwt
 from hi_agent.server.auth_middleware import AuthMiddleware, _verify_jwt
 
-_SECRET = "test-secret-key-for-h5"
+_SECRET = "test-secret-key-for-h5-32-bytes-ok"
+_WRONG_SECRET = "wrong-secret-key-for-h5-32-bytes-ok"
+_ATTACKER_SECRET = "attacker-key-for-h5-32-bytes-okay"
+_FORGED_SECRET = "forged-secret-for-h5-32-bytes-ok"
+_ANY_SECRET = "any-key-for-claims-mode-32-bytes-ok"
 _AUDIENCE = "hi-agent"
 
 
@@ -52,7 +56,7 @@ class TestVerifyJwtHelper:
 
     def test_wrong_secret_returns_none(self) -> None:
         token = _make_token(_SECRET)
-        result = _verify_jwt(token, "wrong-secret", _AUDIENCE)
+        result = _verify_jwt(token, _WRONG_SECRET, _AUDIENCE)
         assert result is None
 
     def test_wrong_audience_returns_none(self) -> None:
@@ -103,7 +107,7 @@ class TestAuthMiddlewareJwtWithSecret:
     def test_wrong_signature_rejected(self) -> None:
         """Token with valid claims but signed with wrong key must be rejected."""
         mw = _make_middleware(secret=_SECRET)
-        token = _make_token("attacker-key")
+        token = _make_token(_ATTACKER_SECRET)
         role = mw._authenticate(token)
         assert role is None
 
@@ -116,7 +120,7 @@ class TestAuthMiddlewareJwtWithSecret:
             "exp": int(time.time()) + 3600,
             "role": "admin",
         }
-        forged_token = pyjwt.encode(payload, "forged-secret", algorithm="HS256")
+        forged_token = pyjwt.encode(payload, _FORGED_SECRET, algorithm="HS256")
         mw = _make_middleware(secret=_SECRET)
         role = mw._authenticate(forged_token)
         assert role is None
@@ -147,19 +151,19 @@ class TestAuthMiddlewareJwtWithoutSecret:
         mw = _make_middleware(secret=None)
         assert mw._jwt_secret is None
         # Use any key — signature is not checked
-        token = _make_token("any-key")
+        token = _make_token(_ANY_SECRET)
         role = mw._authenticate(token)
         assert role == "read"
 
     def test_expired_claims_rejected_without_secret(self) -> None:
         mw = _make_middleware(secret=None)
-        token = _make_token("any-key", exp_offset=-10)
+        token = _make_token(_ANY_SECRET, exp_offset=-10)
         role = mw._authenticate(token)
         assert role is None
 
     def test_wrong_audience_rejected_without_secret(self) -> None:
         mw = _make_middleware(secret=None)
-        token = _make_token("any-key", audience="other-service")
+        token = _make_token(_ANY_SECRET, audience="other-service")
         role = mw._authenticate(token)
         assert role is None
 
@@ -170,7 +174,7 @@ class TestAuthMiddlewareJwtWithoutSecret:
             "exp": int(time.time()) + 3600,
             "role": "read",
         }
-        token = pyjwt.encode(payload, "any-key", algorithm="HS256")
+        token = pyjwt.encode(payload, _ANY_SECRET, algorithm="HS256")
         mw = _make_middleware(secret=None)
         role = mw._authenticate(token)
         assert role is None
