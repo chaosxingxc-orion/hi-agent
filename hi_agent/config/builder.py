@@ -219,7 +219,7 @@ class SystemBuilder:
             registry = CapabilityRegistry()
             logger.warning("build_invoker: registry is None, using empty fallback registry.")
         breaker = CircuitBreaker()
-        invoker = CapabilityInvoker(registry=registry, breaker=breaker)
+        invoker = CapabilityInvoker(registry=registry, breaker=breaker, allow_unguarded=True)
         logger.info(
             "build_invoker: using shared registry with %d capabilities.",
             len(registry.list_names()),

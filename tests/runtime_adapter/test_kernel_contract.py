@@ -10,9 +10,13 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 from unittest.mock import patch
 
 import pytest
+
+# H-4: these contract tests use a non-loopback test URL (no real HTTP calls — urllib is mocked)
+os.environ.setdefault("HI_AGENT_KERNEL_BASE_URL_OVERRIDE_UNSAFE", "http://kernel-test:9090")
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest

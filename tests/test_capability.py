@@ -26,7 +26,7 @@ def test_capability_invoker_success() -> None:
     """Invoker should return handler response on success."""
     registry = CapabilityRegistry()
     breaker = CircuitBreaker(failure_threshold=2)
-    invoker = CapabilityInvoker(registry, breaker)
+    invoker = CapabilityInvoker(registry, breaker, allow_unguarded=True)
 
     registry.register(CapabilitySpec(name="echo", handler=lambda payload: {"echo": payload["x"]}))
     response = invoker.invoke("echo", {"x": 3})
@@ -38,7 +38,7 @@ def test_capability_breaker_opens_after_failures() -> None:
     """Breaker should open after repeated failures."""
     registry = CapabilityRegistry()
     breaker = CircuitBreaker(failure_threshold=2)
-    invoker = CapabilityInvoker(registry, breaker)
+    invoker = CapabilityInvoker(registry, breaker, allow_unguarded=True)
 
     def fail(_payload: dict) -> dict:
         raise RuntimeError("boom")
@@ -58,7 +58,7 @@ def test_capability_breaker_half_open_probe_success_recovers() -> None:
     registry = CapabilityRegistry()
     clock = _FakeClock()
     breaker = CircuitBreaker(failure_threshold=1, cooldown_seconds=5.0, clock=clock)
-    invoker = CapabilityInvoker(registry, breaker)
+    invoker = CapabilityInvoker(registry, breaker, allow_unguarded=True)
 
     attempts = {"count": 0}
 

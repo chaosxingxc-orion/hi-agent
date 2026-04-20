@@ -294,7 +294,7 @@ def test_mi04_bound_capability_invocable(mcp_server_command: str) -> None:
     binding = MCPBinding(registry=cap_registry, mcp_registry=mcp_registry, transport=transport)
     binding.bind_all()
 
-    invoker = CapabilityInvoker(registry=cap_registry, breaker=CircuitBreaker())
+    invoker = CapabilityInvoker(registry=cap_registry, breaker=CircuitBreaker(), allow_unguarded=True)
     try:
         result = invoker.invoke("mcp.test_srv.echo_tool", {"message": "hello integration"})
     finally:

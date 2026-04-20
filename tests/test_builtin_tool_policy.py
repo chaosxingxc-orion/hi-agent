@@ -31,18 +31,21 @@ class TestShellExecPolicy:
         registry = _build_registry("local-real")
         assert "shell_exec" not in registry.list_names()
 
-    def test_shell_exec_present_in_dev_smoke_profile(self):
-        """shell_exec must be registered in 'dev-smoke' profile."""
+    def test_shell_exec_present_in_dev_smoke_profile(self, monkeypatch):
+        """shell_exec must be registered in 'dev-smoke' profile when opt-in env var is set (H-2)."""
+        monkeypatch.setenv("HI_AGENT_ENABLE_SHELL_EXEC", "true")
         registry = _build_registry("dev-smoke")
         assert "shell_exec" in registry.list_names()
 
-    def test_shell_exec_present_in_dev_profile(self):
-        """shell_exec must be registered in 'dev' profile."""
+    def test_shell_exec_present_in_dev_profile(self, monkeypatch):
+        """shell_exec must be registered in 'dev' profile when opt-in env var is set (H-2)."""
+        monkeypatch.setenv("HI_AGENT_ENABLE_SHELL_EXEC", "true")
         registry = _build_registry("dev")
         assert "shell_exec" in registry.list_names()
 
-    def test_shell_exec_present_with_default_profile(self):
-        """Default profile (no arg) is dev-smoke — shell_exec should be present."""
+    def test_shell_exec_present_with_default_profile(self, monkeypatch):
+        """Default profile (no arg) is dev-smoke — shell_exec present when opt-in env var is set (H-2)."""
+        monkeypatch.setenv("HI_AGENT_ENABLE_SHELL_EXEC", "true")
         registry = CapabilityRegistry()
         register_builtin_tools(registry)
         assert "shell_exec" in registry.list_names()

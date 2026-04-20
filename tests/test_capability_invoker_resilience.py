@@ -26,6 +26,7 @@ def test_invoker_retries_and_eventually_succeeds() -> None:
     invoker = CapabilityInvoker(
         registry,
         breaker,
+        allow_unguarded=True,
         max_retries=2,
         retry_exceptions=(RuntimeError,),
     )
@@ -51,6 +52,7 @@ def test_invoker_retry_exhausted_raises_last_exception() -> None:
     invoker = CapabilityInvoker(
         registry,
         breaker,
+        allow_unguarded=True,
         max_retries=2,
         retry_exceptions=(RuntimeError,),
     )
@@ -76,6 +78,7 @@ def test_invoker_non_retry_exception_fails_fast() -> None:
     invoker = CapabilityInvoker(
         registry,
         breaker,
+        allow_unguarded=True,
         max_retries=5,
         retry_exceptions=(RuntimeError,),
     )
@@ -109,6 +112,7 @@ def test_invoker_timeout_classified_as_retryable() -> None:
     invoker = CapabilityInvoker(
         registry,
         breaker,
+        allow_unguarded=True,
         max_retries=1,
         retry_exceptions=(TimeoutError,),
         call_timeout_seconds=0.25,

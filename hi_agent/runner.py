@@ -1041,7 +1041,7 @@ class RunExecutor:
 
         registry = CapabilityRegistry()
         register_default_capabilities(registry, llm_gateway=llm_gateway)
-        raw_invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+        raw_invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
         _env = _os.environ.get("HI_AGENT_ENV", "dev").lower()
         runtime_mode = _rrm(_env, {})
         return GovernedToolExecutor(

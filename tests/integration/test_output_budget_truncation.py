@@ -21,7 +21,7 @@ def test_output_truncated_when_over_budget():
     budget = 10
     large_output = "x" * (budget * 4 + 100)
     registry = _registry_with_budget("big_op", lambda _p: {"output": large_output}, budget)
-    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
     result = invoker.invoke("big_op", {})
     assert result.get("_output_truncated") is True
     assert len(result["output"]) <= budget * 4
@@ -30,7 +30,7 @@ def test_output_truncated_when_over_budget():
 def test_output_not_truncated_within_budget():
     """Short outputs are returned intact."""
     registry = _registry_with_budget("small_op", lambda _p: {"output": "short"}, 100)
-    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
     result = invoker.invoke("small_op", {})
     assert result.get("_output_truncated") is None
     assert result["output"] == "short"
@@ -40,7 +40,7 @@ def test_zero_budget_means_unlimited():
     """budget=0 (default) means no truncation."""
     big = "y" * 10_000
     registry = _registry_with_budget("unlimited_op", lambda _p: {"output": big}, 0)
-    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
     result = invoker.invoke("unlimited_op", {})
     assert result.get("_output_truncated") is None
     assert len(result["output"]) == 10_000
@@ -51,6 +51,6 @@ def test_no_budget_attribute_means_unlimited():
     big = "z" * 5_000
     registry = CapabilityRegistry()
     registry.register(CapabilitySpec(name="plain_op", handler=lambda _p: {"result": big}))
-    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
     result = invoker.invoke("plain_op", {})
     assert result.get("_output_truncated") is None

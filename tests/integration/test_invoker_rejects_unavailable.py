@@ -25,7 +25,7 @@ def test_invoker_raises_for_unavailable_capability(monkeypatch):
     breaker = MagicMock()
     breaker.allow.return_value = True
 
-    invoker = CapabilityInvoker(registry=registry, breaker=breaker)
+    invoker = CapabilityInvoker(registry=registry, breaker=breaker, allow_unguarded=True)
 
     with pytest.raises(CapabilityUnavailableError) as exc_info:
         invoker.invoke("gated_cap", {})
@@ -53,7 +53,7 @@ def test_invoker_allows_available_capability(monkeypatch):
     breaker = MagicMock()
     breaker.allow.return_value = True
 
-    invoker = CapabilityInvoker(registry=registry, breaker=breaker)
+    invoker = CapabilityInvoker(registry=registry, breaker=breaker, allow_unguarded=True)
     result = invoker.invoke("gated_cap", {})
     assert result["success"] is True
 
@@ -72,7 +72,7 @@ def test_invoker_skips_probe_when_registry_lacks_method():
     breaker = MagicMock()
     breaker.allow.return_value = True
 
-    invoker = CapabilityInvoker(registry=registry, breaker=breaker)
+    invoker = CapabilityInvoker(registry=registry, breaker=breaker, allow_unguarded=True)
     result = invoker.invoke("cap", {})
     assert result["success"] is True
 

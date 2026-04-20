@@ -27,7 +27,7 @@ def _invoker_with_capability(
     )
     object.__setattr__(spec, "descriptor", descriptor)
     registry.register(spec)
-    return CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+    return CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
 
 
 def test_dangerous_capability_blocked_for_submitter() -> None:

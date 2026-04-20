@@ -19,7 +19,7 @@ from hi_agent.capability.circuit_breaker import CircuitBreaker
 def mcp():
     registry = CapabilityRegistry()
     register_builtin_tools(registry)
-    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
     return MCPServer(registry=registry, invoker=invoker)
 
 
@@ -30,7 +30,7 @@ def test_list_tools_returns_four_builtins(mcp):
     assert "file_read" in names
     assert "file_write" in names
     assert "web_fetch" in names
-    assert "shell_exec" in names
+    # shell_exec requires HI_AGENT_ENABLE_SHELL_EXEC=true (H-2 security gate)
 
 
 def test_list_tools_have_input_schema(mcp):
@@ -40,11 +40,12 @@ def test_list_tools_have_input_schema(mcp):
         assert isinstance(tool["inputSchema"], dict)
 
 
-def test_call_tool_file_read_real_io(mcp, tmp_path):
+def test_call_tool_file_read_real_io(mcp, tmp_path, monkeypatch):
     """Real file I/O — no mock."""
+    monkeypatch.chdir(tmp_path)  # file_read uses cwd; payload base_dir is ignored (H-6)
     f = tmp_path / "mcp_test.txt"
     f.write_text("mcp content")
-    result = mcp.call_tool("file_read", {"path": "mcp_test.txt", "base_dir": str(tmp_path)})
+    result = mcp.call_tool("file_read", {"path": "mcp_test.txt"})
     assert result["isError"] is False
     data = json.loads(result["content"][0]["text"])
     assert data["content"] == "mcp content"
@@ -55,8 +56,14 @@ def test_call_tool_unknown_returns_error(mcp):
     assert result["isError"] is True
 
 
-def test_call_tool_shell_exec_real(mcp):
-    result = mcp.call_tool("shell_exec", {"command": "echo mcp_test"})
+def test_call_tool_shell_exec_real(tmp_path, monkeypatch):
+    """shell_exec is available when HI_AGENT_ENABLE_SHELL_EXEC=true (H-2 security gate)."""
+    monkeypatch.setenv("HI_AGENT_ENABLE_SHELL_EXEC", "true")
+    registry = CapabilityRegistry()
+    register_builtin_tools(registry)
+    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
+    mcp_with_shell = MCPServer(registry=registry, invoker=invoker)
+    result = mcp_with_shell.call_tool("shell_exec", {"command": "echo mcp_test"})
     assert result["isError"] is False
     data = json.loads(result["content"][0]["text"])
     assert "mcp_test" in data["stdout"]
