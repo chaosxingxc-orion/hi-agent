@@ -225,7 +225,7 @@ class MidTermMemoryStore:
             except (json.JSONDecodeError, KeyError):
                 continue
         all_summaries.sort(key=lambda s: s.date, reverse=True)
-        return summaries[:days]
+        return all_summaries[:days]
 
 
 class DreamConsolidator:
