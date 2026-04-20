@@ -1,4 +1,4 @@
-"""RetrievalBuilder ? extracted from MemoryBuilder (HI-W7-002)."""
+"""Standalone retrieval component builder (HI-W7-002)."""
 
 from __future__ import annotations
 
