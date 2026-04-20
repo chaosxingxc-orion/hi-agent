@@ -85,6 +85,10 @@ from hi_agent.server.routes_runs import (
     handle_signal_run,
     handle_submit_feedback,
 )
+from hi_agent.server.routes_profiles import (
+    handle_global_l3_summary,
+    handle_global_skills,
+)
 from hi_agent.server.routes_sessions import (
     handle_get_session_runs,
     handle_list_sessions,
@@ -1506,6 +1510,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
 
         # Team
         Route("/team/events", handle_list_team_events, methods=["GET"]),
+
+        # Global profile read layer (G-1)
+        Route("/profiles/hi_agent_global/memory/l3", handle_global_l3_summary, methods=["GET"]),
+        Route("/profiles/hi_agent_global/skills", handle_global_skills, methods=["GET"]),
 
         # Long-running ops (G-8) — static cancel path before dynamic op_id catch-all
         Route("/long-ops/{op_id}/cancel", handle_cancel_long_op, methods=["POST"]),

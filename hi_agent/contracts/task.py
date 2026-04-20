@@ -119,4 +119,10 @@ class TaskContract:
     #   An empty dict means no criterion (always passes).
     stage_goal: str = ""
     exit_criterion: dict = field(default_factory=dict)
+    # G-1: Cross-profile read declarations (global layer convention).
+    # cross_profile_read: [PASSTHROUGH] List of profile-relative paths the task
+    #   is allowed to read.  Only paths under "hi_agent_global/" are permitted by
+    #   the platform; access to sibling project profiles is not supported.
+    #   Example: ["hi_agent_global/memory/l3", "hi_agent_global/skills"]
+    cross_profile_read: list[str] = field(default_factory=list)
 

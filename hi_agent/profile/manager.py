@@ -5,6 +5,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+# G-1: Canonical identifier for the cross-project global profile.
+# Multiple project profiles can declare cross_profile_read=["hi_agent_global/..."]
+# to access shared L3 memory, global skills, and other global artifacts.
+GLOBAL_PROFILE_ID = "hi_agent_global"
+
 
 class ProfileDirectoryManager:
     """Resolves profile-scoped file paths under HI_AGENT_HOME.
@@ -56,3 +61,19 @@ class ProfileDirectoryManager:
         path = self._home / "audit"
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    # ------------------------------------------------------------------
+    # G-1: Global profile paths (cross-project shared data)
+    # ------------------------------------------------------------------
+
+    def get_global_profile_path(self) -> Path:
+        """Return <home>/hi_agent_global/ (not auto-created)."""
+        return self._home / GLOBAL_PROFILE_ID
+
+    def get_global_memory_l3(self) -> Path:
+        """Return <home>/hi_agent_global/memory/l3/ (not auto-created)."""
+        return self.get_global_profile_path() / "memory" / "l3"
+
+    def get_global_skills(self) -> Path:
+        """Return <home>/hi_agent_global/skills/ (not auto-created)."""
+        return self.get_global_profile_path() / "skills"
