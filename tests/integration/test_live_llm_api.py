@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,46 @@ _BASE_URL = os.environ.get("VOLCE_BASE_URL", _vcfg.get("base_url", ""))
 _TIMEOUT = _vcfg.get("timeout_seconds", 60)
 _MAX_RETRIES = _vcfg.get("max_retries", 1)
 _ALL_MODELS: list[str] = _vcfg.get("all_models", [])
+
+
+def _unique_non_empty(values: object) -> list[str]:
+    """Return unique, non-empty string values while preserving order."""
+    if not isinstance(values, Iterable) or isinstance(values, str | bytes):
+        return []
+    result: list[str] = []
+    for value in values:
+        if isinstance(value, str) and value and value not in result:
+            result.append(value)
+    return result
+
+
+def _behavior_models() -> list[str]:
+    """Select models for multi-call behavioral checks.
+
+    CI should validate every catalog model with cheap smoke/latency calls, but
+    multi-turn and code-generation checks are intentionally scoped to the
+    production routing models. Set VOLCE_LIVE_BEHAVIOR_MODELS=all to run the
+    full catalog behavior matrix manually.
+    """
+    override = os.environ.get("VOLCE_LIVE_BEHAVIOR_MODELS", "").strip()
+    if override.lower() == "all":
+        return _ALL_MODELS
+    if override:
+        return _unique_non_empty([item.strip() for item in override.split(",")])
+
+    configured = _vcfg.get("models", {})
+    if isinstance(configured, dict):
+        selected = _unique_non_empty([
+            configured.get("strong"),
+            configured.get("medium"),
+            configured.get("light"),
+        ])
+        if selected:
+            return selected
+    return _ALL_MODELS[:1]
+
+
+_BEHAVIOR_MODELS = _behavior_models()
 
 # Skip the entire module when the API key is absent.
 # Default key is loaded from config/llm_config.json via conftest.py; override with env var for CI.
@@ -137,7 +178,7 @@ def test_smoke_completion(gateway: HttpLLMGateway, model: str) -> None:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.live_api
-@pytest.mark.parametrize("model", _ALL_MODELS)
+@pytest.mark.parametrize("model", _BEHAVIOR_MODELS)
 def test_multi_turn_conversation(gateway: HttpLLMGateway, model: str) -> None:
     """Model must maintain context across a two-turn exchange.
 
@@ -172,7 +213,7 @@ def test_multi_turn_conversation(gateway: HttpLLMGateway, model: str) -> None:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.live_api
-@pytest.mark.parametrize("model", _ALL_MODELS)
+@pytest.mark.parametrize("model", _BEHAVIOR_MODELS)
 def test_code_generation(gateway: HttpLLMGateway, model: str) -> None:
     """Model must return a Python function when asked.
 
