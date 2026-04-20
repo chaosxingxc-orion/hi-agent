@@ -9,7 +9,7 @@ W2-001 adds StageProvenance per stage; build_from_stages aggregates from those.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 CONTRACT_VERSION = "2026-04-17"
@@ -53,6 +53,8 @@ class ExecutionProvenance:
     fallback_used: bool
     fallback_reasons: list[str]
     evidence: dict[str, int]
+    experiment_artifacts: list[dict] = field(default_factory=list)
+    # Each entry: {"uri": str, "sha256": str, "size": int, "mime": str}
 
     def __post_init__(self) -> None:
         # Deduplicate and sort fallback_reasons for stable comparison.

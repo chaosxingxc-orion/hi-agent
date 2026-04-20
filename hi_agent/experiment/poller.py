@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from pathlib import Path
 from typing import Any, Callable
 
 from hi_agent.experiment.coordinator import LongRunningOpCoordinator
@@ -49,6 +50,26 @@ class OpPoller:
                         "op_id": handle.op_id,
                         "artifacts": artifacts,
                     })
+                    # G-10: hash each artifact and emit provenance events
+                    from hi_agent.experiment.provenance import ArtifactRecord
+                    for uri in artifacts:
+                        try:
+                            p = Path(uri)
+                            if p.exists() and p.is_file():
+                                record = ArtifactRecord.from_path(p)
+                                self._on_event({
+                                    "type": "experiment.artifact_indexed",
+                                    "op_id": handle.op_id,
+                                    "uri": record.uri,
+                                    "sha256": record.sha256,
+                                    "size": record.size,
+                                    "mime": record.mime,
+                                })
+                        except Exception as exc:
+                            _logger.warning(
+                                "Artifact hashing failed for op_id=%s uri=%s: %s",
+                                handle.op_id, uri, exc,
+                            )
                 elif status_str == "failed":
                     self._store.update_status(
                         handle.op_id, OpStatus.FAILED, completed_at=time.time()
