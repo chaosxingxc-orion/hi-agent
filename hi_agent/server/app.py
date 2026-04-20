@@ -1129,7 +1129,7 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
     if not event_file:
         import os
 
-        _loop = asyncio.get_event_loop()
+        _loop = asyncio.get_running_loop()
         candidates = [
             f"replay_{run_id}.jsonl",
             os.path.join(".hi_agent", f"replay_{run_id}.jsonl"),
@@ -1148,7 +1148,7 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
     try:
         from hi_agent.replay import ReplayEngine, load_event_envelopes_jsonl
 
-        _loop2 = asyncio.get_event_loop()
+        _loop2 = asyncio.get_running_loop()
         events = await _loop2.run_in_executor(None, load_event_envelopes_jsonl, event_file)
         run_events = [e for e in events if e.run_id == run_id]
         if not run_events:
@@ -1173,7 +1173,7 @@ async def handle_replay_status(request: Request) -> JSONResponse:
     import os
 
     run_id = request.path_params["run_id"]
-    _loop = asyncio.get_event_loop()
+    _loop = asyncio.get_running_loop()
     candidates = [
         f"replay_{run_id}.jsonl",
         os.path.join(".hi_agent", f"replay_{run_id}.jsonl"),

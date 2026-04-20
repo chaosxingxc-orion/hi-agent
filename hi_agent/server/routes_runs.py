@@ -297,7 +297,7 @@ async def handle_resume_run(request: Request) -> JSONResponse:
         body = {}
 
     # Search for checkpoint file (run os.path.exists off the event loop)
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     checkpoint_path = body.get("checkpoint_path")
     if not checkpoint_path:
         candidates = [
