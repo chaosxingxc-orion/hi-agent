@@ -52,6 +52,39 @@ from agent_kernel.substrate.temporal.gateway import TemporalGatewayConfig
 from agent_kernel.substrate.temporal.worker import TemporalWorkerConfig
 
 
+@pytest.fixture(autouse=True)
+def _close_runtime_bundles(monkeypatch: pytest.MonkeyPatch):
+    """Close SQLite-backed bundle components created by each test."""
+    bundles: list[AgentKernelRuntimeBundle] = []
+    original_build = AgentKernelRuntimeBundle.build_minimal_complete.__func__
+
+    def _tracked_build(cls, *args: Any, **kwargs: Any) -> AgentKernelRuntimeBundle:
+        bundle = original_build(cls, *args, **kwargs)
+        bundles.append(bundle)
+        return bundle
+
+    monkeypatch.setattr(
+        AgentKernelRuntimeBundle,
+        "build_minimal_complete",
+        classmethod(_tracked_build),
+    )
+    yield
+    for bundle in bundles:
+        for attr in (
+            "event_log",
+            "dedupe_store",
+            "recovery_outcomes",
+            "deduper",
+            "turn_intent_log",
+        ):
+            close = getattr(getattr(bundle, attr, None), "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+
+
 @dataclass(slots=True)
 class _FakeHandle:
     """Minimal fake workflow handle for bundle tests."""
@@ -460,43 +493,45 @@ def test_bundle_builds_activity_gateway_from_handler_maps_and_routes() -> None:
 
 def test_bundle_prod_safety_rejects_in_memory_defaults_in_prod() -> None:
     """Prod safety mode should reject in-memory defaults."""
-    with pytest.raises(ValueError, match="production safety check failed"):
-        AgentKernelRuntimeBundle.build_minimal_complete(
+    with pytest.warns(UserWarning, match="TaskRegistry is using InMemoryTaskEventLog"):
+        with pytest.raises(ValueError, match="production safety check failed"):
+            AgentKernelRuntimeBundle.build_minimal_complete(
+                temporal_client=_FakeTemporalClient(),
+                production_safety_config=RuntimeProductionSafetyConfig(
+                    enabled=True,
+                    environment="prod",
+                ),
+            )
+
+
+def test_bundle_prod_safety_accepts_sqlite_backends_in_prod(tmp_path: Path) -> None:
+    """Prod safety mode should allow bundle build with persisted backends."""
+    with pytest.warns(UserWarning, match="TaskRegistry is using InMemoryTaskEventLog"):
+        bundle = AgentKernelRuntimeBundle.build_minimal_complete(
             temporal_client=_FakeTemporalClient(),
+            event_log_config=RuntimeEventLogConfig(
+                backend="sqlite",
+                sqlite_database_path=tmp_path / "bundle-prod-event-log.sqlite3",
+            ),
+            dedupe_config=RuntimeDedupeConfig(
+                backend="sqlite",
+                sqlite_database_path=tmp_path / "bundle-prod-dedupe.sqlite3",
+            ),
+            recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
+                backend="sqlite",
+                sqlite_database_path=tmp_path / "bundle-prod-recovery.sqlite3",
+            ),
+            turn_intent_log_config=RuntimeTurnIntentLogConfig(
+                backend="sqlite",
+                sqlite_database_path=tmp_path / "bundle-prod-turn-intent.sqlite3",
+            ),
+            enable_activity_backed_executor=True,
+            activity_gateway=_RecordingActivityGateway(),
             production_safety_config=RuntimeProductionSafetyConfig(
                 enabled=True,
                 environment="prod",
             ),
         )
-
-
-def test_bundle_prod_safety_accepts_sqlite_backends_in_prod(tmp_path: Path) -> None:
-    """Prod safety mode should allow bundle build with persisted backends."""
-    bundle = AgentKernelRuntimeBundle.build_minimal_complete(
-        temporal_client=_FakeTemporalClient(),
-        event_log_config=RuntimeEventLogConfig(
-            backend="sqlite",
-            sqlite_database_path=tmp_path / "bundle-prod-event-log.sqlite3",
-        ),
-        dedupe_config=RuntimeDedupeConfig(
-            backend="sqlite",
-            sqlite_database_path=tmp_path / "bundle-prod-dedupe.sqlite3",
-        ),
-        recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
-            backend="sqlite",
-            sqlite_database_path=tmp_path / "bundle-prod-recovery.sqlite3",
-        ),
-        turn_intent_log_config=RuntimeTurnIntentLogConfig(
-            backend="sqlite",
-            sqlite_database_path=tmp_path / "bundle-prod-turn-intent.sqlite3",
-        ),
-        enable_activity_backed_executor=True,
-        activity_gateway=_RecordingActivityGateway(),
-        production_safety_config=RuntimeProductionSafetyConfig(
-            enabled=True,
-            environment="prod",
-        ),
-    )
 
     assert isinstance(bundle.event_log, SQLiteKernelRuntimeEventLog)
     assert isinstance(bundle.dedupe_store, SQLiteDedupeStore)
@@ -510,31 +545,32 @@ def test_bundle_prod_safety_accepts_sqlite_backends_in_prod(tmp_path: Path) -> N
 
 def test_bundle_prod_safety_rejects_echo_llm_gateway_in_prod(tmp_path: Path) -> None:
     """Prod safety mode should block EchoLLMGateway."""
-    with pytest.raises(ValueError, match="EchoLLMGateway"):
-        AgentKernelRuntimeBundle.build_minimal_complete(
-            temporal_client=_FakeTemporalClient(),
-            event_log_config=RuntimeEventLogConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "bundle-prod-event-log2.sqlite3",
-            ),
-            dedupe_config=RuntimeDedupeConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "bundle-prod-dedupe2.sqlite3",
-            ),
-            recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "bundle-prod-recovery2.sqlite3",
-            ),
-            turn_intent_log_config=RuntimeTurnIntentLogConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "bundle-prod-turn-intent2.sqlite3",
-            ),
-            llm_gateway=EchoLLMGateway(),
-            production_safety_config=RuntimeProductionSafetyConfig(
-                enabled=True,
-                environment="prod",
-            ),
-        )
+    with pytest.warns(UserWarning, match="TaskRegistry is using InMemoryTaskEventLog"):
+        with pytest.raises(ValueError, match="EchoLLMGateway"):
+            AgentKernelRuntimeBundle.build_minimal_complete(
+                temporal_client=_FakeTemporalClient(),
+                event_log_config=RuntimeEventLogConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "bundle-prod-event-log2.sqlite3",
+                ),
+                dedupe_config=RuntimeDedupeConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "bundle-prod-dedupe2.sqlite3",
+                ),
+                recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "bundle-prod-recovery2.sqlite3",
+                ),
+                turn_intent_log_config=RuntimeTurnIntentLogConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "bundle-prod-turn-intent2.sqlite3",
+                ),
+                llm_gateway=EchoLLMGateway(),
+                production_safety_config=RuntimeProductionSafetyConfig(
+                    enabled=True,
+                    environment="prod",
+                ),
+            )
 
 
 def test_bundle_default_deduper_is_sqlite_decision_deduper() -> None:
@@ -576,31 +612,32 @@ def test_bundle_prod_safety_rejects_in_memory_decision_deduper(
     tmp_path: Path,
 ) -> None:
     """Prod safety mode should block decision_deduper backend=in_memory."""
-    with pytest.raises(ValueError, match="decision_deduper"):
-        AgentKernelRuntimeBundle.build_minimal_complete(
-            temporal_client=_FakeTemporalClient(),
-            event_log_config=RuntimeEventLogConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "safety-event-log.sqlite3",
-            ),
-            dedupe_config=RuntimeDedupeConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "safety-dedupe.sqlite3",
-            ),
-            decision_deduper_config=RuntimeDecisionDedupeConfig(backend="in_memory"),
-            recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "safety-recovery.sqlite3",
-            ),
-            turn_intent_log_config=RuntimeTurnIntentLogConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "safety-turn-intent.sqlite3",
-            ),
-            production_safety_config=RuntimeProductionSafetyConfig(
-                enabled=True,
-                environment="prod",
-            ),
-        )
+    with pytest.warns(UserWarning, match="TaskRegistry is using InMemoryTaskEventLog"):
+        with pytest.raises(ValueError, match="decision_deduper"):
+            AgentKernelRuntimeBundle.build_minimal_complete(
+                temporal_client=_FakeTemporalClient(),
+                event_log_config=RuntimeEventLogConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "safety-event-log.sqlite3",
+                ),
+                dedupe_config=RuntimeDedupeConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "safety-dedupe.sqlite3",
+                ),
+                decision_deduper_config=RuntimeDecisionDedupeConfig(backend="in_memory"),
+                recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "safety-recovery.sqlite3",
+                ),
+                turn_intent_log_config=RuntimeTurnIntentLogConfig(
+                    backend="sqlite",
+                    sqlite_database_path=tmp_path / "safety-turn-intent.sqlite3",
+                ),
+                production_safety_config=RuntimeProductionSafetyConfig(
+                    enabled=True,
+                    environment="prod",
+                ),
+            )
 
 
 class TestBundleTaskRegistryWiring:
@@ -644,60 +681,62 @@ class TestProductionSafetyExecutorCheck:
 
     def test_production_safety_rejects_no_op_executor(self, tmp_path: Path) -> None:
         """Prod safety should reject bundle built with no-op AsyncExecutorService."""
-        with pytest.raises(ValueError, match="no-op AsyncExecutorService"):
-            AgentKernelRuntimeBundle.build_minimal_complete(
+        with pytest.warns(UserWarning, match="TaskRegistry is using InMemoryTaskEventLog"):
+            with pytest.raises(ValueError, match="no-op AsyncExecutorService"):
+                AgentKernelRuntimeBundle.build_minimal_complete(
+                    temporal_client=_FakeTemporalClient(),
+                    event_log_config=RuntimeEventLogConfig(
+                        backend="sqlite",
+                        sqlite_database_path=tmp_path / "exec-check-event-log.sqlite3",
+                    ),
+                    dedupe_config=RuntimeDedupeConfig(
+                        backend="sqlite",
+                        sqlite_database_path=tmp_path / "exec-check-dedupe.sqlite3",
+                    ),
+                    recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
+                        backend="sqlite",
+                        sqlite_database_path=tmp_path / "exec-check-recovery.sqlite3",
+                    ),
+                    turn_intent_log_config=RuntimeTurnIntentLogConfig(
+                        backend="sqlite",
+                        sqlite_database_path=tmp_path / "exec-check-turn-intent.sqlite3",
+                    ),
+                    enable_activity_backed_executor=False,
+                    production_safety_config=RuntimeProductionSafetyConfig(
+                        enabled=True,
+                        environment="prod",
+                    ),
+                )
+
+    def test_production_safety_allows_activity_backed_executor(self, tmp_path: Path) -> None:
+        """Prod safety should pass when enable_activity_backed_executor=True with gateway."""
+        gateway = _RecordingActivityGateway()
+        with pytest.warns(UserWarning, match="TaskRegistry is using InMemoryTaskEventLog"):
+            bundle = AgentKernelRuntimeBundle.build_minimal_complete(
                 temporal_client=_FakeTemporalClient(),
                 event_log_config=RuntimeEventLogConfig(
                     backend="sqlite",
-                    sqlite_database_path=tmp_path / "exec-check-event-log.sqlite3",
+                    sqlite_database_path=tmp_path / "exec-allow-event-log.sqlite3",
                 ),
                 dedupe_config=RuntimeDedupeConfig(
                     backend="sqlite",
-                    sqlite_database_path=tmp_path / "exec-check-dedupe.sqlite3",
+                    sqlite_database_path=tmp_path / "exec-allow-dedupe.sqlite3",
                 ),
                 recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
                     backend="sqlite",
-                    sqlite_database_path=tmp_path / "exec-check-recovery.sqlite3",
+                    sqlite_database_path=tmp_path / "exec-allow-recovery.sqlite3",
                 ),
                 turn_intent_log_config=RuntimeTurnIntentLogConfig(
                     backend="sqlite",
-                    sqlite_database_path=tmp_path / "exec-check-turn-intent.sqlite3",
+                    sqlite_database_path=tmp_path / "exec-allow-turn-intent.sqlite3",
                 ),
-                enable_activity_backed_executor=False,
+                enable_activity_backed_executor=True,
+                activity_gateway=gateway,
                 production_safety_config=RuntimeProductionSafetyConfig(
                     enabled=True,
                     environment="prod",
                 ),
             )
-
-    def test_production_safety_allows_activity_backed_executor(self, tmp_path: Path) -> None:
-        """Prod safety should pass when enable_activity_backed_executor=True with gateway."""
-        gateway = _RecordingActivityGateway()
-        bundle = AgentKernelRuntimeBundle.build_minimal_complete(
-            temporal_client=_FakeTemporalClient(),
-            event_log_config=RuntimeEventLogConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "exec-allow-event-log.sqlite3",
-            ),
-            dedupe_config=RuntimeDedupeConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "exec-allow-dedupe.sqlite3",
-            ),
-            recovery_outcome_config=RuntimeRecoveryOutcomeConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "exec-allow-recovery.sqlite3",
-            ),
-            turn_intent_log_config=RuntimeTurnIntentLogConfig(
-                backend="sqlite",
-                sqlite_database_path=tmp_path / "exec-allow-turn-intent.sqlite3",
-            ),
-            enable_activity_backed_executor=True,
-            activity_gateway=gateway,
-            production_safety_config=RuntimeProductionSafetyConfig(
-                enabled=True,
-                environment="prod",
-            ),
-        )
         assert isinstance(bundle.executor, ActivityBackedExecutorService)
         bundle.event_log.close()
         bundle.dedupe_store.close()

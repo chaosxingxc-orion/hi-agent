@@ -33,3 +33,7 @@
   - [x] Inline + batch evolve workflow with policy application (route_config_updated changes applied to route engine).
   - [x] Skill promotion and dataset evaluation pipeline.
   - [x] Real agent-kernel HTTP backend (KernelFacadeClient) integration test.
+
+## Warning Debt
+
+- [ ] Python 3.14 / Windows can upgrade unclosed SQLite connections in bundle tests into `PytestUnraisableExceptionWarning`. Current test coverage now closes `AgentKernelRuntimeBundle` SQLite-backed components after each bundle test; continue by adding idempotent close/`__del__` safeguards to all SQLite persistence adapters and, longer term, a first-class bundle lifecycle API.

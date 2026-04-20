@@ -48,14 +48,17 @@ _has_api_key = bool(
 
 _PROD_PREREQS_MET = _has_api_key
 
-pytestmark = pytest.mark.skipif(
-    not _PROD_PREREQS_MET,
-    reason=(
-        "Production E2E prerequisites not met. "
-        "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or VOLCE_API_KEY to run these tests. "
-        "Kernel runs in-process (local); HI_AGENT_KERNEL_BASE_URL is optional."
+pytestmark = [
+    pytest.mark.prod_e2e,
+    pytest.mark.skipif(
+        not _PROD_PREREQS_MET,
+        reason=(
+            "Production E2E prerequisites not met. "
+            "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or VOLCE_API_KEY to run these tests. "
+            "Kernel runs in-process (local); HI_AGENT_KERNEL_BASE_URL is optional."
+        ),
     ),
-)
+]
 
 
 # ---------------------------------------------------------------------------

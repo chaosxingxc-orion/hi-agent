@@ -1,6 +1,7 @@
 """Tests for G-9 ExperimentBackend protocol and LocalBackend."""
 import time
 import pytest
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -46,7 +47,7 @@ class TestLocalBackend:
 
     def test_status_running_then_succeeded(self, backend):
         """A quick command should eventually reach 'succeeded'."""
-        ext_id = backend.submit({"command": "echo done"})
+        ext_id = backend.submit({"command": [sys.executable, "-c", "print('done')"]})
         # Poll until succeeded (max 5s for a quick echo)
         deadline = time.time() + 5
         while time.time() < deadline:
@@ -71,14 +72,14 @@ class TestLocalBackend:
 
     def test_fetch_artifacts_returns_list(self, backend):
         """fetch_artifacts must return a list (may be empty)."""
-        ext_id = backend.submit({"command": "echo hello"})
+        ext_id = backend.submit({"command": [sys.executable, "-c", "print('hello')"]})
         time.sleep(0.5)
         artifacts = backend.fetch_artifacts(ext_id)
         assert isinstance(artifacts, list)
 
     def test_fetch_artifacts_includes_stdout_log(self, backend, tmp_path):
         """stdout.log should be listed as an artifact."""
-        ext_id = backend.submit({"command": "echo hello"})
+        ext_id = backend.submit({"command": [sys.executable, "-c", "print('hello')"]})
         time.sleep(0.5)
         artifacts = backend.fetch_artifacts(ext_id)
         assert any("stdout" in str(a) for a in artifacts), f"Expected stdout in artifacts: {artifacts}"
@@ -121,7 +122,10 @@ class TestBackendIntegrationWithCoordinator:
 
     def test_submit_via_coordinator_returns_handle(self, coord_with_local):
         from hi_agent.experiment.op_store import OpStatus
-        h = coord_with_local.submit(op_spec={"command": "echo hello"}, backend_name="local")
+        h = coord_with_local.submit(
+            op_spec={"command": [sys.executable, "-c", "print('hello')"]},
+            backend_name="local",
+        )
         assert h.op_id
         assert h.external_id
         assert h.status == OpStatus.PENDING
@@ -134,7 +138,10 @@ class TestBackendIntegrationWithCoordinator:
         from hi_agent.experiment.poller import OpPoller
 
         # Submit
-        h = coord_with_local.submit(op_spec={"command": "echo result"}, backend_name="local")
+        h = coord_with_local.submit(
+            op_spec={"command": [sys.executable, "-c", "print('result')"]},
+            backend_name="local",
+        )
         # Wait for process to finish
         await asyncio.sleep(0.8)
         # Update to RUNNING so poller processes it

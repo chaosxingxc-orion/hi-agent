@@ -25,7 +25,7 @@ class GateResult:
 @dataclass
 class ReleaseGateReport:
     gates: list[GateResult]
-    last_checked_at: str = field(default_factory=lambda: datetime.datetime.utcnow().isoformat() + "Z")
+    last_checked_at: str = field(default_factory=lambda: _format_utc(_utc_now()))
 
     @property
     def passed(self) -> bool:
@@ -86,6 +86,27 @@ class ProdE2EResult:
     details: dict = field(default_factory=dict)
 
 
+def _utc_now() -> datetime.datetime:
+    """Return a timezone-aware UTC timestamp."""
+    return datetime.datetime.now(datetime.UTC)
+
+
+def _format_utc(ts: datetime.datetime) -> str:
+    """Format a timestamp as ISO-8601 UTC with a trailing Z."""
+    return ts.astimezone(datetime.UTC).isoformat().replace("+00:00", "Z")
+
+
+def _parse_utc_timestamp(ts_str: str) -> datetime.datetime:
+    """Parse legacy naive-Z and timezone-aware ISO timestamps as UTC."""
+    normalized = ts_str.strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    ts = datetime.datetime.fromisoformat(normalized)
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=datetime.UTC)
+    return ts.astimezone(datetime.UTC)
+
+
 def check_prod_e2e_recent(
     max_age_hours: int = 24,
     episodic_dir: str = ".hi_agent/episodes",
@@ -99,7 +120,7 @@ def check_prod_e2e_recent(
     Returns ProdE2EResult(passed=True) if a recent prod run exists,
     ProdE2EResult(passed=False, reason="...") otherwise.
     """
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=max_age_hours)
+    cutoff = _utc_now() - datetime.timedelta(hours=max_age_hours)
     episodes_path = Path(episodic_dir)
 
     if not episodes_path.exists():
@@ -135,7 +156,7 @@ def check_prod_e2e_recent(
             continue
 
         try:
-            ts = datetime.datetime.fromisoformat(ts_str.rstrip("Z"))
+            ts = _parse_utc_timestamp(ts_str)
         except ValueError:
             continue
 
@@ -150,7 +171,7 @@ def check_prod_e2e_recent(
             details={"episodic_dir": str(episodes_path.resolve()), "total_episodes": len(episode_files)},
         )
 
-    age_hours = (datetime.datetime.utcnow() - latest_prod_ts).total_seconds() / 3600
+    age_hours = (_utc_now() - latest_prod_ts).total_seconds() / 3600
     if latest_prod_ts < cutoff:
         return ProdE2EResult(
             passed=False,
@@ -159,7 +180,7 @@ def check_prod_e2e_recent(
                 f"(max allowed: {max_age_hours}h)"
             ),
             details={
-                "latest_prod_run": latest_prod_ts.isoformat() + "Z",
+                "latest_prod_run": _format_utc(latest_prod_ts),
                 "age_hours": round(age_hours, 2),
                 "max_age_hours": max_age_hours,
                 "prod_run_count": prod_run_count,
@@ -170,7 +191,7 @@ def check_prod_e2e_recent(
         passed=True,
         reason=f"prod-real run found {age_hours:.1f}h ago (within {max_age_hours}h window)",
         details={
-            "latest_prod_run": latest_prod_ts.isoformat() + "Z",
+            "latest_prod_run": _format_utc(latest_prod_ts),
             "age_hours": round(age_hours, 2),
             "max_age_hours": max_age_hours,
             "prod_run_count": prod_run_count,

@@ -62,13 +62,17 @@ class TestFileWrite:
 
 class TestShellExec:
     def test_echo_command(self):
-        result = shell_exec_handler({"command": "echo hello"})
+        result = shell_exec_handler(
+            {"command": [sys.executable, "-c", "print('hello')"]}
+        )
         assert result["success"] is True
         assert "hello" in result["stdout"]
         assert result["returncode"] == 0
 
     def test_nonzero_exit(self):
-        result = shell_exec_handler({"command": "exit 1", "timeout": 5.0})
+        result = shell_exec_handler(
+            {"command": [sys.executable, "-c", "import sys; sys.exit(1)"], "timeout": 5.0}
+        )
         assert result["success"] is False
         assert result["returncode"] != 0
 

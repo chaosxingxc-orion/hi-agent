@@ -7,13 +7,18 @@ from pathlib import Path
 from hi_agent.ops.release_gate import check_prod_e2e_recent, ProdE2EResult
 
 
+def _iso_z(ts: datetime.datetime) -> str:
+    """Format a timezone-aware UTC timestamp with a single trailing Z."""
+    return ts.astimezone(datetime.UTC).isoformat().replace("+00:00", "Z")
+
+
 def _write_episode(directory: Path, filename: str, runtime_mode: str, age_hours: float) -> None:
     """Write a synthetic episode JSON file to the given directory."""
-    ts = datetime.datetime.utcnow() - datetime.timedelta(hours=age_hours)
+    ts = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=age_hours)
     episode = {
         "run_id": f"run-{filename}",
         "runtime_mode": runtime_mode,
-        "completed_at": ts.isoformat() + "Z",
+        "completed_at": _iso_z(ts),
         "goal": "smoke test",
     }
     (directory / filename).write_text(json.dumps(episode), encoding="utf-8")
@@ -112,11 +117,11 @@ class TestProdE2ERecentGate:
 
     def test_gate_uses_execution_provenance_runtime_mode(self, tmp_path):
         """Gate recognises runtime_mode nested under execution_provenance."""
-        ts = datetime.datetime.utcnow() - datetime.timedelta(hours=0.5)
+        ts = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=0.5)
         episode = {
             "run_id": "run-nested",
             "execution_provenance": {"runtime_mode": "prod-real"},
-            "completed_at": ts.isoformat() + "Z",
+            "completed_at": _iso_z(ts),
         }
         (tmp_path / "ep-nested.json").write_text(json.dumps(episode), encoding="utf-8")
 

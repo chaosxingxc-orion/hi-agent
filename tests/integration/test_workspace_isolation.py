@@ -13,8 +13,6 @@ AgentServer with HI_AGENT_API_KEY set in the environment.
 
 from __future__ import annotations
 
-import os
-
 import pytest
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -299,19 +297,16 @@ def test_6_missing_user_id_returns_401(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Test 7: Forged unsigned JWT rejected (skipped unless ENFORCE_JWT_SIGNATURE=true)
+# Test 7: Forged unsigned JWT rejected when signature enforcement is enabled
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(
-    not os.getenv("ENFORCE_JWT_SIGNATURE"),
-    reason="Only runs with ENFORCE_JWT_SIGNATURE=true",
-)
 def test_7_unsigned_jwt_rejected(monkeypatch):
     """An unsigned (alg=none) JWT must be rejected when signature enforcement is on."""
     from hi_agent.server.app import AgentServer
 
     monkeypatch.setenv("HI_AGENT_API_KEY", "test-key-for-isolation-test-7")
+    monkeypatch.setenv("ENFORCE_JWT_SIGNATURE", "true")
     server = AgentServer(rate_limit_rps=10000)
     unsigned = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ1MSJ9."
     client = TestClient(

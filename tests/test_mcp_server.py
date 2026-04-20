@@ -3,6 +3,7 @@
 P3: tests must reflect real path, not mock shortcuts.
 """
 import json
+import sys
 import os
 import pytest
 
@@ -63,7 +64,10 @@ def test_call_tool_shell_exec_real(tmp_path, monkeypatch):
     register_builtin_tools(registry)
     invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
     mcp_with_shell = MCPServer(registry=registry, invoker=invoker)
-    result = mcp_with_shell.call_tool("shell_exec", {"command": "echo mcp_test"})
+    result = mcp_with_shell.call_tool(
+        "shell_exec",
+        {"command": [sys.executable, "-c", "print('mcp_test')"]},
+    )
     assert result["isError"] is False
     data = json.loads(result["content"][0]["text"])
     assert "mcp_test" in data["stdout"]
