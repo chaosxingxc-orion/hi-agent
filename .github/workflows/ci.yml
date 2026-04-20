@@ -40,7 +40,7 @@ jobs:
         if: ${{ env.VOLCE_API_KEY != '' }}
         run: python -m pytest tests/integration/test_live_llm_api.py -q -m live_api --tb=short --timeout=120
       - name: Production E2E tests (optional secrets)
-        if: ${{ env.OPENAI_API_KEY != '' || env.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.VOLCE_API_KEY != '' || env.OPENAI_API_KEY != '' || env.ANTHROPIC_API_KEY != '' }}
         run: python -m pytest tests/integration/test_prod_e2e.py -q -m prod_e2e --tb=short --timeout=120
       - name: Coverage (unit + integration)
         run: pytest tests/ --ignore=tests/security --ignore=tests/contract -m "not live_api and not prod_e2e" --cov=hi_agent --cov-report=term-missing --cov-fail-under=50 --timeout=120 -p no:unraisableexception
