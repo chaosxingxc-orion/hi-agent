@@ -79,6 +79,7 @@ class ShortTermMemoryStore:
         storage_dir: str = ".hi_agent/memory/short_term",
         max_sessions: int = 500,
         project_id: str = "",
+        role_id: str = "",
     ) -> None:
         """Initialize ShortTermMemoryStore.
 
@@ -89,10 +90,20 @@ class ShortTermMemoryStore:
                 exceeded.  Set to 0 to disable eviction.
             project_id: When non-empty, appended as a sub-directory under
                 the base storage path so memories are scoped per project.
+            role_id: When non-empty, further scopes storage under a
+                ``_roles/{role_id}`` sub-directory so that different agent
+                roles maintain isolated memory namespaces.  Same role_id
+                across different runs shares the same namespace (enabling
+                Author v1 → Author v2 memory continuity).
         """
         self._project_id = project_id
         base = Path(storage_dir)
-        self._storage_dir = base / project_id if project_id else base
+        scoped = base / project_id if project_id else base
+        if role_id:
+            safe_role = role_id.replace("/", "_").replace("..", "_").replace("\\", "_")
+            scoped = scoped / "_roles" / safe_role
+        self._storage_dir = scoped
+        self._effective_path = self._storage_dir
         self._max_sessions = max_sessions
 
     def _ensure_dir(self) -> None:

@@ -72,6 +72,7 @@ class MidTermMemoryStore:
         self,
         storage_dir: str = ".hi_agent/memory/mid_term",
         max_days: int = 90,
+        role_id: str = "",
     ) -> None:
         """Initialize MidTermMemoryStore.
 
@@ -80,8 +81,17 @@ class MidTermMemoryStore:
             max_days: Number of days of daily summaries to retain.  Summaries
                 for dates older than this window are deleted after each save.
                 Set to 0 to disable eviction.
+            role_id: When non-empty, further scopes storage under a
+                ``_roles/{role_id}`` sub-directory so that different agent
+                roles maintain isolated daily summary namespaces.  Same
+                role_id across instances shares the same namespace.
         """
-        self._storage_dir = Path(storage_dir)
+        base = Path(storage_dir)
+        if role_id:
+            safe_role = role_id.replace("/", "_").replace("..", "_").replace("\\", "_")
+            base = base / "_roles" / safe_role
+        self._storage_dir = base
+        self._effective_path = self._storage_dir
         self._max_days = max_days
 
     def _ensure_dir(self) -> None:

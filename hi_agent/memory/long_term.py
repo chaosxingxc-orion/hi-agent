@@ -65,6 +65,7 @@ class LongTermMemoryGraph:
         embedding_fn: Callable[[str], list[float]] | None = None,
         project_id: str = "",
         base_dir: str | None = None,
+        role_id: str = "",
     ) -> None:
         """Initialize LongTermMemoryGraph.
 
@@ -82,6 +83,10 @@ class LongTermMemoryGraph:
             base_dir: When provided, used as the root directory instead of
                 deriving the base from storage_path.  Typically a temp dir
                 in tests.
+            role_id: When non-empty, further scopes the graph storage under a
+                ``_roles/{role_id}`` sub-directory so that different agent
+                roles maintain isolated long-term memory graphs.  Same
+                role_id across instances shares the same graph.
         """
         self._project_id = project_id
         if base_dir is not None:
@@ -106,7 +111,12 @@ class LongTermMemoryGraph:
                 resolved = base / "memory" / "L3" / profile_id / "graph.json"
         else:
             resolved = Path(storage_path)
+        # Apply role_id scoping: insert _roles/{role_id} before graph.json
+        if role_id:
+            safe_role = role_id.replace("/", "_").replace("..", "_").replace("\\", "_")
+            resolved = resolved.parent / "_roles" / safe_role / resolved.name
         self._storage_path = resolved
+        self._effective_path = resolved
         self._nodes: dict[str, MemoryNode] = {}
         self._edges: list[MemoryEdge] = []
         self._adjacency: dict[str, list[str]] = {}  # node_id -> [connected_node_ids]
