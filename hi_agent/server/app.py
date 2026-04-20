@@ -71,9 +71,11 @@ from hi_agent.server.session_store import SessionStore
 from hi_agent.server.team_event_store import TeamEventStore
 from hi_agent.server.routes_team import handle_list_team_events
 from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
+from hi_agent.server.routes_ops import handle_get_long_op, handle_cancel_long_op
 from hi_agent.server.routes_events import handle_run_events_sse
 from hi_agent.server.routes_runs import (
     handle_create_run,
+    handle_gate_decision,
     handle_get_feedback,
     handle_get_run,
     handle_list_runs,
@@ -1433,6 +1435,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/runs/{run_id}/feedback", handle_submit_feedback, methods=["POST"]),
         Route("/runs/{run_id}/feedback", handle_get_feedback, methods=["GET"]),
         Route("/runs/{run_id}/resume", handle_resume_run, methods=["POST"]),
+        Route("/runs/{run_id}/gate_decision", handle_gate_decision, methods=["POST"]),
         Route("/runs/{run_id}/events", handle_run_events_sse, methods=["GET"]),
 
         # Metrics
@@ -1503,6 +1506,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
 
         # Team
         Route("/team/events", handle_list_team_events, methods=["GET"]),
+
+        # Long-running ops (G-8) — static cancel path before dynamic op_id catch-all
+        Route("/long-ops/{op_id}/cancel", handle_cancel_long_op, methods=["POST"]),
+        Route("/long-ops/{op_id}", handle_get_long_op, methods=["GET"]),
     ]
 
     @contextlib.asynccontextmanager
@@ -1525,6 +1532,22 @@ def build_app(agent_server: AgentServer) -> Starlette:
                 "ConfigFileWatcher started for %s",
                 agent_server._config_stack._base_path,
             )
+
+        # G-8: Long-running op coordinator + background poller
+        from pathlib import Path as _Path
+        from hi_agent.experiment.op_store import LongRunningOpStore as _OpStore
+        from hi_agent.experiment.coordinator import LongRunningOpCoordinator as _OpCoord
+        from hi_agent.experiment.poller import OpPoller as _OpPoller
+        _db_dir = getattr(agent_server._config, "server_db_dir", None)
+        _op_db = _Path(_db_dir) / "ops.db" if _db_dir else _Path(".hi_agent") / "ops.db"
+        _op_db.parent.mkdir(parents=True, exist_ok=True)
+        _op_store = _OpStore(db_path=_op_db)
+        _op_coordinator = _OpCoord(store=_op_store)
+        agent_server.op_coordinator = _op_coordinator
+        _op_poller = _OpPoller(coordinator=_op_coordinator, store=_op_store, poll_interval=30.0)
+        _poller_task = asyncio.create_task(_op_poller.run())
+        logger.info("G-8: OpPoller started (db=%s)", _op_db)
+
         try:
             yield
         finally:
@@ -1542,6 +1565,13 @@ def build_app(agent_server: AgentServer) -> Starlette:
             if evidence_store is not None and hasattr(evidence_store, "close"):
                 evidence_store.close()
                 logger.info("lifespan: SqliteEvidenceStore connection closed.")
+            # G-8: shut down poller
+            _op_poller.stop()
+            try:
+                await asyncio.wait_for(_poller_task, timeout=5.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+            logger.info("G-8: OpPoller stopped.")
 
     app = Starlette(routes=routes, lifespan=lifespan)
 
@@ -1650,6 +1680,7 @@ class AgentServer:
         self.slo_monitor: Any | None = None
         self.session_store: SessionStore | None = None
         self.team_event_store: TeamEventStore | None = None
+        self.op_coordinator: Any | None = None
 
         # stage_graph — the active stage topology for this server instance.
         # Business agents that inject a custom stage graph should also set this
