@@ -173,6 +173,7 @@ class TestLLMGatewayActivation:
             episodic_storage_dir=str(tmp_path / "episodes"),
         )
         builder = SystemBuilder(config)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-123")
         # Suppress config-file path so test exercises the env-var fallback.
         with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
