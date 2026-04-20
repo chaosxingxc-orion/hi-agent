@@ -12,6 +12,7 @@ execute_async() pipeline.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any
 
 import pytest
@@ -81,10 +82,8 @@ async def test_pre_tool_hook_fires_inside_running_loop() -> None:
 
     # Call the method that was broken — must not skip hooks.
     # The capability may succeed or fail; what matters is that the hook fired.
-    try:
+    with contextlib.suppress(Exception):
         executor._invoke_capability_via_hooks(proposal, payload)
-    except Exception:
-        pass  # Capability failure is acceptable; hook invocation is what we test.
 
     # The hook must have fired via the ThreadPoolExecutor path
     assert len(fired) > 0, (

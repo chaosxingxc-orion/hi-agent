@@ -272,9 +272,11 @@ class TestHttpGateway:
         import urllib.error
 
         url_err = urllib.error.URLError(reason="timed out")
-        with patch("hi_agent.llm.http_gateway.urllib.request.urlopen", side_effect=url_err):
-            with pytest.raises(LLMTimeoutError):
-                gw.complete(req)
+        with (
+            patch("hi_agent.llm.http_gateway.urllib.request.urlopen", side_effect=url_err),
+            pytest.raises(LLMTimeoutError),
+        ):
+            gw.complete(req)
 
     def test_supports_model_always_true(self) -> None:
         gw = HttpLLMGateway()

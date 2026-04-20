@@ -2240,16 +2240,20 @@ async def execute_async(
     # When the stage kernel (sync) differs from executor.kernel (async facade),
     # pre-register the run_id so open_branch / mark_branch_state can locate it.
     _sk = getattr(executor._stage_executor, "kernel", None)
-    if _sk is not None and _sk is not executor.kernel and hasattr(_sk, "runs"):
-        if run_id not in _sk.runs:
-            _sk.runs[run_id] = {
-                "run_id": run_id,
-                "task_id": executor.contract.task_id,
-                "status": "running",
-                "cancel_reason": None,
-                "signals": [],
-                "plan": None,
-            }
+    if (
+        _sk is not None
+        and _sk is not executor.kernel
+        and hasattr(_sk, "runs")
+        and run_id not in _sk.runs
+    ):
+        _sk.runs[run_id] = {
+            "run_id": run_id,
+            "task_id": executor.contract.task_id,
+            "status": "running",
+            "cancel_reason": None,
+            "signals": [],
+            "plan": None,
+        }
 
     async def make_handler(node_id: str):
         async def handler(action, grant):

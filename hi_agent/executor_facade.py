@@ -158,10 +158,7 @@ class RunExecutorFacade:
         self._last_execution_mode = "graph" if use_graph else "linear"
         from hi_agent.gate_protocol import GatePendingError
         try:
-            if use_graph:
-                run_result = self._executor.execute_graph()
-            else:
-                run_result = self._executor.execute()
+            run_result = self._executor.execute_graph() if use_graph else self._executor.execute()
         except GatePendingError as _gate_exc:
             self._last_gate_id = getattr(_gate_exc, "gate_id", None)
             raise

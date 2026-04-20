@@ -8,6 +8,7 @@ provided, the last recorded registry status is returned unchanged.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
@@ -90,10 +91,8 @@ class MCPHealth:
             try:
                 stderr_tail = self._transport.get_stderr_tail()
             except TypeError:
-                try:
+                with contextlib.suppress(Exception):
                     stderr_tail = self._transport.get_stderr_tail(server_id)
-                except Exception:
-                    pass
             except Exception:
                 pass
 

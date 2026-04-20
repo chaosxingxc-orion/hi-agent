@@ -6,6 +6,7 @@ D-4: L2->L3 consolidation must be auto-triggered in _finalize_run
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from unittest.mock import MagicMock
 
@@ -77,10 +78,8 @@ class TestD3FinalizeSavesToMidTerm:
             executor.cts_budget = MagicMock()
             executor.cts_budget.total_actions_used = 0
             executor.failure_collector = None
-            try:
+            with contextlib.suppress(Exception):
                 executor._finalize_run(outcome="completed")
-            except Exception:
-                pass  # finalize may fail on missing state — what matters is save call
 
         store.save.assert_called_once_with(fake_summary)
 
@@ -125,9 +124,7 @@ class TestD4FinalizeCallsConsolidate:
         executor.cts_budget = MagicMock()
         executor.cts_budget.total_actions_used = 0
         executor.failure_collector = None
-        try:
+        with contextlib.suppress(Exception):
             executor._finalize_run(outcome="completed")
-        except Exception:
-            pass  # finalize may fail on missing state — what matters is consolidate call
 
         mock_consolidator.consolidate.assert_called_once_with(days=1)

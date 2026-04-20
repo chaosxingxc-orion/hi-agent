@@ -43,10 +43,7 @@ class ProfileDirectoryManager:
 
     def episodic_dir(self, profile_id: str = "") -> Path:
         """Return <home>/episodes/<profile_id>/ or <home>/episodes/."""
-        if profile_id:
-            path = self._home / "episodes" / profile_id
-        else:
-            path = self._home / "episodes"
+        path = self._home / "episodes" / profile_id if profile_id else self._home / "episodes"
         path.mkdir(parents=True, exist_ok=True)
         return path
 

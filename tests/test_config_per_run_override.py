@@ -1,4 +1,5 @@
 # tests/test_config_per_run_override.py
+import contextlib
 from unittest.mock import MagicMock, patch
 
 from hi_agent.config.builder import SystemBuilder
@@ -41,11 +42,11 @@ def test_build_executor_without_patch_uses_global():
         captured.append(self._config)
         raise RuntimeError("stop")
 
-    with patch.object(SystemBuilder, "_build_executor_impl", mock_impl):
-        try:
-            builder.build_executor(MagicMock())
-        except RuntimeError:
-            pass
+    with (
+        patch.object(SystemBuilder, "_build_executor_impl", mock_impl),
+        contextlib.suppress(RuntimeError),
+    ):
+        builder.build_executor(MagicMock())
 
     assert len(captured) == 1
     assert captured[0].max_stages == 7
@@ -62,11 +63,11 @@ def test_build_executor_with_patch_uses_patched_config():
         captured.append(self._config)
         raise RuntimeError("stop")
 
-    with patch.object(SystemBuilder, "_build_executor_impl", mock_impl):
-        try:
-            builder.build_executor(MagicMock(), config_patch={"max_stages": 99})
-        except RuntimeError:
-            pass
+    with (
+        patch.object(SystemBuilder, "_build_executor_impl", mock_impl),
+        contextlib.suppress(RuntimeError),
+    ):
+        builder.build_executor(MagicMock(), config_patch={"max_stages": 99})
 
     assert len(captured) == 1
     assert captured[0].max_stages == 99

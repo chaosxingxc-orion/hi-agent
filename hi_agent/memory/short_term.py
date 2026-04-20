@@ -7,6 +7,7 @@ Stored as JSON file, participates in context building.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -187,10 +188,8 @@ class ShortTermMemoryStore:
                 fh.write(payload)
             os.replace(tmp_path, dest)
         except Exception:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
         self._manifest_upsert(memory.session_id, memory.created_at, len(payload))
         if self._max_sessions > 0:

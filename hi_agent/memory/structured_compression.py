@@ -354,7 +354,7 @@ class StructuredCompressor:
             "content": new_summary.to_context_block(),
         }
 
-        new_messages = [injection_message] + section.head_messages + section.tail_messages
+        new_messages = [injection_message, *section.head_messages, *section.tail_messages]
         return new_messages, new_summary
 
     # ------------------------------------------------------------------

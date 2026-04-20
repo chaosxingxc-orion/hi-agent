@@ -14,6 +14,7 @@ Searches across all knowledge tiers:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -129,10 +130,8 @@ class RetrievalEngine:
             # Clean up the old binary cache file if it exists.
             legacy_path = os.path.join(self._storage_dir, ".index_cache" + ".pkl")
             if os.path.exists(legacy_path):
-                try:
+                with contextlib.suppress(OSError):
                     os.remove(legacy_path)
-                except OSError:
-                    pass
 
             payload = {
                 "schema_version": self._CACHE_SCHEMA_VERSION,

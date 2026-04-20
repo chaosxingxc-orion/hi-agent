@@ -5,7 +5,7 @@ def _parse_run_args(args: list[str]):
     """Helper: parse 'run' subcommand args."""
     import hi_agent.cli as cli_module
     parser = cli_module.build_parser()
-    return parser.parse_args(["run"] + args)
+    return parser.parse_args(["run", *args])
 
 
 def test_run_accepts_profile_flag():

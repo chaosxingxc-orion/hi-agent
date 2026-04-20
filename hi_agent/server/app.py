@@ -457,10 +457,8 @@ async def handle_manifest(request: Request) -> JSONResponse:
         # llm_mode/kernel_mode keys that resolve_runtime_mode expects.
         _readiness_snap: dict = {}
         if _builder is not None:
-            try:
+            with contextlib.suppress(Exception):
                 _readiness_snap = _builder.readiness()
-            except Exception:
-                pass
         runtime_mode = _rrm(manifest_env, _readiness_snap)
         manifest_llm_mode = _readiness_snap.get("llm_mode", "unknown")
         manifest_kernel_mode = _readiness_snap.get("kernel_mode", "local-fsm")
@@ -1100,10 +1098,8 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
         tool_count = 0
         mcp_srv = getattr(server, "_mcp_server", None)
         if mcp_srv is not None:
-            try:
+            with contextlib.suppress(Exception):
                 tool_count = len(mcp_srv.list_tools().get("tools", []))
-            except Exception:
-                pass
         # Derive transport status from a real health probe, not merely from
         # whether the transport object exists.  A server whose subprocess fails
         # to answer the JSON-RPC initialize handshake must NOT be reported as
@@ -1411,10 +1407,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
                 logger.info("lifespan: SqliteEvidenceStore connection closed.")
             # G-8: shut down poller
             _op_poller.stop()
-            try:
+            with contextlib.suppress(TimeoutError, asyncio.CancelledError):
                 await asyncio.wait_for(_poller_task, timeout=5.0)
-            except (TimeoutError, asyncio.CancelledError):
-                pass
             logger.info("G-8: OpPoller stopped.")
 
     app = Starlette(routes=routes, lifespan=lifespan)
@@ -1429,10 +1423,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
     _builder_auth = getattr(agent_server, "_builder", None)
     _readiness_auth: dict = {}
     if _builder_auth is not None:
-        try:
+        with contextlib.suppress(Exception):
             _readiness_auth = _builder_auth.readiness()
-        except Exception:
-            pass
     _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
     app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)
 

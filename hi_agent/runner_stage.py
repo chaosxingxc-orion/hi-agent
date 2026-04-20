@@ -274,9 +274,13 @@ class StageExecutor:
                 if mw_pre_result is not None:
                     payload = mw_pre_result.payload or {}
                     perception_summary = payload.get("summary") or payload.get("context")
-                    if perception_summary and hasattr(executor, "context_manager") and executor.context_manager is not None:
-                        if hasattr(executor.context_manager, "set_knowledge_context"):
-                            executor.context_manager.set_knowledge_context(perception_summary)
+                    if (
+                        perception_summary
+                        and hasattr(executor, "context_manager")
+                        and executor.context_manager is not None
+                        and hasattr(executor.context_manager, "set_knowledge_context")
+                    ):
+                        executor.context_manager.set_knowledge_context(perception_summary)
             except Exception as exc:
                 _logger.debug(
                     "stage.middleware_pre_execute_failed run_id=%s stage_id=%s error=%s",

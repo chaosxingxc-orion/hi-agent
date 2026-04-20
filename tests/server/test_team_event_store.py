@@ -62,7 +62,9 @@ def test_concurrent_inserts_all_persisted(store):
         except Exception as e:
             errors.append(e)
     threads = [threading.Thread(target=insert_one, args=(i,)) for i in range(10)]
-    for t in threads: t.start()
-    for t in threads: t.join()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
     assert errors == []
     assert len(store.list_since("t1", "t1", since_id=0)) == 10

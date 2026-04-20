@@ -187,10 +187,7 @@ class TrajectoryFilter:
 
         # Status gate (only enforced when metadata carries a "status" key)
         status = record.metadata.get("status")
-        if status is not None and status not in self.allowed_statuses:
-            return False
-
-        return True
+        return not (status is not None and status not in self.allowed_statuses)
 
 
 # ---------------------------------------------------------------------------

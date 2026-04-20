@@ -150,9 +150,10 @@ class RunManager:
         Must be called while holding ``self._lock``.
         """
         for run in self._runs.values():
-            if run.task_contract.get("task_id") == task_id:
-                if workspace is None or self._owns(run, workspace):
-                    return True
+            if run.task_contract.get("task_id") == task_id and (
+                workspace is None or self._owns(run, workspace)
+            ):
+                return True
         return False
 
     def create_run(

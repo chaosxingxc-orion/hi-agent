@@ -18,6 +18,7 @@ Handlers:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import uuid
@@ -124,10 +125,8 @@ async def handle_create_run(request: Request) -> JSONResponse:
     # Register run in RunContextManager so /runs/active reflects live runs.
     rcm = getattr(server, "run_context_manager", None)
     if rcm is not None:
-        try:
+        with contextlib.suppress(Exception):
             rcm.get_or_create(run_id)
-        except Exception:
-            pass
 
     # If the server has an executor factory, start the run immediately.
     if server.executor_factory is not None:
@@ -147,10 +146,8 @@ async def handle_create_run(request: Request) -> JSONResponse:
             # prod mode). Return 503 so integrators can act on it, not a raw 500.
             logger.warning("handle_create_run: executor_factory failed — %s", exc)
             # Clean up the run we registered above
-            try:
+            with contextlib.suppress(Exception):
                 manager.get_run(run_id)  # no-op, just guard
-            except Exception:
-                pass
             return JSONResponse(
                 {
                     "error": "platform_not_ready",
@@ -181,10 +178,8 @@ async def handle_create_run(request: Request) -> JSONResponse:
             finally:
                 # Remove from active registry on completion or failure.
                 if rcm is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         rcm.remove(run_id)
-                    except Exception:
-                        pass
 
         manager.start_run(run_id, _executor_fn)
 

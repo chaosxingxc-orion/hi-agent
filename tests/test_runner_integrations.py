@@ -234,7 +234,7 @@ class TestHumanGateContradictoryEvidence:
         )
 
         assert len(kernel.gates) == 1
-        gate = list(kernel.gates.values())[0]
+        gate = next(iter(kernel.gates.values()))
         assert gate["gate_type"] == "contract_correction"
         assert gate["status"] == "pending"
 
@@ -259,7 +259,7 @@ class TestHumanGateBudgetCrisis:
         )
 
         assert len(kernel.gates) == 1
-        gate = list(kernel.gates.values())[0]
+        gate = next(iter(kernel.gates.values()))
         assert gate["gate_type"] == "route_direction"
 
     def test_no_gate_b_when_viable_branch_exists(self) -> None:
@@ -314,7 +314,7 @@ class TestHumanGateQualityThreshold:
         )
 
         assert len(kernel.gates) == 1
-        gate = list(kernel.gates.values())[0]
+        gate = next(iter(kernel.gates.values()))
         assert gate["gate_type"] == "artifact_review"
 
     def test_no_gate_c_when_quality_acceptable(self) -> None:
@@ -350,7 +350,7 @@ class TestHumanGateIrreversibleAction:
         )
 
         assert len(kernel.gates) == 1
-        gate = list(kernel.gates.values())[0]
+        gate = next(iter(kernel.gates.values()))
         assert gate["gate_type"] == "final_approval"
 
 

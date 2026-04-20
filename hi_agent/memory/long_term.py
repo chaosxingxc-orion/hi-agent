@@ -451,9 +451,12 @@ class LongTermMemoryGraph:
             next_queue: list[str] = []
             for node_id in queue:
                 for edge in self._edges:
-                    if edge.source_id == node_id and node_id not in visited:
-                        if relation_type is None or edge.relation_type == relation_type:
-                            next_queue.append(edge.target_id)
+                    if (
+                        edge.source_id == node_id
+                        and node_id not in visited
+                        and (relation_type is None or edge.relation_type == relation_type)
+                    ):
+                        next_queue.append(edge.target_id)
                 visited.add(node_id)
             queue = [n for n in next_queue if n not in visited]
             depth += 1

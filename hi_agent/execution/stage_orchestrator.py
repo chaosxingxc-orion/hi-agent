@@ -8,6 +8,7 @@ build a StageOrchestratorContext and delegate here.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from collections.abc import Callable
@@ -210,18 +211,14 @@ class StageOrchestrator:
     def _execute_stage_with_events(self, stage_id: str) -> str | None:
         """Wrap execute_stage_fn with stage_start/stage_complete event publishing."""
         ctx = self._ctx
-        try:
+        with contextlib.suppress(Exception):
             ctx.record_event_fn("stage_start", {"stage_name": stage_id})
-        except Exception:
-            pass
         result = ctx.execute_stage_fn(stage_id)
-        try:
+        with contextlib.suppress(Exception):
             ctx.record_event_fn("stage_complete", {
                 "stage_name": stage_id,
                 "status": "failed" if result == "failed" else "success",
             })
-        except Exception:
-            pass
         return result
 
     def _start_run_preamble(self) -> None:

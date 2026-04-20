@@ -20,10 +20,7 @@ def _make_messages(n: int, content_as_list: bool = False) -> list[dict]:
     """Return *n* simple user messages."""
     msgs = []
     for i in range(n):
-        if content_as_list:
-            content = [{"type": "text", "text": f"message {i}"}]
-        else:
-            content = f"message {i}"
+        content = [{"type": "text", "text": f"message {i}"}] if content_as_list else f"message {i}"
         msgs.append({"role": "user", "content": content})
     return msgs
 

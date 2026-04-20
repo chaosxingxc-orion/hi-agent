@@ -25,6 +25,8 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
+import contextlib
+
 from agent_kernel.kernel.contracts import RuntimeEvent
 
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
@@ -73,10 +75,8 @@ class EventBus:
     def _put_nowait_in_loop(self, q: asyncio.Queue[RuntimeEvent], event: RuntimeEvent) -> None:
         """Enqueue one event into *q*.  Must be called from the loop thread."""
         if q.full():
-            try:
+            with contextlib.suppress(asyncio.QueueEmpty):
                 q.get_nowait()
-            except asyncio.QueueEmpty:
-                pass
             self._total_dropped += 1
         q.put_nowait(event)
         self._total_published += 1
@@ -148,10 +148,8 @@ class EventBus:
         with self._lock:
             observers = list(self._sync_observers)
         for obs in observers:
-            try:
+            with contextlib.suppress(Exception):
                 obs(event)
-            except Exception:
-                pass
 
     def add_sync_observer(self, callback) -> None:
         """Register a thread-safe sync callback invoked on every publish().

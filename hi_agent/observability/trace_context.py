@@ -106,10 +106,7 @@ class TraceContextManager:
         is not stored on the lightweight ``TraceContext``.
         """
         previous = _current_trace_ctx.get()
-        if previous is None:
-            ctx = self.new_trace()
-        else:
-            ctx = self.child_span()
+        ctx = self.new_trace() if previous is None else self.child_span()
         try:
             yield ctx
         finally:

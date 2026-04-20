@@ -80,9 +80,8 @@ class TestStdioMCPTransport:
         proc = _mock_proc([
             {"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": "Method not found"}}
         ])
-        with self._patch_popen(proc):
-            with pytest.raises(MCPTransportError, match="Method not found"):
-                t.invoke("srv", "unknown_tool", {})
+        with self._patch_popen(proc), pytest.raises(MCPTransportError, match="Method not found"):
+            t.invoke("srv", "unknown_tool", {})
 
     def test_invoke_raises_on_eof(self) -> None:
         t = self._transport()
@@ -142,9 +141,10 @@ class TestStdioMCPTransport:
 
     def test_spawn_failure_raises_transport_error(self) -> None:
         t = self._transport()
-        with patch("subprocess.Popen", side_effect=OSError("not found")):
-            with pytest.raises(MCPTransportError, match="not found"):
-                t.invoke("srv", "tool", {})
+        with patch("subprocess.Popen", side_effect=OSError("not found")), pytest.raises(
+            MCPTransportError, match="not found"
+        ):
+            t.invoke("srv", "tool", {})
 
 
 # ---------------------------------------------------------------------------

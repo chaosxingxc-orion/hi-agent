@@ -30,7 +30,7 @@ from hi_agent.state import RunStateStore
 # ------------------------------------------------------------------
 
 def _make_contract(**overrides: Any) -> TaskContract:
-    defaults: dict[str, Any] = dict(task_id="test_t1", goal="test goal")
+    defaults: dict[str, Any] = {"task_id": "test_t1", "goal": "test goal"}
     defaults.update(overrides)
     return TaskContract(**defaults)
 

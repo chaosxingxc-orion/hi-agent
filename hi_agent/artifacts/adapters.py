@@ -74,12 +74,12 @@ class OutputToArtifactAdapter:
     def _infer(
         self, output: dict[str, Any], action_id: str, source_refs: list[str]
     ) -> Artifact:
-        common = dict(
-            producer_action_id=action_id,
-            source_refs=source_refs,
-            upstream_artifact_ids=source_refs,
-            provenance={"capability_action_id": action_id, "adapter": "OutputToArtifactAdapter"},
-        )
+        common = {
+            "producer_action_id": action_id,
+            "source_refs": source_refs,
+            "upstream_artifact_ids": source_refs,
+            "provenance": {"capability_action_id": action_id, "adapter": "OutputToArtifactAdapter"},
+        }
 
         if "url" in output and "title" in output:
             return ResourceArtifact(

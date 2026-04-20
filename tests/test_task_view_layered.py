@@ -286,13 +286,13 @@ class TestBuildTaskViewLayered:
 
     def test_deterministic(self) -> None:
         """Same inputs always produce the same output."""
-        kwargs = dict(
-            run_index=_make_index("r", [("S1", "ok")]),
-            current_stage_summary=_make_stage("S1"),
-            episodes=[{"x": 1}],
-            knowledge_records=["fact"],
-            budget=5000,
-        )
+        kwargs = {
+            "run_index": _make_index("r", [("S1", "ok")]),
+            "current_stage_summary": _make_stage("S1"),
+            "episodes": [{"x": 1}],
+            "knowledge_records": ["fact"],
+            "budget": 5000,
+        }
         v1 = build_task_view(**kwargs)
         v2 = build_task_view(**kwargs)
         assert isinstance(v1, TaskView)

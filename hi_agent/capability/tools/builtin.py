@@ -283,9 +283,8 @@ def register_builtin_tools(registry: CapabilityRegistry, *, profile: str = "dev-
     _dev_profiles = {"dev-smoke", "dev"}
     _shell_exec_enabled = os.getenv("HI_AGENT_ENABLE_SHELL_EXEC", "").lower() == "true"
     for spec in _BUILTIN_TOOLS:
-        if spec.name == "shell_exec":
-            if profile not in _dev_profiles or not _shell_exec_enabled:
-                continue
+        if spec.name == "shell_exec" and (profile not in _dev_profiles or not _shell_exec_enabled):
+            continue
         registry.register(spec)
 
 

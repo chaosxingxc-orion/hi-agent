@@ -119,7 +119,8 @@ class TestEdgeCRUD:
         g = TrajectoryGraph()
         g.add_node(TrajNode(node_id="A"))
         g.add_node(TrajNode(node_id="B"))
-        cond = lambda state: True
+        def cond(state):
+            return True
         g.add_conditional("A", "B", cond, desc="always")
         edge = g.get_outgoing("A")[0]
         assert edge.edge_type == EdgeType.CONDITIONAL
@@ -311,8 +312,8 @@ class TestQuery:
         g = TrajectoryGraph.as_chain(["A", "B", "C", "D"])
         sub = g.get_subgraph(["B"], depth=1)
         assert sub.node_count == 2  # B and C
-        assert "B" in [n for n in sub._nodes]
-        assert "C" in [n for n in sub._nodes]
+        assert "B" in list(sub._nodes)
+        assert "C" in list(sub._nodes)
 
     def test_get_subgraph_unlimited_depth(self):
         g = TrajectoryGraph.as_chain(["A", "B", "C", "D"])

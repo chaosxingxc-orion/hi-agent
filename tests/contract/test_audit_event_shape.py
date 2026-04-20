@@ -1,6 +1,7 @@
 """Contract tests for ToolCallAuditEvent shape and GovernedToolExecutor audit writes (P1-2d)."""
 from __future__ import annotations
 
+import contextlib
 from unittest.mock import MagicMock
 
 from hi_agent.capability.governance import GovernedToolExecutor
@@ -115,10 +116,8 @@ def test_governed_executor_writes_audit_on_deny():
         audit_store=audit_store,
     )
 
-    try:
+    with contextlib.suppress(Exception):
         executor.invoke(name, {}, principal="user-1", session_id="sess-x", source="runner")
-    except Exception:
-        pass
 
     audit_store.record_tool_call.assert_called()
     call_kwargs = audit_store.record_tool_call.call_args.kwargs
@@ -226,10 +225,8 @@ def test_governed_executor_writes_result_status_error():
         audit_store=audit_store,
     )
 
-    try:
+    with contextlib.suppress(RuntimeError):
         executor.invoke(name, {}, principal="user-1", session_id="sess-e", source="runner")
-    except RuntimeError:
-        pass
 
     error_calls = [
         c for c in audit_store.record_tool_call.call_args_list

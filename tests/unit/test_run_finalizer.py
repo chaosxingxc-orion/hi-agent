@@ -6,19 +6,24 @@ from hi_agent.execution.run_finalizer import RunFinalizer, RunFinalizerContext
 
 
 def make_ctx(**overrides):
-    defaults = dict(
-        run_id="test-run", contract=MagicMock(task_id="t1", acceptance_criteria=[], goal="test"),
-        raw_memory=None, mid_term_store=None, long_term_consolidator=None,
-        lifecycle=MagicMock(), stage_summaries={}, failure_collector=None,
-        feedback_store=None, restart_policy=None, run_start_monotonic=None,
-        last_exception_msg=None, last_exception_type=None, skill_ids_used=[],
-        pending_subrun_futures={}, completed_subrun_results={},
-        capability_provenance_store={}, emit_observability_fn=None,
-        persist_snapshot_fn=None, finalize_skill_outcomes_fn=None,
-        sync_to_context_fn=None, env="dev", readiness_snapshot={},
-        mcp_status={}, kernel=MagicMock(mode="local-fsm"),
-        stages=[], dag=None, action_seq=None, policy_versions=None, current_stage=None,
-    )
+    defaults = {
+        "run_id": "test-run",
+        "contract": MagicMock(task_id="t1", acceptance_criteria=[], goal="test"),
+        "raw_memory": None, "mid_term_store": None, "long_term_consolidator": None,
+        "lifecycle": MagicMock(), "stage_summaries": {}, "failure_collector": None,
+        "feedback_store": None, "restart_policy": None, "run_start_monotonic": None,
+        "last_exception_msg": None, "last_exception_type": None, "skill_ids_used": [],
+        "pending_subrun_futures": {}, "completed_subrun_results": {},
+        "capability_provenance_store": {}, "emit_observability_fn": None,
+        "persist_snapshot_fn": None, "finalize_skill_outcomes_fn": None,
+        "sync_to_context_fn": None, "env": "dev", "readiness_snapshot": {},
+        "mcp_status": {}, "kernel": MagicMock(mode="local-fsm"),
+        "stages": [],
+        "dag": None,
+        "action_seq": None,
+        "policy_versions": None,
+        "current_stage": None,
+    }
     defaults.update(overrides)
     return RunFinalizerContext(**defaults)
 

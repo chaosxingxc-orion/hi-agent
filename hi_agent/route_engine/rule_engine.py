@@ -184,10 +184,10 @@ class RuleRouteEngine:
         # threshold (> 0.5), the rule proposal is promoted to the front.
         if stage_id in self._stage_confidence and stage_conf > _DEFAULT_STAGE_CONFIDENCE:
             # Evolve has increased confidence in the rule: rule first, then skills.
-            return [rule_proposal] + skill_proposals
+            return [rule_proposal, *skill_proposals]
         else:
             # Default or low confidence: prefer skills, fallback to rule.
-            return skill_proposals + [rule_proposal]
+            return [*skill_proposals, rule_proposal]
 
     # ------------------------------------------------------------------
     # Evolve integration

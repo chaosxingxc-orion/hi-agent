@@ -5,6 +5,7 @@ SystemBuilder.build_short_term_store / build_mid_term_store / etc. are now facad
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 from pathlib import Path
@@ -112,10 +113,8 @@ class MemoryBuilder:
                 profile_id=profile_id,
                 project_id=project_id,
             )
-        try:
+        with contextlib.suppress(FileNotFoundError, KeyError, ValueError):
             graph.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
         return graph
 
     def build_retrieval_engine(

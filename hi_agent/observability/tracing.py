@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import time
@@ -163,10 +163,8 @@ class Tracer:
             )
             self._records.append(record)
             for exporter in self._exporters:
-                try:
+                with suppress(Exception):
                     exporter.export(record)
-                except Exception:
-                    pass  # exporters must not crash the span
 
     def records(self) -> list[SpanRecord]:
         """Return records sorted by start time for deterministic parent-first reads."""
@@ -178,10 +176,8 @@ class Tracer:
     def flush(self) -> None:
         """Flush all exporters' buffers."""
         for exporter in self._exporters:
-            try:
+            with suppress(Exception):
                 exporter.flush()
-            except Exception:
-                pass
 
     def clear(self) -> None:
         """Clear in-memory records."""

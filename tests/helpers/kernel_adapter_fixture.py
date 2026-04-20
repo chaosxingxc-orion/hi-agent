@@ -6,6 +6,7 @@ delegating runtime behavior to hi_agent's agent-kernel adapter.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -65,10 +66,8 @@ class MockKernel:
             raise AssertionError(f"{stage_id}: expected {expected}, got {actual}")
 
     def open_stage(self, run_id: str, stage_id: str) -> None:
-        try:
+        with contextlib.suppress(RuntimeAdapterBackendError):
             self._adapter.open_stage(run_id, stage_id)
-        except RuntimeAdapterBackendError:
-            pass
         if stage_id in self.stages:
             return
         self.stages[stage_id] = StageState.PENDING
@@ -82,10 +81,8 @@ class MockKernel:
             return
         if self.strict_mode and target not in _STAGE_TRANSITIONS[current]:
             raise IllegalStateTransitionError(f"{stage_id}: {current} -> {target} is illegal")
-        try:
+        with contextlib.suppress(RuntimeAdapterBackendError):
             self._adapter.mark_stage_state(run_id, stage_id, target)
-        except RuntimeAdapterBackendError:
-            pass
         self.stages[stage_id] = target
         self._record(
             "StageStateChanged",
@@ -196,10 +193,8 @@ class MockKernel:
             yield event
 
     def open_branch(self, run_id: str, stage_id: str, branch_id: str) -> None:
-        try:
+        with contextlib.suppress(RuntimeAdapterBackendError):
             self._adapter.open_branch(self._actual_run_id(run_id), stage_id, branch_id)
-        except RuntimeAdapterBackendError:
-            pass
         self.branches[(run_id, stage_id, branch_id)] = {
             "state": "proposed",
             "failure_code": None,
@@ -220,12 +215,10 @@ class MockKernel:
             return
         if self.strict_mode and state not in _BRANCH_TRANSITIONS.get(current, set()):
             raise IllegalStateTransitionError(f"{branch_id}: {current} -> {state} is illegal")
-        try:
+        with contextlib.suppress(RuntimeAdapterBackendError):
             self._adapter.mark_branch_state(
                 self._actual_run_id(run_id), stage_id, branch_id, state, failure_code
             )
-        except RuntimeAdapterBackendError:
-            pass
         self.branches[key] = {
             "state": state,
             "failure_code": failure_code,

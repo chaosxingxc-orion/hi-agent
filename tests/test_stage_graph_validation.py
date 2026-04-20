@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+
 from hi_agent.contracts.cts_budget import CTSBudget
 from hi_agent.trajectory.stage_graph import (
     StageGraph,
@@ -16,7 +18,7 @@ from hi_agent.trajectory.stage_graph import (
 def _linear_graph(*stage_ids: str) -> StageGraph:
     """Build a simple linear chain: s0 -> s1 -> ... -> sN."""
     g = StageGraph()
-    for src, tgt in zip(stage_ids, stage_ids[1:], strict=False):
+    for src, tgt in itertools.pairwise(stage_ids):
         g.add_edge(src, tgt)
     return g
 

@@ -42,7 +42,7 @@ def test_capability_spec_has_parameters():
 
 
 def test_file_read_invokable_via_registry(tmp_path, monkeypatch):
-    import os; os.environ["HI_AGENT_ALLOW_HEURISTIC_FALLBACK"] = "1"
+    os.environ["HI_AGENT_ALLOW_HEURISTIC_FALLBACK"] = "1"
     monkeypatch.chdir(tmp_path)  # file_read resolves paths relative to cwd (H-6: payload base_dir ignored)
     config = TraceConfig()
     builder = SystemBuilder(config=config)

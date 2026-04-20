@@ -11,6 +11,7 @@ Called by:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import threading
 from datetime import UTC, datetime
@@ -94,10 +95,8 @@ class MemoryLifecycleManager:
         if self._scheduler_task is None:
             return
         self._scheduler_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._scheduler_task
-        except asyncio.CancelledError:
-            pass
         self._scheduler_task = None
         logger.info("MemoryLifecycleManager scheduler stopped")
 

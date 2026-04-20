@@ -5,6 +5,7 @@ SystemBuilder.build_skill_* methods are now facades to SkillBuilder.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
@@ -151,10 +152,8 @@ class SkillBuilder:
         mgr = SkillVersionManager(
             storage_dir=self._config.skill_storage_dir + "/versions"
         )
-        try:
+        with contextlib.suppress(FileNotFoundError, KeyError, ValueError):
             mgr.load()
-        except (FileNotFoundError, KeyError, ValueError):
-            pass  # no prior state on first run — expected on fresh installs
         return mgr
 
     def build_skill_evolver(self, llm_gateway: Any = None) -> Any:

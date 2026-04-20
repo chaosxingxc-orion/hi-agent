@@ -12,6 +12,7 @@ P1-2d: ToolCallAuditEvent dataclass + AuditStore with record_tool_call().
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 import uuid
@@ -85,7 +86,8 @@ class AuditStore:
             duration_ms=duration_ms,
             timestamp=now,
         )
-        try:
+        # Audit emitters must never block execution.
+        with contextlib.suppress(Exception):
             emit(
                 "tool_call.audit",
                 {
@@ -105,9 +107,6 @@ class AuditStore:
                     "timestamp": event.timestamp,
                 },
             )
-        except Exception:
-            # Audit must never block execution.
-            pass
 
 
 def emit(event_name: str, payload: dict) -> None:

@@ -5,6 +5,7 @@ Six focused tests that verify each surgical fix in the runner.
 
 from __future__ import annotations
 
+import contextlib
 from unittest.mock import MagicMock
 
 import pytest
@@ -246,10 +247,8 @@ class TestG1AsyncReflectSavesToShortTermStoreBeforeCreateTask:
         def _create_task(coro):
             call_order.append("create_task")
             # Consume the coroutine to avoid ResourceWarning
-            try:
+            with contextlib.suppress(Exception):
                 coro.close()
-            except Exception:
-                pass
             return mock_task
         loop.create_task.side_effect = _create_task
 
@@ -280,7 +279,7 @@ class TestG1AsyncReflectSavesToShortTermStoreBeforeCreateTask:
 
         if loop is not None and loop.is_running():
             if decision.reflection_prompt and short_term_store is not None:
-                try:
+                with contextlib.suppress(Exception):
                     short_term_store.save(
                         ShortTermMemory(
                             session_id=f"{run_id}/reflect/{stage_id}/{attempt}",
@@ -289,8 +288,6 @@ class TestG1AsyncReflectSavesToShortTermStoreBeforeCreateTask:
                             outcome="reflecting",
                         )
                     )
-                except Exception:
-                    pass
             task = loop.create_task(
                 reflection_orchestrator.reflect_and_infer(
                     descriptor=descriptor,

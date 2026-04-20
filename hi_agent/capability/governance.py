@@ -6,6 +6,7 @@ through GovernedToolExecutor before reaching CapabilityInvoker.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -299,7 +300,8 @@ class GovernedToolExecutor:
             if descriptor is not None and hasattr(descriptor, "risk_class")
             else "unknown"
         )
-        try:
+        # Audit must never block execution.
+        with contextlib.suppress(Exception):
             self._audit_store.record_tool_call(
                 capability_name=capability_name,
                 principal=principal,
@@ -312,6 +314,3 @@ class GovernedToolExecutor:
                 result_status=result_status,
                 duration_ms=duration_ms,
             )
-        except Exception:
-            # Audit must never block execution
-            pass

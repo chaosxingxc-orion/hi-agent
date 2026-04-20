@@ -178,8 +178,9 @@ class ExecutionMiddleware:
                     # fall back to a conservative estimate only when unavailable.
                     tokens = (
                         getattr(result, "tokens_used", None)
-                        or getattr(result, "usage", {}).get("total_tokens") if hasattr(result, "__getitem__") or hasattr(result, "get") else None
-                        or 50
+                        or getattr(result, "usage", {}).get("total_tokens")
+                        if hasattr(result, "__getitem__") or hasattr(result, "get")
+                        else 50
                     )
                     return ExecutionResult(
                         node_id=node_id,

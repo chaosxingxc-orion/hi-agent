@@ -95,12 +95,15 @@ class ConfigValidator:
                 result[key] = defaults[key]  # use default as fallback
                 continue
 
-            if key in _FRACTION_FIELDS and isinstance(val, (int, float)):
-                if not (0.0 <= float(val) <= 1.0):
-                    msg = f"{key}: value {val} is outside [0, 1]"
-                    errors.append(msg)
-                    result[key] = defaults[key]
-                    continue
+            if (
+                key in _FRACTION_FIELDS
+                and isinstance(val, (int, float))
+                and not (0.0 <= float(val) <= 1.0)
+            ):
+                msg = f"{key}: value {val} is outside [0, 1]"
+                errors.append(msg)
+                result[key] = defaults[key]
+                continue
 
             result[key] = val
 

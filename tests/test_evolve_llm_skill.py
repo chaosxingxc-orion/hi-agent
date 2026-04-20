@@ -15,22 +15,22 @@ from hi_agent.skill.registry import SkillRegistry
 # ---------------------------------------------------------------------------
 
 def _make_postmortem(**overrides) -> RunPostmortem:
-    defaults = dict(
-        run_id="run-001",
-        task_id="task-001",
-        task_family="code_review",
-        outcome="completed",
-        stages_completed=["understand", "gather", "build", "synthesize"],
-        stages_failed=[],
-        branches_explored=3,
-        branches_pruned=0,
-        total_actions=12,
-        failure_codes=[],
-        duration_seconds=45.0,
-        quality_score=0.85,
-        efficiency_score=0.9,
-        trajectory_summary="Reviewed code and produced summary",
-    )
+    defaults = {
+        "run_id": "run-001",
+        "task_id": "task-001",
+        "task_family": "code_review",
+        "outcome": "completed",
+        "stages_completed": ["understand", "gather", "build", "synthesize"],
+        "stages_failed": [],
+        "branches_explored": 3,
+        "branches_pruned": 0,
+        "total_actions": 12,
+        "failure_codes": [],
+        "duration_seconds": 45.0,
+        "quality_score": 0.85,
+        "efficiency_score": 0.9,
+        "trajectory_summary": "Reviewed code and produced summary",
+    }
     defaults.update(overrides)
     return RunPostmortem(**defaults)
 

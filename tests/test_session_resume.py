@@ -18,6 +18,7 @@ Validates that:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -469,10 +470,8 @@ class TestResumeAPIEndpoint:
             # Wait briefly for background thread to finish before cleanup
             time.sleep(0.5)
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(path)
-            except OSError:
-                pass  # Windows file lock from background thread
 
 
 # ---------------------------------------------------------------------------

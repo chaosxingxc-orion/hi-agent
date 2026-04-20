@@ -7,6 +7,7 @@ Stored as JSON file, available for next-day context.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -165,10 +166,8 @@ class MidTermMemoryStore:
                 fh.write(payload)
             os.replace(tmp_path, dest)
         except Exception:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
         self._manifest_upsert(summary.date, summary.created_at, len(payload))
         if self._max_days > 0:

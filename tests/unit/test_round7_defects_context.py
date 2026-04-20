@@ -12,15 +12,15 @@ from hi_agent.context.manager import ContextBudget
 
 def _base_cfg(**overrides):
     """Return a minimal config namespace with all required fields."""
-    defaults = dict(
-        context_total_window=200_000,
-        context_output_reserve=8_000,
-        context_system_prompt_budget=2_000,
-        context_tool_definitions_budget=3_000,
-        context_skill_prompts_budget=5_000,
-        memory_retriever_default_budget=1_500,
-        context_knowledge_context_budget=1_500,
-    )
+    defaults = {
+        "context_total_window": 200_000,
+        "context_output_reserve": 8_000,
+        "context_system_prompt_budget": 2_000,
+        "context_tool_definitions_budget": 3_000,
+        "context_skill_prompts_budget": 5_000,
+        "memory_retriever_default_budget": 1_500,
+        "context_knowledge_context_budget": 1_500,
+    }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
 

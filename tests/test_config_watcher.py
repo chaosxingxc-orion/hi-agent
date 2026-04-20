@@ -1,5 +1,6 @@
 # tests/test_config_watcher.py
 import asyncio
+import contextlib
 
 import pytest
 from hi_agent.config.stack import ConfigStack
@@ -26,10 +27,8 @@ async def test_watcher_detects_file_change(tmp_path):
 
     watcher.stop()
     task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     assert len(reload_events) >= 1
     assert reload_events[-1]["port"] == 8888
@@ -52,10 +51,8 @@ async def test_watcher_does_not_reload_unchanged_file(tmp_path):
     await asyncio.sleep(0.3)  # no file change
     watcher.stop()
     task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     assert reload_count == 0
 
@@ -74,9 +71,7 @@ async def test_watcher_no_path_does_nothing():
     await asyncio.sleep(0.1)
     watcher.stop()
     task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     assert not called

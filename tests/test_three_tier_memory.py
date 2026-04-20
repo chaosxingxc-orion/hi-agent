@@ -270,7 +270,7 @@ class TestDreamConsolidator:
         # The longer version should survive
         assert any("module X" in f for f in result)
         # No exact duplicates
-        assert len(result) == len(set(r.strip().lower() for r in result))
+        assert len(result) == len({r.strip().lower() for r in result})
 
     def test_extract_patterns(
         self, st_store: ShortTermMemoryStore, mt_store: MidTermMemoryStore
@@ -488,7 +488,7 @@ class TestLongTermConsolidator:
         assert merged == 1
         assert lt_graph.node_count() == 1
         # Keeper should have higher confidence
-        remaining = list(lt_graph._nodes.values())[0]
+        remaining = next(iter(lt_graph._nodes.values()))
         assert remaining.confidence == 0.9
 
 

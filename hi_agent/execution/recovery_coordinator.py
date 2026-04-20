@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -191,24 +192,22 @@ class RecoveryCoordinator:
                     from datetime import UTC, datetime
 
                     from hi_agent.task_mgmt.restart_policy import TaskAttempt as _TA
-                    _ta_kwargs: dict = dict(
-                        attempt_id=f"{self._ctx.run_id}/{stage_id}/{attempt}",
-                        task_id=policy_task_id,
-                        run_id=self._ctx.run_id,
-                        attempt_seq=attempt,
-                        started_at=datetime.now(UTC).isoformat(),
-                        outcome="failed",
-                        failure=_StageFail(),
-                    )
+                    _ta_kwargs: dict = {
+                        "attempt_id": f"{self._ctx.run_id}/{stage_id}/{attempt}",
+                        "task_id": policy_task_id,
+                        "run_id": self._ctx.run_id,
+                        "attempt_seq": attempt,
+                        "started_at": datetime.now(UTC).isoformat(),
+                        "outcome": "failed",
+                        "failure": _StageFail(),
+                    }
                     # stage_id was added in H-1; fall back gracefully if absent.
                     try:
                         ta_obj = _TA(**_ta_kwargs, stage_id=stage_id)
                     except TypeError:
                         ta_obj = _TA(**_ta_kwargs)
-                        try:
+                        with contextlib.suppress(AttributeError, TypeError):
                             object.__setattr__(ta_obj, "stage_id", stage_id)
-                        except (AttributeError, TypeError):
-                            pass
                     self._ctx._restart_policy._record_attempt(ta_obj)
                 except Exception as _rec_exc:
                     _logger.debug(
@@ -321,12 +320,10 @@ class RecoveryCoordinator:
                                     context={},
                                 )
                                 loop = None
-                                try:
+                                # No running event loop in this thread means
+                                # we can use asyncio.run below.
+                                with contextlib.suppress(RuntimeError):
                                     loop = asyncio.get_running_loop()
-                                except RuntimeError:
-                                    # No running event loop in this thread — fall through
-                                    # to the sync asyncio.run() path below.
-                                    pass
 
                                 if loop is not None and loop.is_running():
                                     # Save reflection prompt synchronously — must precede the retry LLM call.

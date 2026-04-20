@@ -111,8 +111,9 @@ class AnthropicLLMGateway:
         input_tokens: int = 0
 
         try:
-            with httpx.Client(timeout=timeout) as client:
-                with client.stream("POST", url, json=payload, headers=headers) as resp:
+            with httpx.Client(timeout=timeout) as client, client.stream(
+                "POST", url, json=payload, headers=headers
+            ) as resp:
                     if resp.status_code >= 400:
                         body = resp.read().decode(errors="replace")
                         raise LLMProviderError(

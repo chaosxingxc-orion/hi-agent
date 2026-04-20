@@ -7,6 +7,7 @@ collaborator methods needed to make each outcome deterministic.
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 import uuid
 from dataclasses import fields
@@ -85,10 +86,8 @@ def _stage_behavior(
 
 
 def _close_raw_memory(executor: RunExecutor) -> None:
-    try:
+    with contextlib.suppress(Exception):
         executor.raw_memory.close()
-    except Exception:
-        pass
 
 
 class TestRunResultContract:

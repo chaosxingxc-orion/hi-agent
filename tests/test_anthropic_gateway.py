@@ -97,9 +97,8 @@ class TestRequestFormatting:
     def test_x_api_key_header(self) -> None:
         gw = AnthropicLLMGateway(api_key_env="MY_KEY")
         req = _make_request()
-        with patch.dict("os.environ", {"MY_KEY": "sk-ant-test123"}):
-            with _patch_urlopen() as mock_open:
-                gw.complete(req)
+        with patch.dict("os.environ", {"MY_KEY": "sk-ant-test123"}), _patch_urlopen() as mock_open:
+            gw.complete(req)
         sent_req = mock_open.call_args[0][0]
         assert sent_req.get_header("X-api-key") == "sk-ant-test123"
         assert sent_req.get_header("Anthropic-version") == "2023-06-01"
