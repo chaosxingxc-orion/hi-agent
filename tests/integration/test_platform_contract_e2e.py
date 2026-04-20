@@ -15,21 +15,19 @@ trust this?" — not just "did the server return 200?"
 
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import Callable
 from typing import Any
 
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.requests import RunResult
-from hi_agent.server.app import AgentServer
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.runner import RunExecutor
+from hi_agent.server.app import AgentServer
+from starlette.testclient import TestClient
 
-import time
-
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers shared across all platform contract tests
@@ -373,10 +371,12 @@ def test_pc06_failure_code_present_on_failed_run(client: TestClient) -> None:
 
 def test_pc06_failed_stage_id_identifies_failing_stage(client: TestClient) -> None:
     """failed_stage_id must identify which stage caused the failure."""
+    import uuid
+
     from hi_agent.contracts import TaskContract
     from hi_agent.runner import RunExecutor
+
     from tests.helpers.kernel_adapter_fixture import MockKernel
-    import uuid
 
     # Force failure specifically in S1
     def factory(run_data: dict) -> Any:
@@ -413,12 +413,14 @@ def test_pc06_run_state_and_result_status_always_agree() -> None:
     state=completed + result.status=failed is a contract violation that causes
     integrators to treat failed tasks as successful.
     """
+    import uuid
+
     from hi_agent.contracts import TaskContract
     from hi_agent.contracts.requests import RunResult
     from hi_agent.runner import RunExecutor
     from hi_agent.server.run_manager import RunManager
+
     from tests.helpers.kernel_adapter_fixture import MockKernel
-    import uuid
 
     manager = RunManager(max_concurrent=2)
 
@@ -468,7 +470,6 @@ def test_pc06_invalid_result_status_maps_to_failed() -> None:
     """
     from hi_agent.contracts.requests import RunResult
     from hi_agent.server.run_manager import RunManager
-    import uuid
 
     manager = RunManager(max_concurrent=1)
     run_id = manager.create_run({"goal": "state validation test"})
@@ -505,6 +506,7 @@ def test_pc07_failed_stage_outcome_is_failed_not_active() -> None:
     This test proves the outcome reaches the caller without post-hoc patching.
     """
     from hi_agent.contracts.requests import RunResult
+
     from tests.helpers.kernel_adapter_fixture import MockKernel
 
     # fail_action uses capability name (action_kind), not stage_id.

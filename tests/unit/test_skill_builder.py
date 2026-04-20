@@ -1,7 +1,7 @@
 """Unit tests for SkillBuilder — extracted from SystemBuilder in W6-003."""
 import pytest
-from hi_agent.config.trace_config import TraceConfig
 from hi_agent.config.skill_builder import SkillBuilder
+from hi_agent.config.trace_config import TraceConfig
 
 
 @pytest.fixture(scope="module")

@@ -4,15 +4,12 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 from hi_agent.knowledge.embedding import (
     TFIDFEmbeddingProvider,
     make_tfidf_embedding_fn,
 )
 from hi_agent.knowledge.retrieval_engine import cosine_similarity
 from hi_agent.knowledge.tfidf import TFIDFIndex
-
 
 # ---------------------------------------------------------------------------
 # Helpers

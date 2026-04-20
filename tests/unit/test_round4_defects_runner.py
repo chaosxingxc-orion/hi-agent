@@ -7,17 +7,15 @@ F-5: reflect fires loop.create_task() when an async loop is running.
 
 from __future__ import annotations
 
-import asyncio
 import types
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.gate_protocol import GatePendingError
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Shared helpers

@@ -1,6 +1,8 @@
 import json
+
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+
 from hi_agent.server.tenant_context import require_tenant_context
 
 

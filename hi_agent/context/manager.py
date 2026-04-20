@@ -682,7 +682,7 @@ class ContextManager:
                     if self._compression_failures >= self._max_compression_failures:
                         self._circuit_breaker_open = True
                     try:
-                        from hi_agent.observability.fallback import (  # noqa: PLC0415
+                        from hi_agent.observability.fallback import (
                             FallbackTaxonomy,
                             record_fallback,
                         )

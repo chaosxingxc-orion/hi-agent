@@ -16,10 +16,8 @@ import time
 from typing import Any
 
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.server.app import AgentServer
-
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Fixtures (mirrors test_server_default_factory_e2e.py)

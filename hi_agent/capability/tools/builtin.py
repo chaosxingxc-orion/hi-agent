@@ -1,6 +1,7 @@
 """Real builtin tool handlers — no LLM, no mocks, real I/O."""
 from __future__ import annotations
 
+import logging as _logging
 import os
 import shlex
 import subprocess
@@ -12,8 +13,6 @@ from hi_agent.capability.registry import CapabilityDescriptor, CapabilityRegistr
 from hi_agent.security.path_policy import PathPolicyViolation, safe_resolve
 from hi_agent.security.url_policy import URLPolicy, URLPolicyViolation
 
-
-import logging as _logging
 _handler_logger = _logging.getLogger(__name__)
 
 

@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from hi_agent.harness.contracts import EvidenceRecord
 

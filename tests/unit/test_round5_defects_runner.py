@@ -5,14 +5,10 @@ Six focused tests that verify each surgical fix in the runner.
 
 from __future__ import annotations
 
-import asyncio
-import types
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 from hi_agent.gate_protocol import GatePendingError
-
 
 # ---------------------------------------------------------------------------
 # Minimal stubs shared across tests
@@ -78,7 +74,6 @@ class TestG3GatePendingErrorPropagatesViaDeducatedClause:
             executor._run_id = "run-g3"
 
             # Call real execute() — it should raise GatePendingError, not catch it
-            from hi_agent.runner import RunExecutor as _RE
             # Build a thin shim: replay the try/except structure from execute()
             try:
                 for stage_id in executor.stage_graph.trace_order():

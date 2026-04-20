@@ -12,7 +12,7 @@ class PathPolicyViolation(Exception):
     """Raised when a path fails security policy."""
 
 
-def safe_resolve(base_dir: "Path | str", user_path: str, *, allow_absolute: bool = False) -> Path:
+def safe_resolve(base_dir: Path | str, user_path: str, *, allow_absolute: bool = False) -> Path:
     """Resolve user_path relative to base_dir.
 
     Raises PathPolicyViolation if the resolved path escapes base_dir.

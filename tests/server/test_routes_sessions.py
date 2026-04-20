@@ -5,20 +5,19 @@ No mocks — uses real SessionStore (SQLite :memory:) and real RunManager.
 """
 
 import pytest
-from starlette.testclient import TestClient
-from starlette.applications import Starlette
-from starlette.routing import Route
-from starlette.middleware import Middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-
-from hi_agent.server.session_store import SessionStore
-from hi_agent.server.run_manager import RunManager
-from hi_agent.server.tenant_context import TenantContext, set_tenant_context, reset_tenant_context
 from hi_agent.server.routes_sessions import (
-    handle_list_sessions,
     handle_get_session_runs,
+    handle_list_sessions,
     handle_patch_session,
 )
+from hi_agent.server.run_manager import RunManager
+from hi_agent.server.session_store import SessionStore
+from hi_agent.server.tenant_context import TenantContext, reset_tenant_context, set_tenant_context
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.routing import Route
+from starlette.testclient import TestClient
 
 
 class FakeServer:

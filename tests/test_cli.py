@@ -7,7 +7,6 @@ import io
 import urllib.error
 
 import pytest
-
 from hi_agent.cli import _api_request, _cmd_run, build_parser
 
 

@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+from agent_kernel.service.auth_middleware import ApiKeyMiddleware
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
-
-from agent_kernel.service.auth_middleware import ApiKeyMiddleware
 
 # ---------------------------------------------------------------------------
 # Minimal app fixture

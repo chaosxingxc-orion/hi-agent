@@ -4,21 +4,19 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 from hi_agent.capability.async_invoker import AsyncCapabilityInvoker
 from hi_agent.capability.circuit_breaker import CircuitBreaker
-from hi_agent.capability.policy import CapabilityPolicy
 from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec
 from hi_agent.contracts import TaskContract
 from hi_agent.events import EventEmitter
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers

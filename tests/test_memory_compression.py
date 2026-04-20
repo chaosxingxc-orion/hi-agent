@@ -6,7 +6,6 @@ import asyncio
 import json
 
 import pytest
-
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
 

@@ -1,23 +1,21 @@
 """Tests for the four-middleware architecture with 5-phase lifecycle hooks."""
 from __future__ import annotations
 
-import pytest
 from typing import Any
 
+import pytest
+from hi_agent.middleware.control import ControlMiddleware
+from hi_agent.middleware.defaults import create_default_orchestrator
+from hi_agent.middleware.evaluation import EvaluationMiddleware
+from hi_agent.middleware.execution import ExecutionMiddleware
+from hi_agent.middleware.orchestrator import MiddlewareOrchestrator
+from hi_agent.middleware.perception import PerceptionMiddleware
 from hi_agent.middleware.protocol import (
     HookAction,
     HookResult,
-    LifecycleHook,
     LifecyclePhase,
     MiddlewareMessage,
 )
-from hi_agent.middleware.perception import PerceptionMiddleware
-from hi_agent.middleware.control import ControlMiddleware
-from hi_agent.middleware.execution import ExecutionMiddleware
-from hi_agent.middleware.evaluation import EvaluationMiddleware
-from hi_agent.middleware.orchestrator import MiddlewareOrchestrator, PipelineBlockedError
-from hi_agent.middleware.defaults import create_default_orchestrator
-
 
 # ---------------------------------------------------------------------------
 # Helpers

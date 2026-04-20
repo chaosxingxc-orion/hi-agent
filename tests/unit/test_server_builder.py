@@ -3,7 +3,6 @@
 import inspect
 
 import pytest
-
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.server.app import AgentServer
 from hi_agent.server.run_manager import RunManager

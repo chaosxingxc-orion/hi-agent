@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.auth.soc_guard import SeparationOfConcernError
 from hi_agent.harness.contracts import ActionSpec, EffectClass, SideEffectClass
 from hi_agent.harness.governance import GovernanceEngine

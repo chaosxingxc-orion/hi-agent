@@ -1,8 +1,8 @@
 """Unit tests for RunFinalizer (HI-W7-004)."""
-import pytest
 from unittest.mock import MagicMock
-from hi_agent.execution.run_finalizer import RunFinalizerContext, RunFinalizer
+
 from hi_agent.contracts.requests import RunResult
+from hi_agent.execution.run_finalizer import RunFinalizer, RunFinalizerContext
 
 
 def make_ctx(**overrides):

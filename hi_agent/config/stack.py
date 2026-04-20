@@ -13,7 +13,8 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import asdict, fields as dc_fields
+from dataclasses import asdict
+from dataclasses import fields as dc_fields
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -38,9 +39,11 @@ class ProfileAwareConfigStack:
 
     def resolve(self, run_patch: dict | None = None) -> Any:
         """Return merged TraceConfig with all layers applied."""
-        from hi_agent.config.trace_config import TraceConfig
+        from dataclasses import asdict
+        from dataclasses import fields as dc_fields
+
         from hi_agent.config.profile import deep_merge
-        from dataclasses import asdict, fields as dc_fields
+        from hi_agent.config.trace_config import TraceConfig
 
         # Layer 1: defaults
         merged: dict = asdict(TraceConfig())
@@ -121,8 +124,8 @@ class ConfigStack:
     # ------------------------------------------------------------------
 
     def _build(self, run_patch: dict[str, Any] | None = None) -> Any:
-        from hi_agent.config.trace_config import TraceConfig
         from hi_agent.config.profile import deep_merge, load_profile_file
+        from hi_agent.config.trace_config import TraceConfig
         from hi_agent.config.validator import ConfigValidator
 
         # Layer 1: defaults

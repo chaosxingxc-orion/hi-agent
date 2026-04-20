@@ -11,9 +11,8 @@ import time
 from typing import Any
 
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.server.app import AgentServer
+from starlette.testclient import TestClient
 
 SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "..", "snapshots")
 EXCLUDED_VOLATILE = {

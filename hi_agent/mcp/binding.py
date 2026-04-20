@@ -93,7 +93,7 @@ class MCPBinding:
                 )
             return 0
 
-        from hi_agent.capability.registry import CapabilitySpec  # noqa: PLC0415
+        from hi_agent.capability.registry import CapabilitySpec
 
         bound = 0
         has_list_tools = hasattr(self._transport, "list_tools")
@@ -121,7 +121,7 @@ class MCPBinding:
                     self._warnings.extend(warnings)
                     for w in warnings:
                         logger.warning("MCPBinding: %s", w)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     # Discovery failed → fall back to manifest pre-claims (degraded)
                     logger.warning(
                         "MCPBinding.bind_all: tools/list failed for %r (%s) — "

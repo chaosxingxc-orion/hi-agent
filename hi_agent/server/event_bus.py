@@ -26,6 +26,7 @@ from collections import defaultdict
 logger = logging.getLogger(__name__)
 
 from agent_kernel.kernel.contracts import RuntimeEvent
+
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 
 

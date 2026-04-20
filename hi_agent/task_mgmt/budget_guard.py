@@ -79,7 +79,7 @@ class BudgetGuard:
         return TierDecision(tier=requested_tier)
 
     @classmethod
-    def from_config(cls, cfg: object, total_budget_tokens: int) -> "BudgetGuard":
+    def from_config(cls, cfg: object, total_budget_tokens: int) -> BudgetGuard:
         """Construct BudgetGuard from a TraceConfig instance."""
         return cls(
             total_budget_tokens=total_budget_tokens,

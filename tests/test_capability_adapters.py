@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.capability import (
     CapabilityDescriptorFactory,
     CapabilityRegistry,
@@ -11,7 +10,6 @@ from hi_agent.capability import (
     CoreToolAdapter,
 )
 from hi_agent.capability.adapters.descriptor_factory import CapabilityDescriptor
-
 
 # ------------------------------------------------------------------ #
 # Helpers

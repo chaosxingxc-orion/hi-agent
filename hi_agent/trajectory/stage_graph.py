@@ -300,7 +300,7 @@ def default_trace_stage_graph() -> StageGraph:
         and inject their own :class:`StageGraph` rather than relying on this
         default.  This function is kept for backward compatibility only.
     """
-    from hi_agent.samples.trace_pipeline import build_trace_stage_graph  # noqa: PLC0415
+    from hi_agent.samples.trace_pipeline import build_trace_stage_graph
     return build_trace_stage_graph()
 
 

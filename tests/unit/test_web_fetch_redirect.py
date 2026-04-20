@@ -1,12 +1,9 @@
 """Unit tests for web_fetch redirect SSRF protection (H-5)."""
 from __future__ import annotations
 
-import io
 import urllib.error
 import urllib.response
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from hi_agent.capability.tools.builtin import web_fetch_handler
 
@@ -22,7 +19,7 @@ class _FakeResponse:
     def read(self) -> bytes:
         return self._content
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, *args: object) -> None:

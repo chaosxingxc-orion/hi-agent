@@ -22,7 +22,7 @@ import os
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from hi_agent.knowledge.granularity import KnowledgeItem, estimate_tokens
 from hi_agent.knowledge.graph_renderer import GraphRenderer
@@ -137,7 +137,7 @@ class RetrievalEngine:
             payload = {
                 "schema_version": self._CACHE_SCHEMA_VERSION,
                 "fingerprint": self._compute_fingerprint(self._tfidf._docs),
-                "built_at": datetime.now(tz=timezone.utc).isoformat(),
+                "built_at": datetime.now(tz=UTC).isoformat(),
                 "docs": self._tfidf._docs,
                 "doc_tokens": self._tfidf._doc_tokens,
                 "idf": self._tfidf._idf,
@@ -145,7 +145,7 @@ class RetrievalEngine:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(payload, f)
             logger.debug("Index cache saved to %s", path)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Failed to save index cache: %s", exc)
 
     def _load_index(self) -> bool:
@@ -189,7 +189,7 @@ class RetrievalEngine:
                 data.get("built_at", "unknown"),
             )
             return True
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Failed to load index cache: %s", exc)
             return False
 
@@ -208,7 +208,7 @@ class RetrievalEngine:
         an optional dependency.
         """
         try:
-            from hi_agent.security.injection_scanner import InjectionScanner  # noqa: PLC0415
+            from hi_agent.security.injection_scanner import InjectionScanner
 
             if self._injection_scanner is None:
                 self._injection_scanner = InjectionScanner()

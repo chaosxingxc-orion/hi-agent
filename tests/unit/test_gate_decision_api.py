@@ -51,8 +51,9 @@ def test_gate_decision_request_defaults():
 
 def test_gate_coordinator_apply_decision_returns_event_id():
     """GateCoordinator.apply_decision() returns a dict with event_id."""
-    from hi_agent.execution.gate_coordinator import GateCoordinator
     from unittest.mock import MagicMock
+
+    from hi_agent.execution.gate_coordinator import GateCoordinator
     coord = GateCoordinator(executor=MagicMock())
     result = coord.apply_decision(
         run_id="run-1",
@@ -64,8 +65,9 @@ def test_gate_coordinator_apply_decision_returns_event_id():
 
 
 def test_gate_coordinator_apply_decision_backtrack():
-    from hi_agent.execution.gate_coordinator import GateCoordinator
     from unittest.mock import MagicMock
+
+    from hi_agent.execution.gate_coordinator import GateCoordinator
     coord = GateCoordinator(executor=MagicMock())
     result = coord.apply_decision(
         run_id="run-1",
@@ -77,8 +79,9 @@ def test_gate_coordinator_apply_decision_backtrack():
 
 
 def test_gate_coordinator_apply_decision_remediate():
-    from hi_agent.execution.gate_coordinator import GateCoordinator
     from unittest.mock import MagicMock
+
+    from hi_agent.execution.gate_coordinator import GateCoordinator
     coord = GateCoordinator(executor=MagicMock())
     result = coord.apply_decision(
         run_id="run-1",

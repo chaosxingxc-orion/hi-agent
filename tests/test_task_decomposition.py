@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.task_decomposition.dag import TaskDAG, TaskNode, TaskNodeState
 from hi_agent.task_decomposition.decomposer import TaskDecomposer
 from hi_agent.task_decomposition.executor import DAGExecutor, DAGResult
 from hi_agent.task_decomposition.feedback import DecompositionFeedback
-
 
 # ---------------------------------------------------------------------------
 # Helpers

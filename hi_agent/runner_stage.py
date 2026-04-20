@@ -403,7 +403,7 @@ class StageExecutor:
                     _logger.warning(
                         "capability_filter raised unexpectedly — proceeding without filter: %s", exc
                     )
-                    from hi_agent.observability.fallback import record_fallback, FallbackTaxonomy
+                    from hi_agent.observability.fallback import FallbackTaxonomy, record_fallback
                     record_fallback(FallbackTaxonomy.UNEXPECTED_EXCEPTION, "capability_filter", str(exc))
                     # proposal remains unfiltered (existing behavior)
 

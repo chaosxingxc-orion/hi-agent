@@ -13,8 +13,6 @@ import json
 import os
 from unittest.mock import patch
 
-import pytest
-
 # H-4: these contract tests use a non-loopback test URL (no real HTTP calls — urllib is mocked)
 os.environ.setdefault("HI_AGENT_KERNEL_BASE_URL_OVERRIDE_UNSAFE", "http://kernel-test:9090")
 
@@ -33,7 +31,7 @@ class _FakeResponse:
     def read(self) -> bytes:
         return self._data
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, *_: object) -> None:

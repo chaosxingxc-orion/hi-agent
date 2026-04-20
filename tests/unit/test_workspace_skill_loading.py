@@ -1,6 +1,4 @@
 """Tests for G-3: SkillBuilder workspace-relative skill loading."""
-import pytest
-from pathlib import Path
 
 
 def test_workspace_skill_overrides_global(tmp_path):

@@ -1,5 +1,4 @@
 import pytest
-
 from hi_agent.server.tenant_context import TenantContext
 from hi_agent.server.workspace_path import WorkspaceKey
 

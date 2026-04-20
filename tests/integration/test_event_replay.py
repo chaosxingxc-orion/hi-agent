@@ -1,8 +1,6 @@
 """Integration tests for SQLiteEventStore persistence and replay semantics."""
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 
 

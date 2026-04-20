@@ -1,6 +1,7 @@
 # tests/test_config_validator.py
 import pytest
-from hi_agent.config.validator import ConfigValidator, ConfigValidationError
+from hi_agent.config.validator import ConfigValidationError, ConfigValidator
+
 
 def test_valid_config_passes():
     v = ConfigValidator(env="prod")

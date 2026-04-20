@@ -18,16 +18,15 @@ Validates that:
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
+from hi_agent.session.run_session import LLMCallRecord, RunSession
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
-from hi_agent.session.run_session import CompactBoundary, LLMCallRecord, RunSession
 
 
 def _make_contract(
@@ -514,7 +513,7 @@ class TestCLIResume:
             run_id="cli-resume-test",
         )
         try:
-            from hi_agent.cli import build_parser, _cmd_resume
+            from hi_agent.cli import _cmd_resume, build_parser
 
             parser = build_parser()
             args = parser.parse_args(["resume", "--checkpoint", path])

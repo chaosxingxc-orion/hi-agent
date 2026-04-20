@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent_kernel.kernel.action_type_registry import (
     KERNEL_ACTION_TYPE_REGISTRY,
     ActionTypeDescriptor,

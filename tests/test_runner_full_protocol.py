@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from hi_agent.contracts import StageState, TaskContract
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

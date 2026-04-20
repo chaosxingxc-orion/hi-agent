@@ -5,8 +5,6 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock
 
-import pytest
-
 from hi_agent.events import EventEnvelope, make_envelope
 from hi_agent.recovery import (
     CompensationExecutionReport,
@@ -15,7 +13,6 @@ from hi_agent.recovery import (
     execute_compensation,
     orchestrate_recovery,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

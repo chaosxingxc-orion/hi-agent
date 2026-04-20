@@ -6,7 +6,7 @@ import shlex
 import subprocess
 import sys
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 _logger = logging.getLogger(__name__)

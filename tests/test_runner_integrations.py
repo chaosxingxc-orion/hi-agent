@@ -9,19 +9,17 @@ Validates that RunExecutor correctly wires:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
-from unittest.mock import MagicMock
 
 from hi_agent.contracts import (
     NodeState,
-    StageState,
     TaskBudget,
     TaskContract,
 )
 from hi_agent.evolve.contracts import EvolveResult, RunPostmortem
 from hi_agent.harness.contracts import ActionResult, ActionSpec, ActionState
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -273,7 +271,7 @@ class TestHumanGateBudgetCrisis:
         executor._run_id = kernel.start_run(contract.task_id)
         executor.action_seq = 9
         # Add a succeeded node in the same stage
-        from hi_agent.contracts import NodeType, TrajectoryNode, deterministic_id
+        from hi_agent.contracts import NodeType, TrajectoryNode
 
         node = TrajectoryNode(
             node_id="test-node",

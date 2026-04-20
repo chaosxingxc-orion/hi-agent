@@ -5,6 +5,7 @@ Uses real RunExecutor + MockKernel (no internal component mocking).
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.execution_provenance import CONTRACT_VERSION, ExecutionProvenance
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

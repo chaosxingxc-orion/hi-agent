@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent_kernel.kernel.persistence.sqlite_decision_deduper import SQLiteDecisionDeduper
 
 

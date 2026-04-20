@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
-from hi_agent.observability.trace_context import TraceContext, TraceContextManager
 from hi_agent.events.envelope import EventEnvelope, make_envelope
+from hi_agent.observability.trace_context import TraceContextManager
 
 
 class TestTraceContextManager:

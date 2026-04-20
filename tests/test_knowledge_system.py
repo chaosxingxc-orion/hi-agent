@@ -5,14 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import pytest
-
 from hi_agent.knowledge.graph_renderer import GraphRenderer
 from hi_agent.knowledge.knowledge_manager import KnowledgeManager, KnowledgeResult
 from hi_agent.knowledge.user_knowledge import UserKnowledgeStore, UserProfile
 from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryEdge, MemoryNode
-
 
 # ======================================================================
 # WikiPage & KnowledgeWiki tests

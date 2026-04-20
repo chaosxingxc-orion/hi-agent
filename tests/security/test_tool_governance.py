@@ -9,7 +9,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from hi_agent.capability.governance import (
     ApprovalRequiredError,
     CapabilityDisabledError,
@@ -19,7 +18,6 @@ from hi_agent.capability.governance import (
     PermissionDeniedError,
 )
 from hi_agent.capability.registry import CapabilityDescriptor, CapabilityRegistry, CapabilitySpec
-
 
 # ---------------------------------------------------------------------------
 # Helpers

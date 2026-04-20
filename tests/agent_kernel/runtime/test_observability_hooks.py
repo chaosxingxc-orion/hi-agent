@@ -7,7 +7,6 @@ import logging
 from typing import Any
 
 import pytest
-
 from agent_kernel.runtime.observability_hooks import LoggingObservabilityHook
 
 # ---------------------------------------------------------------------------

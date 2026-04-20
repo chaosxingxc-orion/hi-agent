@@ -7,7 +7,6 @@ from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l2_index import RunMemoryIndex
 from hi_agent.task_view.builder import (
     TaskView,
-    TaskViewSection,
     build_task_view,
     format_episodes,
     format_knowledge,
@@ -21,7 +20,6 @@ from hi_agent.task_view.token_budget import (
     enforce_layer_budget,
     set_token_counter,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

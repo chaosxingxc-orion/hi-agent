@@ -1,6 +1,5 @@
 """Tests that SystemBuilder registers real builtin tools alongside LLM capabilities."""
 import os
-import pytest
 
 # Allow heuristic fallback so no real LLM needed in tests
 os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")

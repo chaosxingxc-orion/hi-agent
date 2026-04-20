@@ -15,10 +15,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 import pytest
-
-from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
-
+from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 
 # ---------------------------------------------------------------------------
 # Minimal mock agent-kernel HTTP server
@@ -85,11 +83,7 @@ class _MockKernelHandler(BaseHTTPRequestHandler):
             self._ok({"branch_id": branch_id})
         elif re.fullmatch(r"/runs/[^/]+/task-views", path):
             self._ok({"task_view_id": body.get("task_view_id", "tv-1")})
-        elif re.fullmatch(r"/runs/[^/]+/human-gates", path):
-            self._ok({"ok": True})
-        elif re.fullmatch(r"/runs/[^/]+/approval", path):
-            self._ok({"ok": True})
-        elif re.fullmatch(r"/runs/[^/]+/signals", path):
+        elif re.fullmatch(r"/runs/[^/]+/human-gates", path) or re.fullmatch(r"/runs/[^/]+/approval", path) or re.fullmatch(r"/runs/[^/]+/signals", path):
             self._ok({"ok": True})
         else:
             self._not_found()
@@ -100,11 +94,7 @@ class _MockKernelHandler(BaseHTTPRequestHandler):
         body = self._read_body()
         path = self.path.split("?")[0]
 
-        if re.fullmatch(r"/runs/[^/]+/stages/[^/]+/state", path):
-            self._ok({"ok": True})
-        elif re.fullmatch(r"/runs/[^/]+/branches/[^/]+/state", path):
-            self._ok({"ok": True})
-        elif re.fullmatch(r"/task-views/[^/]+/decision", path):
+        if re.fullmatch(r"/runs/[^/]+/stages/[^/]+/state", path) or re.fullmatch(r"/runs/[^/]+/branches/[^/]+/state", path) or re.fullmatch(r"/task-views/[^/]+/decision", path):
             self._ok({"ok": True})
         else:
             self._not_found()

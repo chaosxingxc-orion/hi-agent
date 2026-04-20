@@ -1,9 +1,8 @@
 """Tests for G-10 experiment artifact provenance."""
 import hashlib
 import json
-import time
-from pathlib import Path
 from unittest.mock import MagicMock
+
 import pytest
 
 
@@ -59,8 +58,9 @@ class TestArtifactRecord:
 
     def test_artifact_record_serializable(self, tmp_path):
         """ArtifactRecord must be JSON-serializable."""
-        from hi_agent.experiment.provenance import ArtifactRecord
         import dataclasses
+
+        from hi_agent.experiment.provenance import ArtifactRecord
         f = tmp_path / "out.txt"
         f.write_text("done")
         record = ArtifactRecord.from_path(f)
@@ -72,8 +72,8 @@ class TestPollerArtifactIndexing:
     @pytest.mark.asyncio
     async def test_poller_emits_artifact_indexed_event(self, tmp_path):
         """On op success, poller emits experiment.artifact_indexed per artifact."""
-        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
         from hi_agent.experiment.coordinator import LongRunningOpCoordinator
+        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
         from hi_agent.experiment.poller import OpPoller
 
         # Create artifact files that the backend will "return"
@@ -110,8 +110,8 @@ class TestPollerArtifactIndexing:
     @pytest.mark.asyncio
     async def test_poller_skips_hashing_nonexistent_path(self, tmp_path):
         """Poller must not crash if an artifact path does not exist."""
-        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
         from hi_agent.experiment.coordinator import LongRunningOpCoordinator
+        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
         from hi_agent.experiment.poller import OpPoller
 
         backend = MagicMock()

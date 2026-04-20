@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 
 import pytest
-
 from hi_agent.evolve.skill_extractor import SkillCandidate
 from hi_agent.skill.matcher import SkillMatcher
 from hi_agent.skill.recorder import SkillUsageRecorder
-from hi_agent.skill.registry import ManagedSkill, PromotionRecord, SkillRegistry
+from hi_agent.skill.registry import ManagedSkill, SkillRegistry
 from hi_agent.skill.validator import SkillValidator
-
 
 # ---------------------------------------------------------------------------
 # Helpers

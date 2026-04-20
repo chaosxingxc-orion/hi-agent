@@ -6,10 +6,7 @@ stage_actions and stage_graph when injected via profile_id.
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.profiles.contracts import ProfileSpec
-from hi_agent.profiles.registry import ProfileRegistry
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
 from hi_agent.workflows.contracts import WorkflowNode, WorkflowSpec, WorkflowTransition
 

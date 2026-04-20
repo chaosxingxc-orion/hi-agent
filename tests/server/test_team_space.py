@@ -1,7 +1,7 @@
+
 import pytest
-import uuid
+from hi_agent.server.team_event_store import TeamEventStore
 from hi_agent.server.team_space import TeamSpace
-from hi_agent.server.team_event_store import TeamEventStore, TeamEvent
 
 
 @pytest.fixture

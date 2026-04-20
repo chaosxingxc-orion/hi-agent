@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.evaluation.contracts import (
     CompositeEvaluator,
     DefaultEvaluator,
@@ -11,7 +10,6 @@ from hi_agent.evaluation.contracts import (
     EvaluationResult,
     Evaluator,
 )
-
 
 # ---------------------------------------------------------------------------
 # EvaluationContext

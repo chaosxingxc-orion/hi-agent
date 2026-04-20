@@ -1,6 +1,7 @@
 """Tests: MemoryBuilder workspace_key parameter threads WorkspaceKey into store paths."""
-import pytest
 from pathlib import Path
+
+import pytest
 from hi_agent.config.memory_builder import MemoryBuilder
 from hi_agent.server.workspace_path import WorkspaceKey
 

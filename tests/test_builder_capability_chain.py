@@ -1,6 +1,5 @@
 """Tests that capability registry and invoker share the same instance."""
 from __future__ import annotations
-import pytest
 
 
 class TestCapabilityChainUnity:
@@ -17,8 +16,8 @@ class TestCapabilityChainUnity:
 
     def test_registered_capability_reachable_via_invoker(self):
         """A capability registered in build_capability_registry() is accessible via invoker."""
-        from hi_agent.config.builder import SystemBuilder
         from hi_agent.capability.registry import CapabilitySpec
+        from hi_agent.config.builder import SystemBuilder
 
         builder = SystemBuilder()
         registry = builder.build_capability_registry()
@@ -41,8 +40,8 @@ class TestCapabilityChainUnity:
 
     def test_constructor_injected_capability_registry_is_used(self):
         """Constructor-injected registry is used by build_capability_registry()."""
-        from hi_agent.config.builder import SystemBuilder
         from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec
+        from hi_agent.config.builder import SystemBuilder
 
         pre_built = CapabilityRegistry()
         pre_built.register(CapabilitySpec(name="injected_cap", handler=lambda p: {}))

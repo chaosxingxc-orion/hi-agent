@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.artifacts.adapters import OutputToArtifactAdapter
 from hi_agent.artifacts.contracts import (
     Artifact,
@@ -91,10 +89,9 @@ class TestOutputToArtifactAdapter:
 
 class TestHarnessExecutorArtifactRegistry:
     def test_harness_stores_artifacts_on_execute(self):
-        from hi_agent.artifacts.registry import ArtifactRegistry
+        from hi_agent.harness.contracts import ActionSpec
         from hi_agent.harness.executor import HarnessExecutor
         from hi_agent.harness.governance import GovernanceEngine
-        from hi_agent.harness.contracts import ActionSpec
 
         registry = ArtifactRegistry()
         output = {"url": "http://example.com", "title": "Test", "snippet": "snip"}
@@ -124,9 +121,9 @@ class TestHarnessExecutorArtifactRegistry:
 
     def test_harness_without_registry_still_works(self):
         """HarnessExecutor works normally without artifact_registry."""
+        from hi_agent.harness.contracts import ActionSpec
         from hi_agent.harness.executor import HarnessExecutor
         from hi_agent.harness.governance import GovernanceEngine
-        from hi_agent.harness.contracts import ActionSpec
 
         class MockInvoker:
             def invoke(self, name, payload):
@@ -169,7 +166,6 @@ class TestBuilderCreatesArtifactRegistry:
 class TestArtifactRegistryQuerySurface:
     def test_query_by_source_ref(self):
         """Can query artifacts by source_ref."""
-        from hi_agent.artifacts.registry import ArtifactRegistry
         from hi_agent.artifacts.contracts import EvidenceArtifact
 
         registry = ArtifactRegistry()
@@ -186,7 +182,6 @@ class TestArtifactRegistryQuerySurface:
 
     def test_query_by_upstream(self):
         """Can query artifacts by upstream_artifact_ids."""
-        from hi_agent.artifacts.registry import ArtifactRegistry
         from hi_agent.artifacts.contracts import Artifact
 
         registry = ArtifactRegistry()

@@ -96,7 +96,7 @@ class WorkflowSpec:
             A :class:`~hi_agent.trajectory.stage_graph.StageGraph` with
             one edge per WorkflowTransition.
         """
-        from hi_agent.trajectory.stage_graph import StageGraph  # noqa: PLC0415
+        from hi_agent.trajectory.stage_graph import StageGraph
 
         graph = StageGraph()
         for t in self.transitions:

@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
-
 from agent_kernel.adapters.facade.kernel_facade import KernelFacade
 from agent_kernel.kernel.contracts import SignalRunRequest
 from agent_kernel.kernel.task_manager.contracts import (

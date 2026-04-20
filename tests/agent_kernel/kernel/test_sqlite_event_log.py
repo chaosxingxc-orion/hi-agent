@@ -6,7 +6,6 @@ import asyncio
 from pathlib import Path
 
 import pytest
-
 from agent_kernel.kernel.contracts import ActionCommit, RuntimeEvent
 from agent_kernel.kernel.persistence.sqlite_event_log import SQLiteKernelRuntimeEventLog
 

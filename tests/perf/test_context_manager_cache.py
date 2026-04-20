@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from hi_agent.context.manager import ContextManager
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,7 +41,8 @@ def test_cache_initialized_on_construction():
 
 def test_stable_section_cache_hit():
     """Second call with the same system prompt must return a cached section
-    and increment the metrics counter when a metrics sink is present."""
+    and increment the metrics counter when a metrics sink is present.
+    """
     mgr = _make_manager()
 
     # Attach a mock metrics sink
@@ -75,7 +73,8 @@ def test_stable_section_cache_hit():
 
 def test_stable_sections_invalidate_on_change():
     """Changing the system prompt content must produce a cache miss and a
-    new fingerprint entry in _section_cache."""
+    new fingerprint entry in _section_cache.
+    """
     mgr = _make_manager()
 
     prompt_a = "System prompt A"
@@ -133,7 +132,8 @@ def test_history_dirty_after_compact():
 
 def test_dynamic_section_rebuilds_when_dirty():
     """add_history_entry must mark the history section dirty so subsequent
-    calls to _assemble_history produce a fresh section, not a stale cache."""
+    calls to _assemble_history produce a fresh section, not a stale cache.
+    """
     mgr = _make_manager()
 
     # First build — populates cache
@@ -157,7 +157,8 @@ def test_dynamic_section_rebuilds_when_dirty():
 
 def test_reflection_dirty_after_set():
     """set_reflection_context must mark reflection dirty so next assemble
-    rebuilds the section with the new content."""
+    rebuilds the section with the new content.
+    """
     mgr = _make_manager()
 
     # First assemble — clears dirty

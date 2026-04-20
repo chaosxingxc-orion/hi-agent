@@ -10,8 +10,9 @@ Validates the complete quick_task Run lifecycle S1->S5 including:
 
 from __future__ import annotations
 
-from hi_agent.contracts import BranchState, StageState, TaskContract
+from hi_agent.contracts import StageState, TaskContract
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

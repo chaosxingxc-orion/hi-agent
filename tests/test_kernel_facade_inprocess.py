@@ -1,9 +1,11 @@
 # tests/test_kernel_facade_inprocess.py
 import asyncio
+
 import pytest
-from tests.helpers.kernel_facade_fixture import MockKernelFacade
 from agent_kernel.kernel.contracts import Action
 from hi_agent.runtime_adapter.kernel_facade_adapter import create_local_adapter
+
+from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 
 @pytest.mark.asyncio

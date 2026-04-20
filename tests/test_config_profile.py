@@ -1,7 +1,6 @@
 # tests/test_config_profile.py
-import json
-import pytest
 from hi_agent.config.profile import deep_merge, load_profile_file, profile_path_for
+
 
 def test_deep_merge_scalars():
     base = {"a": 1, "b": 2}

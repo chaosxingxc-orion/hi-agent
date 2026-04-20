@@ -1,7 +1,4 @@
 # tests/test_cli_config.py
-import sys
-import pytest
-from unittest.mock import patch, MagicMock
 
 
 def _parse_run_args(args: list[str]):

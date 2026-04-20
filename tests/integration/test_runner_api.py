@@ -8,12 +8,11 @@ internal mocking (P3 production integrity constraint).
 """
 
 import pytest
-
 from hi_agent import GateEvent, SubRunHandle, SubRunResult
 from hi_agent.contracts import TaskContract, deterministic_id
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -49,7 +48,7 @@ def test_register_gate_exists_and_is_callable():
 
 @pytest.mark.integration
 def test_resume_exists_and_is_callable():
-    """resume is a public method on RunExecutor."""
+    """Resume is a public method on RunExecutor."""
     executor = _make_executor()
     assert callable(getattr(executor, "resume", None))
 
@@ -89,7 +88,7 @@ def test_register_gate_persists_to_session_events():
 
 @pytest.mark.integration
 def test_resume_logs_decision():
-    """resume emits a gate_decision observability event without raising."""
+    """Resume emits a gate_decision observability event without raising."""
     executor = _make_executor()
     executor.register_gate(gate_id="g-003")
     # Should not raise; the decision is recorded via observability
@@ -98,7 +97,7 @@ def test_resume_logs_decision():
 
 @pytest.mark.integration
 def test_resume_persists_decision_to_session():
-    """resume appends a gate_decision entry to session events."""
+    """Resume appends a gate_decision entry to session events."""
     executor = _make_executor()
     executor.register_gate(gate_id="g-004")
     executor.resume(gate_id="g-004", decision="backtrack", rationale="needs work")
@@ -158,21 +157,21 @@ def test_await_subrun_unknown_handle_returns_failure():
 @pytest.mark.integration
 def test_subrun_handle_importable_from_hi_agent():
     """SubRunHandle is importable from the hi_agent package namespace."""
-    from hi_agent import SubRunHandle as SRH  # noqa: PLC0415
+    from hi_agent import SubRunHandle as SRH
     assert SRH is SubRunHandle
 
 
 @pytest.mark.integration
 def test_subrun_result_importable_from_hi_agent():
     """SubRunResult is importable from the hi_agent package namespace."""
-    from hi_agent import SubRunResult as SRR  # noqa: PLC0415
+    from hi_agent import SubRunResult as SRR
     assert SRR is SubRunResult
 
 
 @pytest.mark.integration
 def test_gate_event_importable_from_hi_agent():
     """GateEvent is importable from the hi_agent package namespace."""
-    from hi_agent import GateEvent as GE  # noqa: PLC0415
+    from hi_agent import GateEvent as GE
     assert GE is GateEvent
 
 

@@ -21,6 +21,7 @@ from hi_agent.route_engine.rule_engine import RuleRouteEngine
 from hi_agent.route_engine.skill_aware_engine import SkillAwareRouteEngine
 
 __all__ = [
+    "NON_CAPABILITY_ACTIONS",
     "AcceptancePolicy",
     "AcceptanceResult",
     "BranchProposal",
@@ -32,7 +33,6 @@ __all__ = [
     "LLMRouteDecision",
     "LLMRouteEngine",
     "LLMRouteParseError",
-    "NON_CAPABILITY_ACTIONS",
     "RouteContext",
     "RouteEngine",
     "RouteExplanation",

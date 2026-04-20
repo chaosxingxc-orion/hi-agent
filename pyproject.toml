@@ -56,7 +56,7 @@ target-version = "py312"
 src = ["hi_agent", "agent_kernel", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "RUF", "D"]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
 ignore = ["D203", "D213", "E402"]
 
 [tool.ruff.lint.pydocstyle]

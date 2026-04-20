@@ -11,7 +11,8 @@ import random
 import time
 import urllib.error
 import urllib.request
-from typing import TYPE_CHECKING, Any, Iterator
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -20,9 +21,9 @@ from hi_agent.llm.protocol import LLMRequest, LLMResponse, LLMStreamChunk, Token
 from hi_agent.runtime.async_bridge import AsyncBridgeService
 
 if TYPE_CHECKING:
-    from hi_agent.llm.failover import FailoverChain
-    from hi_agent.llm.cache import PromptCacheInjector
     from hi_agent.llm.budget_tracker import LLMBudgetTracker
+    from hi_agent.llm.cache import PromptCacheInjector
+    from hi_agent.llm.failover import FailoverChain
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,9 @@ class HttpLLMGateway:
         timeout_seconds: int = 120,
         max_retries: int = 3,
         retry_base_seconds: float = 1.0,
-        failover_chain: "FailoverChain | None" = None,
-        cache_injector: "PromptCacheInjector | None" = None,
-        budget_tracker: "LLMBudgetTracker | None" = None,
+        failover_chain: FailoverChain | None = None,
+        cache_injector: PromptCacheInjector | None = None,
+        budget_tracker: LLMBudgetTracker | None = None,
         runtime_mode: str = "",
     ) -> None:
         """Initialize HttpLLMGateway.
@@ -310,7 +311,7 @@ class HttpLLMGateway:
             except TimeoutError as exc:
                 raise LLMTimeoutError(str(exc)) from exc
         try:
-            from hi_agent.observability.fallback import (  # noqa: PLC0415
+            from hi_agent.observability.fallback import (
                 FallbackTaxonomy,
                 record_fallback,
             )
@@ -359,9 +360,9 @@ class HTTPGateway:
         default_model: str = "gpt-4o",
         max_retries: int = 3,
         retry_base_seconds: float = 1.0,
-        failover_chain: "FailoverChain | None" = None,
-        cache_injector: "PromptCacheInjector | None" = None,
-        budget_tracker: "LLMBudgetTracker | None" = None,
+        failover_chain: FailoverChain | None = None,
+        cache_injector: PromptCacheInjector | None = None,
+        budget_tracker: LLMBudgetTracker | None = None,
     ) -> None:
         """Initialize HTTPGateway."""
         self._base_url = base_url.rstrip("/")

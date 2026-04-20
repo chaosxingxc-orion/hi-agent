@@ -15,13 +15,13 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
-
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.contracts import StageSummary, TaskContract
 from hi_agent.contracts.requests import RunResult
 from hi_agent.gate_protocol import GatePendingError
 from hi_agent.runner import RunExecutor, execute_async
+
 from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 

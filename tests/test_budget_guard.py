@@ -1,4 +1,3 @@
-import pytest
 from hi_agent.task_mgmt.budget_guard import BudgetGuard, TierDecision
 
 

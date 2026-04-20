@@ -13,6 +13,7 @@ from hi_agent.contracts import StageState, TaskContract, deterministic_id
 from hi_agent.contracts.cts_budget import CTSBudget
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -34,7 +35,6 @@ from hi_agent.trajectory.stage_graph import (
     StageGraph,
     ValidationReport,
     build_default_trace_graph,
-    default_trace_stage_graph,
 )
 
 

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from hi_agent.management.capacity_advisor import (
-    recommendations_to_payload,
     recommend_server_capacity_tuning,
+    recommendations_to_payload,
 )
 
 

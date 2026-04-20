@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.context.nudge import (
     ActionDetector,
     NudgeConfig,
@@ -12,7 +10,6 @@ from hi_agent.context.nudge import (
     NudgeTrigger,
     NudgeType,
 )
-
 
 # ---------------------------------------------------------------------------
 # NudgeState — counter helpers

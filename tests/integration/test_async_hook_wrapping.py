@@ -15,10 +15,10 @@ import asyncio
 from typing import Any
 
 import pytest
-
 from hi_agent.contracts import TaskContract, deterministic_id
 from hi_agent.middleware.hooks import ExecutionHookManager, HookEvent, HookRegistry
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

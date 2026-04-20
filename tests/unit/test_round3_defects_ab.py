@@ -7,10 +7,11 @@ D-2: _decide() must inject reflection prompt before each retry when on_exhausted
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.gate_protocol import GatePendingError
-from hi_agent.task_mgmt.restart_policy import RestartDecision, RestartPolicyEngine, TaskRestartPolicy
-
+from hi_agent.task_mgmt.restart_policy import (
+    RestartPolicyEngine,
+    TaskRestartPolicy,
+)
 
 # ---------------------------------------------------------------------------
 # D-1: GatePendingError carries gate_id

@@ -6,8 +6,8 @@ This module provides:
 - MCPHealth: health checking for registered MCP servers
 """
 
-from hi_agent.mcp.registry import MCPRegistry
 from hi_agent.mcp.binding import MCPBinding
 from hi_agent.mcp.health import MCPHealth
+from hi_agent.mcp.registry import MCPRegistry
 
-__all__ = ["MCPRegistry", "MCPBinding", "MCPHealth"]
+__all__ = ["MCPBinding", "MCPHealth", "MCPRegistry"]

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent_kernel.kernel.recovery.mode_registry import (
     KERNEL_RECOVERY_MODE_REGISTRY,
     RecoveryModeRegistry,

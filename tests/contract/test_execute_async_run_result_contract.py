@@ -9,12 +9,12 @@ Verifies:
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.requests import RunResult
 from hi_agent.runner import RunExecutor, execute_async
-from tests.helpers.kernel_facade_fixture import MockKernelFacade
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
+from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 
 def _contract(goal: str = "Say hello", task_family: str = "quick_task") -> TaskContract:

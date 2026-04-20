@@ -8,20 +8,16 @@ Integration path (real subprocess) is marked skip pending live MCP binary.
 from __future__ import annotations
 
 import json
-import threading
-from io import StringIO
 from typing import Any
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
+from hi_agent.mcp.registry import MCPRegistry
 from hi_agent.mcp.transport import (
     MCPTransportError,
     MultiStdioTransport,
     StdioMCPTransport,
 )
-from hi_agent.mcp.registry import MCPRegistry
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -91,9 +87,8 @@ class TestStdioMCPTransport:
     def test_invoke_raises_on_eof(self) -> None:
         t = self._transport()
         proc = _mock_proc([])  # empty — EOF immediately
-        with self._patch_popen(proc):
-            with pytest.raises(MCPTransportError):
-                t.invoke("srv", "tool", {})
+        with self._patch_popen(proc), pytest.raises(MCPTransportError):
+            t.invoke("srv", "tool", {})
 
     def test_invoke_skips_non_matching_response_ids(self) -> None:
         """Transport should skip responses with wrong id and wait for the right one."""
@@ -326,8 +321,8 @@ class TestConfigReloadSafety:
         import os
 
         os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
-        from hi_agent.server.app import AgentServer
         from hi_agent.mcp.registry import MCPRegistry
+        from hi_agent.server.app import AgentServer
 
         server = AgentServer()
         # Inject a sentinel MCPRegistry into the old builder
@@ -343,11 +338,9 @@ class TestConfigReloadSafety:
         """Executor built before reload keeps its original builder reference."""
         import asyncio
         import os
-        from unittest.mock import patch, MagicMock
 
         os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
         from hi_agent.server.app import AgentServer
-        from hi_agent.contracts.requests import RunResult
 
         server = AgentServer()
         # Build an executor from the current builder

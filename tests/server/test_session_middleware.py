@@ -1,15 +1,14 @@
 """Tests for SessionMiddleware — route-aware session auto-creation."""
 
 import pytest
-from starlette.testclient import TestClient
+from hi_agent.server.session_middleware import SessionMiddleware
+from hi_agent.server.session_store import SessionStore
+from hi_agent.server.tenant_context import TenantContext, set_tenant_context
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
-
-from hi_agent.server.session_middleware import SessionMiddleware
-from hi_agent.server.session_store import SessionStore
-from hi_agent.server.tenant_context import TenantContext, set_tenant_context
+from starlette.testclient import TestClient
 
 
 def make_app(store: SessionStore):

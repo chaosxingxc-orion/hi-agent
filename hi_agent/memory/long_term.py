@@ -401,7 +401,7 @@ class LongTermMemoryGraph:
         """Return number of edges."""
         return len(self._edges)
 
-    def iter_nodes(self) -> "Iterable[tuple[str, MemoryNode]]":
+    def iter_nodes(self) -> Iterable[tuple[str, MemoryNode]]:
         """Yield (node_id, node) pairs without exposing _nodes directly."""
         yield from self._nodes.items()
 

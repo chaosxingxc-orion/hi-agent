@@ -9,8 +9,7 @@ import logging
 from typing import Any
 
 import pytest
-
-from hi_agent.middleware.orchestrator import MiddlewareOrchestrator, PipelineBlockedError
+from hi_agent.middleware.orchestrator import MiddlewareOrchestrator
 from hi_agent.middleware.protocol import (
     HookAction,
     HookResult,

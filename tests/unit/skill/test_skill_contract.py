@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import textwrap
 
-import pytest
-
 from hi_agent.skill.definition import SkillDefinition
 from hi_agent.skill.loader import SkillLoader
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

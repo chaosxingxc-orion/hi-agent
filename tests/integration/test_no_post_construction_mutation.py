@@ -7,13 +7,13 @@ post-construction setattr on private attributes.
 """
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 
 def _make_contract(goal: str = "test") -> MagicMock:
-    from hi_agent.contracts import TaskContract
     import uuid
+
+    from hi_agent.contracts import TaskContract
     return TaskContract(task_id=uuid.uuid4().hex, goal=goal)
 
 
@@ -130,10 +130,11 @@ class TestNoPostConstructionMutation:
         default_provider with an api_key; returns None only when neither the
         config file nor environment variables supply credentials.
         """
+        import threading
+
         from hi_agent.config.cognition_builder import CognitionBuilder
         from hi_agent.config.trace_config import TraceConfig
         from hi_agent.llm.tier_router import TierAwareLLMGateway
-        import threading
 
         cfg = TraceConfig()
         lock = threading.RLock()
@@ -145,10 +146,11 @@ class TestNoPostConstructionMutation:
 
     def test_runtime_builder_provides_kernel(self):
         """RuntimeBuilder.build_kernel() returns a RuntimeAdapter."""
-        from hi_agent.config.runtime_builder import RuntimeBuilder
-        from hi_agent.config.builder import SystemBuilder
-        from hi_agent.config.trace_config import TraceConfig
         import threading
+
+        from hi_agent.config.builder import SystemBuilder
+        from hi_agent.config.runtime_builder import RuntimeBuilder
+        from hi_agent.config.trace_config import TraceConfig
 
         cfg = TraceConfig()
         lock = threading.RLock()
@@ -159,10 +161,11 @@ class TestNoPostConstructionMutation:
 
     def test_runtime_builder_provides_metrics_collector(self):
         """RuntimeBuilder.build_metrics_collector() returns a MetricsCollector."""
-        from hi_agent.config.runtime_builder import RuntimeBuilder
-        from hi_agent.config.builder import SystemBuilder
-        from hi_agent.config.trace_config import TraceConfig
         import threading
+
+        from hi_agent.config.builder import SystemBuilder
+        from hi_agent.config.runtime_builder import RuntimeBuilder
+        from hi_agent.config.trace_config import TraceConfig
 
         cfg = TraceConfig()
         lock = threading.RLock()

@@ -2,8 +2,6 @@
 """Tests: WorkspaceKey threads workspace-scoped paths into RunExecutor memory stores."""
 from pathlib import Path
 
-import pytest
-
 from hi_agent.server.workspace_path import WorkspaceKey
 
 

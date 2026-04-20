@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from hi_agent.gate_protocol import GatePendingError
@@ -86,7 +86,7 @@ class StageOrchestrator:
                 # replan hook
                 if ctx.replan_hook is not None:
                     try:
-                        from hi_agent.contracts.directives import StageDirective  # noqa: PLC0415
+                        from hi_agent.contracts.directives import StageDirective
                         _stage_result_dict = stage_result if isinstance(stage_result, dict) else {}
                         directive = ctx.replan_hook(stage_id, _stage_result_dict)
                         if directive is not None and isinstance(directive, StageDirective) and directive.action != "continue":
@@ -105,7 +105,7 @@ class StageOrchestrator:
                             elif directive.action == "insert" and directive.new_stage_specs:
                                 for i, spec in enumerate(directive.new_stage_specs):
                                     remaining_stages.insert(i, spec.get("stage_id", f"dynamic_{i}"))
-                    except Exception as exc:  # noqa: BLE001
+                    except Exception as exc:
                         ctx.log_best_effort_fn(
                             logging.DEBUG,
                             "stage_orchestrator.replan_hook_failed",
@@ -245,7 +245,7 @@ class StageOrchestrator:
         if ctx.metrics_collector is not None:
             try:
                 ctx.metrics_collector.increment("runs_active", 1.0)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 ctx.log_best_effort_fn(
                     logging.DEBUG,
                     "runner.metrics_increment_failed",
@@ -303,7 +303,7 @@ class StageOrchestrator:
                     run_id=ctx.run_id,
                     completed_stages=list(ctx.stage_summaries.keys()),
                 )
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 ctx.log_best_effort_fn(
                     logging.DEBUG,
                     "stage_orchestrator.select_next_stage_failed",

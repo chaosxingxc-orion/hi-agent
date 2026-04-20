@@ -134,8 +134,9 @@ class KernelFacadeClient:
     def start_run(self, task_id: str) -> str:
         """Start a run for task and return run ID."""
         if self._mode == "direct":
-            import uuid  # noqa: PLC0415
-            from agent_kernel.adapters.facade.kernel_facade import (  # noqa: PLC0415
+            import uuid
+
+            from agent_kernel.adapters.facade.kernel_facade import (
                 StartRunRequest,
             )
             unique_run_id = f"{task_id[:48]}-{uuid.uuid4().hex[:8]}"
@@ -163,11 +164,11 @@ class KernelFacadeClient:
     def query_run(self, run_id: str) -> dict[str, Any]:
         """Return run lifecycle snapshot."""
         if self._mode == "direct":
-            from agent_kernel.adapters.facade.kernel_facade import QueryRunRequest  # noqa: PLC0415
+            from agent_kernel.adapters.facade.kernel_facade import QueryRunRequest
             result = self._direct_call("query_run", QueryRunRequest(run_id=run_id))
             if isinstance(result, dict):
                 return result
-            import dataclasses  # noqa: PLC0415
+            import dataclasses
             if dataclasses.is_dataclass(result) and not isinstance(result, type):
                 return dataclasses.asdict(result)
             raise RuntimeAdapterBackendError(
@@ -180,7 +181,7 @@ class KernelFacadeClient:
     def cancel_run(self, run_id: str, reason: str) -> None:
         """Cancel run with reason."""
         if self._mode == "direct":
-            from agent_kernel.adapters.facade.kernel_facade import CancelRunRequest  # noqa: PLC0415
+            from agent_kernel.adapters.facade.kernel_facade import CancelRunRequest
             self._direct_call("cancel_run", CancelRunRequest(run_id=run_id, reason=reason))
         else:
             self._http_post(f"/runs/{run_id}/cancel", {"reason": reason})
@@ -188,7 +189,7 @@ class KernelFacadeClient:
     def resume_run(self, run_id: str) -> None:
         """Resume a suspended or cancelled run."""
         if self._mode == "direct":
-            from agent_kernel.adapters.facade.kernel_facade import ResumeRunRequest  # noqa: PLC0415
+            from agent_kernel.adapters.facade.kernel_facade import ResumeRunRequest
             self._direct_call("resume_run", ResumeRunRequest(run_id=run_id))
         else:
             self._http_post(f"/runs/{run_id}/resume", {})
@@ -198,7 +199,7 @@ class KernelFacadeClient:
     ) -> None:
         """Push an external signal to a run."""
         if self._mode == "direct":
-            from agent_kernel.adapters.facade.kernel_facade import SignalRunRequest  # noqa: PLC0415
+            from agent_kernel.adapters.facade.kernel_facade import SignalRunRequest
             self._direct_call(
                 "signal_run",
                 SignalRunRequest(
@@ -223,7 +224,7 @@ class KernelFacadeClient:
             result = self._direct_call("query_trace_runtime", run_id)
             if isinstance(result, dict):
                 return result
-            import dataclasses  # noqa: PLC0415
+            import dataclasses
             if dataclasses.is_dataclass(result) and not isinstance(result, type):
                 return dataclasses.asdict(result)
             raise RuntimeAdapterBackendError(
@@ -342,7 +343,7 @@ class KernelFacadeClient:
         """Resume a run stuck in waiting_external after human_escalation."""
         if self._mode == "direct":
             # keyword-only args: cannot route through _direct_call(); drive coroutine inline
-            import asyncio  # noqa: PLC0415
+            import asyncio
 
             try:
                 coro = self._facade.resolve_escalation(
@@ -356,14 +357,14 @@ class KernelFacadeClient:
                     except RuntimeError:
                         loop = None
                     if loop is not None and loop.is_running():
-                        import threading  # noqa: PLC0415
+                        import threading
 
                         holder: dict[str, Any] = {}
 
                         def _runner() -> None:
                             try:
                                 holder["result"] = asyncio.run(coro)
-                            except Exception as exc:  # noqa: BLE001
+                            except Exception as exc:
                                 holder["error"] = exc
 
                         thread = threading.Thread(target=_runner, daemon=True)
@@ -415,7 +416,7 @@ class KernelFacadeClient:
     ) -> str:
         """Spawn a child run under parent_run_id."""
         if self._mode == "direct":
-            from agent_kernel.kernel.contracts import SpawnChildRunRequest  # noqa: PLC0415
+            from agent_kernel.kernel.contracts import SpawnChildRunRequest
             request = SpawnChildRunRequest(
                 parent_run_id=parent_run_id,
                 child_kind="delegate",
@@ -466,12 +467,12 @@ class KernelFacadeClient:
         config: dict[str, Any] | None = None,
     ) -> str:
         """Async version of spawn_child_run via asyncio.to_thread."""
-        import asyncio  # noqa: PLC0415
+        import asyncio
         return await asyncio.to_thread(self.spawn_child_run, parent_run_id, task_id, config)
 
     async def query_child_runs_async(self, parent_run_id: str) -> list[dict[str, Any]]:
         """Async version of query_child_runs via asyncio.to_thread."""
-        import asyncio  # noqa: PLC0415
+        import asyncio
         return await asyncio.to_thread(self.query_child_runs, parent_run_id)
 
     # ------------------------------------------------------------------
@@ -501,14 +502,14 @@ class KernelFacadeClient:
                 except RuntimeError:
                     loop = None
                 if loop is not None and loop.is_running():
-                    import threading  # noqa: PLC0415
+                    import threading
 
                     holder: dict[str, Any] = {}
 
                     def _runner() -> None:
                         try:
                             holder["result"] = asyncio.run(result)
-                        except Exception as exc:  # noqa: BLE001
+                        except Exception as exc:
                             holder["error"] = exc
 
                     thread = threading.Thread(target=_runner, daemon=True)

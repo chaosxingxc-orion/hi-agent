@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.artifacts.contracts import (
     Artifact,
     DocumentArtifact,
@@ -13,7 +11,6 @@ from hi_agent.artifacts.contracts import (
     StructuredDataArtifact,
 )
 from hi_agent.artifacts.registry import ArtifactRegistry
-
 
 # ---------------------------------------------------------------------------
 # Artifact base

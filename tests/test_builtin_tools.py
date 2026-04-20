@@ -5,8 +5,6 @@ No mocks allowed — test must reflect actual capability.
 """
 import sys
 
-import pytest
-
 from hi_agent.capability.registry import CapabilityRegistry
 from hi_agent.capability.tools.builtin import (
     file_read_handler,

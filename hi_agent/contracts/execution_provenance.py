@@ -78,7 +78,7 @@ class ExecutionProvenance:
         cls,
         stage_summaries: list[dict],
         runtime_context: dict,
-    ) -> "ExecutionProvenance":
+    ) -> ExecutionProvenance:
         """Aggregate run-level provenance from per-stage StageProvenance objects.
 
         If stage has "provenance" key (StageProvenance), use it.

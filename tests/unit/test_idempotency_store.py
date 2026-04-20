@@ -6,7 +6,6 @@ Layer 1 — Unit tests; SQLite is used directly (no external mocks).
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
 
 

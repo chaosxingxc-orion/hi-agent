@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent_kernel.kernel.dedupe_store import (
     DedupeStoreStateError,
     IdempotencyEnvelope,

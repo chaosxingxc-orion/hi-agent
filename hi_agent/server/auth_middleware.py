@@ -27,7 +27,6 @@ import os
 from typing import Any, Literal
 
 import jwt as pyjwt
-
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 

@@ -1,5 +1,4 @@
 """Tests for G-1: hi_agent_global profile convention; cross_profile_read in TaskContract."""
-import pytest
 
 
 def test_global_profile_constant():
@@ -8,7 +7,7 @@ def test_global_profile_constant():
 
 
 def test_get_global_profile_path(tmp_path):
-    from hi_agent.profile.manager import ProfileDirectoryManager, GLOBAL_PROFILE_ID
+    from hi_agent.profile.manager import GLOBAL_PROFILE_ID, ProfileDirectoryManager
     mgr = ProfileDirectoryManager(home_dir=str(tmp_path))
     path = mgr.get_global_profile_path()
     assert path == tmp_path / GLOBAL_PROFILE_ID

@@ -8,10 +8,9 @@ fault injection boundary).
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from hi_agent.server.tenant_context import TenantContext, reset_tenant_context, set_tenant_context
 
 _DEFAULT_CTX = TenantContext(tenant_id="t1", user_id="u1", session_id="s1")

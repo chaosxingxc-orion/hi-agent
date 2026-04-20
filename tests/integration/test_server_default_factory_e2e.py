@@ -17,15 +17,12 @@ Design rule (CLAUDE.md Rule 6, Layer 3):
 
 from __future__ import annotations
 
-import os
 import time
 from typing import Any
 
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.server.app import AgentServer
-
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Helpers

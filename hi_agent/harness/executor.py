@@ -35,7 +35,7 @@ class HarnessExecutor:
         governance: GovernanceEngine,
         capability_invoker: Any | None = None,
         evidence_store: EvidenceStore | None = None,
-        permission_gate: "PermissionGate | None" = None,
+        permission_gate: PermissionGate | None = None,
         artifact_registry: Any | None = None,
     ) -> None:
         """Initialize executor with governance and optional dependencies.
@@ -272,7 +272,7 @@ class HarnessExecutor:
         artifact_ids: list[str] = []
         if self._artifact_registry is not None and output is not None:
             try:
-                from hi_agent.artifacts.adapters import OutputToArtifactAdapter  # noqa: PLC0415
+                from hi_agent.artifacts.adapters import OutputToArtifactAdapter
                 adapter = OutputToArtifactAdapter()
                 for artifact in adapter.adapt(
                     action_id, output,

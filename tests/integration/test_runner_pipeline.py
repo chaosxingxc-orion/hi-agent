@@ -2,8 +2,9 @@
 
 from hi_agent.contracts import StageState, TaskContract
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.trajectory.stage_graph import StageGraph
+
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def test_runner_fails_on_forced_action_failure() -> None:

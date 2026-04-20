@@ -4,18 +4,14 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 from dataclasses import dataclass
 
 import pytest
-
+from hi_agent.session.cost_tracker import CostCalculator, ModelPricing
 from hi_agent.session.run_session import (
-    CompactBoundary,
     LLMCallRecord,
     RunSession,
 )
-from hi_agent.session.cost_tracker import CostCalculator, ModelPricing
-
 
 # ---------------------------------------------------------------------------
 # Helpers

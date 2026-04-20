@@ -13,7 +13,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-
 # ---------------------------------------------------------------------------
 # Data contracts
 # ---------------------------------------------------------------------------
@@ -152,10 +151,9 @@ class CompositeEvaluator:
     """
 
     def __init__(self, evaluators: list[tuple[Any, float]]) -> None:
-        """
-        Args:
-            evaluators: List of (evaluator, weight) pairs.
-                Weights need not sum to 1 — they are normalized internally.
+        """Args:
+        evaluators: List of (evaluator, weight) pairs.
+            Weights need not sum to 1 — they are normalized internally.
         """
         if not evaluators:
             raise ValueError("CompositeEvaluator requires at least one evaluator")

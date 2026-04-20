@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 
 import pytest
-
 from agent_kernel.kernel.task_manager.contracts import (
     TaskAttempt,
     TaskDescriptor,

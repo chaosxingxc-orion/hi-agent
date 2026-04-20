@@ -25,7 +25,7 @@ class MockKernelFacade:
 
     def __init__(self) -> None:
         adapter = create_local_adapter()
-        self._facade = getattr(adapter, "_facade")
+        self._facade = adapter._facade
         self._run_id_map: dict[str, str] = {}
         self._events: dict[str, list[_Event]] = defaultdict(list)
 

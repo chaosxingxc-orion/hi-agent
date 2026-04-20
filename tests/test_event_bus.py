@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
-
-import pytest
 
 from hi_agent.server.event_bus import EventBus
 

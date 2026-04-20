@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-
+from hi_agent.context.health import ContextMonitor
 from hi_agent.context.manager import (
     ContextBudget,
     ContextHealth,
@@ -12,8 +12,6 @@ from hi_agent.context.manager import (
     ContextSection,
     ContextSnapshot,
 )
-from hi_agent.context.health import ContextMonitor
-
 
 # ======================================================================
 # Budget tests

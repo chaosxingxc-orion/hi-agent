@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import uuid
 from collections.abc import Callable
 from typing import Any
@@ -20,11 +19,8 @@ from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine
-from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
-from hi_agent.llm.http_gateway import HttpLLMGateway
 from hi_agent.llm.protocol import LLMGateway
-from hi_agent.llm.registry import ModelRegistry
-from hi_agent.llm.tier_router import TierAwareLLMGateway, TierRouter
+from hi_agent.llm.tier_router import TierAwareLLMGateway
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
@@ -33,10 +29,6 @@ from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
 from hi_agent.runner import RunExecutor
-from hi_agent.runtime_adapter.kernel_facade_adapter import (
-    create_local_adapter,
-)
-from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.skill.matcher import SkillMatcher
@@ -252,6 +244,7 @@ class SystemBuilder:
                             exc,
                         )
                     import os as _os_rbt
+
                     from hi_agent.server.runtime_mode_resolver import (
                         resolve_runtime_mode as _rrm_rbt,
                     )
@@ -977,6 +970,7 @@ class SystemBuilder:
                 workspace_key = None  # fall back to profile-scoped paths
         if workspace_key is not None:
             from pathlib import Path as _Path
+
             from hi_agent.server.workspace_path import WorkspacePathHelper
             _raw_base = str(WorkspacePathHelper.private(
                 _Path(self._config.episodic_storage_dir).parent,
@@ -1241,5 +1235,5 @@ class SystemBuilder:
 
         Delegates to ReadinessProbe — see hi_agent/config/readiness.py.
         """
-        from hi_agent.config.readiness import ReadinessProbe  # noqa: PLC0415
+        from hi_agent.config.readiness import ReadinessProbe
         return ReadinessProbe(self).snapshot()

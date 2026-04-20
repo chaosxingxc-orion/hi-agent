@@ -60,7 +60,7 @@ class CapabilityRegistry:
         """List registered capability names."""
         return sorted(self._capabilities.keys())
 
-    def register_bundle(self, bundle: "Any") -> int:
+    def register_bundle(self, bundle: Any) -> int:
         """Register all capabilities from a CapabilityBundle.
 
         Args:

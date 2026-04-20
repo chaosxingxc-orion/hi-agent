@@ -20,15 +20,13 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.requests import RunResult
 from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer
-from tests.helpers.kernel_adapter_fixture import MockKernel
+from starlette.testclient import TestClient
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers

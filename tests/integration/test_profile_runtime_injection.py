@@ -9,10 +9,8 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
-
-from hi_agent.contracts.task import TaskContract
 from hi_agent.contracts.requests import StartRunRequest
+from hi_agent.contracts.task import TaskContract
 
 
 class TestProfileIdOnContracts:
@@ -50,23 +48,23 @@ class TestCLIProfileId:
 
 class TestProfileRuntimeResolver:
     def test_resolve_none_returns_none(self):
-        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
         from hi_agent.profiles.registry import ProfileRegistry
+        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
 
         resolver = ProfileRuntimeResolver(ProfileRegistry())
         assert resolver.resolve(None) is None
 
     def test_resolve_unknown_id_returns_none(self):
-        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
         from hi_agent.profiles.registry import ProfileRegistry
+        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
 
         resolver = ProfileRuntimeResolver(ProfileRegistry())
         assert resolver.resolve("nonexistent") is None
 
     def test_resolve_known_profile(self):
-        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
         from hi_agent.profiles.contracts import ProfileSpec
         from hi_agent.profiles.registry import ProfileRegistry
+        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
 
         reg = ProfileRegistry()
         reg.register(ProfileSpec(
@@ -81,9 +79,9 @@ class TestProfileRuntimeResolver:
         assert resolved.stage_actions == {"s1": "action_a", "s2": "action_b"}
 
     def test_resolved_profile_has_custom_actions(self):
-        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
         from hi_agent.profiles.contracts import ProfileSpec
         from hi_agent.profiles.registry import ProfileRegistry
+        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
 
         reg = ProfileRegistry()
         reg.register(ProfileSpec(
@@ -95,9 +93,9 @@ class TestProfileRuntimeResolver:
         assert resolved.has_custom_actions is True
 
     def test_resolved_profile_no_custom_graph_by_default(self):
-        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
         from hi_agent.profiles.contracts import ProfileSpec
         from hi_agent.profiles.registry import ProfileRegistry
+        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
 
         reg = ProfileRegistry()
         reg.register(ProfileSpec(profile_id="p1", display_name="P1"))
@@ -106,9 +104,9 @@ class TestProfileRuntimeResolver:
         assert resolved.stage_graph is None
 
     def test_resolved_profile_stage_graph_from_factory(self):
-        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
         from hi_agent.profiles.contracts import ProfileSpec
         from hi_agent.profiles.registry import ProfileRegistry
+        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
         from hi_agent.trajectory.stage_graph import StageGraph
 
         def _factory():
@@ -127,10 +125,10 @@ class TestProfileRuntimeResolver:
         assert resolved.stage_graph is not None
 
     def test_resolved_profile_evaluator_from_factory(self):
-        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
+        from hi_agent.evaluation.contracts import DefaultEvaluator
         from hi_agent.profiles.contracts import ProfileSpec
         from hi_agent.profiles.registry import ProfileRegistry
-        from hi_agent.evaluation.contracts import DefaultEvaluator
+        from hi_agent.runtime.profile_runtime import ProfileRuntimeResolver
 
         reg = ProfileRegistry()
         reg.register(ProfileSpec(

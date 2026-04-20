@@ -6,10 +6,9 @@ import json
 
 from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
-from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
+from hi_agent.evolve.skill_extractor import SkillExtractor
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, TokenUsage
 from hi_agent.skill.registry import SkillRegistry
-
 
 # ---------------------------------------------------------------------------
 # Helpers

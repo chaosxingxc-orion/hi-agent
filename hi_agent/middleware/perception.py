@@ -71,7 +71,7 @@ class PerceptionMiddleware:
         cfg: Any,
         context_manager: Any | None = None,
         llm_gateway: LLMGateway | None = None,
-    ) -> "PerceptionMiddleware":
+    ) -> PerceptionMiddleware:
         """Construct from a TraceConfig instance."""
         return cls(
             context_manager=context_manager,

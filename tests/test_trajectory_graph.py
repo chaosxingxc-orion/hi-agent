@@ -2,20 +2,17 @@
 from __future__ import annotations
 
 import pytest
-
-from hi_agent.trajectory.graph import (
-    EdgeType,
-    NodeState,
-    TrajEdge,
-    TrajNode,
-    TrajectoryGraph,
-)
 from hi_agent.trajectory.execution import (
-    ExecutionResult,
     GraphExecutor,
     StepResult,
 )
-
+from hi_agent.trajectory.graph import (
+    EdgeType,
+    NodeState,
+    TrajectoryGraph,
+    TrajEdge,
+    TrajNode,
+)
 
 # ======================================================================
 # Graph construction

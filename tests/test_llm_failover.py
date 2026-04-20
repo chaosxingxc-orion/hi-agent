@@ -5,14 +5,12 @@ All tests use unittest.mock; no real API calls are made.
 
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-
 from hi_agent.llm.failover import (
     CredentialEntry,
     CredentialPool,
@@ -24,7 +22,6 @@ from hi_agent.llm.failover import (
     make_credential_pool_from_env,
 )
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, TokenUsage
-
 
 # ---------------------------------------------------------------------------
 # Helpers

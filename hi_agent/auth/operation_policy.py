@@ -1,9 +1,11 @@
 """Operation-driven RBAC/SOC policy table and enforcement decorator (HI-W1-D5-001)."""
 
 from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Callable
+
 from fastapi import HTTPException
 from starlette.requests import Request
 

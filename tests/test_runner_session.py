@@ -14,13 +14,12 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from typing import Any
-from unittest.mock import MagicMock
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
+from hi_agent.session.run_session import RunSession
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
-from hi_agent.session.run_session import LLMCallRecord, RunSession
 
 
 def _make_contract(

@@ -45,8 +45,8 @@ from hi_agent.runtime_adapter.consistency import (
     ConsistencyIssue,
     InMemoryConsistencyJournal,
 )
-from hi_agent.runtime_adapter.event_buffer import EventBuffer
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
+from hi_agent.runtime_adapter.event_buffer import EventBuffer
 from hi_agent.runtime_adapter.health import AdapterHealthMonitor
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ class ResilientKernelAdapter:
     def _call(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Call *method_name* on inner adapter with retry + circuit breaker.
 
-        Raises
+        Raises:
         ------
         RuntimeAdapterBackendError
             When the circuit is open or all retries are exhausted.

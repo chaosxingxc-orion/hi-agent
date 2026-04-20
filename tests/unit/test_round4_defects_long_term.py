@@ -1,8 +1,5 @@
 """Unit tests for F-3: consolidate() must call graph.save() after adding nodes."""
-import json
 from pathlib import Path
-
-import pytest
 
 from hi_agent.memory.long_term import LongTermConsolidator, LongTermMemoryGraph
 from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore

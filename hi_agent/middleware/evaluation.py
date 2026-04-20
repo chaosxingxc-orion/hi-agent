@@ -196,7 +196,7 @@ class EvaluationMiddleware:
         # Pluggable evaluator takes highest priority.
         if self._evaluator is not None:
             try:
-                from hi_agent.evaluation.contracts import EvaluationContext  # noqa: PLC0415
+                from hi_agent.evaluation.contracts import EvaluationContext
                 output_dict = output if isinstance(output, dict) else {"output": output, "evidence": evidence}
                 ctx = EvaluationContext(
                     goal=task_goal,

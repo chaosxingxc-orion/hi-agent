@@ -1,9 +1,8 @@
 """Unit tests for build_doctor_report — each check in isolation."""
 import os
-import pytest
 from unittest.mock import MagicMock
+
 from hi_agent.ops.diagnostics import build_doctor_report
-from hi_agent.ops.doctor_report import DoctorReport, DoctorIssue
 
 
 def _make_builder(env="dev", evolve_mode="auto"):

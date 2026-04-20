@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
-
 from hi_agent.contracts.memory import StageSummary
 from hi_agent.contracts.task import TaskContract
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
 from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.retriever import MemoryRetriever
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

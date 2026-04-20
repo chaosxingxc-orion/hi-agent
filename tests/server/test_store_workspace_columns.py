@@ -1,7 +1,8 @@
-import pytest
 import time
-from hi_agent.server.run_store import SQLiteRunStore, RunRecord
+
+import pytest
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
+from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 
 
 @pytest.fixture

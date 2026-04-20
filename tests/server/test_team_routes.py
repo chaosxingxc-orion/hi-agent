@@ -7,17 +7,9 @@ Test 18: 20 concurrent publishes → all 20 persisted and visible.
 
 from __future__ import annotations
 
-import asyncio
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-
-import pytest
-from starlette.applications import Starlette
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.routing import Route
-from starlette.testclient import TestClient
 
 from hi_agent.server.routes_team import handle_list_team_events
 from hi_agent.server.team_event_store import TeamEvent, TeamEventStore
@@ -26,7 +18,10 @@ from hi_agent.server.tenant_context import (
     reset_tenant_context,
     set_tenant_context,
 )
-
+from starlette.applications import Starlette
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.routing import Route
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Helpers

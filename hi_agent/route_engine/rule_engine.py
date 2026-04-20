@@ -308,7 +308,7 @@ class RuleRouteEngine:
                     "rule_engine: loaded evolve state from %s",
                     self._evolve_state_path,
                 )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _logger.warning(
                 "rule_engine: failed to load evolve state from %s: %s",
                 self._evolve_state_path, exc,
@@ -329,7 +329,7 @@ class RuleRouteEngine:
                 "rule_engine: persisted evolve state to %s",
                 self._evolve_state_path,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _logger.warning(
                 "rule_engine: failed to persist evolve state to %s: %s",
                 self._evolve_state_path, exc,

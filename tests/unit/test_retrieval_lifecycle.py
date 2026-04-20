@@ -3,10 +3,8 @@ from __future__ import annotations
 
 import inspect
 import tempfile
-import os
 
 import pytest
-
 from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 
 

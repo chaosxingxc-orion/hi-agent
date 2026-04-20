@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from agent_kernel.kernel.cognitive.script_runtime import LocalProcessScriptRuntime
 from agent_kernel.kernel.cognitive.script_runtime_registry import (
     KERNEL_SCRIPT_RUNTIME_REGISTRY,

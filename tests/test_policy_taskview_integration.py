@@ -1,11 +1,10 @@
 """Integration tests for policy version pinning, episodic memory in task view,
-and knowledge store enhancements."""
+and knowledge store enhancements.
+"""
 
 from __future__ import annotations
 
 import pytest
-from dataclasses import asdict
-
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.knowledge.entry import KnowledgeEntry
 from hi_agent.knowledge.store import InMemoryKnowledgeStore
@@ -14,8 +13,6 @@ from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l2_index import RunMemoryIndex
 from hi_agent.memory.retriever import MemoryRetriever
 from hi_agent.task_view.builder import TaskView, build_task_view
-from hi_agent.task_view.token_budget import DEFAULT_BUDGET
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -101,6 +98,7 @@ class TestPolicyVersionSetFrozen:
         """RunExecutor stores policy_versions and it is frozen."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         contract = TaskContract(
@@ -122,6 +120,7 @@ class TestPolicyVersionSetFrozen:
         """RunExecutor defaults to PolicyVersionSet() when none provided."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         contract = TaskContract(
@@ -143,6 +142,7 @@ class TestPolicyVersionsInPostmortem:
     def test_postmortem_includes_policy_versions(self) -> None:
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         pvs = PolicyVersionSet(route_policy="route_v5", skill_policy="skill_v3")
@@ -386,6 +386,7 @@ class TestBackwardCompatibility:
     def test_runner_without_policy_versions(self) -> None:
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         contract = TaskContract(

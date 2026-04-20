@@ -12,22 +12,19 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import textwrap
 import time
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
-from hi_agent.mcp.transport import MCPTransportError, StdioMCPTransport
+from hi_agent.capability.registry import CapabilityRegistry
 from hi_agent.mcp.binding import MCPBinding
 from hi_agent.mcp.registry import MCPRegistry
-from hi_agent.capability.registry import CapabilityRegistry
-
+from hi_agent.mcp.transport import MCPTransportError, StdioMCPTransport
 
 # ---------------------------------------------------------------------------
 # FakeMCPServer helper — write a small Python script to tmp_path
@@ -546,7 +543,6 @@ def test_mi16_stderr_captured_on_crash(tmp_path):
 
 def test_mi17_stderr_tail_in_mcp_status(fake_mcp_server, tmp_path):
     """GET /mcp/status response includes a 'stderr_tails' dict."""
-    from hi_agent.mcp.health import MCPHealth
     from hi_agent.mcp.registry import MCPRegistry
 
     mcp_reg = MCPRegistry()

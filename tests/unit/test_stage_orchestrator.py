@@ -1,8 +1,9 @@
 """Unit tests for StageOrchestrator (HI-W10-001)."""
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, call
 from hi_agent.execution.stage_orchestrator import StageOrchestrator, StageOrchestratorContext
 from hi_agent.gate_protocol import GatePendingError
 

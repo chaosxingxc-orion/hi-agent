@@ -3,6 +3,7 @@
 import pytest
 from hi_agent.contracts import StageState
 from hi_agent.runtime_adapter.errors import IllegalStateTransitionError
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

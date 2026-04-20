@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from hi_agent.evolve.champion_challenger import ChampionChallenger, ComparisonResult
+from hi_agent.evolve.champion_challenger import ChampionChallenger
 from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.skill.version import SkillVersionManager

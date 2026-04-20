@@ -1,6 +1,5 @@
 # tests/test_plan_types.py
 """Tests for hi-agent Plan types and plan_to_graph() conversion."""
-import pytest
 from hi_agent.task_mgmt.plan_types import (
     DependencyNode,
     DependencyPlan,

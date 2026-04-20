@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.workflows.contracts import (
     FallbackPolicy,
     WorkflowNode,
     WorkflowSpec,
     WorkflowTransition,
 )
-
 
 # ---------------------------------------------------------------------------
 # WorkflowNode
@@ -215,6 +212,7 @@ class TestWorkflowSpec:
         """WorkflowSpec.to_stage_graph() is accepted by RunExecutor."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         wf = _make_support_workflow()

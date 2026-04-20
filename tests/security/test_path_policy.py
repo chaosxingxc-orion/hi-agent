@@ -1,12 +1,9 @@
 """Unit tests for PathPolicy safe_resolve (P0-1c)."""
 from __future__ import annotations
 
-import os
 import sys
-from pathlib import Path
 
 import pytest
-
 from hi_agent.security.path_policy import PathPolicyViolation, safe_resolve
 
 

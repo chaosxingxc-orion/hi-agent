@@ -132,7 +132,7 @@ _SOURCE_TYPE_LABELS: dict[str, str] = {
 }
 
 
-def format_retrieval_result(retrieval_result: "RetrievalResult", budget_tokens: int) -> str:
+def format_retrieval_result(retrieval_result: RetrievalResult, budget_tokens: int) -> str:
     """Format a :class:`~hi_agent.knowledge.retrieval_engine.RetrievalResult` into
     one or more ``[KNOWLEDGE: <source>]`` blocks.
 
@@ -148,7 +148,7 @@ def format_retrieval_result(retrieval_result: "RetrievalResult", budget_tokens: 
     budget_tokens:
         Maximum number of tokens for the entire knowledge block.
 
-    Returns
+    Returns:
     -------
     str
         A multi-section string ready to be injected into the task view, or an
@@ -233,7 +233,7 @@ def build_task_view(
     task_family: str = "",
     stage_id: str = "",
     current_failures: list[str] | None = None,
-    retrieval_result: "RetrievalResult | None" = None,
+    retrieval_result: RetrievalResult | None = None,
     # Legacy kwargs — accepted so old call-sites keep working.
     stage_summaries: dict[str, StageSummary] | None = None,
     knowledge: list[str] | None = None,

@@ -1,6 +1,7 @@
 """Tests for G-6: TeamEventStore list() supports event_type/source_run_id/order/limit filters."""
-import pytest
 import uuid
+
+import pytest
 
 
 @pytest.fixture
@@ -12,8 +13,9 @@ def store(tmp_path):
 
 
 def _append(store, tenant, space, event_type, source_run_id="", data=None):
-    from hi_agent.server.team_event_store import TeamEvent
     import time
+
+    from hi_agent.server.team_event_store import TeamEvent
     event = TeamEvent(
         event_id=str(uuid.uuid4()),
         tenant_id=tenant,

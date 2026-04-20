@@ -17,7 +17,6 @@ import sys
 import urllib.error
 import urllib.request
 
-
 _DEFAULT_API_TIMEOUT_SECONDS = 15.0
 
 
@@ -172,9 +171,9 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
         import json as _json
         import uuid
+
         from hi_agent.config.builder import SystemBuilder
         from hi_agent.config.stack import ConfigStack
-        from hi_agent.config.trace_config import TraceConfig
         from hi_agent.contracts import TaskContract
 
         config_file = getattr(args, "config", None) or os.getenv("HI_AGENT_CONFIG_FILE")
@@ -231,7 +230,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
                 _contract_kwargs["parent_task_id"] = args.parent_task_id
             budget_raw = getattr(args, "budget", None)
             if budget_raw is not None:
-                from hi_agent.contracts.task import TaskBudget  # noqa: PLC0415
+                from hi_agent.contracts.task import TaskBudget
                 budget_data = _json2.loads(budget_raw)
                 _contract_kwargs["budget"] = TaskBudget(
                     max_llm_calls=budget_data.get("max_llm_calls", 100),
@@ -337,8 +336,8 @@ def _cmd_readiness(args: argparse.Namespace) -> None:
         # Local readiness check without a running server.
         os.environ.setdefault("HI_AGENT_ENV", "dev")
         try:
-            from hi_agent.config.builder import SystemBuilder  # noqa: PLC0415
-            from hi_agent.config.stack import ConfigStack  # noqa: PLC0415
+            from hi_agent.config.builder import SystemBuilder
+            from hi_agent.config.stack import ConfigStack
 
             config_file = getattr(args, "config", None) or os.getenv("HI_AGENT_CONFIG_FILE")
             profile = getattr(args, "profile", None)
@@ -420,6 +419,7 @@ def _cmd_resume(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     import json as _json
+
     from hi_agent.config.builder import SystemBuilder
     from hi_agent.config.stack import ConfigStack
     from hi_agent.runner import RunExecutor

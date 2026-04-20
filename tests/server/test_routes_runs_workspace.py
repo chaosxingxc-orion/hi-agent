@@ -8,20 +8,18 @@ No mocks are used — real RunManager, real TenantContext.
 from __future__ import annotations
 
 import pytest
-from starlette.applications import Starlette
-from starlette.middleware import Middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.routing import Route
-from starlette.testclient import TestClient
-
+from hi_agent.server import routes_runs
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.tenant_context import (
     TenantContext,
     reset_tenant_context,
     set_tenant_context,
 )
-from hi_agent.server import routes_runs
-
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.routing import Route
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Helpers

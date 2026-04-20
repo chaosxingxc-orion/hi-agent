@@ -20,8 +20,8 @@ Usage::
     loader.load_all()
 """
 
-from hi_agent.plugin.manifest import PluginManifest
-from hi_agent.plugin.loader import PluginLoader
 from hi_agent.plugin.lifecycle import PluginLifecycle
+from hi_agent.plugin.loader import PluginLoader
+from hi_agent.plugin.manifest import PluginManifest
 
-__all__ = ["PluginManifest", "PluginLoader", "PluginLifecycle"]
+__all__ = ["PluginLifecycle", "PluginLoader", "PluginManifest"]

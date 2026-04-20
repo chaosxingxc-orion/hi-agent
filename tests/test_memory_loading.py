@@ -1,12 +1,12 @@
 """Tests for memory loading: RetrievalEngine feeds knowledge into routing context."""
 
-import pytest
 from hi_agent.contracts import TaskContract
-from hi_agent.knowledge.retrieval_engine import RetrievalEngine, RetrievalResult
+from hi_agent.knowledge.graph_renderer import GraphRenderer
+from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
-from hi_agent.knowledge.graph_renderer import GraphRenderer
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

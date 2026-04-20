@@ -1,8 +1,8 @@
 """Integration tests for G-8 long-running op coordinator."""
 import time
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
 
 # ── OpStore tests ──────────────────────────────────────────────────────────
 
@@ -67,8 +67,8 @@ class TestLongRunningOpStore:
 class TestLongRunningOpCoordinator:
     @pytest.fixture
     def coord(self, tmp_path):
-        from hi_agent.experiment.op_store import LongRunningOpStore
         from hi_agent.experiment.coordinator import LongRunningOpCoordinator
+        from hi_agent.experiment.op_store import LongRunningOpStore
         store = LongRunningOpStore(db_path=tmp_path / "ops.db")
         return LongRunningOpCoordinator(store=store)
 
@@ -113,8 +113,8 @@ class TestLongRunningOpCoordinator:
 class TestOpPoller:
     @pytest.fixture
     def setup(self, tmp_path):
-        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
         from hi_agent.experiment.coordinator import LongRunningOpCoordinator
+        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
         from hi_agent.experiment.poller import OpPoller
         store = LongRunningOpStore(db_path=tmp_path / "ops.db")
         coord = LongRunningOpCoordinator(store=store)

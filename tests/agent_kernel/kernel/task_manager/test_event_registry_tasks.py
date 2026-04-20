@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent_kernel.kernel.event_registry import KERNEL_EVENT_REGISTRY
 
 # The 7 task-lifecycle event types that must be registered.

@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
-
+from hi_agent.server.rate_limiter import RateLimiter
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
-
-from hi_agent.server.rate_limiter import RateLimiter
 
 
 def _make_app(max_requests: int = 5, window_seconds: float = 60.0, burst: int = 3):

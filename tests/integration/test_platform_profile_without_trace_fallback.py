@@ -1,6 +1,5 @@
 """Regression tests: profile-provided topology must not be overridden by TRACE sample defaults."""
 from __future__ import annotations
-import pytest
 
 
 class TestProfileDoesNotLeakTraceSampleDefaults:

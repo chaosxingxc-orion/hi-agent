@@ -110,8 +110,8 @@ class CapabilityInvoker:
         """
         if self.policy is None and not self._allow_unguarded:
             raise PermissionError(
-                f"CapabilityInvoker has no CapabilityPolicy. "
-                f"Pass allow_unguarded=True to bypass governance (tests/internal only)."
+                "CapabilityInvoker has no CapabilityPolicy. "
+                "Pass allow_unguarded=True to bypass governance (tests/internal only)."
             )
         if self.policy:
             stage_id = metadata.get("stage_id") if metadata else None

@@ -10,17 +10,16 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.requests import RunResult
 from hi_agent.runner import RunExecutor, execute_async
-from tests.helpers.kernel_adapter_fixture import MockKernel
-from tests.helpers.kernel_facade_fixture import MockKernelFacade
 from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
 from hi_agent.task_mgmt.budget_guard import BudgetGuard
 from hi_agent.task_mgmt.graph_factory import GraphFactory
 from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
+from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -37,7 +36,8 @@ def _make_executor(
     **kwargs,
 ) -> tuple[RunExecutor, MockKernelFacade]:
     """Create a RunExecutor backed by a MockKernel (sync adapter) and return
-    the MockKernelFacade that execute_async will use."""
+    the MockKernelFacade that execute_async will use.
+    """
     contract = contract or _simple_contract()
     facade = kernel_facade or MockKernelFacade()
     # RunExecutor requires a RuntimeAdapter (sync MockKernel) for its own
@@ -137,7 +137,8 @@ async def test_async_execution_records_metrics():
 @pytest.mark.asyncio
 async def test_async_execution_handles_stage_failure():
     """When a handler raises, the scheduler should mark the node as failed
-    and report failure in the ScheduleResult."""
+    and report failure in the ScheduleResult.
+    """
     facade = MockKernelFacade()
     await facade.start_run("run-fail", "sess", {})
 
@@ -210,7 +211,8 @@ async def test_async_execution_with_graph_factory_auto_select():
 @pytest.mark.asyncio
 async def test_execute_vs_execute_async_equivalence():
     """For a simple task, execute() and execute_async() should both
-    succeed and cover equivalent stages."""
+    succeed and cover equivalent stages.
+    """
     contract = _simple_contract(goal="Say hello")
 
     # --- Synchronous execute() ---

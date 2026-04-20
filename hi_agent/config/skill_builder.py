@@ -59,6 +59,7 @@ class SkillBuilder:
         same directory name are correctly deduped.
         """
         import os as _os
+
         from hi_agent.skill.loader import SkillLoader
 
         skills_by_id: dict[str, Any] = {}
@@ -105,6 +106,7 @@ class SkillBuilder:
         if self._skill_loader is not None:
             return self._skill_loader
         import pathlib
+
         from hi_agent.skill.loader import SkillLoader
 
         if self._config is None:

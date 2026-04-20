@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 
 import pytest
-
-from tests.helpers.llm_gateway_fixture import MockLLMGateway
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
 from hi_agent.route_engine.llm_engine import LLMRouteEngine, LLMRouteParseError
-from hi_agent.route_engine.rule_engine import RuleRouteEngine
 
+from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
 # --------------------------------------------------------------------------- #
 # Helpers

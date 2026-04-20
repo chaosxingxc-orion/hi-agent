@@ -1,5 +1,4 @@
-"""
-Tool Permission Rules for hi-agent.
+"""Tool Permission Rules for hi-agent.
 
 Provides fine-grained per-tool permission rules with glob pattern matching
 on tool inputs. A DenialCounter tracks consecutive rejections and
@@ -20,11 +19,10 @@ Usage:
 from __future__ import annotations
 
 import fnmatch
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -196,7 +194,7 @@ class ToolPermissionRules:
         return False
 
     @classmethod
-    def from_config(cls, config_list: list[dict[str, Any]]) -> "ToolPermissionRules":
+    def from_config(cls, config_list: list[dict[str, Any]]) -> ToolPermissionRules:
         """Build a ToolPermissionRules instance from a list of config dicts.
 
         Supported keys per dict:
@@ -235,7 +233,7 @@ class ToolPermissionRules:
         return cls(rules)
 
     @classmethod
-    def default_safe_rules(cls) -> "ToolPermissionRules":
+    def default_safe_rules(cls) -> ToolPermissionRules:
         """Return a conservative default rule set for production deployments.
 
         Included rules:
@@ -396,7 +394,7 @@ class DenialCounter:
         record = DenialRecord(
             tool_name=tool_name,
             decision=decision,
-            denied_at=datetime.now(tz=timezone.utc).isoformat(),
+            denied_at=datetime.now(tz=UTC).isoformat(),
             run_id=run_id,
         )
         history = self._denials.setdefault(run_id, [])

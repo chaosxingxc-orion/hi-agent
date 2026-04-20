@@ -58,7 +58,7 @@ class AsyncHTTPGateway:
             runtime_mode: Passed through for compatibility; not used by async path.
         """
         api_key = os.environ.get(api_key_env, "")
-        from hi_agent.llm.http_gateway import HTTPGateway  # noqa: PLC0415
+        from hi_agent.llm.http_gateway import HTTPGateway
 
         self._inner = HTTPGateway(
             base_url=base_url,
@@ -80,7 +80,7 @@ class AsyncHTTPGateway:
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         """Synchronous entry-point: runs the async ``complete`` in an executor."""
-        from hi_agent.runtime.async_bridge import AsyncBridgeService  # noqa: PLC0415
+        from hi_agent.runtime.async_bridge import AsyncBridgeService
 
         try:
             loop = asyncio.get_running_loop()
@@ -99,7 +99,7 @@ class AsyncHTTPGateway:
 
     async def async_complete(self, request: LLMRequest) -> LLMResponse:
         """Native async entry-point with async sleep in the retry loop."""
-        from hi_agent.llm.errors import LLMProviderError  # noqa: PLC0415
+        from hi_agent.llm.errors import LLMProviderError
 
         last_exc: Exception | None = None
         for attempt in range(max(1, self._max_retries + 1)):

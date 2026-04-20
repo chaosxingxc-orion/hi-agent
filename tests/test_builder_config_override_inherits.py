@@ -1,16 +1,16 @@
 """Tests that config_patch and config_overrides paths inherit registry state."""
 from __future__ import annotations
-import pytest
 
 
 class TestConfigOverrideInheritsRegistries:
     def test_config_patch_inherits_capability_registry(self):
         """build_executor with config_patch must see capabilities registered before the call."""
-        from hi_agent.config.builder import SystemBuilder, MissingCapabilityError
-        from hi_agent.capability.registry import CapabilitySpec
-        from hi_agent.profiles.contracts import ProfileSpec
-        from hi_agent.contracts.task import TaskContract
         import uuid
+
+        from hi_agent.capability.registry import CapabilitySpec
+        from hi_agent.config.builder import SystemBuilder
+        from hi_agent.contracts.task import TaskContract
+        from hi_agent.profiles.contracts import ProfileSpec
 
         builder = SystemBuilder()
 
@@ -39,11 +39,12 @@ class TestConfigOverrideInheritsRegistries:
 
     def test_no_config_patch_and_with_config_patch_see_same_capabilities(self):
         """Same capabilities visible regardless of whether config_patch is used."""
-        from hi_agent.config.builder import SystemBuilder
-        from hi_agent.capability.registry import CapabilitySpec
-        from hi_agent.profiles.contracts import ProfileSpec
-        from hi_agent.contracts.task import TaskContract
         import uuid
+
+        from hi_agent.capability.registry import CapabilitySpec
+        from hi_agent.config.builder import SystemBuilder
+        from hi_agent.contracts.task import TaskContract
+        from hi_agent.profiles.contracts import ProfileSpec
 
         builder = SystemBuilder()
         builder.register_profile(ProfileSpec(

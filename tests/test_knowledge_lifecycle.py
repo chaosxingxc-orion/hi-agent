@@ -6,15 +6,13 @@ import json
 from typing import Any
 
 import pytest
-from starlette.testclient import TestClient
-
-from hi_agent.knowledge.knowledge_manager import KnowledgeManager
-from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
-from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
 from hi_agent.knowledge.graph_renderer import GraphRenderer
+from hi_agent.knowledge.knowledge_manager import KnowledgeManager
+from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+from hi_agent.knowledge.wiki import KnowledgeWiki
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
 from hi_agent.server.app import AgentServer
-
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Fixtures

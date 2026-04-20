@@ -75,6 +75,7 @@ async def handle_tools_call(request: Request) -> JSONResponse:
     session_id = getattr(request.state, "session_id", "")
     try:
         import os as _os_tc
+
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_tc
         _env_tc = _os_tc.environ.get("HI_AGENT_ENV", "dev").lower()
         try:
@@ -205,6 +206,7 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
     session_id = getattr(request.state, "session_id", "")
     try:
         import os as _os_mc
+
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_mc
         _env_mc = _os_mc.environ.get("HI_AGENT_ENV", "dev").lower()
         try:

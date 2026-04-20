@@ -14,9 +14,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -125,8 +122,6 @@ class TestH1RecordAttempt:
         stage_id is encoded in attempt_id even if the installed TaskAttempt
         version does not expose stage_id as a top-level field.
         """
-        from hi_agent.runner import RunExecutor
-
         executor = _bare_executor()
 
         recorded: list = []
@@ -250,7 +245,7 @@ class TestH2CancelPendingSubruns:
         assert executor._completed_subrun_results == {}
 
     def test_cancel_pending_subruns_skips_done_futures(self) -> None:
-        """futures already done must not have cancel() called."""
+        """Futures already done must not have cancel() called."""
         executor = _bare_executor()
 
         future = MagicMock()
@@ -402,7 +397,7 @@ class TestH6AwaitSubrunGatePending:
 
     def test_await_subrun_completed_result_backward_compat(self) -> None:
         """Normal completed DelegationResult must produce success=True SubRunResult."""
-        from hi_agent.runner import SubRunHandle, SubRunResult
+        from hi_agent.runner import SubRunHandle
 
         executor = _bare_executor()
 

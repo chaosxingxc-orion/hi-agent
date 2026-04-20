@@ -33,16 +33,16 @@ class EvaluatorRuntime:
         custom_weight: float = 0.6,
     ) -> None:
         """Args:
-            evaluator: Pre-built Evaluator instance.  When None, a
-                ``DefaultEvaluator`` is used as the sole evaluator.
-            wrap_with_default: When True and ``evaluator`` is not None,
-                wraps both ``DefaultEvaluator`` and the custom evaluator in a
-                ``CompositeEvaluator`` so platform baseline criteria are always
-                checked alongside domain-specific criteria.
-            default_weight: Weight for ``DefaultEvaluator`` in composite.
-            custom_weight: Weight for custom evaluator in composite.
+        evaluator: Pre-built Evaluator instance.  When None, a
+            ``DefaultEvaluator`` is used as the sole evaluator.
+        wrap_with_default: When True and ``evaluator`` is not None,
+            wraps both ``DefaultEvaluator`` and the custom evaluator in a
+            ``CompositeEvaluator`` so platform baseline criteria are always
+            checked alongside domain-specific criteria.
+        default_weight: Weight for ``DefaultEvaluator`` in composite.
+        custom_weight: Weight for custom evaluator in composite.
         """
-        from hi_agent.evaluation.contracts import DefaultEvaluator, CompositeEvaluator
+        from hi_agent.evaluation.contracts import CompositeEvaluator, DefaultEvaluator
 
         if evaluator is None:
             self._evaluator: Any = DefaultEvaluator()
@@ -64,7 +64,7 @@ class EvaluatorRuntime:
         cls,
         resolved_profile: Any | None,
         wrap_with_default: bool = True,
-    ) -> "EvaluatorRuntime":
+    ) -> EvaluatorRuntime:
         """Build an EvaluatorRuntime from a ResolvedProfile.
 
         When the profile has no evaluator, returns a runtime backed by the

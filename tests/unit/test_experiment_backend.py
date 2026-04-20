@@ -1,17 +1,15 @@
 """Tests for G-9 ExperimentBackend protocol and LocalBackend."""
-import time
-import pytest
 import sys
+import time
 from pathlib import Path
-from unittest.mock import patch
+
+import pytest
 
 
 class TestExperimentBackendProtocol:
     def test_local_backend_implements_protocol(self):
         """LocalBackend must satisfy ExperimentBackend protocol."""
-        from hi_agent.experiment.backend import ExperimentBackend
         from hi_agent.experiment.backend.local import LocalBackend
-        import typing
         # Runtime check that LocalBackend has all required methods
         required = ["submit", "status", "fetch_artifacts", "cancel"]
         backend = LocalBackend(work_dir=Path("."))
@@ -112,9 +110,9 @@ class TestSSHBackendStub:
 class TestBackendIntegrationWithCoordinator:
     @pytest.fixture
     def coord_with_local(self, tmp_path):
-        from hi_agent.experiment.op_store import LongRunningOpStore
-        from hi_agent.experiment.coordinator import LongRunningOpCoordinator
         from hi_agent.experiment.backend.local import LocalBackend
+        from hi_agent.experiment.coordinator import LongRunningOpCoordinator
+        from hi_agent.experiment.op_store import LongRunningOpStore
         store = LongRunningOpStore(db_path=tmp_path / "ops.db")
         coord = LongRunningOpCoordinator(store=store)
         coord.register_backend("local", LocalBackend(work_dir=tmp_path / "runs"))
@@ -133,8 +131,9 @@ class TestBackendIntegrationWithCoordinator:
     @pytest.mark.asyncio
     async def test_poller_marks_succeeded_after_echo(self, coord_with_local, tmp_path):
         """End-to-end: submit echo, poll, assert succeeded."""
-        import asyncio, time
-        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
+        import asyncio
+
+        from hi_agent.experiment.op_store import OpStatus
         from hi_agent.experiment.poller import OpPoller
 
         # Submit

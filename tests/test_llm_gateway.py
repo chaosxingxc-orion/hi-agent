@@ -6,7 +6,6 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.llm import (
     HttpLLMGateway,
     LLMBudgetExhaustedError,
@@ -18,8 +17,8 @@ from hi_agent.llm import (
     ModelRouter,
     TokenUsage,
 )
-from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
+from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
 # ---------------------------------------------------------------------------
 # Error hierarchy
@@ -290,6 +289,7 @@ class TestHttpGateway:
 async def test_http_gateway_uses_async_client():
     """Verify that HTTPGateway.call() is a coroutine (non-blocking)."""
     import inspect
+
     from hi_agent.llm.http_gateway import HTTPGateway
     gw = HTTPGateway(base_url="http://localhost:9999", api_key="test")
     assert inspect.iscoroutinefunction(gw.call)

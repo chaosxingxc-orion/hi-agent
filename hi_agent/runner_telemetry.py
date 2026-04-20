@@ -8,14 +8,11 @@ of this class rather than implementing the logic inline.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import time as _time_module
 from collections.abc import Callable
 from datetime import UTC
 from typing import TYPE_CHECKING, Any
-
-from hi_agent.contracts import StageSummary, deterministic_id
 
 logger = logging.getLogger(__name__)
 from hi_agent.events import EventEmitter
@@ -41,7 +38,7 @@ class RunTelemetry:
         skill_recorder: SkillUsageRecorder | None,
         session: Any | None,
         context_manager: Any | None,
-        tracer: "Tracer | None" = None,
+        tracer: Tracer | None = None,
     ) -> None:
         self.event_emitter = event_emitter
         self.raw_memory = raw_memory
@@ -52,7 +49,7 @@ class RunTelemetry:
         self.session = session
         self.context_manager = context_manager
         self.trace_ctx_manager = TraceContextManager()
-        self.tracer: "Tracer | None" = tracer
+        self.tracer: Tracer | None = tracer
         self._run_start_time: float = _time_module.monotonic()
 
     # ------------------------------------------------------------------
@@ -115,8 +112,9 @@ class RunTelemetry:
         if self.tracer is None:
             return
         try:
-            from hi_agent.observability.tracing import SpanRecord  # noqa: PLC0415
-            import time as _t  # noqa: PLC0415
+            import time as _t
+
+            from hi_agent.observability.tracing import SpanRecord
             end_time = _t.monotonic()
             duration_ms = (end_time - self._run_start_time) * 1000.0
             now_wall = _t.time()

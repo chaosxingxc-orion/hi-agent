@@ -42,7 +42,7 @@ class PluginManifest:
     error: str | None = None
 
     @classmethod
-    def from_json(cls, path: str | Path) -> "PluginManifest":
+    def from_json(cls, path: str | Path) -> PluginManifest:
         """Load a PluginManifest from a plugin.json file.
 
         Args:

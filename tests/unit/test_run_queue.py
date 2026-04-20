@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 
 import pytest
-
 from hi_agent.server.run_queue import RunQueue
 
 
@@ -48,7 +47,8 @@ class TestEnqueueAndClaimNext:
 class TestTwoWorkersCantClaimSameRun:
     def test_two_workers_cannot_claim_same_run(self, q: RunQueue) -> None:
         """Two sequential claim_next calls on a single-item queue return
-        the run to only one worker."""
+        the run to only one worker.
+        """
         q.enqueue("run-1", priority=0)
         first = q.claim_next("worker-A")
         second = q.claim_next("worker-B")

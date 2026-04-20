@@ -7,26 +7,23 @@ import time
 from typing import Any
 from unittest.mock import patch
 
-import pytest
-
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.contracts import TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
+from hi_agent.failures.collector import FailureCollector
+from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
 from hi_agent.llm.http_gateway import HttpLLMGateway
 from hi_agent.llm.tier_router import TierAwareLLMGateway
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
-from hi_agent.contracts.policy import PolicyVersionSet
-from hi_agent.failures.collector import FailureCollector
-from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.state import RunStateStore
-
 
 # ------------------------------------------------------------------
 # Helpers
@@ -220,7 +217,7 @@ class TestCLIRun:
     """Verify CLI run command with --local flag."""
 
     def test_local_run_executes(self, capsys: Any) -> None:
-        from hi_agent.cli import build_parser, _cmd_run
+        from hi_agent.cli import _cmd_run, build_parser
 
         parser = build_parser()
         args = parser.parse_args([
@@ -243,9 +240,8 @@ class TestServerRoundTrip:
     """Full round-trip: create server, POST /runs, verify run executes."""
 
     def test_post_run_creates_and_starts(self) -> None:
-        from starlette.testclient import TestClient
-
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=9999)
 

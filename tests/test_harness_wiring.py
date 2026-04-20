@@ -12,8 +12,6 @@ os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.harness.contracts import ActionSpec, EffectClass, SideEffectClass
-from hi_agent.harness.executor import HarnessExecutor
-
 
 # ---------------------------------------------------------------------------
 # Helpers

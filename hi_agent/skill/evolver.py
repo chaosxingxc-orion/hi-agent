@@ -20,10 +20,10 @@ from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
+from hi_agent.failures.taxonomy import is_budget_exhausted_failure_code
 from hi_agent.skill.definition import SkillDefinition
 from hi_agent.skill.observer import SkillObserver
 from hi_agent.skill.version import SkillVersionManager, SkillVersionRecord
-from hi_agent.failures.taxonomy import is_budget_exhausted_failure_code
 
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
@@ -170,7 +170,7 @@ class SkillEvolver:
         llm_gateway: Any | None = None,
         observer: Any | None = None,
         version_manager: Any | None = None,
-    ) -> "SkillEvolver":
+    ) -> SkillEvolver:
         """Create a SkillEvolver from a TraceConfig."""
         return cls(
             observer=observer,

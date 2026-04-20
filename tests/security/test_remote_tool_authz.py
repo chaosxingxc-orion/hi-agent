@@ -6,10 +6,6 @@ AuthMiddleware is constructed directly — no running server needed.
 
 from __future__ import annotations
 
-import os
-
-import pytest
-
 from hi_agent.server.auth_middleware import AuthMiddleware
 
 
@@ -65,9 +61,8 @@ class TestToolsCall503OnDegradedAuth:
         therefore carries the auth rejection envelope rather than the
         route-level ``{"success": False}`` shape.
         """
-        from starlette.testclient import TestClient
-
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         monkeypatch.setenv("HI_AGENT_ENV", "prod")
         monkeypatch.delenv("HI_AGENT_API_KEY", raising=False)

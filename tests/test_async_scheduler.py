@@ -1,9 +1,11 @@
 """Tests for AsyncTaskScheduler."""
 import asyncio
+
 import pytest
-from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler, ScheduleResult
-from tests.helpers.kernel_facade_fixture import MockKernelFacade
+from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
 from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
+
+from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 
 def make_node(node_id: str) -> TrajNode:

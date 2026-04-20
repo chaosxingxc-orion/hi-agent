@@ -29,7 +29,7 @@ class CognitionBuilder:
 
     def __init__(
         self,
-        config: "TraceConfig",
+        config: TraceConfig,
         singleton_lock: Any,
         *,
         skill_version_mgr_fn: Any | None = None,
@@ -38,7 +38,7 @@ class CognitionBuilder:
         self._lock = singleton_lock
         self._skill_version_mgr_fn = skill_version_mgr_fn
         # Cached singletons
-        self._llm_gateway: "LLMGateway | None" = None
+        self._llm_gateway: LLMGateway | None = None
         self._tier_router: Any | None = None
         self._llm_budget_tracker: Any | None = None
 
@@ -177,7 +177,7 @@ class CognitionBuilder:
     # Public builders
     # ------------------------------------------------------------------
 
-    def build_llm_gateway(self) -> "LLMGateway | None":
+    def build_llm_gateway(self) -> LLMGateway | None:
         """Build LLM gateway — config file takes priority over env var detection.
 
         Priority:
@@ -202,6 +202,7 @@ class CognitionBuilder:
         try:
             import json as _json
             from pathlib import Path as _Path
+
             from hi_agent.config.json_config_loader import (
                 _DEFAULT_CONFIG_PATH,
                 build_gateway_from_config,
@@ -257,7 +258,7 @@ class CognitionBuilder:
                         self._llm_budget_tracker = self._build_llm_budget_tracker()
                     if provider == "anthropic":
                         from hi_agent.llm.protocol import LLMGateway  # noqa: F401
-                        raw_gateway: "LLMGateway" = AnthropicLLMGateway(
+                        raw_gateway: LLMGateway = AnthropicLLMGateway(
                             api_key_env=env_var,
                             default_model=default_model,
                             timeout_seconds=self._config.llm_timeout_seconds,
@@ -291,7 +292,9 @@ class CognitionBuilder:
                                 runtime_mode="",
                             )
                         else:
-                            from hi_agent.llm.async_http_gateway import AsyncHTTPGateway  # noqa: PLC0415
+                            from hi_agent.llm.async_http_gateway import (
+                                AsyncHTTPGateway,
+                            )
                             raw_gateway = AsyncHTTPGateway(
                                 base_url=base_url,
                                 api_key_env=env_var,
@@ -345,7 +348,7 @@ class CognitionBuilder:
             _logger.debug("RegressionDetector.load skipped: %s", exc)
         return detector
 
-    def build_evolve_engine(self) -> "EvolveEngine":
+    def build_evolve_engine(self) -> EvolveEngine:
         """Build EvolveEngine with config-driven parameters."""
         from hi_agent.evolve.champion_challenger import ChampionChallenger
         from hi_agent.evolve.engine import EvolveEngine

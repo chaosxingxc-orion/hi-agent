@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
-
 from hi_agent.memory.long_term import (
     LongTermConsolidator,
     LongTermMemoryGraph,
@@ -21,7 +19,6 @@ from hi_agent.memory.mid_term import (
 )
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
 from hi_agent.memory.unified_retriever import MemoryContext, UnifiedMemoryRetriever
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures

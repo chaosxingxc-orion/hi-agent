@@ -9,11 +9,10 @@ from __future__ import annotations
 import tempfile
 from unittest.mock import MagicMock
 
-import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
@@ -64,7 +63,6 @@ class TestD3FinalizeSavesToMidTerm:
         executor.raw_memory = fake_raw
 
         # Patch L0Summarizer to return our fake summary so we test the save path
-        import hi_agent.runner as runner_mod
         original_finalize = executor._finalize_run
 
         # Directly mock the summarizer call inside _finalize_run via monkeypatching

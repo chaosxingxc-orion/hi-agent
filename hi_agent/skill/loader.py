@@ -322,8 +322,9 @@ class SkillLoader:
         Returns:
             Number of skills synced.
         """
-        from datetime import UTC, datetime  # noqa: PLC0415
-        from hi_agent.skill.registry import ManagedSkill  # noqa: PLC0415
+        from datetime import UTC, datetime
+
+        from hi_agent.skill.registry import ManagedSkill
         synced = 0
         now = datetime.now(UTC).isoformat()
         for skill in self._skills.values():
@@ -340,7 +341,7 @@ class SkillLoader:
             )
             registry._skills[managed.skill_id] = managed
             synced += 1
-        import logging as _logging  # noqa: PLC0415
+        import logging as _logging
         _logging.getLogger(__name__).info(
             "SkillLoader.sync_to_registry: synced %d skill(s).", synced
         )

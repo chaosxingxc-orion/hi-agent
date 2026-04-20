@@ -11,12 +11,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, patch
+from collections.abc import AsyncIterator
+from unittest.mock import MagicMock
 
 import httpx
 import pytest
-
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest, TokenUsage
 from hi_agent.llm.streaming import (
@@ -24,7 +23,6 @@ from hi_agent.llm.streaming import (
     SseParser,
     StreamDelta,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -462,7 +460,8 @@ class TestHTTPStreamingGatewayStream:
 class TestStaleStreamTimeout:
     async def test_stale_stream_raises_timeout(self):
         """When a line takes longer than _STALE_STREAM_TIMEOUT to arrive,
-        stream() must raise LLMTimeoutError."""
+        stream() must raise LLMTimeoutError.
+        """
 
         async def _hanging_lines():
             yield "event: content_block_delta"

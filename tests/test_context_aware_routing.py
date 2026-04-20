@@ -5,10 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
-
-from tests.helpers.llm_gateway_fixture import MockLLMGateway
 from hi_agent.memory.compressor import MemoryCompressor
-from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.route_engine.llm_engine import LLMRouteEngine
 from hi_agent.route_engine.llm_prompts import (
     CONTEXT_AWARE_ROUTE_PROMPT,
@@ -16,6 +13,7 @@ from hi_agent.route_engine.llm_prompts import (
 )
 from hi_agent.task_view.auto_compress import AutoCompressTrigger
 
+from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
 # --------------------------------------------------------------------------- #
 # Helpers

@@ -22,7 +22,7 @@ class ReadinessProbe:
     Never writes to builder or holds mutable builder state.
     """
 
-    def __init__(self, builder: "SystemBuilder") -> None:
+    def __init__(self, builder: SystemBuilder) -> None:
         self._builder = builder
 
     def snapshot(self) -> dict[str, Any]:
@@ -196,8 +196,9 @@ class ReadinessProbe:
 
         # --- evolve policy snapshot ---
         try:
-            from hi_agent.config.evolve_policy import resolve_evolve_effective
             import os as _os_ep
+
+            from hi_agent.config.evolve_policy import resolve_evolve_effective
             _env_ep = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
             _rt_mode = "dev-smoke" if _env_ep == "dev" else "prod-real"
             _ev_mode = getattr(self._builder._config, "evolve_mode", "auto")
@@ -214,6 +215,7 @@ class ReadinessProbe:
         # Emit explicit prerequisites so integrators know exactly what is needed
         # when ready=false, without having to read source code.
         import os as _os
+
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_b
         env_mode = _os.environ.get("HI_AGENT_ENV", "dev").lower()
         result["runtime_mode"] = _rrm_b(env_mode, result)

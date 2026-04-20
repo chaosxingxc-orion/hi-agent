@@ -70,7 +70,7 @@ class ConfigValidator:
         self.env = env  # "prod" | "dev"
 
     @classmethod
-    def from_env(cls) -> "ConfigValidator":
+    def from_env(cls) -> ConfigValidator:
         env = os.environ.get("HI_AGENT_ENV", "prod")
         return cls(env=env)
 

@@ -1,7 +1,7 @@
 """Tests for SessionStore — SQLite-backed session CRUD."""
 
 import pytest
-from hi_agent.server.session_store import SessionStore, SessionRecord
+from hi_agent.server.session_store import SessionStore
 
 
 @pytest.fixture

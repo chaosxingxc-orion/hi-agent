@@ -1,30 +1,28 @@
 """Tests for the failure taxonomy and structured error system."""
 
 import pytest
-
-from hi_agent.failures.taxonomy import (
-    FailureCode,
-    FailureRecord,
-    FAILURE_RECOVERY_MAP,
-    FAILURE_GATE_MAP,
-    is_budget_exhausted_failure_code,
-)
 from hi_agent.failures.collector import FailureCollector
-from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.failures.exceptions import (
-    TraceFailure,
-    MissingEvidenceError,
-    InvalidContextError,
+    BudgetExhaustedError,
+    CallbackTimeoutError,
+    ContradictoryEvidenceError,
     HarnessDeniedError,
+    InvalidContextError,
+    MissingEvidenceError,
     ModelOutputInvalidError,
     ModelRefusalError,
-    CallbackTimeoutError,
     NoProgressError,
-    ContradictoryEvidenceError,
+    TraceFailure,
     UnsafeActionBlockedError,
-    BudgetExhaustedError,
 )
-
+from hi_agent.failures.taxonomy import (
+    FAILURE_GATE_MAP,
+    FAILURE_RECOVERY_MAP,
+    FailureCode,
+    FailureRecord,
+    is_budget_exhausted_failure_code,
+)
+from hi_agent.failures.watchdog import ProgressWatchdog
 
 # ---------------------------------------------------------------------------
 # FailureCode enum

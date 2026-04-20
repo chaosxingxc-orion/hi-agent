@@ -11,15 +11,13 @@ import inspect
 import os
 from typing import Any
 
-import pytest
-
 # Allow heuristic fallback so tests can run without real LLM credentials.
 os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -47,7 +45,7 @@ def _get_branch_envelopes(executor: RunExecutor) -> list[Any]:
     return [
         e
         for e in executor.event_emitter.events
-        if "branch_id" in e.payload and e.payload["branch_id"]
+        if e.payload.get("branch_id")
     ]
 
 
@@ -105,7 +103,8 @@ class TestBranchIdConsistency:
 
     def test_all_branch_events_share_proposal_branch_id(self) -> None:
         """ActionDispatched / ActionSucceeded / BranchSucceeded must all use
-        the same branch_id as the corresponding BranchProposed event."""
+        the same branch_id as the corresponding BranchProposed event.
+        """
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
         executor = RunExecutor(contract, kernel)

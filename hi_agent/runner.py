@@ -7,8 +7,8 @@ longer a pure "always success" simulation.
 
 from __future__ import annotations
 
-import copy
 import asyncio
+import copy
 import inspect
 import logging
 from collections.abc import Callable, Mapping
@@ -148,8 +148,8 @@ def _set_engine_context_provider(engine: object, provider: object) -> None:
 
 
 def _make_subrun_done_callback(
-    results_dict: "dict[str, object]", task_id: str
-) -> "Callable[[Any], None]":
+    results_dict: dict[str, object], task_id: str
+) -> Callable[[Any], None]:
     """Create a done-callback that stores task-level failures into results_dict."""
 
     def _cb(task: Any) -> None:
@@ -239,8 +239,8 @@ class RunExecutor:
         compress_snip_threshold: int | None = None,
         compress_window_threshold: int | None = None,
         compress_compress_threshold: int | None = None,
-        replan_hook: Callable[[str, dict], "StageDirective | None"] | None = None,
-        feedback_store: "FeedbackStore | None" = None,
+        replan_hook: Callable[[str, dict], StageDirective | None] | None = None,
+        feedback_store: FeedbackStore | None = None,
         evolve_mode: str = "auto",
         # Pre-wired optional components (avoids post-construction mutation in builder)
         middleware_orchestrator: Any | None = None,
@@ -1036,6 +1036,7 @@ class RunExecutor:
                 and falls back to a heuristic on failure.
         """
         import os as _os
+
         from hi_agent.capability.governance import GovernedToolExecutor
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
 
@@ -1994,7 +1995,6 @@ class RunExecutor:
         Raises:
             RuntimeError: If no DelegationManager is configured.
         """
-        import asyncio
         import uuid
 
         from hi_agent.task_mgmt.delegation import DelegationRequest
@@ -2048,8 +2048,6 @@ class RunExecutor:
         Returns:
             A :class:`SubRunResult` with completion status and output.
         """
-        import asyncio
-
         subrun_id = handle.subrun_id
 
         # Case 1: result already collected (synchronous dispatch path).
@@ -2255,7 +2253,6 @@ async def execute_async(
 
     async def make_handler(node_id: str):
         async def handler(action, grant):
-            import asyncio
             _stage_kernel = getattr(executor._stage_executor, "kernel", None)
             _sync_capable = _stage_kernel is not None and callable(
                 getattr(_stage_kernel, "open_stage", None)

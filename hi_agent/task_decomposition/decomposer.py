@@ -166,7 +166,7 @@ class TaskDecomposer:
         where ``deps`` are stage names of predecessors.  Falls back to the
         heuristic DAG if parsing fails.
         """
-        from hi_agent.llm.protocol import LLMRequest  # noqa: PLC0415
+        from hi_agent.llm.protocol import LLMRequest
 
         prompt = (
             f"Decompose this task into a parallel DAG of sub-tasks:\n\n"
@@ -185,7 +185,7 @@ class TaskDecomposer:
         )
         response = self.llm_gateway.complete(request)
 
-        import json  # noqa: PLC0415
+        import json
         items = json.loads(response.content)
         if not isinstance(items, list) or not items:
             raise ValueError("LLM returned empty or non-list DAG plan")
@@ -222,7 +222,7 @@ class TaskDecomposer:
 
     def _llm_tree_decompose(self, contract: TaskContract) -> TaskDAG:
         """Call LLM to build a two-level hierarchical task tree as a DAG."""
-        from hi_agent.llm.protocol import LLMRequest  # noqa: PLC0415
+        from hi_agent.llm.protocol import LLMRequest
 
         prompt = (
             f"Decompose this task hierarchically into a 2-level tree:\n\n"
@@ -241,7 +241,7 @@ class TaskDecomposer:
         )
         response = self.llm_gateway.complete(request)
 
-        import json  # noqa: PLC0415
+        import json
         items = json.loads(response.content)
         if not isinstance(items, list) or not items:
             raise ValueError("LLM returned empty tree plan")

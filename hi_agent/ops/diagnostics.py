@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import os
+
 from hi_agent.ops.doctor_report import DoctorIssue, DoctorReport
 
 
@@ -145,7 +147,7 @@ def _check_mcp_health(builder, warnings: list) -> None:
                     severity="warning",
                     message=f"MCP server {server_id!r} reported error: {stderr[:200]}",
                     fix=f"Check MCP server {server_id} configuration and restart",
-                    verify=f"hi-agent doctor --json | jq '.warnings[] | select(.code==\"mcp.server_error\")'",
+                    verify="hi-agent doctor --json | jq '.warnings[] | select(.code==\"mcp.server_error\")'",
                 ))
     except Exception:
         pass

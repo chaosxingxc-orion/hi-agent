@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import json
-
-import pytest
-
 from hi_agent.events.envelope import EventEnvelope
+from hi_agent.replay.engine import ReplayEngine
 from hi_agent.replay.io import ReplayRecorder, load_event_envelopes_jsonl
-from hi_agent.replay.engine import ReplayEngine, ReplayReport
 
 
 def _make_envelope(

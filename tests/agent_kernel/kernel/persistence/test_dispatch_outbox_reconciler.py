@@ -8,7 +8,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent_kernel.kernel.dedupe_store import (
     DedupeStoreStateError,
     IdempotencyEnvelope,

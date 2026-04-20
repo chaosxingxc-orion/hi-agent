@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 from hi_agent.server.workspace_path import WorkspaceKey, WorkspacePathHelper, _safe_slug
 
 

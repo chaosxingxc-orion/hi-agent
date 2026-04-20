@@ -6,7 +6,6 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from agent_kernel.adapters.facade.workflow_gateway_adapter import adapt_workflow_gateway
 from agent_kernel.kernel.contracts import SignalRunRequest
 

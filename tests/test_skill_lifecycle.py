@@ -13,22 +13,17 @@ Covers:
 
 from __future__ import annotations
 
-import io
 import json
 import os
-import tempfile
-
-import pytest
 
 from hi_agent.contracts import TaskContract
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.runner import RunExecutor
-from hi_agent.skill.observer import SkillObservation, SkillObserver
-from hi_agent.skill.version import SkillVersionManager
 from hi_agent.skill.evolver import SkillEvolver
 from hi_agent.skill.loader import SkillLoader
-from hi_agent.skill.definition import SkillDefinition
+from hi_agent.skill.observer import SkillObserver
+from hi_agent.skill.version import SkillVersionManager
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers

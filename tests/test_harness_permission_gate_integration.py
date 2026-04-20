@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from hi_agent.harness.contracts import ActionSpec, ActionState
 from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine
@@ -18,7 +16,6 @@ from hi_agent.harness.permission_rules import (
     ToolPermissionRule,
     ToolPermissionRules,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

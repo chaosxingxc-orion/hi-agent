@@ -1,7 +1,9 @@
 """Authorization context built from HTTP request headers (HI-W1-D5-001)."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
+
 from fastapi import Request
 
 
@@ -14,7 +16,7 @@ class AuthorizationContext:
     approver: str | None
 
     @classmethod
-    def from_request(cls, request: Request) -> "AuthorizationContext":
+    def from_request(cls, request: Request) -> AuthorizationContext:
         """Build authorization context from request headers.
 
         Headers:

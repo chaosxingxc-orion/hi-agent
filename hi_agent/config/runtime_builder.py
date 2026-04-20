@@ -29,7 +29,7 @@ class RuntimeBuilder:
 
     def __init__(
         self,
-        config: "TraceConfig",
+        config: TraceConfig,
         singleton_lock: Any,
         parent: Any,  # SystemBuilder — avoids circular import at module level
     ) -> None:
@@ -37,8 +37,8 @@ class RuntimeBuilder:
         self._lock = singleton_lock
         self._parent = parent
         # Cached singletons
-        self._kernel: "RuntimeAdapter | None" = None
-        self._metrics_collector: "MetricsCollector | None" = None
+        self._kernel: RuntimeAdapter | None = None
+        self._metrics_collector: MetricsCollector | None = None
         self._run_context_manager: Any | None = None
         self._middleware_orchestrator: Any | None = None
 
@@ -46,7 +46,7 @@ class RuntimeBuilder:
     # Kernel
     # ------------------------------------------------------------------
 
-    def build_kernel(self) -> "RuntimeAdapter":
+    def build_kernel(self) -> RuntimeAdapter:
         """Build kernel adapter (HTTP or in-process LocalFSM)."""
         from hi_agent.runtime_adapter.kernel_facade_adapter import create_local_adapter
         from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
@@ -93,7 +93,7 @@ class RuntimeBuilder:
     # Metrics
     # ------------------------------------------------------------------
 
-    def build_metrics_collector(self) -> "MetricsCollector":
+    def build_metrics_collector(self) -> MetricsCollector:
         """Build or return the shared MetricsCollector singleton."""
         from hi_agent.observability.collector import MetricsCollector, default_alert_rules
 
@@ -105,6 +105,7 @@ class RuntimeBuilder:
                 _webhook_url = os.environ.get("WEBHOOK_URL", "")
                 if _webhook_url:
                     import time as _time
+
                     from hi_agent.observability.notification import (
                         build_notification_backend,
                         send_notification,

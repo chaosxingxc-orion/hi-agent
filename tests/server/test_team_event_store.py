@@ -1,6 +1,7 @@
-import pytest
 import time
-from hi_agent.server.team_event_store import TeamEventStore, TeamEvent
+
+import pytest
+from hi_agent.server.team_event_store import TeamEvent, TeamEventStore
 
 
 @pytest.fixture

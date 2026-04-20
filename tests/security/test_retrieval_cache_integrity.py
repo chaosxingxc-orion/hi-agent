@@ -10,11 +10,8 @@ from __future__ import annotations
 import json
 import pathlib
 
-import pytest
-
 from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -62,7 +59,8 @@ def _cache_path(tmp_path: pathlib.Path) -> pathlib.Path:
 class TestJsonCacheLoadsCorrectly:
     def test_json_cache_loads_correctly(self, tmp_path):
         """Build an index, save it, create a fresh engine that loads from JSON,
-        and verify retrieve() returns results."""
+        and verify retrieve() returns results.
+        """
         storage = str(tmp_path / "knowledge")
         engine = RetrievalEngine(wiki=_make_wiki(), storage_dir=storage)
         engine.build_index()

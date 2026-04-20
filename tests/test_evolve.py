@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.evolve.champion_challenger import ChampionChallenger
 from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
@@ -12,7 +11,6 @@ from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
 from hi_agent.skill.evolver import SkillEvolver
 from hi_agent.skill.observer import SkillMetrics
-
 
 # ---------------------------------------------------------------------------
 # Helpers

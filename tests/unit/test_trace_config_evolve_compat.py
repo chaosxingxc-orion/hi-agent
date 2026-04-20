@@ -1,6 +1,7 @@
 """Unit tests for TraceConfig evolve_mode field and backward-compat property (HI-W1-D2-001)."""
 
 import warnings
+
 from hi_agent.config.trace_config import TraceConfig
 
 

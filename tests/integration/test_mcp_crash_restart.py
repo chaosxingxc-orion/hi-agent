@@ -1,8 +1,8 @@
 """Tests for MCP crash-restart with backoff (HI-W10-005)."""
-import subprocess
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from hi_agent.mcp.transport import StdioMCPTransport, MCPTransportError, _MAX_RESTART_ATTEMPTS
+from hi_agent.mcp.transport import _MAX_RESTART_ATTEMPTS, MCPTransportError, StdioMCPTransport
 
 
 def _make_failing_transport():

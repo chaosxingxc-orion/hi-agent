@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.task_view.result_budget import (
     ToolResultBudget,
     ToolResultBudgetConfig,
@@ -12,7 +10,6 @@ from hi_agent.task_view.result_budget import (
     create_tool_result_budget,
     estimate_chars,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -272,7 +269,7 @@ def test_estimate_chars_nested_list() -> None:
 def test_create_tool_result_budget_defaults() -> None:
     b = create_tool_result_budget()
     assert isinstance(b, ToolResultBudget)
-    cfg = b._config  # noqa: SLF001
+    cfg = b._config
     assert cfg.max_single_result_chars == 32_000
     assert cfg.max_cumulative_chars == 128_000
 
@@ -281,14 +278,14 @@ def test_create_tool_result_budget_custom() -> None:
     b = create_tool_result_budget(
         {"max_single_result_chars": 500, "max_cumulative_chars": 2000}
     )
-    cfg = b._config  # noqa: SLF001
+    cfg = b._config
     assert cfg.max_single_result_chars == 500
     assert cfg.max_cumulative_chars == 2000
 
 
 def test_create_tool_result_budget_ignores_unknown_keys() -> None:
     b = create_tool_result_budget({"unknown_key": 999, "max_single_result_chars": 100})
-    cfg = b._config  # noqa: SLF001
+    cfg = b._config
     assert cfg.max_single_result_chars == 100
 
 

@@ -6,7 +6,6 @@ import asyncio
 import json
 
 import pytest
-
 from agent_kernel.kernel.cognitive.script_runtime import (
     DedupeAwareScriptRuntime,
     EchoScriptRuntime,

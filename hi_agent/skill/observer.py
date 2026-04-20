@@ -14,6 +14,7 @@ import threading
 import uuid
 from dataclasses import asdict, dataclass, field
 
+
 @dataclass
 class SkillObservation:
     """A single skill execution observation."""

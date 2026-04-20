@@ -33,8 +33,7 @@ _BLOCKED_NETWORKS_V6 = [
 
 class URLPolicy:
     def __init__(self, *, allow_private: bool = False) -> None:
-        """
-        allow_private=True disables private network blocking (for dev/trusted-backend use).
+        """allow_private=True disables private network blocking (for dev/trusted-backend use).
         """
         self._allow_private = allow_private
 

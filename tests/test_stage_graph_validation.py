@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.contracts.cts_budget import CTSBudget
 from hi_agent.trajectory.stage_graph import (
     StageGraph,
     ValidationReport,
     build_default_trace_graph,
 )
-
 
 # ------------------------------------------------------------------
 # Helpers
@@ -279,7 +276,8 @@ class TestValidateAll:
 class TestCycles:
     def test_cycle_still_validates_when_terminal_reachable(self) -> None:
         """A graph with a loop-back should still pass if all paths can
-        eventually reach a terminal stage."""
+        eventually reach a terminal stage.
+        """
         g = StageGraph()
         g.add_edge("S1", "S2")
         g.add_edge("S2", "S3")

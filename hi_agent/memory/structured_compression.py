@@ -1,5 +1,4 @@
-"""
-Structured Context Compression for hi-agent.
+"""Structured Context Compression for hi-agent.
 
 Provides a structured compression template that preserves critical
 information across compression cycles. Instead of naive summarization,
@@ -17,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -97,7 +96,7 @@ class StructuredSummary:
             f"[END COMPACTION - 压缩自 {self.source_message_count} 条消息]"
         )
 
-    def merge(self, newer: "StructuredSummary") -> "StructuredSummary":
+    def merge(self, newer: StructuredSummary) -> StructuredSummary:
         """Produce an incremental merged summary from *self* (older) and *newer*.
 
         Merge rules:
@@ -146,7 +145,7 @@ class StructuredSummary:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "StructuredSummary":
+    def from_dict(cls, d: dict) -> StructuredSummary:
         """Reconstruct a StructuredSummary from a dict (e.g., loaded from JSON)."""
         return cls(
             goal=d.get(CompressionField.GOAL, ""),

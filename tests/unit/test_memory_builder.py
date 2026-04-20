@@ -2,7 +2,6 @@
 import inspect
 
 import pytest
-
 from hi_agent.config.memory_builder import MemoryBuilder
 from hi_agent.config.trace_config import TraceConfig
 

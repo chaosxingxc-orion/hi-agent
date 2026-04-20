@@ -11,8 +11,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
-from hi_agent.executor_facade import RunExecutorFacade, RunFacadeResult
+from hi_agent.executor_facade import RunExecutorFacade
 from hi_agent.gate_protocol import GatePendingError
 
 

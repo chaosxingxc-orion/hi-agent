@@ -11,8 +11,7 @@ from typing import Any
 
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
-from hi_agent.runtime_adapter.errors import IllegalStateTransitionError
-from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
+from hi_agent.runtime_adapter.errors import IllegalStateTransitionError, RuntimeAdapterBackendError
 from hi_agent.runtime_adapter.kernel_facade_adapter import create_local_adapter
 
 IllegalStateTransition = IllegalStateTransitionError

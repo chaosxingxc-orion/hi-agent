@@ -36,24 +36,18 @@ Chain under test:
 
 from __future__ import annotations
 
-import json
 import os
-import subprocess
 import sys
 import tempfile
 import textwrap
-import time
 from pathlib import Path
-from typing import Any
 
 import pytest
-
+from hi_agent.capability.registry import CapabilityRegistry
+from hi_agent.mcp.binding import MCPBinding
+from hi_agent.mcp.health import MCPHealth
 from hi_agent.mcp.registry import MCPRegistry
 from hi_agent.mcp.transport import MultiStdioTransport, StdioMCPTransport
-from hi_agent.mcp.health import MCPHealth
-from hi_agent.mcp.binding import MCPBinding
-from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec
-
 
 # ---------------------------------------------------------------------------
 # Minimal in-process MCP server script (written to a temp file)
@@ -274,8 +268,8 @@ def test_mi04_bound_capability_invocable(mcp_server_command: str) -> None:
 
     register → health-check → bind → capability → invocation returns real output
     """
-    from hi_agent.capability.invoker import CapabilityInvoker
     from hi_agent.capability.circuit_breaker import CircuitBreaker
+    from hi_agent.capability.invoker import CapabilityInvoker
 
     mcp_registry = MCPRegistry()
     mcp_registry.register(
@@ -325,8 +319,8 @@ def test_mi05_mcp_status_reports_wired(mcp_server_command: str) -> None:
     Full chain: server startup → plugin registration → health-check → bind
       → GET /mcp/status → transport_status=wired, capability_mode=external_provider
     """
-    from starlette.testclient import TestClient
     from hi_agent.server.app import AgentServer
+    from starlette.testclient import TestClient
 
     server = AgentServer()
     # Directly inject a pre-healthy MCP server into the server's registry
@@ -380,8 +374,8 @@ def test_mi06_unreachable_server_not_reported_wired(mcp_server_command: str) -> 
     Regression guard for the original P0 defect: a fake/unreachable server must
     never be reported as wired or external_provider.
     """
-    from starlette.testclient import TestClient
     from hi_agent.server.app import AgentServer
+    from starlette.testclient import TestClient
 
     server = AgentServer()
     mcp_reg = server._builder.build_mcp_registry()
@@ -441,9 +435,10 @@ def test_mi07_plugin_manifest_wires_mcp_to_tools_list(
     the documented plugin.json mcp_servers field.
     """
     import json as _json
-    from starlette.testclient import TestClient
-    from hi_agent.server.app import AgentServer
+
     from hi_agent.plugin.loader import PluginLoader
+    from hi_agent.server.app import AgentServer
+    from starlette.testclient import TestClient
 
     # Write plugin.json describing the test MCP server.
     plugin_subdir = tmp_path / "echo-mcp-plugin"
@@ -536,9 +531,10 @@ def test_mi08_http_tools_call_reaches_external_mcp_tool(
     full platform HTTP stack routes correctly to an external MCP tool.
     """
     import json as _json
-    from starlette.testclient import TestClient
-    from hi_agent.server.app import AgentServer
+
     from hi_agent.plugin.loader import PluginLoader
+    from hi_agent.server.app import AgentServer
+    from starlette.testclient import TestClient
 
     plugin_subdir = tmp_path / "echo-mcp-plugin"
     plugin_subdir.mkdir()

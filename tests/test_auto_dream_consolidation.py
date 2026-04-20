@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import threading
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 

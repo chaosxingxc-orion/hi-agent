@@ -118,7 +118,7 @@ class RegressionDetector:
         if self._storage_path is None or not os.path.exists(self._storage_path):
             return
         try:
-            with open(self._storage_path, "r", encoding="utf-8") as fh:
+            with open(self._storage_path, encoding="utf-8") as fh:
                 payload: dict[str, list[dict]] = json.load(fh)
             self._records = defaultdict(list)
             for family, records in payload.items():

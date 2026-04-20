@@ -1,5 +1,4 @@
-"""
-Fine-grained Execution Hooks for hi-agent.
+"""Fine-grained Execution Hooks for hi-agent.
 
 Provides 4 hook points around LLM calls and tool executions:
   - pre_llm_call: called before LLM API request (can transform request)
@@ -15,7 +14,6 @@ Design:
 """
 from __future__ import annotations
 
-import asyncio
 import inspect
 import logging
 import time

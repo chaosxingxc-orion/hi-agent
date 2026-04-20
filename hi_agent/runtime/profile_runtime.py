@@ -62,7 +62,7 @@ class ProfileRuntimeResolver:
 
     def __init__(self, registry: Any) -> None:
         """Args:
-            registry: ``hi_agent.profiles.registry.ProfileRegistry`` instance.
+        registry: ``hi_agent.profiles.registry.ProfileRegistry`` instance.
         """
         self._registry = registry
 

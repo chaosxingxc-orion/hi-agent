@@ -14,8 +14,8 @@ Per CLAUDE.md P3 (Production Integrity Constraint):
 from __future__ import annotations
 
 import uuid
-import pytest
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Real capability handlers — plain Python functions, no mocks
@@ -47,8 +47,8 @@ class TestRealExecutorE2E:
 
     def _make_builder_with_capabilities(self):
         """Create a SystemBuilder with two real capability handlers registered."""
-        from hi_agent.config.builder import SystemBuilder
         from hi_agent.capability.registry import CapabilitySpec
+        from hi_agent.config.builder import SystemBuilder
 
         builder = SystemBuilder()
 
@@ -131,8 +131,9 @@ class TestRealExecutorE2E:
         LLM HTTP calls are patched at the transport layer only (allowed per P3)
         because we do not have live credentials in CI.
         """
+        from unittest.mock import MagicMock, patch
+
         from hi_agent.contracts.task import TaskContract
-        from unittest.mock import patch, MagicMock
 
         profile_id = f"e2e_profile_{uuid.uuid4().hex[:8]}"
         builder = self._make_builder_with_capabilities()
@@ -172,7 +173,7 @@ class TestRealExecutorE2E:
                         f"capability registry fix (D1+D2+D8) is NOT active: {exc}"
                     )
                 raise
-            except Exception as exc:
+            except Exception:
                 # Any other exception from real subsystems is surfaced verbatim
                 # so the caller sees the true failure, not a hidden mock path.
                 raise

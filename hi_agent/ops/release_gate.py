@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import datetime
 import json
 import os
@@ -8,7 +9,7 @@ from typing import Literal
 
 try:
     from hi_agent.mcp.health import MCPHealth
-except Exception:  # noqa: BLE001
+except Exception:
     MCPHealth = None  # type: ignore[assignment,misc]
 
 
@@ -144,7 +145,7 @@ def check_prod_e2e_recent(
     for ep_file in episode_files:
         try:
             data = json.loads(ep_file.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
 
         mode = data.get("runtime_mode") or data.get("execution_provenance", {}).get("runtime_mode", "")
@@ -203,7 +204,6 @@ def build_release_gate_report(builder) -> ReleaseGateReport:
     """Build a release gate report from current system state."""
     from hi_agent.ops.diagnostics import build_doctor_report
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode
-    import os
 
     gates: list[GateResult] = []
 

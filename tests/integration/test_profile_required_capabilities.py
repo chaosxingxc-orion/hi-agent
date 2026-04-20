@@ -1,15 +1,17 @@
 """Tests for profile required_capabilities enforcement."""
 from __future__ import annotations
+
 import pytest
 
 
 class TestRequiredCapabilitiesEnforcement:
     def test_missing_capability_raises_before_execution(self):
         """Executor construction fails fast when required capabilities are absent."""
-        from hi_agent.config.builder import SystemBuilder, MissingCapabilityError
-        from hi_agent.profiles.contracts import ProfileSpec
-        from hi_agent.contracts.task import TaskContract
         import uuid
+
+        from hi_agent.config.builder import MissingCapabilityError, SystemBuilder
+        from hi_agent.contracts.task import TaskContract
+        from hi_agent.profiles.contracts import ProfileSpec
 
         builder = SystemBuilder()
         builder.build_profile_registry().register(ProfileSpec(
@@ -32,11 +34,12 @@ class TestRequiredCapabilitiesEnforcement:
 
     def test_all_capabilities_present_succeeds(self):
         """Executor construction succeeds when all required capabilities are registered."""
-        from hi_agent.config.builder import SystemBuilder
-        from hi_agent.profiles.contracts import ProfileSpec
-        from hi_agent.contracts.task import TaskContract
-        from hi_agent.capability.registry import CapabilitySpec
         import uuid
+
+        from hi_agent.capability.registry import CapabilitySpec
+        from hi_agent.config.builder import SystemBuilder
+        from hi_agent.contracts.task import TaskContract
+        from hi_agent.profiles.contracts import ProfileSpec
 
         builder = SystemBuilder()
         # Register the required capability into the shared singleton registry.
@@ -64,10 +67,11 @@ class TestRequiredCapabilitiesEnforcement:
 
     def test_no_required_capabilities_always_succeeds(self):
         """Profiles without required_capabilities never fail the check."""
-        from hi_agent.config.builder import SystemBuilder
-        from hi_agent.profiles.contracts import ProfileSpec
-        from hi_agent.contracts.task import TaskContract
         import uuid
+
+        from hi_agent.config.builder import SystemBuilder
+        from hi_agent.contracts.task import TaskContract
+        from hi_agent.profiles.contracts import ProfileSpec
 
         builder = SystemBuilder()
         builder.build_profile_registry().register(ProfileSpec(

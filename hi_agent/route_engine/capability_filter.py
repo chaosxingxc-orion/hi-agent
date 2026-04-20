@@ -21,10 +21,10 @@ NON_CAPABILITY_ACTIONS: frozenset[str] = frozenset(
 
 
 def filter_proposal(
-    proposal: "BranchProposal",
-    registry: "CapabilityRegistry",
+    proposal: BranchProposal,
+    registry: CapabilityRegistry,
     runtime_mode: str,
-) -> "BranchProposal":
+) -> BranchProposal:
     """Validate that the proposed action_kind is available and not disabled.
 
     Returns a modified proposal if action_kind needs to change.
@@ -52,7 +52,7 @@ def filter_proposal(
     # Check whether the capability name is registered at all.
     # CapabilityRegistry.get() raises KeyError for unknown names; use internal
     # dict lookup to avoid exception-driven control flow.
-    is_registered = action_kind in registry._capabilities  # noqa: SLF001
+    is_registered = action_kind in registry._capabilities
 
     if not is_registered:
         return _replace_with_no_action(
@@ -88,8 +88,8 @@ def filter_proposal(
 
 
 def _replace_with_no_action(
-    proposal: "BranchProposal", reason: str
-) -> "BranchProposal":
+    proposal: BranchProposal, reason: str
+) -> BranchProposal:
     """Return a new BranchProposal with action_kind set to ``no_action``."""
     return replace(
         proposal,
@@ -99,8 +99,8 @@ def _replace_with_no_action(
 
 
 def _replace_with_approval_pending(
-    proposal: "BranchProposal", reason: str
-) -> "BranchProposal":
+    proposal: BranchProposal, reason: str
+) -> BranchProposal:
     """Return a new BranchProposal with action_kind set to ``approval_pending``."""
     return replace(
         proposal,

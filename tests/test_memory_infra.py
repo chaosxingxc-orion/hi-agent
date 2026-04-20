@@ -4,12 +4,10 @@ from __future__ import annotations
 import tempfile
 
 import pytest
-
 from hi_agent.contracts.reasoning import ReasoningStep, ReasoningTrace
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryEdge, MemoryNode
 from hi_agent.memory.short_term import ShortTermMemoryStore
 from hi_agent.session.run_session import RunSession
-
 
 # ---------------------------------------------------------------------------
 # P-2: ReasoningTrace storage

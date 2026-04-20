@@ -7,8 +7,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler, ScheduleResult
+from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
 from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
 
 

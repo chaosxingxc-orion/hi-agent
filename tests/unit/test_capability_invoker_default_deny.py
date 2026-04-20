@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.capability.invoker import CapabilityInvoker
 from hi_agent.capability.registry import CapabilityRegistry, CapabilitySpec
 

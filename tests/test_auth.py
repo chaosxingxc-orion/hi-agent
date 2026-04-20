@@ -2,25 +2,24 @@
 
 from __future__ import annotations
 
-import pytest
 from time import time
 
+import pytest
 from hi_agent.auth.jwt_middleware import (
-    validate_jwt_claims,
-    TokenExpiredError,
-    MissingClaimError,
     InvalidAudienceError,
+    MissingClaimError,
+    TokenExpiredError,
+    validate_jwt_claims,
 )
 from hi_agent.auth.rbac_enforcer import (
-    RBACEnforcer,
     OperationNotAllowedError,
+    RBACEnforcer,
     UnknownOperationError,
 )
 from hi_agent.auth.soc_guard import (
-    enforce_submitter_approver_separation,
     SeparationOfConcernError,
+    enforce_submitter_approver_separation,
 )
-
 
 # ---------------------------------------------------------------------------
 # JWT validation

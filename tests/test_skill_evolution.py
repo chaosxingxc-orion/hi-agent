@@ -3,29 +3,24 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
-from dataclasses import dataclass
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
+from hi_agent.skill.definition import SkillDefinition
+from hi_agent.skill.evolver import (
+    EvolutionReport,
+    SkillEvolver,
+    SkillPattern,
+)
 from hi_agent.skill.observer import (
     SkillMetrics,
     SkillObservation,
     SkillObserver,
     make_observation_id,
 )
-from hi_agent.skill.version import SkillVersionManager, SkillVersionRecord
-from hi_agent.skill.evolver import (
-    EvolutionReport,
-    SkillAnalysis,
-    SkillEvolver,
-    SkillPattern,
-)
-from hi_agent.skill.definition import SkillDefinition
-
+from hi_agent.skill.version import SkillVersionManager
 
 # ---------------------------------------------------------------------------
 # Helpers

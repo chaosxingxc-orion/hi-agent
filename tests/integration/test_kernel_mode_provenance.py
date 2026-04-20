@@ -1,4 +1,4 @@
-from hi_agent.contracts.execution_provenance import ExecutionProvenance, CONTRACT_VERSION
+from hi_agent.contracts.execution_provenance import ExecutionProvenance
 
 
 def test_kernel_mode_propagates_through_runtime_context():

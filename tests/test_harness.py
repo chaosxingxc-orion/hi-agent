@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.harness.contracts import (
-    ActionResult,
     ActionSpec,
     ActionState,
     EffectClass,
@@ -14,8 +12,7 @@ from hi_agent.harness.contracts import (
 )
 from hi_agent.harness.evidence_store import EvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine, RetryPolicy
-
+from hi_agent.harness.governance import GovernanceEngine
 
 # ---------------------------------------------------------------------------
 # Helpers

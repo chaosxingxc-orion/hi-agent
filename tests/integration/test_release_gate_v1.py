@@ -1,8 +1,7 @@
 """Integration tests for GET /ops/release-gate v1."""
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.server.app import AgentServer
+from starlette.testclient import TestClient
 
 
 @pytest.fixture()

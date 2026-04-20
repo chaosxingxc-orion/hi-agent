@@ -1,5 +1,6 @@
 """Tests for MCP schema version registry (HI-W10-005)."""
 import logging
+
 import pytest
 from hi_agent.mcp.schema_registry import MCPSchemaRegistry
 

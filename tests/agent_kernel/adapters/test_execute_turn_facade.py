@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent_kernel.adapters.facade.kernel_facade import KernelFacade
 from agent_kernel.kernel.contracts import Action, EffectClass
 from agent_kernel.kernel.dedupe_store import InMemoryDedupeStore

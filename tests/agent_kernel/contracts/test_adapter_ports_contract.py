@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import agent_kernel.kernel.contracts as kernel_contracts
+
 from agent_kernel.kernel import adapter_ports
 
 

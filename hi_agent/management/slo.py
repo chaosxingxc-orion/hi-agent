@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from time import time
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hi_agent.observability.collector import MetricsCollector
@@ -96,7 +97,7 @@ class SLOMonitor:
 
     def __init__(
         self,
-        metrics: "MetricsCollector",
+        metrics: MetricsCollector,
         *,
         interval_s: float = 60.0,
         success_target: float = 0.99,

@@ -9,19 +9,16 @@ with no internal mocking.
 from __future__ import annotations
 
 import inspect
-import sys
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.runtime_adapter.errors import (
     IllegalStateTransitionError,
     RuntimeAdapterBackendError,
     RuntimeAdapterError,
 )
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -149,7 +146,7 @@ class TestProtocolStructuralCompliance:
         )
 
     def test_kernel_facade_adapter_mode_is_property(self) -> None:
-        """mode must be a property (not a plain attribute) on KernelFacadeAdapter."""
+        """Mode must be a property (not a plain attribute) on KernelFacadeAdapter."""
         from hi_agent.runtime_adapter.kernel_facade_adapter import KernelFacadeAdapter
 
         assert isinstance(
@@ -157,7 +154,7 @@ class TestProtocolStructuralCompliance:
         ), "KernelFacadeAdapter.mode must be a @property"
 
     def test_async_kernel_facade_adapter_mode_is_property(self) -> None:
-        """mode must be a property on AsyncKernelFacadeAdapter."""
+        """Mode must be a property on AsyncKernelFacadeAdapter."""
         from hi_agent.runtime_adapter.async_kernel_facade_adapter import (
             AsyncKernelFacadeAdapter,
         )
@@ -257,8 +254,6 @@ class TestInstantiationContracts:
 
         Mocking reason: bypasses agent-kernel isinstance guard (external dep).
         """
-        from hi_agent.runtime_adapter.kernel_facade_adapter import KernelFacadeAdapter
-
         adapter, _ = _make_kernel_facade_adapter()
         # _non_empty raises ValueError for blank strings before touching facade
         with pytest.raises((ValueError, RuntimeAdapterBackendError)):

@@ -1,5 +1,4 @@
-"""
-Prompt Caching support for hi-agent.
+"""Prompt Caching support for hi-agent.
 
 Injects Anthropic cache_control markers into LLM requests to reduce
 input token cost by ~75% on cache hits. The system prompt and first
@@ -16,9 +15,8 @@ Usage:
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
-
 
 # ---------------------------------------------------------------------------
 # Types

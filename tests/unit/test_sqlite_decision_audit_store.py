@@ -7,13 +7,11 @@ records survive closing and reopening the database.
 
 from __future__ import annotations
 
-import tempfile
 import os
+import tempfile
 
 import pytest
-
 from hi_agent.route_engine.decision_audit_store import SqliteDecisionAuditStore
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

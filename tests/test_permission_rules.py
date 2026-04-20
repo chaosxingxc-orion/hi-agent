@@ -7,8 +7,6 @@ and the default safe rule set.
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.harness.permission_rules import (
     DenialCounter,
     DenialRecord,
@@ -19,7 +17,6 @@ from hi_agent.harness.permission_rules import (
     ToolPermissionRule,
     ToolPermissionRules,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -208,7 +205,7 @@ class TestToolPermissionRulesEvaluate:
 
 class TestToolPermissionRulesFromConfig:
     def test_permission_rules_from_config(self) -> None:
-        """dict list with tool/field/pattern/action keys is correctly converted."""
+        """Dict list with tool/field/pattern/action keys is correctly converted."""
         config = [
             {
                 "name": "deny-rm",

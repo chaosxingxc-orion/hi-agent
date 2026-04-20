@@ -7,11 +7,8 @@ cost reduction as skills improve (P2 principle).
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
 from hi_agent.llm.tier_router import TierRouter
-
 
 # ---------------------------------------------------------------------------
 # Helpers

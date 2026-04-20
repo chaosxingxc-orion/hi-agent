@@ -22,7 +22,7 @@ async def handle_memory_dream(request: Request) -> JSONResponse:
     if profile_id:
         # K-9: Build a per-request scoped manager for profile deployments.
         try:
-            from hi_agent.config.builder import SystemBuilder  # noqa: PLC0415
+            from hi_agent.config.builder import SystemBuilder
             _builder = SystemBuilder()
             manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
         except Exception as _build_exc:
@@ -52,7 +52,7 @@ async def handle_memory_consolidate(request: Request) -> JSONResponse:
     if profile_id:
         # K-9: Build a per-request scoped manager for profile deployments.
         try:
-            from hi_agent.config.builder import SystemBuilder  # noqa: PLC0415
+            from hi_agent.config.builder import SystemBuilder
             _builder = SystemBuilder()
             manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
         except Exception as _build_exc:
@@ -81,7 +81,7 @@ async def handle_memory_status(request: Request) -> JSONResponse:
     if profile_id:
         # K-9: Build a per-request scoped manager for profile deployments.
         try:
-            from hi_agent.config.builder import SystemBuilder  # noqa: PLC0415
+            from hi_agent.config.builder import SystemBuilder
             _builder = SystemBuilder()
             manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
         except Exception as _build_exc:

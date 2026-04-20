@@ -1,5 +1,4 @@
-"""
-Unit tests for I-4: ContextBudget.from_config() reflection_context forwarding.
+"""Unit tests for I-4: ContextBudget.from_config() reflection_context forwarding.
 
 Tests verify:
 - from_config() forwards context_reflection_context_budget when present.
@@ -7,8 +6,6 @@ Tests verify:
 """
 
 from types import SimpleNamespace
-
-import pytest
 
 from hi_agent.context.manager import ContextBudget
 

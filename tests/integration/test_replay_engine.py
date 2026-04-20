@@ -8,6 +8,7 @@ from dataclasses import asdict
 from hi_agent.contracts import TaskContract
 from hi_agent.replay import ReplayEngine, load_event_envelopes_jsonl
 from hi_agent.runner import RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

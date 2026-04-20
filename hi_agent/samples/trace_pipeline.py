@@ -101,7 +101,7 @@ _TRACE_CAPABILITY_PROMPTS: dict[str, str] = {
 def register_trace_capabilities(
     registry: CapabilityRegistry,
     *,
-    llm_gateway: "LLMGateway | None" = None,
+    llm_gateway: LLMGateway | None = None,
 ) -> None:
     """Register the five TRACE stage capability handlers into *registry*.
 
@@ -112,7 +112,7 @@ def register_trace_capabilities(
         registry: Capability registry to register into.
         llm_gateway: Optional LLM gateway.  Required in prod mode.
     """
-    from hi_agent.capability.defaults import _make_llm_handler, _allow_heuristic_fallback
+    from hi_agent.capability.defaults import _allow_heuristic_fallback, _make_llm_handler
 
     if llm_gateway is None and not _allow_heuristic_fallback():
         raise RuntimeError(

@@ -15,14 +15,11 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from hi_agent.capability.governance import (
     CapabilityNotFoundError,
     PermissionDeniedError,
 )
 from hi_agent.server.routes_tools_mcp import handle_mcp_tools_call
-
 
 # ---------------------------------------------------------------------------
 # Helpers

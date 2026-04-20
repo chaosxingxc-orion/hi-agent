@@ -132,7 +132,7 @@ class RunManager:
                 run.current_stage = stage_name
                 run.stage_updated_at = datetime.now(UTC).isoformat()
 
-    def _owns(self, run: ManagedRun, ctx: "TenantContext") -> bool:
+    def _owns(self, run: ManagedRun, ctx: TenantContext) -> bool:
         """Return True if the run belongs to the given workspace context.
 
         session_id is only enforced when the caller provides one (non-empty).

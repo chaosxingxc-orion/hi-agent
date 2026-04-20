@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 
 

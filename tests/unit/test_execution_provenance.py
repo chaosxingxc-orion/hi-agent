@@ -2,7 +2,7 @@
 
 Run these BEFORE implementing execution_provenance.py to confirm red state.
 """
-from hi_agent.contracts.execution_provenance import ExecutionProvenance, CONTRACT_VERSION
+from hi_agent.contracts.execution_provenance import CONTRACT_VERSION, ExecutionProvenance
 
 
 def test_contract_version_is_set():

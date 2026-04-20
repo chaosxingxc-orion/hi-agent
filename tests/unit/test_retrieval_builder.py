@@ -4,7 +4,6 @@ import inspect
 import uuid
 
 import pytest
-
 from hi_agent.config import memory_builder
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.knowledge.retrieval_engine import RetrievalEngine

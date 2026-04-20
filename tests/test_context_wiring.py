@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from hi_agent.context.manager import (
     ContextBudget,
     ContextHealth,
-    ContextHealthReport,
     ContextManager,
     ContextSnapshot,
 )
@@ -20,8 +16,8 @@ from hi_agent.events import EventEmitter
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ======================================================================
 # Helpers
@@ -240,8 +236,9 @@ class TestAPIContextHealth:
 
     def test_context_health_endpoint_no_cm(self):
         """503 when no context_manager configured."""
-        from hi_agent.server.app import AgentAPIHandler, AgentServer
         import io
+
+        from hi_agent.server.app import AgentAPIHandler, AgentServer
 
         server = AgentServer.__new__(AgentServer)
         server.context_manager = None

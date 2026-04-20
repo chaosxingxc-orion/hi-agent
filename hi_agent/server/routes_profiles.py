@@ -10,8 +10,6 @@ from __future__ import annotations
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from hi_agent.profile.manager import GLOBAL_PROFILE_ID
-
 
 async def handle_global_l3_summary(request: Request) -> JSONResponse:
     """Return a summary of the global L3 memory directory.

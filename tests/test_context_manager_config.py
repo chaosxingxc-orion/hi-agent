@@ -2,6 +2,7 @@
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.context.manager import ContextBudget, ContextManager
 
+
 def test_context_budget_from_config():
     cfg = TraceConfig(
         context_total_window=128_000,

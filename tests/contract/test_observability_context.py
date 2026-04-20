@@ -1,11 +1,9 @@
 """Contract tests: published events carry mandatory observability fields."""
 from __future__ import annotations
 
-import pytest
-
 from agent_kernel.kernel.contracts import RuntimeEvent
 from hi_agent.server.event_bus import EventBus
-from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
+from hi_agent.server.event_store import SQLiteEventStore
 
 
 def _make_runtime_event(run_id: str, sequence: int) -> RuntimeEvent:

@@ -79,7 +79,7 @@ class CapabilityDescriptorFactory:
 
     def build_descriptor(
         self,
-        tool_info: "dict | str",
+        tool_info: dict | str,
         overrides: dict | None = None,
     ) -> CapabilityDescriptor:
         """Build a full descriptor with auto-inferred + manual override fields.
@@ -137,7 +137,7 @@ class CapabilityDescriptorFactory:
             "output_budget_tokens", tool_info.get("output_budget_tokens", 0)
         )
         availability_probe = overrides.get(
-            "availability_probe", tool_info.get("availability_probe", None)
+            "availability_probe", tool_info.get("availability_probe")
         )
 
         return CapabilityDescriptor(

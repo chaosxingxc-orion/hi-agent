@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
-
 from agent_kernel.kernel.contracts import RuntimeEvent
 from agent_kernel.kernel.persistence.event_schema_migration import (
     EventSchemaMigrator,

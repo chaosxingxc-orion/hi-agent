@@ -1,8 +1,8 @@
 """Unit tests for capability/action-level provenance (HI-W2-002)."""
 
 from unittest.mock import MagicMock
+
 from hi_agent.capability.invoker import CapabilityInvoker
-from hi_agent.capability.registry import CapabilityRegistry
 
 
 def _make_invoker(handler_return):

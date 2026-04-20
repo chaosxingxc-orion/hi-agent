@@ -8,9 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from agent_kernel.adapters.agent_core.session_adapter import AgentCoreCallbackInput
-from agent_kernel.kernel.admission import SnapshotDrivenAdmissionService
 from agent_kernel.kernel.cognitive.llm_gateway import EchoLLMGateway
 from agent_kernel.kernel.contracts import (
     Action,
@@ -36,7 +34,6 @@ from agent_kernel.kernel.persistence.sqlite_recovery_outcome_store import (
 from agent_kernel.kernel.persistence.sqlite_turn_intent_log import (
     SQLiteTurnIntentLog,
 )
-from agent_kernel.kernel.recovery import PlannedRecoveryGateService
 from agent_kernel.kernel.task_manager.registry import TaskRegistry
 from agent_kernel.runtime.bundle import (
     AgentKernelRuntimeBundle,
@@ -50,6 +47,9 @@ from agent_kernel.runtime.bundle import (
 )
 from agent_kernel.substrate.temporal.gateway import TemporalGatewayConfig
 from agent_kernel.substrate.temporal.worker import TemporalWorkerConfig
+
+from agent_kernel.kernel.admission import SnapshotDrivenAdmissionService
+from agent_kernel.kernel.recovery import PlannedRecoveryGateService
 
 
 @pytest.fixture(autouse=True)

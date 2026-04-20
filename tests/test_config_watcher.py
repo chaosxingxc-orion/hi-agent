@@ -1,6 +1,6 @@
 # tests/test_config_watcher.py
 import asyncio
-import json
+
 import pytest
 from hi_agent.config.stack import ConfigStack
 from hi_agent.config.watcher import ConfigFileWatcher

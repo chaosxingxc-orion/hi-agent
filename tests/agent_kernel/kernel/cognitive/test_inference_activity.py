@@ -6,7 +6,6 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from agent_kernel.kernel.cognitive.inference_activity import execute_inference
 from agent_kernel.kernel.cognitive.llm_gateway import EchoLLMGateway
 from agent_kernel.kernel.contracts import (

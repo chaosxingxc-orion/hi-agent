@@ -4,18 +4,13 @@ from __future__ import annotations
 
 import json
 import threading
-from http.server import HTTPServer
 from io import BytesIO
-from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
-
-from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
+from hi_agent.memory.long_term import LongTermMemoryGraph
 from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -236,8 +231,8 @@ class TestAPIEndpoints:
     @pytest.fixture()
     def test_server(self, manager_all):
         """AgentServer with memory_manager wired, returning TestClient."""
-        from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=9999)
         server.memory_manager = manager_all
@@ -262,8 +257,8 @@ class TestAPIEndpoints:
         assert "long_term" in result
 
     def test_memory_not_configured(self):
-        from starlette.testclient import TestClient
         from hi_agent.server.app import AgentServer
+        from starlette.testclient import TestClient
 
         server = AgentServer(host="127.0.0.1", port=9999)
         server.memory_manager = None

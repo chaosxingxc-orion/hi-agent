@@ -1,28 +1,21 @@
 """Tests for hi_agent.task_mgmt — scheduling, communication, observation, control."""
 from __future__ import annotations
 
-import time
 import threading
-from typing import Any
+import time
 
 import pytest
-
 from hi_agent.task_mgmt.handle import TaskHandle, TaskStatus
+from hi_agent.task_mgmt.monitor import TaskMonitor
 from hi_agent.task_mgmt.notification import (
     TaskCommunicator,
     TaskNotification,
     TaskSignal,
 )
-from hi_agent.task_mgmt.monitor import RecoveryReport, TaskMonitor
-from hi_agent.task_mgmt.scheduler import ScheduleResult, TaskScheduler
+from hi_agent.task_mgmt.scheduler import TaskScheduler
 from hi_agent.trajectory.graph import (
     TrajectoryGraph,
-    TrajNode,
-    TrajEdge,
-    EdgeType,
-    NodeState,
 )
-
 
 # ======================================================================
 # Handle tests

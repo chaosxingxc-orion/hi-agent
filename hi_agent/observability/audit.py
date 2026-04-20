@@ -16,10 +16,9 @@ import json
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
-
 
 # ---------------------------------------------------------------------------
 # P1-2d: structured audit dataclass + store
@@ -69,7 +68,7 @@ class AuditStore:
         approval_id: str | None = None,
     ) -> None:
         """Create a ToolCallAuditEvent and persist it."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         event = ToolCallAuditEvent(
             event_id=uuid.uuid4().hex,
             session_id=session_id,

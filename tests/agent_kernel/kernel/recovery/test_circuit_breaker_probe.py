@@ -7,7 +7,6 @@ import time
 from dataclasses import dataclass, field
 
 import pytest
-
 from agent_kernel.kernel.contracts import CircuitBreakerPolicy
 from agent_kernel.kernel.recovery.circuit_breaker_probe import CircuitBreakerProbeScheduler
 

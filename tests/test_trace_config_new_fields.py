@@ -1,6 +1,7 @@
 # tests/test_trace_config_new_fields.py
 from hi_agent.config.trace_config import TraceConfig
 
+
 def test_new_context_fields_exist():
     cfg = TraceConfig()
     assert cfg.context_total_window == 200_000

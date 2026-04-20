@@ -1,7 +1,8 @@
 # tests/test_config_per_run_override.py
-from unittest.mock import patch, MagicMock
-from hi_agent.config.trace_config import TraceConfig
+from unittest.mock import MagicMock, patch
+
 from hi_agent.config.builder import SystemBuilder
+from hi_agent.config.trace_config import TraceConfig
 
 
 def test_resolve_with_patch_merges_correctly():

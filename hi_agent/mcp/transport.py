@@ -218,7 +218,7 @@ class StdioMCPTransport:
         try:
             lines = list(self._stderr_buf)
             return lines[-n:] if len(lines) > n else lines
-        except Exception:  # noqa: BLE001
+        except Exception:
             return []
 
     def close(self) -> None:
@@ -229,7 +229,7 @@ class StdioMCPTransport:
                     self._proc.stdin.close()
                     self._proc.terminate()
                     self._proc.wait(timeout=5)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
                 finally:
                     self._proc = None
@@ -248,7 +248,7 @@ class StdioMCPTransport:
                     else:
                         line = raw.rstrip(b"\n").decode("utf-8", errors="replace")
                     buf.append(line)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass  # Process closed — exit quietly
 
         self._stderr_thread = threading.Thread(
@@ -290,7 +290,7 @@ class StdioMCPTransport:
             )
             time.sleep(delay)
 
-        import os  # noqa: PLC0415
+        import os
         env = os.environ.copy()
         if self._env:
             env.update(self._env)
@@ -328,7 +328,7 @@ class StdioMCPTransport:
                         success=False,
                         error=str(exc),
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
             raise MCPTransportError(
                 f"Failed to spawn MCP server command {self._command!r}: {exc}"
@@ -344,7 +344,7 @@ class StdioMCPTransport:
                     self._restart_attempts,
                     success=True,
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         self._restart_attempts += 1
         if self._restart_attempts >= _MAX_RESTART_ATTEMPTS:
@@ -363,8 +363,8 @@ class StdioMCPTransport:
         Raises:
             MCPTransportError: On timeout, EOF, or JSON-RPC error response.
         """
-        import select  # noqa: PLC0415
-        import sys  # noqa: PLC0415
+        import select
+        import sys
 
         deadline_remaining = self._timeout
         buf = self._proc.stdout

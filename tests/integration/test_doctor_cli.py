@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import pytest
 
 
 def test_doctor_cli_exits_0_in_dev():

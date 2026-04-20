@@ -1,5 +1,4 @@
-"""
-LLM Provider Failover Chain for hi-agent.
+"""LLM Provider Failover Chain for hi-agent.
 
 Implements HTTP-error-aware failover, credential pool rotation,
 and exponential backoff. Operates at the LLM level (not action level —
@@ -14,7 +13,7 @@ import os
 import random
 import time
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 

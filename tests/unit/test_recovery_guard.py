@@ -6,7 +6,6 @@ import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.contracts import TaskContract
 from hi_agent.execution.recovery_coordinator import RecoveryContext
 from hi_agent.runner import RunExecutor

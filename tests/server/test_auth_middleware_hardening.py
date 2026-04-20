@@ -3,16 +3,14 @@
 import base64
 import json
 import os
-import pytest
 from unittest.mock import patch
 
+from hi_agent.server.auth_middleware import AuthMiddleware
+from hi_agent.server.tenant_context import get_tenant_context
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
-
-from hi_agent.server.auth_middleware import AuthMiddleware
-from hi_agent.server.tenant_context import get_tenant_context
 
 
 async def dummy_endpoint(request):

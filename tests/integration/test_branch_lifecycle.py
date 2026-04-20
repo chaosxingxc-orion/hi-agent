@@ -11,7 +11,6 @@ Validates branch state machine transitions including:
 from __future__ import annotations
 
 from hi_agent.contracts import (
-    BranchState,
     NodeState,
     StageState,
     TaskContract,
@@ -19,6 +18,7 @@ from hi_agent.contracts import (
 )
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

@@ -1,8 +1,7 @@
-import os
-import pytest
 from unittest.mock import MagicMock
-from hi_agent.capability.registry import CapabilityRegistry
+
 from hi_agent.capability.adapters.descriptor_factory import CapabilityDescriptor
+from hi_agent.capability.registry import CapabilityRegistry
 
 
 def _make_spec(name, required_env=None, probe=None):

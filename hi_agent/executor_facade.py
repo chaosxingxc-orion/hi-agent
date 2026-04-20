@@ -275,6 +275,7 @@ def check_readiness() -> ReadinessReport:
         ``subsystems``, and ``auth_posture`` populated.
     """
     import os as _os_cr
+
     from hi_agent.config.builder import SystemBuilder
     from hi_agent.server.auth_middleware import AuthMiddleware as _AM
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm

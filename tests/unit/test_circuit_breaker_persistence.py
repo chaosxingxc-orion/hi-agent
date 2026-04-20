@@ -5,9 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-
-from hi_agent.capability.circuit_breaker import CircuitBreaker, CircuitState
-
+from hi_agent.capability.circuit_breaker import CircuitBreaker
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -5,10 +5,7 @@ from __future__ import annotations
 import logging
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from hi_agent.observability.fallback import FallbackTaxonomy, record_fallback
-
 
 # ---------------------------------------------------------------------------
 # Taxonomy membership

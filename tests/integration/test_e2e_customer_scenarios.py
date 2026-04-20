@@ -19,13 +19,12 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.contracts import TaskContract
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer
+from starlette.testclient import TestClient
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -467,13 +466,13 @@ def test_tc11_sse_endpoint_returns_correct_content_type(
     #   1. TenantContext — set by AuthMiddleware (anonymous when auth disabled)
     #   2. request.app — needed to access app.state.agent_server
     # Both must be supplied when calling the handler directly.
-    from starlette.requests import Request as StarletteRequest
     from hi_agent.server.app import handle_run_events_sse
     from hi_agent.server.tenant_context import (
         TenantContext,
         reset_tenant_context,
         set_tenant_context,
     )
+    from starlette.requests import Request as StarletteRequest
 
     # Mirror the anonymous context that AuthMiddleware injects when auth is disabled.
     anon_ctx = TenantContext(

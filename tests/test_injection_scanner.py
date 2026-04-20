@@ -5,17 +5,13 @@ from __future__ import annotations
 import re
 
 import pytest
-
 from hi_agent.security.injection_scanner import (
-    BUILTIN_PATTERNS,
     InjectionDetectedError,
     InjectionPattern,
     InjectionScanner,
-    ScanResult,
     SecurityEvent,
     SecurityEventSeverity,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -4,9 +4,10 @@ Verifies that tenant_id/user_id/session_id fields are bound to ManagedRun,
 and that get_run/list_runs/cancel_run scope to workspace correctly.
 """
 
-import pytest
 import uuid
-from hi_agent.server.run_manager import RunManager, ManagedRun
+
+import pytest
+from hi_agent.server.run_manager import RunManager
 from hi_agent.server.tenant_context import TenantContext
 
 

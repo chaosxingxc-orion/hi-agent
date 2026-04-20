@@ -128,9 +128,10 @@ def prod_client():
     LLM provider is resolved from env: OPENAI_API_KEY / ANTHROPIC_API_KEY / VOLCE_API_KEY.
     """
     import os as _os
-    from starlette.testclient import TestClient
-    from hi_agent.server.app import AgentServer
+
     from hi_agent.config.trace_config import TraceConfig
+    from hi_agent.server.app import AgentServer
+    from starlette.testclient import TestClient
 
     _prev_env = _os.environ.get("HI_AGENT_ENV")
     _prev_api_key = _os.environ.get("HI_AGENT_API_KEY")

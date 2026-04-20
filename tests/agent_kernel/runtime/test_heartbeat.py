@@ -17,7 +17,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from agent_kernel.runtime.health import HealthStatus
 from agent_kernel.runtime.heartbeat import (
     HeartbeatPolicy,

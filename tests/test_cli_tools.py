@@ -1,7 +1,5 @@
 """Tests for tools CLI subcommand and /tools server endpoints."""
 import os
-import json
-import pytest
 
 os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
@@ -51,10 +49,10 @@ def test_tools_endpoint_list_logic():
 
 def test_tools_call_logic_file_read(tmp_path, monkeypatch):
     """Test the /tools/call logic directly."""
+    from hi_agent.capability.circuit_breaker import CircuitBreaker
+    from hi_agent.capability.invoker import CapabilityInvoker
     from hi_agent.capability.registry import CapabilityRegistry
     from hi_agent.capability.tools.builtin import register_builtin_tools
-    from hi_agent.capability.invoker import CapabilityInvoker
-    from hi_agent.capability.circuit_breaker import CircuitBreaker
 
     monkeypatch.chdir(tmp_path)  # file_read uses cwd; payload base_dir is ignored (H-6)
     registry = CapabilityRegistry()

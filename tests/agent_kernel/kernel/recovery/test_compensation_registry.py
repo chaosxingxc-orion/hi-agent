@@ -7,7 +7,6 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-
 from agent_kernel.kernel.contracts import (
     Action,
     EffectClass,

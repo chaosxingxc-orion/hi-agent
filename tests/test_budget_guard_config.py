@@ -1,6 +1,7 @@
 # tests/test_budget_guard_config.py
 from hi_agent.config.trace_config import TraceConfig
-from hi_agent.task_mgmt.budget_guard import BudgetGuard, TierDecision
+from hi_agent.task_mgmt.budget_guard import BudgetGuard
+
 
 def test_budget_guard_from_config_thresholds():
     cfg = TraceConfig(

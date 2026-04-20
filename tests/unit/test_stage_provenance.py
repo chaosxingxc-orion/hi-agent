@@ -2,7 +2,6 @@
 from hi_agent.contracts.execution_provenance import (
     ExecutionProvenance,
     StageProvenance,
-    CONTRACT_VERSION,
 )
 
 

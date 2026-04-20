@@ -1,4 +1,7 @@
-from hi_agent.capability.adapters.descriptor_factory import CapabilityDescriptor, CapabilityDescriptorFactory
+from hi_agent.capability.adapters.descriptor_factory import (
+    CapabilityDescriptor,
+    CapabilityDescriptorFactory,
+)
 
 
 def test_descriptor_has_new_fields():

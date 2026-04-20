@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 
 import pytest
-
-from hi_agent.config.trace_config import TraceConfig
 from hi_agent.config.builder import SystemBuilder
-from hi_agent.state_machine.machine import InvalidTransition, StateMachine
+from hi_agent.config.trace_config import TraceConfig
 from hi_agent.state_machine.definitions import (
     action_state_machine,
     branch_state_machine,
@@ -19,7 +16,7 @@ from hi_agent.state_machine.definitions import (
     stage_state_machine,
     wait_state_machine,
 )
-
+from hi_agent.state_machine.machine import InvalidTransition, StateMachine
 
 # ======================================================================
 # TraceConfig tests

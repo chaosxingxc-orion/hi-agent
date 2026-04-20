@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import math
-
 import pytest
-
 from hi_agent.knowledge.granularity import (
     KnowledgeItem,
     estimate_tokens,
@@ -23,7 +20,6 @@ from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryEdge, MemoryNode
 from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
-
 
 # ===================================================================
 # Granularity tests

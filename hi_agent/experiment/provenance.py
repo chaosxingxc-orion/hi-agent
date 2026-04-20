@@ -24,7 +24,7 @@ class ArtifactRecord:
     mime: str
 
     @classmethod
-    def from_path(cls, path: Path) -> "ArtifactRecord":
+    def from_path(cls, path: Path) -> ArtifactRecord:
         p = Path(path)
         mime, _ = mimetypes.guess_type(str(p))
         return cls(

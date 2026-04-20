@@ -1,7 +1,6 @@
 import sqlite3
 import threading
 from dataclasses import dataclass
-from typing import Literal
 
 
 @dataclass

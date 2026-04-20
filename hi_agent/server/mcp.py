@@ -6,6 +6,7 @@ Implements the minimum viable MCP surface:
   - tools/call  → invoke a tool by name with arguments
 """
 from __future__ import annotations
+
 import json
 import logging
 from typing import Any
@@ -22,10 +23,9 @@ class MCPServer:
     """
 
     def __init__(self, registry: Any, invoker: Any) -> None:
-        """
-        Args:
-            registry: CapabilityRegistry — source of truth for tool schemas.
-            invoker: CapabilityInvoker — used to execute tool calls.
+        """Args:
+        registry: CapabilityRegistry — source of truth for tool schemas.
+        invoker: CapabilityInvoker — used to execute tool calls.
         """
         self._registry = registry
         self._invoker = invoker

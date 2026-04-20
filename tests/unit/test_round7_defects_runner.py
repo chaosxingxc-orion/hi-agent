@@ -11,11 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from typing import get_type_hints
-from unittest.mock import AsyncMock, MagicMock
-
-import pytest
-
+from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
 # Shared helpers — mirror _bare_executor from round-6 tests

@@ -1,5 +1,4 @@
-"""
-Memory and Skill Nudge System for hi-agent.
+"""Memory and Skill Nudge System for hi-agent.
 
 Periodically injects guidance messages into the agent's task view
 to encourage memory saving and skill creation. This drives the agent
@@ -16,10 +15,9 @@ Design:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar
-
 
 # ---------------------------------------------------------------------------
 # NudgeType

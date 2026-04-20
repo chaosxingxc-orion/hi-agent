@@ -9,14 +9,11 @@ Each test is self-contained with proper setup/teardown.
 
 from __future__ import annotations
 
-import json
-import threading
 import time
 from pathlib import Path
 from typing import Any
 
 import pytest
-
 from hi_agent.contracts import (
     CTSExplorationBudget,
     StageState,
@@ -29,7 +26,6 @@ from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.evolve.skill_extractor import SkillCandidate
 from hi_agent.failures.collector import FailureCollector
-from hi_agent.failures.taxonomy import FailureCode, FailureRecord
 from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.harness.contracts import (
     ActionSpec,
@@ -45,13 +41,12 @@ from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
 from hi_agent.runner import STAGES, RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.server.app import AgentServer
-from hi_agent.server.run_manager import RunManager
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry
 from hi_agent.state_machine.definitions import run_state_machine
 
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
 # Test 1: Full TRACE pipeline with ALL subsystems
@@ -719,7 +714,8 @@ class TestHarnessGovernanceBlocksUnapproved:
 
     def test_governance_allows_after_approval(self) -> None:
         """After approval, governance allows the action (dispatch may still fail
-        if no invoker, but governance does not block)."""
+        if no invoker, but governance does not block).
+        """
         governance = GovernanceEngine()
         harness = HarnessExecutor(governance=governance)
 

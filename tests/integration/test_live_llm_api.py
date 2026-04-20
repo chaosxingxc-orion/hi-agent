@@ -29,10 +29,8 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
-
 from hi_agent.llm.http_gateway import HttpLLMGateway
 from hi_agent.llm.protocol import LLMRequest
-
 
 # ---------------------------------------------------------------------------
 # Load config from config/llm_config.json (providers.volces)
@@ -140,7 +138,7 @@ def _minimal_request(model: str, content: str = "Reply with the single word: rea
 
 def _assert_valid_response(resp: object, model: str) -> None:
     """Assert that the response satisfies the LLMResponse contract."""
-    from hi_agent.llm.protocol import LLMResponse  # noqa: PLC0415
+    from hi_agent.llm.protocol import LLMResponse
 
     assert isinstance(resp, LLMResponse), f"Expected LLMResponse, got {type(resp)}"
     assert resp.content, f"[{model}] response.content is empty"

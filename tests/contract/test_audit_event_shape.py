@@ -1,12 +1,11 @@
 """Contract tests for ToolCallAuditEvent shape and GovernedToolExecutor audit writes (P1-2d)."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
-from hi_agent.observability.audit import ToolCallAuditEvent
 from hi_agent.capability.governance import GovernedToolExecutor
 from hi_agent.capability.registry import CapabilityDescriptor, CapabilityRegistry, CapabilitySpec
-
+from hi_agent.observability.audit import ToolCallAuditEvent
 
 # ---------------------------------------------------------------------------
 # Helpers

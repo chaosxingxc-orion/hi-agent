@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import pytest
-
-from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
-from hi_agent.llm.tier_router import TierRouter, TierMapping
 from hi_agent.llm.model_selector import ModelSelector, SelectionResult
-
+from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
+from hi_agent.llm.tier_router import TierRouter
 
 # ---------------------------------------------------------------------------
 # Helpers

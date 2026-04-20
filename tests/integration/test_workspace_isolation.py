@@ -14,14 +14,6 @@ AgentServer with HI_AGENT_API_KEY set in the environment.
 from __future__ import annotations
 
 import pytest
-from starlette.applications import Starlette
-from starlette.middleware import Middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.routing import Route
-from starlette.testclient import TestClient
-
 from hi_agent.server import routes_events, routes_runs
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.session_middleware import SessionMiddleware
@@ -31,7 +23,12 @@ from hi_agent.server.tenant_context import (
     reset_tenant_context,
     set_tenant_context,
 )
-
+from starlette.applications import Starlette
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Helpers

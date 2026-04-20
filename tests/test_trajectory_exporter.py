@@ -9,10 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from hi_agent.observability.trajectory_exporter import (
-    ExportStats,
     RewardAnnotator,
     SessionMessageParser,
     TrajectoryExporter,
@@ -20,7 +17,6 @@ from hi_agent.observability.trajectory_exporter import (
     TrajectoryMessage,
     TrajectoryRecord,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -410,7 +406,8 @@ class TestTrajectoryExporter:
             _make_session_dict(run_id="r3", quality_score=0.8),  # passes
         ]
 
-        import tempfile, os
+        import os
+        import tempfile
         with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as tmp:
             tmp_path = tmp.name
         try:
@@ -464,7 +461,7 @@ class TestTrajectoryExporter:
 
 class TestRewardAnnotator:
     def test_annotate_sets_reward(self):
-        """reward field is set on the returned record."""
+        """Reward field is set on the returned record."""
         record = _make_record(reward=None)
         annotated = RewardAnnotator.annotate(record, quality_score=0.8, efficiency_score=0.6)
         assert annotated.reward is not None

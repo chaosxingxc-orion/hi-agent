@@ -5,15 +5,12 @@ from __future__ import annotations
 import json
 import threading
 import time
-from typing import Any
 from unittest.mock import patch
 
 import pytest
-from starlette.testclient import TestClient
-
-from hi_agent.server.app import AgentAPIHandler, AgentServer, build_app
+from hi_agent.server.app import AgentServer
 from hi_agent.server.run_manager import ManagedRun, RunManager
-
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # RunManager tests
@@ -158,7 +155,7 @@ class TestRunManagerThreadSafety:
             barrier.wait()
             try:
                 mgr.create_run({"task_id": f"t-{idx}", "goal": f"goal-{idx}"})
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(str(exc))
 
         threads = [threading.Thread(target=create_one, args=(i,)) for i in range(n_threads)]
@@ -488,7 +485,7 @@ class TestHealthEndpointSubsystems:
 
     def test_subsystem_error_does_not_crash(self) -> None:
         """If a subsystem check raises, health still returns 200."""
-        from unittest.mock import MagicMock, PropertyMock
+        from unittest.mock import MagicMock
 
         server = AgentServer(host="127.0.0.1", port=9999)
         # Make metrics_collector.snapshot() raise
@@ -648,8 +645,6 @@ class TestSSEStreaming:
         content type by using a short timeout or by checking that the
         route is registered.
         """
-        from hi_agent.server.app import build_app
-
         # Verify the route exists in the app routes
         app = client.app
         route_paths = []
@@ -679,7 +674,7 @@ class TestConcurrentRequests:
                         errors.append(f"conc-{idx}: status={resp.status_code}")
                     else:
                         results.append(resp.json())
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 with lock:
                     errors.append(str(exc))
 
@@ -778,6 +773,5 @@ class TestCLIParsing:
         """No command provided causes SystemExit."""
         from hi_agent.cli import main
 
-        with patch("sys.argv", ["hi_agent"]):
-            with pytest.raises(SystemExit):
-                main()
+        with patch("sys.argv", ["hi_agent"]), pytest.raises(SystemExit):
+            main()

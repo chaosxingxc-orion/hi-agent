@@ -12,10 +12,11 @@ from __future__ import annotations
 import asyncio
 import json
 
-from hi_agent.contracts import StageState, TaskContract
+from hi_agent.contracts import TaskContract
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
 from hi_agent.runner import STAGES, RunExecutor
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

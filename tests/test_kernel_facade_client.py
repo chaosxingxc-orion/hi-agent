@@ -5,15 +5,13 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
 from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -40,7 +38,7 @@ class FakeFacade:
         self._record("start_run", request)
         self._run_counter += 1
         # Return a response object with run_id attribute
-        class _Resp:  # noqa: N801
+        class _Resp:
             run_id = f"run-{self._run_counter:04d}"  # type: ignore[assignment]
         return _Resp()
 
@@ -125,7 +123,7 @@ class FakeFacade:
         parent_run_id = getattr(request, "parent_run_id", "unknown")
         self._record("spawn_child_run", request)
 
-        class _Resp:  # noqa: N801
+        class _Resp:
             child_run_id = f"child-run-of-{parent_run_id}"
 
         return _Resp()
@@ -587,9 +585,8 @@ class TestModeValidation:
             KernelFacadeClient,
             "_try_import_facade",
             return_value=None,
-        ):
-            with pytest.raises(ImportError, match="agent-kernel is not importable"):
-                KernelFacadeClient(mode="direct")
+        ), pytest.raises(ImportError, match="agent-kernel is not importable"):
+            KernelFacadeClient(mode="direct")
 
     def test_direct_mode_with_explicit_facade(self) -> None:
         facade = FakeFacade()

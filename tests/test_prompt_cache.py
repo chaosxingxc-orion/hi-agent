@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import copy
-
 import pytest
-
 from hi_agent.llm.cache import (
     CacheAwareTokenUsage,
     PromptCacheConfig,
@@ -13,7 +10,6 @@ from hi_agent.llm.cache import (
     PromptCacheStats,
     parse_cache_usage,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

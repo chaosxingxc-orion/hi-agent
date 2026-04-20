@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.profiles.contracts import ProfileSpec
 from hi_agent.profiles.registry import ProfileRegistry
-
 
 # ---------------------------------------------------------------------------
 # ProfileSpec

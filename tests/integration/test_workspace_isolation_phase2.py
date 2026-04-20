@@ -1,15 +1,14 @@
-"""
-Acceptance tests 19-20 + hardening tests for Plan B Phase 5.
+"""Acceptance tests 19-20 + hardening tests for Plan B Phase 5.
 """
 import time
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 
 def _team_writer(proc_id: int, n_events: int, db_path: str) -> None:
     """Module-level worker for multi-process team write test (must be picklable on Windows)."""
-    from hi_agent.server.team_event_store import TeamEventStore, TeamEvent
+    from hi_agent.server.team_event_store import TeamEvent, TeamEventStore
     store = TeamEventStore(db_path)
     store.initialize()
     for i in range(n_events):
@@ -31,8 +30,9 @@ def _team_writer(proc_id: int, n_events: int, db_path: str) -> None:
 # Acceptance test 19: Legacy rows hidden from normal users
 def test_19_legacy_rows_not_visible_in_normal_list(tmp_path):
     """Runs with user_id='__legacy__' must not appear in normal user's list."""
-    from hi_agent.server.run_store import SQLiteRunStore, RunRecord
     import time
+
+    from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 
     store = SQLiteRunStore(str(tmp_path / "runs.db"))
     legacy = RunRecord(
@@ -111,6 +111,7 @@ def test_fuzz_path_traversal(tmp_path, field, evil):
 def test_multiprocess_team_writes_no_corruption(tmp_path):
     """Multiple processes writing to the same TeamEventStore must not corrupt data."""
     import multiprocessing
+
     from hi_agent.server.team_event_store import TeamEventStore
 
     db_path = str(tmp_path / "team.db")

@@ -6,10 +6,8 @@ import os
 import textwrap
 
 import pytest
-
 from hi_agent.skill.definition import SkillDefinition
 from hi_agent.skill.loader import SkillLoader, SkillPrompt
-
 
 # ===================================================================
 # Fixtures — reusable SKILL.md content

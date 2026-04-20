@@ -63,16 +63,15 @@ from hi_agent.config.watcher import ConfigFileWatcher
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
-from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.idempotency import IdempotencyStore
-from hi_agent.server.run_manager import RunManager
-from hi_agent.server.run_store import SQLiteRunStore
-from hi_agent.server.session_store import SessionStore
-from hi_agent.server.team_event_store import TeamEventStore
-from hi_agent.server.routes_team import handle_list_team_events
 from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
-from hi_agent.server.routes_ops import handle_get_long_op, handle_cancel_long_op
+from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.routes_events import handle_run_events_sse
+from hi_agent.server.routes_ops import handle_cancel_long_op, handle_get_long_op
+from hi_agent.server.routes_profiles import (
+    handle_global_l3_summary,
+    handle_global_skills,
+)
 from hi_agent.server.routes_runs import (
     handle_create_run,
     handle_gate_decision,
@@ -85,15 +84,12 @@ from hi_agent.server.routes_runs import (
     handle_signal_run,
     handle_submit_feedback,
 )
-from hi_agent.server.routes_profiles import (
-    handle_global_l3_summary,
-    handle_global_skills,
-)
 from hi_agent.server.routes_sessions import (
     handle_get_session_runs,
     handle_list_sessions,
     handle_patch_session,
 )
+from hi_agent.server.routes_team import handle_list_team_events
 from hi_agent.server.routes_tools_mcp import (
     handle_mcp_tools,
     handle_mcp_tools_call,
@@ -101,6 +97,10 @@ from hi_agent.server.routes_tools_mcp import (
     handle_tools_call,
     handle_tools_list,
 )
+from hi_agent.server.run_manager import RunManager
+from hi_agent.server.run_store import SQLiteRunStore
+from hi_agent.server.session_store import SessionStore
+from hi_agent.server.team_event_store import TeamEventStore
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +241,7 @@ async def handle_ready(request: Request) -> JSONResponse:
     reconstructed default snapshot.
     """
     import os as _os_rdy
+
     from hi_agent.server.auth_middleware import AuthMiddleware as _AM_rdy
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_rdy
 
@@ -440,9 +441,10 @@ async def handle_manifest(request: Request) -> JSONResponse:
     provenance_contract_version: str = "unknown"
     try:
         import os as _os_ep
+
         from hi_agent.config.evolve_policy import resolve_evolve_effective as _rep
-        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
         from hi_agent.contracts.execution_provenance import CONTRACT_VERSION as _cv
+        from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
         provenance_contract_version = _cv
         _builder = getattr(server, "_builder", None)
         _ev_mode = "auto"
@@ -694,24 +696,22 @@ async def handle_cost(request: Request) -> JSONResponse:
 # ------------------------------------------------------------------
 # Memory lifecycle handlers (extracted to routes_memory.py)
 # ------------------------------------------------------------------
-from hi_agent.server.routes_memory import (  # noqa: E402
-    handle_memory_dream,
-    handle_memory_consolidate,
-    handle_memory_status,
-)
-
 # ------------------------------------------------------------------
 # Knowledge handlers (extracted to routes_knowledge.py)
 # ------------------------------------------------------------------
-from hi_agent.server.routes_knowledge import (  # noqa: E402
+from hi_agent.server.routes_knowledge import (
     handle_knowledge_ingest,
     handle_knowledge_ingest_structured,
+    handle_knowledge_lint,
     handle_knowledge_query,
     handle_knowledge_status,
-    handle_knowledge_lint,
     handle_knowledge_sync,
 )
-
+from hi_agent.server.routes_memory import (
+    handle_memory_consolidate,
+    handle_memory_dream,
+    handle_memory_status,
+)
 
 # ------------------------------------------------------------------
 # Skill handlers
@@ -1146,9 +1146,9 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
                 except TypeError:
                     try:
                         stderr_tails[sid] = _transport.get_stderr_tail(sid)
-                    except Exception:  # noqa: BLE001
+                    except Exception:
                         stderr_tails[sid] = []
-                except Exception:  # noqa: BLE001
+                except Exception:
                     stderr_tails[sid] = []
         return JSONResponse({
             "servers": mcp_reg.list_servers(),
@@ -1372,8 +1372,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
 
         # G-8: Long-running op coordinator + background poller
         from pathlib import Path as _Path
-        from hi_agent.experiment.op_store import LongRunningOpStore as _OpStore
+
         from hi_agent.experiment.coordinator import LongRunningOpCoordinator as _OpCoord
+        from hi_agent.experiment.op_store import LongRunningOpStore as _OpStore
         from hi_agent.experiment.poller import OpPoller as _OpPoller
         _db_dir = getattr(agent_server._config, "server_db_dir", None)
         _op_db = _Path(_db_dir) / "ops.db" if _db_dir else _Path(".hi_agent") / "ops.db"
@@ -1407,7 +1408,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
             _op_poller.stop()
             try:
                 await asyncio.wait_for(_poller_task, timeout=5.0)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
+            except (TimeoutError, asyncio.CancelledError):
                 pass
             logger.info("G-8: OpPoller stopped.")
 
@@ -1417,6 +1418,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # they reach rate limiting or route handlers).
     # Enabled only when HI_AGENT_API_KEY env-var is set; no-op otherwise.
     import os as _os_auth
+
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_auth
     _env_auth = _os_auth.environ.get("HI_AGENT_ENV", "dev").lower()
     _builder_auth = getattr(agent_server, "_builder", None)

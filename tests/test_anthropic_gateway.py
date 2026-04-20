@@ -6,10 +6,8 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hi_agent.llm import AnthropicLLMGateway, LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -223,9 +221,8 @@ class TestErrorHandling:
         with patch(
             "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
             side_effect=url_err,
-        ):
-            with pytest.raises(LLMTimeoutError):
-                gw.complete(_make_request())
+        ), pytest.raises(LLMTimeoutError):
+            gw.complete(_make_request())
 
     def test_connection_error_raises_provider_error(self) -> None:
         import urllib.error
@@ -235,9 +232,8 @@ class TestErrorHandling:
         with patch(
             "hi_agent.llm.anthropic_gateway.urllib.request.urlopen",
             side_effect=url_err,
-        ):
-            with pytest.raises(LLMProviderError, match="connection refused"):
-                gw.complete(_make_request())
+        ), pytest.raises(LLMProviderError, match="connection refused"):
+            gw.complete(_make_request())
 
 
 # ---------------------------------------------------------------------------

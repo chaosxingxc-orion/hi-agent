@@ -6,7 +6,6 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from agent_kernel.kernel.task_manager.contracts import (
     TaskAttempt,
     TaskDescriptor,

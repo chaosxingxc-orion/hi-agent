@@ -10,9 +10,9 @@ Route-aware rules:
 
 from __future__ import annotations
 
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
-from starlette.requests import Request
 
 from hi_agent.server.session_store import SessionStore
 from hi_agent.server.tenant_context import get_tenant_context

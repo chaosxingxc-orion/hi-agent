@@ -19,8 +19,8 @@ from hi_agent.observability.notification import (
     format_webhook_payload,
     send_notification,
 )
-from hi_agent.observability.trace_context import TraceContextManager
 from hi_agent.observability.trace_context import TraceContext as PropagatedTraceContext
+from hi_agent.observability.trace_context import TraceContextManager
 from hi_agent.observability.tracing import SpanRecord, TraceContext, Tracer
 
 __all__ = [
@@ -36,8 +36,8 @@ __all__ = [
     "TraceContextManager",
     "Tracer",
     "aggregate_counters",
-    "default_alert_rules",
     "avg_token_per_run",
+    "default_alert_rules",
     "format_webhook_payload",
     "p95_latency",
     "run_success_rate",

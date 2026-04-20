@@ -27,7 +27,9 @@ def test_harness(builder):
 
 
 def test_no_llm_gateway_call():
-    import inspect, hi_agent.config.capability_plane_builder as m
+    import inspect
+
+    import hi_agent.config.capability_plane_builder as m
     src = inspect.getsource(m)
     assert 'build_llm_gateway' not in src, 'Must not call build_llm_gateway internally'
 

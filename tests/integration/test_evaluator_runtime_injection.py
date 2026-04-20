@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.evaluation.contracts import (
     DefaultEvaluator,
-    EvaluationContext,
     EvaluationResult,
-    Evaluator,
 )
 from hi_agent.evaluation.runtime import EvaluatorRuntime
 from hi_agent.middleware.evaluation import EvaluationMiddleware

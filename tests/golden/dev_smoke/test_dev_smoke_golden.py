@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import uuid
 
-import pytest
-
 
 class TestDevSmokeGoldenPath:
     """Full execution path with heuristic fallback (no API keys required)."""

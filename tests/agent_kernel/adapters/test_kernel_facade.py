@@ -6,7 +6,6 @@ import asyncio
 from unittest.mock import AsyncMock, Mock, call
 
 import pytest
-
 from agent_kernel.adapters.facade.kernel_facade import KernelFacade
 from agent_kernel.kernel.contracts import (
     CancelRunRequest,

@@ -12,12 +12,9 @@ from dataclasses import fields
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
-
 from hi_agent.contracts.memory import StageSummary
 from hi_agent.harness.contracts import ActionResult, ActionSpec, ActionState
 from hi_agent.harness.executor import HarnessExecutor
-
 
 # ---------------------------------------------------------------------------
 # D4-1: StageSummary has artifact_ids field
@@ -85,6 +82,7 @@ class TestInvokeViaHarnessArtifactIds:
         """The dict returned by _invoke_via_harness must have artifact_ids key."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         kernel = MockKernel(strict_mode=True)
@@ -124,6 +122,7 @@ class TestInvokeViaHarnessArtifactIds:
         """When harness returns a failed result, artifact_ids should still be present."""
         from hi_agent.contracts import TaskContract
         from hi_agent.runner import RunExecutor
+
         from tests.helpers.kernel_adapter_fixture import MockKernel
 
         kernel = MockKernel(strict_mode=True)

@@ -1,6 +1,5 @@
 """Tests for audit event helpers (HI-W10-005)."""
 import json
-import pytest
 from pathlib import Path
 
 

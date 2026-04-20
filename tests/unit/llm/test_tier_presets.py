@@ -6,8 +6,6 @@ registered on a TierRouter instance without clobbering existing defaults.
 
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.llm.registry import ModelRegistry, ModelTier
 from hi_agent.llm.tier_presets import apply_research_defaults
 from hi_agent.llm.tier_router import TierRouter

@@ -1,5 +1,4 @@
-"""
-Prompt Injection Scanner for hi-agent.
+"""Prompt Injection Scanner for hi-agent.
 
 Scans text content for prompt injection patterns before it is ingested
 into the knowledge base or skill system. Detected content is blocked
@@ -19,11 +18,9 @@ from __future__ import annotations
 
 import re
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING
-
 
 # ---------------------------------------------------------------------------
 # Severity
@@ -338,7 +335,7 @@ class InjectionScanner:
             matched_patterns=matched,
             severity=highest,
             source=source,
-            scanned_at=datetime.now(tz=timezone.utc).isoformat(),
+            scanned_at=datetime.now(tz=UTC).isoformat(),
         )
 
     def scan_and_raise(self, content: str, source: str = "") -> None:
@@ -370,7 +367,7 @@ class InjectionScanner:
             event_id=str(uuid.uuid4()),
             scan_result=result,
             action_taken=action,
-            created_at=datetime.now(tz=timezone.utc).isoformat(),
+            created_at=datetime.now(tz=UTC).isoformat(),
         )
 
     def add_pattern(self, pattern: InjectionPattern) -> None:

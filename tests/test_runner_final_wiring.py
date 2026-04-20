@@ -13,7 +13,6 @@ from __future__ import annotations
 import tempfile
 from dataclasses import dataclass
 from typing import Any
-from unittest.mock import MagicMock
 
 from hi_agent.contracts import TaskContract
 from hi_agent.failures.collector import FailureCollector
@@ -22,9 +21,10 @@ from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
 from hi_agent.runner import RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import ManagedSkill, SkillRegistry
+
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _make_contract(

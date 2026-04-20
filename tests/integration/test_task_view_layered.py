@@ -9,15 +9,15 @@ Validates token-budgeted task view construction including:
 
 from __future__ import annotations
 
-from hi_agent.contracts import StageState, TaskContract
+from hi_agent.contracts import TaskContract
 from hi_agent.memory.compressor import MemoryCompressor
-from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.memory.l1_compressed import CompressedStageMemory
-from hi_agent.memory.l2_index import RunMemoryIndex, StagePointer
+from hi_agent.memory.l2_index import RunMemoryIndex
 from hi_agent.runner import STAGES, RunExecutor
-from tests.helpers.kernel_adapter_fixture import MockKernel
 from hi_agent.task_view.builder import TaskView, build_task_view
-from hi_agent.task_view.token_budget import DEFAULT_BUDGET, count_tokens
+from hi_agent.task_view.token_budget import DEFAULT_BUDGET
+
+from tests.helpers.kernel_adapter_fixture import MockKernel
 
 
 def _build_run_data() -> tuple[RunExecutor, MockKernel]:

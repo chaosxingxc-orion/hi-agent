@@ -4,8 +4,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
 
 from hi_agent.experiment.coordinator import LongRunningOpCoordinator
 from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus

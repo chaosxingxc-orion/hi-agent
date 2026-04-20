@@ -7,10 +7,8 @@ using the same resolvers as /ready, so the two endpoints never drift.
 from __future__ import annotations
 
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.server.app import AgentServer
-
+from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Fixtures

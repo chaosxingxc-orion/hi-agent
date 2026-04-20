@@ -1,5 +1,4 @@
-"""
-LLM Streaming support for hi-agent.
+"""LLM Streaming support for hi-agent.
 
 Provides async streaming protocol and HTTP SSE implementation on top of httpx.
 Designed to complement HTTPGateway without modifying it.
@@ -9,8 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import httpx
 
@@ -337,7 +337,7 @@ class HTTPStreamingGateway:
                 )
             except StopAsyncIteration:
                 break
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 raise LLMTimeoutError(
                     f"Stream stale for {_STALE_STREAM_TIMEOUT}s — no data received"
                 ) from exc

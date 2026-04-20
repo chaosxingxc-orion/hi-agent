@@ -2,22 +2,18 @@
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
 from hi_agent.llm.protocol import (
     AsyncLLMGateway,
-    LLMGateway,
     LLMRequest,
     LLMResponse,
     TokenUsage,
 )
 from hi_agent.memory.async_compressor import AsyncMemoryCompressor, CompressionResult
-
 
 # ---------------------------------------------------------------------------
 # Mock async gateway
@@ -255,8 +251,9 @@ def test_hybrid_engine_with_gateway():
     """HybridRouteEngine should fall through to LLM when rules are weak."""
     import json
 
-    from tests.helpers.llm_gateway_fixture import MockLLMGateway
     from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
+
+    from tests.helpers.llm_gateway_fixture import MockLLMGateway
 
     # MockLLMGateway returns plain text by default; LLMRouteEngine expects JSON.
     mock_decision = json.dumps({
