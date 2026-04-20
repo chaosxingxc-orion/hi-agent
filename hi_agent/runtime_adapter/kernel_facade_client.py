@@ -10,6 +10,8 @@ Zero external dependencies -- HTTP mode uses stdlib urllib.request.
 from __future__ import annotations
 
 import json
+import os
+import re
 import urllib.error
 import urllib.request
 from collections.abc import AsyncIterator
@@ -18,6 +20,8 @@ from typing import Any
 from hi_agent.contracts import StageState
 from hi_agent.contracts.requests import ApprovalRequest, HumanGateRequest
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
+
+_ALLOWED_KERNEL_HOSTS = re.compile(r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$")
 
 
 class KernelFacadeClient:
@@ -48,7 +52,16 @@ class KernelFacadeClient:
             raise ValueError(f"mode must be 'direct' or 'http', got '{mode}'")
         self._mode = mode
         self._facade = facade
-        self._base_url = base_url.rstrip("/")
+        base_url = base_url.rstrip("/")
+        if not _ALLOWED_KERNEL_HOSTS.match(base_url):
+            override = os.getenv("HI_AGENT_KERNEL_BASE_URL_OVERRIDE_UNSAFE", "")
+            if not override:
+                raise ValueError(
+                    f"KernelFacadeClient base_url '{base_url}' is not an allowed "
+                    f"loopback endpoint. Set HI_AGENT_KERNEL_BASE_URL_OVERRIDE_UNSAFE "
+                    f"to allow non-loopback endpoints."
+                )
+        self._base_url = base_url
         self._timeout = timeout_seconds
 
         if mode == "direct" and facade is None:

@@ -112,4 +112,17 @@ class TaskContract:
     # Runtime profile injection — business agents pass a profile_id to activate
     # a ProfileSpec from the platform's ProfileRegistry.
     profile_id: str | None = None
+    # G-12: Stage-level goal and exit criterion for RIA multi-phase research agents.
+    # stage_goal: [ACTIVE] Natural-language description of this stage's specific goal.
+    # exit_criterion: [ACTIVE] Structured criterion that must be satisfied before the
+    #   stage can complete.  Supported types: "file_exists", "metric_threshold".
+    #   An empty dict means no criterion (always passes).
+    stage_goal: str = ""
+    exit_criterion: dict = field(default_factory=dict)
+    # G-1: Cross-profile read declarations (global layer convention).
+    # cross_profile_read: [PASSTHROUGH] List of profile-relative paths the task
+    #   is allowed to read.  Only paths under "hi_agent_global/" are permitted by
+    #   the platform; access to sibling project profiles is not supported.
+    #   Example: ["hi_agent_global/memory/l3", "hi_agent_global/skills"]
+    cross_profile_read: list[str] = field(default_factory=list)
 

@@ -58,13 +58,14 @@ class CapabilityInvoker:
     def __init__(
         self,
         registry: CapabilityRegistry,
-        breaker: CircuitBreaker,
+        breaker: CircuitBreaker | None = None,
         policy: CapabilityPolicy | None = None,
         max_retries: int = 0,
         retry_exceptions: tuple[type[Exception], ...] = (Exception,),
         call_timeout_seconds: float | None = None,
         timeout_call: Callable[[Callable[[dict], dict], dict, float], dict]
         | None = None,
+        allow_unguarded: bool = False,
     ) -> None:
         """Initialize invoker dependencies.
 
@@ -76,6 +77,8 @@ class CapabilityInvoker:
           retry_exceptions: Exception types eligible for retry.
           call_timeout_seconds: Optional timeout budget for one handler invocation.
           timeout_call: Optional timeout executor function for testability.
+          allow_unguarded: When True, allows invocation without a CapabilityPolicy.
+              Must only be set in tests or internal tooling — never in production paths.
         """
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
@@ -89,6 +92,7 @@ class CapabilityInvoker:
         self.retry_exceptions = retry_exceptions
         self.call_timeout_seconds = call_timeout_seconds
         self.timeout_call = timeout_call or _default_timeout_call
+        self._allow_unguarded = allow_unguarded
 
     def invoke(
         self,
@@ -100,9 +104,15 @@ class CapabilityInvoker:
         """Invoke one capability handler.
 
         Raises:
-          PermissionError: When role is not allowed to invoke the capability.
+          PermissionError: When role is not allowed to invoke the capability,
+              or when no CapabilityPolicy is set and allow_unguarded is False.
           RuntimeError: When capability circuit is open.
         """
+        if self.policy is None and not self._allow_unguarded:
+            raise PermissionError(
+                f"CapabilityInvoker has no CapabilityPolicy. "
+                f"Pass allow_unguarded=True to bypass governance (tests/internal only)."
+            )
         if self.policy:
             stage_id = metadata.get("stage_id") if metadata else None
             action_kind = metadata.get("action_kind") if metadata else None
@@ -141,7 +151,7 @@ class CapabilityInvoker:
 
         attempt = 0
         while True:
-            if not self.breaker.allow(capability_name):
+            if self.breaker is not None and not self.breaker.allow(capability_name):
                 raise RuntimeError(f"Capability circuit open: {capability_name}")
             try:
                 start_ms = int(time.monotonic() * 1000)
@@ -152,7 +162,8 @@ class CapabilityInvoker:
                         spec.handler, payload, self.call_timeout_seconds
                     )
                 elapsed_ms = int(time.monotonic() * 1000) - start_ms
-                self.breaker.mark_success(capability_name)
+                if self.breaker is not None:
+                    self.breaker.mark_success(capability_name)
                 if isinstance(response, dict):
                     # W10-004: output budget enforcement — truncate oversized outputs
                     budget = None
@@ -187,7 +198,8 @@ class CapabilityInvoker:
                         }
                 return response
             except Exception as exc:
-                self.breaker.mark_failure(capability_name)
+                if self.breaker is not None:
+                    self.breaker.mark_failure(capability_name)
                 retryable = isinstance(exc, self.retry_exceptions)
                 if attempt >= self.max_retries or not retryable:
                     raise

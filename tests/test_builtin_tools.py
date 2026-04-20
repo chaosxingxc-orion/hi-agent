@@ -21,13 +21,14 @@ class TestFileRead:
     def test_reads_existing_file(self, tmp_path):
         f = tmp_path / "hello.txt"
         f.write_text("hello world", encoding="utf-8")
-        result = file_read_handler({"path": "hello.txt", "base_dir": str(tmp_path)})
+        # H-6: base_dir must be passed as workspace_root kwarg, not in payload
+        result = file_read_handler({"path": "hello.txt"}, workspace_root=tmp_path)
         assert result["success"] is True
         assert result["content"] == "hello world"
         assert result["size"] == 11
 
     def test_missing_file_returns_error(self, tmp_path):
-        result = file_read_handler({"path": "nonexistent_xyz.txt", "base_dir": str(tmp_path)})
+        result = file_read_handler({"path": "nonexistent_xyz.txt"}, workspace_root=tmp_path)
         assert result["success"] is False
         assert result["error"] is not None
 
@@ -36,24 +37,25 @@ class TestFileRead:
         assert result["success"] is False
 
     def test_path_traversal_blocked(self, tmp_path):
-        result = file_read_handler({"path": "../escape.txt", "base_dir": str(tmp_path)})
+        result = file_read_handler({"path": "../escape.txt"}, workspace_root=tmp_path)
         assert result["success"] is False
         assert "policy" in result["error"].lower()
 
 
 class TestFileWrite:
     def test_writes_file(self, tmp_path):
-        result = file_write_handler({"path": "out.txt", "base_dir": str(tmp_path), "content": "data"})
+        # H-6: base_dir must be passed as workspace_root kwarg, not in payload
+        result = file_write_handler({"path": "out.txt", "content": "data"}, workspace_root=tmp_path)
         assert result["success"] is True
         assert (tmp_path / "out.txt").read_text() == "data"
 
     def test_creates_parent_dirs(self, tmp_path):
-        result = file_write_handler({"path": "a/b/c.txt", "base_dir": str(tmp_path), "content": "x"})
+        result = file_write_handler({"path": "a/b/c.txt", "content": "x"}, workspace_root=tmp_path)
         assert result["success"] is True
         assert (tmp_path / "a" / "b" / "c.txt").exists()
 
     def test_path_traversal_blocked(self, tmp_path):
-        result = file_write_handler({"path": "../escape.txt", "base_dir": str(tmp_path), "content": "x"})
+        result = file_write_handler({"path": "../escape.txt", "content": "x"}, workspace_root=tmp_path)
         assert result["success"] is False
         assert "policy" in result["error"].lower()
 
@@ -71,8 +73,8 @@ class TestShellExec:
         assert result["returncode"] != 0
 
     def test_timeout(self):
-        cmd = f"{sys.executable} -c \"import time; time.sleep(100)\""
-        result = shell_exec_handler({"command": cmd, "timeout": 1.0})
+        # Pass argv as list to avoid shlex.split breaking Windows backslash paths
+        result = shell_exec_handler({"command": [sys.executable, "-c", "import time; time.sleep(100)"], "timeout": 1.0})
         assert result["success"] is False
         assert "timed out" in result["error"]
 
@@ -105,7 +107,9 @@ class TestWebFetch:
 
 
 class TestRegisterBuiltinTools:
-    def test_all_four_tools_registered(self):
+    def test_all_four_tools_registered(self, monkeypatch):
+        # H-2: shell_exec requires HI_AGENT_ENABLE_SHELL_EXEC=true
+        monkeypatch.setenv("HI_AGENT_ENABLE_SHELL_EXEC", "true")
         registry = CapabilityRegistry()
         register_builtin_tools(registry)
         names = registry.list_names()
@@ -120,5 +124,6 @@ class TestRegisterBuiltinTools:
         f = tmp_path / "t.txt"
         f.write_text("test")
         spec = registry.get("file_read")
-        result = spec.handler({"path": "t.txt", "base_dir": str(tmp_path)})
+        # H-6: pass workspace_root as kwarg, not in payload
+        result = spec.handler({"path": "t.txt"}, workspace_root=tmp_path)
         assert result["success"] is True

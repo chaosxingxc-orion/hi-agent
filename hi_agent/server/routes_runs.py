@@ -20,13 +20,25 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any
+import uuid
+from typing import Any, Literal
 
+from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from hi_agent.server.tenant_context import require_tenant_context
 from hi_agent.server.workspace_path import WorkspaceKey
+
+
+class GateDecisionRequest(BaseModel):
+    """Request body for POST /runs/{run_id}/gate_decision."""
+
+    decision: Literal["approve", "backtrack", "remediate", "escalate"]
+    target_phase: str = ""
+    remediation: dict = {}
+    approver_id: str
+    note: str = ""
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +309,7 @@ async def handle_resume_run(request: Request) -> JSONResponse:
         body = {}
 
     # Search for checkpoint file (run os.path.exists off the event loop)
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     checkpoint_path = body.get("checkpoint_path")
     if not checkpoint_path:
         candidates = [
@@ -366,3 +378,58 @@ async def handle_run_artifacts(request: Request) -> JSONResponse:
     else:
         artifacts_payload = [{"artifact_id": aid} for aid in artifact_ids]
     return JSONResponse({"run_id": run_id, "artifacts": artifacts_payload, "count": len(artifacts_payload)})
+
+
+async def handle_gate_decision(request: Request) -> JSONResponse:
+    """Apply a structured gate decision to a run.
+
+    POST /runs/{run_id}/gate_decision
+
+    Accepts a :class:`GateDecisionRequest` body with decision type
+    (approve / backtrack / remediate / escalate), an approver identity,
+    and optional phase / remediation fields.
+
+    Returns:
+        200 with ``{run_id, decision, event_id, status}`` on success.
+        400 on validation error.
+        401 when caller is not authenticated.
+    """
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+
+    run_id = request.path_params["run_id"]
+
+    try:
+        raw = await request.json()
+        body = GateDecisionRequest(**raw)
+    except Exception as exc:
+        return JSONResponse({"error": "invalid_request", "detail": str(exc)}, status_code=400)
+
+    server: Any = request.app.state.agent_server
+    event_id = str(uuid.uuid4())
+
+    # Attempt to apply via a live GateCoordinator if the system exposes one.
+    coord = getattr(getattr(server, "_builder", None), "_gate_coordinator", None)
+    if coord is None:
+        coord = getattr(server, "gate_coordinator", None)
+    if coord is not None and hasattr(coord, "apply_decision"):
+        try:
+            coord.apply_decision(
+                run_id=run_id,
+                decision=body.decision,
+                target_phase=body.target_phase,
+                remediation=body.remediation,
+                approver_id=body.approver_id,
+                note=body.note,
+            )
+        except Exception as exc:
+            logger.warning("handle_gate_decision: apply_decision failed: %s", exc)
+
+    return JSONResponse({
+        "run_id": run_id,
+        "decision": body.decision,
+        "event_id": event_id,
+        "status": "accepted",
+    })

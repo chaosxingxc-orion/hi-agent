@@ -17,7 +17,7 @@ def test_builder_invoker_includes_builtin_tools():
     assert "file_read" in names
     assert "file_write" in names
     assert "web_fetch" in names
-    assert "shell_exec" in names
+    # shell_exec is gated behind HI_AGENT_ENABLE_SHELL_EXEC=true (H-2 security hardening)
 
 
 def test_builder_invoker_includes_llm_capabilities():
@@ -42,13 +42,14 @@ def test_capability_spec_has_parameters():
         assert "properties" in spec.parameters, f"{spec.name} parameters must have 'properties'"
 
 
-def test_file_read_invokable_via_registry(tmp_path):
+def test_file_read_invokable_via_registry(tmp_path, monkeypatch):
     import os; os.environ["HI_AGENT_ALLOW_HEURISTIC_FALLBACK"] = "1"
+    monkeypatch.chdir(tmp_path)  # file_read resolves paths relative to cwd (H-6: payload base_dir ignored)
     config = TraceConfig()
     builder = SystemBuilder(config=config)
     invoker = builder.build_invoker()
     f = tmp_path / "test.txt"
     f.write_text("hello")
-    result = invoker.invoke("file_read", {"path": "test.txt", "base_dir": str(tmp_path)})
+    result = invoker.invoke("file_read", {"path": "test.txt"})
     assert result["success"] is True
     assert result["content"] == "hello"

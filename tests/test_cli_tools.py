@@ -46,23 +46,24 @@ def test_tools_endpoint_list_logic():
     assert "file_read" in names
     assert "file_write" in names
     assert "web_fetch" in names
-    assert "shell_exec" in names
+    # shell_exec requires HI_AGENT_ENABLE_SHELL_EXEC=true (H-2 security gate)
 
 
-def test_tools_call_logic_file_read(tmp_path):
+def test_tools_call_logic_file_read(tmp_path, monkeypatch):
     """Test the /tools/call logic directly."""
     from hi_agent.capability.registry import CapabilityRegistry
     from hi_agent.capability.tools.builtin import register_builtin_tools
     from hi_agent.capability.invoker import CapabilityInvoker
     from hi_agent.capability.circuit_breaker import CircuitBreaker
 
+    monkeypatch.chdir(tmp_path)  # file_read uses cwd; payload base_dir is ignored (H-6)
     registry = CapabilityRegistry()
     register_builtin_tools(registry)
-    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker())
+    invoker = CapabilityInvoker(registry=registry, breaker=CircuitBreaker(), allow_unguarded=True)
 
     f = tmp_path / "cli_test.txt"
     f.write_text("cli content")
 
-    result = invoker.invoke("file_read", {"path": "cli_test.txt", "base_dir": str(tmp_path)})
+    result = invoker.invoke("file_read", {"path": "cli_test.txt"})
     assert result["success"] is True
     assert result["content"] == "cli content"

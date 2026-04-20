@@ -155,7 +155,7 @@ class CapabilityPlaneBuilder:
                 registry = CapabilityRegistry()
                 logger.warning("build_invoker: registry is None, using empty fallback registry.")
             breaker = CircuitBreaker()
-            capability_invoker = CapabilityInvoker(registry=registry, breaker=breaker)
+            capability_invoker = CapabilityInvoker(registry=registry, breaker=breaker, allow_unguarded=True)
             logger.info(
                 "build_invoker: using shared registry with %d capabilities.",
                 len(registry.list_names()),

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+import operator as _operator
+import uuid as _uuid
+from pathlib import Path
 from typing import Any
 
 from hi_agent.contracts import HumanGateRequest, NodeState
@@ -209,6 +212,116 @@ class GateCoordinator:
             return executor._finalize_run("failed")
 
         return executor._finalize_run("completed")
+
+    def _emit_event(self, event_type: str, payload: dict) -> None:
+        """Emit a gate event via the executor's observability hook (best-effort)."""
+        executor = self._executor
+        try:
+            executor._emit_observability(event_type, payload)
+        except Exception:
+            _logger.debug("gate_coordinator._emit_event: observability emit failed for %s", event_type)
+
+    def apply_decision(
+        self,
+        *,
+        run_id: str,
+        decision: str,
+        target_phase: str = "",
+        remediation: dict | None = None,
+        approver_id: str,
+        note: str = "",
+    ) -> dict:
+        """Apply a structured gate decision and emit corresponding events.
+
+        Args:
+            run_id: The run this decision applies to.
+            decision: One of ``approve``, ``backtrack``, ``remediate``, ``escalate``.
+            target_phase: For ``backtrack`` decisions, the phase to return to.
+            remediation: For ``remediate`` decisions, arbitrary remediation data.
+            approver_id: Identity of the human approver.
+            note: Optional free-text note.
+
+        Returns:
+            Dict with ``event_id`` key.
+        """
+        event_id = str(_uuid.uuid4())
+        self._emit_event("gate.decided", {
+            "run_id": run_id,
+            "decision": decision,
+            "target_phase": target_phase,
+            "approver_id": approver_id,
+            "note": note,
+            "event_id": event_id,
+        })
+        if decision == "backtrack" and target_phase:
+            self._emit_event("gate.backtrack_requested", {
+                "run_id": run_id,
+                "target_phase": target_phase,
+            })
+        elif decision == "remediate":
+            self._emit_event("gate.remediation_requested", {
+                "run_id": run_id,
+                "remediation": remediation or {},
+            })
+        return {"event_id": event_id}
+
+    def check_exit_criterion(self, contract: Any, workspace_root: Path) -> None:
+        """Check that the contract's exit criterion is satisfied.
+
+        Supported criterion types:
+        - ``"file_exists"``: checks that a file at params["path"] exists.
+        - ``"metric_threshold"``: reads a JSON metrics file and compares a
+          key against a numeric threshold using the specified operator.
+
+        An empty or absent exit_criterion always passes.
+
+        Raises:
+            GatePendingError: when the criterion is not satisfied.
+        """
+        criterion: dict = getattr(contract, "exit_criterion", {}) or {}
+        if not criterion:
+            return
+
+        ctype = criterion.get("type", "")
+        params = criterion.get("params", {})
+
+        if ctype == "file_exists":
+            target = workspace_root / params.get("path", "")
+            if not target.exists():
+                raise GatePendingError(
+                    gate_id=f"exit-criterion-{getattr(contract, 'stage_goal', '')}",
+                    message=f"Exit criterion not satisfied: file '{params.get('path')}' does not exist",
+                )
+
+        elif ctype == "metric_threshold":
+            import json as _json
+            metric_file = workspace_root / params.get("metric_file", "metrics.json")
+            if not metric_file.exists():
+                raise GatePendingError(
+                    gate_id="exit-criterion-metric",
+                    message=f"Exit criterion: metric_file '{metric_file}' not found",
+                )
+            metrics = _json.loads(metric_file.read_text())
+            key = params.get("key", "")
+            threshold = float(params.get("threshold", 0))
+            op_str = params.get("op", ">=")
+            _ops = {
+                ">=": _operator.ge,
+                ">": _operator.gt,
+                "<=": _operator.le,
+                "<": _operator.lt,
+                "==": _operator.eq,
+            }
+            op_fn = _ops.get(op_str, _operator.ge)
+            value = float(metrics.get(key, float("-inf")))
+            if not op_fn(value, threshold):
+                raise GatePendingError(
+                    gate_id="exit-criterion-metric",
+                    message=(
+                        f"Exit criterion: {key}={value} does not satisfy {op_str} {threshold}"
+                    ),
+                )
+        # Unknown types pass silently.
 
     def _check_human_gate_triggers(
         self,

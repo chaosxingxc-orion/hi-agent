@@ -178,8 +178,10 @@ class TestLLMGatewayActivation:
         with patch("hi_agent.config.json_config_loader.build_gateway_from_config", return_value=None):
             gateway = builder.build_llm_gateway()
         assert isinstance(gateway, TierAwareLLMGateway)
-        assert isinstance(gateway._inner, HttpLLMGateway)
-        assert gateway._inner._default_model == "gpt-4o"
+        # Default compat_sync_llm=False → AsyncHTTPGateway; True → HttpLLMGateway.
+        from hi_agent.llm.async_http_gateway import AsyncHTTPGateway
+        assert isinstance(gateway._inner, (HttpLLMGateway, AsyncHTTPGateway))
+        assert gateway._inner._inner._default_model == "gpt-4o" if isinstance(gateway._inner, AsyncHTTPGateway) else gateway._inner._default_model == "gpt-4o"
 
     def test_returns_gateway_with_anthropic_key(self, tmp_path: Any, monkeypatch: Any) -> None:
         config = TraceConfig(

@@ -22,8 +22,14 @@ def test_builtin_file_read_descriptor(registry: CapabilityRegistry) -> None:
     assert desc.requires_approval is False
 
 
-def test_builtin_shell_exec_descriptor(registry: CapabilityRegistry) -> None:
-    desc = registry.get_descriptor("shell_exec")
+def test_builtin_shell_exec_descriptor(monkeypatch) -> None:
+    """shell_exec descriptor requires HI_AGENT_ENABLE_SHELL_EXEC=true to register (H-2)."""
+    monkeypatch.setenv("HI_AGENT_ENABLE_SHELL_EXEC", "true")
+    from hi_agent.capability.registry import CapabilityRegistry
+    from hi_agent.capability.tools.builtin import register_builtin_tools
+    reg = CapabilityRegistry()
+    register_builtin_tools(reg)
+    desc = reg.get_descriptor("shell_exec")
     assert desc is not None
     assert desc.risk_class == "shell"
     assert desc.prod_enabled_default is False

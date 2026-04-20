@@ -621,11 +621,13 @@ class TestBuilderIntegration:
         with pytest.raises(ValueError, match="no longer supported"):
             builder.build_kernel()
 
-    def test_facade_client_when_url_is_set(self) -> None:
+    def test_facade_client_when_url_is_set(self, monkeypatch) -> None:
         from hi_agent.config.builder import SystemBuilder
         from hi_agent.config.trace_config import TraceConfig
         from hi_agent.runtime_adapter import ResilientKernelAdapter
 
+        # H-4: non-loopback URLs require explicit override (e.g., docker/k8s cluster deployments)
+        monkeypatch.setenv("HI_AGENT_KERNEL_BASE_URL_OVERRIDE_UNSAFE", "http://kernel:9090")
         config = TraceConfig(kernel_base_url="http://kernel:9090")
         builder = SystemBuilder(config)
         kernel = builder.build_kernel()
