@@ -49,7 +49,6 @@ class ActionDispatcher:
 
         try:
             import asyncio
-            import concurrent.futures as _cf
 
             from hi_agent.middleware.hooks import ToolCallContext
 
@@ -69,18 +68,20 @@ class ActionDispatcher:
 
             _call_fn._last_result = {}  # type: ignore[attr-defined]
 
-            # Run async hook chain synchronously
+            # Run async hook chain synchronously using the shared bridge executor
+            # instead of creating a per-call ThreadPoolExecutor.
+            from hi_agent.runtime.async_bridge import AsyncBridgeService
+
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    # We're inside execute_async() 鈥?run hook chain in a fresh
-                    # thread to avoid nested event loop.  concurrent.futures +
-                    # asyncio.run() creates an isolated loop in the worker thread.
-                    with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
-                        _pool.submit(
-                            asyncio.run,
-                            self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn),
-                        ).result()
+                    # We're inside execute_async() — submit to shared executor so
+                    # the coroutine runs in a fresh thread with its own event loop.
+                    future = AsyncBridgeService.get_executor().submit(
+                        asyncio.run,
+                        self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn),
+                    )
+                    future.result()
                 else:
                     loop.run_until_complete(
                         self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn)

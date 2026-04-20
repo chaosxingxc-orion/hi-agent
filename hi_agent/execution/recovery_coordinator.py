@@ -322,12 +322,11 @@ class RecoveryCoordinator:
                                 )
                                 loop = None
                                 try:
-                                    loop = asyncio.get_event_loop()
-                                except RuntimeError as exc:
-                                    _logger.warning(
-                                        "runner: no event loop available, sync reflection only: %s",
-                                        exc,
-                                    )
+                                    loop = asyncio.get_running_loop()
+                                except RuntimeError:
+                                    # No running event loop in this thread — fall through
+                                    # to the sync asyncio.run() path below.
+                                    pass
 
                                 if loop is not None and loop.is_running():
                                     # Save reflection prompt synchronously — must precede the retry LLM call.

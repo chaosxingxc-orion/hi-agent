@@ -692,205 +692,25 @@ async def handle_cost(request: Request) -> JSONResponse:
 
 
 # ------------------------------------------------------------------
-# Memory lifecycle handlers
+# Memory lifecycle handlers (extracted to routes_memory.py)
 # ------------------------------------------------------------------
-
-async def handle_memory_dream(request: Request) -> JSONResponse:
-    """Trigger dream consolidation (short-term -> mid-term)."""
-    server: AgentServer = request.app.state.agent_server
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        body = {}
-
-    profile_id = body.get("profile_id", "")
-    if profile_id:
-        # K-9: Build a per-request scoped manager for profile deployments.
-        try:
-            from hi_agent.config.builder import SystemBuilder
-            _builder = SystemBuilder()
-            manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
-        except Exception as _build_exc:
-            return JSONResponse(
-                {"error": f"profile_manager_build_failed: {_build_exc}"}, status_code=500
-            )
-    else:
-        manager = server.memory_manager
-
-    if manager is None:
-        return JSONResponse({"error": "memory_not_configured"}, status_code=503)
-
-    result = manager.trigger_dream(body.get("date"))
-    return JSONResponse(result)
-
-
-@require_operation("memory.consolidate")
-async def handle_memory_consolidate(request: Request) -> JSONResponse:
-    """Trigger consolidation (mid-term -> long-term)."""
-    server: AgentServer = request.app.state.agent_server
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        body = {}
-
-    profile_id = body.get("profile_id", "")
-    if profile_id:
-        # K-9: Build a per-request scoped manager for profile deployments.
-        try:
-            from hi_agent.config.builder import SystemBuilder
-            _builder = SystemBuilder()
-            manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
-        except Exception as _build_exc:
-            return JSONResponse(
-                {"error": f"profile_manager_build_failed: {_build_exc}"}, status_code=500
-            )
-    else:
-        manager = server.memory_manager
-
-    if manager is None:
-        return JSONResponse({"error": "memory_not_configured"}, status_code=503)
-
-    result = manager.trigger_consolidation(body.get("days", 7))
-    return JSONResponse(result)
-
-
-async def handle_memory_status(request: Request) -> JSONResponse:
-    """Return memory tier status."""
-    server: AgentServer = request.app.state.agent_server
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        body = {}
-
-    profile_id = body.get("profile_id", "")
-    if profile_id:
-        # K-9: Build a per-request scoped manager for profile deployments.
-        try:
-            from hi_agent.config.builder import SystemBuilder
-            _builder = SystemBuilder()
-            manager = _builder.build_memory_lifecycle_manager(profile_id=profile_id)
-        except Exception as _build_exc:
-            return JSONResponse(
-                {"error": f"profile_manager_build_failed: {_build_exc}"}, status_code=500
-            )
-    else:
-        manager = server.memory_manager
-
-    if manager is None:
-        return JSONResponse({"error": "memory_not_configured"}, status_code=503)
-
-    result = manager.get_status()
-    return JSONResponse(result)
-
+from hi_agent.server.routes_memory import (  # noqa: E402
+    handle_memory_dream,
+    handle_memory_consolidate,
+    handle_memory_status,
+)
 
 # ------------------------------------------------------------------
-# Knowledge handlers
+# Knowledge handlers (extracted to routes_knowledge.py)
 # ------------------------------------------------------------------
-
-async def handle_knowledge_ingest(request: Request) -> JSONResponse:
-    """Ingest text knowledge as a wiki page."""
-    server: AgentServer = request.app.state.agent_server
-    km = server.knowledge_manager
-    if km is None:
-        return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
-        )
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-    title = body.get("title", "")
-    content = body.get("content", "")
-    if not title or not content:
-        return JSONResponse(
-            {"error": "missing_title_or_content"}, status_code=400,
-        )
-    tags = body.get("tags", [])
-    page_id = km.ingest_text(title, content, tags)
-    return JSONResponse({"page_id": page_id, "status": "created"}, status_code=201)
-
-
-async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
-    """Ingest structured facts into the knowledge graph."""
-    server: AgentServer = request.app.state.agent_server
-    km = server.knowledge_manager
-    if km is None:
-        return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
-        )
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return JSONResponse({"error": "invalid_json"}, status_code=400)
-    facts = body.get("facts", [])
-    count = km.ingest_structured(facts)
-    return JSONResponse(
-        {"nodes_created": count, "status": "created"}, status_code=201,
-    )
-
-
-async def handle_knowledge_query(request: Request) -> JSONResponse:
-    """Query knowledge across all sources."""
-    server: AgentServer = request.app.state.agent_server
-    km = server.knowledge_manager
-    if km is None:
-        return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
-        )
-    q = request.query_params.get("q", "")
-    limit = int(request.query_params.get("limit", "10"))
-    budget = int(request.query_params.get("budget", "1500"))
-    if not q:
-        return JSONResponse(
-            {"error": "missing_query_param_q"}, status_code=400,
-        )
-    context = km.query_for_context(q, budget_tokens=budget)
-    result = km.query(q, limit=limit)
-    return JSONResponse({
-        "query": q,
-        "total_results": result.total_results,
-        "context": context,
-    })
-
-
-async def handle_knowledge_status(request: Request) -> JSONResponse:
-    """Return knowledge system stats."""
-    server: AgentServer = request.app.state.agent_server
-    km = server.knowledge_manager
-    if km is None:
-        return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
-        )
-    stats = km.get_stats()
-    return JSONResponse(stats)
-
-
-async def handle_knowledge_lint(request: Request) -> JSONResponse:
-    """Run knowledge health check."""
-    server: AgentServer = request.app.state.agent_server
-    km = server.knowledge_manager
-    if km is None:
-        return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
-        )
-    issues = km.lint()
-    return JSONResponse({"issues": issues, "count": len(issues)})
-
-
-async def handle_knowledge_sync(request: Request) -> JSONResponse:
-    """Sync graph nodes to wiki pages."""
-    server: AgentServer = request.app.state.agent_server
-    km = server.knowledge_manager
-    if km is None:
-        return JSONResponse(
-            {"error": "knowledge_not_configured"}, status_code=503,
-        )
-    pages_synced = km.renderer.to_wiki_pages(km.wiki)
-    km.wiki.rebuild_index()
-    return JSONResponse({
-        "pages_synced": pages_synced,
-        "status": "completed",
-    })
+from hi_agent.server.routes_knowledge import (  # noqa: E402
+    handle_knowledge_ingest,
+    handle_knowledge_ingest_structured,
+    handle_knowledge_query,
+    handle_knowledge_status,
+    handle_knowledge_lint,
+    handle_knowledge_sync,
+)
 
 
 # ------------------------------------------------------------------
@@ -1123,7 +943,7 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
     if not event_file:
         import os
 
-        _loop = asyncio.get_event_loop()
+        _loop = asyncio.get_running_loop()
         candidates = [
             f"replay_{run_id}.jsonl",
             os.path.join(".hi_agent", f"replay_{run_id}.jsonl"),
@@ -1142,7 +962,7 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
     try:
         from hi_agent.replay import ReplayEngine, load_event_envelopes_jsonl
 
-        _loop2 = asyncio.get_event_loop()
+        _loop2 = asyncio.get_running_loop()
         events = await _loop2.run_in_executor(None, load_event_envelopes_jsonl, event_file)
         run_events = [e for e in events if e.run_id == run_id]
         if not run_events:
@@ -1167,7 +987,7 @@ async def handle_replay_status(request: Request) -> JSONResponse:
     import os
 
     run_id = request.path_params["run_id"]
-    _loop = asyncio.get_event_loop()
+    _loop = asyncio.get_running_loop()
     candidates = [
         f"replay_{run_id}.jsonl",
         os.path.join(".hi_agent", f"replay_{run_id}.jsonl"),
@@ -1526,6 +1346,15 @@ def build_app(agent_server: AgentServer) -> Starlette:
         mm: MemoryLifecycleManager | None = agent_server.memory_manager
         if mm is not None:
             await mm.start()
+        try:
+            retrieval_engine = agent_server.retrieval_engine
+            if retrieval_engine is not None:
+                doc_count = await retrieval_engine.warm_index_async()
+                logger.info("RetrievalEngine index warmed: %d documents", doc_count)
+        except AttributeError:
+            logger.debug("No retrieval_engine on agent_server; skipping warm-up")
+        except Exception as exc:
+            logger.warning("RetrievalEngine warm-up failed (non-fatal): %s", exc)
         slo = agent_server.slo_monitor
         if slo is not None:
             await slo.start()
@@ -1679,6 +1508,7 @@ class AgentServer:
         self.server_address = (host, port)
         self.memory_manager: MemoryLifecycleManager | None = None
         self.knowledge_manager: Any | None = None
+        self.retrieval_engine: Any | None = None
         self.skill_evolver: Any | None = None
         self.skill_loader: Any | None = None
         self.context_manager: Any | None = None
@@ -1791,6 +1621,10 @@ class AgentServer:
             self.knowledge_manager = self._builder.build_knowledge_manager()
         except Exception as _exc:
             logger.warning("KnowledgeManager initialization failed (%s: %s); /knowledge/* endpoints will be unavailable.", type(_exc).__name__, _exc)
+        try:
+            self.retrieval_engine = self._builder.build_retrieval_engine()
+        except Exception as _exc:
+            logger.warning("RetrievalEngine initialization failed (%s: %s); knowledge retrieval will be unavailable.", type(_exc).__name__, _exc)
         try:
             self.skill_evolver = self._builder.build_skill_evolver()
             self.skill_loader = self._builder.build_skill_loader()

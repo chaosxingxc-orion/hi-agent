@@ -171,7 +171,7 @@ class TestF5ReflectAsyncLoop:
         mock_descriptor = MagicMock()
 
         with (
-            patch("asyncio.get_event_loop", return_value=mock_loop),
+            patch("asyncio.get_running_loop", return_value=mock_loop),
             patch(
                 "hi_agent.task_mgmt.reflection_bridge.TaskDescriptor",
                 return_value=mock_descriptor,
