@@ -15,7 +15,25 @@ async def handle_list_team_events(request: Request) -> JSONResponse:
         return JSONResponse({"error": "service_unavailable"}, status_code=503)
     since_id = int(request.query_params.get("since_id", 0))
     team_space_id = ctx.team_id or ctx.tenant_id
-    events = store.list_since(ctx.tenant_id, team_space_id, since_id=since_id)
+
+    # Optional filters (G-6)
+    event_types_raw = request.query_params.get("event_types", "")
+    event_types = [t.strip() for t in event_types_raw.split(",") if t.strip()] or None
+    source_run_ids_raw = request.query_params.get("source_run_ids", "")
+    source_run_ids = [r.strip() for r in source_run_ids_raw.split(",") if r.strip()] or None
+    order = request.query_params.get("order", "asc")
+    limit_raw = request.query_params.get("limit")
+    limit = int(limit_raw) if limit_raw and limit_raw.isdigit() else None
+
+    events = store.list(
+        tenant_id=ctx.tenant_id,
+        team_space_id=team_space_id,
+        since_id=since_id,
+        event_types=event_types,
+        source_run_ids=source_run_ids,
+        order=order,
+        limit=limit,
+    )
 
     def _safe_payload(payload_json: str) -> dict:
         try:

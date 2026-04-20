@@ -1,6 +1,7 @@
 import sqlite3
 import threading
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass
@@ -35,7 +36,15 @@ CREATE TABLE IF NOT EXISTS team_events (
 );
 CREATE INDEX IF NOT EXISTS idx_team_events_space
   ON team_events (tenant_id, team_space_id, id);
+CREATE INDEX IF NOT EXISTS idx_team_events_type
+  ON team_events (tenant_id, team_space_id, event_type, id);
 """
+
+_SELECT_COLS = (
+    "event_id, tenant_id, team_space_id, event_type, payload_json, "
+    "source_run_id, source_user_id, source_session_id, "
+    "publish_reason, schema_version, created_at"
+)
 
 
 class TeamEventStore:
@@ -72,11 +81,57 @@ class TeamEventStore:
 
     def list_since(self, tenant_id: str, team_space_id: str, since_id: int = 0) -> list[TeamEvent]:
         rows = self._cx().execute(
-            "SELECT event_id, tenant_id, team_space_id, event_type, payload_json, "
-            "source_run_id, source_user_id, source_session_id, "
-            "publish_reason, schema_version, created_at "
+            f"SELECT {_SELECT_COLS} "
             "FROM team_events WHERE tenant_id=? AND team_space_id=? AND id>? "
             "ORDER BY id",
             (tenant_id, team_space_id, since_id),
         ).fetchall()
+        return [TeamEvent(*r) for r in rows]
+
+    def list(
+        self,
+        tenant_id: str,
+        team_space_id: str,
+        *,
+        since_id: int = 0,
+        event_types: list[str] | None = None,
+        source_run_ids: list[str] | None = None,
+        limit: int | None = None,
+        order: str = "asc",
+    ) -> list[TeamEvent]:
+        """Query team events with optional filters, ordering, and limit.
+
+        Args:
+            tenant_id: Tenant scope.
+            team_space_id: Team space scope.
+            since_id: Only return events with internal id > since_id.
+            event_types: Whitelist of event_type values (OR logic).
+            source_run_ids: Whitelist of source_run_id values (OR logic).
+            limit: Maximum number of events to return.
+            order: ``"asc"`` (default, oldest first) or ``"desc"`` (newest first).
+
+        Returns:
+            List of :class:`TeamEvent` objects matching all filters.
+        """
+        where_clauses = ["tenant_id=? AND team_space_id=? AND id>?"]
+        params: list = [tenant_id, team_space_id, since_id]
+
+        if event_types:
+            ph = ",".join("?" * len(event_types))
+            where_clauses.append(f"event_type IN ({ph})")
+            params.extend(event_types)
+
+        if source_run_ids:
+            ph = ",".join("?" * len(source_run_ids))
+            where_clauses.append(f"source_run_id IN ({ph})")
+            params.extend(source_run_ids)
+
+        order_dir = "ASC" if order.lower() == "asc" else "DESC"
+        limit_clause = f" LIMIT {int(limit)}" if limit is not None else ""
+        sql = (
+            f"SELECT {_SELECT_COLS} FROM team_events "
+            f"WHERE {' AND '.join(where_clauses)} "
+            f"ORDER BY id {order_dir}{limit_clause}"
+        )
+        rows = self._cx().execute(sql, params).fetchall()
         return [TeamEvent(*r) for r in rows]
