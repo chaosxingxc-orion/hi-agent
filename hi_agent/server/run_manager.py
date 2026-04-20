@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import queue
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -101,10 +102,7 @@ class RunManager:
         self._queue_timeout_s = queue_timeout_s
         self._active_count = 0  # guarded by _lock
         self._shutdown = False
-
-        # Background worker that drains the queue.
-        self._worker = threading.Thread(target=self._queue_worker, daemon=True)
-        self._worker.start()
+        self._worker: threading.Thread | None = None
 
         # Subscribe to EventBus for stage transition events (sync observer path).
         try:
@@ -283,14 +281,22 @@ class RunManager:
         execution.  The in-memory PriorityQueue path remains unchanged when
         ``run_queue`` is ``None``.
         """
+        idle_cycles = 0
+        max_idle_cycles = 20
         while not self._shutdown:
             if self._run_queue is not None:
                 self._run_queue.release_expired_leases()
                 claim = self._run_queue.claim_next(worker_id="run_manager")
                 if claim is None:
                     import time as _time
+                    idle_cycles += 1
+                    with self._lock:
+                        can_stop = self._active_count == 0 and not self._pending_executors
+                    if idle_cycles >= max_idle_cycles and can_stop:
+                        break
                     _time.sleep(0.1)
                     continue
+                idle_cycles = 0
                 run_id = claim["run_id"]
                 with self._lock:
                     run = self._runs.get(run_id)
@@ -319,7 +325,13 @@ class RunManager:
                 try:
                     item = self._queue.get(timeout=0.25)
                 except queue.Empty:
+                    idle_cycles += 1
+                    with self._lock:
+                        can_stop = self._active_count == 0 and self._queue.empty()
+                    if idle_cycles >= max_idle_cycles and can_stop:
+                        break
                     continue
+                idle_cycles = 0
                 _priority, _seq, run, executor_fn = item
                 # Wait for a concurrency slot (with timeout).
                 acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
@@ -338,6 +350,18 @@ class RunManager:
                 with self._lock:
                     run.thread = thread
                 self._queue.task_done()
+        # Mark worker stopped so a future start_run can recreate it.
+        with self._lock:
+            self._worker = None
+
+    def _ensure_worker_started(self) -> None:
+        """Start the background worker on-demand if it is not running."""
+        with self._lock:
+            if self._worker is not None and self._worker.is_alive():
+                return
+            self._shutdown = False
+            self._worker = threading.Thread(target=self._queue_worker, daemon=True)
+            self._worker.start()
 
     def _execute_run(
         self, run: ManagedRun, executor_fn: Callable[[ManagedRun], Any]
@@ -441,6 +465,7 @@ class RunManager:
                 return
             if run.state != "created":
                 return
+        self._ensure_worker_started()
 
         if self._run_queue is not None:
             # Durable queue path: store executor so the worker can look it up.
@@ -572,3 +597,40 @@ class RunManager:
             "current_stage": run.current_stage,
             "stage_updated_at": run.stage_updated_at,
         }
+
+    def shutdown(self, timeout: float = 2.0) -> None:
+        """Stop the background worker thread and prevent new queue loops.
+
+        This is primarily used by server/test teardown to avoid leaking daemon
+        worker threads across many short-lived RunManager instances.
+        """
+        deadline = time.monotonic() + max(timeout, 0.1)
+        with self._lock:
+            self._shutdown = True
+            worker = self._worker
+            # Prevent durable queue workers from picking up executor callbacks
+            # after shutdown has started.
+            self._pending_executors.clear()
+
+        if worker is not None and worker.is_alive():
+            remaining = max(0.0, deadline - time.monotonic())
+            worker.join(timeout=remaining)
+
+        # Best-effort: wait for in-flight run threads to finish so app teardown
+        # does not close shared resources (stores/transports) while they're in use.
+        while time.monotonic() < deadline:
+            with self._lock:
+                active_threads = [
+                    run.thread
+                    for run in self._runs.values()
+                    if run.thread is not None and run.thread.is_alive()
+                ]
+            if not active_threads:
+                break
+
+            remaining = max(0.0, deadline - time.monotonic())
+            join_slice = min(0.1, remaining)
+            if join_slice <= 0:
+                break
+            for thread in active_threads:
+                thread.join(timeout=join_slice)

@@ -1388,6 +1388,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         try:
             yield
         finally:
+            agent_server.run_manager.shutdown()
             if mm is not None:
                 await mm.stop()
             if slo is not None:
@@ -1765,7 +1766,8 @@ class AgentServer:
         self.run()
 
     def shutdown(self) -> None:
-        """No-op for backward compatibility with stdlib HTTPServer."""
+        """Best-effort shutdown for backward compatibility with HTTPServer."""
+        self.run_manager.shutdown()
 
     async def _on_config_reload(self, new_cfg: Any) -> None:
         """Called by ConfigFileWatcher when config files change.
