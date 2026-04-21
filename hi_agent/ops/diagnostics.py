@@ -88,7 +88,15 @@ def _check_llm_credentials(is_prod: bool, blocking: list, warnings: list) -> Non
 
 
 def _check_kernel_reachable(builder, is_prod: bool, blocking: list, warnings: list) -> None:
-    kernel_url = os.environ.get("HI_AGENT_KERNEL_URL", "")
+    # P2-10 bugfix: align with TraceConfig.from_env() which reads
+    # HI_AGENT_KERNEL_BASE_URL (not HI_AGENT_KERNEL_URL). Fall back to the
+    # legacy name for backwards compatibility with stale deploy scripts.
+    kernel_url = os.environ.get("HI_AGENT_KERNEL_BASE_URL") or os.environ.get(
+        "HI_AGENT_KERNEL_URL", ""
+    )
+    # Normalize: "local" sentinel means in-process LocalFSM, not an HTTP URL.
+    if kernel_url.lower() == "local":
+        kernel_url = ""
     if is_prod and not kernel_url:
         blocking.append(
             DoctorIssue(

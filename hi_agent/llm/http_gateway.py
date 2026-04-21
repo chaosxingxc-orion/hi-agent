@@ -79,8 +79,14 @@ class HttpLLMGateway:
         self._timeout = timeout_seconds
         self._max_retries = max_retries
         self._retry_base = retry_base_seconds
-        # dev-smoke: skip slow LLM wait, fall through to heuristic immediately
-        if runtime_mode == "dev-smoke":
+        # P0-2: dev-smoke clamp only applies when the API key is absent.
+        # Previously clamped unconditionally to timeout=3s, retries=0 whenever
+        # runtime_mode=="dev-smoke", which killed every local-real smoke test
+        # against reasoning models (glm-5.1 latency 10-13s > 3s) and forced
+        # heuristic fallback even when real credentials were configured.
+        # Condition now: credential-absent → fast-fail to heuristic; credential
+        # present → let the real LLM respond (timeout stays at caller's value).
+        if runtime_mode == "dev-smoke" and not os.environ.get(self._api_key_env):
             self._timeout = min(self._timeout, 3)
             self._max_retries = 0
         self._failover_chain = failover_chain
@@ -151,7 +157,14 @@ class HttpLLMGateway:
                         future = AsyncBridgeService.get_executor().submit(
                             _asyncio.run, self._failover_chain.complete(request)
                         )
-                        return future.result()
+                        # P1-7: bound the wait to timeout + retry headroom.
+                        # Without a timeout, a hung downstream LLM pins a worker
+                        # thread indefinitely and leaves the run with
+                        # current_stage=None and 0% CPU.
+                        _bridge_timeout = float(self._timeout) * max(
+                            1, self._max_retries + 1
+                        ) + 10
+                        return future.result(timeout=_bridge_timeout)
                     else:
                         return loop.run_until_complete(self._failover_chain.complete(request))
                 except Exception as exc:
@@ -385,6 +398,9 @@ class HTTPGateway:
         self._failover_chain = failover_chain
         self._cache_injector = cache_injector
         self._budget_tracker = budget_tracker
+        # P1-7: persist timeout so sync callers bridging via AsyncBridgeService
+        # can compute a bounded wall-clock wait.
+        self._timeout = float(timeout)
         # Shared AsyncClient = connection pool reused across all calls
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
@@ -480,7 +496,13 @@ class HTTPGateway:
         last_exc: Exception | None = None
         for attempt in range(self._max_retries + 1):
             try:
-                response = await self._client.post("/v1/chat/completions", json=payload)
+                # P0-3: use absolute URL to preserve base_url's path segment
+                # (e.g. /v2). httpx merges absolute paths via urljoin so
+                # self._client.post("/v1/chat/completions") would overwrite
+                # base_url "https://host/v2" → "https://host/v1/chat/...".
+                response = await self._client.post(
+                    f"{self._base_url}/chat/completions", json=payload
+                )
                 response.raise_for_status()
                 raw = response.json()
                 return HttpLLMGateway._parse_response(raw, model)
@@ -517,7 +539,8 @@ class HTTPGateway:
     async def call(self, model_id: str, messages: list[dict], **kwargs) -> dict:
         """Legacy call method for backward compatibility."""
         payload = {"model": model_id, "messages": messages, **kwargs}
-        response = await self._client.post("/v1/chat/completions", json=payload)
+        # P0-3: absolute URL preserves base_url path (see _direct_complete).
+        response = await self._client.post(f"{self._base_url}/chat/completions", json=payload)
         response.raise_for_status()
         return response.json()
 

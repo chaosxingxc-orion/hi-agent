@@ -113,8 +113,22 @@ class RunManager:
             pass
 
     def _on_stage_event(self, event: object) -> None:
-        """Update current_stage on stage_start events published to EventBus."""
-        if getattr(event, "event_type", None) != "stage_start":
+        """Update current_stage on any stage-entry event published to EventBus.
+
+        P1-5: accept multiple event shapes so current_stage is updated reliably
+        regardless of which code path emitted the transition:
+
+        - ``stage_start`` with payload ``{"stage_name": ...}`` (StageOrchestrator)
+        - ``StageStateChanged`` with payload ``{"stage_id": ..., "to_state": "active"}``
+          (runner_stage direct emission)
+        - Any future stage-entry event carrying ``stage_name`` or ``stage_id``.
+
+        Previously only the first shape was honoured, leaving current_stage
+        stuck at ``None`` whenever the run took a path that skipped the
+        StageOrchestrator wrapper.
+        """
+        event_type = getattr(event, "event_type", None)
+        if event_type not in ("stage_start", "StageStateChanged"):
             return
         payload = getattr(event, "payload_json", None) or {}
         if isinstance(payload, str):
@@ -124,7 +138,12 @@ class RunManager:
                 payload = _json.loads(payload)
             except Exception:
                 return
-        stage_name = payload.get("stage_name") if isinstance(payload, dict) else None
+        if not isinstance(payload, dict):
+            return
+        # StageStateChanged is only a stage-entry signal when transitioning to active.
+        if event_type == "StageStateChanged" and payload.get("to_state") != "active":
+            return
+        stage_name = payload.get("stage_name") or payload.get("stage_id")
         run_id = getattr(event, "run_id", None)
         if not stage_name or not run_id:
             return
