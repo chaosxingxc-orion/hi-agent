@@ -88,6 +88,44 @@ from hi_agent.runtime_adapter.kernel_facade_adapter import KernelFacadeAdapter
 
 ---
 
+## Deployment Configuration (runtime_mode)
+
+`runtime_mode` is derived by `hi_agent/server/runtime_mode_resolver.py` from `HI_AGENT_ENV` plus the live readiness snapshot; all downstream checks (`/ready`, `/manifest`, `/diagnostics`, auth middleware posture) converge on this single function.
+
+| runtime_mode | Trigger | kernel routing | LLM | Heuristic fallback |
+|--------------|---------|----------------|-----|---------------------|
+| `dev-smoke`  | default (no env) | in-process LocalFSM | heuristic if API key absent | allowed |
+| `local-real` | `HI_AGENT_LLM_MODE=real` + `HI_AGENT_KERNEL_MODE=http` | LocalFSM or HTTP client | real LLM | allowed |
+| `prod-real`  | `HI_AGENT_ENV=prod` | HTTP client (when `HI_AGENT_KERNEL_BASE_URL` is set) or LocalFSM (warned) | real LLM required | **disabled**, fail-fast 503 |
+
+### Canonical env surface (authoritative list: [`docs/deployment-env-matrix.md`](docs/deployment-env-matrix.md))
+
+Every `HI_AGENT_*` field on `TraceConfig` is populated by `TraceConfig.from_env()`. The `AgentServer()` no-config path calls this automatically, so deploy-time env bindings take effect without a config file.
+
+Critical names for prod deploys:
+
+| Variable | Code site | Effect |
+|----------|-----------|--------|
+| `HI_AGENT_ENV=prod` | `server/app.py`, `server/runtime_mode_resolver.py` | Enables prod-real posture and P1-6 fail-fast executor build |
+| `HI_AGENT_KERNEL_BASE_URL=http://…` | `config/runtime_builder.py` → `KernelFacadeClient` | Routes all kernel RPC to the detached agent-kernel service. Empty or `"local"` keeps in-process LocalFSM |
+| `HI_AGENT_OPENAI_BASE_URL=https://…/v2` | `llm/http_gateway.py` | Gateway issues `POST {base_url}/chat/completions` (absolute path preserves `/v2` and other non-`/v1` segments — P0-3 fix) |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | providers | Presence flips dev-smoke clamp off and satisfies prod `platform_not_ready` gate |
+
+Explicitly **unsupported** aliases (silently ignored — don't set these): `KERNEL_BASE_URL` (missing prefix), `HI_AGENT_KERNEL_URL` (legacy; only `/doctor` has a fallback), `OPENAI_BASE_URL`, `MODEL`.
+
+### Deploy verification endpoints
+
+| Endpoint | Guarantee |
+|----------|-----------|
+| `GET /diagnostics` | Compact fingerprint of the env/config that hi-agent actually resolved — always 200, never a gate. First check after deploy. |
+| `GET /doctor` | Structured `DoctorReport`; in prod performs a real HTTP probe against `HI_AGENT_KERNEL_BASE_URL`. 503 = blocking issue. |
+| `GET /health` | Per-subsystem status. `kernel_adapter.status` is `lazy` until first run; `configured_base_url` reflects deploy env binding. |
+| `GET /ready` | 200 when ready for traffic, 503 otherwise. |
+
+A Rule-8 smoke matrix ([`.github/workflows/smoke.yml`](.github/workflows/smoke.yml)) pins the 04-21 incident as a regression anchor: the `prod-no-credentials` row must return 503 on `POST /runs` — a regression that lets it return 201+stuck fails CI.
+
+---
+
 ## LLM Provider Configuration
 
 All LLM parameters flow through `config/llm_config.json` (gitignored; copy from `config/llm_config.example.json`):

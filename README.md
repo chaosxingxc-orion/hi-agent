@@ -320,6 +320,36 @@ export HI_AGENT_KERNEL_MODE=http
 
 ---
 
+### 1b. 生产部署（prod-real，带独立 agent-kernel）
+
+当 agent-kernel 以独立服务方式部署（典型生产拓扑）时，必须显式启用 prod 模式并把 kernel HTTP 端点告诉 hi-agent：
+
+```bash
+export HI_AGENT_ENV=prod
+export HI_AGENT_KERNEL_BASE_URL=http://127.0.0.1:8400   # 必填：独立 agent-kernel 的 HTTP 端点
+export HI_AGENT_KERNEL_MODE=http                         # readiness 提示
+export HI_AGENT_LLM_MODE=real
+export HI_AGENT_LLM_DEFAULT_PROVIDER=openai
+export HI_AGENT_OPENAI_BASE_URL=https://api.modelarts-maas.com/v2
+export HI_AGENT_DEFAULT_MODEL=glm-5.1
+export OPENAI_API_KEY=<your-api-key>
+export HI_AGENT_LLM_TIMEOUT_SECONDS=180                  # reasoning 模型建议 ≥120s
+```
+
+> **prod 模式硬护栏**：缺 `kernel` 或 `llm_gateway` 时 `POST /runs` 直接返回 **503 `platform_not_ready`**（附补救 hint），**不会**出现"201 创建成功但 run 卡死"的半状态。
+
+部署上线前先跑 `/diagnostics` 自检（见第 4 节）并核对完整的 env 变量清单：[`docs/deployment-env-matrix.md`](docs/deployment-env-matrix.md)。
+
+#### 常见陷阱（部署前务必核对）
+
+- `KERNEL_BASE_URL=...`（**缺 `HI_AGENT_` 前缀**） — **不会被读取**，run 会走 in-process LocalFSM 而非你的独立 kernel。必须用 `HI_AGENT_KERNEL_BASE_URL`。
+- `HI_AGENT_KERNEL_URL=...`（历史拼写） — 仅 `/doctor` 兼容 fallback，其他代码路径不读。改为 `HI_AGENT_KERNEL_BASE_URL`。
+- `OPENAI_BASE_URL=...` / `MODEL=...`（无 `HI_AGENT_` 前缀） — 不支持。使用 `HI_AGENT_OPENAI_BASE_URL` / `HI_AGENT_DEFAULT_MODEL`。
+- base_url 少写版本号（`https://api.modelarts-maas.com` 漏了 `/v2`） — hi-agent 发 `POST {base_url}/chat/completions`，少 `/v2` 会 404。
+- `HI_AGENT_LLM_TIMEOUT_SECONDS` 过小（如默认 120s）对 reasoning 模型不够 — 建议 prod 设置 180s。
+
+---
+
 ### 2. 创建 Run 并观察阶段进度
 
 ```bash
@@ -415,11 +445,32 @@ bash scripts/e2e_verify.sh http://127.0.0.1:8080
 | 端点 | 用途 | 示例 |
 |------|------|------|
 | `GET /ready` | 就绪状态 + runtime_mode | `curl $API/ready \| jq .` |
+| `GET /health` | 子系统健康（含 `kernel_adapter.{status, configured_mode, configured_base_url}`） | `curl $API/health \| jq .subsystems` |
+| `GET /diagnostics` | **部署自检 fingerprint** — `env` / `runtime_mode` / `resolved_config` / `credentials_present`（bool，不泄露 key）/ `env_surface` / `kernel_adapter.{built, configured_mode, configured_base_url, health}` | `curl $API/diagnostics \| jq .` |
+| `GET /doctor` | 结构化诊断报告（prod 下会实际探测 kernel HTTP 可达） | `curl $API/doctor \| jq .` |
 | `GET /runs/{id}` | Run 状态 + **current_stage** + stage_updated_at | `curl $API/runs/$RUN_ID \| jq .` |
 | `GET /runs/{id}/events` | SSE 实时事件（stage_start/complete/RunStarted） | `curl -N $API/runs/$RUN_ID/events` |
 | `GET /manifest` | 系统能力清单（runtime_mode/evolve_policy/provenance） | `curl $API/manifest \| jq .` |
 | `GET /metrics` | Prometheus 格式指标 | `curl $API/metrics` |
 | `GET /context/health` | 上下文预算状态 | `curl $API/context/health \| jq .` |
+
+部署自检推荐流程：
+
+```bash
+# 1. 核对 env 是否真正生效（任何一条为空都说明 deploy env 未读到）
+curl -s $API/diagnostics | jq '{
+  env,
+  runtime_mode,
+  kernel: .resolved_config.kernel_base_url,
+  creds: .credentials_present
+}'
+# 期望 prod 部署：env="prod", runtime_mode="prod-real",
+#              kernel="http://<your-kernel>:<port>", creds.OPENAI_API_KEY=true
+
+# 2. prod 模式还要确认 kernel HTTP 确实可达
+curl -s $API/doctor | jq '{status, blocking, next_steps}'
+# status="ready" 才算可以上量
+```
 
 ---
 
