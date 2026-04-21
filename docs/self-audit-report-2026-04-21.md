@@ -295,3 +295,56 @@ After the initial report, each flagged finding was re-read at the source level. 
 - 2 deferred with explicit reason
 
 Regression: 61 targeted tests pass; full unit sweep runs clean.
+
+---
+
+## Part 9 — Second follow-up (anchors + playbook coverage)
+
+The Anchor 7 / 8 / 11 / 12 / 13 journey tests were added, and the remaining
+Playbook Part III D/F/I/J mechanical commands were run against `main`.
+
+### Anchor smoke tests landed
+
+| # | File | Outcome |
+|---|------|---------|
+| 7 | [`tests/integration/test_anchor_07_gate_escape_all_exec_modes.py`](../tests/integration/test_anchor_07_gate_escape_all_exec_modes.py) | 3 pass + 1 xfail (strict) — xfail surfaces a real S2 defect: `execute_async()` + `GraphFactory.auto_select()` build a node graph that does not share stage identity with the linear `stage_graph` used by gate registrations → gated stage never runs → gate never fires. Tracked as **SA-A7-async-graph**. |
+| 8 | [`tests/integration/test_anchor_08_reflect_vs_retry_event_log.py`](../tests/integration/test_anchor_08_reflect_vs_retry_event_log.py) | 3/3 pass — `reflect(N)` emits `ReflectionPrompt` events with real stage ids, `retry(N)` emits zero. |
+| 11 | [`tests/integration/test_anchor_11_l0_flush_before_summarization.py`](../tests/integration/test_anchor_11_l0_flush_before_summarization.py) | 1/1 pass — L0 JSONL fully flushed before `L0Summarizer.summarize_run` reads. |
+| 12 | [`tests/integration/test_anchor_12_default_deny_security.py`](../tests/integration/test_anchor_12_default_deny_security.py) | 4/4 pass — unsigned JWT rejected in prod and non-prod; test escape hatch gated; `ENFORCE_JWT_SIGNATURE` default=true pinned. |
+| 13 | [`tests/integration/test_anchor_13_base_url_ssrf_allowlist.py`](../tests/integration/test_anchor_13_base_url_ssrf_allowlist.py) | 9/9 pass — `KernelFacadeClient` rejects metadata/public/RFC1918 hosts, accepts loopback; `web_fetch` rejects loopback/metadata/`file://`; URLPolicy redirect re-validation pinned. |
+
+Total: **20 new smoke tests passing**, 1 xfail documenting a P-2 (structural S2) defect that needs unifying the sync vs async stage graph — a deeper refactor than the playbook follow-up scope.
+
+### Bug fixed during anchor-test authoring
+
+`hi_agent/task_mgmt/async_scheduler.py` — `_worker`'s generic
+`except Exception` caught `GatePendingError` and marked only the single node
+`FAILED`, returning `ScheduleResult(success=True)` whenever the gated stage
+was not on a dependency path → `_finalize_run("completed")` ran → gate
+silently lost. Fix: typed catch re-raises via `_gate_pending_exc` replay in
+`run()`. Validated by Anchor 7 tests #1–3 now passing.
+
+### Playbook Part III D/F/I/J audit delta
+
+| Check | Finding | Action |
+|-------|---------|--------|
+| D1 unmanaged `open()` | 1 hit in `observability/tracing.py:84` (long-lived JSONL exporter, `noqa` marked) | Accepted — lifetime matches exporter lifetime |
+| D2 untracked `create_task` | 2 hits: `recovery_coordinator.py:357` (tracked via `_pending_reflection_tasks`), `runner.py:2021` (tracked via `_pending_subrun_futures` + `add_done_callback`) | Both correctly tracked |
+| F1 journey tests | 10+ `tests/integration/test_{journey,e2e}_*.py` files exist | Confirmed |
+| F2 `reflect` vs `retry` differentiated | Now covered by Anchor 8 tests | Closed |
+| I1 legacy `ThreadPoolExecutor(max_workers=1)` in hot path | None in `hi_agent/execution/` or `hi_agent/runner.py` | Clean |
+| **I2** private field access across module boundary | 6 hits of `self.graph._nodes.values()` in `trajectory/execution.py:109,128,130,131,133,192` | **SA-9 LANDED** — added `TrajectoryGraph.iter_nodes()` public accessor; replaced all 6 sites |
+| J1 CLAUDE.md class references exist | All classes in CLAUDE.md module index resolve via grep | Clean |
+
+### Net state after Part 9 follow-up
+
+- All 13 regression anchors now have pytest smoke coverage (12 green, 1 known xfail with documented remediation ticket SA-A7-async-graph)
+- 1 new real bug fixed (`async_scheduler` gate swallowing)
+- 1 new P-22 violation cleaned up (`trajectory/execution.py` private field access)
+- Playbook Part III D/F/I/J all run — only 1 finding (SA-9) beyond what was already known
+
+Remaining work tracked in the structural tickets (not landed here, too broad for a follow-up PR):
+
+- **SA-A7-async-graph** — unify stage graph between linear and async exec modes (S2)
+- **S3** — store registry (single `build_*_store(profile_id)` entry to eliminate every remaining P-4 duplication fallback)
+- Playbook Part III E (exception discipline lint rule), H (security mechanical enforcement) — promote greps into CI lints

@@ -502,6 +502,16 @@ class TrajectoryGraph:
         """Return edge_count."""
         return len(self._edges)
 
+    def iter_nodes(self) -> list[TrajNode]:
+        """Return a snapshot list of all nodes.
+
+        SA-9 (self-audit 2026-04-21, P-22 pattern): public accessor so callers
+        don't reach into ``self._nodes.values()`` across module boundaries.
+        Returns a list, not a dict-values view, so iteration is stable even if
+        the graph mutates concurrently.
+        """
+        return list(self._nodes.values())
+
     # --- Evaluate conditional edges ---
 
     def evaluate_branches(self, node_id: str, state: dict[str, Any]) -> list[str]:

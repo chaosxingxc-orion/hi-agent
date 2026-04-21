@@ -106,7 +106,7 @@ class GraphExecutor:
         else:
             all_done = all(
                 n.state in (NodeState.COMPLETED, NodeState.SKIPPED, NodeState.FAILED)
-                for n in self.graph._nodes.values()
+                for n in self.graph.iter_nodes()
             )
             result.is_terminal = all_done
 
@@ -125,12 +125,12 @@ class GraphExecutor:
                 break
 
         completed = [
-            n.node_id for n in self.graph._nodes.values() if n.state == NodeState.COMPLETED
+            n.node_id for n in self.graph.iter_nodes() if n.state == NodeState.COMPLETED
         ]
-        failed = [n.node_id for n in self.graph._nodes.values() if n.state == NodeState.FAILED]
-        skipped = [n.node_id for n in self.graph._nodes.values() if n.state == NodeState.SKIPPED]
+        failed = [n.node_id for n in self.graph.iter_nodes() if n.state == NodeState.FAILED]
+        skipped = [n.node_id for n in self.graph.iter_nodes() if n.state == NodeState.SKIPPED]
         total_cost = sum(
-            n.cost_estimate for n in self.graph._nodes.values() if n.state == NodeState.COMPLETED
+            n.cost_estimate for n in self.graph.iter_nodes() if n.state == NodeState.COMPLETED
         )
 
         success = len(failed) == 0 and len(completed) > 0
@@ -189,7 +189,7 @@ class GraphExecutor:
     def _evaluate_all_backtracks(self) -> list[str]:
         """Evaluate backtrack edges for all failed nodes."""
         all_triggered: list[str] = []
-        for node in self.graph._nodes.values():
+        for node in self.graph.iter_nodes():
             if node.state == NodeState.FAILED:
                 triggered = self._evaluate_backtrack(node.node_id)
                 all_triggered.extend(triggered)
