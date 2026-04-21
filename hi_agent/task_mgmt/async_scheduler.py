@@ -58,6 +58,11 @@ class AsyncTaskScheduler:
         self._failed: list[str] = []
         self._in_flight: int = 0
         self._done_event: asyncio.Event | None = None
+        # Anchor-7: set when a worker raises GatePendingError; run() re-raises
+        # so execute_async() propagates the same control-flow signal that
+        # execute()/execute_graph() already honour.
+        self._gate_pending_exc: Exception | None = None
+        self._shutdown: bool = False
 
     def add_node(
         self,
@@ -140,6 +145,12 @@ class AsyncTaskScheduler:
         if worker_tasks:
             await asyncio.gather(*worker_tasks, return_exceptions=True)
 
+        # Anchor-7: if any worker raised GatePendingError, re-raise it so
+        # execute_async() treats it as a control-flow signal instead of a
+        # silent "run completed successfully" with a dropped gate.
+        if self._gate_pending_exc is not None:
+            raise self._gate_pending_exc
+
         return ScheduleResult(
             success=len(self._failed) == 0,
             completed_nodes=list(self._completed),
@@ -185,12 +196,35 @@ class AsyncTaskScheduler:
                 self._completed.append(node_id)
                 self._unblock_waiters(node_id)
             except Exception as exc:
-                self._graph.update_node_state(
-                    node_id,
-                    NodeState.FAILED,
-                    failure_reason=str(exc),
-                )
-                self._failed.append(node_id)
+                # Anchor-7 fix: GatePendingError is a control-flow signal, not a
+                # node failure. Previously the scheduler caught it, marked only
+                # this node FAILED, and — when the gated node wasn't on a
+                # dependency path — returned ScheduleResult.success=True,
+                # making _finalize_run("completed") silently swallow the gate.
+                # Detect it, surface it on the whole schedule, and re-raise so
+                # execute_async() propagates GatePendingError up to the caller
+                # the same way execute() and execute_graph() do.
+                from hi_agent.gate_protocol import GatePendingError
+
+                if isinstance(exc, GatePendingError):
+                    self._graph.update_node_state(
+                        node_id,
+                        NodeState.FAILED,
+                        failure_reason=f"gate_pending:{getattr(exc, 'gate_id', '')}",
+                    )
+                    self._failed.append(node_id)
+                    self._gate_pending_exc = exc
+                    # Don't silently continue scheduling sibling nodes once a
+                    # gate is pending — the run as a whole must wait for the
+                    # gate to be resolved.
+                    self._shutdown = True
+                else:
+                    self._graph.update_node_state(
+                        node_id,
+                        NodeState.FAILED,
+                        failure_reason=str(exc),
+                    )
+                    self._failed.append(node_id)
             finally:
                 self._in_flight -= 1
                 if self._in_flight == 0:
