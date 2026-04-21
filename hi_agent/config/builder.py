@@ -21,7 +21,7 @@ from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine
 from hi_agent.llm.protocol import LLMGateway
 from hi_agent.llm.tier_router import TierAwareLLMGateway
-from hi_agent.memory import MemoryCompressor, RawMemoryStore
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
 from hi_agent.observability.collector import MetricsCollector

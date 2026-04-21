@@ -23,11 +23,13 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -e ".[dev]"
-      - name: Lint (blocking)
+      - name: Lint (blocking — syntax + imports)
         run: ruff check hi_agent tests --select E9,F63,F7,F82
-      - name: Lint (advisory)
-        continue-on-error: true
-        run: ruff check hi_agent tests --statistics
+      - name: Lint (blocking — full ruleset, Rule 12 Lint Cleanliness)
+        # Rule 12: zero findings against the repo's pyproject.toml ruleset.
+        # Per-occurrence exceptions must use inline `# noqa: <CODE> — <why>`
+        # with a one-line justification. Blanket `# noqa` is rejected.
+        run: ruff check hi_agent tests
       - name: Unit & root tests
         run: pytest tests/ --ignore=tests/integration --ignore=tests/security --ignore=tests/contract -q --tb=short
       - name: Security tests

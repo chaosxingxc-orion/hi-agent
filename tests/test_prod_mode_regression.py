@@ -88,7 +88,7 @@ def test_async_http_gateway_bridge_has_bounded_timeout(monkeypatch) -> None:
 
     gw = AsyncHTTPGateway(timeout_seconds=1, max_retries=0)
 
-    async def _hang(_req):  # noqa: ANN001
+    async def _hang(_req):
         import asyncio
 
         await asyncio.sleep(60)

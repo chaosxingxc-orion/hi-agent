@@ -93,10 +93,10 @@ def _run_with_policy(policy: TaskRestartPolicy, task_id: str, goal: str) -> RunE
     )
     # We don't care whether the overall run ends completed or failed —
     # the assertion is on the event log's differentiating content.
-    try:
+    import contextlib
+
+    with contextlib.suppress(Exception):
         executor.execute()
-    except Exception:
-        pass
     return executor
 
 

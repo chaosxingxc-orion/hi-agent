@@ -14,7 +14,7 @@
 
 ## AI Engineering Rules
 
-Twelve non-negotiable rules. No exceptions.
+Thirteen non-negotiable rules. No exceptions.
 
 ### Rule 0 — Root Cause Before Plan
 **Before writing any plan, diagnosis, or fix — trace the root cause to a falsifiable mechanical statement.**
@@ -177,6 +177,26 @@ Required before merge for any PR that:
 
 **Incident record:**
 - 2026-04-21: SA-P1-6 fail-fast in `_default_executor_factory` rejected runs when `llm_gateway is None` in prod mode. The change was correct, but `tests/integration/test_prod_e2e.py` relied on the prior silent-fallback behavior and failed CI. Rule 11 requires that the full test suite is run before such a change lands; had it been, the test update would have landed together.
+
+### Rule 12 — Lint Cleanliness
+
+**Every commit touching `hi_agent/` or `tests/` must produce zero findings against the repo's ruff ruleset configured in `pyproject.toml`.**
+
+The `[tool.ruff.lint] select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "RUF"]` ruleset is already tuned to exclude high-false-positive groups (no D-series docstring, `E402` and `D203`/`D213` explicitly ignored). What remains is high-signal: unused imports, import order, bugbear correctness, comprehension clarity, simplification. Letting these accumulate is how a "7 findings" advisory grows into a "700 findings" backlog that nobody ever clears.
+
+**Exception policy:**
+
+- Inline per-occurrence exceptions are permitted: `# noqa: <RULE-CODE> — <one-line justification>`. The rule code and the justification are both mandatory.
+- Blanket `# noqa` without a specific rule code is rejected.
+- `--fix`-able findings must be actually fixed, not suppressed — suppression of an auto-fixable finding is a code smell that fails review.
+- Adding a new rule family to `pyproject.toml` `select` that would create >3 findings must be paired with the corresponding fixes in the same PR, or the rule must be added to `ignore` with a dated comment explaining why.
+
+**Enforcement:**
+
+CI `.github/workflows/ci.yml` runs `ruff check hi_agent tests` as a **blocking** step (no `continue-on-error`). Advisory lint is no longer an accepted posture — the step either passes or the PR cannot merge.
+
+**Incident record:**
+- 2026-04-21: transition moment. Prior to this date, CI's `Lint (advisory)` step carried `continue-on-error: true`, so ruff findings accumulated silently (7 outstanding at the point of promotion; all cleared as part of the same PR that encoded this rule). The advisory→blocking transition is what prevents the next "silent growth to 700" cycle.
 
 ---
 
