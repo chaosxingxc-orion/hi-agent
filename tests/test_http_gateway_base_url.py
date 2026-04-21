@@ -11,7 +11,6 @@ timeout/retries when an API key is present.
 from __future__ import annotations
 
 import asyncio
-import os
 
 import httpx
 import pytest

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # KernelFacadeClient base_url allowlist
 # ---------------------------------------------------------------------------
@@ -119,19 +118,17 @@ def test_web_fetch_disables_system_proxy() -> None:
     """web_fetch must use ProxyHandler({}) so env var proxies cannot be used for SSRF.
 
     We don't drive a full HTTP round-trip (would hit the network); we pin the
-    presence of the defence in source by grepping the handler function's
-    dis-assembly.
+    presence of the defence by source-grepping the handler. Using the source
+    is more robust than bytecode introspection (which misses qualified names)
+    and survives import-alias renames.
     """
-    import dis
+    import inspect
 
     from hi_agent.capability.tools.builtin import web_fetch_handler
 
-    bytecode = dis.Bytecode(web_fetch_handler)
-    names = {inst.argval for inst in bytecode if inst.opname == "LOAD_ATTR"}
-    # The ProxyHandler reference lives in the handler's imports.
-    src = web_fetch_handler.__code__.co_consts
-    assert any(
-        "ProxyHandler" in c or c == "ProxyHandler"
-        for c in src
-        if isinstance(c, str)
-    ) or "ProxyHandler" in names or True  # defensive: presence confirmed in source review
+    source = inspect.getsource(web_fetch_handler)
+    assert "ProxyHandler" in source, (
+        "web_fetch_handler must reference ProxyHandler to block env-var proxies. "
+        "If the reference was moved to a helper, the helper must be covered by "
+        "an equivalent source-presence test."
+    )

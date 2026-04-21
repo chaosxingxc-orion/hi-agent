@@ -76,7 +76,7 @@ class ActionDispatcher:
             # (04-21 prod incident root cause C). Bound the wait so hook
             # failures surface as TimeoutError instead of a silent wedge.
             # Matches the P1-7 bounded-wait pattern in llm/http_gateway.py.
-            _HOOK_TIMEOUT = 120.0
+            _hook_timeout = 120.0
             try:
                 try:
                     loop = asyncio.get_running_loop()
@@ -90,7 +90,7 @@ class ActionDispatcher:
                         asyncio.run,
                         self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn),
                     )
-                    future.result(timeout=_HOOK_TIMEOUT)
+                    future.result(timeout=_hook_timeout)
                 else:
                     asyncio.run(
                         self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn)
