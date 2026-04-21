@@ -14,7 +14,7 @@
 
 ## AI Engineering Rules
 
-Nine non-negotiable rules. No exceptions.
+Twelve non-negotiable rules. No exceptions.
 
 ### Rule 0 — Root Cause Before Plan
 **Before writing any plan, diagnosis, or fix — trace the root cause to a falsifiable mechanical statement.**
@@ -125,6 +125,58 @@ done
 **Incident record** (why this rule exists):
 - 2026-04-11: Step 1 failed (17× Python 2 `except A, B:` syntax + 12× UTF-8 BOM).
 - 2026-04-19: Step 1 passed but Steps 2–3 failed (`/runs/start` 405; duplicate `run_id='default'`).
+
+### Rule 9 — CI Gate Fidelity (Secret ↔ Fixture 1:1)
+
+**Every conditional CI step must gate on exactly the secrets its fixture actually reads — nothing more, nothing less.**
+
+If the fixture reads `OPENAI_API_KEY`, the `if:` expression must test `OPENAI_API_KEY`. If it additionally accepts `ANTHROPIC_API_KEY`, the condition is OR'd. But if the fixture has no code path that consumes `VOLCE_API_KEY`, **`VOLCE_API_KEY` must NOT appear in the gate** — otherwise CI admits a scenario the fixture cannot satisfy and the job fails 100% of the time when only that key is present.
+
+Before adding or modifying any `if: ${{ env.X_API_KEY != '' }}` in `.github/workflows/`, do the following audit on the same PR:
+
+1. `grep -rn 'os.environ.get.*X_API_KEY\|getenv.*X_API_KEY'` inside the target test file and its fixtures.
+2. Confirm every `|| env.Y_API_KEY != ''` clause has a matching consumer in the fixture / server-start path.
+3. If a secret is intended to drive a **different** test, put it behind a **different** step with its own matching condition and fixture.
+
+**Incident record:**
+- 2026-04-21 (run 24701565968, 24703085914, 24703552799): `Production E2E tests` step gated on `VOLCE_API_KEY || OPENAI_API_KEY || ANTHROPIC_API_KEY`, but the server fixture's `build_llm_gateway` path only reads `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`. When only `VOLCE_API_KEY` was available in CI secrets, the step ran, the server came up in prod mode with no gateway, `POST /runs` returned 503 `platform_not_ready`, and the step failed on every push. Fix: remove `VOLCE_API_KEY` from the condition.
+
+### Rule 10 — No Wall-Clock Assertions Against External LLMs
+
+**Hard latency/timeout assertions against external LLM endpoints are forbidden in blocking CI steps.**
+
+External-model response time is a function of provider queue depth, fair-use throttling, cold starts, region routing, and network weather. It is **not a property of our code**, so asserting against it produces flaky CI and teaches the team to ignore CI results.
+
+Three acceptable patterns for live-LLM tests, in order of preference:
+
+1. **Advisory-only**: wrap the step in `continue-on-error: true`; expose the result as a status check, not a gate.
+2. **Budget with ≥3× headroom**: if a latency check is genuinely required, allow `3 × p95_observed_over_last_week`, not a fixed second-count.
+3. **Trend-not-point**: assert latency hasn't regressed vs a recorded baseline (with at least 50% headroom), not that it is below an absolute number.
+
+Never commit a test with `assert response_time_s < 30` against a real LLM API.
+
+**Incident record:**
+- 2026-04-21 (run 24701988423): `test_response_latency[kimi-k2.5]` failed because the model took 47s against a 30s deadline. Model reachability was fine; the assertion itself was the defect.
+- 2026-04-21 (run 24702363330): `test_multi_turn_conversation[doubao-seed-2.0-pro]` timed out >120s — same root cause.
+
+### Rule 11 — Fail-Fast Changes Must Land With Their Test Updates
+
+**When introducing or tightening a fail-fast check (`RuntimeError`, 503, hard validation), run the full CI matrix locally before merge and update every test that relied on the previous silent-degradation path in the same PR.**
+
+Silent-degradation paths (heuristic fallback, default `None` values, best-effort `except Exception: pass`) are load-bearing for many tests even when the test's stated intent is "real LLM / real kernel". Tightening those paths without a matching test update turns every test into "expected success → 503".
+
+Required before merge for any PR that:
+- Adds a new `raise RuntimeError(...)` on a previously-silent branch
+- Flips a default from "permit and warn" to "deny"
+- Removes a `None`-return fallback in a builder or factory
+
+**Checklist:**
+1. `pytest tests/ --ignore=tests/integration/test_live_llm_api.py -q` passes green on your machine, not just a subset.
+2. The PR description enumerates which previously-silent call sites now raise.
+3. Either the test updates are in the same PR, or a config flag (`HI_AGENT_ALLOW_*_FALLBACK=true`) is added to opt back into the old behavior for tests that genuinely want it.
+
+**Incident record:**
+- 2026-04-21: SA-P1-6 fail-fast in `_default_executor_factory` rejected runs when `llm_gateway is None` in prod mode. The change was correct, but `tests/integration/test_prod_e2e.py` relied on the prior silent-fallback behavior and failed CI. Rule 11 requires that the full test suite is run before such a change lands; had it been, the test update would have landed together.
 
 ---
 
