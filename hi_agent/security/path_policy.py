@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 
-class PathPolicyViolation(Exception):
+class PathPolicyViolation(Exception):  # noqa: N818 - public API keeps the established name.
     """Raised when a path fails security policy."""
 
 
