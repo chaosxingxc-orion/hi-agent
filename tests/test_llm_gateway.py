@@ -267,7 +267,7 @@ class TestHttpGateway:
             assert exc_info.value.status_code == 429
 
     def test_timeout_raises_timeout_error(self) -> None:
-        gw = HttpLLMGateway()
+        gw = HttpLLMGateway(max_retries=0)
         req = LLMRequest(messages=[{"role": "user", "content": "hi"}])
         import urllib.error
 
@@ -277,6 +277,22 @@ class TestHttpGateway:
             pytest.raises(LLMTimeoutError),
         ):
             gw.complete(req)
+
+    def test_timeout_is_retried_before_success(self) -> None:
+        gw = HttpLLMGateway(max_retries=1, retry_base_seconds=0)
+        req = LLMRequest(messages=[{"role": "user", "content": "hi"}])
+
+        with (
+            self._patch_urlopen() as mock_open,
+            patch("hi_agent.llm.http_gateway.time.sleep"),
+            patch("hi_agent.llm.http_gateway.random.uniform", return_value=0),
+        ):
+            mock_open.side_effect = [TimeoutError("timed out"), mock_open.return_value]
+
+            resp = gw.complete(req)
+
+        assert resp.content == "hello back"
+        assert mock_open.call_count == 2
 
     def test_supports_model_always_true(self) -> None:
         gw = HttpLLMGateway()

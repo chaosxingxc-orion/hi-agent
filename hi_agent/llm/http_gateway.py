@@ -278,7 +278,7 @@ class HttpLLMGateway:
         }
         data = json.dumps(payload).encode()
 
-        last_exc: LLMProviderError | None = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries + 1):
             req = urllib.request.Request(url, data=data, headers=headers, method="POST")
             try:
@@ -301,7 +301,12 @@ class HttpLLMGateway:
                     time.sleep(delay)
             except urllib.error.URLError as exc:
                 if "timed out" in str(exc.reason):
-                    raise LLMTimeoutError(str(exc.reason)) from exc
+                    last_exc = LLMTimeoutError(str(exc.reason))
+                    if attempt < self._max_retries:
+                        delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
+                        time.sleep(delay)
+                        continue
+                    raise last_exc from exc
                 # Network unreachable: no point retrying, fail immediately
                 if isinstance(exc.reason, OSError) and exc.reason.errno == errno.ENETUNREACH:
                     raise LLMProviderError(str(exc.reason)) from exc
@@ -310,7 +315,12 @@ class HttpLLMGateway:
                     delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     time.sleep(delay)
             except TimeoutError as exc:
-                raise LLMTimeoutError(str(exc)) from exc
+                last_exc = LLMTimeoutError(str(exc))
+                if attempt < self._max_retries:
+                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
+                    time.sleep(delay)
+                    continue
+                raise last_exc from exc
         try:
             from hi_agent.observability.fallback import (
                 FallbackTaxonomy,
