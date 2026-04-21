@@ -86,22 +86,12 @@ def test_execute_graph_propagates_gate_pending_error() -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Anchor 7 violation (part 2): scheduler now re-raises "
-        "GatePendingError (fixed 2026-04-21 in async_scheduler.py: typed "
-        "catch + _gate_pending_exc replay in run()), but execute_async() "
-        "still does not route the installed gate on stage_a because "
-        "GraphFactory.auto_select() builds an async node graph that does "
-        "not share stage identity with the linear stage_graph used by gate "
-        "registrations. Net symptom: stage_a never runs under the async "
-        "path, the gate never fires, and the run returns stages=[] "
-        "completed. Full remediation requires unifying the stage graph "
-        "between linear and async exec modes (structural cause S2 — "
-        "sync/async parity missing). Tracked as SA-A7-async-graph."
-    ),
-)
+# Anchor 7 part 2 used to xfail strictly against SA-A7-async-graph — S2
+# structural remediation landed 2026-04-21: GraphFactory.from_stage_graph()
+# mirrors the linear stage_graph into the async TrajectoryGraph, and
+# execute_async()'s handler now drives executor._execute_stage for mirrored
+# nodes regardless of kernel sync-capability. Test now asserts the expected
+# behaviour directly.
 def test_execute_async_gate_propagates_or_records_terminally() -> None:
     """execute_async() must either raise GatePendingError or return a non-completed RunResult.
 

@@ -2222,10 +2222,23 @@ async def execute_async(
     scheduler = AsyncTaskScheduler(kernel=executor.kernel, max_concurrency=max_concurrency)
 
     factory = GraphFactory()
-    _template_name, graph = factory.auto_select(
-        goal=executor.contract.goal,
-        task_family=getattr(executor.contract, "task_family", ""),
-    )
+    # S2 fix (SA-A7-async-graph): when the executor owns a concrete
+    # stage_graph (set by SystemBuilder / test harness / resumed run) we
+    # mirror its stage identities into the async TrajectoryGraph so gates
+    # registered on those stages actually fire under execute_async().
+    # auto_select() is retained as a fallback for callers that supply an
+    # executor without a stage_graph (e.g. pure goal-driven entry points).
+    _existing_stage_graph = getattr(executor, "stage_graph", None)
+    if _existing_stage_graph is not None and getattr(
+        _existing_stage_graph, "transitions", None
+    ):
+        _template_name = "from_stage_graph"
+        graph = factory.from_stage_graph(_existing_stage_graph)
+    else:
+        _template_name, graph = factory.auto_select(
+            goal=executor.contract.goal,
+            task_family=getattr(executor.contract, "task_family", ""),
+        )
 
     run_id = deterministic_id(executor.contract.task_id, "run")
     executor._run_id = run_id  # K-2: sync executor's run_id to match kernel registration
@@ -2259,26 +2272,37 @@ async def execute_async(
 
     async def make_handler(node_id: str):
         async def handler(action, grant):
+            from hi_agent.gate_protocol import GatePendingError as _GatePE
+
+            # S2 fix: when the async node graph was mirrored from the
+            # executor's stage_graph (via factory.from_stage_graph), the
+            # node_id IS a real stage_id in the gate_coordinator namespace.
+            # We must drive ``executor._execute_stage(node_id)`` so gates
+            # registered on those stages can fire — even when the async
+            # kernel's open_stage isn't directly sync-callable. The stage
+            # executor internally handles sync-vs-async kernel dispatch.
             _stage_kernel = getattr(executor._stage_executor, "kernel", None)
             _sync_capable = (
                 _stage_kernel is not None
                 and callable(getattr(_stage_kernel, "open_stage", None))
                 and not inspect.iscoroutinefunction(getattr(_stage_kernel, "open_stage", None))
             )
-            if _sync_capable:
+            _use_stage_executor = _sync_capable or _template_name == "from_stage_graph"
+            if _use_stage_executor:
                 loop = asyncio.get_event_loop()
                 try:
                     result = await loop.run_in_executor(None, executor._execute_stage, node_id)
                 except Exception as _stage_exc:
-                    from hi_agent.gate_protocol import GatePendingError as _GatePE
-
                     if isinstance(_stage_exc, _GatePE):
                         raise
                     result = "failed"
                 status = "failed" if result == "failed" else "completed"
             else:
-                # Async-only kernel (e.g. pure facade) — state is managed by
-                # execute_turn; no sync stage methods available.
+                # Async-only kernel with no stage_graph mirroring — state is
+                # managed by execute_turn; no sync stage methods available.
+                # Still honour any gate that was raised before this node ran.
+                if executor._gate_pending is not None:
+                    raise _GatePE(gate_id=executor._gate_pending)
                 status = "completed"
             return {"node_id": node_id, "status": status}
 
