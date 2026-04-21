@@ -215,7 +215,14 @@ def _check_memory_dirs(builder, warnings: list) -> None:
                     code="memory.dir_not_writable",
                     severity="warning",
                     message=f"Memory directory {memory_path!r} is not writable.",
-                    fix=f"chmod u+w {memory_path} or set HI_AGENT_MEMORY_PATH",
+                    # SA-8 (self-audit 2026-04-21): HI_AGENT_MEMORY_PATH was
+                    # referenced here as a remediation hint but no code reads
+                    # it. Point operators at the actual knob (episodic_storage_dir
+                    # via config file / HI_AGENT_EPISODIC_STORAGE_DIR).
+                    fix=(
+                        f"chmod u+w {memory_path} or set "
+                        "HI_AGENT_EPISODIC_STORAGE_DIR to a writable directory"
+                    ),
                     verify=f"ls -la {memory_path}",
                 )
             )

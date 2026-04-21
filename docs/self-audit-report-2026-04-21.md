@@ -255,3 +255,43 @@ Status against the 13 permanent anchors in playbook Part V:
 7. Open SA-9/10/11 as smoke-test additions for anchors 7, 8, 11.
 
 Next self-audit: schedule for post-merge of SA-1…SA-8, or at the 2026-05 release gate — whichever comes first.
+
+---
+
+## Part 8 — 2026-04-21 follow-up: deeper triage and landed fixes
+
+After the initial report, each flagged finding was re-read at the source level. Several were reclassified as false positives with rationale; the real remainder was landed. Outcome below.
+
+### Reclassified as FP (no code change needed)
+
+| ID | Original claim | Reality | Rationale |
+|----|----------------|---------|-----------|
+| SA-4 | `payload["base_dir"]` still accepted — vuln H-6 | **Already fixed** | `builtin.py:30-34, 65-69` explicitly **ignore** `payload["base_dir"]` with a warning log; `base_dir` resolves from `workspace_root` caller arg. The grep matched the WARN message that references the ignored value, not an actual taint flow. |
+| SA-3 | `shell=True` in `mcp/transport.py:303` | **Accepted with rationale** | The `command` argument is operator-configured (not user-supplied) and is string-typed only when the operator explicitly passes a string (e.g. for `.cmd` launchers on Windows). The `isinstance(command, list)` branch uses `shell=False`. Documenting as-is; future hardening = forbid string commands via a config-level deprecation. |
+| SA-5a/b | `file_read` / `file_write` `prod_enabled_default=True` | **Accepted with rationale** | `file_write` already has `requires_approval=True`; `file_read` is read-only and workspace-scoped via `safe_resolve()`. Net posture is: writes gated by approval, reads gated by workspace. |
+
+### Landed as commits
+
+| ID | Change | File |
+|----|--------|------|
+| SA-5c | `web_fetch.requires_approval` flipped to `True` | [`hi_agent/capability/tools/builtin.py:271-281`](../hi_agent/capability/tools/builtin.py#L271) |
+| SA-2 | `knowledge_manager.LongTermMemoryGraph` silent fallback → logged warning | [`hi_agent/knowledge/knowledge_manager.py:82-98`](../hi_agent/knowledge/knowledge_manager.py#L82) |
+| SA-1 | `runner.RawMemoryStore` silent fallback → logged warning | [`hi_agent/runner.py:323-337`](../hi_agent/runner.py#L323) |
+| SA-7 | `action_dispatcher` bridge future.result() + get_event_loop() → bounded timeout + get_running_loop | [`hi_agent/execution/action_dispatcher.py:69-95`](../hi_agent/execution/action_dispatcher.py#L69) |
+
+### Deferred
+
+| ID | Reason |
+|----|--------|
+| SA-6 | `HttpLLMGateway.time.sleep` — class is deprecated (04-15), emits `DeprecationWarning` in prod profiles. Blocking sleep remains but only on opt-in sync path; accepted as a documented cliff edge. |
+| SA-8 | Env doc cleanup — requires verifying whether `HI_AGENT_MEMORY_PATH` / `HI_AGENT_RUNTIME_PROFILE` are consumed anywhere (grep false-positive candidates). Low priority; tracked for next pass. |
+
+### Net state after follow-up
+
+- 1 P1 security improvement landed (SA-5c web_fetch approval gate)
+- 2 P1 state-consistency improvements landed (SA-1, SA-2 — silent fallbacks now log)
+- 1 P1 lifecycle/timeout improvement landed (SA-7 — hook wait bounded)
+- 3 items reclassified as FP with rationale documented so they don't re-surface next audit
+- 2 deferred with explicit reason
+
+Regression: 61 targeted tests pass; full unit sweep runs clean.

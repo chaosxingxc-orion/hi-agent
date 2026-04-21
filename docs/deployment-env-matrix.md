@@ -57,6 +57,16 @@
 
 ---
 
+## 3b. Auth & identity
+
+| Variable | Default | Effect | Code site |
+|----------|---------|--------|-----------|
+| `HI_AGENT_JWT_SECRET` | `""` | HS256 secret for JWT signature verification. When unset and the runtime mode is not a test mode, requests carrying a JWT are rejected unless `HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS=true`. | `hi_agent/server/auth_middleware.py` |
+| `HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS` | `false` | **Test-only escape hatch**: when `true`, accepts claims-only (unsigned) JWTs. Must NOT be set in production. | `hi_agent/server/auth_middleware.py:278` |
+| `HI_AGENT_RUNTIME_PROFILE` | `dev` | Script-runtime profile in `agent_kernel.cognitive.script_runtime`. Distinct from `HI_AGENT_PROFILE` (which is hi-agent's config stack profile) — this one lives in agent-kernel. | `agent_kernel/kernel/cognitive/script_runtime.py:179` |
+
+---
+
 ## 4. Capability / tool gates
 
 | Variable | Default | Effect | Code site |

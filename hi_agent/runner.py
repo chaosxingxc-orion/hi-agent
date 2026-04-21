@@ -320,7 +320,22 @@ class RunExecutor:
         self.branch_seq = 0
         self.decision_seq = 0
         self.event_emitter = event_emitter or EventEmitter()
-        self.raw_memory = raw_memory or RawMemoryStore()
+        # SA-1 (self-audit 2026-04-21, P-4 pattern): the default fallback
+        # silently creates a RawMemoryStore pinned to process CWD, with no
+        # run_id / profile scoping — the same shape that drove R4 F-2 / R5 G-5
+        # regressions. Log a warning when the fallback fires so missing
+        # injection is observable instead of silently degrading to global
+        # shared state.
+        if raw_memory is None:
+            import logging as _log
+
+            _log.getLogger(__name__).warning(
+                "runner.raw_memory_unscoped_fallback — caller did not inject "
+                "a RawMemoryStore; using CWD-default unscoped store. "
+                "Thread profile_id/run_id through the builder for isolation."
+            )
+            raw_memory = RawMemoryStore()
+        self.raw_memory = raw_memory
         self.compressor = compressor or MemoryCompressor()
         self.acceptance_policy = acceptance_policy or AcceptancePolicy()
         self.policy_version = "acceptance_v1"
