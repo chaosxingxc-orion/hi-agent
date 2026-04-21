@@ -59,4 +59,6 @@ def test_builtin_web_fetch_descriptor(registry: CapabilityRegistry) -> None:
     desc = registry.get_descriptor("web_fetch")
     assert desc is not None
     assert desc.risk_class == "network"
-    assert desc.requires_approval is False
+    # SA-5c (self-audit 2026-04-21): web_fetch is exfil-class; each invocation
+    # must route through harness governance before the network call.
+    assert desc.requires_approval is True

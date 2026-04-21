@@ -70,18 +70,29 @@ class ActionDispatcher:
             # instead of creating a per-call ThreadPoolExecutor.
             from hi_agent.runtime.async_bridge import AsyncBridgeService
 
+            # SA-7 (self-audit 2026-04-21, P-3 / P-7 pattern): future.result()
+            # without a timeout was the shape that let a hung LLM call pin
+            # a sync worker thread with CPU 0.2% idle and current_stage=None
+            # (04-21 prod incident root cause C). Bound the wait so hook
+            # failures surface as TimeoutError instead of a silent wedge.
+            # Matches the P1-7 bounded-wait pattern in llm/http_gateway.py.
+            _HOOK_TIMEOUT = 120.0
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # We're inside execute_async() — submit to shared executor so
-                    # the coroutine runs in a fresh thread with its own event loop.
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+                if loop is not None and loop.is_running():
+                    # We're inside execute_async() — submit to shared executor
+                    # so the coroutine runs in a fresh thread with its own
+                    # event loop.
                     future = AsyncBridgeService.get_executor().submit(
                         asyncio.run,
                         self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn),
                     )
-                    future.result()
+                    future.result(timeout=_HOOK_TIMEOUT)
                 else:
-                    loop.run_until_complete(
+                    asyncio.run(
                         self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn)
                     )
             except RuntimeError:

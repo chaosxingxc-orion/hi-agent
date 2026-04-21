@@ -269,8 +269,13 @@ _BUILTIN_TOOLS = [
             name="web_fetch",
             risk_class="network",
             side_effect_class="network_read",
+            # SA-5 (self-audit 2026-04-21): network calls are exfil-class actions.
+            # prod_enabled_default stays True so the capability is discoverable,
+            # but requires_approval=True gates every invocation through the
+            # harness governance pipeline. Operators that want unattended
+            # fetches can opt out via profile policy.
             prod_enabled_default=True,
-            requires_approval=False,
+            requires_approval=True,
         ),
     ),
     CapabilitySpec(

@@ -79,7 +79,25 @@ class KnowledgeManager:
         self._storage_dir = storage_dir
         self._wiki = wiki or KnowledgeWiki(f"{storage_dir}/wiki")
         self._user_store = user_store or UserKnowledgeStore(f"{storage_dir}/user")
-        self._graph = graph or LongTermMemoryGraph(f"{storage_dir}/graph.json")
+        # SA-2 (self-audit 2026-04-21, P-4 pattern): the fallback used to
+        # silently construct a fresh LongTermMemoryGraph pointing at
+        # storage_dir/graph.json — a different path from the builder's
+        # per-profile cache — causing divergence between profile-scoped
+        # writes and unscoped reads (the recurring J7-1 / R7 I-7 defect
+        # shape). We keep a fallback for standalone callers but log a
+        # warning so missing injection is visible, not silent.
+        if graph is None:
+            import logging as _log
+
+            _log.getLogger(__name__).warning(
+                "knowledge_manager.long_term_graph_unscoped_fallback "
+                "storage_dir=%s — caller did not inject a profile-scoped "
+                "LongTermMemoryGraph; reads/writes may not be isolated per "
+                "profile.",
+                storage_dir,
+            )
+            graph = LongTermMemoryGraph(f"{storage_dir}/graph.json")
+        self._graph = graph
         self._renderer = renderer or GraphRenderer(self._graph)
 
     @property
