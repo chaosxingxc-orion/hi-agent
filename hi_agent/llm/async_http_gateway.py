@@ -89,7 +89,12 @@ class AsyncHTTPGateway:
             future = AsyncBridgeService.get_executor().submit(
                 asyncio.run, self._inner.complete(request)
             )
-            return future.result()
+            # P1-7: bounded wait. Without a cap, a hung httpx call blocks the
+            # calling sync worker indefinitely (symptom: CPU 0% idle, run stuck
+            # before current_stage is emitted).
+            _inner_timeout = float(getattr(self._inner, "_timeout", 120) or 120)
+            _bridge_timeout = _inner_timeout * max(1, self._max_retries + 1) + 10
+            return future.result(timeout=_bridge_timeout)
         except RuntimeError:
             # No running loop — safe to call asyncio.run() directly.
             return asyncio.run(self._inner.complete(request))

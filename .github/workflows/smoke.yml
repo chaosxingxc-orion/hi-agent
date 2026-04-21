@@ -1,0 +1,130 @@
+name: Rule-8 Smoke Matrix
+# Enforces CLAUDE.md Rule 8: every delivery package must pass the three-step
+# smoke (import gate → 3× distinct run_ids → run-to-terminal). Runs on every
+# push and PR so a regression of the 04-21 incident (prod mode yields 201
+# but run_worker never advances) is caught before merge.
+
+on:
+  push:
+    branches: [main, "fix/**", "feat/**", "claude/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # Three real-world combinations we care about:
+        # - dev-local: default posture (heuristic fallback, LocalFSM kernel)
+        # - dev-http:  LocalFSM kernel, HTTP env set (should still work)
+        # - prod-local: prod mode with LocalFSM — should 503 cleanly (P1-6),
+        #               never 201+stuck (which was the 04-21 symptom)
+        include:
+          - name: dev-local
+            env: dev
+            kernel_base_url: local
+            expect_create: 201
+          - name: dev-http-url-without-kernel
+            env: dev
+            kernel_base_url: http://127.0.0.1:59999
+            expect_create: 201
+          - name: prod-no-credentials
+            env: prod
+            kernel_base_url: local
+            expect_create: 503
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install package
+        run: pip install -e ".[dev]"
+      - name: Step 1 — Import gate
+        run: |
+          python -c "import hi_agent; import agent_kernel"
+      - name: Step 2 — Start server
+        env:
+          HI_AGENT_ENV: ${{ matrix.env }}
+          HI_AGENT_KERNEL_BASE_URL: ${{ matrix.kernel_base_url }}
+        run: |
+          nohup python -m hi_agent serve --port 8080 > server.log 2>&1 &
+          echo $! > server.pid
+          # wait up to 30s for /health to respond
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/health > /dev/null; then
+              echo "server up after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/health | jq
+          curl -sf http://127.0.0.1:8080/diagnostics | jq
+      - name: Step 3 — Three POST /runs, assert expected status
+        env:
+          EXPECT: ${{ matrix.expect_create }}
+        run: |
+          set -u
+          ids=()
+          for i in 1 2 3; do
+            status=$(curl -s -o /tmp/body.json -w '%{http_code}' \
+              -X POST http://127.0.0.1:8080/runs \
+              -H 'Content-Type: application/json' \
+              -d "{\"goal\":\"smoke $i\",\"task_family\":\"quick_task\",\"risk_level\":\"low\"}")
+            echo "attempt $i → HTTP $status"
+            cat /tmp/body.json | jq -c
+            if [ "$status" != "$EXPECT" ]; then
+              echo "FAIL: expected HTTP $EXPECT, got $status"
+              exit 1
+            fi
+            if [ "$EXPECT" = "201" ]; then
+              rid=$(jq -r .run_id /tmp/body.json)
+              ids+=("$rid")
+            fi
+          done
+          if [ "$EXPECT" = "201" ]; then
+            unique=$(printf '%s\n' "${ids[@]}" | sort -u | wc -l)
+            if [ "$unique" != "3" ]; then
+              echo "FAIL: expected 3 distinct run_ids, got $unique"
+              printf '%s\n' "${ids[@]}"
+              exit 1
+            fi
+            echo "OK: 3 distinct run_ids"
+          fi
+      - name: Step 4 — Run-to-terminal (201 matrices only, with 60s cap)
+        if: ${{ matrix.expect_create == 201 }}
+        run: |
+          set -u
+          RID=$(curl -sf -X POST http://127.0.0.1:8080/runs \
+            -H 'Content-Type: application/json' \
+            -d '{"goal":"smoke final","task_family":"quick_task","risk_level":"low"}' | jq -r .run_id)
+          echo "tracking run_id=$RID"
+          terminal=""
+          for i in $(seq 1 30); do
+            state=$(curl -sf http://127.0.0.1:8080/runs/$RID | jq -r .state)
+            stage=$(curl -sf http://127.0.0.1:8080/runs/$RID | jq -r .current_stage)
+            echo "t=${i}s state=$state stage=$stage"
+            if [ "$state" = "completed" ] || [ "$state" = "failed" ]; then
+              terminal="$state"
+              break
+            fi
+            sleep 2
+          done
+          if [ -z "$terminal" ]; then
+            echo "FAIL: run did not reach terminal state in 60s"
+            tail -80 server.log
+            exit 1
+          fi
+          echo "OK: terminal=$terminal"
+      - name: Dump server log on failure
+        if: failure()
+        run: |
+          echo '--- server.log tail ---'
+          tail -200 server.log || true
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then kill $(cat server.pid) 2>/dev/null || true; fi

@@ -64,7 +64,7 @@ from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
 from hi_agent.server.idempotency import IdempotencyStore
-from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
+from hi_agent.server.ops_routes import handle_diagnostics, handle_doctor, handle_release_gate
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.routes_events import handle_run_events_sse
 from hi_agent.server.routes_ops import handle_cancel_long_op, handle_get_long_op
@@ -223,7 +223,17 @@ async def handle_health(request: Request) -> JSONResponse:
                 else 0,
             }
         else:
-            subsystems["kernel_adapter"] = {"status": "not_built"}
+            # P0-4: "not_built" previously misled operators into thinking the
+            # kernel was broken. Kernel adapters are lazily built on first run;
+            # surface the configured mode + lazy status instead.
+            _cfg = getattr(server, "_config", None)
+            _cfg_url = getattr(_cfg, "kernel_base_url", "") if _cfg is not None else ""
+            _cfg_mode = "http" if _cfg_url and _cfg_url.lower() != "local" else "local-fsm"
+            subsystems["kernel_adapter"] = {
+                "status": "lazy",
+                "configured_mode": _cfg_mode,
+                "configured_base_url": _cfg_url,
+            }
     except Exception:
         subsystems["kernel_adapter"] = {"status": "error"}
 
@@ -1326,6 +1336,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/ready", handle_ready, methods=["GET"]),
         Route("/manifest", handle_manifest, methods=["GET"]),
         Route("/doctor", handle_doctor, methods=["GET"]),
+        Route("/diagnostics", handle_diagnostics, methods=["GET"]),
         Route("/ops/release-gate", handle_release_gate, methods=["GET"]),
         # Runs
         Route("/runs", handle_list_runs, methods=["GET"]),
@@ -1604,7 +1615,11 @@ class AgentServer:
         # Lazy import to avoid circular dependency at module level.
         from hi_agent.config.trace_config import TraceConfig
 
-        self._config = config if config is not None else TraceConfig()
+        # P0-1: when no explicit config is provided, honour HI_AGENT_* env vars
+        # (kernel_base_url, openai_base_url, default_model, …) via from_env().
+        # Previously defaulted to TraceConfig() which silently ignored env,
+        # causing HI_AGENT_KERNEL_BASE_URL=http://… to never take effect.
+        self._config = config if config is not None else TraceConfig.from_env()
 
         # Platform default: dev mode (heuristic fallback, in-process kernel).
         # Users opt into prod mode explicitly via HI_AGENT_ENV=prod or --prod.
@@ -1857,6 +1872,31 @@ class AgentServer:
         executor = self._builder.build_executor(
             contract, config_patch=config_patch, workspace_key=workspace_key
         )
+
+        # P1-6: fail-fast in prod mode. build_executor() swallows several
+        # subsystem-build exceptions (skill evolver, tracer, …) but MUST NOT
+        # silently hand back an executor missing its kernel or LLM gateway —
+        # that's exactly the state that leaves a run wedged with CPU idle and
+        # current_stage=None. Surface the condition as a RuntimeError so
+        # handle_create_run can return 503 instead of 201+stuck.
+        import os as _os_p16
+
+        if _os_p16.environ.get("HI_AGENT_ENV", "dev").lower() == "prod":
+            _missing: list[str] = []
+            if getattr(executor, "kernel", None) is None:
+                _missing.append("kernel_adapter")
+            _llm = getattr(executor, "llm_gateway", None) or getattr(
+                executor, "_llm_gateway", None
+            )
+            if _llm is None:
+                _missing.append("llm_gateway")
+            if _missing:
+                raise RuntimeError(
+                    "platform_not_ready: prod mode requires "
+                    + ", ".join(_missing)
+                    + ". Set HI_AGENT_KERNEL_BASE_URL and a real API key "
+                    "(OPENAI_API_KEY or ANTHROPIC_API_KEY)."
+                )
 
         def run() -> Any:
             return executor.execute()

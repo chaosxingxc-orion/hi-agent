@@ -322,6 +322,7 @@ async def test_http_gateway_connection_pool_reused(respx_mock):
     import httpx
     from hi_agent.llm.http_gateway import HTTPGateway
 
+    # HTTPGateway now preserves base_url's path (P0-3): {base_url}/chat/completions.
     respx_mock.post("http://test-llm/v1/chat/completions").mock(
         return_value=httpx.Response(
             200,
@@ -332,7 +333,7 @@ async def test_http_gateway_connection_pool_reused(respx_mock):
         )
     )
 
-    gw = HTTPGateway(base_url="http://test-llm", api_key="key")
+    gw = HTTPGateway(base_url="http://test-llm/v1", api_key="key")
     await gw.call(model_id="claude-haiku-4.5", messages=[{"role": "user", "content": "hi"}])
     await gw.call(model_id="claude-haiku-4.5", messages=[{"role": "user", "content": "hi"}])
     assert respx_mock.calls.call_count == 2
