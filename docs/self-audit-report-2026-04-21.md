@@ -348,3 +348,48 @@ Remaining work tracked in the structural tickets (not landed here, too broad for
 - **SA-A7-async-graph** — unify stage graph between linear and async exec modes (S2)
 - **S3** — store registry (single `build_*_store(profile_id)` entry to eliminate every remaining P-4 duplication fallback)
 - Playbook Part III E (exception discipline lint rule), H (security mechanical enforcement) — promote greps into CI lints
+
+---
+
+## Part 10 — Third follow-up: structural fixes S2 + S3 landed
+
+### S2 — Stage graph unified between linear and async exec modes
+
+**Root cause**: `execute_async()` called `GraphFactory.auto_select()` which
+produced a generic `S1`…`S5` node graph that did not share stage identity
+with the linear `stage_graph` used by gate registrations. Gates installed
+on real stages (e.g. `"perception"` / `"stage_a"`) never fired under the
+async path — the recurring P-2 fix-then-miss cascade shape.
+
+**Landed**:
+- `hi_agent/task_mgmt/graph_factory.py`: new `from_stage_graph(stage_graph)`
+  mirrors the linear StageGraph into a TrajectoryGraph, preserving stage
+  IDs and sequence edges 1:1.
+- `hi_agent/runner.py` `execute_async()`: when `executor.stage_graph` is
+  set with concrete transitions, use `from_stage_graph()` instead of
+  `auto_select()`. Auto-select stays as fallback for goal-driven callers.
+- `make_handler()`: when operating on a `from_stage_graph` mirror, the
+  handler drives `executor._execute_stage(node_id)` regardless of whether
+  the kernel's `open_stage` is directly sync-callable. Also honours a
+  pre-raised `_gate_pending` on the async-only fallback path.
+
+**Verification**: [`tests/integration/test_anchor_07_gate_escape_all_exec_modes.py`](../tests/integration/test_anchor_07_gate_escape_all_exec_modes.py) now passes **all 4 tests** (previously 3 pass + 1 strict xfail). `SA-A7-async-graph` ticket closed.
+
+### S3 — Store registry inside MemoryBuilder
+
+**Root cause**: MemoryBuilder's `build_long_term_graph / build_short_term_store / build_mid_term_store` returned a fresh instance on every call; each subsystem (retrieval, knowledge_manager, lifecycle_manager) synthesized its own when not explicitly injected → profile-scoped writes and reads diverged silently. This is the direct parent of P-4 (R4 F-2, R5 G-5, R7 I-7, J7-1).
+
+**Landed**:
+- `hi_agent/config/memory_builder.py`: MemoryBuilder is now stateful with a `_cache: dict[tuple[method, profile_id, workspace_key], store]`. Every `build_*` method checks the cache first; calls with the same scoping arguments return the same instance.
+- Added `build_raw_memory_store(run_id, profile_id, workspace_key)` — the canonical entry for L0 construction. Caches per `(run_id, profile_id, workspace_key)`.
+- Added `clear_cache()` for test isolation.
+- `hi_agent/config/builder.py`: the two in-tree `RawMemoryStore(...)` sites (builder.py:1056 and the resume path at 1233) now route through `self._get_memory_builder().build_raw_memory_store(...)` so all callers share the cached instance. The legacy fallback in `runner.py:337` (already logged) is now a last-resort safety net, not the common path.
+
+**Verification**: [`tests/test_memory_builder_s3_registry.py`](../tests/test_memory_builder_s3_registry.py) — 8 tests pin: same-profile cached, distinct-profile separate, workspace-keyed scoping, `clear_cache()` behaviour, raw-memory per-run-id keying, cross-subsystem instance sharing. All green.
+
+### Outstanding after Part 10
+
+- Playbook Part III E (exception discipline lint rule) and H (security mechanical enforcement) remain as CI promotion work — greps are in the playbook but not yet promoted to ruff rules. Tracked for a dedicated follow-up.
+- `knowledge_manager.py` still has a defensive `LongTermMemoryGraph(...)` fallback when no graph is injected. The fallback now logs a warning (SA-2) and does not cause incorrect behaviour in normal usage where the builder injects the registry-cached instance. Full elimination of the fallback path would require making `knowledge_manager` require dependency injection at construction — intentionally deferred so external callers that instantiate `KnowledgeManager` directly don't hit a hard break.
+
+With S2 and S3 both landed, the two structural causes identified in the initial self-audit playbook (S2 sync/async parity, S3 store registry proliferation) are closed. The remaining structural items (S1 config-layer gap, S4 two-PR feature landings, S5 exception discipline, S6 security defaults, S7 lifecycle ownership, S8 journey tests) all have concrete playbook entries and either landed fixes or ongoing CI/lint work.

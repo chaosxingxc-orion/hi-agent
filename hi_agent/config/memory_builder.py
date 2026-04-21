@@ -30,6 +30,24 @@ class MemoryBuilder:
 
     def __init__(self, config: TraceConfig) -> None:
         self._config = config
+        # S3 store registry: cache per-profile instances so every subsystem
+        # that asks MemoryBuilder for a given (store class, profile_id) gets
+        # the same object. Eliminates the recurring P-4 "instance duplication
+        # breaks profile scoping" defect shape (R4 F-2, R5 G-5, R7 I-7, J7-1).
+        # Key format: (method_name, profile_id, workspace_repr)
+        self._cache: dict[tuple[str, str, str], Any] = {}
+
+    def _cache_key(
+        self, method: str, profile_id: str, workspace_key: WorkspaceKey | None
+    ) -> tuple[str, str, str]:
+        """Build a cache key including workspace identity when applicable."""
+        if workspace_key is None:
+            wk_repr = ""
+        else:
+            wk_repr = (
+                f"{workspace_key.tenant_id}/{workspace_key.user_id}/{workspace_key.session_id}"
+            )
+        return (method, profile_id, wk_repr)
 
     def build_episodic_store(self) -> EpisodicMemoryStore:
         """Build EpisodicMemoryStore using configured storage directory."""
@@ -52,11 +70,19 @@ class MemoryBuilder:
     ) -> Any:
         """Build short-term memory store, optionally scoped to a profile or workspace.
 
+        S3 store registry: subsequent calls with the same
+        ``(profile_id, workspace_key)`` return the cached instance.
+
         When *workspace_key* is provided the store is placed under
         ``{base_root}/workspaces/{tenant}/users/{user}/sessions/{session}/L1``.
         When absent, falls back to the existing profile_id-scoped path.
         """
         from hi_agent.memory.short_term import ShortTermMemoryStore
+
+        key = self._cache_key("short_term", profile_id, workspace_key)
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
 
         base = str(Path(self._config.episodic_storage_dir).parent)
         if workspace_key is not None:
@@ -66,18 +92,28 @@ class MemoryBuilder:
         else:
             path = self._config.episodic_storage_dir.replace("episodes", "short_term")
         project_id = getattr(self._config, "project_id", "")
-        return ShortTermMemoryStore(path, project_id=project_id)
+        store = ShortTermMemoryStore(path, project_id=project_id)
+        self._cache[key] = store
+        return store
 
     def build_mid_term_store(
         self, profile_id: str = "", workspace_key: WorkspaceKey | None = None
     ) -> Any:
         """Build mid-term memory store, optionally scoped to a profile or workspace.
 
+        S3 store registry: subsequent calls with the same
+        ``(profile_id, workspace_key)`` return the cached instance.
+
         When *workspace_key* is provided the store is placed under
         ``{base_root}/workspaces/{tenant}/users/{user}/sessions/{session}/L2``.
         When absent, falls back to the existing profile_id-scoped path.
         """
         from hi_agent.memory.mid_term import MidTermMemoryStore
+
+        key = self._cache_key("mid_term", profile_id, workspace_key)
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
 
         base = str(Path(self._config.episodic_storage_dir).parent)
         if workspace_key is not None:
@@ -86,18 +122,30 @@ class MemoryBuilder:
             path = os.path.join(base, "profiles", profile_id, "mid_term")
         else:
             path = self._config.episodic_storage_dir.replace("episodes", "mid_term")
-        return MidTermMemoryStore(path)
+        store = MidTermMemoryStore(path)
+        self._cache[key] = store
+        return store
 
     def build_long_term_graph(
         self, profile_id: str = "", workspace_key: WorkspaceKey | None = None
     ) -> Any:
         """Build long-term memory graph, optionally scoped to a profile or workspace.
 
+        S3 store registry: subsequent calls with the same
+        ``(profile_id, workspace_key)`` return the cached instance. Previously
+        every subsystem (retrieval, knowledge_manager, lifecycle_manager)
+        built its own LongTermMemoryGraph — the recurring J7-1 / R7 I-7 defect.
+
         When *workspace_key* is provided the graph file is placed under
         ``{base_root}/workspaces/{tenant}/users/{user}/sessions/{session}/L3/graph.json``.
         When absent, falls back to the existing profile_id-scoped path.
         """
         from hi_agent.memory.long_term import LongTermMemoryGraph
+
+        key = self._cache_key("long_term_graph", profile_id, workspace_key)
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
 
         project_id = getattr(self._config, "project_id", "")
         if workspace_key is not None:
@@ -114,7 +162,46 @@ class MemoryBuilder:
             )
         with contextlib.suppress(FileNotFoundError, KeyError, ValueError):
             graph.load()
+        self._cache[key] = graph
         return graph
+
+    def build_raw_memory_store(
+        self,
+        run_id: str = "",
+        profile_id: str = "",
+        workspace_key: WorkspaceKey | None = None,
+    ) -> Any:
+        """Build L0 raw memory store with proper scoping — S3 registry path.
+
+        Caches per (run_id, profile_id, workspace_key) tuple. Callers that
+        need a RawMemoryStore should route through this method instead of
+        synthesizing their own unscoped instance (SA-1 / runner.py fallback).
+        """
+        from hi_agent.memory.l0_raw import RawMemoryStore
+
+        # run_id is part of the key so parallel runs get distinct L0 files.
+        key = self._cache_key(f"raw_memory:{run_id}", profile_id, workspace_key)
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        base = str(Path(self._config.episodic_storage_dir).parent)
+        if workspace_key is not None:
+            base_dir = str(WorkspacePathHelper.private(base, workspace_key, "L0"))
+        elif profile_id:
+            base_dir = os.path.join(base, "profiles", profile_id, "raw_memory")
+        else:
+            base_dir = self._config.episodic_storage_dir.replace("episodes", "raw_memory")
+        if run_id:
+            store = RawMemoryStore(run_id=run_id, base_dir=base_dir)
+        else:
+            store = RawMemoryStore(base_dir=base_dir)
+        self._cache[key] = store
+        return store
+
+    def clear_cache(self) -> None:
+        """Drop all cached store instances. Primarily for test isolation."""
+        self._cache.clear()
 
     def build_retrieval_engine(
         self,

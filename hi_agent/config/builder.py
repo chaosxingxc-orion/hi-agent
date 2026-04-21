@@ -1053,7 +1053,13 @@ class SystemBuilder:
             harness_executor=self.build_harness(capability_invoker=invoker),
             human_gate_quality_threshold=self._config.gate_quality_threshold,
             event_emitter=EventEmitter(),
-            raw_memory=RawMemoryStore(run_id=_run_id, base_dir=_raw_base),
+            # S3: route raw memory construction through the MemoryBuilder
+            # registry so parallel callers share the cached per-run_id instance.
+            raw_memory=self._get_memory_builder().build_raw_memory_store(
+                run_id=_run_id,
+                profile_id=getattr(contract, "profile_id", "") or "",
+                workspace_key=workspace_key,
+            ),
             compressor=self._build_compressor(),
             failure_collector=self.build_failure_collector(),
             watchdog=self.build_watchdog(),
@@ -1230,7 +1236,11 @@ class SystemBuilder:
                 harness_executor=self.build_harness(),
                 human_gate_quality_threshold=self._config.gate_quality_threshold,
                 event_emitter=EventEmitter(),
-                raw_memory=RawMemoryStore(),
+                # S3: registry path shares the cached per-profile instance
+                # instead of synthesizing a fresh unscoped store.
+                raw_memory=self._get_memory_builder().build_raw_memory_store(
+                    profile_id=_profile_id,
+                ),
                 compressor=self._build_compressor(),
                 failure_collector=self.build_failure_collector(),
                 watchdog=self.build_watchdog(),

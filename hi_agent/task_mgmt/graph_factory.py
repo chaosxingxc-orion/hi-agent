@@ -68,6 +68,32 @@ class GraphFactory:
         else:
             return self._build_standard()
 
+    def from_stage_graph(self, stage_graph) -> TrajectoryGraph:
+        """Build a TrajectoryGraph that preserves stage identity from a StageGraph.
+
+        S2 fix (SA-A7-async-graph): the async executor previously called
+        ``auto_select()`` which produces a generic S1…S5 node graph that does
+        not share stage identity with the linear ``stage_graph`` used by gate
+        registrations. Consequence: gates installed on real stages (e.g.
+        'perception', 'execution') never fired under ``execute_async()``.
+
+        When the executor already owns a concrete ``stage_graph`` we should
+        mirror it node-for-node so that handler invocations use the same
+        stage_id namespace the gate_coordinator expects. Edges in the
+        StageGraph map 1:1 to sequence edges in the TrajectoryGraph.
+        """
+        g = TrajectoryGraph()
+        transitions = getattr(stage_graph, "transitions", {}) or {}
+        # Deterministic order for reproducibility.
+        stage_ids = sorted(transitions.keys())
+        for stage_id in stage_ids:
+            g.add_node(_make_node(stage_id, f"Stage: {stage_id}"))
+        for source in stage_ids:
+            for target in sorted(transitions.get(source, set())):
+                if target in transitions:
+                    g.add_sequence(source, target)
+        return g
+
     # ------------------------------------------------------------------
     # Auto-select: analyse goal text to pick the right template
     # ------------------------------------------------------------------
