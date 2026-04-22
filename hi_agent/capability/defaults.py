@@ -18,6 +18,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from hi_agent.capability.registry import CapabilityRegistry
+from hi_agent.observability.fallback import record_fallback
 
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
@@ -119,6 +120,11 @@ def make_llm_capability_handler(
                         "stage_id": stage_id,
                         "error": f"LLM call failed: {exc}",
                     }
+                record_fallback(
+                    "heuristic",
+                    reason="llm_call_failed",
+                    extra={"capability": capability_name, "error": str(exc)},
+                )
                 logger.warning(
                     "Capability %r: LLM call failed (%s), falling back to heuristic",
                     capability_name,
