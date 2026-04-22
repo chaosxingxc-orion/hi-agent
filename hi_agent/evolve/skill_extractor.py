@@ -147,6 +147,28 @@ class SkillExtractor:
             logger.warning(
                 "SkillExtractor._parse_llm_skills: failed to parse LLM response: %s", exc
             )
+            # DF-35: Rule 14 requires silent-degradation paths to emit a
+            # fallback signal attributed to the run.  The degraded behavior
+            # here is "return [] and let the heuristic path run" — still a
+            # heuristic substitution for the LLM output.
+            try:
+                from hi_agent.observability.fallback import (
+                    FallbackTaxonomy,
+                    record_fallback,
+                )
+
+                record_fallback(
+                    FallbackTaxonomy.HEURISTIC_FALLBACK,
+                    "skill_extractor._parse_llm_skills",
+                    detail=(
+                        f"run_id={postmortem.run_id}"
+                        f" task_family={postmortem.task_family}"
+                        f" error={str(exc)[:200]}"
+                        f" preview={content[:200] if content else ''}"
+                    ),
+                )
+            except Exception:  # pragma: no cover — signal wiring must never crash
+                pass
             return []
         if not isinstance(items, list):
             return []
