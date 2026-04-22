@@ -15,6 +15,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
+from hi_agent.observability.fallback import record_fallback
 
 _logger = logging.getLogger(__name__)
 
@@ -173,6 +174,11 @@ class TierRouter:
                     _TIER_ORDER[adj], required_capabilities, min_context_window
                 )
                 if model is not None:
+                    record_fallback(
+                        "llm",
+                        reason="adjacent_tier",
+                        extra={"purpose": purpose, "fallback_from": target_tier, "fallback_to": _TIER_ORDER[adj]},
+                    )
                     _logger.info(
                         '{"event": "tier_routing", "tier": "%s", "model": "%s",'
                         ' "purpose": "%s", "fallback_from": "%s"}',
@@ -189,6 +195,11 @@ class TierRouter:
             best = min(
                 available,
                 key=lambda m: m.cost_input_per_mtok + m.cost_output_per_mtok,
+            )
+            record_fallback(
+                "llm",
+                reason="any_available",
+                extra={"purpose": purpose, "fallback_from": target_tier},
             )
             _logger.info(
                 '{"event": "tier_routing", "tier": "%s", "model": "%s",'
@@ -266,6 +277,11 @@ class TierRouter:
                 adj_tier = _TIER_ORDER[adj]
                 model = self._find_in_tier(adj_tier, required_caps, min_ctx)
                 if model is not None:
+                    record_fallback(
+                        "llm",
+                        reason="adjacent_tier",
+                        extra={"purpose": purpose, "fallback_from": target_tier, "fallback_to": adj_tier},
+                    )
                     _logger.info(
                         '{"event": "tier_routing", "tier": "%s", "model": "%s",'
                         ' "purpose": "%s", "fallback_from": "%s"}',
@@ -282,6 +298,11 @@ class TierRouter:
             best = min(
                 available,
                 key=lambda m: m.cost_input_per_mtok + m.cost_output_per_mtok,
+            )
+            record_fallback(
+                "llm",
+                reason="any_available",
+                extra={"purpose": purpose, "fallback_from": target_tier},
             )
             _logger.info(
                 '{"event": "tier_routing", "tier": "%s", "model": "%s",'

@@ -60,6 +60,14 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "histogram",
         "Per-run LLM cost distribution in USD.",
     ),
+    "fallback.llm": _MetricDef("fallback.llm", "counter", "LLM fallback events by kind."),
+    "fallback.heuristic": _MetricDef(
+        "fallback.heuristic", "counter", "Heuristic route fallback events."
+    ),
+    "fallback.capability": _MetricDef(
+        "fallback.capability", "counter", "Capability fallback events."
+    ),
+    "fallback.route": _MetricDef("fallback.route", "counter", "Route fallback events."),
 }
 
 # Maximum samples retained for histogram-like metrics.
