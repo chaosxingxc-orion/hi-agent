@@ -1811,6 +1811,32 @@ class AgentServer:
             self._default_executor_factory
         )
 
+        # DF-33: Register the rule15_volces profile so scripts/rule15_volces_gate.py
+        # has a real target.  Minimal live-LLM-backed single-stage profile used by
+        # the Rule 15 operator-shape gate.  Idempotent: no-op if pre-registered.
+        try:
+            from hi_agent.profiles.rule15_volces import (
+                build_rule15_volces_profile,
+                register_rule15_probe_capability,
+            )
+
+            _cap_registry = self._builder.build_capability_registry()
+            if _cap_registry is not None:
+                register_rule15_probe_capability(
+                    _cap_registry,
+                    llm_gateway=self._builder.build_llm_gateway(),
+                )
+            _profile_registry = self._builder.build_profile_registry()
+            if _profile_registry is not None and not _profile_registry.has("rule15_volces"):
+                self._builder.register_profile(build_rule15_volces_profile())
+        except Exception as _exc:
+            logger.warning(
+                "rule15_volces profile registration failed (%s: %s); "
+                "scripts/rule15_volces_gate.py will be unable to resolve the profile.",
+                type(_exc).__name__,
+                _exc,
+            )
+
         # Build a shared CapabilityInvoker and wire MCPServer.
         try:
             from hi_agent.server.mcp import MCPServer
