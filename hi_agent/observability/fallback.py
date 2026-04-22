@@ -131,7 +131,6 @@ def record_fallback(
     best-effort so a mis-wired observability stack cannot crash the
     critical path.
     """
-
     _log = logger or _logger
     kind_str = _coerce_kind(kind)
 
