@@ -174,6 +174,13 @@ def record_fallback(
             # Legacy shape: preserve the previous INFO-level signal so
             # existing log-scraping rules are not disturbed, but also
             # emit a WARNING so the operator-shape gate can see it.
+            _log.info(
+                "fallback recorded kind=%s component=%s detail=%s",
+                kind_str,
+                component,
+                detail,
+                extra={"fallback_kind": kind_str, "fallback_component": component},
+            )
             _log.warning(
                 "fallback recorded (legacy) kind=%s component=%s detail=%s",
                 kind_str,
