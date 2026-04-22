@@ -47,15 +47,15 @@
       }
     },
     "volces": {
-      "api_key": "",
+      "api_key": "f103e564-61c5-462c-9d4a-95ec035c56f0",
       "base_url": "https://ark.cn-beijing.volces.com/api/coding/v1",
       "anthropic_base_url": "https://ark.cn-beijing.volces.com/api/coding",
       "api_format": "openai",
       "timeout_seconds": 60,
       "max_retries": 1,
       "models": {
-        "strong": "doubao-seed-2.0-pro",
-        "medium": "doubao-seed-2.0-lite",
+        "strong": "glm-5.1",
+        "medium": "kimi-k2.6",
         "light": "doubao-seed-2.0-lite"
       },
       "all_models": [
@@ -66,7 +66,10 @@
         "minimax-m2.5",
         "glm-4.7",
         "deepseek-v3.2",
-        "kimi-k2.5"
+        "kimi-k2.5",
+        "glm-5.1",
+        "kimi-k2.6",
+        "minimax-m2.7"
       ],
       "features": {
         "stream": true,
