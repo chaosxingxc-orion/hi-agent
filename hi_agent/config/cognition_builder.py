@@ -284,6 +284,9 @@ class CognitionBuilder:
                                 "kernel_mode": getattr(self._config, "kernel_mode", None) or "http",
                             },
                         )
+                        # DF-38 D.3: async gateway path deferred — requires hi_agent/runtime/sync_bridge.py
+                        # which does not exist yet. sync path (compat_sync_llm=True, or default HttpLLMGateway)
+                        # is the supported production path until D.2 is tackled.
                         _compat_sync = getattr(self._config, "compat_sync_llm", False)
                         raw_gateway = HttpLLMGateway(
                             base_url=base_url,
