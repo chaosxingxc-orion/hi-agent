@@ -234,6 +234,31 @@ async def handle_signal_run(request: Request) -> JSONResponse:
     )
 
 
+async def handle_cancel_run(request: Request) -> JSONResponse:
+    """POST /runs/{run_id}/cancel — cancel an existing run (Rule 15 compatibility)."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+    run_id = request.path_params["run_id"]
+    server: Any = request.app.state.agent_server
+    manager = server.run_manager
+    run = manager.get_run(run_id, workspace=ctx)
+    if run is None:
+        return JSONResponse(
+            {"error": "run_not_found", "run_id": run_id},
+            status_code=404,
+        )
+
+    ok = manager.cancel_run(run_id, workspace=ctx)
+    if ok:
+        return JSONResponse({"run_id": run_id, "state": "cancelled"})
+    return JSONResponse(
+        {"error": "cannot_cancel", "run_id": run_id},
+        status_code=409,
+    )
+
+
 async def handle_submit_feedback(request: Request) -> JSONResponse:
     """POST /runs/{run_id}/feedback — record explicit feedback for a completed run."""
     try:

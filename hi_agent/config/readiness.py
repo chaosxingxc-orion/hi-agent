@@ -16,6 +16,68 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _resolve_llm_backend(gateway: Any | None) -> Any | None:
+    """Unwrap lightweight gateway wrappers to expose the backend class name."""
+    backend = gateway
+    seen: set[int] = set()
+    while backend is not None:
+        inner = getattr(backend, "_inner", None)
+        if inner is None or inner is backend or id(inner) in seen:
+            break
+        seen.add(id(backend))
+        backend = inner
+    return backend
+
+
+def _list_configured_models(registry: Any | None) -> list[Any]:
+    """Return model objects from a registry-like object without raising."""
+    if registry is None:
+        return []
+    for attr in ("list_all", "list_models"):
+        method = getattr(registry, attr, None)
+        if callable(method):
+            try:
+                models = method()
+                return list(models) if models is not None else []
+            except Exception:
+                return []
+    return []
+
+
+def _model_name(model: Any) -> str:
+    return getattr(model, "model_id", getattr(model, "name", str(model)))
+
+
+def _infer_llm_provider(builder: Any, gateway: Any | None, backend: Any | None) -> str:
+    """Infer the active provider without touching secrets."""
+    if gateway is None:
+        return "not_configured"
+
+    registry = getattr(gateway, "_registry", None) or getattr(backend, "_registry", None)
+    if registry is None:
+        tier_router = getattr(builder, "_tier_router", None)
+        registry = getattr(tier_router, "_registry", None)
+    providers = {
+        getattr(model, "provider", "")
+        for model in _list_configured_models(registry)
+        if getattr(model, "provider", "")
+    }
+    if len(providers) == 1:
+        return providers.pop()
+
+    backend_name = backend.__class__.__name__ if backend is not None else ""
+    if backend_name in {"HttpLLMGateway", "HTTPGateway", "AsyncHTTPGateway"}:
+        return "openai"
+    if "Anthropic" in backend_name:
+        return "anthropic"
+
+    cfg = getattr(builder, "_config", None)
+    default_provider = getattr(cfg, "llm_default_provider", "") or ""
+    if default_provider:
+        return default_provider
+    return "unknown"
+
+
 class ReadinessProbe:
     """Pure observer of SystemBuilder platform state.
 
@@ -35,6 +97,10 @@ class ReadinessProbe:
             "ready": False,
             "health": "ok",
             "execution_mode": "unknown",
+            "kernel_mode": "unknown",
+            "llm_mode": "heuristic",
+            "llm_provider": "not_configured",
+            "llm_backend": "none",
             "models": [],
             "skills": [],
             "mcp_servers": [],
@@ -46,10 +112,11 @@ class ReadinessProbe:
 
         # --- kernel ---
         try:
-            self._builder.build_kernel()
+            _ = self._builder.build_kernel()
             base_url = getattr(self._builder._config, "kernel_base_url", "local") or "local"
             mode = "http" if base_url.lower() not in ("", "local") else "local"
             result["execution_mode"] = mode
+            result["kernel_mode"] = "http" if mode == "http" else "local-fsm"
             result["subsystems"]["kernel"] = {"status": "ok", "mode": mode}
         except Exception as exc:
             result["subsystems"]["kernel"] = {"status": "error", "error": str(exc)}
@@ -63,20 +130,26 @@ class ReadinessProbe:
                 result["subsystems"]["llm"] = {"status": "not_configured"}
                 result["models"] = []
             else:
-                # Best-effort: list models from registry if tier router available
-                model_names: list[str] = []
-                if self._builder._tier_router is not None:
-                    try:
-                        registry = getattr(self._builder._tier_router, "_registry", None)
-                        if registry is not None:
-                            model_names = [
-                                m if isinstance(m, str) else getattr(m, "name", str(m))
-                                for m in registry.list_models()
-                            ]
-                    except Exception:
-                        pass
-                result["models"] = [{"name": n, "status": "configured"} for n in model_names]
-                result["subsystems"]["llm"] = {"status": "ok", "models": len(model_names)}
+                backend = _resolve_llm_backend(gateway)
+                registry = getattr(gateway, "_registry", None) or getattr(
+                    backend, "_registry", None
+                )
+                model_objs = _list_configured_models(registry)
+                result["llm_mode"] = "real"
+                result["llm_provider"] = _infer_llm_provider(self._builder, gateway, backend)
+                result["llm_backend"] = (
+                    backend.__class__.__name__ if backend is not None else "none"
+                )
+                result["models"] = [
+                    {
+                        "name": _model_name(model),
+                        "provider": getattr(model, "provider", "unknown"),
+                        "tier": getattr(model, "tier", "unknown"),
+                        "status": "configured",
+                    }
+                    for model in model_objs
+                ]
+                result["subsystems"]["llm"] = {"status": "ok", "models": len(model_objs)}
         except Exception as exc:
             result["subsystems"]["llm"] = {"status": "error", "error": str(exc)}
             result["health"] = "degraded"

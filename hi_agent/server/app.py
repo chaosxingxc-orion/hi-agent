@@ -68,6 +68,7 @@ from hi_agent.server.ops_routes import handle_doctor, handle_release_gate
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.routes_events import handle_run_events_sse
 from hi_agent.server.routes_runs import (
+    handle_cancel_run,
     handle_create_run,
     handle_get_feedback,
     handle_get_run,
@@ -1527,6 +1528,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/runs/active", handle_runs_active, methods=["GET"]),
         Route("/runs/{run_id}/artifacts", handle_run_artifacts, methods=["GET"]),
         Route("/runs/{run_id}", handle_get_run, methods=["GET"]),
+        Route("/runs/{run_id}/cancel", handle_cancel_run, methods=["POST"]),
         Route("/runs/{run_id}/signal", handle_signal_run, methods=["POST"]),
         Route("/runs/{run_id}/feedback", handle_submit_feedback, methods=["POST"]),
         Route("/runs/{run_id}/feedback", handle_get_feedback, methods=["GET"]),
