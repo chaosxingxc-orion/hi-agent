@@ -1,5 +1,7 @@
 """hi-agent package."""
 
+__version__ = "0.1.0"
+
 from hi_agent.executor_facade import (
     ReadinessReport,
     RunExecutorFacade,
@@ -17,5 +19,6 @@ __all__ = [
     "RunFacadeResult",
     "SubRunHandle",
     "SubRunResult",
+    "__version__",
     "check_readiness",
 ]

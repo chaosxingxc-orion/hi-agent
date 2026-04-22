@@ -1,9 +1,10 @@
-"""Four-layer knowledge retrieval engine.
+"""Three-layer knowledge retrieval engine (embedding layer optional).
 
 Layer 1: CLI-style grep (zero cost, broad filter)
 Layer 2: TF-IDF + BM25 precision ranking (zero cost)
 Layer 3: Graph traversal + Mermaid serialization (zero model cost)
-Layer 4: Embedding re-ranking (optional, has cost)
+Layer 4 (optional): Embedding cosine re-ranking — only active when an
+    ``embedding_fn`` is supplied to ``RetrievalEngine``; not wired by default.
 
 Searches across all knowledge tiers:
 - Short-term memory (session summaries)
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RetrievalResult:
-    """Result of a four-layer retrieval pipeline."""
+    """Result of a retrieval pipeline (3 layers always active; layer 4 optional)."""
 
     items: list[KnowledgeItem] = field(default_factory=list)
     total_candidates: int = 0
@@ -63,7 +64,7 @@ class RetrievalResult:
 
 
 class RetrievalEngine:
-    """Four-layer retrieval across all knowledge sources."""
+    """Three-layer retrieval across all knowledge sources (optional embedding layer 4)."""
 
     def __init__(
         self,
@@ -307,7 +308,11 @@ class RetrievalEngine:
         budget_tokens: int = 2000,
         include_graph_viz: bool = True,
     ) -> RetrievalResult:
-        """Full four-layer retrieval pipeline."""
+        """Run the retrieval pipeline: grep -> BM25 -> graph (layers 1-3 always).
+
+        Layer 4 (embedding cosine re-rank) runs only when ``embedding_fn``
+        was supplied at construction time; it is skipped otherwise.
+        """
         if not self._indexed:
             self.build_index()
 
