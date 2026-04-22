@@ -396,7 +396,9 @@ class StageExecutor:
                     )
                 except Exception as exc:
                     _logger.warning(
-                        "capability_filter raised unexpectedly — proceeding without filter: %s", exc
+                        "capability_filter raised unexpectedly — proceeding without filter: %s",
+                        exc,
+                        extra={"run_id": executor.run_id, "stage_id": stage_id, "branch_id": branch_id},
                     )
                     from hi_agent.observability.fallback import FallbackTaxonomy, record_fallback
 

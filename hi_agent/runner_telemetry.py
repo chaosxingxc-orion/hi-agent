@@ -62,14 +62,24 @@ class RunTelemetry:
             try:
                 self.record_metric(name, payload)
             except Exception as exc:
-                logger.warning("Metrics collection for event %r failed: %s", name, exc)
+                logger.warning(
+                    "Metrics collection for event %r failed: %s",
+                    name,
+                    exc,
+                    extra={"run_id": payload.get("run_id")},
+                )
 
         if self.observability_hook is None:
             return
         try:
             self.observability_hook(name, payload)
         except Exception as exc:
-            logger.warning("Observability hook for event %r failed: %s", name, exc)
+            logger.warning(
+                "Observability hook for event %r failed: %s",
+                name,
+                exc,
+                extra={"run_id": payload.get("run_id")},
+            )
             return
 
     def record_metric(self, name: str, payload: dict[str, object]) -> None:
@@ -132,8 +142,10 @@ class RunTelemetry:
                 try:
                     exporter.export(record)
                 except Exception as exc:
+                    # TODO: add run_id context — not accessible in _export_run_span
                     logger.warning("TraceExporter.export failed: %s", exc)
         except Exception as exc:
+            # TODO: add run_id context — not accessible in _export_run_span
             logger.warning("_export_run_span failed: %s", exc)
 
     def record_event(
@@ -167,7 +179,12 @@ class RunTelemetry:
                 self.session.append_record(event_type, payload, stage_id=current_stage)
                 self.session.emit_event(event_type, payload)
             except Exception as exc:
-                logger.warning("Session record/emit for event %r failed: %s", event_type, exc)
+                logger.warning(
+                    "Session record/emit for event %r failed: %s",
+                    event_type,
+                    exc,
+                    extra={"run_id": run_id, "stage_id": current_stage},
+                )
         # ContextManager: add history entry for context window tracking
         if self.context_manager is not None:
             try:
@@ -180,7 +197,10 @@ class RunTelemetry:
                 )
             except Exception as exc:
                 logger.warning(
-                    "ContextManager history entry for event %r failed: %s", event_type, exc
+                    "ContextManager history entry for event %r failed: %s",
+                    event_type,
+                    exc,
+                    extra={"run_id": run_id, "stage_id": current_stage},
                 )
 
     # ------------------------------------------------------------------
@@ -200,7 +220,11 @@ class RunTelemetry:
                 if skill_id not in skill_ids_used:
                     skill_ids_used.append(skill_id)
         except Exception as exc:
-            logger.warning("Skill usage recording from proposal failed: %s", exc)
+            logger.warning(
+                "Skill usage recording from proposal failed: %s",
+                exc,
+                extra={"run_id": run_id, "stage_id": stage_id},
+            )
 
     def finalize_skill_outcomes(
         self, outcome: str, *, run_id: str, skill_ids_used: list[str]
@@ -213,7 +237,12 @@ class RunTelemetry:
             for skill_id in skill_ids_used:
                 self.skill_recorder.record_usage(skill_id=skill_id, run_id=run_id, success=success)
         except Exception as exc:
-            logger.warning("Finalizing skill outcomes for run %r failed: %s", run_id, exc)
+            logger.warning(
+                "Finalizing skill outcomes for run %r failed: %s",
+                run_id,
+                exc,
+                extra={"run_id": run_id},
+            )
 
     def observe_skill_execution(
         self,
@@ -268,4 +297,9 @@ class RunTelemetry:
             )
             self.skill_observer.observe(obs)
         except Exception as exc:
-            logger.warning("Skill execution observation for stage %r failed: %s", stage_id, exc)
+            logger.warning(
+                "Skill execution observation for stage %r failed: %s",
+                stage_id,
+                exc,
+                extra={"run_id": run_id, "stage_id": stage_id},
+            )
