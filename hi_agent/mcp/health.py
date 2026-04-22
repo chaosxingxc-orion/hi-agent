@@ -93,8 +93,13 @@ class MCPHealth:
             except TypeError:
                 with contextlib.suppress(Exception):
                     stderr_tail = self._transport.get_stderr_tail(server_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "MCPHealth._check_one: get_stderr_tail failed for server=%r: %s",
+                    server_id,
+                    exc,
+                )
+                # Degradation detection skipped; health status is based on ping only.
 
         error_keywords = ("error", "exception", "traceback", "fatal", "critical")
         has_stderr_errors = False
