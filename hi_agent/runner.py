@@ -337,6 +337,7 @@ class RunExecutor:
         self.runner_role = runner_role or ActionDispatcher._parse_invoker_role(contract.constraints)
         self.force_fail_actions = self._parse_forced_fail_actions(contract.constraints)
         self.invoker = invoker or self._build_default_invoker(llm_gateway)
+        self.llm_gateway = llm_gateway
         self._invoker_accepts_role, self._invoker_accepts_metadata = (
             self._supports_optional_invoke_arguments(self.invoker.invoke)
         )
