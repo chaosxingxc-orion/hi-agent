@@ -53,7 +53,7 @@ class HarnessExecutor:
         """
         self._governance = governance
         self._invoker = capability_invoker
-        self._evidence_store = evidence_store or EvidenceStore()
+        self._evidence_store = evidence_store or EvidenceStore()  # TODO(Rule-13): inject via builder — inline construction is a cross-contamination risk
         self._permission_gate = permission_gate
         self._artifact_registry = artifact_registry
         self._action_states: dict[str, ActionState] = {}
