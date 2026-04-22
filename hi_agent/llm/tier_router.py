@@ -177,7 +177,11 @@ class TierRouter:
                     record_fallback(
                         "llm",
                         reason="adjacent_tier",
-                        extra={"purpose": purpose, "fallback_from": target_tier, "fallback_to": _TIER_ORDER[adj]},
+                        extra={
+                            "purpose": purpose,
+                            "fallback_from": target_tier,
+                            "fallback_to": _TIER_ORDER[adj],
+                        },
                     )
                     _logger.info(
                         '{"event": "tier_routing", "tier": "%s", "model": "%s",'
@@ -280,7 +284,11 @@ class TierRouter:
                     record_fallback(
                         "llm",
                         reason="adjacent_tier",
-                        extra={"purpose": purpose, "fallback_from": target_tier, "fallback_to": adj_tier},
+                        extra={
+                            "purpose": purpose,
+                            "fallback_from": target_tier,
+                            "fallback_to": adj_tier,
+                        },
                     )
                     _logger.info(
                         '{"event": "tier_routing", "tier": "%s", "model": "%s",'

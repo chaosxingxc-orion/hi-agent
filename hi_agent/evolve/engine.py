@@ -57,9 +57,10 @@ class EvolveEngine:
         """
         self._llm = llm_gateway
         self._postmortem_analyzer = PostmortemAnalyzer(llm_gateway=llm_gateway)
-        self._skill_extractor = skill_extractor or SkillExtractor()  # TODO(Rule-13): inject via builder — inline construction is a cross-contamination risk
-        self._regression_detector = regression_detector or RegressionDetector()  # TODO(Rule-13): inject via builder — inline construction is a cross-contamination risk
-        self._champion_challenger = champion_challenger or ChampionChallenger()  # TODO(Rule-13): inject via builder — inline construction is a cross-contamination risk
+        # TODO(Rule-13): require injection; inline fallback is a cross-contamination risk
+        self._skill_extractor = skill_extractor or SkillExtractor()
+        self._regression_detector = regression_detector or RegressionDetector()
+        self._champion_challenger = champion_challenger or ChampionChallenger()
         self._skill_registry = skill_registry
         self._version_manager = version_manager
         self._comparison_interval = comparison_interval
