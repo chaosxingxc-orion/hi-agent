@@ -1,4 +1,10 @@
-"""Extensible middleware orchestrator with 5-phase lifecycle.
+"""Extensible middleware orchestrator with 5-phase per-middleware lifecycle.
+
+Each middleware in the pipeline is executed through 5 internal lifecycle
+phases (PRE_CREATE, PRE_EXECUTE, EXECUTE, POST_EXECUTE, PRE_DESTROY) every
+time the pipeline runs.  The runner auto-invokes the full pipeline twice per
+stage: once before LLM execution (pre_execute) and once after (post_execute).
+Additional explicit calls to ``run()`` can be made for other trigger points.
 
 The orchestrator IS a TrajectoryGraph. Users can:
   - add/replace/remove middlewares
@@ -40,7 +46,11 @@ class PipelineBlockedError(Exception):
 
 
 class MiddlewareOrchestrator:
-    """Extensible middleware orchestrator with 5-phase lifecycle hooks."""
+    """Extensible middleware orchestrator with 5-phase per-middleware lifecycle hooks.
+
+    The runner auto-invokes ``run()`` twice per stage (pre_execute, post_execute).
+    Additional phases can be triggered by calling ``run()`` explicitly.
+    """
 
     # Cost-per-million-token estimates by tier for savings calculations.
     _TIER_COST_PER_MTOK: dict[str, float] = {
