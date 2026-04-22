@@ -291,6 +291,8 @@ class TraceConfig:
             "skill_min_certified_success_rate",
             "kernel_circuit_breaker_threshold",
             "task_default_priority",
+            "evolve_skill_initial_evidence",
+            "skill_observer_max_summary_len",
         }
     )
 
