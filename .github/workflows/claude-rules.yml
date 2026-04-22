@@ -1,0 +1,42 @@
+name: rule-enforcement
+on:
+  push:
+    branches:
+      - main
+      - "claude/*"
+      - "fix/*"
+      - "feat/*"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  structural-gate:
+    name: Rule 15 Structural Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: Run structural gate
+        run: |
+          mkdir -p docs/delivery
+          python scripts/rule15_structural_gate.py \
+            --output docs/delivery/$(date +%Y-%m-%d)-ci-structural.json
+
+  rule-checker:
+    name: CLAUDE.md Rule Checker (DF-42, advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run rule enforcement checks
+        run: python scripts/check_rules.py

@@ -210,7 +210,12 @@ class CognitionBuilder:
                 build_gateway_from_config,
             )
 
-            _cfg_path = _Path(_DEFAULT_CONFIG_PATH)
+            _override_env = os.environ.get("HI_AGENT_LLM_CONFIG_FILE", "")
+            _cfg_path = (
+                _Path(_override_env)
+                if _override_env and _Path(_override_env).exists()
+                else _Path(_DEFAULT_CONFIG_PATH)
+            )
             if _cfg_path.exists():
                 _cfg_data = _json.loads(_cfg_path.read_text(encoding="utf-8"))
                 _dp = _cfg_data.get("default_provider", "")
