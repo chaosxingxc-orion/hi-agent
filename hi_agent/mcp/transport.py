@@ -229,8 +229,12 @@ class StdioMCPTransport:
                     self._proc.stdin.close()
                     self._proc.terminate()
                     self._proc.wait(timeout=5)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning(
+                        "StdioMCPTransport.close: error terminating subprocess %r: %s",
+                        self._command,
+                        exc,
+                    )
                 finally:
                     self._proc = None
 
@@ -249,8 +253,11 @@ class StdioMCPTransport:
                     else:
                         line = raw.rstrip(b"\n").decode("utf-8", errors="replace")
                     buf.append(line)
-            except Exception:
-                pass  # Process closed — exit quietly
+            except Exception as exc:
+                logger.debug(
+                    "StdioMCPTransport stderr reader exiting: %s", exc
+                )
+                # Expected when the subprocess closes its stderr pipe on exit.
 
         self._stderr_thread = threading.Thread(
             target=_read_stderr,
@@ -331,8 +338,11 @@ class StdioMCPTransport:
                         success=False,
                         error=str(exc),
                     )
-                except Exception:
-                    pass
+                except Exception as audit_exc:
+                    logger.debug(
+                        "StdioMCPTransport: audit emit failed (non-fatal): %s", audit_exc
+                    )
+                    # Observability is optional; do not mask the real MCPTransportError.
             raise MCPTransportError(
                 f"Failed to spawn MCP server command {self._command!r}: {exc}"
             ) from exc
@@ -348,8 +358,11 @@ class StdioMCPTransport:
                     self._restart_attempts,
                     success=True,
                 )
-            except Exception:
-                pass
+            except Exception as audit_exc:
+                logger.debug(
+                    "StdioMCPTransport: audit emit failed (non-fatal): %s", audit_exc
+                )
+                # Observability is optional; subprocess is running regardless.
         self._restart_attempts += 1
         if self._restart_attempts >= _MAX_RESTART_ATTEMPTS:
             self._unavailable = True

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 
 from hi_agent.ops.doctor_report import DoctorIssue, DoctorReport
+
+_logger = logging.getLogger(__name__)
 
 
 def build_doctor_report(builder) -> DoctorReport:
@@ -144,8 +147,9 @@ def _check_capability_registry(builder, blocking: list) -> None:
                         verify="python -m hi_agent doctor",
                     )
                 )
-    except Exception:
-        pass  # Registry introspection failure is non-fatal
+    except Exception as exc:
+        _logger.debug("diagnostics: capability registry introspection failed: %s", exc)
+        # Non-fatal — builder may not expose registry attributes in all configs.
 
 
 def _check_mcp_health(builder, warnings: list) -> None:
@@ -168,8 +172,9 @@ def _check_mcp_health(builder, warnings: list) -> None:
                         verify="hi-agent doctor --json | jq '.warnings[] | select(.code==\"mcp.server_error\")'",
                     )
                 )
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.debug("diagnostics: MCP health status introspection failed: %s", exc)
+        # Non-fatal — MCP status dict may not be present in all builder configurations.
 
 
 def _check_skill_loader(builder, warnings: list) -> None:
@@ -190,8 +195,9 @@ def _check_skill_loader(builder, warnings: list) -> None:
                         verify=f"ls {skill_path}",
                     )
                 )
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.debug("diagnostics: skill loader introspection failed: %s", exc)
+        # Non-fatal — skill loader may not be wired in all builder configurations.
 
 
 def _check_memory_dirs(builder, warnings: list) -> None:
@@ -208,8 +214,9 @@ def _check_memory_dirs(builder, warnings: list) -> None:
                     verify=f"ls -la {memory_path}",
                 )
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.debug("diagnostics: memory directory writability check failed: %s", exc)
+        # Non-fatal — os.access may fail in sandboxed environments.
 
 
 def _check_profile(builder, warnings: list) -> None:
@@ -218,10 +225,11 @@ def _check_profile(builder, warnings: list) -> None:
         if config is not None:
             profile_id = getattr(config, "profile_id", None)
             if profile_id and profile_id != "default":
-                # Just note current profile
+                # Non-default profile — noted; no warning required.
                 pass
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.debug("diagnostics: profile config introspection failed: %s", exc)
+        # Non-fatal — config object shape varies across builder variants.
 
 
 def _check_evolve_policy(builder, info: list) -> None:
@@ -239,5 +247,6 @@ def _check_evolve_policy(builder, info: list) -> None:
                     verify="python -m hi_agent doctor --json | jq '.info[] | select(.subsystem==\"evolve\")'",
                 )
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.debug("diagnostics: evolve policy introspection failed: %s", exc)
+        # Non-fatal — config may not have evolve_mode in all builder configurations.
