@@ -108,10 +108,17 @@ def client(server: AgentServer) -> TestClient:
 def client_with_knowledge(tmp_path) -> TestClient:
     """TestClient with a real KnowledgeManager wired to a temp directory."""
     from hi_agent.knowledge.knowledge_manager import KnowledgeManager
+    from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+    from hi_agent.memory.long_term import LongTermMemoryGraph
 
     s = AgentServer()
     s.executor_factory = _make_mock_executor_factory()
-    s.knowledge_manager = KnowledgeManager(storage_dir=str(tmp_path / "knowledge"))
+    _kdir = str(tmp_path / "knowledge")
+    s.knowledge_manager = KnowledgeManager(
+        storage_dir=_kdir,
+        user_store=UserKnowledgeStore(f"{_kdir}/user"),
+        graph=LongTermMemoryGraph(f"{_kdir}/graph.json"),
+    )
     return TestClient(s.app, raise_server_exceptions=False)
 
 
@@ -333,9 +340,10 @@ def test_tc08_run_failure_service_stays_healthy() -> None:
 
     final = _wait_for_terminal(c, run_id)
 
-    # The run must reach a terminal state (failed or completed, not stuck).
-    assert final["state"] in ("completed", "failed"), (
-        f"Run stuck in non-terminal state: {final['state']}"
+    # Rule 7: this test injected fail_stage="S3_build"; the run MUST fail.
+    # Accepting "completed" here would mask a defect where fail_stage is ignored.
+    assert final["state"] == "failed", (
+        f"Run with injected fail_stage must terminate as failed, got {final['state']!r}"
     )
 
     # CRITICAL: the service must still respond to health checks after the failure.
@@ -394,8 +402,9 @@ def test_tc09_concurrent_runs_isolated(client: TestClient) -> None:
     assert len(set(run_ids)) == 3, f"Duplicate run_ids in concurrent runs: {run_ids}"
 
     for r in results:
-        assert r["state"] in ("completed", "failed"), (
-            f"Run {r['run_id']!r} stuck in state {r['state']!r}"
+        # Rule 7: concurrent normal runs (no failure injection) must complete.
+        assert r["state"] == "completed", (
+            f"Run {r['run_id']!r} must complete, got {r['state']!r}"
         )
 
 
@@ -420,9 +429,14 @@ def test_tc10_cancel_signal_terminates_run(client: TestClient) -> None:
         f"Unexpected status {sig_resp.status_code} sending cancel signal"
     )
 
-    # Run must reach a terminal state regardless.
+    # Run must reach a terminal state regardless — cancel timing is non-deterministic
+    # (may race to "completed", may be "aborted", or may fail mid-stage).  This
+    # three-way is intentional and documents the cancel contract: test intent is
+    # terminal-state-reached, not a specific outcome.
     final = _wait_for_terminal(client, run_id, timeout=15.0)
-    assert final["state"] in ("completed", "failed", "aborted")
+    assert final["state"] in ("completed", "failed", "aborted"), (
+        f"Run must reach a terminal state after cancel, got {final['state']!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -635,10 +649,14 @@ def test_tc15_health_stable_after_mixed_workload() -> None:
         assert resp.status_code == 201
         run_ids.append(resp.json()["run_id"])
 
-    for run_id in run_ids:
+    # Rule 7: alternating_factory increments run_count on each call; call #N
+    # fails iff N is even.  Assert the exact expected outcome per index rather
+    # than accepting either terminal state.
+    for idx, run_id in enumerate(run_ids, start=1):
         final = _wait_for_terminal(c, run_id)
-        assert final["state"] in ("completed", "failed"), (
-            f"Run {run_id!r} stuck: {final['state']}"
+        expected = "failed" if (idx % 2 == 0) else "completed"
+        assert final["state"] == expected, (
+            f"Run {run_id!r} (call #{idx}) expected {expected!r}, got {final['state']!r}"
         )
 
     # After all that, the service must be fully operational.
@@ -650,4 +668,8 @@ def test_tc15_health_stable_after_mixed_workload() -> None:
     fresh = c.post("/runs", json={"goal": "Final post-chaos run"})
     assert fresh.status_code == 201
     final_run = _wait_for_terminal(c, fresh.json()["run_id"])
-    assert final_run["state"] in ("completed", "failed")
+    # Rule 7: this is call #5 on alternating_factory (odd) → no fail_stage
+    # injected, so the run MUST complete.
+    assert final_run["state"] == "completed", (
+        f"Post-chaos run (call #5, odd → no fail) must complete, got {final_run['state']!r}"
+    )

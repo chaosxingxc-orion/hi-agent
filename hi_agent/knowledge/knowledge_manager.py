@@ -75,28 +75,32 @@ class KnowledgeManager:
         renderer: GraphRenderer | None = None,
         storage_dir: str = ".hi_agent/knowledge",
     ) -> None:
-        """Initialize KnowledgeManager."""
+        """Initialize KnowledgeManager.
+
+        Rule 13 (DF-11, J7-1): both ``user_store`` and ``graph`` must be
+        injected by ``build_knowledge_manager(...)``. Inline fallback
+        construction of either diverges from the builder's profile-scoped
+        instances — the recurring F-2/G-5/I-7/J7-1 defect shape.
+
+        ``wiki`` retains the inline-construct fallback because the knowledge
+        wiki is a stateless directory-backed reader that does not share mutable
+        state across callers (documented exception per Rule 13).
+        """
+        if user_store is None:
+            raise ValueError(
+                "KnowledgeManager requires an injected user_store; inline "
+                "fallback diverged from the builder's shared instance "
+                "(Rule 13 / DF-11)."
+            )
+        if graph is None:
+            raise ValueError(
+                "KnowledgeManager requires a LongTermMemoryGraph — use "
+                "build_knowledge_manager(...) builder which provides a "
+                "scoped graph (Rule 13 / J7-1)."
+            )
         self._storage_dir = storage_dir
         self._wiki = wiki or KnowledgeWiki(f"{storage_dir}/wiki")
-        self._user_store = user_store or UserKnowledgeStore(f"{storage_dir}/user")
-        # SA-2 (self-audit 2026-04-21, P-4 pattern): the fallback used to
-        # silently construct a fresh LongTermMemoryGraph pointing at
-        # storage_dir/graph.json — a different path from the builder's
-        # per-profile cache — causing divergence between profile-scoped
-        # writes and unscoped reads (the recurring J7-1 / R7 I-7 defect
-        # shape). We keep a fallback for standalone callers but log a
-        # warning so missing injection is visible, not silent.
-        if graph is None:
-            import logging as _log
-
-            _log.getLogger(__name__).warning(
-                "knowledge_manager.long_term_graph_unscoped_fallback "
-                "storage_dir=%s — caller did not inject a profile-scoped "
-                "LongTermMemoryGraph; reads/writes may not be isolated per "
-                "profile.",
-                storage_dir,
-            )
-            graph = LongTermMemoryGraph(f"{storage_dir}/graph.json")
+        self._user_store = user_store
         self._graph = graph
         self._renderer = renderer or GraphRenderer(self._graph)
 
