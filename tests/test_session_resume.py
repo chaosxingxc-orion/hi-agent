@@ -36,6 +36,7 @@ def _make_contract(
     **kwargs: object,
 ) -> TaskContract:
     """Helper to create task contracts for tests."""
+    kwargs.setdefault("profile_id", "test")
     return TaskContract(task_id=task_id, goal=goal, **kwargs)
 
 

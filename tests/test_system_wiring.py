@@ -31,7 +31,7 @@ from hi_agent.state import RunStateStore
 
 
 def _make_contract(**overrides: Any) -> TaskContract:
-    defaults: dict[str, Any] = {"task_id": "test_t1", "goal": "test goal"}
+    defaults: dict[str, Any] = {"task_id": "test_t1", "goal": "test goal", "profile_id": "test"}
     defaults.update(overrides)
     return TaskContract(**defaults)
 
@@ -120,7 +120,9 @@ class TestAgentServerFactory:
         from hi_agent.server.app import AgentServer
 
         server = AgentServer(host="127.0.0.1", port=9999)
-        run_data = {"goal": "test", "task_family": "quick_task", "risk_level": "low"}
+        run_data = {
+            "goal": "test", "task_family": "quick_task", "risk_level": "low", "profile_id": "test"
+        }
         factory_result = server._default_executor_factory(run_data)
         assert callable(factory_result)
 
@@ -128,7 +130,7 @@ class TestAgentServerFactory:
         from hi_agent.server.app import AgentServer
 
         server = AgentServer(host="127.0.0.1", port=9999)
-        run_data = {"goal": "greet the world", "task_family": "quick_task"}
+        run_data = {"goal": "greet the world", "task_family": "quick_task", "profile_id": "test"}
         task_runner = server._default_executor_factory(run_data)
         result = task_runner()
         # Should complete without error and return a result dict
@@ -240,6 +242,8 @@ class TestCLIRun:
                 "--goal",
                 "say hello",
                 "--local",
+                "--profile-id",
+                "test",
             ]
         )
         # Suppress config-file gateway fallback: this CLI test must run in

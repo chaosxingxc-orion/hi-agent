@@ -36,6 +36,7 @@ def _make_contract(**kw: object) -> TaskContract:
         "goal": "test goal",
         "task_family": "quick_task",
         "risk_level": "low",
+        "profile_id": "test",
     }
     defaults.update(kw)
     return TaskContract(**defaults)
