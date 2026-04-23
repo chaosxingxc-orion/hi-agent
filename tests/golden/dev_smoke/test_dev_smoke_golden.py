@@ -14,7 +14,9 @@ class TestDevSmokeGoldenPath:
         from hi_agent.contracts import TaskContract
 
         builder = SystemBuilder()
-        contract = TaskContract(task_id=uuid.uuid4().hex, goal="golden path smoke test")
+        contract = TaskContract(
+            task_id=uuid.uuid4().hex, goal="golden path smoke test", profile_id="test"
+        )
         executor = builder.build_executor(contract)
         result = executor.execute()
         assert str(result) in ("completed", "failed", "reflected")
@@ -44,7 +46,9 @@ class TestDevSmokeGoldenPath:
         from hi_agent.contracts import TaskContract
 
         builder = SystemBuilder()
-        contract = TaskContract(task_id=uuid.uuid4().hex, goal="provenance smoke test")
+        contract = TaskContract(
+            task_id=uuid.uuid4().hex, goal="provenance smoke test", profile_id="test"
+        )
         executor = builder.build_executor(contract)
         result = executor.execute()
         # execution_provenance is populated when the full pipeline runs;

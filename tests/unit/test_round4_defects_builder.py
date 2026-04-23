@@ -20,7 +20,7 @@ def _make_builder(tmp_path):
     return SystemBuilder(config=cfg)
 
 
-def _make_contract(profile_id: str | None = None):
+def _make_contract(profile_id: str | None = "test"):
     """Return a minimal TaskContract."""
     from hi_agent.contracts import TaskContract
 

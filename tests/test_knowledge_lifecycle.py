@@ -307,6 +307,7 @@ class TestSystemBuilderKnowledge:
             goal="test goal",
             task_family="quick_task",
             risk_level="low",
+            profile_id="test",
         )
         executor = builder.build_executor(contract)
         assert executor.knowledge_query_fn is not None

@@ -256,13 +256,17 @@ def test_build_budget_guard_returns_object(builder):
 
 
 def test_build_executor_returns_object(builder):
-    contract = TaskContract(task_id="char-test-001", goal="characterization test goal")
+    contract = TaskContract(
+        task_id="char-test-001", goal="characterization test goal", profile_id="test"
+    )
     obj = builder.build_executor(contract=contract)
     assert obj is not None
 
 
 def test_build_executor_has_execute_method(builder):
-    contract = TaskContract(task_id="char-test-002", goal="characterization test goal")
+    contract = TaskContract(
+        task_id="char-test-002", goal="characterization test goal", profile_id="test"
+    )
     obj = builder.build_executor(contract=contract)
     assert callable(getattr(obj, "execute", None))
 

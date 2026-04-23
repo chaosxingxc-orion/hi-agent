@@ -29,6 +29,7 @@ def _make_contract(**overrides: Any) -> TaskContract:
         "task_id": "t-ctx-001",
         "goal": "Test context wiring",
         "task_family": "quick_task",
+        "profile_id": "test",
     }
     defaults.update(overrides)
     return TaskContract(**defaults)

@@ -116,6 +116,7 @@ class TestSystemBuilder:
             goal="test goal",
             constraints=[],
             acceptance_criteria=[],
+            profile_id="test",
         )
         executor = builder.build_executor(contract)
         assert executor is not None

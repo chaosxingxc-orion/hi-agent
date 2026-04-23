@@ -327,14 +327,10 @@ class RunExecutor:
         # injection is observable instead of silently degrading to global
         # shared state.
         if raw_memory is None:
-            import logging as _log
-
-            _log.getLogger(__name__).warning(
-                "runner.raw_memory_unscoped_fallback — caller did not inject "
-                "a RawMemoryStore; using CWD-default unscoped store. "
-                "Thread profile_id/run_id through the builder for isolation."
-            )
-            raw_memory = RawMemoryStore()
+            _pid = getattr(contract, "profile_id", "") or ""
+            import os as _os
+            _base = _os.path.join(".episodes", _pid) if _pid else ".episodes"
+            raw_memory = RawMemoryStore(base_dir=_base)
         self.raw_memory = raw_memory
         self.compressor = compressor or MemoryCompressor()
         self.acceptance_policy = acceptance_policy or AcceptancePolicy()
@@ -1857,7 +1853,10 @@ class RunExecutor:
 
         # 8. Reconstruct raw_memory so L0 events from resumed stages are appended.
         try:
-            base_dir = kwargs.get("raw_memory_base_dir", ".episodes")
+            import os as _os
+            _resume_pid = getattr(contract, "profile_id", "") or ""
+            _default_base = _os.path.join(".episodes", _resume_pid) if _resume_pid else ".episodes"
+            base_dir = kwargs.get("raw_memory_base_dir", _default_base)
             executor.raw_memory = RawMemoryStore(
                 run_id=session.run_id,
                 base_dir=base_dir,

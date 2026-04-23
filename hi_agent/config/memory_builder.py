@@ -179,6 +179,13 @@ class MemoryBuilder:
         """
         from hi_agent.memory.l0_raw import RawMemoryStore
 
+        if not profile_id and workspace_key is None:
+            raise ValueError(
+                "build_raw_memory_store requires profile_id or workspace_key; "
+                "empty profile_id with no workspace_key creates an unscoped store "
+                "that cross-contaminates profiles (Rule 6 / J7-1)."
+            )
+
         # run_id is part of the key so parallel runs get distinct L0 files.
         key = self._cache_key(f"raw_memory:{run_id}", profile_id, workspace_key)
         cached = self._cache.get(key)

@@ -49,6 +49,7 @@ def _contract(task_id: str) -> TaskContract:
         task_id=task_id,
         goal="Characterize RunExecutor behavior",
         task_family="quick_task",
+        profile_id="test",
     )
 
 
