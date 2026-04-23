@@ -15,6 +15,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
+from hi_agent.observability.fallback import record_fallback
 
 _logger = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ class TierRouter:
         budget_remaining_usd: float | None = None,
         min_context_window: int = 0,
         skill_confidence: float | None = None,
+        run_id: str | None = None,
     ) -> RegisteredModel:
         """Select the best model for a given request.
 
@@ -181,6 +183,18 @@ class TierRouter:
                         purpose,
                         target_tier,
                     )
+                    record_fallback(
+                        "tier_downgrade",
+                        component="llm.tier_router",
+                        reason="no_model_in_target_tier",
+                        run_id=run_id,
+                        extra={
+                            "from_tier": target_tier,
+                            "to_tier": _TIER_ORDER[adj],
+                            "purpose": purpose,
+                            "selected_model": model.model_id,
+                        },
+                    )
                     return model
 
         # Last resort: any available model
@@ -197,6 +211,18 @@ class TierRouter:
                 best.model_id,
                 purpose,
                 target_tier,
+            )
+            record_fallback(
+                "tier_last_resort",
+                component="llm.tier_router",
+                reason="no_model_in_any_adjacent_tier",
+                run_id=run_id,
+                extra={
+                    "from_tier": target_tier,
+                    "to_tier": best.tier,
+                    "purpose": purpose,
+                    "selected_model": best.model_id,
+                },
             )
             return best
 
@@ -237,6 +263,7 @@ class TierRouter:
 
         Fallback: target_tier -> one tier down -> one tier up -> any available.
         Supports skill_confidence kwarg: if >= 0.85, allows one additional tier downgrade.
+        Supports run_id kwarg: threaded through to record_fallback for Rule 14 signals.
         """
         target_tier = self._resolve_tier(
             purpose,
@@ -246,6 +273,7 @@ class TierRouter:
         )
         required_caps: list[str] | None = kwargs.get("required_capabilities")  # type: ignore[assignment]
         min_ctx: int = kwargs.get("min_context_window", 0)  # type: ignore[assignment]
+        run_id: str | None = kwargs.get("run_id")  # type: ignore[assignment]
 
         # Try target tier
         model = self._find_in_tier(target_tier, required_caps, min_ctx)
@@ -274,6 +302,18 @@ class TierRouter:
                         purpose,
                         target_tier,
                     )
+                    record_fallback(
+                        "tier_downgrade",
+                        component="llm.tier_router",
+                        reason="no_model_in_target_tier",
+                        run_id=run_id,
+                        extra={
+                            "from_tier": target_tier,
+                            "to_tier": adj_tier,
+                            "purpose": purpose,
+                            "selected_model": model.model_id,
+                        },
+                    )
                     return model, adj_tier
 
         # Any available
@@ -290,6 +330,18 @@ class TierRouter:
                 best.model_id,
                 purpose,
                 target_tier,
+            )
+            record_fallback(
+                "tier_last_resort",
+                component="llm.tier_router",
+                reason="no_model_in_any_adjacent_tier",
+                run_id=run_id,
+                extra={
+                    "from_tier": target_tier,
+                    "to_tier": best.tier,
+                    "purpose": purpose,
+                    "selected_model": best.model_id,
+                },
             )
             return best, best.tier
 
@@ -383,6 +435,7 @@ class TierAwareLLMGateway:
         if getattr(request, "model", None) == "default":
             meta = getattr(request, "metadata", None) or {}
             purpose: str = meta.get("purpose", "routing")
+            run_id: str | None = meta.get("run_id")
             # budget_remaining is a 0-1 fraction; scale to rough USD so
             # that the TierRouter budget thresholds (0.10, 0.50) work
             # meaningfully: treat 1.0 fraction as $1.00.
@@ -399,6 +452,7 @@ class TierAwareLLMGateway:
                     budget_remaining_usd=budget_usd,
                     complexity=complexity,
                     skill_confidence=skill_confidence,
+                    run_id=run_id,
                 )
                 request = LLMRequest(
                     messages=getattr(request, "messages", []),
@@ -416,6 +470,19 @@ class TierAwareLLMGateway:
                     meta.get("purpose", "unknown"),
                     _tier_exc,
                 )
+                record_fallback(
+                    "tier_exception",
+                    component="llm.tier_aware_gateway",
+                    reason="select_model_raised",
+                    run_id=run_id,
+                    extra={
+                        "purpose": purpose,
+                        "original_model": "default",
+                        "error": type(_tier_exc).__name__,
+                        "error_message": str(_tier_exc),
+                        "call_site": "complete",
+                    },
+                )
 
         return self._inner.complete(request)  # type: ignore[union-attr]
 
@@ -431,6 +498,7 @@ class TierAwareLLMGateway:
         if getattr(request, "model", None) == "default":
             meta = getattr(request, "metadata", None) or {}
             purpose: str = meta.get("purpose", "routing")
+            run_id: str | None = meta.get("run_id")
             budget_usd: float = float(meta.get("budget_remaining", 1.0))
             complexity: str = meta.get("complexity", "moderate")
             raw_sc = meta.get("skill_confidence")
@@ -441,6 +509,7 @@ class TierAwareLLMGateway:
                     budget_remaining_usd=budget_usd,
                     complexity=complexity,
                     skill_confidence=skill_confidence,
+                    run_id=run_id,
                 )
                 request = LLMRequest(
                     messages=getattr(request, "messages", []),
@@ -453,6 +522,19 @@ class TierAwareLLMGateway:
                 )
             except Exception as _tier_exc:
                 _logger.warning("TierAwareLLMGateway.stream: select_model failed: %s", _tier_exc)
+                record_fallback(
+                    "tier_exception",
+                    component="llm.tier_aware_gateway",
+                    reason="select_model_raised",
+                    run_id=run_id,
+                    extra={
+                        "purpose": purpose,
+                        "original_model": "default",
+                        "error": type(_tier_exc).__name__,
+                        "error_message": str(_tier_exc),
+                        "call_site": "stream",
+                    },
+                )
 
         inner_stream = getattr(self._inner, "stream", None)
         if callable(inner_stream):
@@ -479,6 +561,7 @@ class TierAwareLLMGateway:
         if getattr(request, "model", None) == "default":
             meta = getattr(request, "metadata", None) or {}
             purpose: str = meta.get("purpose", "routing")
+            run_id: str | None = meta.get("run_id")
             budget_usd: float = float(meta.get("budget_remaining", 1.0))
             complexity: str = meta.get("complexity", "moderate")
             raw_sc = meta.get("skill_confidence")
@@ -489,6 +572,7 @@ class TierAwareLLMGateway:
                     budget_remaining_usd=budget_usd,
                     complexity=complexity,
                     skill_confidence=skill_confidence,
+                    run_id=run_id,
                 )
                 request = LLMRequest(
                     messages=getattr(request, "messages", []),
@@ -505,6 +589,19 @@ class TierAwareLLMGateway:
                     "falling back with original request. Error: %s",
                     meta.get("purpose", "unknown"),
                     _tier_exc,
+                )
+                record_fallback(
+                    "tier_exception",
+                    component="llm.tier_aware_gateway",
+                    reason="select_model_raised",
+                    run_id=run_id,
+                    extra={
+                        "purpose": purpose,
+                        "original_model": "default",
+                        "error": type(_tier_exc).__name__,
+                        "error_message": str(_tier_exc),
+                        "call_site": "acomplete",
+                    },
                 )
 
         return await self._inner.complete(request)  # type: ignore[union-attr]
