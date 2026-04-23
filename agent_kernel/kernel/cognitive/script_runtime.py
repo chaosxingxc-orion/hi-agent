@@ -197,7 +197,7 @@ class InProcessPythonScriptRuntime:
         exit_code = 0
         try:
             with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
-                exec(script_content, namespace)  # noqa: S102
+                exec(script_content, namespace)
         except SystemExit as e:
             exit_code = e.code if isinstance(e.code, int) else 1
         except BaseException as e:

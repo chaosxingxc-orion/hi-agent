@@ -39,6 +39,54 @@ _logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "llm_config.json"
 
+_PROVIDER_API_KEY_ENVS = {
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "openai": ("OPENAI_API_KEY",),
+    "volces": ("VOLCE_API_KEY",),
+}
+
+_PROVIDER_BASE_URL_ENVS = {
+    "anthropic": ("ANTHROPIC_BASE_URL", "HI_AGENT_ANTHROPIC_BASE_URL"),
+    "openai": ("OPENAI_BASE_URL", "HI_AGENT_OPENAI_BASE_URL"),
+    "volces": ("VOLCE_BASE_URL",),
+}
+
+
+def _provider_api_key_envs(provider: str) -> tuple[str, ...]:
+    """Return provider-specific and generic API-key env names."""
+    normalized = provider.strip().lower()
+    generic = f"HI_AGENT_LLM_API_KEY_{normalized.upper()}"
+    names = [*_PROVIDER_API_KEY_ENVS.get(normalized, ()), generic]
+    return tuple(dict.fromkeys(names))
+
+
+def _provider_base_url_envs(provider: str) -> tuple[str, ...]:
+    """Return provider-specific and generic base-url env names."""
+    normalized = provider.strip().lower()
+    generic = f"HI_AGENT_LLM_BASE_URL_{normalized.upper()}"
+    names = [*_PROVIDER_BASE_URL_ENVS.get(normalized, ()), generic]
+    return tuple(dict.fromkeys(names))
+
+
+def _resolve_provider_api_key(provider: str, provider_cfg: dict) -> tuple[str, str]:
+    """Resolve provider credentials without requiring secrets in JSON."""
+    env_names = _provider_api_key_envs(provider)
+    for env_name in env_names:
+        value = os.environ.get(env_name, "")
+        if value:
+            return value, env_name
+    api_key = str(provider_cfg.get("api_key", "") or "")
+    return api_key, env_names[0]
+
+
+def _resolve_provider_base_url(provider: str, provider_cfg: dict) -> str:
+    """Resolve provider base URL, allowing env to override JSON."""
+    for env_name in _provider_base_url_envs(provider):
+        value = os.environ.get(env_name, "")
+        if value:
+            return value
+    return str(provider_cfg.get("base_url", "") or "")
+
 
 def load_from_json_config(
     config_path: str | Path = _DEFAULT_CONFIG_PATH,
@@ -150,24 +198,22 @@ def build_gateway_from_config(
     providers = data.get("providers", {})
     provider_cfg = providers.get(default_provider, {})
 
-    api_key = provider_cfg.get("api_key", "")
+    api_key, env_var = _resolve_provider_api_key(default_provider, provider_cfg)
     if not api_key:
         _logger.warning(
-            "build_gateway_from_config: provider %r has no api_key in config",
+            "build_gateway_from_config: provider %r has no api_key in config or environment",
             default_provider,
         )
         return None
 
-    base_url = provider_cfg.get("base_url", "")
+    base_url = _resolve_provider_base_url(default_provider, provider_cfg)
     api_format = provider_cfg.get("api_format", "anthropic")
     models_cfg = provider_cfg.get("models", {})
-    default_model = models_cfg.get("medium") or models_cfg.get("strong") or ""
-
-    # --- Inject API key into a stable env var ---
-    env_var_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
-    env_var = (
-        env_var_map.get(default_provider) or f"HI_AGENT_LLM_API_KEY_{default_provider.upper()}"
+    default_model = (
+        models_cfg.get("strong") or models_cfg.get("medium") or models_cfg.get("light") or ""
     )
+
+    # --- Inject API key into the env var consumed by the selected gateway ---
     os.environ[env_var] = api_key
     _logger.info(
         "build_gateway_from_config: provider=%r format=%r key_env=%s",

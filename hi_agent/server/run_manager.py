@@ -606,6 +606,34 @@ class RunManager:
             result_payload = run.result.to_dict()
         except AttributeError:
             result_payload = run.result
+
+        # Rule 14: expose fallback_events at the top level so downstream
+        # callers can gate on them without having to introspect the nested
+        # RunResult payload (which may be a bare string for pre-RunResult
+        # callers).  DF-27: merge executor-scoped events (RunResult) with
+        # server-boundary events (keyed by run.run_id) — the route-kind
+        # "missing_profile_id" event is recorded at the server boundary
+        # before the executor's internal run_id exists, so it lives under
+        # run.run_id in the process-local registry.
+        fallback_events: list[dict[str, Any]] = []
+        try:
+            fallback_events = list(getattr(run.result, "fallback_events", []) or [])
+        except Exception:
+            fallback_events = []
+        try:
+            from hi_agent.observability.fallback import get_fallback_events
+
+            boundary_events = get_fallback_events(run.run_id)
+        except Exception:
+            boundary_events = []
+        # Append boundary events that are not already present (avoid
+        # duplicates when the executor happens to share the same run_id).
+        existing_ts = {(e.get("kind"), e.get("reason"), e.get("ts")) for e in fallback_events}
+        for ev in boundary_events:
+            key = (ev.get("kind"), ev.get("reason"), ev.get("ts"))
+            if key not in existing_ts:
+                fallback_events.append(ev)
+
         return {
             "run_id": run.run_id,
             "task_contract": run.task_contract,
@@ -616,6 +644,7 @@ class RunManager:
             "updated_at": run.updated_at,
             "current_stage": run.current_stage,
             "stage_updated_at": run.stage_updated_at,
+            "fallback_events": fallback_events,
         }
 
     def shutdown(self, timeout: float = 2.0) -> None:

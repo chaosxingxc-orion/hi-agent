@@ -72,3 +72,97 @@ def test_manifest_provenance_contract_version_present(test_client: TestClient) -
 
     data = test_client.get("/manifest").json()
     assert data.get("provenance_contract_version") == CONTRACT_VERSION
+
+
+def test_manifest_passes_through_llm_observability(monkeypatch: pytest.MonkeyPatch) -> None:
+    """/manifest must surface readiness LLM observability without secrets."""
+
+    class _FakeModel:
+        def __init__(self, name: str, provider: str, tier: str = "medium") -> None:
+            self.model_id = name
+            self.provider = provider
+            self.tier = tier
+
+    class _FakeRegistry:
+        def list_all(self) -> list[_FakeModel]:
+            return [_FakeModel("claude-sonnet-4-6", "anthropic")]
+
+        def list_models(self) -> list[_FakeModel]:
+            return self.list_all()
+
+    class _FakeBackend:
+        pass
+
+    class _FakeGateway:
+        def __init__(self) -> None:
+            self._inner = _FakeBackend()
+            self._registry = _FakeRegistry()
+
+    class _FakeInvoker:
+        def __init__(self) -> None:
+            self.registry = type("_Reg", (), {"list_names": lambda self: []})()
+
+    class _FakeSkillLoader:
+        def discover(self) -> int:
+            return 0
+
+        def list_skills(self) -> list[object]:
+            return []
+
+    class _FakeBuilder:
+        def __init__(self) -> None:
+            self._config = type(
+                "_Cfg",
+                (),
+                {"evolve_mode": "auto", "llm_default_provider": "anthropic"},
+            )()
+            self._plugin_loader = type("_PL", (), {"list_loaded": lambda self: []})()
+
+        def readiness(self) -> dict[str, object]:
+            return {
+                "ready": True,
+                "health": "ok",
+                "execution_mode": "local",
+                "kernel_mode": "local-fsm",
+                "llm_mode": "real",
+                "llm_provider": "anthropic",
+                "llm_backend": "_FakeBackend",
+                "models": [
+                    {
+                        "name": "claude-sonnet-4-6",
+                        "provider": "anthropic",
+                        "tier": "medium",
+                        "status": "configured",
+                    }
+                ],
+            }
+
+        def build_invoker(self) -> _FakeInvoker:
+            return _FakeInvoker()
+
+        def build_skill_loader(self) -> _FakeSkillLoader:
+            return _FakeSkillLoader()
+
+    server = AgentServer(rate_limit_rps=10000)
+    server._builder = _FakeBuilder()
+    with TestClient(server.app, raise_server_exceptions=False) as client:
+        data = client.get("/manifest").json()
+
+    assert data["llm_mode"] == "real"
+    assert data["llm_provider"] == "anthropic"
+    assert data["llm_backend"] == "_FakeBackend"
+    assert data["models"] == [
+        {
+            "name": "claude-sonnet-4-6",
+            "provider": "anthropic",
+            "tier": "medium",
+            "status": "configured",
+        }
+    ]
+    llm_summary = {
+        "llm_mode": data["llm_mode"],
+        "llm_provider": data["llm_provider"],
+        "llm_backend": data["llm_backend"],
+        "models": data["models"],
+    }
+    assert "sk-" not in str(llm_summary)

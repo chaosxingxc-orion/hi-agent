@@ -5,7 +5,12 @@ from hi_agent.memory.compress_prompts import STAGE_COMPRESSION_PROMPT
 from hi_agent.memory.compressor import CompressionMetrics, MemoryCompressor
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
-from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
+from hi_agent.memory.l0_raw import (
+    RawEventRecord,
+    RawMemoryStore,
+    build_provenance_from_capability_result,
+    make_capability_record,
+)
 from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l2_index import RunMemoryIndex, StagePointer
 from hi_agent.memory.long_term import (
@@ -45,4 +50,6 @@ __all__ = [
     "ShortTermMemoryStore",
     "StagePointer",
     "UnifiedMemoryRetriever",
+    "build_provenance_from_capability_result",
+    "make_capability_record",
 ]

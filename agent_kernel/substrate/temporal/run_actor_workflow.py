@@ -258,7 +258,10 @@ class RunActorWorkflow:
         self._recovery_outcomes = dependencies.recovery_outcomes
         self._turn_intent_log = dependencies.turn_intent_log
         self._deduper = dependencies.deduper
-        self._dedupe_store = dependencies.dedupe_store or InMemoryDedupeStore()
+        if dependencies.dedupe_store is not None:
+            self._dedupe_store = dependencies.dedupe_store
+        else:
+            self._dedupe_store = InMemoryDedupeStore()
         self._strict_mode = dependencies.strict_mode
         # Build optional reasoning loop when all cognitive services are present.
         _reasoning_loop = None
@@ -276,19 +279,22 @@ class RunActorWorkflow:
                 observability_hook=dependencies.observability_hook,
             )
 
-        self._turn_engine = turn_engine or TurnEngine(
-            snapshot_builder=CapabilitySnapshotBuilder(),
-            admission_service=self._admission,
-            dedupe_store=self._dedupe_store,
-            executor=_TurnEngineExecutorAdapter(self._executor),
-            snapshot_input_resolver=ActionPayloadCapabilitySnapshotInputResolver(
-                require_declared_snapshot_input=self._strict_mode.enabled,
-                require_declarative_bundle_digest=self._strict_mode.enabled,
-            ),
-            require_declared_snapshot_inputs=self._strict_mode.enabled,
-            reasoning_loop=_reasoning_loop,
-            observability_hook=dependencies.observability_hook,
-        )
+        if turn_engine is not None:
+            self._turn_engine = turn_engine
+        else:
+            self._turn_engine = TurnEngine(
+                snapshot_builder=CapabilitySnapshotBuilder(),
+                admission_service=self._admission,
+                dedupe_store=self._dedupe_store,
+                executor=_TurnEngineExecutorAdapter(self._executor),
+                snapshot_input_resolver=ActionPayloadCapabilitySnapshotInputResolver(
+                    require_declared_snapshot_input=self._strict_mode.enabled,
+                    require_declarative_bundle_digest=self._strict_mode.enabled,
+                ),
+                require_declared_snapshot_inputs=self._strict_mode.enabled,
+                reasoning_loop=_reasoning_loop,
+                observability_hook=dependencies.observability_hook,
+            )
         self._workflow_id_prefix = dependencies.workflow_id_prefix
         self._run_id: str | None = None
         self._session_id: str | None = None

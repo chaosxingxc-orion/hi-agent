@@ -136,6 +136,11 @@ class RunResult:
     """Whether the failure is transient and the run can be safely retried."""
     execution_provenance: ExecutionProvenance | None = None
     """Structured provenance for machine-readable run classification (HI-W1-D3-001)."""
+    fallback_events: list[dict[str, Any]] = field(default_factory=list)
+    """Rule 14: every degradation signal (``{kind, reason, ts, extra}``) emitted
+    during the run.  A terminal run with a non-empty ``fallback_events`` list
+    is not "successful" for delivery purposes — Rule 15's operator-shape gate
+    asserts this list is empty in prod mode."""
 
     @property
     def success(self) -> bool:
@@ -171,4 +176,5 @@ class RunResult:
             "execution_provenance": self.execution_provenance.to_dict()
             if self.execution_provenance
             else None,
+            "fallback_events": list(self.fallback_events),
         }

@@ -63,9 +63,12 @@ def test_workspace_key_scopes_separately(tmp_path) -> None:
     b = _builder(tmp_path)
     ws_a = WorkspaceKey(tenant_id="t1", user_id="u1", session_id="s1", team_id="")
     ws_b = WorkspaceKey(tenant_id="t1", user_id="u2", session_id="s1", team_id="")
-    g1 = b.build_long_term_graph(workspace_key=ws_a)
-    g2 = b.build_long_term_graph(workspace_key=ws_a)
-    g3 = b.build_long_term_graph(workspace_key=ws_b)
+    # DF-27: SystemBuilder wrapper requires profile_id keyword-only; pass
+    # empty string to force workspace-only scoping. memory_builder accepts
+    # empty profile_id when workspace_key is provided.
+    g1 = b.build_long_term_graph(profile_id="", workspace_key=ws_a)
+    g2 = b.build_long_term_graph(profile_id="", workspace_key=ws_a)
+    g3 = b.build_long_term_graph(profile_id="", workspace_key=ws_b)
     assert g1 is g2
     assert g1 is not g3, "Different WorkspaceKeys must get distinct instances"
 

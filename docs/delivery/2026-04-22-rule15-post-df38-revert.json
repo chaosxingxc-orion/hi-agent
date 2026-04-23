@@ -1,0 +1,33 @@
+{
+  "base_url": "http://127.0.0.1:8093",
+  "cancel_known": {},
+  "cancel_unknown": {},
+  "command": [
+    "C:\\Python314\\python.exe",
+    "D:\\chao_workspace\\hi-agent\\.claude\\worktrees\\adoring-brown-775254\\scripts\\rule15_volces_gate.py",
+    "--output",
+    "docs\\delivery\\2026-04-22-rule15-post-df38-revert.json",
+    "--profile-id",
+    "rule15_volces",
+    "--port",
+    "8093"
+  ],
+  "error": "timed out waiting for run bccb45c6-f40b-43f6-ad30-4e19deecb10c to reach terminal state",
+  "finished_at": "2026-04-22T14:12:10.744348+00:00",
+  "mode": "spawned",
+  "profile_id": "rule15_volces",
+  "ready": {},
+  "runs": [],
+  "server_command": [
+    "C:\\Python314\\python.exe",
+    "-m",
+    "hi_agent",
+    "serve",
+    "--port",
+    "8093"
+  ],
+  "server_pid": 35728,
+  "started_at": "2026-04-22T14:09:09.850744+00:00",
+  "status": "failed",
+  "total_duration_s": 0.0
+}

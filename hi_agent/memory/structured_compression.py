@@ -71,29 +71,30 @@ class StructuredSummary:
         Example output::
 
             [CONTEXT COMPACTION - 2026-04-10T12:00:00+00:00]
-            目标: Refactor the LLM gateway
-            进度: Completed protocol definition and HTTP gateway
-            关键决策: Chose httpx for async transport; pinned to Python 3.12+
-            已修改文件:
+            Goal: Refactor the LLM gateway
+            Progress: Completed protocol definition and HTTP gateway
+            Decisions: Chose httpx for async transport; pinned to Python 3.12+
+            Modified files:
               hi_agent/llm/protocol.py
               hi_agent/llm/http_gateway.py
-            下一步: Wire up TierRouter to HttpGateway
-            [END COMPACTION - 压缩自 42 条消息]
+            Next steps: Wire up TierRouter to HttpGateway
+            [END COMPACTION - compressed from 42 messages]
         """
+        # Language Rule (CLAUDE.md): prompts to LLMs must be English.
         files_block: str
         if self.modified_files:
             files_block = "\n".join(f"  {f}" for f in self.modified_files)
         else:
-            files_block = "  (无)"
+            files_block = "  (none)"
 
         return (
             f"[CONTEXT COMPACTION - {self.compressed_at}]\n"
-            f"目标: {self.goal}\n"
-            f"进度: {self.progress}\n"
-            f"关键决策: {self.decisions}\n"
-            f"已修改文件:\n{files_block}\n"
-            f"下一步: {self.next_steps}\n"
-            f"[END COMPACTION - 压缩自 {self.source_message_count} 条消息]"
+            f"Goal: {self.goal}\n"
+            f"Progress: {self.progress}\n"
+            f"Decisions: {self.decisions}\n"
+            f"Modified files:\n{files_block}\n"
+            f"Next steps: {self.next_steps}\n"
+            f"[END COMPACTION - compressed from {self.source_message_count} messages]"
         )
 
     def merge(self, newer: StructuredSummary) -> StructuredSummary:
@@ -101,7 +102,7 @@ class StructuredSummary:
 
         Merge rules:
         - **goal**: keep the older one — the original task goal does not change.
-        - **progress**: concatenate ("之前: {old}\n新增: {newer}").
+        - **progress**: concatenate ("Previous: {old}\nNew: {newer}").
         - **decisions**: append newer decisions to older ones.
         - **modified_files**: union, deduplication preserved.
         - **next_steps**: use the newer value — latest remaining work wins.
@@ -113,7 +114,8 @@ class StructuredSummary:
             if f not in merged_files:
                 merged_files.append(f)
 
-        merged_progress = f"之前: {self.progress}\n新增: {newer.progress}"
+        # Language Rule (CLAUDE.md): prompts to LLMs must be English.
+        merged_progress = f"Previous: {self.progress}\nNew: {newer.progress}"
         merged_decisions = (
             f"{self.decisions}\n{newer.decisions}" if newer.decisions else self.decisions
         )
@@ -391,33 +393,37 @@ class StructuredCompressor:
         """
         serialized = self._serialize_messages_for_prompt(middle_messages)
 
+        # Language Rule (CLAUDE.md): prompts to LLMs must be English.
         if existing_summary is not None:
             existing_block = json.dumps(existing_summary.to_dict(), ensure_ascii=False, indent=2)
             return (
-                "你是一个上下文压缩助手。以下是已有的结构化摘要，以及新的对话消息。\n"
-                "请根据新消息对摘要进行增量更新，严格按照以下 JSON 格式返回（不要包含额外文字）：\n"
+                "You are a context compression assistant. Below is an existing structured "
+                "summary and new conversation messages.\n"
+                "Perform an incremental update of the summary based on the new messages. "
+                "Return strictly in the following JSON format (do not include any extra text):\n"
                 "{\n"
-                '  "goal": "用户的原始任务目标（保持不变）",\n'
-                '  "progress": "新增完成的具体工作（只写新增部分）",\n'
-                '  "decisions": "新增的关键决策和原因（只写新增部分）",\n'
-                '  "modified_files": ["新增的文件路径"],\n'
-                '  "next_steps": "尚未完成、需要继续的工作"\n'
+                '  "goal": "the user\'s original task goal (unchanged)",\n'
+                '  "progress": "newly completed concrete work (only write what is new)",\n'
+                '  "decisions": "new key decisions and their reasons (only write what is new)",\n'
+                '  "modified_files": ["newly added file paths"],\n'
+                '  "next_steps": "work that remains and must continue"\n'
                 "}\n\n"
-                f"已有摘要：\n{existing_block}\n\n"
-                f"新对话消息：\n{serialized}"
+                f"Existing summary:\n{existing_block}\n\n"
+                f"New conversation messages:\n{serialized}"
             )
 
         return (
-            "你是一个上下文压缩助手。请分析以下对话消息，提取结构化摘要。\n"
-            "严格按照以下 JSON 格式返回（不要包含额外文字）：\n"
+            "You are a context compression assistant. Analyze the following conversation "
+            "messages and extract a structured summary.\n"
+            "Return strictly in the following JSON format (do not include any extra text):\n"
             "{\n"
-            '  "goal": "用户的原始任务目标",\n'
-            '  "progress": "已完成的具体工作",\n'
-            '  "decisions": "做出的关键决策和原因",\n'
-            '  "modified_files": ["文件路径1", "文件路径2"],\n'
-            '  "next_steps": "尚未完成、需要继续的工作"\n'
+            '  "goal": "the user\'s original task goal",\n'
+            '  "progress": "concrete work that has been completed",\n'
+            '  "decisions": "key decisions made and their reasons",\n'
+            '  "modified_files": ["file/path/one", "file/path/two"],\n'
+            '  "next_steps": "work that remains and must continue"\n'
             "}\n\n"
-            f"对话消息：\n{serialized}"
+            f"Conversation messages:\n{serialized}"
         )
 
     def _parse_llm_response(

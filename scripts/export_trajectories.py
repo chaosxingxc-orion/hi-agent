@@ -34,7 +34,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from hi_agent.observability.trajectory_exporter import (  # noqa: E402
+from hi_agent.observability.trajectory_exporter import (
     ExportStats,
     TrajectoryExporter,
     TrajectoryFilter,
@@ -74,7 +74,10 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.0,
         metavar="FLOAT",
-        help="Minimum quality_score required (0.0–1.0). Default: 0.0 (no filter).",
+        help=(
+            "Minimum quality_score required (0.0-1.0). "
+            "Default: 0.0 (no filter)."
+        ),
     )
     parser.add_argument(
         "--min-turns",

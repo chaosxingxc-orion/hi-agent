@@ -45,15 +45,16 @@ class NudgeConfig:
     (with ``{turns}`` / ``{iterations}`` placeholders) are used.
     """
 
+    # Language Rule (CLAUDE.md): prompts to LLMs must be English.
     DEFAULT_MEMORY_MESSAGE: ClassVar[str] = (
-        "你已经执行了 {turns} 轮对话，但尚未保存记忆。"
-        "请考虑使用记忆工具保存用户偏好、重要发现或关键上下文，"
-        "以便在未来对话中复用。"
+        "You have completed {turns} conversation turns but have not yet saved any memory. "
+        "Consider using the memory tool to persist user preferences, important findings, or "
+        "critical context so they can be reused in future conversations."
     )
     DEFAULT_SKILL_MESSAGE: ClassVar[str] = (
-        "你已经执行了 {iterations} 次工具调用，但尚未创建技能。"
-        "如果你发现了可复用的解决模式，请考虑将其保存为技能，"
-        "以便在未来任务中直接调用，降低成本。"
+        "You have executed {iterations} tool calls but have not yet created a skill. "
+        "If you have discovered a reusable solution pattern, consider saving it as a skill "
+        "so it can be invoked directly in future tasks, reducing cost."
     )
 
     memory_nudge_interval: int = 10  # 每 N 轮触发记忆提醒

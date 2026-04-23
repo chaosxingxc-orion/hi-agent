@@ -168,7 +168,12 @@ def main() -> None:
     print(f"Model   : {getattr(inner, '_default_model', '?')}")
     print(f"Base URL: {getattr(inner, '_base_url', '?')}")
     thinking_default = getattr(inner, "_default_thinking_budget", None)
-    print(f"Thinking: {'enabled (default=' + str(thinking_default) + ')' if thinking_default else 'off by default'}")
+    thinking_status = (
+        f"enabled (default={thinking_default})"
+        if thinking_default
+        else "off by default"
+    )
+    print(f"Thinking: {thinking_status}")
 
     # Always run streaming test
     run_streaming(gateway)

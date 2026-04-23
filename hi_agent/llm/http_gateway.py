@@ -401,7 +401,11 @@ class HTTPGateway:
         # P1-7: persist timeout so sync callers bridging via AsyncBridgeService
         # can compute a bounded wall-clock wait.
         self._timeout = float(timeout)
-        # Shared AsyncClient = connection pool reused across all calls
+        # AsyncClient instance is long-lived; its connection pool is only
+        # reusable while the owning event loop stays alive. Sync callers that
+        # bridge via ``asyncio.run`` create a fresh loop per call and MUST
+        # route through ``hi_agent.runtime.sync_bridge`` to keep the pool
+        # bound to one durable loop (DF-18 / A-43, tracked alongside A-1).
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             headers={

@@ -154,9 +154,15 @@ class SystemBuilder:
         """Build or return the shared MiddlewareOrchestrator singleton."""
         return self._get_runtime_builder().build_middleware_orchestrator()
 
-    def _inject_middleware_dependencies(self, orchestrator: Any) -> None:
-        """Post-inject subsystem dependencies into orchestrator's middleware instances."""
-        self._get_runtime_builder().inject_middleware_dependencies(orchestrator)
+    def _inject_middleware_dependencies(self, orchestrator: Any, *, profile_id: str) -> None:
+        """Post-inject subsystem dependencies into orchestrator's middleware instances.
+
+        Rule 13 (DF-27): ``profile_id`` is required so knowledge / retrieval
+        builders can scope their stores correctly.
+        """
+        self._get_runtime_builder().inject_middleware_dependencies(
+            orchestrator, profile_id=profile_id
+        )
 
     def _build_llm_budget_tracker(self) -> Any:
         """Build LLMBudgetTracker — delegated to CognitionBuilder."""
@@ -389,8 +395,13 @@ class SystemBuilder:
         if not hasattr(self, "_knowledge_builder_inst") or self._knowledge_builder_inst is None:
             from hi_agent.config.knowledge_builder import KnowledgeBuilder
 
+            # Adapt the keyword-only signature of build_long_term_graph into
+            # the factory's positional protocol: factory(profile_id) -> graph.
             self._knowledge_builder_inst = KnowledgeBuilder(
-                self._config, long_term_graph_factory=self.build_long_term_graph
+                self._config,
+                long_term_graph_factory=lambda pid: self.build_long_term_graph(
+                    profile_id=pid
+                ),
             )
         return self._knowledge_builder_inst
 
@@ -603,32 +614,45 @@ class SystemBuilder:
     # Memory tier builders
     # ------------------------------------------------------------------
 
-    def build_short_term_store(self, profile_id: str = "", workspace_key: Any = None) -> Any:
-        """Build short-term memory store, optionally scoped to a profile or workspace."""
+    def build_short_term_store(self, *, profile_id: str, workspace_key: Any = None) -> Any:
+        """Build short-term memory store scoped to a profile or workspace.
+
+        Rule 13 (DF-12): ``profile_id`` keyword-only and required.
+        """
         return self._get_memory_builder().build_short_term_store(
             profile_id=profile_id, workspace_key=workspace_key
         )
 
-    def build_mid_term_store(self, profile_id: str = "", workspace_key: Any = None) -> Any:
-        """Build mid-term memory store, optionally scoped to a profile or workspace."""
+    def build_mid_term_store(self, *, profile_id: str, workspace_key: Any = None) -> Any:
+        """Build mid-term memory store scoped to a profile or workspace.
+
+        Rule 13 (DF-12): ``profile_id`` keyword-only and required.
+        """
         return self._get_memory_builder().build_mid_term_store(
             profile_id=profile_id, workspace_key=workspace_key
         )
 
-    def build_long_term_graph(self, profile_id: str = "", workspace_key: Any = None) -> Any:
-        """Build long-term memory graph, optionally scoped to a profile or workspace."""
+    def build_long_term_graph(self, *, profile_id: str, workspace_key: Any = None) -> Any:
+        """Build long-term memory graph scoped to a profile or workspace.
+
+        Rule 13 (DF-12): ``profile_id`` keyword-only and required.
+        """
         return self._get_memory_builder().build_long_term_graph(
             profile_id=profile_id, workspace_key=workspace_key
         )
 
     def build_retrieval_engine(
         self,
+        *,
+        profile_id: str,
         short_term_store: Any = None,
         mid_term_store: Any = None,
         long_term_graph: Any = None,
-        profile_id: str = "",
     ) -> Any:
-        """Build four-layer retrieval engine across all memory tiers."""
+        """Build four-layer retrieval engine across all memory tiers.
+
+        Rule 13 (DF-12): ``profile_id`` keyword-only and required.
+        """
         return self._get_memory_builder().build_retrieval_engine(
             short_term_store=short_term_store,
             mid_term_store=mid_term_store,
@@ -639,12 +663,16 @@ class SystemBuilder:
 
     def build_memory_lifecycle_manager(
         self,
+        *,
+        profile_id: str,
         short_term_store: Any = None,
         mid_term_store: Any = None,
         long_term_graph: Any = None,
-        profile_id: str = "",
     ) -> MemoryLifecycleManager:
-        """Build MemoryLifecycleManager wiring all memory tiers."""
+        """Build MemoryLifecycleManager wiring all memory tiers.
+
+        Rule 13 (DF-12): ``profile_id`` keyword-only and required.
+        """
         return self._get_memory_builder().build_memory_lifecycle_manager(
             short_term_store=short_term_store,
             mid_term_store=mid_term_store,
@@ -663,7 +691,11 @@ class SystemBuilder:
     def build_user_knowledge_store(self) -> Any:
         return self._get_knowledge_builder().build_user_knowledge_store()
 
-    def build_knowledge_manager(self, profile_id: str = "", long_term_graph: Any = None) -> Any:
+    def build_knowledge_manager(self, *, profile_id: str, long_term_graph: Any = None) -> Any:
+        """Build KnowledgeManager scoped to ``profile_id``.
+
+        Rule 13 (DF-12): ``profile_id`` keyword-only and required.
+        """
         return self._get_knowledge_builder().build_knowledge_manager(
             profile_id=profile_id, long_term_graph=long_term_graph
         )
@@ -673,7 +705,14 @@ class SystemBuilder:
     # ------------------------------------------------------------------
 
     def _build_compressor(self) -> MemoryCompressor:
-        """Create MemoryCompressor, wiring LLM gateway if available."""
+        """Create MemoryCompressor, wiring LLM gateway if available.
+
+        DF-34: pin the compression model to ``glm-5.1`` (volces coding-plan
+        ``strong`` tier) so memory compression does not hit
+        ``UnsupportedModel`` when the configured ``light`` tier points at a
+        model the coding-plan endpoint does not serve.  Quality matters more
+        than cost for memory compression (low-frequency operation).
+        """
         return MemoryCompressor(
             gateway=self.build_llm_gateway(),
             compress_threshold=self._config.memory_compress_threshold,
@@ -683,6 +722,7 @@ class SystemBuilder:
             max_decisions=self._config.memory_compress_max_decisions,
             max_entities=self._config.memory_compress_max_entities,
             max_tokens=self._config.memory_compress_max_tokens,
+            compression_model="glm-5.1",
         )
 
     def build_profile_registry(self) -> Any:
@@ -929,12 +969,26 @@ class SystemBuilder:
                 session_id).  When provided, all memory stores are placed under
                 workspace-scoped paths instead of the global config directories.
         """
+        # DF-27 Rule 13: profile_id is required at the executor-construction layer.
+        # The server boundary (handle_create_run) is responsible for assigning the
+        # loud-default when the caller supplies none — see Rule 14. At this layer
+        # empty profile_id is a contract defect that must be surfaced, not masked.
+        _profile_id = getattr(contract, "profile_id", None) or ""
+        if not _profile_id:
+            raise ValueError(
+                "SystemBuilder._build_executor_impl requires a non-empty "
+                "contract.profile_id. The server boundary should assign "
+                "'default' when the downstream caller does not supply one; "
+                "an empty profile_id reaching this layer indicates a skipped "
+                "boundary (see DF-27, Rule 13)."
+            )
+
         invoker = self.build_invoker()
 
         # Pre-compute optional wired components (avoids post-construction mutation).
         _mw = self._build_middleware_orchestrator()
         if _mw is not None:
-            self._inject_middleware_dependencies(_mw)
+            self._inject_middleware_dependencies(_mw, profile_id=_profile_id)
             if resolved_profile is not None and resolved_profile.has_evaluator:
                 self._inject_evaluator(_mw, resolved_profile)
         _skill_ev = None
@@ -993,7 +1047,6 @@ class SystemBuilder:
             self._validate_required_capabilities(resolved_profile)
 
         # --- Build mid-term / long-term memory components for wiring ---
-        _profile_id = getattr(contract, "profile_id", "") or ""
         _run_id = uuid.uuid4().hex
         # Validate all fields are non-empty before using workspace paths.
         if workspace_key is not None and not (
@@ -1057,7 +1110,7 @@ class SystemBuilder:
             # registry so parallel callers share the cached per-run_id instance.
             raw_memory=self._get_memory_builder().build_raw_memory_store(
                 run_id=_run_id,
-                profile_id=getattr(contract, "profile_id", "") or "",
+                profile_id=_profile_id,
                 workspace_key=workspace_key,
             ),
             compressor=self._build_compressor(),
@@ -1221,6 +1274,16 @@ class SystemBuilder:
         with open(checkpoint_path, encoding="utf-8") as _f:
             _cp_data = _json.load(_f)
         _profile_id = _cp_data.get("task_contract", {}).get("profile_id", "") or ""
+        if not _profile_id:
+            # DF-27: a checkpoint without profile_id predates Rule 13 or was
+            # written via the server boundary's loud-default path. Preserve
+            # resumability by adopting the same 'default' label — the server
+            # already recorded a fallback event when the run was created.
+            _profile_id = "default"
+            logger.warning(
+                "build_executor_from_checkpoint: checkpoint has no profile_id; "
+                "resuming under 'default' (DF-27 parity with server boundary)."
+            )
 
         kernel = self.build_kernel()
         km = self.build_knowledge_manager(
@@ -1267,10 +1330,15 @@ class SystemBuilder:
         return TaskOrchestrator(kernel=kernel)
 
     def build_server(self) -> Any:
-        """Build API server with all subsystems connected."""
+        """Build API server with all subsystems connected.
+
+        Rule 13 (DF-12): ``memory_manager`` and ``knowledge_manager`` are
+        **per-profile** resources and can no longer be pre-built at server
+        construction time without a profile_id. Request handlers rebuild them
+        per-run using the contract's profile_id (see ``server/routes_memory.py``
+        and ``_build_executor_impl`` in this file).
+        """
         return self._get_server_builder().build_server(
-            memory_manager=self.build_memory_lifecycle_manager(),
-            knowledge_manager=self.build_knowledge_manager(),
             skill_evolver=self.build_skill_evolver(),
             skill_loader=self.build_skill_loader(),
             metrics_collector=self.build_metrics_collector(),

@@ -200,6 +200,23 @@ def _cmd_run(args: argparse.Namespace) -> None:
             config = stack.resolve()
             builder = SystemBuilder(config=config, config_stack=stack)
             profile_id = getattr(args, "profile_id", None)
+            # DF-27: CLI boundary mirrors the POST /runs boundary — if no
+            # profile_id is provided, default loudly to 'default' with a
+            # recorded fallback event rather than 500-ing out of the builder.
+            if not profile_id:
+                from hi_agent.observability.fallback import record_fallback
+
+                print(
+                    "WARNING: 'hi-agent run' invoked without --profile-id; "
+                    "defaulting to 'default' (DF-27).",
+                    file=sys.stderr,
+                )
+                record_fallback(
+                    kind="route",
+                    reason="missing_profile_id",
+                    extra={"default_assigned": "default", "source": "cli_run"},
+                )
+                profile_id = "default"
             import json as _json2
 
             constraints_raw = getattr(args, "constraints", None)

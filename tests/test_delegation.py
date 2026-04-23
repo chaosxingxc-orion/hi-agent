@@ -303,9 +303,9 @@ def test_format_results_for_context() -> None:
     # Duration for the first task.
     assert "42.5" in output
     # Section headings.
-    assert "子任务执行结果" in output
-    assert "子任务 1" in output
-    assert "子任务 2" in output
+    assert "Sub-task execution results" in output
+    assert "Sub-task 1" in output
+    assert "Sub-task 2" in output
 
 
 def test_format_results_for_context_empty() -> None:
@@ -314,8 +314,8 @@ def test_format_results_for_context_empty() -> None:
     manager = DelegationManager(kernel=MagicMock(), config=config)
 
     output = manager.format_results_for_context([])
-    assert "子任务执行结果" in output
-    assert "无子任务" in output
+    assert "Sub-task execution results" in output
+    assert "no sub-tasks" in output
 
 
 # ---------------------------------------------------------------------------

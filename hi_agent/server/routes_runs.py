@@ -9,6 +9,7 @@ Handlers:
     handle_create_run       POST /runs
     handle_get_run          GET  /runs/{run_id}
     handle_signal_run       POST /runs/{run_id}/signal
+    handle_cancel_run       POST /runs/{run_id}/cancel
     handle_submit_feedback  POST /runs/{run_id}/feedback
     handle_get_feedback     GET  /runs/{run_id}/feedback
     handle_resume_run       POST /runs/{run_id}/resume
@@ -126,6 +127,27 @@ async def handle_create_run(request: Request) -> JSONResponse:
             return JSONResponse({"error": str(exc)}, status_code=409)
         return JSONResponse({"error": str(exc)}, status_code=409)
 
+    # DF-27 / Rule 14: the builder now requires a non-empty profile_id.
+    # Rather than silent-defaulting (which masks missing caller metadata) or
+    # returning 400 (which is a breaking API change we defer until the
+    # downstream roadmap P-3 lands), assign 'default' loudly here: one WARNING
+    # log + one recorded fallback event so the fact is countable via /metrics
+    # and inspectable on GET /runs/{id}.
+    if not body.get("profile_id"):
+        from hi_agent.observability.fallback import record_fallback
+
+        logger.warning(
+            "POST /runs received without profile_id; defaulting to 'default'. "
+            "Downstream should supply profile_id per downstream roadmap (P-3)."
+        )
+        record_fallback(
+            kind="route",
+            reason="missing_profile_id",
+            run_id=run_id,
+            extra={"default_assigned": "default"},
+        )
+        body["profile_id"] = "default"
+
     # Register run in RunContextManager so /runs/active reflects live runs.
     rcm = getattr(server, "run_context_manager", None)
     if rcm is not None:
@@ -242,6 +264,31 @@ async def handle_signal_run(request: Request) -> JSONResponse:
     return JSONResponse(
         {"error": "unknown_signal", "signal": signal},
         status_code=400,
+    )
+
+
+async def handle_cancel_run(request: Request) -> JSONResponse:
+    """Cancel an existing run, enforcing workspace ownership."""
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+    run_id = request.path_params["run_id"]
+    server: Any = request.app.state.agent_server
+    manager = server.run_manager
+    run = manager.get_run(run_id, workspace=ctx)
+    if run is None:
+        return JSONResponse(
+            {"error": "run_not_found", "run_id": run_id},
+            status_code=404,
+        )
+
+    ok = manager.cancel_run(run_id, workspace=ctx)
+    if ok:
+        return JSONResponse({"run_id": run_id, "state": "cancelled"})
+    return JSONResponse(
+        {"error": "cannot_cancel", "run_id": run_id},
+        status_code=409,
     )
 
 

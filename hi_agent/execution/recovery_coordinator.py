@@ -370,7 +370,14 @@ class RecoveryCoordinator:
                                         stage_id,
                                     )
                                 else:
-                                    asyncio.run(
+                                    # Rule 12: route through the durable
+                                    # SyncBridge so reflection's async
+                                    # resources share one event loop.
+                                    from hi_agent.runtime.sync_bridge import (
+                                        get_bridge,
+                                    )
+
+                                    get_bridge().call_sync(
                                         self._ctx._reflection_orchestrator.reflect_and_infer(
                                             descriptor=descriptor,
                                             attempts=self._ctx._get_attempt_history(stage_id),

@@ -8,11 +8,17 @@ import shlex
 import subprocess
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
 
 from hi_agent.capability.registry import CapabilityDescriptor, CapabilityRegistry, CapabilitySpec
 from hi_agent.security.path_policy import PathPolicyViolation, safe_resolve
 from hi_agent.security.url_policy import URLPolicy, URLPolicyViolation
+
+
+def _now_iso() -> str:
+    """Return current UTC time as ISO-8601 string (P-1 Provenance timestamp)."""
+    return datetime.now(UTC).isoformat()
 
 _handler_logger = _logging.getLogger(__name__)
 
@@ -40,7 +46,20 @@ def file_read_handler(payload: dict, *, workspace_root: Path | None = None) -> d
         base_dir = workspace_root or Path(".").resolve()
         p = safe_resolve(base_dir, path)
         content = p.read_text(encoding=encoding)
-        return {"success": True, "content": content, "size": len(content), "error": None}
+        # P-1: attach Provenance describing the on-disk source of the content.
+        provenance = {
+            "url": p.resolve().as_uri(),
+            "title": p.name,
+            "source_type": "file",
+            "retrieved_at": _now_iso(),
+        }
+        return {
+            "success": True,
+            "content": content,
+            "size": len(content),
+            "error": None,
+            "provenance": provenance,
+        }
     except PathPolicyViolation as exc:
         return {
             "success": False,
@@ -142,7 +161,21 @@ def web_fetch_handler(payload: dict) -> dict:
         with opener.open(req, timeout=timeout) as resp:
             raw = resp.read()
             content = raw.decode("utf-8", errors="replace")
-            return {"success": True, "content": content, "status_code": resp.status, "error": None}
+            final_url = getattr(resp, "url", None) or url
+            # P-1: attach Provenance describing the fetched web source.
+            provenance = {
+                "url": final_url,
+                "title": "",
+                "source_type": "web",
+                "retrieved_at": _now_iso(),
+            }
+            return {
+                "success": True,
+                "content": content,
+                "status_code": resp.status,
+                "error": None,
+                "provenance": provenance,
+            }
     except urllib.error.HTTPError as exc:
         return {"success": False, "content": "", "status_code": exc.code, "error": str(exc)}
     except Exception as exc:

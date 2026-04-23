@@ -304,7 +304,7 @@ class TestHarnessExecutorExecute:
     def test_successful_execution(self) -> None:
         gov = GovernanceEngine()
         invoker = _MockInvoker(responses={"search": {"results": [1, 2]}})
-        executor = HarnessExecutor(gov, invoker)
+        executor = HarnessExecutor(gov, invoker, evidence_store=EvidenceStore())
 
         spec = _read_only_spec()
         result = executor.execute(spec)
@@ -316,7 +316,7 @@ class TestHarnessExecutorExecute:
 
     def test_governance_blocks_execution(self) -> None:
         gov = GovernanceEngine()
-        executor = HarnessExecutor(gov, _MockInvoker())
+        executor = HarnessExecutor(gov, _MockInvoker(), evidence_store=EvidenceStore())
 
         spec = _irreversible_spec(approval=False, idempotency_key="")
         result = executor.execute(spec)
@@ -326,7 +326,7 @@ class TestHarnessExecutorExecute:
 
     def test_approval_pending_state(self) -> None:
         gov = GovernanceEngine()
-        executor = HarnessExecutor(gov, _MockInvoker())
+        executor = HarnessExecutor(gov, _MockInvoker(), evidence_store=EvidenceStore())
 
         spec = _irreversible_spec(approval=True, idempotency_key="k")
         result = executor.execute(spec)
@@ -337,7 +337,7 @@ class TestHarnessExecutorExecute:
     def test_execute_after_approval(self) -> None:
         gov = GovernanceEngine()
         invoker = _MockInvoker(responses={"deploy": {"deployed": True}})
-        executor = HarnessExecutor(gov, invoker)
+        executor = HarnessExecutor(gov, invoker, evidence_store=EvidenceStore())
 
         spec = _irreversible_spec(approval=True, idempotency_key="k")
         # First attempt: pending
@@ -352,7 +352,7 @@ class TestHarnessExecutorExecute:
 
     def test_no_invoker_fails(self) -> None:
         gov = GovernanceEngine()
-        executor = HarnessExecutor(gov, capability_invoker=None)
+        executor = HarnessExecutor(gov, capability_invoker=None, evidence_store=EvidenceStore())
 
         spec = _read_only_spec()
         result = executor.execute(spec)
@@ -366,7 +366,7 @@ class TestHarnessExecutorExecute:
             responses={"search": {"ok": True}},
             fail_times=2,
         )
-        executor = HarnessExecutor(gov, invoker)
+        executor = HarnessExecutor(gov, invoker, evidence_store=EvidenceStore())
 
         spec = _read_only_spec()
         spec.max_retries = 3
@@ -379,7 +379,7 @@ class TestHarnessExecutorExecute:
     def test_retry_exhausted(self) -> None:
         gov = GovernanceEngine()
         invoker = _MockInvoker(fail_times=100)
-        executor = HarnessExecutor(gov, invoker)
+        executor = HarnessExecutor(gov, invoker, evidence_store=EvidenceStore())
 
         spec = _read_only_spec()
         spec.max_retries = 2
@@ -510,28 +510,32 @@ class TestActionStateTransitions:
 
     def test_success_ends_in_succeeded(self) -> None:
         gov = GovernanceEngine()
-        executor = HarnessExecutor(gov, _MockInvoker())
+        executor = HarnessExecutor(gov, _MockInvoker(), evidence_store=EvidenceStore())
         spec = _read_only_spec()
         executor.execute(spec)
         assert executor.get_action_state(spec.action_id) == ActionState.SUCCEEDED
 
     def test_failure_ends_in_failed(self) -> None:
         gov = GovernanceEngine()
-        executor = HarnessExecutor(gov, _MockInvoker(fail_times=100))
+        executor = HarnessExecutor(
+            gov,
+            _MockInvoker(fail_times=100),
+            evidence_store=EvidenceStore(),
+        )
         spec = _read_only_spec()
         executor.execute(spec)
         assert executor.get_action_state(spec.action_id) == ActionState.FAILED
 
     def test_approval_pending_state_tracked(self) -> None:
         gov = GovernanceEngine()
-        executor = HarnessExecutor(gov, _MockInvoker())
+        executor = HarnessExecutor(gov, _MockInvoker(), evidence_store=EvidenceStore())
         spec = _irreversible_spec(approval=True, idempotency_key="k")
         executor.execute(spec)
         assert executor.get_action_state(spec.action_id) == ActionState.APPROVAL_PENDING
 
     def test_unknown_action_returns_none(self) -> None:
         gov = GovernanceEngine()
-        executor = HarnessExecutor(gov, _MockInvoker())
+        executor = HarnessExecutor(gov, _MockInvoker(), evidence_store=EvidenceStore())
         assert executor.get_action_state("nonexistent") is None
 
 

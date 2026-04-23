@@ -32,17 +32,48 @@ class MockKernelFacade:
     def _actual_run_id(self, run_id: str) -> str:
         return self._run_id_map.get(run_id, run_id)
 
-    async def start_run(self, run_id: str, session_id: str, metadata: dict[str, Any]) -> None:
+    async def start_run(
+        self,
+        task_id_or_run_id: str,
+        session_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
+        """Start a run and return the run_id.
+
+        DF-16: accepts either the RuntimeAdapter protocol signature
+        ``start_run(task_id) -> str`` (used by ``execute_async``) or the
+        legacy three-arg DTO form ``start_run(run_id, session_id, metadata)``
+        used by tests that pre-seed a run before calling the scheduler
+        directly.  In the single-arg form the argument is treated as the
+        task_id and the generated kernel run_id is returned verbatim.
+        """
         from agent_kernel.adapters.facade.kernel_facade import StartRunRequest
 
+        if session_id is None and metadata is None:
+            # Protocol form: start_run(task_id) -> run_id
+            task_id = task_id_or_run_id
+            request = StartRunRequest(
+                initiator="agent_core_runner",
+                run_kind="trace",
+                session_id=f"sess-{task_id}",
+                input_json={"task_id": task_id},
+            )
+            response = await self._facade.start_run(request)
+            # External id == actual id in the protocol form.
+            self._run_id_map[response.run_id] = response.run_id
+            return response.run_id
+
+        # Legacy DTO form used by tests that seed a run directly.
+        run_id = task_id_or_run_id
         request = StartRunRequest(
             initiator="agent_core_runner",
             run_kind="trace",
-            session_id=session_id,
+            session_id=session_id or f"sess-{run_id}",
             input_json={"run_id": run_id, **(metadata or {})},
         )
         response = await self._facade.start_run(request)
         self._run_id_map[run_id] = response.run_id
+        return response.run_id
 
     async def execute_turn(
         self, run_id: str, action: Any, handler: Any, *, idempotency_key: str

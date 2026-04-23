@@ -80,24 +80,18 @@ class AsyncHTTPGateway:
     # ------------------------------------------------------------------
 
     def complete(self, request: LLMRequest) -> LLMResponse:
-        """Synchronous entry-point: runs the async ``complete`` in an executor."""
-        from hi_agent.runtime.async_bridge import AsyncBridgeService
+        """Synchronous entry-point: runs the async ``complete`` on the sync bridge."""
+        from hi_agent.runtime.sync_bridge import get_bridge
 
-        try:
-            _ = asyncio.get_running_loop()
-            # Already inside an event loop — delegate to shared executor.
-            future = AsyncBridgeService.get_executor().submit(
-                asyncio.run, self._inner.complete(request)
-            )
-            # P1-7: bounded wait. Without a cap, a hung httpx call blocks the
-            # calling sync worker indefinitely (symptom: CPU 0% idle, run stuck
-            # before current_stage is emitted).
-            _inner_timeout = float(getattr(self._inner, "_timeout", 120) or 120)
-            _bridge_timeout = _inner_timeout * max(1, self._max_retries + 1) + 10
-            return future.result(timeout=_bridge_timeout)
-        except RuntimeError:
-            # No running loop — safe to call asyncio.run() directly.
-            return asyncio.run(self._inner.complete(request))
+        # P1-7 / Rule 12: route through the process-wide SyncBridge so the
+        # httpx.AsyncClient pool inside ``HTTPGateway`` lives on a single,
+        # durable event loop instead of a fresh loop per call (which would
+        # close immediately and invalidate the pool).
+        _inner_timeout = float(getattr(self._inner, "_timeout", 120) or 120)
+        _bridge_timeout = _inner_timeout * max(1, self._max_retries + 1) + 10
+        return get_bridge().call_sync(
+            self._inner.complete(request), timeout=_bridge_timeout
+        )
 
     # ------------------------------------------------------------------
     # Async protocol (AsyncLLMGateway) — native coroutine

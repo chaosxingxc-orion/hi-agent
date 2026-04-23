@@ -240,7 +240,7 @@ def test_format_message_interpolation_skill():
 def test_format_message_custom_template():
     """Custom message templates are used when provided, with placeholder substitution."""
     config = NudgeConfig(
-        memory_nudge_message="已 {turns} 轮未保存，请保存！",
+        memory_nudge_message="{turns} turns without save — please save!",
     )
     injector = NudgeInjector(config)
     trigger = NudgeTrigger(
@@ -251,7 +251,7 @@ def test_format_message_custom_template():
     )
     msg = injector.format_message(trigger)
 
-    assert msg == "已 7 轮未保存，请保存！"
+    assert msg == "7 turns without save — please save!"
 
 
 # ---------------------------------------------------------------------------

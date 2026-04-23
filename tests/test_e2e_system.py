@@ -33,6 +33,7 @@ from hi_agent.harness.contracts import (
     EffectClass,
     SideEffectClass,
 )
+from hi_agent.harness.evidence_store import EvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine
 from hi_agent.memory.compressor import MemoryCompressor
@@ -686,7 +687,7 @@ class TestHarnessGovernanceBlocksUnapproved:
     def test_governance_blocks_unapproved_irreversible_action(self) -> None:
         """Irreversible action without prior approval is blocked."""
         governance = GovernanceEngine()
-        harness = HarnessExecutor(governance=governance)
+        harness = HarnessExecutor(governance=governance, evidence_store=EvidenceStore())
 
         spec = ActionSpec(
             action_id="irrev-e2e-001",
@@ -711,7 +712,7 @@ class TestHarnessGovernanceBlocksUnapproved:
         if no invoker, but governance does not block).
         """
         governance = GovernanceEngine()
-        harness = HarnessExecutor(governance=governance)
+        harness = HarnessExecutor(governance=governance, evidence_store=EvidenceStore())
 
         spec = ActionSpec(
             action_id="irrev-approved-001",
@@ -747,6 +748,7 @@ class TestHarnessGovernanceBlocksUnapproved:
         harness = HarnessExecutor(
             governance=governance,
             capability_invoker=SimpleInvoker(),
+            evidence_store=EvidenceStore(),
         )
 
         spec = ActionSpec(

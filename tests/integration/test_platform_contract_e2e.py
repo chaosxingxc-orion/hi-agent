@@ -279,7 +279,11 @@ def test_pc04_execute_returns_run_result_not_string() -> None:
         "CLI path and server path must produce the same result shape."
     )
     assert result.run_id, "RunResult must have non-empty run_id"
-    assert result.status in ("completed", "failed"), f"Unexpected status: {result.status!r}"
+    # Rule 7: MockKernel with a simple goal must complete.  Accepting "failed"
+    # here would hide regressions in the CLI execute() path.
+    assert result.status == "completed", (
+        f"RunExecutor.execute() with MockKernel must complete, got {result.status!r}"
+    )
     assert isinstance(result.stages, list), "RunResult.stages must be a list"
     assert isinstance(result.artifacts, list), "RunResult.artifacts must be a list"
 

@@ -103,10 +103,13 @@ class TestHarnessExecutorArtifactRegistry:
             def invoke(self, name, payload):
                 return output
 
+        from hi_agent.harness.evidence_store import EvidenceStore
+
         harness = HarnessExecutor(
             governance=GovernanceEngine(),
             capability_invoker=MockInvoker(),
             artifact_registry=registry,
+            evidence_store=EvidenceStore(),
         )
         spec = ActionSpec(
             action_id="act-test",
@@ -131,10 +134,13 @@ class TestHarnessExecutorArtifactRegistry:
             def invoke(self, name, payload):
                 return {"output": "result"}
 
+        from hi_agent.harness.evidence_store import EvidenceStore
+
         harness = HarnessExecutor(
             governance=GovernanceEngine(),
             capability_invoker=MockInvoker(),
             artifact_registry=None,
+            evidence_store=EvidenceStore(),
         )
         spec = ActionSpec(action_id="act-1", action_type="read", capability_name="cap", payload={})
         result = harness.execute(spec)

@@ -300,6 +300,22 @@ def _parse_llm_changes(content: str, run_id: str) -> list[EvolveChange]:
         raw = json.loads(content)
     except json.JSONDecodeError as exc:
         _logger.warning("postmortem._parse_llm_changes: invalid JSON from LLM: %s", exc)
+        try:
+            from hi_agent.observability.fallback import record_fallback
+
+            record_fallback(
+                kind="heuristic",
+                reason="llm_json_parse_error",
+                run_id=run_id or "unknown_run",
+                extra={
+                    "site": "postmortem._parse_llm_changes",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc)[:200],
+                    "content_preview": content[:200],
+                },
+            )
+        except Exception:
+            pass
         return []
 
     if not isinstance(raw, list):

@@ -138,9 +138,13 @@ class ResilientKernelAdapter:
                 method_name,
                 health["error_rate"],
             )
-            raise RuntimeAdapterBackendError(
+            cause = RuntimeError(
                 f"Circuit open: kernel adapter unhealthy (error_rate={health['error_rate']:.2f})"
             )
+            raise RuntimeAdapterBackendError(
+                method_name,
+                cause=cause,
+            ) from cause
 
         method = getattr(self._inner, method_name)
         last_exc: Exception | None = None
@@ -186,9 +190,10 @@ class ResilientKernelAdapter:
                 last_exc,
             )
 
-        raise RuntimeAdapterBackendError(
-            f"kernel adapter call {method_name!r} failed after {attempts} attempt(s): {last_exc}"
-        ) from last_exc
+        cause = last_exc or RuntimeError(
+            f"kernel adapter call {method_name!r} failed after {attempts} attempt(s)"
+        )
+        raise RuntimeAdapterBackendError(method_name, cause=cause) from cause
 
     def replay_buffered(self) -> int:
         """Flush buffered write operations to the inner adapter.

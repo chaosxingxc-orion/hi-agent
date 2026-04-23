@@ -38,22 +38,37 @@ class HarnessExecutor:
         permission_gate: PermissionGate | None = None,
         artifact_registry: Any | None = None,
     ) -> None:
-        """Initialize executor with governance and optional dependencies.
+        """Initialize executor with governance and injected evidence store.
+
+        Rule 13 (DF-11): ``evidence_store`` must be injected by the caller;
+        inline ``EvidenceStore()`` construction is forbidden because it creates
+        a second, unshared in-memory store that never sees the production
+        SQLite-backed instance wired by ``SystemBuilder.build_harness``. Tests
+        that previously relied on the silent default must now construct their
+        own ``EvidenceStore()`` explicitly.
 
         Args:
             governance: Governance engine for rule enforcement.
             capability_invoker: Optional capability invoker (from hi_agent.capability).
                 Must have an ``invoke(name, payload)`` method.
-            evidence_store: Optional evidence store. Created internally if None.
+            evidence_store: REQUIRED evidence store. ``None`` raises
+                ``ValueError`` — fallback-to-new-instance was masking the
+                shared-store defect shape.
             permission_gate: Optional PermissionGate for fine-grained per-tool
                 permission checks before action dispatch. When provided, DENY
                 decisions short-circuit execution before governance checks.
             artifact_registry: Optional ArtifactRegistry for typed artifact
                 persistence alongside raw evidence records.
         """
+        if evidence_store is None:
+            raise ValueError(
+                "HarnessExecutor requires an injected evidence_store; "
+                "inline fallback construction was masking cross-store "
+                "contamination (Rule 13 / DF-11)."
+            )
         self._governance = governance
         self._invoker = capability_invoker
-        self._evidence_store = evidence_store or EvidenceStore()
+        self._evidence_store = evidence_store
         self._permission_gate = permission_gate
         self._artifact_registry = artifact_registry
         self._action_states: dict[str, ActionState] = {}

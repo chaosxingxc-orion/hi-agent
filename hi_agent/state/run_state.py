@@ -6,7 +6,7 @@ import json
 import os
 import tempfile
 from contextlib import suppress
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +21,9 @@ class RunStateSnapshot:
     action_seq: int
     task_views_count: int
     result: str | None
+    fallback_events: list[dict[str, Any]] = field(default_factory=list)
+    """Rule 14: fallback/degradation events recorded during the run.  Empty
+    list means no degraded path was taken."""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize snapshot to dict."""
@@ -29,6 +32,12 @@ class RunStateSnapshot:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> RunStateSnapshot:
         """Deserialize snapshot from dict."""
+        raw_events = payload.get("fallback_events") or []
+        events: list[dict[str, Any]] = []
+        if isinstance(raw_events, list):
+            for entry in raw_events:
+                if isinstance(entry, dict):
+                    events.append(dict(entry))
         return cls(
             run_id=str(payload["run_id"]),
             current_stage=str(payload["current_stage"]),
@@ -36,6 +45,7 @@ class RunStateSnapshot:
             action_seq=int(payload["action_seq"]),
             task_views_count=int(payload["task_views_count"]),
             result=str(payload["result"]) if payload.get("result") is not None else None,
+            fallback_events=events,
         )
 
 

@@ -112,12 +112,26 @@ class RawMemoryStore:
         self.records.append(record)
 
         if self._file is not None:
+            metadata: dict[str, object] = {
+                "event_type": record.event_type,
+                "tags": record.tags,
+            }
+            # P-1: persist Provenance (source reference) alongside the record so
+            # downstream readers of the JSONL (replay, audit, memory compaction)
+            # can observe the origin URL/file/API endpoint without re-loading.
+            if record.provenance is not None:
+                metadata["provenance"] = {
+                    "url": record.provenance.url,
+                    "title": record.provenance.title,
+                    "source_type": record.provenance.source_type,
+                    "retrieved_at": record.provenance.retrieved_at,
+                }
             line = json.dumps(
                 {
                     "timestamp": record.timestamp,
                     "run_id": self._run_id,
                     "content": record.payload,
-                    "metadata": {"event_type": record.event_type, "tags": record.tags},
+                    "metadata": metadata,
                 },
                 ensure_ascii=False,
             )
@@ -131,3 +145,46 @@ class RawMemoryStore:
     def list_all(self) -> list[RawEventRecord]:
         """Return all records in insertion order."""
         return list(self.records)
+
+
+def build_provenance_from_capability_result(result: dict | None) -> Provenance | None:
+    """Extract a ``Provenance`` from a capability handler result dict.
+
+    Built-in capability handlers (``web_fetch``, ``file_read``) embed a
+    ``provenance`` sub-dict with ``url``, ``title``, ``source_type`` and
+    ``retrieved_at`` fields when they produce content from a real external
+    source. This helper converts that sub-dict into a ``Provenance`` instance
+    suitable for attaching to a ``RawEventRecord``.
+
+    Returns ``None`` when the capability result has no ``provenance`` key,
+    signalling that the capability has no real external source to cite
+    (e.g. ``file_write``, ``shell_exec``, LLM-only synthesis).
+    """
+    if not isinstance(result, dict):
+        return None
+    prov = result.get("provenance")
+    if not isinstance(prov, dict):
+        return None
+    url = str(prov.get("url", ""))
+    if not url:
+        return None
+    return Provenance(
+        url=url,
+        title=str(prov.get("title", "")),
+        source_type=str(prov.get("source_type", "")),
+        retrieved_at=str(prov.get("retrieved_at", "")),
+    )
+
+
+def make_capability_record(
+    event_type: str,
+    payload: dict,
+    capability_result: dict | None,
+) -> RawEventRecord:
+    """Construct a ``RawEventRecord`` from a capability invocation result.
+
+    Populates ``provenance`` from the capability result when a real external
+    source is present; leaves ``provenance=None`` otherwise.
+    """
+    provenance = build_provenance_from_capability_result(capability_result)
+    return RawEventRecord(event_type=event_type, payload=payload, provenance=provenance)

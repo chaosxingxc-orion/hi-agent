@@ -185,13 +185,19 @@ class TestConstraintsConsumption:
         # We can't easily observe retry count externally, but we can verify
         # the constraint doesn't crash the run.
         result = _direct_execute(constraints=["action_max_retries:3"])
-        # No crash — status is either completed or failed (not an exception)
-        assert result.status in ("completed", "failed")
+        # Rule 7: an accepted constraint on a normal MockKernel run must complete.
+        assert result.status == "completed", (
+            f"expected completed with action_max_retries constraint, got {result.status!r}"
+        )
 
     def test_unrecognized_constraint_does_not_crash(self) -> None:
         """Unrecognized constraints must be stored/returned but not crash the run."""
         result = _direct_execute(constraints=["custom_business_constraint:value"])
-        assert result.status in ("completed", "failed")
+        # Rule 7: an unrecognized constraint must not crash AND must not
+        # silently fail — MockKernel has no reason to fail on it.
+        assert result.status == "completed", (
+            f"unrecognized constraint must not cause failure, got {result.status!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -261,8 +267,10 @@ class TestPassthroughFieldsDocumented:
         run_id = resp.json()["run_id"]
         final = _wait_terminal(client, run_id)
 
-        # Must complete without error
-        assert final["state"] in ("completed", "failed")
+        # Must complete without error (Rule 7: PASSTHROUGH must not fail the run).
+        assert final["state"] == "completed", (
+            f"environment_scope passthrough must not fail the run, got {final['state']!r}"
+        )
         # The field must have been received by the factory
         assert len(captured_env_scope) > 0
         assert captured_env_scope[0] == ["staging", "sandbox"], (
@@ -313,4 +321,7 @@ class TestPassthroughFieldsDocumented:
             ),
             MockKernel(),
         ).execute()
-        assert result.status in ("completed", "failed")
+        # Rule 7: parent_task_id is PASSTHROUGH and must not cause failure.
+        assert result.status == "completed", (
+            f"parent_task_id passthrough must not fail the run, got {result.status!r}"
+        )

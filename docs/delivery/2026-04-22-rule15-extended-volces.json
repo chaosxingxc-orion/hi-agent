@@ -1,0 +1,166 @@
+{
+  "base_url": "http://127.0.0.1:8091",
+  "command": [
+    "C:\\Python314\\python.exe",
+    "D:\\chao_workspace\\hi-agent\\.claude\\worktrees\\adoring-brown-775254\\scripts\\rule15_volces_extended_gate.py",
+    "--output",
+    "docs\\delivery\\2026-04-22-rule15-extended-volces.json",
+    "--port",
+    "8091"
+  ],
+  "concurrent_runs": {
+    "error": "run #3: timed out waiting for run b8e4a9ee-6b6d-4ad6-8b9f-fdbee7a064b2 to reach terminal state; run #1: timed out waiting for run 7174fa2c-55c0-49ea-a461-a939e73642c7 to reach terminal state; run #2: timed out waiting for run 5167efe4-8764-4a72-b876-000bfe4ee22c to reach terminal state",
+    "runs": [],
+    "status": "failed"
+  },
+  "error": null,
+  "finished_at": "2026-04-22T14:01:37.650351+00:00",
+  "mode": "spawned",
+  "profiles": {
+    "rule15_volces_gate": {
+      "child_final_state": null,
+      "child_run_id": null,
+      "create_status": 201,
+      "duration_s": 0.0,
+      "error": "timed out waiting for run 233e5a6c-50de-43af-8089-48bd9c233499 to reach terminal state",
+      "fallback_events": [],
+      "final_state": null,
+      "gate_decision_status": null,
+      "notes": "",
+      "polls": 0,
+      "profile_id": "rule15_volces_gate",
+      "run_id": "233e5a6c-50de-43af-8089-48bd9c233499",
+      "status": "failed"
+    },
+    "rule15_volces_reflect": {
+      "child_final_state": null,
+      "child_run_id": null,
+      "create_status": 201,
+      "duration_s": 0.0,
+      "error": "timed out waiting for run 909329d8-18f2-4bf3-8216-c10983a0768a to reach terminal state",
+      "fallback_events": [],
+      "final_state": null,
+      "gate_decision_status": null,
+      "notes": "",
+      "polls": 0,
+      "profile_id": "rule15_volces_reflect",
+      "run_id": "909329d8-18f2-4bf3-8216-c10983a0768a",
+      "status": "failed"
+    },
+    "rule15_volces_subrun": {
+      "child_final_state": null,
+      "child_run_id": null,
+      "create_status": 201,
+      "duration_s": 0.0,
+      "error": "timed out waiting for run 8664b80c-640b-469f-b1e3-f6853232c8c1 to reach terminal state",
+      "fallback_events": [],
+      "final_state": null,
+      "gate_decision_status": null,
+      "notes": "",
+      "polls": 0,
+      "profile_id": "rule15_volces_subrun",
+      "run_id": "8664b80c-640b-469f-b1e3-f6853232c8c1",
+      "status": "failed"
+    }
+  },
+  "ready": {
+    "auth_posture": "dev_risk_open",
+    "capabilities": [
+      "analyze_goal",
+      "build_draft",
+      "evaluate_acceptance",
+      "file_read",
+      "file_write",
+      "rule15_gate_capability",
+      "rule15_probe_capability",
+      "rule15_reflect_capability",
+      "rule15_subrun_capability",
+      "search_evidence",
+      "synthesize",
+      "web_fetch"
+    ],
+    "evolve_policy": {
+      "effective": true,
+      "mode": "auto",
+      "source": "auto_dev_on"
+    },
+    "execution_mode": "local",
+    "health": "ok",
+    "kernel_mode": "local-fsm",
+    "llm_backend": "HTTPGateway",
+    "llm_mode": "real",
+    "llm_provider": "volces",
+    "mcp_servers": [],
+    "models": [
+      {
+        "name": "glm-5.1",
+        "provider": "volces",
+        "status": "configured",
+        "tier": "strong"
+      },
+      {
+        "name": "kimi-k2.6",
+        "provider": "volces",
+        "status": "configured",
+        "tier": "medium"
+      },
+      {
+        "name": "doubao-seed-2.0-lite",
+        "provider": "volces",
+        "status": "configured",
+        "tier": "light"
+      }
+    ],
+    "plugins": [],
+    "prerequisites": {
+      "hint": "Use HI_AGENT_ENV=prod or `serve --prod` to require real credentials.",
+      "mode": "dev \u2014 heuristic fallback active, no external dependencies required"
+    },
+    "ready": true,
+    "runtime_mode": "dev-smoke",
+    "skills": [],
+    "subsystems": {
+      "capabilities": {
+        "count": 12,
+        "status": "ok"
+      },
+      "kernel": {
+        "mode": "local",
+        "status": "ok"
+      },
+      "llm": {
+        "models": 3,
+        "status": "ok"
+      },
+      "mcp": {
+        "capability_mode": "infrastructure_only",
+        "connected": 0,
+        "note": "External MCP transport (stdio/SSE/HTTP) not yet implemented. Platform tools are available via /mcp/tools/list as MCP-compatible endpoints. External server registration and forwarding are deferred.",
+        "registered_only": 0,
+        "servers": 0,
+        "status": "ok",
+        "transport_status": "not_wired"
+      },
+      "plugins": {
+        "count": 0,
+        "status": "ok"
+      },
+      "skills": {
+        "discovered": 0,
+        "status": "ok"
+      }
+    }
+  },
+  "server_command": [
+    "C:\\Python314\\python.exe",
+    "-m",
+    "hi_agent",
+    "serve",
+    "--port",
+    "8091"
+  ],
+  "server_pid": 31348,
+  "started_at": "2026-04-22T13:49:34.547514+00:00",
+  "status": "failed",
+  "total_duration_s": 723.1028391
+}

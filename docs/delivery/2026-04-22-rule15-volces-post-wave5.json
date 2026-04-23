@@ -1,0 +1,33 @@
+{
+  "base_url": "http://127.0.0.1:8092",
+  "cancel_known": {},
+  "cancel_unknown": {},
+  "command": [
+    "C:\\Python314\\python.exe",
+    "D:\\chao_workspace\\hi-agent\\.claude\\worktrees\\adoring-brown-775254\\scripts\\rule15_volces_gate.py",
+    "--output",
+    "docs\\delivery\\2026-04-22-rule15-volces-post-wave5.json",
+    "--profile-id",
+    "rule15_volces",
+    "--port",
+    "8092"
+  ],
+  "error": "timed out waiting for run 4898eba5-b51c-4676-b6d8-3b9ae5239258 to reach terminal state",
+  "finished_at": "2026-04-22T14:08:12.397774+00:00",
+  "mode": "spawned",
+  "profile_id": "rule15_volces",
+  "ready": {},
+  "runs": [],
+  "server_command": [
+    "C:\\Python314\\python.exe",
+    "-m",
+    "hi_agent",
+    "serve",
+    "--port",
+    "8092"
+  ],
+  "server_pid": 13836,
+  "started_at": "2026-04-22T14:05:10.991548+00:00",
+  "status": "failed",
+  "total_duration_s": 0.0
+}

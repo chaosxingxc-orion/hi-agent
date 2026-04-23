@@ -74,6 +74,7 @@ class MemoryCompressor:
         max_decisions: int = 8,
         max_entities: int = 10,
         max_tokens: int = 2048,
+        compression_model: str | None = None,
     ) -> None:
         """Initialize compression policy controls.
 
@@ -100,6 +101,13 @@ class MemoryCompressor:
             Maximum key entities to keep in direct-path summary (default 10).
         max_tokens:
             Maximum tokens for LLM compression prompt response (default 2048).
+        compression_model:
+            Optional concrete model identifier (e.g. ``"glm-5.1"``) passed as
+            ``LLMRequest.model`` for compression calls.  When ``None``, the
+            legacy tier label ``"light"`` is used so gateway tier routing picks
+            the configured light-tier model.  Pinning is used by the default
+            builder to avoid coding-plan endpoints rejecting the light tier
+            with ``UnsupportedModel`` (DF-34).
         """
         self.llm_fn = llm_fn
         self._gateway = gateway
@@ -110,6 +118,7 @@ class MemoryCompressor:
         self.max_decisions = max_decisions
         self.max_entities = max_entities
         self.max_tokens = max_tokens
+        self._compression_model = compression_model
         self.metrics = CompressionMetrics()
 
     # -- public entry points --------------------------------------------------
@@ -118,6 +127,8 @@ class MemoryCompressor:
         self,
         stage_id: str,
         records: list[RawEventRecord],
+        *,
+        run_id: str | None = None,
     ) -> CompressedStageMemory:
         """Synchronous entry point (backward-compatible).
 
@@ -147,6 +158,12 @@ class MemoryCompressor:
                 logger.warning(
                     "MemoryCompressor: sync LLM compression failed, using fallback: %s", exc
                 )
+                self._record_fallback_event(
+                    run_id=run_id,
+                    stage_id=stage_id,
+                    site="memory_compressor.compress_stage",
+                    exc=exc,
+                )
                 # fall through to fallback
 
         result = self._fallback_truncate(stage_id, records)
@@ -161,6 +178,8 @@ class MemoryCompressor:
         self,
         stage_id: str,
         records: list[RawEventRecord],
+        *,
+        run_id: str | None = None,
     ) -> CompressedStageMemory:
         """Compress *records* for *stage_id* into a :class:`CompressedStageMemory`."""
         if len(records) < self.compress_threshold:
@@ -188,6 +207,12 @@ class MemoryCompressor:
                 logger.warning(
                     "MemoryCompressor: gateway async compression failed, using fallback: %s", exc
                 )
+                self._record_fallback_event(
+                    run_id=run_id,
+                    stage_id=stage_id,
+                    site="memory_compressor.acompress_stage.gateway",
+                    exc=exc,
+                )
                 result = self._fallback_truncate(stage_id, records)
                 self.metrics.record(
                     "fallback",
@@ -212,6 +237,12 @@ class MemoryCompressor:
                 logger.warning(
                     "MemoryCompressor: llm_fn async compression failed, using fallback: %s", exc
                 )
+                self._record_fallback_event(
+                    run_id=run_id,
+                    stage_id=stage_id,
+                    site="memory_compressor.acompress_stage.llm_fn",
+                    exc=exc,
+                )
                 result = self._fallback_truncate(stage_id, records)
                 self.metrics.record(
                     "fallback",
@@ -235,11 +266,43 @@ class MemoryCompressor:
         self,
         stage_id: str,
         records: list[RawEventRecord],
+        *,
+        run_id: str | None = None,
     ) -> CompressedStageMemory:
         """Alias for :meth:`compress_stage` (sync)."""
-        return self.compress_stage(stage_id, records)
+        return self.compress_stage(stage_id, records, run_id=run_id)
 
     # -- internal helpers -----------------------------------------------------
+
+    def _record_fallback_event(
+        self,
+        *,
+        run_id: str | None,
+        stage_id: str,
+        site: str,
+        exc: BaseException,
+    ) -> None:
+        try:
+            from hi_agent.observability.fallback import record_fallback
+
+            reason = (
+                "llm_json_parse_error"
+                if isinstance(exc, json.JSONDecodeError)
+                else "llm_compression_failed"
+            )
+            record_fallback(
+                "heuristic",
+                reason=reason,
+                run_id=run_id,
+                extra={
+                    "site": site,
+                    "stage_id": stage_id,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc)[:200],
+                },
+            )
+        except Exception:
+            pass
 
     def _build_summary_from_raw(
         self,
@@ -311,7 +374,7 @@ class MemoryCompressor:
                 },
                 {"role": "user", "content": user_prompt},
             ],
-            model="light",
+            model=self._compression_model if self._compression_model is not None else "light",
             temperature=0.2,
             max_tokens=self.max_tokens,
             metadata={
@@ -369,7 +432,7 @@ class MemoryCompressor:
                 },
                 {"role": "user", "content": user_prompt},
             ],
-            model="light",
+            model=self._compression_model if self._compression_model is not None else "light",
             temperature=0.2,
             max_tokens=self.max_tokens,
             metadata={

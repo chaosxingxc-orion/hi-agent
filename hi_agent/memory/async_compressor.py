@@ -34,7 +34,7 @@ class AsyncMemoryCompressor:
 
     When the gateway supports async calls, compression is upgraded to use
     StructuredCompressor (five-field schema: Goal/Progress/Decisions/Files/
-    NextSteps) for richer, loss-resistant summarization.  If StructuredCompressor
+    NextSteps) for richer, loss-resistant summarization. If StructuredCompressor
     is unavailable or fails, the original LLM or concat path is used as fallback.
     """
 
@@ -43,16 +43,33 @@ class AsyncMemoryCompressor:
         gateway: Any | None = None,  # AsyncLLMGateway or LLMGateway
         model: str = "default",
         max_summary_tokens: int = 512,
+        *,
+        compression_model: str | None = None,
     ) -> None:
-        """Initialize AsyncMemoryCompressor."""
+        """Initialize AsyncMemoryCompressor.
+
+        ``compression_model`` (when provided) overrides ``model`` for LLM
+        calls and is also propagated to :class:`StructuredCompressor` via
+        ``StructuredCompressorConfig.model_tier``. It exists so the
+        SystemBuilder can pin compression to a concrete coding-plan-served
+        model (DF-34).
+        """
         self._gateway = gateway
-        self._model = model
+        self._model = compression_model if compression_model is not None else model
+        self._compression_model = compression_model
         self._max_summary_tokens = max_summary_tokens
         # Holds the StructuredSummary from the last successful structured compression
         # so that subsequent calls can perform incremental updates.
         self._last_structured_summary: Any = None
 
-    def _emit_fallback(self, input_text: str, records: list[dict[str, Any]]) -> CompressionResult:
+    def _emit_fallback(
+        self,
+        input_text: str,
+        records: list[dict[str, Any]],
+        *,
+        run_id: str | None = None,
+        reason: str = "gateway_unavailable",
+    ) -> CompressionResult:
         """Execute fallback compression and emit metrics.
 
         This is the unified fallback path used when StructuredCompressor is unavailable,
@@ -64,9 +81,20 @@ class AsyncMemoryCompressor:
 
         summary = self._fallback_compress(records)
         logger.warning(
-            "Using fallback compression (count: %d): summary length=%d bytes",
+            "Using fallback compression (count: %d, reason=%s): summary length=%d bytes",
             _fallback_count,
+            reason,
             len(summary),
+        )
+        self._record_fallback_event(
+            site="async_compressor.compress",
+            reason=reason,
+            run_id=run_id,
+            kind="heuristic",
+            extra={
+                "fallback_count": _fallback_count,
+                "record_count": len(records),
+            },
         )
         return CompressionResult(
             summary=summary,
@@ -75,10 +103,39 @@ class AsyncMemoryCompressor:
             compression_ratio=len(summary) / max(len(input_text), 1),
         )
 
+    def _record_fallback_event(
+        self,
+        *,
+        site: str,
+        reason: str,
+        run_id: str | None,
+        kind: str = "heuristic",
+        error: BaseException | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """Emit a structured fallback signal for a silent degradation path."""
+        try:
+            from hi_agent.observability.fallback import record_fallback
+
+            event_extra = {"site": site, **(extra or {})}
+            if error is not None:
+                event_extra.setdefault("error_type", type(error).__name__)
+                event_extra.setdefault("error", str(error)[:200])
+            record_fallback(
+                kind,
+                reason=reason,
+                run_id=run_id or "unknown_run",
+                extra=event_extra,
+            )
+        except Exception:
+            pass
+
     async def compress(
         self,
         records: list[dict[str, Any]],
         context: str = "",
+        *,
+        run_id: str | None = None,
     ) -> CompressionResult:
         """Compress a list of memory records into a summary.
 
@@ -100,7 +157,12 @@ class AsyncMemoryCompressor:
 
         if self._gateway is None:
             # Fallback: simple concat (same as sync compressor)
-            return self._emit_fallback(input_text, records)
+            return self._emit_fallback(
+                input_text,
+                records,
+                run_id=run_id,
+                reason="gateway_unavailable",
+            )
 
         # Attempt structured compression when the gateway supports async calls.
         complete = getattr(self._gateway, "complete", None)
@@ -114,7 +176,11 @@ class AsyncMemoryCompressor:
                 config = StructuredCompressorConfig(
                     head_count=3,
                     tail_token_budget=4000,
-                    model_tier="light",
+                    model_tier=(
+                        self._compression_model
+                        if self._compression_model is not None
+                        else "light"
+                    ),
                 )
                 s_compressor = StructuredCompressor(self._gateway, config)
 
@@ -141,19 +207,36 @@ class AsyncMemoryCompressor:
                     output_tokens=len(summary_text.split()),
                     compression_ratio=new_len / max(original_len, 1),
                 )
-            except ImportError:
-                # structured_compression module not available — fall through
+            except ImportError as exc:
                 logger.debug("StructuredCompressor not available; proceeding to LLM fallback")
+                self._record_fallback_event(
+                    site="async_compressor.compress.structured_import",
+                    reason="structured_compressor_unavailable",
+                    run_id=run_id,
+                    error=exc,
+                )
             except Exception as exc:
                 logger.warning(
                     "StructuredCompressor failed, falling back to plain LLM compression: %s",
                     exc,
                 )
+                self._record_fallback_event(
+                    site="async_compressor.compress.structured_compress",
+                    reason="structured_compressor_error",
+                    run_id=run_id,
+                    kind="llm",
+                    error=exc,
+                )
 
         # LLM-powered compression (original path)
         if complete is None:
             # If gateway lacks complete method, fall back to string concatenation
-            return self._emit_fallback(input_text, records)
+            return self._emit_fallback(
+                input_text,
+                records,
+                run_id=run_id,
+                reason="gateway_missing_complete",
+            )
 
         request = LLMRequest(
             messages=[

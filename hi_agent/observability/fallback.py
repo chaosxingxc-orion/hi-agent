@@ -145,7 +145,7 @@ def record_fallback(
     if component is not None:
         event["extra"].setdefault("component", component)
 
-    # --- 1. Increment the fallback.<kind> counter. ---
+    # --- 1. Increment the fallback_<kind> counter (underscore: Prometheus requires [a-zA-Z0-9_]). ---
     try:
         from hi_agent.observability.collector import get_metrics_collector
 
@@ -162,7 +162,7 @@ def record_fallback(
                     val = extra.get(lbl)
                     if val is not None:
                         labels[lbl] = str(val)
-            collector.increment(f"fallback.{kind_str}", labels=labels or None)
+            collector.increment(f"fallback_{kind_str}", labels=labels or None)
     except Exception:  # pragma: no cover — metrics must never crash callers
         pass
 

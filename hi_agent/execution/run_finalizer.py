@@ -400,6 +400,15 @@ class RunFinalizer:
         _start = ctx.run_start_monotonic
         duration_ms = int((time.monotonic() - _start) * 1000) if _start is not None else 0
 
+        # Rule 14: drain any fallback events recorded for this run so they
+        # ride along on the RunResult and show up in GET /runs/{id}.
+        try:
+            from hi_agent.observability.fallback import get_fallback_events
+
+            fallback_events = get_fallback_events(ctx.run_id)
+        except Exception:
+            fallback_events = []
+
         run_result = RunResult(
             run_id=ctx.run_id,
             status=outcome,
@@ -410,6 +419,7 @@ class RunFinalizer:
             failed_stage_id=failed_stage_id,
             is_retryable=is_retryable,
             duration_ms=duration_ms,
+            fallback_events=fallback_events,
         )
 
         # --- Execution provenance (HI-W1-D3-001) ---

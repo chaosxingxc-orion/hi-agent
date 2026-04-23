@@ -277,7 +277,7 @@ class TestSystemBuilderKnowledge:
 
         config = TraceConfig(episodic_storage_dir=str(tmp_path / "episodes"))
         builder = SystemBuilder(config)
-        km = builder.build_knowledge_manager()
+        km = builder.build_knowledge_manager(profile_id="test-profile")
 
         assert km is not None
         assert km.wiki is not None

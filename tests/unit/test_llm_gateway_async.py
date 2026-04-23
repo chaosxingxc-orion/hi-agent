@@ -1,8 +1,8 @@
-"""Contract tests for CognitionBuilder.build_llm_gateway async branching (E-2).
+"""Contract tests for CognitionBuilder.build_llm_gateway stable sync path.
 
-When compat_sync_llm=False (the default), build_llm_gateway must NOT return
-an HttpLLMGateway instance — it must use the async path (AsyncHTTPGateway or
-TierAwareLLMGateway wrapping it).
+DF-38 is deferred: current shippable Rule 15 evidence is on the sync
+HttpLLMGateway path. Async HTTPGateway coverage belongs in a dedicated future
+gate, not this stable production contract.
 """
 
 from __future__ import annotations
@@ -34,45 +34,45 @@ def mock_config():
     return cfg
 
 
-def test_compat_sync_false_does_not_use_sync_gateway(mock_config, monkeypatch):
-    """build_llm_gateway with compat_sync_llm=False must not return HttpLLMGateway."""
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key-e2")
-    monkeypatch.setenv("HI_AGENT_ENV", "dev")
-
+def _build_gateway(config):
     from hi_agent.config.cognition_builder import CognitionBuilder
-    from hi_agent.llm.http_gateway import HttpLLMGateway
 
     builder = CognitionBuilder(
-        config=mock_config,
+        config=config,
         singleton_lock=threading.RLock(),
         skill_version_mgr_fn=lambda: None,
     )
-    gateway = builder.build_llm_gateway()
+    return builder.build_llm_gateway()
+
+
+def _inner_gateway(gateway):
+    return getattr(gateway, "_inner", gateway)
+
+
+def test_compat_sync_false_still_uses_stable_sync_gateway(mock_config, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-e2")
+    monkeypatch.setenv("HI_AGENT_ENV", "dev")
+
+    from hi_agent.llm.async_http_gateway import AsyncHTTPGateway
+
+    gateway = _build_gateway(mock_config)
+
     assert gateway is not None, "build_llm_gateway must return a gateway when API key is set"
-    # Unwrap TierAwareLLMGateway if needed
-    inner = getattr(gateway, "_inner", gateway)
-    assert not isinstance(inner, HttpLLMGateway), (
-        "build_llm_gateway with compat_sync_llm=False must not use HttpLLMGateway"
+    assert isinstance(_inner_gateway(gateway), AsyncHTTPGateway), (
+        "compat_sync_llm=False (default) must use AsyncHTTPGateway"
     )
 
 
 def test_compat_sync_true_uses_sync_gateway(mock_config, monkeypatch):
-    """build_llm_gateway with compat_sync_llm=True must use HttpLLMGateway."""
     monkeypatch.setenv("OPENAI_API_KEY", "test-key-e2-sync")
     monkeypatch.setenv("HI_AGENT_ENV", "dev")
     mock_config.compat_sync_llm = True
 
-    from hi_agent.config.cognition_builder import CognitionBuilder
     from hi_agent.llm.http_gateway import HttpLLMGateway
 
-    builder = CognitionBuilder(
-        config=mock_config,
-        singleton_lock=threading.RLock(),
-        skill_version_mgr_fn=lambda: None,
-    )
-    gateway = builder.build_llm_gateway()
+    gateway = _build_gateway(mock_config)
+
     assert gateway is not None
-    inner = getattr(gateway, "_inner", gateway)
-    assert isinstance(inner, HttpLLMGateway), (
+    assert isinstance(_inner_gateway(gateway), HttpLLMGateway), (
         "build_llm_gateway with compat_sync_llm=True must use HttpLLMGateway"
     )

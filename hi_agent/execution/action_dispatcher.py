@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from hi_agent.contracts import deterministic_id
+from hi_agent.gate_protocol import GatePendingError
 
 _logger = logging.getLogger(__name__)
 
@@ -46,8 +47,6 @@ class ActionDispatcher:
             return self._invoke_capability(proposal, payload)
 
         try:
-            import asyncio
-
             from hi_agent.middleware.hooks import ToolCallContext
 
             tool_ctx = ToolCallContext(
@@ -66,39 +65,25 @@ class ActionDispatcher:
 
             _call_fn._last_result = {}  # type: ignore[attr-defined]
 
-            # Run async hook chain synchronously using the shared bridge executor
-            # instead of creating a per-call ThreadPoolExecutor.
-            from hi_agent.runtime.async_bridge import AsyncBridgeService
+            # Run async hook chain via the process-wide SyncBridge (Rule 12) —
+            # all hook invocations share one durable event loop so async
+            # resources used by hooks (HTTP clients, cache connections) are
+            # not torn down between calls.
+            from hi_agent.runtime.sync_bridge import get_bridge
 
-            # SA-7 (self-audit 2026-04-21, P-3 / P-7 pattern): future.result()
-            # without a timeout was the shape that let a hung LLM call pin
-            # a sync worker thread with CPU 0.2% idle and current_stage=None
-            # (04-21 prod incident root cause C). Bound the wait so hook
-            # failures surface as TimeoutError instead of a silent wedge.
-            # Matches the P1-7 bounded-wait pattern in llm/http_gateway.py.
-            _hook_timeout = 120.0
-            try:
-                try:
-                    loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    loop = None
-                if loop is not None and loop.is_running():
-                    # We're inside execute_async() — submit to shared executor
-                    # so the coroutine runs in a fresh thread with its own
-                    # event loop.
-                    future = AsyncBridgeService.get_executor().submit(
-                        asyncio.run,
-                        self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn),
-                    )
-                    future.result(timeout=_hook_timeout)
-                else:
-                    asyncio.run(
-                        self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn)
-                    )
-            except RuntimeError:
-                asyncio.run(self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn))
+            # SA-7 (self-audit 2026-04-21): bound the wait so a hung hook
+            # surfaces as TimeoutError instead of a silent wedge.
+            _HOOK_TIMEOUT = 120.0  # noqa: N806 — module-level constant semantics
+            get_bridge().call_sync(
+                self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn),
+                timeout=_HOOK_TIMEOUT,
+            )
 
             return _call_fn._last_result  # type: ignore[attr-defined]
+        except GatePendingError:
+            # Flow-control: a tool raised a gate request. Must propagate so
+            # the runner can suspend the run; never swallow into fallback.
+            raise
         except Exception as exc:
             _logger.debug(
                 "runner.hook_wrap_failed run_id=%s stage_id=%s error=%s",
@@ -176,7 +161,10 @@ class ActionDispatcher:
                 "action_kind": proposal.action_kind,
                 "seq": self._ctx.action_seq,
                 "attempt": attempt,
-                "should_fail": proposal.action_kind in self._ctx.force_fail_actions,
+                "should_fail": (
+                    proposal.action_kind in self._ctx.force_fail_actions
+                    or stage_id in self._ctx.force_fail_actions
+                ),
                 "upstream_artifact_ids": upstream_artifact_ids or [],
             }
             self._ctx.record_event_fn("ActionPlanned", payload)

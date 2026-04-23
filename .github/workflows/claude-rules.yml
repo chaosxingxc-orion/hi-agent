@@ -1,0 +1,38 @@
+name: CLAUDE.md Rule Enforcement (blocking)
+on:
+  pull_request:
+  push:
+    branches: [main, 'claude/**']
+
+jobs:
+  check-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run CLAUDE.md rule checks
+        run: python scripts/check_rules.py --verbose
+      - name: Summary
+        if: always()
+        run: |
+          echo "::notice::This workflow is BLOCKING. DF-44 closed the known agent_kernel/ violations."
+
+  rule15-structural:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .[dev]
+      - name: Run structural Rule 15 gate
+        run: >
+          python scripts/rule15_structural_gate.py
+          --port 8094
+          --fake-llm-port 19094
+          --output docs/delivery/ci-rule15-structural.json
+          --poll-timeout 60
+          --ready-timeout 60

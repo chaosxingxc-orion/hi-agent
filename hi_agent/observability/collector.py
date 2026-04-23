@@ -75,23 +75,23 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
     # Rule 14: fallback / degradation signals. Any code path that substitutes
     # a heuristic or degraded result for a primary path MUST record one of
     # these counters so Rule 15's operator-shape gate is not vacuous.
-    "fallback.llm": _MetricDef(
-        "fallback.llm",
+    "fallback_llm": _MetricDef(
+        "fallback_llm",
         "counter",
         "LLM call fell back to a degraded path (retries exhausted, gateway missing, etc.).",
     ),
-    "fallback.heuristic": _MetricDef(
-        "fallback.heuristic",
+    "fallback_heuristic": _MetricDef(
+        "fallback_heuristic",
         "counter",
         "A subsystem produced a heuristic result in place of a model/tool call.",
     ),
-    "fallback.capability": _MetricDef(
-        "fallback.capability",
+    "fallback_capability": _MetricDef(
+        "fallback_capability",
         "counter",
         "A capability handler returned a heuristic/degraded result.",
     ),
-    "fallback.route": _MetricDef(
-        "fallback.route",
+    "fallback_route": _MetricDef(
+        "fallback_route",
         "counter",
         "Route engine fell back to a default route (rule miss, LLM router failure).",
     ),
@@ -99,25 +99,25 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
     # existing record_fallback() call-sites in context/, llm/, runner_stage/).
     # These predate the four-kind taxonomy but are retained so that their
     # signals are countable instead of silently dropped.
-    "fallback.expected_degradation": _MetricDef(
-        "fallback.expected_degradation", "counter", "Expected degradation event."
+    "fallback_expected_degradation": _MetricDef(
+        "fallback_expected_degradation", "counter", "Expected degradation event."
     ),
-    "fallback.unexpected_exception": _MetricDef(
-        "fallback.unexpected_exception", "counter", "Unexpected exception caught and swallowed."
+    "fallback_unexpected_exception": _MetricDef(
+        "fallback_unexpected_exception", "counter", "Unexpected exception caught and swallowed."
     ),
-    "fallback.security_denied": _MetricDef(
-        "fallback.security_denied", "counter", "Security policy denied an action; fallback taken."
+    "fallback_security_denied": _MetricDef(
+        "fallback_security_denied", "counter", "Security policy denied an action; fallback taken."
     ),
-    "fallback.dependency_unavailable": _MetricDef(
-        "fallback.dependency_unavailable",
+    "fallback_dependency_unavailable": _MetricDef(
+        "fallback_dependency_unavailable",
         "counter",
         "External dependency unavailable; degraded path taken.",
     ),
-    "fallback.heuristic_fallback": _MetricDef(
-        "fallback.heuristic_fallback", "counter", "Heuristic used in place of primary logic."
+    "fallback_heuristic_fallback": _MetricDef(
+        "fallback_heuristic_fallback", "counter", "Heuristic used in place of primary logic."
     ),
-    "fallback.policy_bypass_dev": _MetricDef(
-        "fallback.policy_bypass_dev",
+    "fallback_policy_bypass_dev": _MetricDef(
+        "fallback_policy_bypass_dev",
         "counter",
         "Dev-mode policy bypass (must be zero in prod releases).",
     ),

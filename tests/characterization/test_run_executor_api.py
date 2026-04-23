@@ -106,6 +106,7 @@ class TestRunResultContract:
             "failed_stage_id",
             "is_retryable",
             "execution_provenance",
+            "fallback_events",
         ]
 
     def test_run_result_string_equality_and_dict_shape_are_locked(self) -> None:
@@ -130,6 +131,7 @@ class TestRunResultContract:
             "failed_stage_id",
             "is_retryable",
             "execution_provenance",
+            "fallback_events",
         }
 
     def test_run_executor_entry_point_signatures_are_locked(self) -> None:

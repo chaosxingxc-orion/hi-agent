@@ -66,7 +66,7 @@ class MemoryBuilder:
         )
 
     def build_short_term_store(
-        self, profile_id: str = "", workspace_key: WorkspaceKey | None = None
+        self, *, profile_id: str = "", workspace_key: WorkspaceKey | None = None
     ) -> Any:
         """Build short-term memory store, optionally scoped to a profile or workspace.
 
@@ -79,6 +79,12 @@ class MemoryBuilder:
         """
         from hi_agent.memory.short_term import ShortTermMemoryStore
 
+        if not profile_id and workspace_key is None:
+            raise ValueError(
+                "build_short_term_store requires profile_id or workspace_key; "
+                "empty profile_id with no workspace_key creates an unscoped store "
+                "that cross-contaminates profiles (Rule 13 / DF-12)."
+            )
         key = self._cache_key("short_term", profile_id, workspace_key)
         cached = self._cache.get(key)
         if cached is not None:
@@ -110,6 +116,12 @@ class MemoryBuilder:
         """
         from hi_agent.memory.mid_term import MidTermMemoryStore
 
+        if not profile_id and workspace_key is None:
+            raise ValueError(
+                "build_mid_term_store requires profile_id or workspace_key; "
+                "empty profile_id with no workspace_key creates an unscoped store "
+                "that cross-contaminates profiles (Rule 13 / DF-12)."
+            )
         key = self._cache_key("mid_term", profile_id, workspace_key)
         cached = self._cache.get(key)
         if cached is not None:
@@ -142,6 +154,12 @@ class MemoryBuilder:
         """
         from hi_agent.memory.long_term import LongTermMemoryGraph
 
+        if not profile_id and workspace_key is None:
+            raise ValueError(
+                "build_long_term_graph requires profile_id or workspace_key; "
+                "empty profile_id with no workspace_key creates an unscoped store "
+                "that cross-contaminates profiles (Rule 13 / DF-12)."
+            )
         key = self._cache_key("long_term_graph", profile_id, workspace_key)
         cached = self._cache.get(key)
         if cached is not None:

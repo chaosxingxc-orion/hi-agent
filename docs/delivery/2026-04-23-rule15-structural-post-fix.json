@@ -1,0 +1,120 @@
+{
+  "base_url": "http://127.0.0.1:8080",
+  "cancel_known": {
+    "final_response": {
+      "created_at": "2026-04-22T17:20:30.614821+00:00",
+      "current_stage": null,
+      "error": null,
+      "result": null,
+      "run_id": "ef6bb4a9-00a3-4337-bbfd-efdcce5de7a5",
+      "stage_updated_at": null,
+      "state": "cancelled",
+      "task_contract": {
+        "deadline": "2026-04-22T17:20:38.614377+00:00",
+        "goal": "Rule 15 structural gate run 0",
+        "profile_id": "rule15_structural"
+      },
+      "updated_at": "2026-04-22T17:20:30.638826+00:00"
+    },
+    "final_status_code": 200,
+    "response": {
+      "run_id": "ef6bb4a9-00a3-4337-bbfd-efdcce5de7a5",
+      "state": "cancelled"
+    },
+    "run_id": "ef6bb4a9-00a3-4337-bbfd-efdcce5de7a5",
+    "status_code": 200
+  },
+  "cancel_unknown": {
+    "response": {
+      "error": "run_not_found",
+      "run_id": "rule15-structural-unknown"
+    },
+    "run_id": "rule15-structural-unknown",
+    "status_code": 404
+  },
+  "command": [
+    "C:\\Python314\\python.exe",
+    "D:\\chao_workspace\\hi-agent\\scripts\\rule15_structural_gate.py",
+    "--output",
+    "docs\\delivery\\2026-04-23-rule15-structural-post-fix.json",
+    "--profile-id",
+    "rule15_structural",
+    "--port",
+    "8080"
+  ],
+  "error": null,
+  "finished_at": "2026-04-22T17:20:31.561317+00:00",
+  "gate_mode": "structural",
+  "health": {
+    "status": "ok",
+    "subsystems": {
+      "context": {
+        "health": "GREEN",
+        "status": "ok"
+      },
+      "event_bus": {
+        "dropped": 0,
+        "status": "ok",
+        "subscribers": 0
+      },
+      "kernel_adapter": {
+        "status": "not_built"
+      },
+      "memory": {
+        "configured": true,
+        "status": "ok"
+      },
+      "metrics": {
+        "events_recorded": 0,
+        "status": "ok"
+      },
+      "run_manager": {
+        "active_runs": 0,
+        "capacity": 32,
+        "queued_runs": 0,
+        "status": "ok"
+      }
+    },
+    "timestamp": "2026-04-22T17:20:30.613485+00:00"
+  },
+  "mode": "spawned",
+  "profile_id": "rule15_structural",
+  "runs": [
+    {
+      "create_status": 201,
+      "duration_s": 0.3019719999865629,
+      "fallback_events": [],
+      "final_state": "completed",
+      "polls": 2,
+      "run_id": "c756dd3f-05a8-4417-9e14-e8da01cfb767"
+    },
+    {
+      "create_status": 201,
+      "duration_s": 0.303061600017827,
+      "fallback_events": [],
+      "final_state": "completed",
+      "polls": 2,
+      "run_id": "7a5c7afe-362a-438f-ab2e-b3290194b10a"
+    },
+    {
+      "create_status": 201,
+      "duration_s": 0.30303189996629953,
+      "fallback_events": [],
+      "final_state": "completed",
+      "polls": 2,
+      "run_id": "a3dbfb46-d49a-4583-a337-6511d936da33"
+    }
+  ],
+  "server_command": [
+    "C:\\Python314\\python.exe",
+    "-m",
+    "hi_agent",
+    "serve",
+    "--port",
+    "8080"
+  ],
+  "server_pid": 42036,
+  "started_at": "2026-04-22T17:20:30.090268+00:00",
+  "status": "passed",
+  "total_duration_s": 1.4710555000347085
+}

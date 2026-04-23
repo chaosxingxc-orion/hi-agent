@@ -136,6 +136,26 @@ def make_llm_capability_handler(
 
         # Non-prod fallback path only.
         label = goal or payload.get("action_kind", capability_name) or capability_name
+
+        # Rule 14 (DF-10): record the heuristic degradation as a fallback
+        # signal so the operator-shape gate (Rule 15) sees it.  We use
+        # kind="capability" and attribute to the current run_id if the
+        # caller provided one in the payload.
+        try:
+            from hi_agent.observability.fallback import record_fallback
+
+            record_fallback(
+                "capability",
+                reason="heuristic_branch" if gateway is None else "llm_error_recovered",
+                run_id=payload.get("run_id") or "",
+                extra={
+                    "capability": capability_name,
+                    "stage_id": stage_id,
+                },
+            )
+        except Exception:  # pragma: no cover — observability must never crash caller
+            pass
+
         return {
             "success": True,
             "score": 0.5,

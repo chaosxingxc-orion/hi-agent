@@ -1744,8 +1744,11 @@ class AgentServer:
 
         # Wire server-level subsystems so /health, /memory/*, /skills/*,
         # /context/* endpoints operate on live instances rather than None.
+        _server_profile = getattr(self._config, "active_profile", None) or "__server__"
         try:
-            self.memory_manager = self._builder.build_memory_lifecycle_manager()
+            self.memory_manager = self._builder.build_memory_lifecycle_manager(
+                profile_id=_server_profile
+            )
         except Exception as _exc:
             logger.warning(
                 "MemoryLifecycleManager initialization failed (%s: %s); "
@@ -1754,7 +1757,9 @@ class AgentServer:
                 _exc,
             )
         try:
-            self.knowledge_manager = self._builder.build_knowledge_manager()
+            self.knowledge_manager = self._builder.build_knowledge_manager(
+                profile_id=_server_profile
+            )
         except Exception as _exc:
             logger.warning(
                 "KnowledgeManager initialization failed (%s: %s); "
@@ -1763,7 +1768,9 @@ class AgentServer:
                 _exc,
             )
         try:
-            self.retrieval_engine = self._builder.build_retrieval_engine()
+            self.retrieval_engine = self._builder.build_retrieval_engine(
+                profile_id=_server_profile
+            )
         except Exception as _exc:
             logger.warning(
                 "RetrievalEngine initialization failed (%s: %s); "

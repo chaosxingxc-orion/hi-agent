@@ -12,7 +12,7 @@ def test_retrieval_engine_embedding_fn_at_construction_time():
         config=TraceConfig(episodic_storage_dir=f".hi_agent/test-{uuid.uuid4().hex}/episodes")
     )
 
-    engine = builder.build_retrieval_engine()
+    engine = builder.build_retrieval_engine(profile_id="integration-test")
     embedding_fn = engine._embedding_fn
 
     assert isinstance(engine, RetrievalEngine)
