@@ -7,6 +7,7 @@ from pathlib import Path
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.directives import StageDirective
 from hi_agent.evolve.feedback_store import FeedbackStore, RunFeedback
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -104,7 +105,7 @@ def test_replan_hook_called() -> None:
         called_stages.append(stage_id)
         return StageDirective(action="continue")
 
-    executor = RunExecutor(contract, kernel, replan_hook=my_hook)
+    executor = RunExecutor(contract, kernel, replan_hook=my_hook, raw_memory=RawMemoryStore())
     result = executor.execute()
 
     assert result == "completed"
@@ -128,7 +129,7 @@ def test_replan_hook_skip() -> None:
             return StageDirective(action="skip", target_stage_id="S3_evaluate", reason="test skip")
         return None
 
-    executor = RunExecutor(contract, kernel, replan_hook=my_hook)
+    executor = RunExecutor(contract, kernel, replan_hook=my_hook, raw_memory=RawMemoryStore())
     executor.execute()
 
     assert "S3_evaluate" not in executor.stage_summaries
@@ -142,7 +143,7 @@ def test_replan_hook_none_action_continues() -> None:
     def my_hook(stage_id: str, result: dict) -> StageDirective | None:
         return None
 
-    executor = RunExecutor(contract, kernel, replan_hook=my_hook)
+    executor = RunExecutor(contract, kernel, replan_hook=my_hook, raw_memory=RawMemoryStore())
     result = executor.execute()
     assert result == "completed"
 
@@ -158,7 +159,7 @@ def test_feedback_store_auto_submit_on_finalize() -> None:
     kernel = MockKernel()
     store = FeedbackStore()
 
-    executor = RunExecutor(contract, kernel, feedback_store=store)
+    executor = RunExecutor(contract, kernel, feedback_store=store, raw_memory=RawMemoryStore())
     executor.execute()
 
     record = store.get(executor.run_id)

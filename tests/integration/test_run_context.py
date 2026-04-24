@@ -19,6 +19,7 @@ from hi_agent.contracts import (
     TaskContract,
     TrajectoryNode,
 )
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -215,7 +216,7 @@ class TestRunnerWithRunContext:
         )
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, run_context=ctx)
+        executor = RunExecutor(contract, kernel, run_context=ctx, raw_memory=RawMemoryStore())
 
         # Verify executor picked up the initial state
         assert executor.action_seq == 42
@@ -228,7 +229,7 @@ class TestRunnerWithRunContext:
         """RunExecutor without run_context works as before."""
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         assert executor.run_context is None
         result = executor.execute()
         assert result == "completed"
@@ -244,7 +245,7 @@ class TestRunnerSyncsBackToContext:
         ctx = RunContext(run_id="run-sync")
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, run_context=ctx)
+        executor = RunExecutor(contract, kernel, run_context=ctx, raw_memory=RawMemoryStore())
 
         result = executor.execute()
         assert result == "completed"
@@ -274,8 +275,12 @@ class TestMultipleRunnersIsolated:
         kernel_a = MockKernel()
         kernel_b = MockKernel()
 
-        executor_a = RunExecutor(contract_a, kernel_a, run_context=ctx_a)
-        executor_b = RunExecutor(contract_b, kernel_b, run_context=ctx_b)
+        executor_a = RunExecutor(
+            contract_a, kernel_a, run_context=ctx_a, raw_memory=RawMemoryStore()
+        )
+        executor_b = RunExecutor(
+            contract_b, kernel_b, run_context=ctx_b, raw_memory=RawMemoryStore()
+        )
 
         result_a = executor_a.execute()
         result_b = executor_b.execute()

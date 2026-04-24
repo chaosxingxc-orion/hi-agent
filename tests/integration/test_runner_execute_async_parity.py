@@ -16,6 +16,7 @@ import contextlib
 
 import pytest
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor, execute_async
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -47,7 +48,7 @@ async def test_execute_async_start_run_matches_sync_signature():
     """
     contract = TaskContract(task_id="task-parity-001", goal="hello")
     sync_kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract=contract, kernel=sync_kernel)
+    executor = RunExecutor(contract=contract, kernel=sync_kernel, raw_memory=RawMemoryStore())
 
     recorder = _RecordingAsyncKernel()
     executor.kernel = recorder  # swap to the recording async kernel
@@ -75,7 +76,7 @@ async def test_execute_async_sets_run_id_and_monotonic():
     """
     contract = TaskContract(task_id="task-parity-002", goal="hello")
     sync_kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract=contract, kernel=sync_kernel)
+    executor = RunExecutor(contract=contract, kernel=sync_kernel, raw_memory=RawMemoryStore())
 
     recorder = _RecordingAsyncKernel(fixed_run_id="async-run-42")
     executor.kernel = recorder

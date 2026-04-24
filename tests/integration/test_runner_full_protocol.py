@@ -8,6 +8,7 @@ and signal_run.
 from __future__ import annotations
 
 from hi_agent.contracts import StageState, TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import STAGES, RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -29,7 +30,7 @@ class TestStartRun:
         """Kernel should have exactly one run after execute."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -39,7 +40,7 @@ class TestStartRun:
         """Run ID should be the kernel-assigned value."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -49,7 +50,7 @@ class TestStartRun:
         """RunStarted event should be emitted with correct task_id."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -65,7 +66,7 @@ class TestRunStateTransitions:
         """After start_run, MockKernel sets status to running."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -76,7 +77,7 @@ class TestRunStateTransitions:
         """Run should exist in kernel after successful execution."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -91,7 +92,7 @@ class TestBranchLifecycle:
         """Default route engine creates 1 branch per stage, 5 total."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -101,7 +102,7 @@ class TestBranchLifecycle:
         """BranchOpened event should be emitted for each branch."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -112,7 +113,7 @@ class TestBranchLifecycle:
         """All branches should reach succeeded state on a clean run."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -123,7 +124,7 @@ class TestBranchLifecycle:
         """Each branch goes proposed -> active -> succeeded."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -141,7 +142,7 @@ class TestBranchLifecycle:
         """
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -159,7 +160,7 @@ class TestBranchFailure:
         contract = _make_contract(
             constraints=["fail_action:analyze_goal"],
         )
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -177,7 +178,7 @@ class TestBranchFailure:
         contract = _make_contract(
             constraints=["fail_action:analyze_goal"],
         )
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -192,7 +193,7 @@ class TestTaskViewBinding:
         """Every task view should have a decision binding."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -205,7 +206,7 @@ class TestTaskViewBinding:
         """Decision references should contain the :d marker."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -216,7 +217,7 @@ class TestTaskViewBinding:
         """TaskViewRecorded events should contain decision_ref in payload."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -233,7 +234,7 @@ class TestFullS1ToS5WithBranches:
         """Full run should complete all stages, branches, and bindings."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract(task_id="integration-001")
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -253,7 +254,7 @@ class TestFullS1ToS5WithBranches:
         """Key events should appear in expected order."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -297,7 +298,9 @@ class TestMultipleBranchesPerStage:
 
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, route_engine=TwoBranchEngine())
+        executor = RunExecutor(
+            contract, kernel, route_engine=TwoBranchEngine(), raw_memory=RawMemoryStore()
+        )
 
         result = executor.execute()
 
@@ -318,7 +321,7 @@ class TestSignalRunOnFailure:
         contract = _make_contract(
             constraints=["fail_action:analyze_goal"],
         )
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -337,11 +340,11 @@ class TestDeterministicIds:
         contract = _make_contract(task_id="replay-001")
 
         kernel1 = MockKernel(strict_mode=True)
-        executor1 = RunExecutor(contract, kernel1)
+        executor1 = RunExecutor(contract, kernel1, raw_memory=RawMemoryStore())
         executor1.execute()
 
         kernel2 = MockKernel(strict_mode=True)
-        executor2 = RunExecutor(contract, kernel2)
+        executor2 = RunExecutor(contract, kernel2, raw_memory=RawMemoryStore())
         executor2.execute()
 
         branches1 = sorted(kernel1.branches.keys())
@@ -353,11 +356,11 @@ class TestDeterministicIds:
         contract = _make_contract(task_id="replay-002")
 
         kernel1 = MockKernel(strict_mode=True)
-        executor1 = RunExecutor(contract, kernel1)
+        executor1 = RunExecutor(contract, kernel1, raw_memory=RawMemoryStore())
         executor1.execute()
 
         kernel2 = MockKernel(strict_mode=True)
-        executor2 = RunExecutor(contract, kernel2)
+        executor2 = RunExecutor(contract, kernel2, raw_memory=RawMemoryStore())
         executor2.execute()
 
         decisions1 = sorted(kernel1.task_view_decisions.values())

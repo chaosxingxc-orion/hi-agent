@@ -282,9 +282,9 @@ class TestSystemBuilder:
         builder = SystemBuilder(config)
 
         _pid = "memory-transfer-test"
-        short = builder.build_short_term_store(profile_id=_pid)
-        mid = builder.build_mid_term_store(profile_id=_pid)
-        graph = builder.build_long_term_graph(profile_id=_pid)
+        short = builder.build_short_term_store(profile_id=_pid, workspace_key=None)
+        mid = builder.build_mid_term_store(profile_id=_pid, workspace_key=None)
+        graph = builder.build_long_term_graph(profile_id=_pid, workspace_key=None)
         retrieval = builder.build_retrieval_engine(profile_id=_pid)
         mgr = builder.build_memory_lifecycle_manager(profile_id=_pid)
 

@@ -1,4 +1,9 @@
-"""Integration tests for route capability availability filter (P1-2b)."""
+"""Integration tests for route capability availability filter (P1-2b).
+
+MagicMock usage: legitimate use — boundary mocks on capability handler callables
+registered in CapabilitySpec. The SUT (filter_proposal + real CapabilityRegistry) is
+never mocked. Handler callables are external seams that represent real tool executors.
+"""
 
 from __future__ import annotations
 

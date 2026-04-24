@@ -1,4 +1,9 @@
-"""Integration tests: invoker raises CapabilityUnavailableError for unavailable caps."""
+"""Integration tests: invoker raises CapabilityUnavailableError for unavailable caps.
+
+MagicMock usage: legitimate use — boundary mocks on capability spec data-objects
+and the circuit-breaker external seam only. The SUT (CapabilityInvoker + real
+CapabilityRegistry) is never mocked.
+"""
 
 from unittest.mock import MagicMock
 

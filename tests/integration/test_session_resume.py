@@ -24,6 +24,7 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 from hi_agent.session.run_session import LLMCallRecord, RunSession
 
@@ -113,7 +114,7 @@ class TestResumeFromCheckpoint:
         )
         try:
             kernel = MockKernel()
-            result = RunExecutor.resume_from_checkpoint(path, kernel)
+            result = RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
             assert result == "completed"
         finally:
             os.unlink(path)
@@ -134,7 +135,9 @@ class TestResumeFromCheckpoint:
                 if name == "run_resumed":
                     captured.update(payload)
 
-            result = RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
+            result = RunExecutor.resume_from_checkpoint(
+                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+            )
             assert result == "completed"
             assert captured.get("run_id") == "run-resume-id-test"
         finally:
@@ -162,7 +165,9 @@ class TestCompletedStagesSkipped:
                 if name == "stage_skipped_resume":
                     skipped.append(payload.get("stage_id", ""))
 
-            result = RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
+            result = RunExecutor.resume_from_checkpoint(
+                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+            )
             assert result == "completed"
             assert "S1_understand" in skipped
             assert "S2_gather" in skipped
@@ -184,7 +189,9 @@ class TestCompletedStagesSkipped:
                 if name == "stage_started":
                     started.append(payload.get("stage_id", ""))
 
-            RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
+            RunExecutor.resume_from_checkpoint(
+                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+            )
             assert "S1_understand" not in started
             assert "S2_gather" not in started
             assert "S3_build" in started
@@ -223,7 +230,7 @@ class TestSeqRestore:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel)
+                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
 
             assert captured_seq["action_seq"] == 10
             assert captured_seq["branch_seq"] == 7
@@ -254,7 +261,7 @@ class TestL1SummariesRestored:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel)
+                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
 
             assert "S1_understand" in captured["summaries"]
             assert "S2_gather" in captured["summaries"]
@@ -289,7 +296,7 @@ class TestL0RecordsAvailable:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel)
+                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
 
             assert captured["l0_count"] > 0
         finally:
@@ -321,7 +328,7 @@ class TestCompactBoundariesRestored:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel)
+                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
 
             assert captured["boundary_count"] >= 2
             assert captured["boundary"] is not None
@@ -356,7 +363,7 @@ class TestLLMCostContinuation:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel)
+                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
 
             # 2 stages * 0.01 cost each = 0.02
             assert captured["cost_before"] >= 0.02
@@ -387,7 +394,9 @@ class TestResumeFromS3:
                 if name == "stage_started":
                     executed.append(payload.get("stage_id", ""))
 
-            result = RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
+            result = RunExecutor.resume_from_checkpoint(
+                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+            )
             assert result == "completed"
             assert executed == ["S3_build", "S4_synthesize", "S5_review"]
         finally:
@@ -417,7 +426,9 @@ class TestResumeFullyCompleted:
                 if name == "run_already_completed":
                     already_completed.append(True)
 
-            result = RunExecutor.resume_from_checkpoint(path, kernel, observability_hook=hook)
+            result = RunExecutor.resume_from_checkpoint(
+                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+            )
             assert result == "completed"
             assert executed == []  # no stages re-executed
             assert len(already_completed) == 1
@@ -525,9 +536,25 @@ class TestCLIResume:
             args = parser.parse_args(["resume", "--checkpoint", path])
 
             # Patch build_kernel so the resume uses MockKernel instead of LocalFSM.
-            with patch(
-                "hi_agent.config.builder.SystemBuilder.build_kernel",
-                return_value=MockKernel(),
+            # Also patch resume_from_checkpoint to inject raw_memory (Rule 6).
+            from hi_agent.runner import RunExecutor as _RunExecutor
+
+            _orig_resume = _RunExecutor.resume_from_checkpoint.__func__  # type: ignore[attr-defined]
+
+            def _patched_resume(cls, cp_path, kernel, **kwargs):  # type: ignore[no-untyped-def]
+                kwargs.setdefault("raw_memory", RawMemoryStore())
+                return _orig_resume(cls, cp_path, kernel, **kwargs)
+
+            with (
+                patch(
+                    "hi_agent.config.builder.SystemBuilder.build_kernel",
+                    return_value=MockKernel(),
+                ),
+                patch.object(
+                    _RunExecutor,
+                    "resume_from_checkpoint",
+                    classmethod(_patched_resume),
+                ),
             ):
                 _cmd_resume(args)
         finally:
@@ -545,7 +572,7 @@ class TestBackwardCompat:
     def test_execute_completes(self) -> None:
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         result = executor.execute()
         assert result == "completed"
 
@@ -558,7 +585,9 @@ class TestBackwardCompat:
             if name == "stage_started":
                 stages.append(payload.get("stage_id", ""))
 
-        executor = RunExecutor(contract, kernel, observability_hook=hook)
+        executor = RunExecutor(
+            contract, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+        )
         executor.execute()
         assert stages == [
             "S1_understand",
@@ -572,7 +601,7 @@ class TestBackwardCompat:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="compat-test", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session)
+        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
         result = executor.execute()
         assert result == "completed"
         # Session should have L0 records and stage states
@@ -585,7 +614,7 @@ class TestBackwardCompat:
             constraints=["fail_action:analyze_data"],
         )
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         result = executor.execute()
         # The "fail_action:analyze_data" constraint is intended to force failure, but the
         # current MockKernel + heuristic-fallback path completes all stages regardless.
@@ -596,7 +625,7 @@ class TestBackwardCompat:
         """RunStarted event should still be emitted."""
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         executor.execute()
         event_types = [e.event_type for e in executor.event_emitter.events]
         assert "RunStarted" in event_types
@@ -605,7 +634,7 @@ class TestBackwardCompat:
         """Stage summaries should be created for all completed stages."""
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         result = executor.execute()
         if result == "completed":
             assert len(executor.stage_summaries) == 5

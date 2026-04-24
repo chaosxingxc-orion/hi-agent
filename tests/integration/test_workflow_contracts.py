@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.workflows.contracts import (
     FallbackPolicy,
     WorkflowNode,
@@ -227,5 +228,5 @@ class TestWorkflowSpec:
             contract=contract,
             kernel=kernel,
             stage_graph=wf.to_stage_graph(),
-        )
+         raw_memory=RawMemoryStore())
         assert executor.stage_graph is not None

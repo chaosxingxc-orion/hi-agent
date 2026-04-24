@@ -1,4 +1,9 @@
-"""Integration tests for G-8 long-running op coordinator."""
+"""Integration tests for G-8 long-running op coordinator.
+
+MagicMock usage: legitimate use — boundary mocks only on the pluggable external
+job-scheduling backend (slurm/ssh/local subprocess). The SUT (LongRunningOpCoordinator,
+LongRunningOpStore, OpPoller) uses real components throughout.
+"""
 
 import time
 from unittest.mock import MagicMock

@@ -18,9 +18,9 @@ _POLL_MAX_ROUNDS = 40  # 40 * 3s = 120s
 def test_run_reaches_terminal_state(e2e_client):
     """POST /runs -> poll until state in {done, failed, cancelled} within 120s."""
     resp = e2e_client.post("/runs", json={"goal": "echo test", "profile_id": "default"})
-    if resp.status_code == 422:
-        pytest.skip("Server rejected minimal run payload — adjust fixture or profile_id")
-    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    assert resp.status_code == 200, (
+        f"POST /runs returned {resp.status_code} — server rejected run payload: {resp.text}"
+    )
     run_id = resp.json()["run_id"]
 
     for _ in range(_POLL_MAX_ROUNDS):
@@ -40,7 +40,7 @@ def test_cancel_live_run(e2e_client):
         "/runs", json={"goal": "long running task sleep 300", "profile_id": "default"}
     )
     if resp.status_code != 200:
-        pytest.skip(f"Could not start run: {resp.status_code}")
+        pytest.fail(f"Could not start run: POST /runs returned {resp.status_code}: {resp.text}")
     run_id = resp.json()["run_id"]
 
     time.sleep(1)

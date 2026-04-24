@@ -8,6 +8,7 @@ from typing import Any
 from hi_agent.contracts import TaskContract
 from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.memory.long_term import LongTermMemoryGraph
 from hi_agent.runner import RunExecutor
 
@@ -50,7 +51,7 @@ def _make_executor(
         kernel,
         knowledge_manager=knowledge_manager,
         session=session,
-    )
+     raw_memory=RawMemoryStore())
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +177,7 @@ def test_backward_compat_no_session(tmp_path) -> None:
     kernel = MockKernel()
     # Explicitly pass session=None and suppress auto-creation by using
     # a knowledge_manager but no session object.
-    executor = RunExecutor(contract, kernel, knowledge_manager=km)
+    executor = RunExecutor(contract, kernel, knowledge_manager=km, raw_memory=RawMemoryStore())
     # Session is auto-created in __init__; the ingest will just find
     # no findings/facts/user_feedback �?count=0, no error.
     result = executor.execute()

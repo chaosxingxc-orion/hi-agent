@@ -68,8 +68,8 @@ def test_trigger_recovery_no_handlers_with_caplog(
     with caplog.at_level(logging.WARNING):
         executor._trigger_recovery("stage-1")
 
-    # Should complete without error
-    assert True
+    # Should complete without error; assert the call completes cleanly
+    assert executor._run_id == "run-test-123"
 
 
 def test_trigger_recovery_with_handlers_proceeds(

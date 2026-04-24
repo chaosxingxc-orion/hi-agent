@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.memory.short_term import ShortTermMemoryStore
 from hi_agent.runner import RunExecutor
 
@@ -27,7 +28,7 @@ def _make_executor(
     )
     kernel = MockKernel(strict_mode=False)
     store = short_term_store or ShortTermMemoryStore(storage_dir=str(tmp_path / "stm"))
-    return RunExecutor(contract, kernel, short_term_store=store)
+    return RunExecutor(contract, kernel, short_term_store=store, raw_memory=RawMemoryStore())
 
 
 # All five stage actions must fail for the run to be "failed".
@@ -56,7 +57,7 @@ def _make_failing_executor(
     )
     kernel = MockKernel(strict_mode=False)
     store = short_term_store or ShortTermMemoryStore(storage_dir=str(tmp_path / "stm"))
-    return RunExecutor(contract, kernel, short_term_store=store)
+    return RunExecutor(contract, kernel, short_term_store=store, raw_memory=RawMemoryStore())
 
 
 class TestSTMAfterSuccessfulRun:
@@ -176,7 +177,7 @@ class TestBackwardCompatibility:
     def test_no_store_no_error(self) -> None:
         contract = TaskContract(task_id="compat-001", goal="backward compat test")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         assert executor.short_term_store is None
 
         result = executor.execute()
@@ -189,7 +190,7 @@ class TestBackwardCompatibility:
             constraints=_ALL_FAIL_CONSTRAINTS,
         )
         kernel = MockKernel(strict_mode=False)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         assert executor.short_term_store is None
 
         result = executor.execute()

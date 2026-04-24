@@ -14,6 +14,7 @@ from hi_agent.llm.protocol import (
     TokenUsage,
 )
 from hi_agent.memory.async_compressor import AsyncMemoryCompressor, CompressionResult
+from hi_agent.memory.l0_raw import RawMemoryStore
 
 # ---------------------------------------------------------------------------
 # Mock async gateway
@@ -217,7 +218,7 @@ def test_runner_track_llm_cost():
 
     contract = TaskContract(task_id="t-001", goal="test goal")
     kernel = MockKernel()
-    executor = RunExecutor(contract=contract, kernel=kernel)
+    executor = RunExecutor(contract=contract, kernel=kernel, raw_memory=RawMemoryStore())
 
     # Manually wire up session and cost calculator
     mock_session = MagicMock()

@@ -9,6 +9,7 @@ from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.knowledge.entry import KnowledgeEntry
 from hi_agent.knowledge.store import InMemoryKnowledgeStore
 from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l2_index import RunMemoryIndex
 from hi_agent.memory.retriever import MemoryRetriever
@@ -107,7 +108,10 @@ class TestPolicyVersionSetFrozen:
             task_family="quick_task",
         )
         custom_pvs = PolicyVersionSet(route_policy="route_v99")
-        executor = RunExecutor(contract, MockKernel(strict_mode=True), policy_versions=custom_pvs)
+        executor = RunExecutor(
+            contract, MockKernel(strict_mode=True),
+            policy_versions=custom_pvs, raw_memory=RawMemoryStore(),
+        )
         assert executor.policy_versions is custom_pvs
         assert executor.policy_versions.route_policy == "route_v99"
         # Frozen
@@ -126,7 +130,7 @@ class TestPolicyVersionSetFrozen:
             goal="test",
             task_family="quick_task",
         )
-        executor = RunExecutor(contract, MockKernel(strict_mode=True))
+        executor = RunExecutor(contract, MockKernel(strict_mode=True), raw_memory=RawMemoryStore())
         assert isinstance(executor.policy_versions, PolicyVersionSet)
         assert executor.policy_versions.route_policy == "route_v1"
 
@@ -149,7 +153,10 @@ class TestPolicyVersionsInPostmortem:
             goal="postmortem test",
             task_family="quick_task",
         )
-        executor = RunExecutor(contract, MockKernel(strict_mode=True), policy_versions=pvs)
+        executor = RunExecutor(
+            contract, MockKernel(strict_mode=True),
+            policy_versions=pvs, raw_memory=RawMemoryStore(),
+        )
         postmortem = executor._build_postmortem("completed")
         assert postmortem.policy_versions["route_policy"] == "route_v5"
         assert postmortem.policy_versions["skill_policy"] == "skill_v3"
@@ -402,7 +409,7 @@ class TestBackwardCompatibility:
             goal="backward compat",
             task_family="quick_task",
         )
-        executor = RunExecutor(contract, MockKernel(strict_mode=True))
+        executor = RunExecutor(contract, MockKernel(strict_mode=True), raw_memory=RawMemoryStore())
         # Should get default PolicyVersionSet
         assert executor.policy_versions.route_policy == "route_v1"
 

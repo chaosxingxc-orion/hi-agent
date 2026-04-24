@@ -18,6 +18,7 @@ from hi_agent.contracts import (
 )
 from hi_agent.evolve.contracts import EvolveResult, RunPostmortem
 from hi_agent.harness.contracts import ActionResult, ActionSpec, ActionState
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -99,7 +100,7 @@ class TestEvolvePostmortemOnSuccess:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
         evolve = FakeEvolveEngine()
-        executor = RunExecutor(contract, kernel, evolve_engine=evolve)
+        executor = RunExecutor(contract, kernel, evolve_engine=evolve, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -115,7 +116,7 @@ class TestEvolvePostmortemOnSuccess:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
         evolve = FakeEvolveEngine()
-        executor = RunExecutor(contract, kernel, evolve_engine=evolve)
+        executor = RunExecutor(contract, kernel, evolve_engine=evolve, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -131,7 +132,7 @@ class TestEvolvePostmortemOnFailure:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract(constraints=["fail_action:analyze_goal"])
         evolve = FakeEvolveEngine()
-        executor = RunExecutor(contract, kernel, evolve_engine=evolve)
+        executor = RunExecutor(contract, kernel, evolve_engine=evolve, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -148,7 +149,7 @@ class TestEvolveNotProvided:
     def test_no_evolve_no_crash(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, evolve_engine=None)
+        executor = RunExecutor(contract, kernel, evolve_engine=None, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -167,7 +168,9 @@ class TestHarnessExecutorUsed:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
         harness = FakeHarnessExecutor(succeed=True)
-        executor = RunExecutor(contract, kernel, harness_executor=harness)
+        executor = RunExecutor(
+            contract, kernel, harness_executor=harness, raw_memory=RawMemoryStore()
+        )
 
         result = executor.execute()
 
@@ -182,7 +185,9 @@ class TestHarnessExecutorUsed:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
         harness = FakeHarnessExecutor(succeed=False)
-        executor = RunExecutor(contract, kernel, harness_executor=harness)
+        executor = RunExecutor(
+            contract, kernel, harness_executor=harness, raw_memory=RawMemoryStore()
+        )
 
         result = executor.execute()
 
@@ -196,7 +201,7 @@ class TestHarnessNotProvided:
     def test_direct_invocation_without_harness(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, harness_executor=None)
+        executor = RunExecutor(contract, kernel, harness_executor=None, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -214,7 +219,7 @@ class TestHumanGateContradictoryEvidence:
     def test_gate_a_on_contradictory_evidence(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         # Manually trigger execute to get a valid run_id
         executor._run_id = kernel.start_run(contract.task_id)
 
@@ -237,7 +242,7 @@ class TestHumanGateBudgetCrisis:
     def test_gate_b_on_budget_crisis(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract(budget=TaskBudget(max_actions=10))
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         executor._run_id = kernel.start_run(contract.task_id)
         # Simulate 9 actions used (90% of 10)
         executor.action_seq = 9
@@ -255,7 +260,7 @@ class TestHumanGateBudgetCrisis:
     def test_no_gate_b_when_viable_branch_exists(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract(budget=TaskBudget(max_actions=10))
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         executor._run_id = kernel.start_run(contract.task_id)
         executor.action_seq = 9
         # Add a succeeded node in the same stage
@@ -287,7 +292,9 @@ class TestHumanGateQualityThreshold:
     def test_gate_c_on_low_quality(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, human_gate_quality_threshold=0.5)
+        executor = RunExecutor(
+            contract, kernel, human_gate_quality_threshold=0.5, raw_memory=RawMemoryStore()
+        )
         executor._run_id = kernel.start_run(contract.task_id)
 
         executor._check_human_gate_triggers(
@@ -303,7 +310,9 @@ class TestHumanGateQualityThreshold:
     def test_no_gate_c_when_quality_acceptable(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, human_gate_quality_threshold=0.5)
+        executor = RunExecutor(
+            contract, kernel, human_gate_quality_threshold=0.5, raw_memory=RawMemoryStore()
+        )
         executor._run_id = kernel.start_run(contract.task_id)
 
         executor._check_human_gate_triggers(
@@ -321,7 +330,7 @@ class TestHumanGateIrreversibleAction:
     def test_gate_d_on_irreversible_submit(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         executor._run_id = kernel.start_run(contract.task_id)
 
         executor._check_human_gate_triggers(
@@ -346,7 +355,7 @@ class TestBackwardCompatibility:
     def test_all_new_params_none(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         # Should not have any of the new integrations
         assert executor.evolve_engine is None
@@ -368,7 +377,7 @@ class TestBackwardCompatibility:
             kernel,
             action_max_retries=2,
             runner_role="test_role",
-        )
+         raw_memory=RawMemoryStore())
 
         result = executor.execute()
 

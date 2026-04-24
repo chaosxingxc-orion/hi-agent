@@ -4,6 +4,7 @@ from hi_agent.contracts import TaskContract
 from hi_agent.knowledge.graph_renderer import GraphRenderer
 from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
 from hi_agent.runner import RunExecutor
 
@@ -64,7 +65,7 @@ def test_backward_compat_no_retrieval_engine() -> None:
     """RunExecutor with retrieval_engine=None should work without error."""
     contract = TaskContract(task_id="compat-001", goal="backward compat test")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel)
+    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
     assert executor.retrieval_engine is None
     result = executor.execute()
     assert result == "completed"
@@ -75,7 +76,7 @@ def test_retrieval_engine_stored() -> None:
     engine = _make_retrieval_engine()
     contract = TaskContract(task_id="store-001", goal="store test")
     kernel = MockKernel()
-    executor = RunExecutor(contract, kernel, retrieval_engine=engine)
+    executor = RunExecutor(contract, kernel, retrieval_engine=engine, raw_memory=RawMemoryStore())
     assert executor.retrieval_engine is engine
 
 
@@ -88,7 +89,7 @@ def test_knowledge_retrieved_event_injected() -> None:
         task_family="quick_task",
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, retrieval_engine=engine)
+    executor = RunExecutor(contract, kernel, retrieval_engine=engine, raw_memory=RawMemoryStore())
 
     result = executor.execute()
     assert result == "completed"
@@ -129,7 +130,7 @@ def test_retrieval_called_per_stage() -> None:
     )
     kernel = MockKernel(strict_mode=True)
     counting = CountingEngine()
-    executor = RunExecutor(contract, kernel, retrieval_engine=counting)
+    executor = RunExecutor(contract, kernel, retrieval_engine=counting, raw_memory=RawMemoryStore())
 
     executor.execute()
 
@@ -147,7 +148,7 @@ def test_enriched_context_includes_retrieved_knowledge() -> None:
         task_family="quick_task",
     )
     kernel = MockKernel()
-    executor = RunExecutor(contract, kernel, retrieval_engine=engine)
+    executor = RunExecutor(contract, kernel, retrieval_engine=engine, raw_memory=RawMemoryStore())
 
     # The enriched context provider should be wired to the route engine
     if hasattr(executor.route_engine, "_context_provider"):
@@ -178,7 +179,7 @@ def test_enriched_context_fallback_on_no_results() -> None:
         task_family="quick_task",
     )
     kernel = MockKernel()
-    executor = RunExecutor(contract, kernel, retrieval_engine=engine)
+    executor = RunExecutor(contract, kernel, retrieval_engine=engine, raw_memory=RawMemoryStore())
 
     if hasattr(executor.route_engine, "_context_provider"):
         if executor.session is not None:
@@ -202,7 +203,9 @@ def test_retrieval_engine_error_does_not_break_execution() -> None:
         task_family="quick_task",
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, retrieval_engine=BrokenEngine())
+    executor = RunExecutor(
+        contract, kernel, retrieval_engine=BrokenEngine(), raw_memory=RawMemoryStore()
+    )
 
     result = executor.execute()
     assert result == "completed"
