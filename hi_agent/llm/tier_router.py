@@ -452,6 +452,7 @@ class TierAwareLLMGateway:
                         f"tier_exception purpose={meta.get('purpose', 'unknown')}"
                         f" error={type(_tier_exc).__name__}"
                     ),
+                    run_id=meta.get("run_id"),
                 )
 
         return self._inner.complete(request)  # type: ignore[union-attr]
@@ -498,6 +499,7 @@ class TierAwareLLMGateway:
                         f"tier_exception purpose={meta.get('purpose', 'unknown')}"
                         f" error={type(_tier_exc).__name__}"
                     ),
+                    run_id=meta.get("run_id"),
                 )
 
         inner_stream = getattr(self._inner, "stream", None)
@@ -560,6 +562,7 @@ class TierAwareLLMGateway:
                         f"tier_exception purpose={meta.get('purpose', 'unknown')}"
                         f" error={type(_tier_exc).__name__}"
                     ),
+                    run_id=meta.get("run_id"),
                 )
 
         return await self._inner.complete(request)  # type: ignore[union-attr]
