@@ -125,6 +125,9 @@ async def handle_create_run(request: Request) -> JSONResponse:
             return JSONResponse({"error": str(exc)}, status_code=409)
         return JSONResponse({"error": str(exc)}, status_code=409)
 
+    # Wave 8 / P1.2: extract project_id and emit warning header if missing.
+    _project_missing = not bool(body.get("project_id", ""))
+
     # DF-27 / Rule 14: the builder now requires a non-empty profile_id.
     # Rather than silent-defaulting (which masks missing caller metadata) or
     # returning 400 (which is a breaking API change we defer until the
@@ -208,8 +211,14 @@ async def handle_create_run(request: Request) -> JSONResponse:
         manager.start_run(run_id, _executor_fn)
 
     run = manager.get_run(run_id, workspace=ctx)
-    extra_headers = {"X-Idempotency-Warning": "missing"} if _idempotency_key_missing else {}
-    return JSONResponse(manager.to_dict(run), status_code=201, headers=extra_headers)  # type: ignore[arg-type]
+    extra_headers: dict[str, str] = {}
+    if _idempotency_key_missing:
+        extra_headers["X-Idempotency-Warning"] = "missing"
+    if _project_missing:
+        extra_headers["X-Project-Warning"] = "unscoped"
+    return JSONResponse(
+        manager.to_dict(run), status_code=201, headers=extra_headers  # type: ignore[arg-type]
+    )
 
 
 async def handle_get_run(request: Request) -> JSONResponse:

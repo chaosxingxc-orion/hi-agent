@@ -1956,6 +1956,7 @@ class AgentServer:
             parent_task_id=run_data.get("parent_task_id"),
             decomposition_strategy=run_data.get("decomposition_strategy"),
             profile_id=_pid,
+            project_id=run_data.get("project_id", ""),
         )
         config_patch = run_data.get("config_patch")  # optional dict, may be None
         workspace_key = run_data.get("_workspace_key")  # injected by handle_create_run
