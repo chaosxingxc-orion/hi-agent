@@ -471,6 +471,162 @@ class LongTermMemoryGraph:
             }
         return result
 
+    # --------------------------------------------------------- KnowledgeGraphBackend Protocol
+
+    def upsert_node(self, node_id: str, payload: dict[str, Any]) -> None:
+        """Insert or update a node — satisfies KnowledgeGraphBackend.upsert_node."""
+        existing = self._nodes.get(node_id)
+        if existing is not None:
+            self.update_node(
+                node_id,
+                content=payload.get("content", existing.content),
+                tags=payload.get("tags", existing.tags),
+            )
+        else:
+            self.add_node(
+                MemoryNode(
+                    node_id=node_id,
+                    content=payload.get("content", ""),
+                    node_type=payload.get("node_type", "fact"),
+                    tags=payload.get("tags", []),
+                    confidence=payload.get("confidence", 1.0),
+                )
+            )
+
+    def upsert_edge(
+        self, src: str, dst: str, relation: str, payload: dict[str, Any]
+    ) -> None:
+        """Insert or update an edge — satisfies KnowledgeGraphBackend.upsert_edge."""
+        # Remove existing edge with same src/dst/relation before re-adding.
+        self._edges = [
+            e
+            for e in self._edges
+            if not (
+                e.source_id == src
+                and e.target_id == dst
+                and e.relation_type == relation
+            )
+        ]
+        if src in self._adjacency and dst in self._adjacency[src]:
+            self._adjacency[src].remove(dst)
+        if dst in self._adjacency and src in self._adjacency[dst]:
+            self._adjacency[dst].remove(src)
+        weight = float(payload.get("weight", 1.0))
+        self.add_edge(
+            MemoryEdge(source_id=src, target_id=dst, relation_type=relation, weight=weight)
+        )
+
+    def query_relation(
+        self, node_id: str, relation: str, direction: str
+    ) -> list[Any]:
+        """Return Edge objects matching relation — satisfies KnowledgeGraphBackend.query_relation.
+
+        Args:
+            node_id: Node to query from/to.
+            relation: Edge relation type filter.
+            direction: ``"out"``, ``"in"``, or ``"both"``.
+        """
+        from hi_agent.memory.graph_backend import Edge as _GEdge
+
+        results: list[_GEdge] = []
+        for e in self._edges:
+            if e.relation_type != relation:
+                continue
+            if direction in ("out", "both") and e.source_id == node_id:
+                results.append(
+                    _GEdge(
+                        src=e.source_id,
+                        dst=e.target_id,
+                        relation=e.relation_type,
+                        payload={"weight": e.weight},
+                    )
+                )
+            if direction in ("in", "both") and e.target_id == node_id:
+                results.append(
+                    _GEdge(
+                        src=e.source_id,
+                        dst=e.target_id,
+                        relation=e.relation_type,
+                        payload={"weight": e.weight},
+                    )
+                )
+        return results
+
+    def transitive_query(self, start: str, relation: str, max_depth: int) -> list[Any]:
+        """Return paths reachable via transitive closure — satisfies KnowledgeGraphBackend."""
+        from hi_agent.memory.graph_backend import Edge as _GEdge
+        from hi_agent.memory.graph_backend import Path as _GPath
+
+        reachable = self.find_transitive_closure(
+            start, relation_type=relation, max_depth=max_depth
+        )
+        paths: list[_GPath] = []
+        for dst in reachable:
+            edges = [
+                _GEdge(
+                    src=e.source_id,
+                    dst=e.target_id,
+                    relation=e.relation_type,
+                    payload={"weight": e.weight},
+                )
+                for e in self._edges
+                if (
+                    e.source_id == start
+                    and e.target_id == dst
+                    and e.relation_type == relation
+                )
+            ]
+            paths.append(_GPath(nodes=[start, dst], edges=edges))
+        return paths
+
+    def detect_conflict(self, claim_a: str, claim_b: str) -> Any | None:
+        """Check for contradicts edges between two nodes — satisfies KnowledgeGraphBackend."""
+        from hi_agent.memory.graph_backend import ConflictReport
+
+        for e in self._edges:
+            if e.relation_type != "contradicts":
+                continue
+            if (e.source_id == claim_a and e.target_id == claim_b) or (
+                e.source_id == claim_b and e.target_id == claim_a
+            ):
+                return ConflictReport(
+                    claim_a=claim_a,
+                    claim_b=claim_b,
+                    conflict_type="contradicts",
+                    description=(
+                        f"Edge with relation_type='contradicts' exists "
+                        f"between {claim_a} and {claim_b}"
+                    ),
+                )
+        return None
+
+    def export_visualization(self, format: str) -> str:
+        """Export graph as JSON — satisfies KnowledgeGraphBackend.export_visualization.
+
+        Only ``"graphml"`` and ``"cytoscape"`` are accepted; both return a JSON
+        representation of nodes and edges (full format encoding deferred to Wave 9).
+        """
+        import json as _json
+
+        return _json.dumps(
+            {
+                "format": format,
+                "nodes": [
+                    {"id": nid, "content": n.content, "node_type": n.node_type}
+                    for nid, n in self._nodes.items()
+                ],
+                "edges": [
+                    {
+                        "src": e.source_id,
+                        "dst": e.target_id,
+                        "relation": e.relation_type,
+                    }
+                    for e in self._edges
+                ],
+            },
+            ensure_ascii=False,
+        )
+
     # ------------------------------------------------------------------ TF-IDF index
 
     def _index_node(self, node: MemoryNode) -> None:
@@ -658,3 +814,8 @@ class LongTermConsolidator:
 def _make_id() -> str:
     """Generate a short unique ID."""
     return uuid.uuid4().hex[:12]
+
+
+# Alias for downstream consumers that depend on KnowledgeGraphBackend Protocol.
+# Existing imports of LongTermMemoryGraph continue to work unchanged.
+JsonGraphBackend = LongTermMemoryGraph

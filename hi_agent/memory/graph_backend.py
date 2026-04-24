@@ -87,7 +87,7 @@ class KnowledgeGraphBackend(Protocol):
         ...
 
     def export_visualization(
-        self, format: str  # noqa: A002 — shadowing built-in intentional in protocol
+        self, format: str
     ) -> str:
         """Export the graph for visualization.
 
