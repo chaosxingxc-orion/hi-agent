@@ -307,7 +307,7 @@ class HarnessExecutor:
 
                 # Enforce provenance_required policy before adaptation.
                 if capability_name and self._invoker is not None:
-                    cap_registry = getattr(self._invoker, "_registry", None)
+                    cap_registry = getattr(self._invoker, "registry", None)
                     if cap_registry is not None:
                         descriptor = cap_registry.get_descriptor(capability_name)
                         if (
