@@ -102,6 +102,10 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cx.execute(
                 "ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'"
             )
+        if "project_id" not in cols:
+            cx.execute(
+                "ALTER TABLE run_records ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"
+            )
         cx.commit()
         cx.execute(
             "CREATE INDEX IF NOT EXISTS idx_run_records_workspace "

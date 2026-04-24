@@ -30,6 +30,7 @@ class Artifact:
     upstream_artifact_ids: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     content: Any = None
+    project_id: str = ""
 
     def __hash__(self) -> int:  # identity by artifact_id; mutable fields excluded
         """Hash by artifact_id; mutable fields excluded."""

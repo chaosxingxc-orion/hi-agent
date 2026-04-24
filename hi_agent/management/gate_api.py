@@ -40,6 +40,7 @@ class GateRecord:
     resolution_reason: str | None = None
     resolved_at: float | None = None
     escalation_target: str | None = None
+    project_id: str = ""
 
 
 class InMemoryGateAPI:
