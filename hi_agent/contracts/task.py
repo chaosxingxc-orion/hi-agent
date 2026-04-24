@@ -125,3 +125,16 @@ class TaskContract:
     #   the platform; access to sibling project profiles is not supported.
     #   Example: ["hi_agent_global/memory/l3", "hi_agent_global/skills"]
     cross_profile_read: list[str] = field(default_factory=list)
+    # Wave 8 / Phase A: project_id is a first-class scope field.
+    # Empty string is allowed for transition; WARNING emitted by __post_init__.
+    project_id: str = ""
+
+    def __post_init__(self) -> None:
+        import logging as _logging
+
+        if not self.project_id:
+            _logging.getLogger(__name__).warning(
+                "TaskContract created with empty project_id; run will be unscoped "
+                "(hi_agent_unscoped_project_total). Pass project_id to scope "
+                "memory/artifacts/gates."
+            )
