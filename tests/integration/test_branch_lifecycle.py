@@ -18,6 +18,7 @@ from hi_agent.contracts import (
     TaskContract,
     deterministic_id,
 )
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.runner import STAGES, RunExecutor
 
@@ -89,7 +90,7 @@ class TestBranchHappyPath:
         """Standard run branches should all reach succeeded state."""
         contract = TaskContract(task_id="branch-happy-001", goal="branch happy path")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -102,7 +103,7 @@ class TestBranchHappyPath:
         """Kernel events should record proposed->active->succeeded transitions."""
         contract = TaskContract(task_id="branch-happy-002", goal="branch events")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -126,7 +127,7 @@ class TestBranchFailurePath:
             constraints=["fail_action:analyze_goal"],
         )
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -154,7 +155,7 @@ class TestDeadEndDetection:
             constraints=["fail_action:build_draft"],
         )
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -175,7 +176,7 @@ class TestDeadEndDetection:
             constraints=["fail_action:build_draft"],
         )
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -192,7 +193,7 @@ class TestMultipleBranchesPerStage:
         contract = TaskContract(task_id="multi-branch-001", goal="multi-branch")
         kernel = MockKernel(strict_mode=True)
         route_engine = _MultiBranchRouteEngine(branch_count=2)
-        executor = RunExecutor(contract, kernel, route_engine=route_engine)
+        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -210,7 +211,7 @@ class TestMultipleBranchesPerStage:
         contract = TaskContract(task_id="multi-branch-002", goal="multi-succeed")
         kernel = MockKernel(strict_mode=True)
         route_engine = _MultiBranchRouteEngine(branch_count=3)
-        executor = RunExecutor(contract, kernel, route_engine=route_engine)
+        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -232,7 +233,7 @@ class TestBranchPruningAndTrajectoryState:
         )
         kernel = MockKernel(strict_mode=True)
         route_engine = _PartialFailRouteEngine()
-        executor = RunExecutor(contract, kernel, route_engine=route_engine)
+        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -249,7 +250,7 @@ class TestBranchPruningAndTrajectoryState:
         )
         kernel = MockKernel(strict_mode=True)
         route_engine = _PartialFailRouteEngine()
-        executor = RunExecutor(contract, kernel, route_engine=route_engine)
+        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -271,7 +272,7 @@ class TestBranchPruningAndTrajectoryState:
         )
         kernel = MockKernel(strict_mode=True)
         route_engine = _PartialFailRouteEngine()
-        executor = RunExecutor(contract, kernel, route_engine=route_engine)
+        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
 
         executor.execute()
 

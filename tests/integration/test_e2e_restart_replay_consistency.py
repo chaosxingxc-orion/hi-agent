@@ -7,6 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.replay import load_event_envelopes_jsonl, verify_replay_against_files
 from hi_agent.runner import RunExecutor
 from hi_agent.state import RunStateStore
@@ -28,7 +29,7 @@ def test_e2e_restart_replay_consistency_match(tmp_path: Path) -> None:
     contract = TaskContract(task_id="e2e-restart-001", goal="restart replay consistency")
 
     first_process_store = RunStateStore(file_path=state_path)
-    executor = RunExecutor(contract, MockKernel(strict_mode=True), state_store=first_process_store)
+    executor = RunExecutor(contract, MockKernel(strict_mode=True), state_store=first_process_store, raw_memory=RawMemoryStore())
     result = executor.execute()
     _persist_events(executor, events_path)
 
@@ -62,7 +63,7 @@ def test_e2e_restart_replay_consistency_detects_tampered_current_stage(
     contract = TaskContract(task_id="e2e-restart-002", goal="detect tampered stage")
 
     first_process_store = RunStateStore(file_path=state_path)
-    executor = RunExecutor(contract, MockKernel(strict_mode=True), state_store=first_process_store)
+    executor = RunExecutor(contract, MockKernel(strict_mode=True), state_store=first_process_store, raw_memory=RawMemoryStore())
     result = executor.execute()
     _persist_events(executor, events_path)
 

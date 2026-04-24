@@ -22,6 +22,7 @@ from typing import Any
 
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.requests import RunResult
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
@@ -51,7 +52,7 @@ def _make_server(
             deadline=run_data.get("deadline") or deadline,
         )
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         return executor.execute
 
     server = AgentServer()
@@ -92,7 +93,7 @@ def _direct_execute(
         acceptance_criteria=acceptance_criteria or [],
         deadline=deadline,
     )
-    return RunExecutor(contract, MockKernel()).execute()
+    return RunExecutor(contract, MockKernel(), raw_memory=RawMemoryStore()).execute()
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +137,7 @@ class TestAcceptanceCriteriaConsumption:
                 goal=run_data.get("goal", ""),
                 acceptance_criteria=run_data.get("acceptance_criteria") or [],
             )
-            return RunExecutor(contract, MockKernel()).execute
+            return RunExecutor(contract, MockKernel(), raw_memory=RawMemoryStore()).execute
 
         server.executor_factory = factory
         client = TestClient(server.app, raise_server_exceptions=False)
@@ -251,7 +252,7 @@ class TestPassthroughFieldsDocumented:
                 goal=run_data.get("goal", ""),
                 environment_scope=env_scope,
             )
-            return RunExecutor(contract, MockKernel()).execute
+            return RunExecutor(contract, MockKernel(), raw_memory=RawMemoryStore()).execute
 
         server.executor_factory = factory
         client = TestClient(server.app, raise_server_exceptions=False)
@@ -290,7 +291,7 @@ class TestPassthroughFieldsDocumented:
                 goal=run_data.get("goal", ""),
                 input_refs=refs,
             )
-            return RunExecutor(contract, MockKernel()).execute
+            return RunExecutor(contract, MockKernel(), raw_memory=RawMemoryStore()).execute
 
         server = AgentServer()
         server.executor_factory = factory
@@ -320,6 +321,7 @@ class TestPassthroughFieldsDocumented:
                 parent_task_id="parent-task-001",
             ),
             MockKernel(),
+            raw_memory=RawMemoryStore(),
         ).execute()
         # Rule 7: parent_task_id is PASSTHROUGH and must not cause failure.
         assert result.status == "completed", (

@@ -21,6 +21,7 @@ from typing import Any
 
 import pytest
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskRestartPolicy
 from hi_agent.trajectory.stage_graph import StageGraph
@@ -90,6 +91,7 @@ def _run_with_policy(policy: TaskRestartPolicy, task_id: str, goal: str) -> RunE
         stage_graph=graph,
         invoker=invoker,
         restart_policy_engine=engine,
+        raw_memory=RawMemoryStore(),
     )
     # We don't care whether the overall run ends completed or failed —
     # the assertion is on the event log's differentiating content.

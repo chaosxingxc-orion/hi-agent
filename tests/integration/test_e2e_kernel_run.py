@@ -11,6 +11,7 @@ Validates the complete quick_task Run lifecycle S1->S5 including:
 from __future__ import annotations
 
 from hi_agent.contracts import StageState, TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import STAGES, RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -23,7 +24,7 @@ def _run_quick_task(
     """Execute a standard quick_task and return executor + kernel."""
     contract = TaskContract(task_id=task_id, goal=goal)
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel)
+    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
     executor.execute()
     return executor, kernel
 
@@ -50,7 +51,7 @@ class TestCompleteQuickTaskRun:
         """execute() should return 'completed' for a happy-path run."""
         contract = TaskContract(task_id="e2e-result", goal="check result")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 

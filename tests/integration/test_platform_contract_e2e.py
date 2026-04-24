@@ -23,6 +23,7 @@ from typing import Any
 import pytest
 from hi_agent.contracts import TaskContract
 from hi_agent.contracts.requests import RunResult
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
@@ -48,7 +49,7 @@ def _make_mock_executor_factory(*, fail: bool = False) -> Callable:
             constraints=constraints,
         )
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         return executor.execute
 
     return factory
@@ -270,7 +271,7 @@ def test_pc04_execute_returns_run_result_not_string() -> None:
     """
     contract = TaskContract(task_id="pc04test", goal="Verify result shape")
     kernel = MockKernel()
-    executor = RunExecutor(contract, kernel)
+    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
     result = executor.execute()
 
     # Must be a RunResult, not a bare string
@@ -389,7 +390,7 @@ def test_pc06_failed_stage_id_identifies_failing_stage(client: TestClient) -> No
             goal=run_data.get("goal", ""),
             constraints=["fail_action:analyze_goal"],
         )
-        return RunExecutor(contract, MockKernel()).execute
+        return RunExecutor(contract, MockKernel(), raw_memory=RawMemoryStore()).execute
 
     server = AgentServer()
     server.executor_factory = factory
@@ -437,7 +438,7 @@ def test_pc06_run_state_and_result_status_always_agree() -> None:
             constraints=constraints,
         )
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         run_id = manager.create_run({"goal": "alignment check", "constraints": constraints})
 
@@ -524,7 +525,7 @@ def test_pc07_failed_stage_outcome_is_failed_not_active() -> None:
         constraints=["fail_action:analyze_goal"],
     )
     kernel = MockKernel()
-    executor = RunExecutor(contract, kernel)
+    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
     result = executor.execute()
 
     assert isinstance(result, RunResult)

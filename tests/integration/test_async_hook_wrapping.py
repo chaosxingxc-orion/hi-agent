@@ -17,6 +17,7 @@ from typing import Any
 
 import pytest
 from hi_agent.contracts import TaskContract, deterministic_id
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.middleware.hooks import ExecutionHookManager, HookEvent, HookRegistry
 from hi_agent.runner import RunExecutor
 
@@ -49,7 +50,7 @@ async def test_pre_tool_hook_fires_inside_running_loop() -> None:
         goal="test hook firing inside running loop",
         task_family="test",
     )
-    executor = RunExecutor(contract=contract, kernel=kernel)
+    executor = RunExecutor(contract=contract, kernel=kernel, raw_memory=RawMemoryStore())
 
     # Replace with a spy-augmented hook manager
     registry = HookRegistry()

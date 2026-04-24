@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict
 
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.replay import ReplayEngine, load_event_envelopes_jsonl
 from hi_agent.runner import RunExecutor
 
@@ -17,6 +18,7 @@ def test_completed_run_replay_from_event_envelopes() -> None:
     executor = RunExecutor(
         TaskContract(task_id="replay-001", goal="completed replay"),
         MockKernel(),
+        raw_memory=RawMemoryStore(),
     )
     executor.execute()
 
@@ -42,6 +44,7 @@ def test_failed_run_replay_from_jsonl(tmp_path) -> None:
             constraints=["fail_action:build_draft"],
         ),
         MockKernel(strict_mode=True),
+        raw_memory=RawMemoryStore(),
     )
     executor.execute()
 

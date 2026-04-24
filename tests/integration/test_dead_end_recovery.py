@@ -1,6 +1,7 @@
 """Integration test for dead-end detection behavior."""
 
 from hi_agent.contracts import NodeState, NodeType, TaskContract, TrajectoryNode
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 from hi_agent.trajectory.dead_end import detect_dead_end
 
@@ -15,6 +16,6 @@ def test_detect_dead_end_and_no_dead_end_in_successful_run() -> None:
     }
     assert detect_dead_end("S3_build", failed_stage_dag) is True
 
-    executor = RunExecutor(TaskContract(task_id="int-002", goal="dead-end"), MockKernel())
+    executor = RunExecutor(TaskContract(task_id="int-002", goal="dead-end"), MockKernel(), raw_memory=RawMemoryStore())
     executor.execute()
     assert detect_dead_end("S3_build", executor.dag) is False

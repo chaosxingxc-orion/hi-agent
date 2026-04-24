@@ -28,6 +28,7 @@ from __future__ import annotations
 import pytest
 from hi_agent.contracts import TaskContract
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 from hi_agent.trajectory.stage_graph import StageGraph
 
@@ -50,7 +51,7 @@ def _make_executor(task_id: str) -> RunExecutor:
     """Construct a real RunExecutor backed by the real agent-kernel MockKernel."""
     contract = TaskContract(task_id=task_id, goal=f"gate-resume test {task_id}")
     kernel = MockKernel(strict_mode=False)
-    return RunExecutor(contract, kernel, stage_graph=_three_stage_graph())
+    return RunExecutor(contract, kernel, stage_graph=_three_stage_graph(), raw_memory=RawMemoryStore())
 
 
 def _install_one_shot_gate(

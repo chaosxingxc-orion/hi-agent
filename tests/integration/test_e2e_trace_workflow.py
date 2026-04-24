@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from hi_agent.contracts import StageState, TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.replay import ReplayEngine
 from hi_agent.runner import STAGES, RunExecutor
 
@@ -14,7 +15,7 @@ def test_e2e_trace_workflow_completed_replay_success() -> None:
     """Completed scenario should finish all stages and replay as success."""
     contract = TaskContract(task_id="e2e-trace-001", goal="e2e completed workflow")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel)
+    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
     result = executor.execute()
     report = ReplayEngine().replay(executor.event_emitter.events)
@@ -41,7 +42,7 @@ def test_e2e_trace_workflow_failed_replay_failed(action_max_retries: int) -> Non
         ],
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel)
+    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
     result = executor.execute()
     report = ReplayEngine().replay(executor.event_emitter.events)

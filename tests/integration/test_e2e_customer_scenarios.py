@@ -20,6 +20,7 @@ from typing import Any
 
 import pytest
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
@@ -52,7 +53,7 @@ def _make_mock_executor_factory(*, fail_stage: str | None = None) -> Callable:
             constraints=constraints,
         )
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
         return executor.execute
 
     return factory
