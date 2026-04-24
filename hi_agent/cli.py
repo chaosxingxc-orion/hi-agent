@@ -230,12 +230,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
             input_refs = _json2.loads(input_refs_raw) if input_refs_raw else []
             environment_scope_raw = getattr(args, "environment_scope", None)
             environment_scope = _json2.loads(environment_scope_raw) if environment_scope_raw else []
+            _project_id_cli = getattr(args, "project_id", None) or ""
             _contract_kwargs: dict = {
                 "task_id": uuid.uuid4().hex[:12],
                 "goal": args.goal,
                 "task_family": args.task_family,
                 "risk_level": args.risk_level,
                 "profile_id": profile_id,
+                "project_id": _project_id_cli,
                 "constraints": constraints,
                 "acceptance_criteria": acceptance_criteria,
                 "input_refs": input_refs,
@@ -632,6 +634,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Runtime profile ID to activate (e.g. 'rnd_agent'). "
         "Selects ProfileSpec from the platform ProfileRegistry.",
+    )
+    run_parser.add_argument(
+        "--project-id",
+        dest="project_id",
+        required=False,
+        default=None,
+        help="Project scope ID. Scopes memory, artifacts, and gates to a project namespace.",
     )
     run_parser.add_argument(
         "--deadline",
