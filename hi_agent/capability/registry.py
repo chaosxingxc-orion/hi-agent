@@ -25,6 +25,12 @@ class CapabilityDescriptor:
     required_env: dict[str, str] = field(default_factory=dict)  # {env_var: description}
     output_budget_chars: int = 32_000
     availability_probe: Callable[[], tuple[bool, str]] | None = None
+    # Wave 8 / P2.1: capability policy fields for downstream research platform
+    source_reference_policy: str = "optional"  # "required" | "optional" | "none"
+    artifact_output_schema: str | None = None
+    provenance_required: bool = False
+    reproducibility_level: str = "stochastic"  # "deterministic" | "seeded" | "stochastic"
+    license_policy: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
