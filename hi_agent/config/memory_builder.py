@@ -129,7 +129,10 @@ class MemoryBuilder:
 
         base = str(Path(self._config.episodic_storage_dir).parent)
         if workspace_key is not None:
-            path = str(WorkspacePathHelper.private(base, workspace_key, "L2"))
+            l2_dir = WorkspacePathHelper.private(base, workspace_key, "L2")
+            if project_id := getattr(self._config, "project_id", ""):
+                l2_dir = l2_dir / project_id
+            path = str(l2_dir)
         elif profile_id:
             path = os.path.join(base, "profiles", profile_id, "mid_term")
         else:
@@ -168,10 +171,11 @@ class MemoryBuilder:
         project_id = getattr(self._config, "project_id", "")
         if workspace_key is not None:
             base = str(Path(self._config.episodic_storage_dir).parent)
-            storage_path = str(
-                WorkspacePathHelper.private(base, workspace_key, "L3") / "graph.json"
-            )
-            graph = LongTermMemoryGraph(storage_path, project_id=project_id)
+            l3_dir = WorkspacePathHelper.private(base, workspace_key, "L3")
+            if project_id:
+                l3_dir = l3_dir / project_id
+            storage_path = str(l3_dir / "graph.json")
+            graph = LongTermMemoryGraph(storage_path)  # path already fully scoped
         else:
             graph = LongTermMemoryGraph(
                 self._config.episodic_storage_dir.replace("episodes", "long_term/graph.json"),
