@@ -293,7 +293,18 @@ async def handle_cancel_run(request: Request) -> JSONResponse:
 
     ok = manager.cancel_run(run_id, workspace=ctx)
     if ok:
-        return JSONResponse({"run_id": run_id, "state": "cancelled"})
+        queue_propagated = manager._run_queue is not None
+        token_propagated = run_id in manager._active_executor_tokens
+        return JSONResponse(
+            {
+                "run_id": run_id,
+                "state": "cancelled",
+                "cancellation_propagated": {
+                    "queue": queue_propagated,
+                    "token": token_propagated,
+                },
+            }
+        )
     return JSONResponse(
         {"error": "cannot_cancel", "run_id": run_id},
         status_code=409,

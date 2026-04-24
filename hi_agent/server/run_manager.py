@@ -6,6 +6,7 @@ Uses threading for concurrent run execution (stdlib only).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import queue
 import threading
@@ -91,6 +92,8 @@ class RunManager:
         self._run_queue = run_queue
         # Maps run_id -> executor_fn when run_queue is used; populated by start_run.
         self._pending_executors: dict[str, Callable[[ManagedRun], Any]] = {}
+        # Maps run_id -> CancellationToken (or any object with .cancel()) for in-process signal.
+        self._active_executor_tokens: dict[str, Any] = {}
         # PriorityQueue: items are (priority, sequence, run, executor_fn).
         # Lower priority integer = higher urgency (1 executes before 5).
         # sequence is a monotonic counter that breaks priority ties (FIFO within tier).
@@ -508,6 +511,28 @@ class RunManager:
                 run.error = "queue_full"
                 run.updated_at = datetime.now(UTC).isoformat()
 
+    def register_cancellation_token(self, run_id: str, token: Any) -> None:
+        """Register a CancellationToken for a running executor.
+
+        Called by the executor (or its wrapping closure) once the token is
+        constructed, so cancel_run() can signal cooperative cancellation.
+
+        Args:
+            run_id: Identifier of the run.
+            token: Object with a ``.cancel()`` method (e.g. CancellationToken).
+        """
+        with self._lock:
+            self._active_executor_tokens[run_id] = token
+
+    def unregister_cancellation_token(self, run_id: str) -> None:
+        """Remove the CancellationToken registration for a finished run.
+
+        Args:
+            run_id: Identifier of the run.
+        """
+        with self._lock:
+            self._active_executor_tokens.pop(run_id, None)
+
     @property
     def pending_count(self) -> int:
         """Return the number of runs currently waiting in the queue."""
@@ -571,8 +596,12 @@ class RunManager:
         """Request cancellation of a run.
 
         Sets the run state to ``cancelled`` if it is still in ``created``
-        or ``running`` state. When ``workspace`` is provided, returns False
-        if the run does not belong to that workspace.
+        or ``running`` state. Also signals the durable RunQueue (if wired)
+        and the in-process CancellationToken (if registered via
+        ``register_cancellation_token``).
+
+        When ``workspace`` is provided, returns False if the run does not
+        belong to that workspace.
 
         Args:
             run_id: Identifier of the run.
@@ -585,11 +614,21 @@ class RunManager:
         if run is None:
             return False
         with self._lock:
-            if run.state in ("created", "running"):
-                run.state = "cancelled"
-                run.updated_at = datetime.now(UTC).isoformat()
-                return True
-            return False
+            if run.state not in ("created", "running"):
+                return False
+            run.state = "cancelled"
+            run.updated_at = datetime.now(UTC).isoformat()
+        # Propagate to durable queue (cooperative cancellation flag).
+        if self._run_queue is not None:
+            with contextlib.suppress(Exception):
+                self._run_queue.cancel(run_id)
+        # Propagate to in-process CancellationToken if one is registered.
+        with self._lock:
+            token = self._active_executor_tokens.get(run_id)
+        if token is not None and hasattr(token, "cancel"):
+            with contextlib.suppress(Exception):
+                token.cancel()
+        return True
 
     def to_dict(self, run: ManagedRun) -> dict[str, Any]:
         """Serialize run to JSON-safe dict.
