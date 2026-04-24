@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
-
-import pytest
 
 from hi_agent.memory.graph_backend import (
     ConflictReport,

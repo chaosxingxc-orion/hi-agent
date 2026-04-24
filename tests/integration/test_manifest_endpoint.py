@@ -6,9 +6,8 @@ Uses real AgentServer + Starlette TestClient — no mocks on the SUT.
 from __future__ import annotations
 
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.server.app import AgentServer
+from starlette.testclient import TestClient
 
 
 @pytest.fixture()

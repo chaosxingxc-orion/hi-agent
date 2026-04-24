@@ -108,7 +108,7 @@ class RunPostmortem:
     project_id: str = ""
 
 
-class PromotionBlocked(Exception):
+class PromotionBlockedError(Exception):
     """Raised when skill promotion is blocked pending human approval."""
 
 

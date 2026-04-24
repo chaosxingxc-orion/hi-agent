@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from hi_agent.evolve.contracts import PromotionBlocked, RunPostmortem
+from hi_agent.evolve.contracts import PromotionBlockedError, RunPostmortem
 
 if TYPE_CHECKING:
     from hi_agent.evolve.champion_challenger import ChampionChallenger
@@ -264,7 +264,7 @@ class SkillPromotionPipeline:
         if self._human_approval_required and not getattr(
             approval_context, "approved", False
         ):
-            raise PromotionBlocked(
+            raise PromotionBlockedError(
                 "Skill promotion requires human approval (human_approval_required=True). "
                 "Pass an approval_context with approved=True to grant approval."
             )

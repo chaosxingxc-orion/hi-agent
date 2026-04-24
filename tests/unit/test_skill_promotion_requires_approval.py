@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import pytest
-
-from hi_agent.evolve.contracts import PromotionBlocked
+from hi_agent.evolve.contracts import PromotionBlockedError
 from hi_agent.evolve.dataset_evaluator import DatasetEvaluator, SkillPromotionPipeline
 
 
@@ -19,24 +18,24 @@ class _NotApproved:
 
 
 def test_promotion_blocked_without_approval():
-    """auto_promote=True + human_approval_required=True raises PromotionBlocked by default."""
+    """auto_promote=True + human_approval_required=True raises PromotionBlockedError by default."""
     pipeline = SkillPromotionPipeline(
         DatasetEvaluator(),
         auto_promote=True,
         human_approval_required=True,
     )
-    with pytest.raises(PromotionBlocked):
+    with pytest.raises(PromotionBlockedError):
         pipeline.run([])
 
 
 def test_promotion_blocked_with_denied_approval_context():
-    """Explicit approved=False also raises PromotionBlocked."""
+    """Explicit approved=False also raises PromotionBlockedError."""
     pipeline = SkillPromotionPipeline(
         DatasetEvaluator(),
         auto_promote=True,
         human_approval_required=True,
     )
-    with pytest.raises(PromotionBlocked):
+    with pytest.raises(PromotionBlockedError):
         pipeline.run([], approval_context=_NotApproved())
 
 
@@ -47,7 +46,7 @@ def test_promotion_allowed_with_approved_context():
         auto_promote=True,
         human_approval_required=True,
     )
-    # No PromotionBlocked — should return a result (no actual promotions with empty input)
+    # No PromotionBlockedError — should return a result (no actual promotions with empty input)
     result = pipeline.run([], approval_context=_Approved())
     assert result is not None
 
