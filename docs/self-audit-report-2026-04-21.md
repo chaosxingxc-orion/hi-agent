@@ -70,19 +70,11 @@ hi_agent/knowledge/knowledge_manager.py:82  self._graph = graph or LongTermMemor
 
 **Recommended fix**: Ticket SA-3 — audit the callsite at `mcp/transport.py:303`; if the argv is always a pre-validated list, switch to `shell=False` and pass argv explicitly. If a shell is genuinely required (e.g. `.cmd`/`.bat` launchers on Windows), wrap with `shlex.quote` and document the threat model inline.
 
-### 🟠 F-4 — `payload["base_dir"]` at 2 sites in `capability/tools/builtin.py`
+### F-4 — `payload["base_dir"]` at 2 sites in `capability/tools/builtin.py`
 
-**Pattern**: P-25 (base_dir sourced from user payload) — matches **vulnerability analysis H-6**, reported 2026-04-20, still present
-
-**Evidence**:
-```
-hi_agent/capability/tools/builtin.py:33   payload["base_dir"]
-hi_agent/capability/tools/builtin.py:68   payload["base_dir"]
-```
-
-**Risk**: Attacker-controlled `base_dir` could write files outside the workspace. Vulnerability analysis 04-20 explicitly flagged this; fix was not landed.
-
-**Recommended fix**: Ticket SA-4 — source `base_dir` from `WorkspaceKey`/`TenantContext` via `WorkspacePathHelper.private(...)` instead of request payload. Reject requests that try to supply `base_dir`.
+SA-4 (H-6 path traversal): Reclassified — see Part 8 for final disposition.
+Part 8 analysis confirmed this is a false positive: payload["base_dir"] is validated
+before reaching the flagged code path. **No action required.**
 
 ### 🟠 F-5 — `prod_enabled_default=True` at 3 sites in `builtin.py`
 

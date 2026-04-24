@@ -1,3 +1,9 @@
+> **⚠ SUPERSEDED**: This document contains an incomplete diagnosis from 2026-04-21.
+> The correct root cause is documented in `docs/hi-agent-prod-mode-issue-20260422.md`.
+> **Do not act on the diagnosis in this document.**
+
+---
+
 # hi-agent 04-21 新版 prod 模式 / 真 LLM 调用不可用
 
 **日期**：2026-04-21

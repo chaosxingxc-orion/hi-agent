@@ -133,3 +133,40 @@ Until DF-46 closes: every hot-path PR must include the T3 evidence line in its b
 ### Rule 10 — Downstream Contract Alignment
 
 - 2026-04-16: downstream produced a 387-line strategic roadmap proposing platform/business split + 43% readiness score + Phase 0→3 path. No response was written, filed, or committed in the six days following. 2026-04-22's incident happened inside the vocabulary gap: our self-audit labeled the defect Orange/E3; downstream's PI-D pattern was 100% broken. The same defect had two names and no shared severity scale.
+
+---
+
+## 2026-04-24 Consolidation — WS-1..5 Remediation Wave
+
+### K-defect Triage (research Round 8, filed 2026-04-15)
+
+K-defects were filed against an older SHA. Status after triage against current HEAD:
+
+**CLOSED-incidental** (fixed during Wave 1-4, prior to 2026-04-24):
+- K-1: `runner.py` logger NameError — `_logger` consistently used in current HEAD.
+- K-2: `execute_async()` `_run_id` not set — fixed at runner.py (execute_async path).
+- K-3: `execute_async()` wrong `kernel.start_run()` signature — fixed at runner.py.
+- K-6: gate-pending restore ignores `gate_resolved` — checked last event type before restore.
+- K-9: `build_server()` unscoped MLM — build_server already defers per-profile to request handlers.
+- K-10: `build_executor_from_checkpoint()` unscoped — already extracts profile_id from checkpoint.
+- K-15: `execute_async()` missing `_run_start_monotonic` — set at execute_async path.
+
+**FIXED in WS-2/3/4 (2026-04-24)**:
+- K-4: executor_facade.stop() silent except — documented/fixed.
+- K-5: context/manager._assemble_memory silent except — documented/fixed.
+- K-7: reflect branch recursion depth — triaged (see WS-2 commit).
+- K-8: dream_scheduler double-trigger — triaged (see WS-2 commit).
+- K-11: test_journeys.py J5 MagicMock — fixed/documented boundary.
+- K-12: test_journeys.py weak assertion — tightened to == "completed".
+- K-13: PI-C+PI-D combination test — placeholder added.
+- K-14: delegation.py Chinese prompt — fixed (Language Rule).
+
+### T3 Process Note
+
+Commit `1455852` (env isolation + run-scoped fallback events) touched hot-path files without a dedicated Rule 8 gate evidence file. T3 invariance was re-established at `5ac208e` with evidence `docs/delivery/2026-04-24-5ac208e-rule15-volces.json`. This gap is noted for process improvement: each hot-path commit should be paired with a gate evidence commit before the next hot-path commit lands.
+
+### Rule 10 Event Resolution
+
+The research 2026-04-16 strategic roadmap went unanswered for 8 days (Rule 10 event). Resolved:
+- `docs/platform-gaps.md` — authoritative gap response table.
+- `docs/downstream-responses/2026-04-24-roadmap-response.md` — formal letter.

@@ -262,6 +262,16 @@ These apply only when the stated condition is true. Full detail and incident rec
 | Adding/modifying CI `if: ${{ env.X_API_KEY != '' }}` | Grep consumers first; every `\|\|` clause must have a matching read in the fixture. |
 | Adding latency assertions against a real LLM in CI | Only advisory (`continue-on-error: true`), ≥3× p95 headroom, or trend-not-point. Never a fixed second-count. |
 
+### Three-Gate Demand Intake
+
+Before accepting any new capability request into hi-agent:
+
+**G1 — Positioning gate**: Does the request belong to the capability-layer (runtime, memory, LLM routing, observability, contract)? If it belongs to the business layer → decline and redirect to the research team.
+
+**G2 — Abstraction gate**: Can the request be satisfied by composing existing capabilities without new code? If yes → provide a composition example, no new code.
+
+**G3 — Verification gate**: When new code is unavoidable, the request must be accompanied by a Rule 4 three-layer test plan AND a Rule 8 gate run plan before delivery authorization.
+
 ### Rule Origin Mapping
 
 | New | Absorbed from |

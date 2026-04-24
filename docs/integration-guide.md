@@ -278,3 +278,16 @@ curl http://localhost:8080/skills/list | jq length
 ```
 
 所有项通过 → 接入完成。
+
+---
+
+### Routes added 2026-04-22
+
+**POST /runs/{id}/cancel**
+- 200: run was live and cancellation was initiated
+- 404: run_id unknown
+
+**GET /ready**
+Now includes additional readiness fields:
+- `llm_mode`: "real" or "structural" — indicates whether a real LLM is configured
+- `llm_provider`: provider name (e.g. "volces", "anthropic")

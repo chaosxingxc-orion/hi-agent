@@ -268,3 +268,16 @@ GET /manifest
 ```
 
 Breaking changes to this contract will increment the major version and be communicated with at least 30 days notice.
+
+---
+
+### Routes added 2026-04-22
+
+**POST /runs/{id}/cancel**
+- 200: run was live and cancellation was initiated
+- 404: run_id unknown
+
+**GET /ready**
+Now includes additional readiness fields:
+- `llm_mode`: "real" or "structural" — indicates whether a real LLM is configured
+- `llm_provider`: provider name (e.g. "volces", "anthropic")

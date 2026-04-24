@@ -1,3 +1,20 @@
+## Platform vs Business Layer Boundary (2026-04-24)
+
+hi-agent is the **capability platform layer**. The research team is the **business application layer**.
+
+| Dimension | hi-agent (Platform) | research (Business) |
+|---|---|---|
+| Execution | TRACE engine, Stage state machine, Restart Policy mechanism | Stage composition, domain-specific workflows |
+| Memory | L0–L3 storage interfaces, profile/workspace scope contracts | Domain topic slicing, PI Agent history aggregation |
+| LLM | TierRouter, Gateway, retry, observability | Model selection strategy, prompt templates |
+| Capability | CapabilitySpec contract, registration/discovery, permissions | Specific tool implementations |
+| Knowledge Graph | LongTermMemoryGraph read/write interface | Domain ontology, schema design |
+| Evolution | EvolveEngine hooks, feedback ingestion interface | Evaluation metrics, feedback interpretation |
+
+**Vocabulary ownership**: PI-A..PI-E patterns and P-1..P-7 gaps are downstream's authoritative vocabulary. Use them in delivery notices and readiness alignment — never as internal module names.
+
+---
+
 # hi-agent Capability Boundaries
 
 **Version**: 1.0 | **Date**: 2026-04-12
