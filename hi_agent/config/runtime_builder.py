@@ -186,20 +186,29 @@ class RuntimeBuilder:
                 )
         return self._middleware_orchestrator
 
-    def inject_middleware_dependencies(self, orchestrator: Any) -> None:
+    def inject_middleware_dependencies(self, orchestrator: Any, *, profile_id: str) -> None:
         """Post-inject subsystem dependencies into orchestrator's middleware instances.
 
         Called after all subsystems are available so the orchestrator's
         middleware instances get their context_manager, skill_loader, etc.
+
+        Rule 13 (DF-27): ``profile_id`` is required so knowledge / retrieval
+        builders can scope their stores. Callers should already have raised
+        when profile_id is empty; we guard here as a defence-in-depth.
         """
+        if not profile_id:
+            raise ValueError(
+                "inject_middleware_dependencies requires a non-empty profile_id "
+                "(DF-27 / Rule 13)."
+            )
         try:
             middlewares: dict[str, Any] = getattr(orchestrator, "_middlewares", {})
             if not middlewares:
                 return
             context_mgr = self._parent.build_context_manager()
             skill_ldr = self._parent.build_skill_loader()
-            knowledge_mgr = self._parent.build_knowledge_manager()
-            retrieval_eng = self._parent.build_retrieval_engine()
+            knowledge_mgr = self._parent.build_knowledge_manager(profile_id=profile_id)
+            retrieval_eng = self._parent.build_retrieval_engine(profile_id=profile_id)
             harness = self._parent.build_harness()
             capability_inv = self._parent.build_invoker()
 

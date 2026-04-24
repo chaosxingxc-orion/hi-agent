@@ -91,22 +91,42 @@ def dev_client(dev_server: AgentServer) -> TestClient:
 # ---------------------------------------------------------------------------
 
 
-def test_sdf01_real_factory_completes_run(dev_client: TestClient) -> None:
+def test_sdf01_real_factory_completes_run(
+    dev_client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
     """The real default executor factory must complete a minimal goal run.
 
     This is the most fundamental test of the server production path:
     POST /runs goes through AgentServer._default_executor_factory →
     SystemBuilder.build_executor() → RunExecutor.execute() in dev mode.
+
+    DF-27: when the caller does not supply ``profile_id``, the server must
+    assign ``'default'`` loudly — log WARNING, record a ``route`` fallback
+    event — instead of silent-defaulting (masks signal) or 500-erroring
+    (breaks back-compat until downstream roadmap P-3).
     """
+    import logging
+
+    caplog.set_level(logging.WARNING)
     resp = dev_client.post("/runs", json={"goal": "Summarize the TRACE framework"})
 
     assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
     run_id = resp.json().get("run_id")
     assert run_id, "run_id must be non-empty"
 
+    # DF-27: the loud-default WARNING must fire because the POST body carried
+    # no profile_id.  Assert it instead of asserting "no fallback events".
+    assert any(
+        "POST /runs received without profile_id" in rec.getMessage()
+        for rec in caplog.records
+    ), "DF-27: missing loud-default WARNING for missing profile_id"
+
     final = _wait_terminal(dev_client, run_id)
 
-    assert final["state"] in ("completed", "failed"), f"Unexpected terminal state: {final['state']}"
+    assert final["state"] == "completed", (
+        f"expected completed via real default factory, got {final['state']!r}. "
+        f"result={final.get('result')}"
+    )
     # Result must be structured (not a bare string)
     result = final.get("result")
     assert isinstance(result, dict), (
@@ -115,6 +135,21 @@ def test_sdf01_real_factory_completes_run(dev_client: TestClient) -> None:
     assert "status" in result
     assert "stages" in result
     assert "artifacts" in result
+    # DF-27: the run's top-level fallback_events must contain the route-kind
+    # entry recorded at the server boundary (Rule 14: resilience must not
+    # mask signal).  The top-level key is populated from
+    # ``get_fallback_events(run.run_id)`` — the server-boundary run_id —
+    # whereas ``result["fallback_events"]`` uses the executor's internal
+    # run_id (different UUID, carries the capability heuristic events).
+    top_fallback_events = final.get("fallback_events") or []
+    route_events = [e for e in top_fallback_events if e.get("kind") == "route"]
+    assert route_events, (
+        f"DF-27: expected at least one kind=='route' fallback event on the "
+        f"run dict; got top={top_fallback_events}, nested={result.get('fallback_events')}"
+    )
+    assert any(e.get("reason") == "missing_profile_id" for e in route_events), (
+        f"DF-27: expected reason=='missing_profile_id' on route event; got {route_events}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -149,13 +184,26 @@ def test_sdf02_full_contract_fields_reach_executor(dev_client: TestClient) -> No
     run_id = resp.json()["run_id"]
     final = _wait_terminal(dev_client, run_id)
 
-    # Should complete (deadline is far future, budget ample for dev mode)
-    assert final["state"] in ("completed", "failed"), (
-        f"Run with full contract fields stuck in state: {final['state']}"
+    # Should complete (deadline is far future, budget ample for dev mode).
+    # Rule 14 / DF-08: the real factory must complete end-to-end.  Accepting
+    # "failed" here would mask default-factory regressions.
+    assert final["state"] == "completed", (
+        f"expected completed via real factory with full contract, got {final['state']!r}. "
+        f"result={final.get('result')}"
     )
     # Must not return a 500 or crash
     result = final.get("result")
     assert isinstance(result, dict), "result must be structured"
+    # DF-27: body omits profile_id → expect exactly the route-kind fallback
+    # recorded at the server boundary; heuristic capability fallbacks in dev
+    # mode are also acceptable here (no real LLM key in test env).
+    fallback_events = result.get("fallback_events") or []
+    non_route_or_capability = [
+        e for e in fallback_events if e.get("kind") not in ("route", "capability")
+    ]
+    assert not non_route_or_capability, (
+        f"unexpected non-route/non-capability fallback events: {non_route_or_capability}"
+    )
 
 
 # ---------------------------------------------------------------------------

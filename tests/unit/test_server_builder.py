@@ -67,15 +67,13 @@ def test_system_builder_build_server_works(monkeypatch, fake_agent_server):
     from hi_agent.config.builder import SystemBuilder
 
     builder = SystemBuilder(TraceConfig(server_host="127.0.0.1", server_port=9090))
-    memory_manager = object()
-    knowledge_manager = object()
     skill_evolver = object()
     skill_loader = object()
     metrics_collector = object()
     run_context_manager = object()
 
-    monkeypatch.setattr(builder, "build_memory_lifecycle_manager", lambda: memory_manager)
-    monkeypatch.setattr(builder, "build_knowledge_manager", lambda: knowledge_manager)
+    # Rule 13 (DF-12): memory_manager / knowledge_manager are per-profile and
+    # are no longer pre-built at server construction time.
     monkeypatch.setattr(builder, "build_skill_evolver", lambda: skill_evolver)
     monkeypatch.setattr(builder, "build_skill_loader", lambda: skill_loader)
     monkeypatch.setattr(builder, "build_metrics_collector", lambda: metrics_collector)
@@ -85,8 +83,6 @@ def test_system_builder_build_server_works(monkeypatch, fake_agent_server):
 
     assert isinstance(server, FakeAgentServer)
     assert server.server_address == ("127.0.0.1", 9090)
-    assert server.memory_manager is memory_manager
-    assert server.knowledge_manager is knowledge_manager
     assert server.skill_evolver is skill_evolver
     assert server.skill_loader is skill_loader
     assert server.metrics_collector is metrics_collector

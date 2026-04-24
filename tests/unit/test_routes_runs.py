@@ -189,3 +189,33 @@ class TestHandleSignalRun:
         req.app.state.agent_server.run_manager.get_run.return_value = MagicMock()
         resp = await handle_signal_run(req)
         assert resp.status_code == 400
+
+
+class TestHandleCancelRun:
+    @pytest.mark.asyncio
+    async def test_run_not_found_returns_404(self) -> None:
+        from hi_agent.server.routes_runs import handle_cancel_run
+
+        req = _make_request(path_params={"run_id": "x"})
+        req.app.state.agent_server.run_manager.get_run.return_value = None
+
+        resp = await handle_cancel_run(req)
+
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_cancel_success(self) -> None:
+        from hi_agent.server.routes_runs import handle_cancel_run
+
+        req = _make_request(path_params={"run_id": "r1"})
+        req.app.state.agent_server.run_manager.get_run.return_value = MagicMock()
+        req.app.state.agent_server.run_manager.cancel_run.return_value = True
+
+        resp = await handle_cancel_run(req)
+
+        assert resp.status_code == 200
+        import json
+
+        body = json.loads(resp.body)
+        assert body["run_id"] == "r1"
+        assert body["state"] == "cancelled"

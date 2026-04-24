@@ -136,6 +136,12 @@ class RunResult:
     """Whether the failure is transient and the run can be safely retried."""
     execution_provenance: ExecutionProvenance | None = None
     """Structured provenance for machine-readable run classification (HI-W1-D3-001)."""
+    fallback_events: list[dict] = field(default_factory=list)
+    """Structured fallback events recorded during the run (Rule 7)."""
+    llm_fallback_count: int = 0
+    """Count of LLM/heuristic fallback events (gate-assertable scalar)."""
+    finished_at: str | None = None
+    """ISO-8601 UTC timestamp when the run reached a terminal state."""
 
     @property
     def success(self) -> bool:
@@ -171,4 +177,7 @@ class RunResult:
             "execution_provenance": self.execution_provenance.to_dict()
             if self.execution_provenance
             else None,
+            "fallback_events": self.fallback_events,
+            "llm_fallback_count": self.llm_fallback_count,
+            "finished_at": self.finished_at,
         }

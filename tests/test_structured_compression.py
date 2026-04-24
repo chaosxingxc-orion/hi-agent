@@ -162,12 +162,12 @@ def test_structured_summary_to_context_block():
     block = summary.to_context_block()
 
     assert "[CONTEXT COMPACTION" in block
-    assert "目标: Build the feature" in block
-    assert "进度: Completed design" in block
-    assert "关键决策: Chose asyncio" in block
+    assert "Goal: Build the feature" in block
+    assert "Progress: Completed design" in block
+    assert "Decisions: Chose asyncio" in block
     assert "a.py" in block
     assert "b.py" in block
-    assert "下一步: Write tests" in block
+    assert "Next steps: Write tests" in block
     assert "[END COMPACTION" in block
     assert "5" in block  # source_message_count
 
@@ -176,7 +176,7 @@ def test_structured_summary_to_context_block_no_files():
     """When modified_files is empty, context block shows placeholder."""
     summary = _sample_summary(modified_files=[])
     block = summary.to_context_block()
-    assert "(无)" in block
+    assert "(none)" in block
 
 
 # ---------------------------------------------------------------------------
@@ -211,8 +211,8 @@ def test_structured_summary_merge():
     # Progress combines both (older first, newer second)
     assert "Step 1 done" in merged.progress
     assert "Step 2 done" in merged.progress
-    assert "之前:" in merged.progress
-    assert "新增:" in merged.progress
+    assert "Previous:" in merged.progress
+    assert "New:" in merged.progress
 
     # Decisions are appended
     assert "Decision A" in merged.decisions

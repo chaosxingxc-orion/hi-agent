@@ -19,6 +19,7 @@ from hi_agent.contracts import (
     TrajectoryNode,
     deterministic_id,
 )
+from hi_agent.contracts.reasoning import ReasoningStep, ReasoningTrace
 from hi_agent.task_view.builder import (
     build_run_index,
     build_task_view_with_knowledge_query,
@@ -60,6 +61,7 @@ class StageExecutor:
         middleware_orchestrator: MiddlewareOrchestrator | None = None,
         capability_registry: Any | None = None,
         capability_runtime_mode: str = "dev",
+        short_term_store: Any | None = None,
     ) -> None:
         self.kernel = kernel
         self.route_engine = route_engine
@@ -76,6 +78,56 @@ class StageExecutor:
         self._middleware_orchestrator = middleware_orchestrator
         self._capability_registry = capability_registry
         self._capability_runtime_mode = capability_runtime_mode
+        self._short_term_store = short_term_store
+        # Side-channel: (run_id, stage_id) -> ReasoningTrace.  Business-layer
+        # stage handlers write here via the append/get helpers below.
+        self._reasoning_traces: dict[tuple[str, str], ReasoningTrace] = {}
+
+    # ------------------------------------------------------------------
+    # Reasoning trace side-channel (P-2)
+    # ------------------------------------------------------------------
+
+    def get_reasoning_trace(self, run_id: str, stage_id: str) -> ReasoningTrace:
+        """Return the live ReasoningTrace for ``(run_id, stage_id)``.
+
+        Creates an empty trace on first access.  Business-layer stage
+        handlers call ``trace.append(ReasoningStep(...))`` during stage
+        execution; the platform persists it when the stage finalizes.
+        """
+        key = (run_id, stage_id)
+        trace = self._reasoning_traces.get(key)
+        if trace is None:
+            trace = ReasoningTrace(run_id=run_id, stage_id=stage_id)
+            self._reasoning_traces[key] = trace
+        return trace
+
+    def append_reasoning_step(
+        self, run_id: str, stage_id: str, step: ReasoningStep
+    ) -> None:
+        """Append a single reasoning step for ``(run_id, stage_id)``."""
+        self.get_reasoning_trace(run_id, stage_id).append(step)
+
+    def persist_reasoning_trace(self, run_id: str, stage_id: str) -> None:
+        """Flush the reasoning trace for ``(run_id, stage_id)`` to L1 STM.
+
+        Always writes — even for an empty trace — so downstream retrieval
+        observes a stable ``ReasoningTrace`` with ``steps == []`` rather
+        than ``None`` when a handler ran but produced no steps.  The trace
+        is then dropped from the in-memory side-channel.
+        """
+        key = (run_id, stage_id)
+        trace = self._reasoning_traces.pop(key, None)
+        if trace is None or self._short_term_store is None:
+            return
+        try:
+            self._short_term_store.save_reasoning_trace(run_id, stage_id, trace)
+        except Exception as exc:
+            _logger.debug(
+                "stage.reasoning_trace_persist_failed run_id=%s stage_id=%s error=%s",
+                run_id,
+                stage_id,
+                exc,
+            )
 
     # ------------------------------------------------------------------
     # Task-view knowledge
@@ -199,6 +251,7 @@ class StageExecutor:
                     selected_branch="",
                     evidence_ids=[],
                 )
+                self.persist_reasoning_trace(executor.run_id, stage_id)
                 return None
             executor._budget_tier_decision = decision
             # Propagate budget fraction into LLM metadata so that
@@ -212,7 +265,10 @@ class StageExecutor:
             try:
                 fresh = executor.session.get_records_after_boundary()
                 _filtered, summary = self.auto_compress.check_and_compress(
-                    fresh, stage_id, budget_tokens=8192
+                    fresh,
+                    stage_id,
+                    budget_tokens=8192,
+                    run_id=executor.run_id,
                 )
                 if summary is not None:
                     executor.session.set_stage_summary(f"{stage_id}_auto", summary)
@@ -399,10 +455,13 @@ class StageExecutor:
                     _logger.warning(
                         "capability_filter raised unexpectedly — proceeding without filter: %s", exc
                     )
-                    from hi_agent.observability.fallback import FallbackTaxonomy, record_fallback
+                    from hi_agent.observability.fallback import record_fallback
 
                     record_fallback(
-                        FallbackTaxonomy.UNEXPECTED_EXCEPTION, "capability_filter", str(exc)
+                        "capability",
+                        reason="capability_filter_exception",
+                        run_id=executor.run_id,
+                        extra={"component": "capability_filter", "error": str(exc)},
                     )
                     # proposal remains unfiltered (existing behavior)
 
@@ -685,6 +744,7 @@ class StageExecutor:
                             executor.stage_summaries[stage_id] = _failed_summary
                             executor._persist_snapshot(stage_id=stage_id, result="failed")
                             executor._sync_to_context()
+                            self.persist_reasoning_trace(executor.run_id, stage_id)
                             return "failed"
             except Exception as exc:
                 _logger.debug(
@@ -713,6 +773,7 @@ class StageExecutor:
                 {"stage_id": stage_id},
             )
             executor._sync_to_context()
+            self.persist_reasoning_trace(executor.run_id, stage_id)
             return "failed"
 
         self.kernel.mark_stage_state(executor.run_id, stage_id, StageState.COMPLETED)
@@ -729,4 +790,5 @@ class StageExecutor:
             {"run_id": executor.run_id, "stage_id": stage_id},
         )
         executor._sync_to_context()
+        self.persist_reasoning_trace(executor.run_id, stage_id)
         return None  # stage completed OK, continue

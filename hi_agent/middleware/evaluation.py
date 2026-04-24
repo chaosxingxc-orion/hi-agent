@@ -71,6 +71,7 @@ class EvaluationMiddleware:
 
     def process(self, message: MiddlewareMessage) -> MiddlewareMessage:
         """Evaluate execution results and decide next action."""
+        run_id: str | None = message.metadata.get("run_id")
         payload = message.payload
         results = payload.get("results", [])
         perception_text = payload.get("perception_text", "")
@@ -102,6 +103,7 @@ class EvaluationMiddleware:
                     output=output,
                     evidence=result.get("evidence", []),
                     task_goal=perception_text,
+                    run_id=run_id,
                 )
 
             issues: list[str] = []
@@ -183,6 +185,7 @@ class EvaluationMiddleware:
         output: Any,
         evidence: list[str],
         task_goal: str = "",
+        run_id: str | None = None,
     ) -> tuple[float, str, dict]:
         """Assess quality of execution output.
 
@@ -233,7 +236,7 @@ class EvaluationMiddleware:
         # Try LLM-based scoring when gateway is available
         if self._llm_gateway is not None:
             try:
-                score, _issues = self._llm_evaluate(task_goal, str(output))
+                score, _issues = self._llm_evaluate(task_goal, str(output), run_id=run_id)
                 return score, "llm", {"evaluator_id": "llm", "fallback_reason": ""}
             except Exception:
                 logger.warning(
@@ -269,12 +272,15 @@ class EvaluationMiddleware:
         self,
         task_goal: str,
         output: str,
+        *,
+        run_id: str | None = None,
     ) -> tuple[float, list[str]]:
         """Use LLM to evaluate output quality.
 
         Args:
             task_goal: The task objective to evaluate against.
             output: The execution output to assess.
+            run_id: Optional run identifier threaded into request metadata.
 
         Returns:
             Tuple of (score 0.0-1.0, list of issues).
@@ -295,7 +301,7 @@ class EvaluationMiddleware:
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
             max_tokens=512,
-            metadata={"purpose": self._model_tier},
+            metadata={"purpose": self._model_tier, "run_id": run_id},
         )
         response = self._llm_gateway.complete(request)  # type: ignore[union-attr]
         parsed = json.loads(response.content)

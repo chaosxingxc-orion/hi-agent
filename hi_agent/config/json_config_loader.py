@@ -39,6 +39,54 @@ _logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "llm_config.json"
 
+_PROVIDER_API_KEY_ENVS = {
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "openai": ("OPENAI_API_KEY",),
+    "volces": ("VOLCE_API_KEY",),
+}
+
+_PROVIDER_BASE_URL_ENVS = {
+    "anthropic": ("ANTHROPIC_BASE_URL", "HI_AGENT_ANTHROPIC_BASE_URL"),
+    "openai": ("OPENAI_BASE_URL", "HI_AGENT_OPENAI_BASE_URL"),
+    "volces": ("VOLCE_BASE_URL",),
+}
+
+
+def _provider_api_key_envs(provider: str) -> tuple[str, ...]:
+    """Return provider-specific and generic API-key env names."""
+    normalized = provider.strip().lower()
+    generic = f"HI_AGENT_LLM_API_KEY_{normalized.upper()}"
+    names = [*_PROVIDER_API_KEY_ENVS.get(normalized, ()), generic]
+    return tuple(dict.fromkeys(names))
+
+
+def _provider_base_url_envs(provider: str) -> tuple[str, ...]:
+    """Return provider-specific and generic base-url env names."""
+    normalized = provider.strip().lower()
+    generic = f"HI_AGENT_LLM_BASE_URL_{normalized.upper()}"
+    names = [*_PROVIDER_BASE_URL_ENVS.get(normalized, ()), generic]
+    return tuple(dict.fromkeys(names))
+
+
+def _resolve_provider_api_key(provider: str, provider_cfg: dict) -> tuple[str, str]:
+    """Resolve provider credentials without requiring secrets in JSON."""
+    env_names = _provider_api_key_envs(provider)
+    for env_name in env_names:
+        value = os.environ.get(env_name, "")
+        if value:
+            return value, env_name
+    api_key = str(provider_cfg.get("api_key", "") or "")
+    return api_key, env_names[0]
+
+
+def _resolve_provider_base_url(provider: str, provider_cfg: dict) -> str:
+    """Resolve provider base URL, allowing env to override JSON."""
+    for env_name in _provider_base_url_envs(provider):
+        value = os.environ.get(env_name, "")
+        if value:
+            return value
+    return str(provider_cfg.get("base_url", "") or "")
+
 
 def load_from_json_config(
     config_path: str | Path = _DEFAULT_CONFIG_PATH,
@@ -150,24 +198,32 @@ def build_gateway_from_config(
     providers = data.get("providers", {})
     provider_cfg = providers.get(default_provider, {})
 
-    api_key = provider_cfg.get("api_key", "")
+    api_key, env_var = _resolve_provider_api_key(default_provider, provider_cfg)
     if not api_key:
         _logger.warning(
-            "build_gateway_from_config: provider %r has no api_key in config",
+            "build_gateway_from_config: provider %r has no api_key in config or environment",
             default_provider,
         )
         return None
 
-    base_url = provider_cfg.get("base_url", "")
     api_format = provider_cfg.get("api_format", "anthropic")
+    # For Anthropic-format providers, prefer anthropic_base_url when present
+    # because AnthropicLLMGateway._post appends /v1/messages itself — using base_url
+    # (which already contains /v1) would produce a double-/v1/ path.
+    if api_format == "anthropic" and provider_cfg.get("anthropic_base_url"):
+        base_url = str(provider_cfg["anthropic_base_url"])
+    else:
+        base_url = _resolve_provider_base_url(default_provider, provider_cfg)
     models_cfg = provider_cfg.get("models", {})
-    default_model = models_cfg.get("medium") or models_cfg.get("strong") or ""
-
-    # --- Inject API key into a stable env var ---
-    env_var_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
-    env_var = (
-        env_var_map.get(default_provider) or f"HI_AGENT_LLM_API_KEY_{default_provider.upper()}"
+    default_model = (
+        models_cfg.get("strong") or models_cfg.get("medium") or models_cfg.get("light") or ""
     )
+
+    # Inject API key into the env var consumed by gateway constructors.
+    # We restore the prior env state after construction so this function does
+    # not permanently pollute os.environ — the gateways now cache the key at
+    # construction time (AnthropicLLMGateway._api_key_resolved).
+    _prev_env_val = os.environ.get(env_var)
     os.environ[env_var] = api_key
     _logger.info(
         "build_gateway_from_config: provider=%r format=%r key_env=%s",
@@ -176,57 +232,65 @@ def build_gateway_from_config(
         env_var,
     )
 
-    # --- Build model registry with provider's declared models only ---
-    # Do not call register_defaults(): that would inject gpt-4.1 / claude-sonnet
-    # defaults and mix them with third-party provider models in the registry.
-    registry = ModelRegistry()
+    try:
+        # --- Build model registry with provider's declared models only ---
+        # Do not call register_defaults(): that would inject gpt-4.1 / claude-sonnet
+        # defaults and mix them with third-party provider models in the registry.
+        registry = ModelRegistry()
 
-    _tier_map = {
-        "strong": ModelTier.STRONG,
-        "medium": ModelTier.MEDIUM,
-        "light": ModelTier.LIGHT,
-    }
-    for tier_name, model_id in models_cfg.items():
-        tier = _tier_map.get(tier_name)
-        if tier and model_id:
-            registry.register(
-                RegisteredModel(
-                    model_id=model_id,
-                    provider=default_provider,
-                    tier=tier,
-                    cost_input_per_mtok=0.0,
-                    cost_output_per_mtok=0.0,
-                    speed="standard",
-                    context_window=128_000,
-                    max_output_tokens=8_192,
-                    capabilities=["code", "tool_use"],
+        _tier_map = {
+            "strong": ModelTier.STRONG,
+            "medium": ModelTier.MEDIUM,
+            "light": ModelTier.LIGHT,
+        }
+        for tier_name, model_id in models_cfg.items():
+            tier = _tier_map.get(tier_name)
+            if tier and model_id:
+                registry.register(
+                    RegisteredModel(
+                        model_id=model_id,
+                        provider=default_provider,
+                        tier=tier,
+                        cost_input_per_mtok=0.0,
+                        cost_output_per_mtok=0.0,
+                        speed="standard",
+                        context_window=128_000,
+                        max_output_tokens=8_192,
+                        capabilities=["code", "tool_use"],
+                    )
                 )
+
+        # --- Build raw gateway ---
+        features = provider_cfg.get("features", {})
+        thinking_budget: int | None = features.get("thinking_budget") or None
+        _timeout = int(provider_cfg.get("timeout_seconds", 120))
+
+        if api_format == "anthropic":
+            from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
+
+            raw_gw: object = AnthropicLLMGateway(
+                api_key_env=env_var,
+                default_model=default_model or "claude-sonnet-4-6",
+                timeout_seconds=_timeout,
+                base_url=base_url or "https://api.anthropic.com",
+                default_thinking_budget=thinking_budget,
+            )
+        else:
+            from hi_agent.llm.http_gateway import HttpLLMGateway
+
+            raw_gw = HttpLLMGateway(
+                base_url=base_url or "https://api.openai.com/v1",
+                api_key_env=env_var,
+                default_model=default_model or "gpt-4o",
+                timeout_seconds=_timeout,
             )
 
-    # --- Build raw gateway ---
-    features = provider_cfg.get("features", {})
-    thinking_budget: int | None = features.get("thinking_budget") or None
-    _timeout = int(provider_cfg.get("timeout_seconds", 120))
-
-    if api_format == "anthropic":
-        from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
-
-        raw_gw: object = AnthropicLLMGateway(
-            api_key_env=env_var,
-            default_model=default_model or "claude-sonnet-4-6",
-            timeout_seconds=_timeout,
-            base_url=base_url or "https://api.anthropic.com",
-            default_thinking_budget=thinking_budget,
-        )
-    else:
-        from hi_agent.llm.http_gateway import HttpLLMGateway
-
-        raw_gw = HttpLLMGateway(
-            base_url=base_url or "https://api.openai.com/v1",
-            api_key_env=env_var,
-            default_model=default_model or "gpt-4o",
-            timeout_seconds=_timeout,
-        )
-
-    tier_router = TierRouter(registry)
-    return TierAwareLLMGateway(raw_gw, tier_router, registry)
+        tier_router = TierRouter(registry)
+        result = TierAwareLLMGateway(raw_gw, tier_router, registry)
+    finally:
+        # Restore env var to its prior state after the gateway has cached the key.
+        if _prev_env_val is None:
+            os.environ.pop(env_var, None)
+        else:
+            os.environ[env_var] = _prev_env_val
+    return result

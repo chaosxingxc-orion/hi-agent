@@ -20,11 +20,14 @@ def _make_builder(tmp_path):
     return SystemBuilder(config=cfg)
 
 
-def _make_contract(profile_id: str | None = None):
+def _make_contract(profile_id: str | None = "test"):
     """Return a minimal TaskContract."""
     from hi_agent.contracts import TaskContract
 
-    return TaskContract(task_id="t1", goal="test goal", profile_id=profile_id)
+    # DF-27: builder requires non-empty profile_id; default to 'test-profile'.
+    return TaskContract(
+        task_id="t1", goal="test goal", profile_id=profile_id or "test-profile"
+    )
 
 
 # ---------------------------------------------------------------------------

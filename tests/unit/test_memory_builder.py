@@ -25,33 +25,51 @@ def test_build_watchdog_returns_object(mb):
 
 
 def test_build_short_term_store_returns_object(mb):
-    assert mb.build_short_term_store() is not None
+    assert mb.build_short_term_store(profile_id="unit-test-profile") is not None
 
 
 def test_build_mid_term_store_returns_object(mb):
-    assert mb.build_mid_term_store() is not None
+    assert mb.build_mid_term_store(profile_id="unit-test-profile") is not None
 
 
 def test_build_long_term_graph_returns_object(mb):
-    assert mb.build_long_term_graph() is not None
+    assert mb.build_long_term_graph(profile_id="unit-test-profile") is not None
 
 
 def test_build_retrieval_engine_returns_object(mb):
-    obj = mb.build_retrieval_engine()
+    obj = mb.build_retrieval_engine(profile_id="unit-test-profile")
     assert obj is not None
 
 
 def test_build_memory_lifecycle_manager_returns_object(mb):
-    obj = mb.build_memory_lifecycle_manager()
+    obj = mb.build_memory_lifecycle_manager(profile_id="unit-test-profile")
     assert obj is not None
 
 
 def test_memory_builder_profile_id_param(mb):
-    """profile_id parameter changes storage path."""
-    s1 = mb.build_short_term_store(profile_id="")
-    s2 = mb.build_short_term_store(profile_id="test_profile")
-    # Different profile_id → different objects (no caching on profile_id)
+    """Different profile_id values produce distinct store instances (S3 registry)."""
+    s1 = mb.build_short_term_store(profile_id="profile-one")
+    s2 = mb.build_short_term_store(profile_id="profile-two")
+    # Different profile_id → different cache entries
     assert s1 is not s2
+
+
+def test_build_short_term_store_rejects_empty_profile_id(mb):
+    """Rule 13 (DF-12): empty profile_id with no workspace_key must raise."""
+    with pytest.raises(ValueError, match="profile_id"):
+        mb.build_short_term_store(profile_id="")
+
+
+def test_build_mid_term_store_rejects_empty_profile_id(mb):
+    """Rule 13 (DF-12): empty profile_id with no workspace_key must raise."""
+    with pytest.raises(ValueError, match="profile_id"):
+        mb.build_mid_term_store(profile_id="")
+
+
+def test_build_long_term_graph_rejects_empty_profile_id(mb):
+    """Rule 13 (DF-12): empty profile_id with no workspace_key must raise."""
+    with pytest.raises(ValueError, match="profile_id"):
+        mb.build_long_term_graph(profile_id="")
 
 
 def test_memory_builder_does_not_require_builder_ref():

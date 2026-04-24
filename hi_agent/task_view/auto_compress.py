@@ -90,6 +90,7 @@ class AutoCompressTrigger:
         records: list[dict[str, Any]],
         stage_id: str,
         budget_tokens: int = 8192,
+        run_id: str | None = None,
     ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
         """Check if compression needed. Returns (filtered_records, new_summary_or_None).
 
@@ -132,7 +133,7 @@ class AutoCompressTrigger:
         # compressor is available, produce an LLM summary.
         total = self._estimate_records_tokens(working)
         if total > self.compress_threshold and self._compressor is not None:
-            summary = self._run_compressor(working, stage_id)
+            summary = self._run_compressor(working, stage_id, run_id=run_id)
             return working, summary
 
         return working, None
@@ -169,6 +170,8 @@ class AutoCompressTrigger:
         self,
         records: list[dict[str, Any]],
         stage_id: str,
+        *,
+        run_id: str | None = None,
     ) -> dict[str, Any]:
         """Call compressor synchronously and return summary dict.
 
@@ -188,7 +191,7 @@ class AutoCompressTrigger:
                     )
                 )
 
-            result = self._compressor.compress_stage(stage_id, raw_records)
+            result = self._compressor.compress_stage(stage_id, raw_records, run_id=run_id)
             return {
                 "stage_id": result.stage_id,
                 "findings": result.findings,
@@ -197,6 +200,15 @@ class AutoCompressTrigger:
                 "compression_method": result.compression_method,
             }
         except Exception:
+            self._record_fallback(
+                run_id=run_id,
+                stage_id=stage_id,
+                reason="auto_compress_exception",
+                extra={
+                    "site": "auto_compress._run_compressor",
+                    "record_count": len(records),
+                },
+            )
             # Fallback: return a minimal summary from the records.
             return {
                 "stage_id": stage_id,
@@ -205,3 +217,24 @@ class AutoCompressTrigger:
                 "outcome": "compressed_fallback",
                 "compression_method": "auto_fallback",
             }
+
+    def _record_fallback(
+        self,
+        *,
+        run_id: str | None,
+        stage_id: str,
+        reason: str,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """Best-effort fallback event for auto-compress degradation paths."""
+        try:
+            from hi_agent.observability.fallback import record_fallback
+
+            record_fallback(
+                "heuristic",
+                reason=reason,
+                run_id=run_id or "unknown_run",
+                extra={"stage_id": stage_id, **(extra or {})},
+            )
+        except Exception:
+            pass

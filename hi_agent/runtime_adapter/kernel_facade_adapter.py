@@ -354,11 +354,12 @@ class KernelFacadeAdapter:
         from agent_kernel.kernel.contracts import TraceFailureCode
 
         failure_val = None
+        reason = None
         if normalized_failure is not None:
             try:
                 failure_val = TraceFailureCode(normalized_failure)
             except (ValueError, TypeError):
-                failure_val = normalized_failure  # type: ignore[assignment]
+                reason = normalized_failure
         self._call(
             "mark_branch_state",
             BranchStateUpdateRequest(
@@ -366,6 +367,7 @@ class KernelFacadeAdapter:
                 branch_id=normalized_branch,
                 new_state=normalized_state,  # type: ignore[arg-type]
                 failure_code=failure_val,
+                reason=reason,
             ),
         )
 
@@ -455,28 +457,11 @@ class KernelFacadeAdapter:
                 caused_by=caused_by,
             )
             if asyncio.iscoroutine(coro):
-                try:
-                    loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    loop = None
-                if loop is not None and loop.is_running():
-                    import threading
+                # Rule 12: route through the durable SyncBridge so the facade's
+                # async resources share one event loop across sync calls.
+                from hi_agent.runtime.sync_bridge import get_bridge
 
-                    holder: dict[str, Any] = {}
-
-                    def _runner() -> None:
-                        try:
-                            holder["result"] = asyncio.run(coro)
-                        except Exception as exc:
-                            holder["error"] = exc
-
-                    thread = threading.Thread(target=_runner, daemon=True)
-                    thread.start()
-                    thread.join()
-                    if "error" in holder:
-                        raise holder["error"]  # type: ignore[misc]
-                else:
-                    asyncio.run(coro)
+                get_bridge().call_sync(coro)
         except RuntimeAdapterBackendError:
             raise
         except Exception as exc:
@@ -652,29 +637,10 @@ class KernelFacadeAdapter:
             # This supports async KernelFacade methods called from the
             # sync RuntimeAdapter Protocol surface.
             if asyncio.iscoroutine(result):
-                try:
-                    loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    loop = None
-                if loop is not None and loop.is_running():
-                    import threading
+                # Rule 12: share one durable event loop across sync calls.
+                from hi_agent.runtime.sync_bridge import get_bridge
 
-                    holder: dict[str, Any] = {}
-
-                    def _runner() -> None:
-                        try:
-                            holder["result"] = asyncio.run(result)
-                        except Exception as exc:
-                            holder["error"] = exc
-
-                    thread = threading.Thread(target=_runner, daemon=True)
-                    thread.start()
-                    thread.join()
-                    if "error" in holder:
-                        raise holder["error"]
-                    return holder.get("result")
-                else:
-                    return asyncio.run(result)
+                return get_bridge().call_sync(result)
             return result
         except RuntimeAdapterBackendError:
             raise
@@ -772,42 +738,16 @@ def create_local_adapter() -> KernelFacadeAdapter:
 
     _task_view_log = _InMemoryTaskViewLog()
 
-    # KernelRuntime.start() is async. If a running event loop is detected
-    # (e.g. inside a Starlette/FastAPI test or server context), we spin up
-    # a dedicated daemon thread so asyncio.run() gets a fresh event loop.
-    import threading
+    # KernelRuntime.start() is async. Rule 12: run it on the process-wide
+    # SyncBridge so the runtime's async resources (substrate task groups,
+    # event-log connections) share one durable event loop with later facade
+    # calls. This removes the need for the previous per-call daemon thread
+    # + asyncio.run() dance.
+    from hi_agent.runtime.sync_bridge import get_bridge
 
-    def _start_in_thread() -> KernelFacadeAdapter:
-        result: list = []
-        exc_holder: list = []
-
-        def target() -> None:
-            try:
-                rt = asyncio.run(KernelRuntime.start(config))
-                result.append(rt)
-            except Exception as e:
-                exc_holder.append(e)
-
-        t = threading.Thread(target=target, daemon=True)
-        t.start()
-        t.join()
-        if exc_holder:
-            raise exc_holder[0]
-        facade = result[0].facade
-        if getattr(facade, "_task_view_log", None) is None:
-            facade._task_view_log = _task_view_log
-        _ensure_workflow_signal_run_compat(facade)
-        return KernelFacadeAdapter(facade)
-
-    try:
-        asyncio.get_running_loop()
-        # Already inside an event loop — delegate to thread.
-        return _start_in_thread()
-    except RuntimeError:
-        # No running loop — safe to call asyncio.run() directly.
-        runtime = asyncio.run(KernelRuntime.start(config))
-        facade = runtime.facade
-        if getattr(facade, "_task_view_log", None) is None:
-            facade._task_view_log = _task_view_log
-        _ensure_workflow_signal_run_compat(facade)
-        return KernelFacadeAdapter(facade)
+    runtime = get_bridge().call_sync(KernelRuntime.start(config))
+    facade = runtime.facade
+    if getattr(facade, "_task_view_log", None) is None:
+        facade._task_view_log = _task_view_log
+    _ensure_workflow_signal_run_compat(facade)
+    return KernelFacadeAdapter(facade)

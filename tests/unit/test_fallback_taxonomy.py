@@ -51,7 +51,12 @@ def test_record_fallback_accepts_all_taxonomy_values():
 
 
 def test_record_fallback_uses_supplied_logger():
-    """When a custom logger is supplied it should receive the info call."""
+    """When a custom logger is supplied it should receive a WARNING call.
+
+    Rule 14 / DF-01: record_fallback now logs at WARNING (not INFO) so
+    the operator-shape gate in Rule 15 can see it.  The positional args
+    carry kind, component, detail.
+    """
     mock_logger = MagicMock(spec=logging.Logger)
     record_fallback(
         FallbackTaxonomy.SECURITY_DENIED,
@@ -59,13 +64,13 @@ def test_record_fallback_uses_supplied_logger():
         "rbac_check_failed",
         logger=mock_logger,
     )
-    mock_logger.info.assert_called_once()
-    call_kwargs = mock_logger.info.call_args
-    extra = call_kwargs.kwargs.get("extra") or (
-        call_kwargs.args[1] if len(call_kwargs.args) > 1 else {}
-    )
-    assert extra.get("fallback_kind") == FallbackTaxonomy.SECURITY_DENIED
-    assert extra.get("fallback_component") == "auth_gate"
+    mock_logger.warning.assert_called_once()
+    call = mock_logger.warning.call_args
+    # The message must carry the taxonomy, component, and detail verbatim.
+    rendered = call.args[0] % call.args[1:]
+    assert "security_denied" in rendered
+    assert "auth_gate" in rendered
+    assert "rbac_check_failed" in rendered
 
 
 def test_record_fallback_does_not_raise_when_logging_fails():

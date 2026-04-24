@@ -70,7 +70,9 @@ class TestBuildKnowledgeManager:
         graph = MagicMock()
         builder = KnowledgeBuilder(_config(tmp_path))
 
-        manager = builder.build_knowledge_manager(long_term_graph=graph)
+        manager = builder.build_knowledge_manager(
+            profile_id="unit-test-profile", long_term_graph=graph
+        )
 
         assert isinstance(manager, KnowledgeManager)
 
@@ -78,9 +80,20 @@ class TestBuildKnowledgeManager:
         graph = MagicMock()
         builder = KnowledgeBuilder(_config(tmp_path))
 
-        manager = builder.build_knowledge_manager(long_term_graph=graph)
+        manager = builder.build_knowledge_manager(
+            profile_id="unit-test-profile", long_term_graph=graph
+        )
 
         assert manager.graph is graph
+
+    def test_rejects_empty_profile_id(self, tmp_path):
+        """Rule 13 (DF-12): empty profile_id must raise."""
+        import pytest
+
+        builder = KnowledgeBuilder(_config(tmp_path))
+
+        with pytest.raises(ValueError, match="profile_id"):
+            builder.build_knowledge_manager(profile_id="", long_term_graph=MagicMock())
 
     def test_uses_factory_when_graph_not_provided(self, tmp_path):
         graph = MagicMock()

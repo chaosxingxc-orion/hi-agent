@@ -16,7 +16,7 @@ def test_build_executor_uses_workspace_scoped_paths(tmp_path):
     builder = SystemBuilder(cfg)
     key = WorkspaceKey(tenant_id="t1", user_id="u1", session_id="s1")
 
-    contract = TaskContract(task_id="test-run-1", goal="test goal")
+    contract = TaskContract(task_id="test-run-1", goal="test goal", profile_id="test")
     executor = builder.build_executor(contract, workspace_key=key)
 
     mid_term = getattr(executor, "mid_term_store", None)
@@ -35,7 +35,7 @@ def test_build_executor_workspace_key_none_uses_default(tmp_path):
     cfg = TraceConfig(episodic_storage_dir=str(tmp_path / "episodes"))
     builder = SystemBuilder(cfg)
 
-    contract = TaskContract(task_id="test-run-2", goal="test goal")
+    contract = TaskContract(task_id="test-run-2", goal="test goal", profile_id="test")
     executor = builder.build_executor(contract, workspace_key=None)
 
     mid_term = getattr(executor, "mid_term_store", None)
@@ -54,7 +54,7 @@ def test_build_executor_raw_memory_uses_workspace_scoped_path(tmp_path):
     builder = SystemBuilder(cfg)
     key = WorkspaceKey(tenant_id="t1", user_id="u1", session_id="s1")
 
-    contract = TaskContract(task_id="test-run-3", goal="test goal")
+    contract = TaskContract(task_id="test-run-3", goal="test goal", profile_id="test")
     executor = builder.build_executor(contract, workspace_key=key)
 
     raw_memory = getattr(executor, "raw_memory", None)
@@ -76,7 +76,7 @@ def test_build_run_executor_empty_user_id_falls_back(tmp_path):
     builder = SystemBuilder(cfg)
     key = WorkspaceKey(tenant_id="t1", user_id="", session_id="s1")
 
-    contract = TaskContract(task_id="test-run-4", goal="test goal")
+    contract = TaskContract(task_id="test-run-4", goal="test goal", profile_id="test")
     # Should not raise, should return an executor with non-workspace paths
     executor = builder.build_executor(contract, workspace_key=key)
     mid_term = getattr(executor, "mid_term_store", None)

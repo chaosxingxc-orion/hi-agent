@@ -6,12 +6,16 @@ external dependencies.
 
 from __future__ import annotations
 
+import logging
+import os
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from math import ceil
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -59,6 +63,63 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "llm_cost_per_run",
         "histogram",
         "Per-run LLM cost distribution in USD.",
+    ),
+    # Rule 8 / Rule 15: every outgoing LLM request increments this counter.
+    # Exposed as ``hi_agent_llm_requests_total`` in /metrics output.
+    # Gateway code calls record_llm_request() from hi_agent.observability.fallback.
+    "hi_agent_llm_requests_total": _MetricDef(
+        "hi_agent_llm_requests_total",
+        "counter",
+        "Total outgoing LLM requests by provider, model, and tier.",
+    ),
+    # Rule 14: fallback / degradation signals. Any code path that substitutes
+    # a heuristic or degraded result for a primary path MUST record one of
+    # these counters so Rule 15's operator-shape gate is not vacuous.
+    "fallback_llm": _MetricDef(
+        "fallback_llm",
+        "counter",
+        "LLM call fell back to a degraded path (retries exhausted, gateway missing, etc.).",
+    ),
+    "fallback_heuristic": _MetricDef(
+        "fallback_heuristic",
+        "counter",
+        "A subsystem produced a heuristic result in place of a model/tool call.",
+    ),
+    "fallback_capability": _MetricDef(
+        "fallback_capability",
+        "counter",
+        "A capability handler returned a heuristic/degraded result.",
+    ),
+    "fallback_route": _MetricDef(
+        "fallback_route",
+        "counter",
+        "Route engine fell back to a default route (rule miss, LLM router failure).",
+    ),
+    # Legacy fallback taxonomy counters (kept for backward-compatibility with
+    # existing record_fallback() call-sites in context/, llm/, runner_stage/).
+    # These predate the four-kind taxonomy but are retained so that their
+    # signals are countable instead of silently dropped.
+    "fallback_expected_degradation": _MetricDef(
+        "fallback_expected_degradation", "counter", "Expected degradation event."
+    ),
+    "fallback_unexpected_exception": _MetricDef(
+        "fallback_unexpected_exception", "counter", "Unexpected exception caught and swallowed."
+    ),
+    "fallback_security_denied": _MetricDef(
+        "fallback_security_denied", "counter", "Security policy denied an action; fallback taken."
+    ),
+    "fallback_dependency_unavailable": _MetricDef(
+        "fallback_dependency_unavailable",
+        "counter",
+        "External dependency unavailable; degraded path taken.",
+    ),
+    "fallback_heuristic_fallback": _MetricDef(
+        "fallback_heuristic_fallback", "counter", "Heuristic used in place of primary logic."
+    ),
+    "fallback_policy_bypass_dev": _MetricDef(
+        "fallback_policy_bypass_dev",
+        "counter",
+        "Dev-mode policy bypass (must be zero in prod releases).",
     ),
 }
 
@@ -116,6 +177,37 @@ def default_alert_rules() -> list[AlertRule]:
             cooldown_s=600.0,
         ),
     ]
+
+
+def _strict_metrics_enabled() -> bool:
+    """Return True if ``HI_AGENT_STRICT_METRICS`` selects strict mode."""
+    return os.environ.get("HI_AGENT_STRICT_METRICS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _report_unknown_metric(metric_name: str, op: str) -> None:
+    """Log an ERROR (and optionally raise) when an unknown metric name is used.
+
+    Rule 14 forbids silently dropping fallback/degradation signals.  Any caller
+    writing to a metric name that is not registered in ``_METRIC_DEFS`` has a
+    wiring bug that must be visible.  In normal mode we log loudly and return.
+    In strict mode (``HI_AGENT_STRICT_METRICS=1``) we raise ``KeyError`` so
+    tests can assert on the defect.
+    """
+    known = sorted(_METRIC_DEFS.keys())
+    _logger.error(
+        "MetricsCollector.%s received unknown metric name %r (known=%s). "
+        "This signal is being dropped — register the metric in _METRIC_DEFS.",
+        op,
+        metric_name,
+        known,
+    )
+    if _strict_metrics_enabled():
+        raise KeyError(f"unknown metric: {metric_name!r}")
 
 
 def _labels_key(labels: dict[str, str] | None) -> str:
@@ -177,11 +269,13 @@ class MetricsCollector:
         For gauges, *value* replaces the current reading.
         For histograms, *value* is appended to the sample window.
 
-        Unknown metric names are silently ignored so that callers can
-        be written generically without checking the catalogue first.
+        Unknown metric names are logged at ERROR level so that mis-wired
+        signals surface loudly instead of being silently dropped (Rule 14).
+        Set ``HI_AGENT_STRICT_METRICS=1`` to raise ``KeyError`` instead.
         """
         defn = _METRIC_DEFS.get(metric_name)
         if defn is None:
+            _report_unknown_metric(metric_name, "record")
             return
         lk = _labels_key(labels)
         with self._lock:
@@ -204,9 +298,15 @@ class MetricsCollector:
         value: float = 1.0,
         labels: dict[str, str] | None = None,
     ) -> None:
-        """Convenience alias: increment a counter or gauge by *value*."""
+        """Convenience alias: increment a counter or gauge by *value*.
+
+        Unknown metric names are logged at ERROR level (Rule 14: signals must
+        not be silently dropped). When ``HI_AGENT_STRICT_METRICS=1`` the call
+        raises ``KeyError`` so mis-wired call-sites fail loudly in tests.
+        """
         defn = _METRIC_DEFS.get(metric_name)
         if defn is None:
+            _report_unknown_metric(metric_name, "increment")
             return
         lk = _labels_key(labels)
         with self._lock:
@@ -225,7 +325,10 @@ class MetricsCollector:
     ) -> None:
         """Set a gauge to an absolute value."""
         defn = _METRIC_DEFS.get(metric_name)
-        if defn is None or defn.kind != "gauge":
+        if defn is None:
+            _report_unknown_metric(metric_name, "gauge_set")
+            return
+        if defn.kind != "gauge":
             return
         lk = _labels_key(labels)
         with self._lock:
@@ -442,3 +545,32 @@ class MetricsCollector:
             return 0.0
         rank = ceil(q * n)
         return sorted_samples[max(0, rank - 1)]
+
+
+# ----------------------------------------------------------------------
+# Process-level singleton
+# ----------------------------------------------------------------------
+#
+# ``record_fallback`` needs access to a shared MetricsCollector even when
+# called from deeply-nested code paths that were not given an explicit
+# injection.  Callers that build their own collector should register it
+# here via :func:`set_metrics_collector` so fallback signals are countable.
+
+_SINGLETON_LOCK = threading.Lock()
+_SINGLETON: MetricsCollector | None = None
+
+
+def set_metrics_collector(collector: MetricsCollector | None) -> None:
+    """Register a process-wide default MetricsCollector.
+
+    Passing ``None`` clears the registration (primarily for test isolation).
+    """
+    global _SINGLETON
+    with _SINGLETON_LOCK:
+        _SINGLETON = collector
+
+
+def get_metrics_collector() -> MetricsCollector | None:
+    """Return the process-wide MetricsCollector, or ``None`` if unset."""
+    with _SINGLETON_LOCK:
+        return _SINGLETON

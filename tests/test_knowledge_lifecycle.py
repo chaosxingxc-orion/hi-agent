@@ -277,7 +277,7 @@ class TestSystemBuilderKnowledge:
 
         config = TraceConfig(episodic_storage_dir=str(tmp_path / "episodes"))
         builder = SystemBuilder(config)
-        km = builder.build_knowledge_manager()
+        km = builder.build_knowledge_manager(profile_id="test-profile")
 
         assert km is not None
         assert km.wiki is not None
@@ -307,6 +307,7 @@ class TestSystemBuilderKnowledge:
             goal="test goal",
             task_family="quick_task",
             risk_level="low",
+            profile_id="test",
         )
         executor = builder.build_executor(contract)
         assert executor.knowledge_query_fn is not None

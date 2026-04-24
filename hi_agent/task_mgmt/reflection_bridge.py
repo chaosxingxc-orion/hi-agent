@@ -47,13 +47,36 @@ def reflection_context_to_recovery_dict(ctx: ReflectionContext) -> dict[str, Any
     }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class TaskDescriptor:
     """Minimal task descriptor used by the reflection bridge."""
 
     task_id: str
     goal_description: str
     restart_policy: TaskRestartPolicy
+
+    def __init__(
+        self,
+        task_id: str,
+        goal_description: str | None = None,
+        restart_policy: TaskRestartPolicy | None = None,
+        *,
+        goal: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Create descriptor, accepting the legacy goal/context shape."""
+        del context
+        object.__setattr__(self, "task_id", task_id)
+        object.__setattr__(
+            self,
+            "goal_description",
+            goal_description if goal_description is not None else (goal or ""),
+        )
+        object.__setattr__(
+            self,
+            "restart_policy",
+            restart_policy or TaskRestartPolicy(max_attempts=3),
+        )
 
 
 class ReflectionBridge:

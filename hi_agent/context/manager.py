@@ -260,6 +260,7 @@ class ContextManager:
         system_prompt: str = "",
         tool_definitions: str = "",
         extra_context: dict[str, str] | None = None,
+        run_id: str | None = None,
     ) -> ContextSnapshot:
         """Prepare complete context for an LLM call.
 
@@ -299,7 +300,11 @@ class ContextManager:
 
         # Compress if needed
         if health in (ContextHealth.ORANGE, ContextHealth.RED):
-            sections, total_tokens = self._compress_if_needed(sections, total_tokens)
+            sections, total_tokens = self._compress_if_needed(
+                sections,
+                total_tokens,
+                run_id=run_id,
+            )
             compressions_applied = 1
             health = self._check_health(total_tokens)
 
@@ -633,6 +638,8 @@ class ContextManager:
         self,
         sections: list[ContextSection],
         total_tokens: int,
+        *,
+        run_id: str | None = None,
     ) -> tuple[list[ContextSection], int]:
         """Apply compression fallback chain if utilization too high.
 
@@ -664,7 +671,9 @@ class ContextManager:
             history_section = self._find_section(sections, "history")
             if history_section is not None:
                 try:
-                    new_history = self._compact_history(history_section, target)
+                    new_history = self._compact_history(
+                        history_section, target, run_id=run_id
+                    )
                     delta = history_section.tokens - new_history.tokens
                     total_tokens -= delta
                     self._replace_section(sections, new_history)
@@ -674,19 +683,15 @@ class ContextManager:
                     self._compression_failures += 1
                     if self._compression_failures >= self._max_compression_failures:
                         self._circuit_breaker_open = True
-                    try:
-                        from hi_agent.observability.fallback import (
-                            FallbackTaxonomy,
-                            record_fallback,
-                        )
-
-                        record_fallback(
-                            FallbackTaxonomy.UNEXPECTED_EXCEPTION,
-                            "context_manager",
-                            f"compression_failed:{type(e).__name__}",
-                        )
-                    except Exception:
-                        pass
+                    self._record_context_fallback(
+                        run_id=run_id,
+                        reason=f"compression_failed:{type(e).__name__}",
+                        extra={
+                            "section": "history",
+                            "error_type": type(e).__name__,
+                            "error": str(e)[:200],
+                        },
+                    )
 
         # Step 3: Trim low-priority sections
         if total_tokens > target:
@@ -764,6 +769,8 @@ class ContextManager:
         self,
         history_section: ContextSection,
         target_tokens: int,
+        *,
+        run_id: str | None = None,
     ) -> ContextSection:
         """LLM-summarize history entries to fit target.
 
@@ -789,11 +796,21 @@ class ContextManager:
                         payload={"content": content},
                     )
                 ]
-                result = self._compressor.compress_stage("history", records)
+                result = self._compressor.compress_stage(
+                    "history", records, run_id=run_id
+                )
                 summary = "; ".join(result.findings) if result.findings else content[:200]
             else:
                 # Fallback: simple truncation summary
                 summary = content[:200] + "..." if len(content) > 200 else content
+                self._record_context_fallback(
+                    run_id=run_id,
+                    reason="compressor_missing_api",
+                    extra={
+                        "site": "context_manager._compact_history",
+                        "compressor_type": type(self._compressor).__name__,
+                    },
+                )
         except Exception:
             summary = content[:200] + "..." if len(content) > 200 else content
             raise  # re-raise for circuit breaker
@@ -1000,5 +1017,25 @@ class ContextManager:
         try:
             if self._metrics is not None:
                 self._metrics.increment("context_cache_hit", {"section": section})
+        except Exception:
+            pass
+
+    def _record_context_fallback(
+        self,
+        *,
+        run_id: str | None,
+        reason: str,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """Best-effort fallback signal for context compression degradation."""
+        try:
+            from hi_agent.observability.fallback import record_fallback
+
+            record_fallback(
+                "heuristic",
+                reason=reason,
+                run_id=run_id or "unknown_run",
+                extra={"component": "context_manager", **(extra or {})},
+            )
         except Exception:
             pass

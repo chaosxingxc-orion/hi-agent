@@ -102,11 +102,14 @@ class PerceptionMiddleware:
 
     def process(self, message: MiddlewareMessage) -> MiddlewareMessage:
         """Parse input -> extract entities -> summarize if needed -> assemble context."""
+        run_id: str | None = message.metadata.get("run_id")
         raw_input = message.payload.get("user_input", "")
 
         text, modality = self._parse_input(raw_input)
         entities = self._extract_entities(text)
-        summary, summarization_method = self._summarize_if_needed(text, self._summary_threshold)
+        summary, summarization_method = self._summarize_if_needed(
+            text, self._summary_threshold, run_id=run_id
+        )
         context = self._assemble_context(text, entities)
 
         # Estimate token count (~4 chars per token)
@@ -237,7 +240,9 @@ class PerceptionMiddleware:
         entities.sort(key=lambda e: e.position)
         return entities[: self._max_entities]
 
-    def _summarize_if_needed(self, text: str, threshold: int) -> tuple[str | None, str]:
+    def _summarize_if_needed(
+        self, text: str, threshold: int, *, run_id: str | None = None
+    ) -> tuple[str | None, str]:
         """Summarize text when it exceeds token threshold.
 
         Returns:
@@ -252,14 +257,14 @@ class PerceptionMiddleware:
 
         # Try LLM-based abstractive summarization for long text when gateway is available
         if self._llm_gateway is not None and len(text) > self._llm_summarize_char_threshold:
-            llm_result = self._llm_summarize(text)
+            llm_result = self._llm_summarize(text, run_id=run_id)
             if llm_result is not None:
                 return llm_result, "llm"
             # Fall through to extractive on LLM failure
 
         return self._extractive_summarize(text, threshold), "extractive"
 
-    def _llm_summarize(self, text: str) -> str | None:
+    def _llm_summarize(self, text: str, *, run_id: str | None = None) -> str | None:
         """Attempt LLM-based abstractive summarization.
 
         Returns the summary string on success, or None on any failure.
@@ -273,13 +278,21 @@ class PerceptionMiddleware:
             messages=[{"role": "user", "content": prompt}],
             max_tokens=max_tokens,
             temperature=self._summarize_temperature,
-            metadata={"purpose": self._model_tier},
+            metadata={"purpose": self._model_tier, "run_id": run_id},
         )
         try:
             response = self._llm_gateway.complete(request)  # type: ignore[union-attr]
             return response.content
-        except Exception:
+        except Exception as exc:
             logger.warning("LLM summarization failed, falling back to extractive", exc_info=True)
+            from hi_agent.observability.fallback import record_fallback
+
+            record_fallback(
+                "llm",
+                reason="perception_llm_failed",
+                run_id=run_id,
+                extra={"error": str(exc)},
+            )
             return None
 
     @staticmethod

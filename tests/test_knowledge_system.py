@@ -440,8 +440,15 @@ class TestGraphRenderer:
 
 
 class TestKnowledgeManager:
-    def test_ingest_text_creates_wiki_page(self) -> None:
-        km = KnowledgeManager()
+    def _make_km(self, tmp_path) -> KnowledgeManager:
+        """Helper: construct a fully-injected KnowledgeManager for tests."""
+        return KnowledgeManager(
+            user_store=UserKnowledgeStore(str(tmp_path / "user")),
+            graph=LongTermMemoryGraph(str(tmp_path / "graph.json")),
+        )
+
+    def test_ingest_text_creates_wiki_page(self, tmp_path) -> None:
+        km = self._make_km(tmp_path)
         page_id = km.ingest_text("Test Finding", "This is a test finding.", tags=["test"])
         assert page_id != ""
         page = km.wiki.get_page(page_id)
@@ -449,13 +456,13 @@ class TestKnowledgeManager:
         assert page.title == "Test Finding"
         assert "test" in page.tags
 
-    def test_ingest_text_slug(self) -> None:
-        km = KnowledgeManager()
+    def test_ingest_text_slug(self, tmp_path) -> None:
+        km = self._make_km(tmp_path)
         page_id = km.ingest_text("Hello World Example", "Content here.")
         assert page_id == "hello-world-example"
 
-    def test_ingest_structured_creates_graph_nodes(self) -> None:
-        km = KnowledgeManager()
+    def test_ingest_structured_creates_graph_nodes(self, tmp_path) -> None:
+        km = self._make_km(tmp_path)
         facts = [
             {"content": "Python is popular", "type": "fact", "tags": ["language"]},
             {"content": "TDD improves quality", "type": "method", "tags": ["practice"]},
@@ -464,14 +471,14 @@ class TestKnowledgeManager:
         assert count == 2
         assert km.graph.node_count() == 2
 
-    def test_ingest_structured_skips_empty(self) -> None:
-        km = KnowledgeManager()
+    def test_ingest_structured_skips_empty(self, tmp_path) -> None:
+        km = self._make_km(tmp_path)
         facts = [{"content": "", "type": "fact"}]
         count = km.ingest_structured(facts)
         assert count == 0
 
-    def test_query_searches_across_sources(self) -> None:
-        km = KnowledgeManager()
+    def test_query_searches_across_sources(self, tmp_path) -> None:
+        km = self._make_km(tmp_path)
         km.ingest_text("Revenue Report", "Revenue grew 20% in Q4.")
         km.ingest_structured(
             [{"content": "Revenue trend is positive", "type": "fact", "tags": ["finance"]}]
@@ -484,20 +491,20 @@ class TestKnowledgeManager:
         assert len(result.graph_nodes) >= 1
         assert "analyst" in result.user_context
 
-    def test_query_empty(self) -> None:
-        km = KnowledgeManager()
+    def test_query_empty(self, tmp_path) -> None:
+        km = self._make_km(tmp_path)
         result = km.query("")
         assert result.total_results == 0
 
-    def test_query_for_context_respects_budget(self) -> None:
-        km = KnowledgeManager()
+    def test_query_for_context_respects_budget(self, tmp_path) -> None:
+        km = self._make_km(tmp_path)
         km.ingest_text("Long Doc", "A" * 10000)
         ctx = km.query_for_context("long", budget_tokens=50)
         # Budget is 50*4=200 chars
         assert len(ctx) < 500  # generous upper bound
 
-    def test_get_stats(self) -> None:
-        km = KnowledgeManager()
+    def test_get_stats(self, tmp_path) -> None:
+        km = self._make_km(tmp_path)
         km.ingest_text("Page A", "Content A.")
         km.ingest_text("Page B", "Content B.")
         km.ingest_structured([{"content": "Fact X", "type": "fact"}])
@@ -511,15 +518,15 @@ class TestKnowledgeManager:
         assert stats["user_preferences"] == 1
         assert stats["user_expertise_areas"] == 1
 
-    def test_lint(self) -> None:
-        km = KnowledgeManager()
+    def test_lint(self, tmp_path) -> None:
+        km = self._make_km(tmp_path)
         km.wiki.add_page(
             WikiPage(page_id="broken", title="Broken", content="Link to [[nonexistent]].")
         )
         issues = km.lint()
         assert any("broken_link" in i for i in issues)
 
-    def test_ingest_from_session(self) -> None:
+    def test_ingest_from_session(self, tmp_path) -> None:
         @dataclass
         class FakeSession:
             findings: list[str] = field(default_factory=list)
@@ -531,7 +538,7 @@ class TestKnowledgeManager:
             user_feedback=["Be more concise"],
             facts=[{"content": "Revenue up 20%", "type": "fact"}],
         )
-        km = KnowledgeManager()
+        km = self._make_km(tmp_path)
         count = km.ingest_from_session(session)
         assert count == 3  # 1 finding + 1 feedback + 1 fact
         assert len(km.wiki.list_pages()) == 1

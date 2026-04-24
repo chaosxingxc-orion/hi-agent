@@ -48,8 +48,8 @@ def test_no_workspace_key_uses_profile_fallback(builder):
     assert "workspaces" not in path  # workspace branch was NOT taken
 
 
-def test_no_workspace_key_no_profile_uses_default_path(builder):
-    """Neither workspace_key nor profile_id → default config-based path."""
-    store = builder.build_mid_term_store(profile_id="", workspace_key=None)
-    assert store is not None
-    assert "workspaces" not in str(store._storage_dir)
+def test_no_workspace_key_no_profile_raises(builder):
+    """Rule 13 (DF-12): empty profile_id AND no workspace_key must raise — the
+    silent unscoped default was the F-2/G-5/I-7 defect shape."""
+    with pytest.raises(ValueError, match="profile_id"):
+        builder.build_mid_term_store(profile_id="", workspace_key=None)

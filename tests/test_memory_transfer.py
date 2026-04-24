@@ -281,11 +281,12 @@ class TestSystemBuilder:
         config = TraceConfig(episodic_storage_dir=str(tmp_path / "episodes"))
         builder = SystemBuilder(config)
 
-        short = builder.build_short_term_store()
-        mid = builder.build_mid_term_store()
-        graph = builder.build_long_term_graph()
-        retrieval = builder.build_retrieval_engine()
-        mgr = builder.build_memory_lifecycle_manager()
+        _pid = "memory-transfer-test"
+        short = builder.build_short_term_store(profile_id=_pid)
+        mid = builder.build_mid_term_store(profile_id=_pid)
+        graph = builder.build_long_term_graph(profile_id=_pid)
+        retrieval = builder.build_retrieval_engine(profile_id=_pid)
+        mgr = builder.build_memory_lifecycle_manager(profile_id=_pid)
 
         assert short is not None
         assert mid is not None

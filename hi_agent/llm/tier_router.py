@@ -181,6 +181,13 @@ class TierRouter:
                         purpose,
                         target_tier,
                     )
+                    from hi_agent.observability.fallback import record_fallback
+                    _adj = _TIER_ORDER[adj]
+                    record_fallback(
+                        "llm",  # type: ignore[arg-type]
+                        "tier_router",
+                        detail=f"tier_downgrade purpose={purpose} from={target_tier} to={_adj}",
+                    )
                     return model
 
         # Last resort: any available model
@@ -197,6 +204,12 @@ class TierRouter:
                 best.model_id,
                 purpose,
                 target_tier,
+            )
+            from hi_agent.observability.fallback import record_fallback
+            record_fallback(
+                "llm",  # type: ignore[arg-type]
+                "tier_router",
+                detail=f"tier_last_resort purpose={purpose} from={target_tier}",
             )
             return best
 
@@ -274,6 +287,15 @@ class TierRouter:
                         purpose,
                         target_tier,
                     )
+                    from hi_agent.observability.fallback import record_fallback
+                    record_fallback(
+                        "llm",  # type: ignore[arg-type]
+                        "tier_router",
+                        detail=(
+                            f"tier_downgrade purpose={purpose}"
+                            f" from={target_tier} to={adj_tier}"
+                        ),
+                    )
                     return model, adj_tier
 
         # Any available
@@ -290,6 +312,12 @@ class TierRouter:
                 best.model_id,
                 purpose,
                 target_tier,
+            )
+            from hi_agent.observability.fallback import record_fallback
+            record_fallback(
+                "llm",  # type: ignore[arg-type]
+                "tier_router",
+                detail=f"tier_last_resort purpose={purpose} from={target_tier}",
             )
             return best, best.tier
 
@@ -416,6 +444,16 @@ class TierAwareLLMGateway:
                     meta.get("purpose", "unknown"),
                     _tier_exc,
                 )
+                from hi_agent.observability.fallback import record_fallback
+                record_fallback(
+                    "llm",  # type: ignore[arg-type]
+                    "tier_aware_gateway",
+                    detail=(
+                        f"tier_exception purpose={meta.get('purpose', 'unknown')}"
+                        f" error={type(_tier_exc).__name__}"
+                    ),
+                    run_id=meta.get("run_id"),
+                )
 
         return self._inner.complete(request)  # type: ignore[union-attr]
 
@@ -453,6 +491,16 @@ class TierAwareLLMGateway:
                 )
             except Exception as _tier_exc:
                 _logger.warning("TierAwareLLMGateway.stream: select_model failed: %s", _tier_exc)
+                from hi_agent.observability.fallback import record_fallback
+                record_fallback(
+                    "llm",  # type: ignore[arg-type]
+                    "tier_aware_gateway",
+                    detail=(
+                        f"tier_exception purpose={meta.get('purpose', 'unknown')}"
+                        f" error={type(_tier_exc).__name__}"
+                    ),
+                    run_id=meta.get("run_id"),
+                )
 
         inner_stream = getattr(self._inner, "stream", None)
         if callable(inner_stream):
@@ -505,6 +553,16 @@ class TierAwareLLMGateway:
                     "falling back with original request. Error: %s",
                     meta.get("purpose", "unknown"),
                     _tier_exc,
+                )
+                from hi_agent.observability.fallback import record_fallback
+                record_fallback(
+                    "llm",  # type: ignore[arg-type]
+                    "tier_aware_gateway",
+                    detail=(
+                        f"tier_exception purpose={meta.get('purpose', 'unknown')}"
+                        f" error={type(_tier_exc).__name__}"
+                    ),
+                    run_id=meta.get("run_id"),
                 )
 
         return await self._inner.complete(request)  # type: ignore[union-attr]

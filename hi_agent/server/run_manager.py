@@ -606,6 +606,21 @@ class RunManager:
             result_payload = run.result.to_dict()
         except AttributeError:
             result_payload = run.result
+        # Surface llm_fallback_count and finished_at from RunResult when available.
+        _result = run.result
+        _llm_fallback_count: int = 0
+        _finished_at: str | None = None
+        if _result is not None and hasattr(_result, "llm_fallback_count"):
+            _llm_fallback_count = int(_result.llm_fallback_count or 0)
+        if _result is not None and hasattr(_result, "finished_at"):
+            _finished_at = _result.finished_at
+        # Include top-level fallback_events recorded at the server boundary
+        # (e.g. route/missing_profile_id events from routes_runs.py).
+        # These are keyed on the server-boundary run_id, which differs from the
+        # executor's internal run_id used by RunResult.fallback_events.
+        from hi_agent.observability.fallback import get_fallback_events as _gfe
+
+        _top_fallback_events: list[dict] = list(_gfe(run.run_id))
         return {
             "run_id": run.run_id,
             "task_contract": run.task_contract,
@@ -616,6 +631,9 @@ class RunManager:
             "updated_at": run.updated_at,
             "current_stage": run.current_stage,
             "stage_updated_at": run.stage_updated_at,
+            "llm_fallback_count": _llm_fallback_count,
+            "finished_at": _finished_at,
+            "fallback_events": _top_fallback_events,
         }
 
     def shutdown(self, timeout: float = 2.0) -> None:

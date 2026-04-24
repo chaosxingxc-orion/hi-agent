@@ -91,6 +91,18 @@ class SkillExtractor:
                 logger.warning(
                     "SkillExtractor._llm_extract failed, falling back to heuristics: %s", exc
                 )
+                from hi_agent.observability.fallback import record_fallback
+
+                # Skill extraction runs after the run completes (post-run evolution).
+                # Omit run_id so this event does not pollute result.fallback_events
+                # for the primary run gate check; metrics counter and WARNING log
+                # still fire per Rule 14.
+                record_fallback(
+                    "llm",
+                    reason="skill_extractor_llm_failed",
+                    run_id=None,
+                    extra={"error": str(exc), "source_run_id": postmortem.run_id},
+                )
 
         return self._heuristic_extract(postmortem)
 
@@ -147,6 +159,22 @@ class SkillExtractor:
             logger.warning(
                 "SkillExtractor._parse_llm_skills: failed to parse LLM response: %s", exc
             )
+            try:
+                from hi_agent.observability.fallback import record_fallback
+
+                record_fallback(
+                    "heuristic",
+                    reason="llm_json_parse_error",
+                    run_id=postmortem.run_id,
+                    extra={
+                        "site": "skill_extractor._parse_llm_skills",
+                        "task_family": postmortem.task_family,
+                        "error": str(exc)[:200],
+                        "content_preview": content[:200] if content else "",
+                    },
+                )
+            except Exception:
+                pass
             return []
         if not isinstance(items, list):
             return []

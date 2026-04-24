@@ -16,7 +16,7 @@ def _make_contract(goal: str = "test") -> MagicMock:
 
     from hi_agent.contracts import TaskContract
 
-    return TaskContract(task_id=uuid.uuid4().hex, goal=goal)
+    return TaskContract(task_id=uuid.uuid4().hex, goal=goal, profile_id="test")
 
 
 class TestNoPostConstructionMutation:

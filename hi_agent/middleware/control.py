@@ -70,6 +70,7 @@ class ControlMiddleware:
 
     def process(self, message: MiddlewareMessage) -> MiddlewareMessage:
         """Decompose request -> TrajectoryGraph -> resource bindings."""
+        run_id: str | None = message.metadata.get("run_id")
         # Reconstruct PerceptionResult from payload
         payload = message.payload
         perception = PerceptionResult(
@@ -82,7 +83,7 @@ class ControlMiddleware:
             metadata=payload.get("metadata", {}),
         )
 
-        graph_json = self._decompose(perception)
+        graph_json = self._decompose(perception, run_id=run_id)
         resources = self._bind_resources(graph_json, perception)
         issues = self._validate_executability(graph_json, resources)
 
@@ -137,6 +138,8 @@ class ControlMiddleware:
         self,
         task_description: str,
         context: dict[str, Any],
+        *,
+        run_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Ask the LLM to decompose *task_description* into stages.
 
@@ -155,7 +158,7 @@ class ControlMiddleware:
             model="default",
             temperature=0.3,
             max_tokens=2048,
-            metadata={"purpose": self._model_tier},
+            metadata={"purpose": self._model_tier, "run_id": run_id},
         )
         response = self._llm_gateway.complete(request)  # type: ignore[union-attr]
         raw = response.content.strip()
@@ -186,7 +189,9 @@ class ControlMiddleware:
 
     # ------------------------------------------------------------------
 
-    def _decompose(self, perception: PerceptionResult) -> dict[str, Any]:
+    def _decompose(
+        self, perception: PerceptionResult, *, run_id: str | None = None
+    ) -> dict[str, Any]:
         """Decompose perception result into TrajectoryGraph JSON.
 
         Attempts LLM-driven decomposition when a gateway is available,
@@ -199,6 +204,7 @@ class ControlMiddleware:
                 llm_stages = self._llm_decompose(
                     perception.raw_text,
                     perception.metadata,
+                    run_id=run_id,
                 )
                 # Convert to the (stage_id, description) tuple format
                 stages = [

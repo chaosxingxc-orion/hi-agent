@@ -338,15 +338,16 @@ class DelegationManager:
         Returns:
             A Markdown-style string listing each sub-task's status and summary.
         """
+        # Language Rule (CLAUDE.md): prompts to LLMs must be English.
         if not results:
-            return "## 子任务执行结果\n\n（无子任务）\n"
+            return "## Sub-task execution results\n\n(no sub-tasks)\n"
 
-        lines: list[str] = ["## 子任务执行结果", ""]
+        lines: list[str] = ["## Sub-task execution results", ""]
         for idx, result in enumerate(results, start=1):
-            lines.append(f"### 子任务 {idx}: {result.request.goal}")
-            lines.append(f"状态: {result.status} | 耗时: {result.duration_seconds:.1f}s")
+            lines.append(f"### Sub-task {idx}: {result.request.goal}")
+            lines.append(f"Status: {result.status} | Duration: {result.duration_seconds:.1f}s")
             if result.error:
-                lines.append(f"错误: {result.error}")
+                lines.append(f"Error: {result.error}")
             if result.summary:
                 lines.append(result.summary)
             lines.append("")

@@ -174,7 +174,15 @@ class RunExecutorFacade:
 
         Calls ``_finalize_run("cancelled")`` for resource cleanup before
         clearing the executor reference.
+
+        DF-18 / A-39 (Rule 5 error-visibility): both cleanup steps used to
+        log-and-swallow so a partial-cleanup ``stop()`` was externally
+        indistinguishable from a clean one. Both steps are still attempted
+        independently (one failing must not skip the other), but any
+        per-step failure is now also recorded on ``self.last_stop_failures``
+        so callers can detect partial cleanup before the next ``start()``.
         """
+        failures: list[str] = []
         if self._executor is not None:
             # J9-2: finalize before discarding so resources are cleaned up.
             try:
@@ -183,6 +191,7 @@ class RunExecutorFacade:
                     finalize_fn("cancelled")
             except Exception as exc:
                 _logger.warning("facade.stop: _finalize_run failed: %s", exc)
+                failures.append(f"_finalize_run: {exc}")
             try:
                 kernel = getattr(self._executor, "kernel", None)
                 if kernel is not None and self._contract is not None:
@@ -191,8 +200,10 @@ class RunExecutorFacade:
                         cancel_fn(self._contract.task_id)
             except Exception as exc:
                 _logger.warning("facade.stop: cancel_run failed: %s", exc)
+                failures.append(f"cancel_run: {exc}")
         self._executor = None
         self._contract = None
+        self.last_stop_failures: list[str] = failures
 
     @property
     def last_gate_id(self) -> str | None:

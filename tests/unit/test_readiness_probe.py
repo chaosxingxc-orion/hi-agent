@@ -20,7 +20,9 @@ def test_readiness_probe_snapshot_returns_dict(builder):
 def test_readiness_probe_snapshot_has_required_keys(builder):
     probe = ReadinessProbe(builder)
     result = probe.snapshot()
-    assert {"ready", "health", "execution_mode", "subsystems"}.issubset(set(result.keys()))
+    assert {"ready", "health", "execution_mode", "kernel_mode", "subsystems"}.issubset(
+        set(result.keys())
+    )
 
 
 def test_readiness_probe_ready_is_bool(builder):

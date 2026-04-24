@@ -49,16 +49,36 @@ class KnowledgeBuilder:
 
     def build_knowledge_manager(
         self,
-        profile_id: str = "",
+        *,
+        profile_id: str,
         long_term_graph: Any = None,
     ) -> Any:
+        """Build KnowledgeManager scoped to ``profile_id``.
+
+        Rule 13 (DF-12): ``profile_id`` is keyword-only and required. Empty
+        string is rejected because the silent default path produced a
+        KnowledgeManager pointing at an unscoped knowledge directory — the
+        recurring F-2/G-5/I-7 defect shape.
+        """
         from hi_agent.knowledge.graph_renderer import GraphRenderer
         from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 
+        if not profile_id:
+            raise ValueError(
+                "build_knowledge_manager requires profile_id; empty string "
+                "was masking cross-profile knowledge leakage in Rounds 4/5/7 "
+                "(Rule 13 / DF-12)."
+            )
         wiki = self.build_knowledge_wiki()
         user_store = self.build_user_knowledge_store()
         if long_term_graph is None and self._long_term_graph_factory is not None:
             long_term_graph = self._long_term_graph_factory(profile_id)
+        if long_term_graph is None:
+            raise ValueError(
+                "build_knowledge_manager requires a LongTermMemoryGraph; "
+                "pass long_term_graph= or supply a long_term_graph_factory "
+                "at KnowledgeBuilder construction time (Rule 13 / J7-1)."
+            )
         renderer = GraphRenderer(long_term_graph)
         return KnowledgeManager(
             wiki=wiki,

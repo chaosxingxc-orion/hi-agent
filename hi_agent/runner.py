@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    import asyncio
+
     from hi_agent.contracts.directives import StageDirective
     from hi_agent.evolve.contracts import RunPostmortem
     from hi_agent.evolve.engine import EvolveEngine
@@ -320,21 +322,18 @@ class RunExecutor:
         self.branch_seq = 0
         self.decision_seq = 0
         self.event_emitter = event_emitter or EventEmitter()
-        # SA-1 (self-audit 2026-04-21, P-4 pattern): the default fallback
-        # silently creates a RawMemoryStore pinned to process CWD, with no
-        # run_id / profile scoping — the same shape that drove R4 F-2 / R5 G-5
-        # regressions. Log a warning when the fallback fires so missing
-        # injection is observable instead of silently degrading to global
-        # shared state.
         if raw_memory is None:
-            import logging as _log
-
-            _log.getLogger(__name__).warning(
-                "runner.raw_memory_unscoped_fallback — caller did not inject "
-                "a RawMemoryStore; using CWD-default unscoped store. "
-                "Thread profile_id/run_id through the builder for isolation."
+            _pid = getattr(contract, "profile_id", "") or ""
+            import os as _os
+            _base = _os.path.join(".episodes", _pid) if _pid else ".episodes"
+            _logger.warning(
+                "runner.raw_memory_uninjected run_id=%s profile_id=%s base=%s"
+                " — inject via MemoryBuilder.build_raw_memory_store (Rule 6)",
+                self.run_id,
+                _pid or "(empty)",
+                _base,
             )
-            raw_memory = RawMemoryStore()
+            raw_memory = RawMemoryStore(base_dir=_base)
         self.raw_memory = raw_memory
         self.compressor = compressor or MemoryCompressor()
         self.acceptance_policy = acceptance_policy or AcceptancePolicy()
@@ -351,6 +350,7 @@ class RunExecutor:
         )
         self.runner_role = runner_role or ActionDispatcher._parse_invoker_role(contract.constraints)
         self.force_fail_actions = self._parse_forced_fail_actions(contract.constraints)
+        self.llm_gateway = llm_gateway
         self.invoker = invoker or self._build_default_invoker(llm_gateway)
         self._invoker_accepts_role, self._invoker_accepts_metadata = (
             self._supports_optional_invoke_arguments(self.invoker.invoke)
@@ -602,6 +602,7 @@ class RunExecutor:
                     snapshot = _cm.prepare_context(
                         purpose="routing",
                         system_prompt=f"TRACE Agent: {contract.goal}",
+                        run_id=self.run_id,
                     )
                     ctx = snapshot.to_sections_dict()
                     ctx["health"] = snapshot.health.value
@@ -1664,8 +1665,10 @@ class RunExecutor:
           (``"completed"`` or ``"failed"``).
         """
         from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        from hi_agent.observability.fallback import clear_fallback_events
 
         self._run_id = self.kernel.start_run(self.contract.task_id)
+        clear_fallback_events(self._run_id)
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id
@@ -1687,8 +1690,10 @@ class RunExecutor:
         choose among multiple successors when available.
         """
         from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        from hi_agent.observability.fallback import clear_fallback_events
 
         self._run_id = self.kernel.start_run(self.contract.task_id)
+        clear_fallback_events(self._run_id)
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id
@@ -1730,11 +1735,29 @@ class RunExecutor:
         )
 
     def _get_attempt_history(self, stage_id: str) -> list:
-        """Return prior attempt records for the given stage_id."""
+        """Return prior attempt records for the given stage_id.
+
+        DF-18 / A-37 (Rule 5 error-visibility): a bare ``except Exception``
+        here made "no prior attempts" indistinguishable from "retrieval
+        failed" — the restart policy then drives retry decisions from a
+        silently-empty history. Narrow to the expected missing-attribute
+        shape (when the restart policy backend has no per-task record yet)
+        and surface anything else through a WARNING log before returning
+        an empty list.
+        """
         try:
             all_attempts = self._restart_policy._get_attempts(self.contract.task_id)
             return [a for a in all_attempts if getattr(a, "stage_id", None) == stage_id]
-        except Exception:
+        except (AttributeError, KeyError):
+            # Expected when the restart policy backend has no entry yet.
+            return []
+        except Exception as exc:
+            _logger.warning(
+                "runner.attempt_history_lookup_failed task_id=%s stage_id=%s error=%s",
+                self.contract.task_id,
+                stage_id,
+                exc,
+            )
             return []
 
     def _find_start_stage(self) -> str | None:
@@ -1857,7 +1880,10 @@ class RunExecutor:
 
         # 8. Reconstruct raw_memory so L0 events from resumed stages are appended.
         try:
-            base_dir = kwargs.get("raw_memory_base_dir", ".episodes")
+            import os as _os
+            _resume_pid = getattr(contract, "profile_id", "") or ""
+            _default_base = _os.path.join(".episodes", _resume_pid) if _resume_pid else ".episodes"
+            base_dir = kwargs.get("raw_memory_base_dir", _default_base)
             executor.raw_memory = RawMemoryStore(
                 run_id=session.run_id,
                 base_dir=base_dir,
@@ -2027,7 +2053,11 @@ class RunExecutor:
             self._pending_subrun_futures[task_id] = future  # type: ignore[attr-defined]
         except RuntimeError:
             # No running loop — synchronous call path.
-            results = asyncio.run(
+            # DF-06: route through sync_bridge (Rule 12) to share a single
+            # background loop across sync entry points.
+            from hi_agent.runtime.sync_bridge import get_bridge
+
+            results = get_bridge().call_sync(
                 self._delegation_manager.delegate([req], parent_run_id=self.run_id)
             )
             self._completed_subrun_results[task_id] = results[0]  # type: ignore[attr-defined]
@@ -2088,7 +2118,12 @@ class RunExecutor:
                 async def _collect():
                     return await future
 
-                results = asyncio.run(_collect())
+                # DF-06: route through sync_bridge (Rule 12) so the pending
+                # future — created on the bridge loop — is awaited on that
+                # same loop rather than a fresh asyncio.run loop.
+                from hi_agent.runtime.sync_bridge import get_bridge
+
+                results = get_bridge().call_sync(_collect())
 
             dr = results[0]
             if dr.status == "gate_pending":
@@ -2240,17 +2275,18 @@ async def execute_async(
             task_family=getattr(executor.contract, "task_family", ""),
         )
 
-    run_id = deterministic_id(executor.contract.task_id, "run")
+    # DF-16 / K-2 / K-3 / K-15: async path must mirror sync path invariants (Rule 5 branch parity).
+    # Sync execute() calls `self.kernel.start_run(self.contract.task_id)` and assigns the
+    # returned run_id to `self._run_id`. The async path must use the IDENTICAL signature —
+    # the RuntimeAdapter protocol defines `start_run(task_id: str) -> str`, and the previous
+    # kwarg form (`run_id=, session_id=, metadata=`) did not match any concrete adapter.
+    _start_result = executor.kernel.start_run(executor.contract.task_id)
+    if inspect.isawaitable(_start_result):
+        run_id = await _start_result
+    else:
+        run_id = _start_result
     executor._run_id = run_id  # K-2: sync executor's run_id to match kernel registration
     executor._run_start_monotonic = time.monotonic()  # K-15: enable duration measurement
-    # K-3: handles both sync and async kernels — only await if result is awaitable
-    _start_result = executor.kernel.start_run(
-        run_id=run_id,
-        session_id=run_id,
-        metadata={"goal": executor.contract.goal},
-    )
-    if inspect.isawaitable(_start_result):
-        await _start_result
 
     # When the stage kernel (sync) differs from executor.kernel (async facade),
     # pre-register the run_id so open_branch / mark_branch_state can locate it.
@@ -2358,9 +2394,16 @@ async def execute_async(
         return _run_result
 
     # Fallback: _finalize_run failed or returned None — construct minimal RunResult.
+    try:
+        from hi_agent.observability.fallback import get_fallback_events
+
+        _fb_events = get_fallback_events(run_id)
+    except Exception:
+        _fb_events = []
     return RunResult(
         run_id=run_id,
         status=outcome,
         stages=[],
         artifacts=[],
+        fallback_events=_fb_events,
     )

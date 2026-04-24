@@ -94,7 +94,7 @@ def verify_event_dedupe_consistency(
     The check is best-effort: it uses duck-typed access (``list_events`` /
     ``events`` attribute, then ``load`` coroutine) so it works with both the
     in-memory and SQLite implementations without hard coupling.  Async
-    ``load()`` is called synchronously via ``asyncio.get_event_loop().run_until_complete``
+    ``load()`` is called synchronously via a dedicated event loop bridge
     only when no synchronous accessor is available; callers in async contexts
     should prefer the async variant ``averify_event_dedupe_consistency``.
 
@@ -146,7 +146,13 @@ def verify_event_dedupe_consistency(
                 if "async context" in str(loop_exc):
                     _load_error = loop_exc
                 else:
-                    events = asyncio.run(event_log.load(run_id))
+                    loop = asyncio.new_event_loop()
+                    try:
+                        asyncio.set_event_loop(loop)
+                        events = loop.run_until_complete(event_log.load(run_id))
+                    finally:
+                        asyncio.set_event_loop(None)
+                        loop.close()
         except Exception as exc:
             _load_error = exc
 

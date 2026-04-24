@@ -207,6 +207,7 @@ class CognitionBuilder:
 
             from hi_agent.config.json_config_loader import (
                 _DEFAULT_CONFIG_PATH,
+                _resolve_provider_api_key,
                 build_gateway_from_config,
             )
 
@@ -215,13 +216,19 @@ class CognitionBuilder:
                 _cfg_data = _json.loads(_cfg_path.read_text(encoding="utf-8"))
                 _dp = _cfg_data.get("default_provider", "")
                 _prov = _cfg_data.get("providers", {}).get(_dp, {})
-                if _dp and _prov.get("api_key", "").strip():
+                _api_key, _ = _resolve_provider_api_key(_dp, _prov)
+                if _dp and _api_key.strip():
                     gw = build_gateway_from_config(_cfg_path)
                     if gw is not None:
                         with self._lock:
                             if self._llm_budget_tracker is None:
                                 self._llm_budget_tracker = self._build_llm_budget_tracker()
                             self._llm_gateway = gw  # type: ignore[assignment]
+                            # Mirror the env-var path: expose _tier_router on the builder
+                            # so that downstream consumers (e.g. _build_delegation_manager)
+                            # can reach the router without accessing a private attribute of gw.
+                            if self._tier_router is None and hasattr(gw, "_tier_router"):
+                                self._tier_router = gw._tier_router  # type: ignore[union-attr]
                         _logger.info(
                             "build_llm_gateway: activated from llm_config.json (provider=%r)",
                             _dp,
@@ -407,6 +414,14 @@ class CognitionBuilder:
                     return resp.content
                 except Exception as exc:
                     _logger.warning("_reflection_orchestrator inference_fn error: %s", exc)
+                    from hi_agent.observability.fallback import record_fallback as _record_fallback
+
+                    _record_fallback(
+                        "llm",
+                        reason="inference_fn_exception",
+                        run_id=run_id if run_id != "unknown" else None,
+                        extra={"error": str(exc)},
+                    )
                     return _json.dumps(
                         {
                             "action": "retry_with_default",

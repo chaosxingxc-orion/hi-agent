@@ -94,6 +94,14 @@ def test_reflection_bridge_build_context():
     assert task_attempt_record is TaskAttempt
 
 
+def test_task_descriptor_accepts_legacy_goal_context_shape():
+    descriptor = TaskDescriptor(task_id="t-legacy", goal="legacy goal", context={})
+
+    assert descriptor.task_id == "t-legacy"
+    assert descriptor.goal_description == "legacy goal"
+    assert descriptor.restart_policy.max_attempts == 3
+
+
 def test_reflection_context_to_recovery_dict():
     """Converts ReflectionContext to a dict with 'reflection' and 'prompt_fragment' keys."""
     ctx = ReflectionContext(

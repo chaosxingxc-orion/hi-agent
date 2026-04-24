@@ -349,28 +349,12 @@ class KernelFacadeClient:
                     caused_by=caused_by,
                 )
                 if asyncio.iscoroutine(coro):
-                    try:
-                        loop = asyncio.get_running_loop()
-                    except RuntimeError:
-                        loop = None
-                    if loop is not None and loop.is_running():
-                        import threading
+                    # Rule 12: route through the durable SyncBridge so async
+                    # resources (httpx pool, task groups) inside the facade
+                    # share one event loop across calls.
+                    from hi_agent.runtime.sync_bridge import get_bridge
 
-                        holder: dict[str, Any] = {}
-
-                        def _runner() -> None:
-                            try:
-                                holder["result"] = asyncio.run(coro)
-                            except Exception as exc:
-                                holder["error"] = exc
-
-                        thread = threading.Thread(target=_runner, daemon=True)
-                        thread.start()
-                        thread.join()
-                        if "error" in holder:
-                            raise holder["error"]  # type: ignore[misc]
-                    else:
-                        asyncio.run(coro)
+                    get_bridge().call_sync(coro)
             except RuntimeAdapterBackendError:
                 raise
             except Exception as exc:
@@ -498,28 +482,12 @@ class KernelFacadeClient:
         try:
             result = method(*args)
             if asyncio.iscoroutine(result):
-                try:
-                    loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    loop = None
-                if loop is not None and loop.is_running():
-                    import threading
+                # Rule 12: share one durable event loop across sync calls so
+                # async resources constructed by the facade (httpx pools,
+                # async iterators) remain live for subsequent invocations.
+                from hi_agent.runtime.sync_bridge import get_bridge
 
-                    holder: dict[str, Any] = {}
-
-                    def _runner() -> None:
-                        try:
-                            holder["result"] = asyncio.run(result)
-                        except Exception as exc:
-                            holder["error"] = exc
-
-                    thread = threading.Thread(target=_runner, daemon=True)
-                    thread.start()
-                    thread.join()
-                    if "error" in holder:
-                        raise holder["error"]
-                    return holder.get("result")
-                return asyncio.run(result)
+                return get_bridge().call_sync(result)
             return result
         except RuntimeAdapterBackendError:
             raise
@@ -543,13 +511,15 @@ class KernelFacadeClient:
         except ImportError:
             return None
 
-        import asyncio
+        from hi_agent.runtime.sync_bridge import get_bridge
 
         config = KernelRuntimeConfig(
             substrate=LocalSubstrateConfig(),
             event_log_backend="in_memory",
         )
-        runtime = asyncio.run(KernelRuntime.start(config))
+        # Rule 12: KernelRuntime owns async resources that must live on the
+        # same loop as later facade calls — use the process-wide bridge.
+        runtime = get_bridge().call_sync(KernelRuntime.start(config))
         return runtime.facade
 
     # ------------------------------------------------------------------
@@ -557,7 +527,14 @@ class KernelFacadeClient:
     # ------------------------------------------------------------------
 
     def _http_post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
-        """POST JSON to agent-kernel HTTP server."""
+        """POST JSON to agent-kernel HTTP server.
+
+        Branch parity: sync/async paths must normalize every backend error
+        into ``RuntimeAdapterBackendError`` (Rule 5, DF-18 / A-41) — the
+        direct-mode ``_direct_call`` catches bare ``Exception`` and wraps,
+        so HTTP mode must mirror that shape for JSON decode errors, socket
+        timeouts, etc., not only urllib error subclasses.
+        """
         url = f"{self._base_url}{path}"
         data = json.dumps(body).encode("utf-8")
         req = urllib.request.Request(
@@ -570,13 +547,17 @@ class KernelFacadeClient:
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 raw = resp.read().decode("utf-8")
                 return json.loads(raw) if raw.strip() else {}
-        except urllib.error.HTTPError as exc:
-            raise RuntimeAdapterBackendError(path, cause=exc) from exc
-        except urllib.error.URLError as exc:
+        except RuntimeAdapterBackendError:
+            raise
+        except Exception as exc:
             raise RuntimeAdapterBackendError(path, cause=exc) from exc
 
     def _http_put(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
-        """PUT JSON to agent-kernel HTTP server."""
+        """PUT JSON to agent-kernel HTTP server.
+
+        Branch parity: sync/async paths must normalize every backend error
+        into ``RuntimeAdapterBackendError`` (Rule 5, DF-18 / A-41).
+        """
         url = f"{self._base_url}{path}"
         data = json.dumps(body).encode("utf-8")
         req = urllib.request.Request(
@@ -589,20 +570,24 @@ class KernelFacadeClient:
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 raw = resp.read().decode("utf-8")
                 return json.loads(raw) if raw.strip() else {}
-        except urllib.error.HTTPError as exc:
-            raise RuntimeAdapterBackendError(path, cause=exc) from exc
-        except urllib.error.URLError as exc:
+        except RuntimeAdapterBackendError:
+            raise
+        except Exception as exc:
             raise RuntimeAdapterBackendError(path, cause=exc) from exc
 
     def _http_get(self, path: str) -> dict[str, Any]:
-        """GET JSON from agent-kernel HTTP server."""
+        """GET JSON from agent-kernel HTTP server.
+
+        Branch parity: sync/async paths must normalize every backend error
+        into ``RuntimeAdapterBackendError`` (Rule 5, DF-18 / A-41).
+        """
         url = f"{self._base_url}{path}"
         req = urllib.request.Request(url, method="GET")
         try:
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 raw = resp.read().decode("utf-8")
                 return json.loads(raw) if raw.strip() else {}
-        except urllib.error.HTTPError as exc:
-            raise RuntimeAdapterBackendError(path, cause=exc) from exc
-        except urllib.error.URLError as exc:
+        except RuntimeAdapterBackendError:
+            raise
+        except Exception as exc:
             raise RuntimeAdapterBackendError(path, cause=exc) from exc

@@ -308,6 +308,48 @@ class ShortTermMemoryStore:
         results.sort(key=lambda m: m.created_at)
         return results
 
+    # ------------------------------------------------------------------
+    # Reasoning trace side-channel (P-2)
+    # ------------------------------------------------------------------
+
+    def _reasoning_dir(self) -> Path:
+        return self._storage_dir / "_reasoning"
+
+    def _reasoning_path(self, run_id: str, stage_id: str) -> Path:
+        safe_run = run_id.replace("/", "__").replace("\\", "__")
+        safe_stage = stage_id.replace("/", "__").replace("\\", "__")
+        return self._reasoning_dir() / f"{safe_run}__{safe_stage}.json"
+
+    def save_reasoning_trace(self, run_id: str, stage_id: str, trace: Any) -> None:
+        """Persist a reasoning trace under this store's namespace.
+
+        The *trace* object must expose a ``to_dict()`` method (e.g.,
+        ``hi_agent.contracts.reasoning.ReasoningTrace``).
+        """
+        self._ensure_dir()
+        self._reasoning_dir().mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(trace.to_dict(), indent=2, ensure_ascii=False)
+        dest = self._reasoning_path(run_id, stage_id)
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._reasoning_dir()), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+            os.replace(tmp_path, dest)
+        except Exception:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+            raise
+
+    def load_reasoning_trace(self, run_id: str, stage_id: str) -> Any:
+        """Load a previously persisted reasoning trace or ``None``."""
+        from hi_agent.contracts.reasoning import ReasoningTrace
+
+        path = self._reasoning_path(run_id, stage_id)
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return ReasoningTrace.from_dict(data)
+
     def build_from_session(self, session: Any) -> ShortTermMemory:
         """Build ShortTermMemory from RunSession data.
 

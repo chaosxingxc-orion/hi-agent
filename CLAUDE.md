@@ -10,193 +10,272 @@
 
 **Active implementation — production engineering phase.** Full design baseline at `architecture-review/`.
 
+Architecture reference → `docs/architecture-reference.md`
+
 ---
 
 ## AI Engineering Rules
 
-Thirteen non-negotiable rules. No exceptions.
+**Ten rules.** Rules 1–4 are daily-use engineering principles. Rules 5–7 are class-level patterns triggered by resource type. Rules 8–10 are delivery gates. All rules override default habits; CLAUDE.md overrides everything except explicit user instructions.
 
-### Rule 0 — Root Cause Before Plan
-**Before writing any plan, diagnosis, or fix — trace the root cause to a falsifiable mechanical statement.**
+Automated checks: `scripts/check_rules.py` enforces the Language Rule, Rule 4 (three-layer testing, advisory), Rule 5 (asyncio.run sites), Rule 6 (inline fallback pattern) via `.github/workflows/claude-rules.yml`. Hot-path T3 gate enforcement tracked as DF-46.
 
-A symptom is not a root cause. A guess is not a root cause. A root cause names the exact code path, state transition, or missing invariant that produces the failure.
+Incident records and narrow-trigger rule details → `docs/rules-incident-log.md`
 
-Required format before any plan is written:
+---
+
+### Rule 1 — Root-Cause + Strongest-Interpretation Before Plan
+
+**Before writing any plan, fix, or feature — surface assumptions, name confusion, and state tradeoffs. Then (a) name the root cause mechanically and (b) choose the strongest valid reading of the requirement.**
+
+Do not pick one reading silently and ship it expecting the requester to ask again. If unclear, stop and ask first.
+
+**(a) Root-cause discipline** — required before any plan:
 1. **Observed failure**: exact error message or test output
-2. **Execution path**: which function calls which, and where it diverges from expectation
-3. **Root cause statement**: one precise sentence — "X happens because Y at line Z, which causes W"
-4. **Evidence**: file:line references that confirm the root cause, not just the symptom
+2. **Execution path**: which function calls which, where it diverges from expectation
+3. **Root cause statement**: one sentence — "X happens because Y at line Z, which causes W"
+4. **Evidence**: file:line references that confirm the cause, not the symptom
 
-Plans written before this analysis is complete are rejected. Fixing symptoms without tracing root cause is forbidden — it generates new bugs while masking the original.
+**(b) Strongest-interpretation defaults:**
+- "Gate" → **blocking**, not notification
+- "Isolation" → **per-tenant/profile scope**, not process scope
+- "Persist" → **survives restart**, not in-memory
+- "Compatible" → **same signature + same semantics**, not "same name"
 
-**Incident record** (why this rule exists):
-- 2026-04-19: Three repeated HTTP path mismatches (04-11, 04-19①, 04-19②) all traced to the same root cause (client written against draft spec, never verified against live Route table) — but each fix addressed the symptom (wrong path) without fixing the root cause (no verification gate). Only after root cause analysis was Rule 7 added to prevent recurrence.
-- 2026-04-19: SSE test `test_tc11` returned `application/json` instead of `text/event-stream`. Surface diagnosis: "wrong media_type". Root cause: handler's auth guard (`require_tenant_context()`) raises `RuntimeError` when called without middleware context, returning a 401 JSON early-exit — the StreamingResponse line is never reached. Fix required understanding the auth middleware's anonymous context injection behavior, not just the handler code.
+**Enforcement**: A PR without the four-line root-cause block is rejected. A PR delivering the weaker reading of an ambiguous requirement without a prior question is rejected.
 
-### Rule 1 — Think Before Coding
-Surface assumptions, name confusion, state tradeoffs before writing a single line. If multiple valid interpretations exist, present them — never pick one silently. If the requirement is unclear, stop and ask.
+---
 
-### Rule 2 — Simplicity First
-Minimum code that solves the problem. No speculative features, one-use abstractions, unrequested configurability, or impossible-scenario error handling. If 50 lines solve it, don't write 200.
+### Rule 2 — Simplicity & Surgical Changes
 
-### Rule 3 — Surgical Changes
-Touch only what the task requires. Do not improve or reformat adjacent code. Match surrounding style exactly. Remove only imports/variables/functions that **your** change made unused — leave pre-existing dead code untouched.
+**Minimum code that solves the stated problem. Touch only what the task requires.**
 
-### Rule 4 — Goal-Driven Execution
-Convert vague instructions into falsifiable goals before starting. For multi-step tasks, publish a numbered plan with per-step verification criteria and confirm before executing. Do not proceed past a step until its verification passes.
+- No speculative features, one-use abstractions, unrequested configurability, or impossible-scenario error handling.
+- Reach for a library before inventing a framework; reach for a function before inventing a class hierarchy.
+- Do not improve, reformat, or rename adjacent code in the same commit. Match surrounding style exactly.
+- Remove only imports/variables/functions that **your** change made unused — leave pre-existing dead code for a separate cleanup commit.
 
-### Rule 5 — Pre-Commit Systematic Inspection
-Before every commit, audit every touched file across six dimensions:
+**Parallel-dispatch anti-bundle clause:** when multiple agents run in parallel and any two touch the same file:
+1. The second-to-commit agent **rebases** onto the first — never `git reset --soft` + re-commit (silently absorbs the other agent's work).
+2. Any commit spanning >1 defect ID in its message OR touching files in >2 distinct modules must be split before merge.
+3. `git diff --cached --stat | wc -l` > 6 files is a yellow flag; >10 is a red flag requiring justification in the commit body.
+
+---
+
+### Rule 3 — Pre-Commit Checklist
+
+Before every commit, audit every touched file across all dimensions below. Fix defects before committing — "I'll fix it later" is forbidden.
 
 | Dimension | Check |
 |-----------|-------|
-| **Contract truth** | No `pass`, `raise NotImplementedError`, or stub bodies. |
-| **Orphan config** | Every parameter/config field/env var is consumed downstream. |
-| **Orphan return values** | Every non-`None` return is consumed by the caller. |
-| **Subsystem connectivity** | No broken wiring, missing DI, or unattached components. |
-| **Driver–result alignment** | Every decision-driving field produces an observable effect. |
-| **Error visibility** | No silent `except: pass` — every catch re-raises, logs, or converts to typed failure. |
-| **HTTP path truth** | Every `_http_post(path)` / `_http_get(path)` in `kernel_facade_client.py` matches a `Route(path, method)` in `agent_kernel/service/http_server.py`. Enumerate all endpoints side-by-side in the PR description. |
-| **ID uniqueness** | Runtime identifiers (`run_id`, `stage_id`, `branch_id`) come from the caller or are generated via `uuid.uuid4()`. Fallback to semantic labels (`run_kind`, `'default'`, `'trace'`) as an ID is forbidden. |
+| **Contract truth** | No `pass`, `NotImplementedError`, or stub bodies. |
+| **Orphan config** | Every parameter / config field / env var is consumed downstream. |
+| **Orphan returns** | Every non-`None` return is consumed by the caller. |
+| **Subsystem connectivity** | No broken DI, unattached components, missing wiring. |
+| **Driver-result alignment** | Every decision-driving field produces an observable effect. |
+| **Error visibility** | No silent `except: pass`. Every catch re-raises, logs at `WARNING+`, or converts to typed failure. |
+| **Exception handler narrowness** | `except Exception:` must not catch `GatePendingError`/`KeyboardInterrupt` without explicit filtering first. |
+| **Branch parity** | Async and sync paths mirror each other's invariants (`_run_id` set, reflection prompt injected, timers initialized). |
+| **Docstring-implementation parity** | Every example in a docstring executes without `AttributeError`/`TypeError`. |
+| **Test honesty** | No `MagicMock` on the unit under test in integration tests. No assertion that accepts failure as success. |
+| **Lint green** | `ruff check .` exits 0. No `# noqa` added in the same commit as the offending line. |
+| **ID uniqueness** | Runtime IDs from caller or `uuid.uuid4()`. No `run_id='default'` semantic-label fallback. |
+| **Fail-fast test sync** | If a PR tightens a silent path to fail-fast (`raise RuntimeError`, 503, hard validation), update all affected tests in the same PR. |
 
-Fix defects before committing. No "I'll fix it later."
-
-### Rule 6 — Three-Layer Testing After Every Implementation
-All three layers must be green before a feature is shipped:
-
-- **Layer 1 — Unit**: one function/method per test; mock only external network calls or fault injection (document reason in docstring).
-- **Layer 2 — Integration**: real components wired together, no internal mocking; skip with `@pytest.mark.skip(reason="awaiting real implementation")` if dependency is absent.
-- **Layer 3 — E2E**: drive through the public interface (HTTP, CLI, top-level API); assert on observable outputs, not internal variables.
-
-### Rule 7 — Kernel HTTP Contract Lock
-
-`agent_kernel/service/http_server.py` is the **single authority** for all endpoint definitions.  
-`hi_agent/runtime_adapter/kernel_facade_client.py` is the **single HTTP client** for those endpoints.
-
-**When either file changes, both must be audited together in the same commit:**
-
-1. Produce a side-by-side table for every kernel operation:
-
-   | Operation | Client call (path · method · body fields) | Server Route (path · method) | Match? |
-   |-----------|------------------------------------------|------------------------------|--------|
-   | `start_run` | `POST /runs · {run_kind, input_json}` | `POST /runs` | ✅ |
-   | … | … | … | … |
-
-2. Every row must be ✅. Any ❌ is a blocker — fix before merging.
-
-3. If a server route is added or renamed, the client must be updated **in the same PR**. Split PRs that leave client/server out of sync are rejected.
-
-**Incident record** (why this rule exists):
-- 2026-04-19: `POST /runs/start` (wrong) vs `POST /runs` (actual); `POST /runs/spawn_child` vs `POST /runs/{run_id}/children`; `POST /stages/open` vs `POST /runs/{run_id}/stages/open` — caused 100% POST /runs failure on downstream deploy. Client was written against a draft spec and never cross-verified against the live Route table.
-
-### Rule 8 — Downstream Delivery Gate
-
-Before any package (zip / pip / docker image) is delivered to a downstream system, the following smoke test **must pass** in a clean environment (Python 3.12, empty `.hi_agent/`):
+**Smoke + lint** — required before every commit touching `hi_agent/server/`, `hi_agent/runtime_adapter/`, `agent_kernel/service/`, or any `__init__.py`:
 
 ```bash
-# Step 1 — import gate (catches syntax errors, BOM, missing deps)
-python -c "import hi_agent; import agent_kernel"
-
-# Step 2 — sequential run creation (catches hardcoded ID bugs)
-for i in 1 2 3; do
-  curl -sf -X POST http://127.0.0.1:8080/runs \
-    -H 'Content-Type: application/json' \
-    -d "{\"goal\":\"smoke $i\",\"task_family\":\"quick_task\",\"risk_level\":\"low\"}" \
-    | jq -c '{run_id, state}'
-done
-# Assert: 3 distinct run_ids, all HTTP 200/201
-
-# Step 3 — run-to-terminal (catches path mismatch, stuck-running bugs)
-RUN_ID=$(curl -sf -X POST http://127.0.0.1:8080/runs \
-  -H 'Content-Type: application/json' \
-  -d '{"goal":"smoke final","task_family":"quick_task","risk_level":"low"}' | jq -r .run_id)
-for i in $(seq 1 30); do
-  STATE=$(curl -sf http://127.0.0.1:8080/runs/$RUN_ID | jq -r .state)
-  [ "$STATE" = "done" -o "$STATE" = "failed" ] && echo "OK: $STATE" && break
-  sleep 2
-done
+ruff check .                                      # exit 0 required
+python -c "import hi_agent; import agent_kernel"  # exit 0, no stderr
+python -m hi_agent serve --port 8080 &            # background
+sleep 3 && curl -sf http://127.0.0.1:8080/health | jq .
 ```
 
-**Pass criteria — all three must hold:**
-- Step 1 exits 0 with no error output
-- Step 2 produces 3 distinct `run_id` values, no 4xx/5xx
-- Step 3 reaches `done` or `failed` within 60 s; error log shows no 404/405/400/duplicate
+Pass criteria: ruff clean, import clean, `/health` returns 200 within 3 s. Rule 3 gates a **commit**, not a delivery (Rule 8 gates delivery).
 
-**Incident record** (why this rule exists):
-- 2026-04-11: Step 1 failed (17× Python 2 `except A, B:` syntax + 12× UTF-8 BOM).
-- 2026-04-19: Step 1 passed but Steps 2–3 failed (`/runs/start` 405; duplicate `run_id='default'`).
+---
 
-### Rule 9 — CI Gate Fidelity (Secret ↔ Fixture 1:1)
+### Rule 4 — Three-Layer Testing, With Honest Assertions
 
-**Every conditional CI step must gate on exactly the secrets its fixture actually reads — nothing more, nothing less.**
+A feature is implementable only when all three layers are designed. A feature is shippable only when all three are green **and** Rule 8 passes.
 
-If the fixture reads `OPENAI_API_KEY`, the `if:` expression must test `OPENAI_API_KEY`. If it additionally accepts `ANTHROPIC_API_KEY`, the condition is OR'd. But if the fixture has no code path that consumes `VOLCE_API_KEY`, **`VOLCE_API_KEY` must NOT appear in the gate** — otherwise CI admits a scenario the fixture cannot satisfy and the job fails 100% of the time when only that key is present.
+- **Layer 1 — Unit**: one function per test; mock only external network or fault injection, with reason in docstring.
+- **Layer 2 — Integration**: real components wired together. **Zero mocks on the subsystem under test.** Skip with `@pytest.mark.skip(reason="awaiting real implementation")` if a dependency is absent — never fake it.
+- **Layer 3 — E2E**: drive through the public interface (HTTP / CLI / top-level API); assert on observable outputs, not internal variables.
 
-Before adding or modifying any `if: ${{ env.X_API_KEY != '' }}` in `.github/workflows/`, do the following audit on the same PR:
+**Test honesty is not optional**:
+- An integration test that `MagicMock`s the executor is a unit test mislabeled.
+- An assertion of shape `result.status in ["completed", "failed"]` is not a test — it is documentation that the feature might not work.
+- A test named `test_foo_works` that passes when `foo` raises is a lie.
 
-1. `grep -rn 'os.environ.get.*X_API_KEY\|getenv.*X_API_KEY'` inside the target test file and its fixtures.
-2. Confirm every `|| env.Y_API_KEY != ''` clause has a matching consumer in the fixture / server-start path.
-3. If a secret is intended to drive a **different** test, put it behind a **different** step with its own matching condition and fixture.
+---
 
-**Incident record:**
-- 2026-04-21 (run 24701565968, 24703085914, 24703552799): `Production E2E tests` step gated on `VOLCE_API_KEY || OPENAI_API_KEY || ANTHROPIC_API_KEY`, but the server fixture's `build_llm_gateway` path only reads `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`. When only `VOLCE_API_KEY` was available in CI secrets, the step ran, the server came up in prod mode with no gateway, `POST /runs` returned 503 `platform_not_ready`, and the step failed on every push. Fix: remove `VOLCE_API_KEY` from the condition.
+### Rule 5 — Async/Sync Resource Lifetime
 
-### Rule 10 — No Wall-Clock Assertions Against External LLMs
+**Async-first core, sync-bridge via a single durable event-loop thread.** Every async resource (`httpx.AsyncClient`, `aiohttp.ClientSession`, `asyncpg.Pool`, async generators, anyio task groups) has a lifetime **bound to exactly one event loop**.
 
-**Hard latency/timeout assertions against external LLM endpoints are forbidden in blocking CI steps.**
+**Forbidden patterns:**
+1. Constructing an async resource in `__init__` of a sync-facing class, then calling `asyncio.run(...)` on its methods.
+2. Sharing one `AsyncClient`/`ClientSession` across two `asyncio.run(...)` calls.
+3. Passing an async resource built in loop A into a coroutine on loop B.
+4. Wrapping an async library with a sync façade that `asyncio.run`s per method.
 
-External-model response time is a function of provider queue depth, fair-use throttling, cold starts, region routing, and network weather. It is **not a property of our code**, so asserting against it produces flaky CI and teaches the team to ignore CI results.
+**Required patterns** — pick one per call site:
+- **Async-native**: caller is already async; use the resource under its owning loop.
+- **Sync bridge**: route through `hi_agent.runtime.sync_bridge` (persistent loop on dedicated thread; marshals via `asyncio.run_coroutine_threadsafe`).
+- **Per-call construction** (cheap resources only): `async with httpx.AsyncClient(...) as c:` inside the coroutine.
 
-Three acceptable patterns for live-LLM tests, in order of preference:
+**Pre-commit check:**
+```bash
+rg -n 'asyncio\.run\(' hi_agent/ agent_kernel/
+```
+Every match must be in an entry point (`__main__`, CLI, test) or routed through `sync_bridge`.
 
-1. **Advisory-only**: wrap the step in `continue-on-error: true`; expose the result as a status check, not a gate.
-2. **Budget with ≥3× headroom**: if a latency check is genuinely required, allow `3 × p95_observed_over_last_week`, not a fixed second-count.
-3. **Trend-not-point**: assert latency hasn't regressed vs a recorded baseline (with at least 50% headroom), not that it is below an absolute number.
+---
 
-Never commit a test with `assert response_time_s < 30` against a real LLM API.
+### Rule 6 — Single Construction Path Per Resource Class
 
-**Incident record:**
-- 2026-04-21 (run 24701988423): `test_response_latency[kimi-k2.5]` failed because the model took 47s against a 30s deadline. Model reachability was fine; the assertion itself was the defect.
-- 2026-04-21 (run 24702363330): `test_multi_turn_conversation[doubao-seed-2.0-pro]` timed out >120s — same root cause.
+**For every shared-state resource, exactly one builder function owns construction. All consumers receive the instance by dependency injection. Inline fallbacks of the shape `x or DefaultX()` are forbidden.**
 
-### Rule 11 — Fail-Fast Changes Must Land With Their Test Updates
+When a class needs profile/workspace/project scoping, scope is a **required constructor argument**, not an optional kwarg with a default. Missing scope must be a hard error, not a silent fresh unscoped instance.
 
-**When introducing or tightening a fail-fast check (`RuntimeError`, 503, hard validation), run the full CI matrix locally before merge and update every test that relied on the previous silent-degradation path in the same PR.**
+**Forbidden patterns:**
+```python
+self.raw_memory = raw_memory or RawMemoryStore()          # silent unscoped instance
+def build_short_term_store(profile_id: str = "") -> ...:  # optional scope
+```
 
-Silent-degradation paths (heuristic fallback, default `None` values, best-effort `except Exception: pass`) are load-bearing for many tests even when the test's stated intent is "real LLM / real kernel". Tightening those paths without a matching test update turns every test into "expected success → 503".
+**Required patterns:**
+```python
+def __init__(self, raw_memory: RawMemoryStore):           # injection required
+    self.raw_memory = raw_memory                          # no fallback
 
-Required before merge for any PR that:
-- Adds a new `raise RuntimeError(...)` on a previously-silent branch
-- Flips a default from "permit and warn" to "deny"
-- Removes a `None`-return fallback in a builder or factory
+def build_short_term_store(*, profile_id: str, workspace_key: WorkspaceKey) -> ...:
+    if not profile_id:
+        raise ValueError("profile_id required")
+```
 
-**Checklist:**
-1. `pytest tests/ --ignore=tests/integration/test_live_llm_api.py -q` passes green on your machine, not just a subset.
-2. The PR description enumerates which previously-silent call sites now raise.
-3. Either the test updates are in the same PR, or a config flag (`HI_AGENT_ALLOW_*_FALLBACK=true`) is added to opt back into the old behavior for tests that genuinely want it.
+**Pre-commit check:**
+```bash
+rg -n ' or [A-Z][a-zA-Z]*Store\(|\bor [A-Z][a-zA-Z]*Graph\(|\bor [A-Z][a-zA-Z]*Gateway\(' hi_agent/
+```
+Every match is a defect candidate. Remaining fallbacks must be documented inline with the threat they answer.
 
-**Incident record:**
-- 2026-04-21: SA-P1-6 fail-fast in `_default_executor_factory` rejected runs when `llm_gateway is None` in prod mode. The change was correct, but `tests/integration/test_prod_e2e.py` relied on the prior silent-fallback behavior and failed CI. Rule 11 requires that the full test suite is run before such a change lands; had it been, the test update would have landed together.
+---
 
-### Rule 12 — Lint Cleanliness
+### Rule 7 — Resilience Must Not Mask Signals
 
-**Every commit touching `hi_agent/` or `tests/` must produce zero findings against the repo's ruff ruleset configured in `pyproject.toml`.**
+Every silent-degradation path emits a **loud, structured, ship-gate-visible** signal. Required for each fallback branch:
 
-The `[tool.ruff.lint] select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "RUF"]` ruleset is already tuned to exclude high-false-positive groups (no D-series docstring, `E402` and `D203`/`D213` explicitly ignored). What remains is high-signal: unused imports, import order, bugbear correctness, comprehension clarity, simplification. Letting these accumulate is how a "7 findings" advisory grows into a "700 findings" backlog that nobody ever clears.
+1. **Countable**: named Prometheus counter on `/metrics` (`hi_agent_llm_fallback_total`, `hi_agent_heuristic_route_total`, etc.).
+2. **Attributable**: `WARNING+` log with `run_id` and trigger reason at the branch entry.
+3. **Inspectable**: run metadata carries `fallback_events: list[dict]`. A terminal run with non-empty fallback_events is not "successful" for delivery purposes.
+4. **Gate-asserted**: Rule 8's operator-shape gate asserts `llm_fallback_count == 0` — any non-zero blocks ship.
 
-**Exception policy:**
+Introducing or touching a fallback requires all four. A fallback without an alarm bell is a defect disguised as resilience.
 
-- Inline per-occurrence exceptions are permitted: `# noqa: <RULE-CODE> — <one-line justification>`. The rule code and the justification are both mandatory.
-- Blanket `# noqa` without a specific rule code is rejected.
-- `--fix`-able findings must be actually fixed, not suppressed — suppression of an auto-fixable finding is a code smell that fails review.
-- Adding a new rule family to `pyproject.toml` `select` that would create >3 findings must be paired with the corresponding fixes in the same PR, or the rule must be added to `ignore` with a dated comment explaining why.
+---
+
+### Rule 8 — Operator-Shape Readiness Gate + T3 Invariance
+
+**No artifact ships until it runs in the exact operator shape downstream will use.** Green pytest, green Layer 3 E2E, and a clean self-audit do not authorize delivery by themselves.
+
+Before any artifact leaves the repo (zip, pip, docker, PM2 bundle), the following must pass in a clean environment mirroring the target deployment:
+
+1. **Long-lived process** — PM2 / systemd / docker run; not foreground `python -m hi_agent serve`. Process survives steps 2–6.
+2. **Real LLM** — `HI_AGENT_LLM_MODE=real`, pointing at the provider downstream will use. Mock gateways disqualify.
+3. **Sequential real-LLM runs (N≥3)** — three back-to-back `POST /runs`, each:
+   - reaches `state=done` in ≤ `2 × observed_p95`,
+   - has `llm_fallback_count == 0` in run metadata (Rule 7),
+   - emits ≥1 outgoing LLM request in access log + `hi_agent_llm_requests_total` metric.
+4. **Cross-loop resource stability** — runs 2 and 3 reuse the same gateway/adapter instance as run 1 (Rule 5 stress test). No `Event loop is closed`, no `ConnectTimeout` on call ≥2.
+5. **Lifecycle observability** — each run reports a non-`None` `current_stage` within 30 s; `finished_at` populated on terminal. `current_stage==None` for >60 s on a non-terminal run is a FAIL.
+6. **Cancellation round-trip** — `POST /runs/{id}/cancel` on a live run → 200 + drives terminal; on unknown id → 404, not 200.
+
+All six hold. Any FAIL blocks ship. The artifact owner records the gate run in `docs/delivery/<date>-<sha>.md`. Unrecorded ≠ passed.
+
+**T3 Invariance** — a gate pass is valid only for the SHA at which it was recorded. Any subsequent commit touching hot-path files invalidates T3 until a fresh gate run is recorded.
+
+Hot-path files: `hi_agent/llm/**`, `hi_agent/runtime/**`, `hi_agent/config/cognition_builder.py`, `hi_agent/config/json_config_loader.py`, `hi_agent/config/builder.py`, `hi_agent/runner.py`, `hi_agent/runner_stage.py`, `hi_agent/runtime_adapter/**`, `hi_agent/memory/compressor.py`, `hi_agent/server/app.py`, `hi_agent/profiles/**`
+
+On any PR touching hot-path files, the PR description must include one of:
+- `T3 evidence: docs/delivery/<YYYY-MM-DD>-<sha>-rule15-volces.json` (gate run from this PR's tip), OR
+- `T3 evidence: DEFERRED — <reason>` (PR tagged "requires gate before release"; may merge to dev but NOT to release)
+
+T1/T2 (unit + integration) passing does NOT preserve T3. At any time the repository has exactly one "last known T3" tag.
+
+---
+
+### Rule 9 — Self-Audit is a Ship Gate, Not a Disclosure
+
+A self-audit with open findings in a downstream-correctness category **blocks delivery**. Attaching an honest defect list does not authorize shipping with them.
+
+**Ship-blocking categories (any open finding blocks):**
+- LLM path (gateway, adapter, streaming, async lifetime, retry, rate-limit)
+- Run lifecycle (stage, state machine, cancellation, resume, watchdog)
+- HTTP contract (path, method, body, status, auth)
+- Security boundary (path traversal, `shell=True`, auth bypass, tenant-scope escape)
+- Resource lifetime (async clients, file handles, subprocesses, background tasks)
+- Observability (missing metric, log, or health signal for a failure path)
+
+**Forbidden phrasing in delivery notices:**
+- "P0/P1 fixed, H-level open, shipping this version"
+- "Flagged but not fixed — ok for this round"
+- "Will address in follow-up PR"
+- "Orange severity, architectural debt, safe to ship"
+
+If leadership explicitly accepts the risk: reclassify as a **Known-Defect Notice**, signed by name, acknowledged in writing by downstream before transfer, with user-visible symptoms spelled out per defect.
+
+---
+
+### Rule 10 — Downstream Contract Alignment
+
+**The authoritative vocabulary for capability assessment is downstream's, not ours.**
+
+`docs/downstream-responses/` contains the reference roadmap. Downstream defines:
+- Platform/business layer separation (platform = hi-agent team; business = research team).
+- 7-dimension readiness scorecard (Execution / Memory / Capability / Knowledge Graph / Planning / Artifact / Evolution / Cross-Run).
+- Capability patterns **PI-A through PI-E**.
+- Platform gaps **P-1 through P-7**.
+
+**When interacting with downstream:**
+- Delivery notices use **their** taxonomy (PI-A..PI-E impact, readiness % change, gap P-N status), not our internal labels (E3/H4/D1/F-N).
+- When our defect taxonomy and downstream's usage pattern disagree on severity, **downstream's severity wins**.
+- A strategic roadmap / gap analysis from downstream requires a written response under `docs/downstream-responses/`.
 
 **Enforcement:**
+- Every delivery notice contains a "Readiness delta" table keyed by the 7 downstream dimensions.
+- Every delivery notice maps changes to PI-A..PI-E impact.
+- Outstanding gap items (P-1..P-7) tracked in `docs/platform-gaps.md`.
 
-CI `.github/workflows/ci.yml` runs `ruff check hi_agent tests` as a **blocking** step (no `continue-on-error`). Advisory lint is no longer an accepted posture — the step either passes or the PR cannot merge.
+---
 
-**Incident record:**
-- 2026-04-21: transition moment. Prior to this date, CI's `Lint (advisory)` step carried `continue-on-error: true`, so ruff findings accumulated silently (7 outstanding at the point of promotion; all cleared as part of the same PR that encoded this rule). The advisory→blocking transition is what prevents the next "silent growth to 700" cycle.
+## Operational Appendix
+
+### Narrow-Trigger Rules
+
+These apply only when the stated condition is true. Full detail and incident records → `docs/rules-incident-log.md#narrow-rules`.
+
+| Condition | Required action |
+|-----------|-----------------|
+| Changing `agent_kernel/service/http_server.py` or `kernel_facade_client.py` | PR must include side-by-side client↔server path/method table; every row ✅ before merge. |
+| Adding/modifying CI `if: ${{ env.X_API_KEY != '' }}` | Grep consumers first; every `\|\|` clause must have a matching read in the fixture. |
+| Adding latency assertions against a real LLM in CI | Only advisory (`continue-on-error: true`), ≥3× p95 headroom, or trend-not-point. Never a fixed second-count. |
+
+### Rule Origin Mapping
+
+| New | Absorbed from |
+|-----|---------------|
+| Rule 1 | Old Rule 1 + Rule 2 (Think Before Coding) |
+| Rule 2 | Old Rule 3 + Rule 4 |
+| Rule 3 | Old Rule 5 + Rule 6 + Rule 11 (fail-fast sync) |
+| Rule 4 | Old Rule 7 |
+| Rule 5 | Old Rule 12 |
+| Rule 6 | Old Rule 13 |
+| Rule 7 | Old Rule 14 |
+| Rule 8 | Old Rule 15 + Rule 18 + Rule 19 (CI plan → DF-46) |
+| Rule 9 | Old Rule 16 |
+| Rule 10 | Old Rule 17 (with old Rule 8 HTTP table as narrow-trigger) |
 
 ---
 
@@ -211,125 +290,6 @@ No Mock implementations in production. Using mocks to bypass real failures is **
 | Missing = exposed | Unimplemented dependencies → `skip`/`xfail`, never faked. |
 | Legitimate mock uses | (1) external HTTP calls in unit tests; (2) fault injection; (3) performance benchmarks. Document reason in docstring. |
 | Zero mocks in integration | Integration and E2E tests use real components only. |
-
----
-
-## System Overview
-
-**TRACE = Task → Route → Act → Capture → Evolve**
-
-| Package | Role |
-|---------|------|
-| `hi_agent/` (this repo) | Agent brain: all cognitive + decision logic |
-| `agent_kernel/` (inlined, 2026-04-19) | Durable runtime: run lifecycle, event log, idempotency — source of truth for HTTP endpoints is `agent_kernel/service/http_server.py` |
-| `agent-core` | Reusable capability modules: tools, retrieval, MCP |
-
-Execution modes: `execute()` linear · `execute_graph()` DAG with backtrack · `execute_async()` full asyncio.  
-Middleware: Perception(light) → Control(medium) → Execution(dynamic) → Evaluation(light); ~86% cost reduction via independent contexts.
-
----
-
-## Module Index
-
-### Model-Driven Management
-| Module | Description |
-|--------|-------------|
-| `hi_agent/llm/` | LLMGateway + AsyncLLMGateway, ModelRegistry, TierRouter, ModelSelector, budget tracker |
-
-### Middleware
-| Module | Description |
-|--------|-------------|
-| `hi_agent/middleware/` | Perception → Control → Execution → Evaluation; 5-phase lifecycle hooks; MiddlewareOrchestrator |
-
-### Task Management
-| Module | Description |
-|--------|-------------|
-| `hi_agent/task_mgmt/` | AsyncTaskScheduler, BudgetGuard, RestartPolicyEngine (`reflect(N)` injects reflection prompt before each retry), ReflectionOrchestrator, TaskMonitor, TaskHandle (8-state), PlanTypes |
-| `hi_agent/trajectory/` | TrajectoryGraph (chain/tree/DAG/general), StageGraph, Superstep execution, conditional edges |
-
-### Context OS
-| Module | Description |
-|--------|-------------|
-| `hi_agent/context/` | ContextManager (7-section budget, 4 thresholds, compression fallback chain), RunContext, RunContextManager |
-| `hi_agent/session/` | RunSession (L0 JSONL, checkpoint save/resume), CostCalculator |
-| `hi_agent/memory/` | L0 Raw → L1 STM → L2 MidTerm (Dream) → L3 LongTerm (graph, TF-IDF, auto-load); L0Summarizer; AsyncMemoryCompressor; MemoryLifecycleManager |
-| `hi_agent/knowledge/` | Wiki (`[[wikilinks]]`), knowledge graph, four-layer retrieval (grep→BM25→graph→embedding), 6 API endpoints |
-| `hi_agent/skill/` | SKILL.md format, SkillLoader (multi-source, token-budget binary search), SkillVersionManager (A/B), SkillEvolver, 7 API endpoints |
-
-### TRACE Runtime
-| Module | Description |
-|--------|-------------|
-| `hi_agent/runner.py` | RunExecutor: execute(), execute_graph(), execute_async(), resume(); dispatch_subrun(goal=), await_subrun(), register_gate(); gate blocking (GatePendingError); reflection_prompt injection; `_finalize_run` triggers L0→L2→L3 memory chain + raw_memory.close(); dead-end detection; checkpoint resume; LLM cost tracking |
-| `hi_agent/contracts/` | TaskContract (13 fields, ACTIVE/PASSTHROUGH/QUEUE_ONLY annotations), PolicyVersionSet, CTSBudget |
-| `hi_agent/route_engine/` | Rule / LLM / Hybrid / Skill-aware / Conditional routing; DecisionAuditStore |
-| `hi_agent/task_view/` | TaskView builder, token budgets, auto-compress (snip→window→compress) |
-| `hi_agent/config/` | TraceConfig (95+ params), SystemBuilder (full subsystem wiring) |
-
-### Governance & Evolution
-| Module | Description |
-|--------|-------------|
-| `hi_agent/harness/` | Dual-dimension governance (EffectClass + SideEffectClass), PermissionGate, EvidenceStore |
-| `hi_agent/evolve/` | PostmortemAnalyzer, SkillExtractor, RegressionDetector, ChampionChallenger |
-| `hi_agent/failures/` | FailureCode (11 codes, re-exported from agent-kernel TraceFailureCode), FailureCollector, ProgressWatchdog |
-| `hi_agent/state_machine/` | Generic StateMachine + 6 TRACE definitions |
-
-### Infrastructure
-| Module | Description |
-|--------|-------------|
-| `hi_agent/server/` | HTTP API (20+ endpoints), EventBus, SSE streaming, RunManager, DreamScheduler |
-| `hi_agent/runtime_adapter/` | 22-method RuntimeAdapter protocol; KernelFacadeAdapter (sync); AsyncKernelFacadeAdapter; ResilientKernelAdapter (retry + circuit breaker) |
-| `hi_agent/capability/` | CapabilityRegistry; CapabilityInvoker (timeout+retry); AsyncCapabilityInvoker; CircuitBreaker |
-| `hi_agent/observability/` | MetricsCollector, tracing, notifications |
-| `hi_agent/auth/` | RBAC, JWT, SOC guard |
-| `hi_agent/mcp/` | MCPServer, MCPHealth, MCPBinding; StdioMCPTransport + MultiStdioTransport (transport_status: not_wired until plugin registers mcp_servers) |
-| `hi_agent/executor_facade.py` | RunExecutorFacade (start/run/stop), RunFacadeResult, check_readiness(), ReadinessReport |
-| `hi_agent/gate_protocol.py` | GateEvent dataclass (gate_id, gate_type, phase_name, recommendation, output_summary, opened_at); GatePendingError (carries `gate_id` attribute) |
-| `hi_agent/llm/tier_presets.py` | `apply_research_defaults(tier_router)` — research-optimized TierRouter preset |
-
----
-
-## Key Concepts
-
-| Concept | Definition |
-|---------|------------|
-| **Task** | Formal task contract (13 fields), not raw user input |
-| **Task View** | Minimal sufficient context rebuilt before each model call |
-| **Action** | External operation executed via Harness |
-| **Memory** | Agent experience: short-term (session) → mid-term (dream) → long-term (graph) |
-| **Knowledge** | Stable facts: wiki + knowledge graph + four-layer retrieval |
-| **Skill** | Reusable process unit: 5-stage lifecycle, A/B versioning, textual gradient evolution |
-| **Feedback** | Optimization signals from results, evaluations, and experiments |
-
----
-
-## Contract Field Consumption
-
-| Level | Meaning |
-|-------|---------|
-| `ACTIVE` | Drives execution behavior in the default TRACE pipeline |
-| `PASSTHROUGH` | Stored and returned; consumption is the business agent's responsibility |
-| `QUEUE_ONLY` | Used for scheduling only; not consumed during stage execution |
-
-`goal`, `task_family`, `risk_level`, `constraints`, `acceptance_criteria`, `budget`, `deadline`, `profile_id`, `decomposition_strategy` → **ACTIVE**  
-`environment_scope`, `input_refs`, `parent_task_id` → **PASSTHROUGH**  
-`priority` → **QUEUE_ONLY**
-
----
-
-## Human Gate Types
-
-| Gate | Trigger |
-|------|---------|
-| **A** `contract_correction` | Modify task contract mid-run |
-| **B** `route_direction` | Guide path selection |
-| **C** `artifact_review` | Review/edit outputs |
-| **D** `final_approval` | Gate high-risk final actions |
-
-## Standard Failure Codes
-
-`missing_evidence` · `invalid_context` · `harness_denied` · `model_output_invalid` · `model_refusal` · `callback_timeout` · `no_progress` · `contradictory_evidence` · `unsafe_action_blocked` · `exploration_budget_exhausted` · `execution_budget_exhausted`
-
-Defined as `hi_agent.failures.taxonomy.FailureCode` (StrEnum).
 
 ---
 

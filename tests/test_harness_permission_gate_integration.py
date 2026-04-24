@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from hi_agent.harness.contracts import ActionSpec, ActionState
+from hi_agent.harness.evidence_store import EvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine
 from hi_agent.harness.permission_rules import (
@@ -95,6 +96,7 @@ class TestHarnessExecutorPermissionGateDeny:
             governance=governance,
             capability_invoker=None,  # must not be reached
             permission_gate=mock_gate,
+            evidence_store=EvidenceStore(),
         )
         spec = _make_simple_spec()
 
@@ -120,6 +122,7 @@ class TestHarnessExecutorPermissionGateDeny:
             governance=governance,
             capability_invoker=None,
             permission_gate=gate,
+            evidence_store=EvidenceStore(),
         )
         spec = _make_simple_spec(capability_name="bash", payload={"command": "ls"})
 
@@ -153,6 +156,7 @@ class TestHarnessExecutorPermissionGateDeny:
             governance=governance,
             capability_invoker=None,  # will fail at dispatch — intentional
             permission_gate=gate,
+            evidence_store=EvidenceStore(),
         )
         spec = _make_simple_spec()
 
@@ -171,6 +175,7 @@ class TestHarnessExecutorPermissionGateDeny:
             governance=governance,
             capability_invoker=None,
             permission_gate=None,  # no gate
+            evidence_store=EvidenceStore(),
         )
         spec = _make_simple_spec()
 
@@ -201,6 +206,7 @@ class TestHarnessExecutorPermissionGateDeny:
             governance=governance,
             capability_invoker=None,
             permission_gate=mock_gate,
+            evidence_store=EvidenceStore(),
         )
         spec = _make_simple_spec()
 

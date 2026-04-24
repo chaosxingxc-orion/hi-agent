@@ -49,6 +49,7 @@ def _contract(task_id: str) -> TaskContract:
         task_id=task_id,
         goal="Characterize RunExecutor behavior",
         task_family="quick_task",
+        profile_id="char-test-profile",
     )
 
 
@@ -105,6 +106,9 @@ class TestRunResultContract:
             "failed_stage_id",
             "is_retryable",
             "execution_provenance",
+            "fallback_events",
+            "llm_fallback_count",
+            "finished_at",
         ]
 
     def test_run_result_string_equality_and_dict_shape_are_locked(self) -> None:
@@ -129,6 +133,9 @@ class TestRunResultContract:
             "failed_stage_id",
             "is_retryable",
             "execution_provenance",
+            "fallback_events",
+            "llm_fallback_count",
+            "finished_at",
         }
 
     def test_run_executor_entry_point_signatures_are_locked(self) -> None:

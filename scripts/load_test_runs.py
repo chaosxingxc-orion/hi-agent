@@ -1,7 +1,8 @@
 """Simple concurrent load test for hi-agent /runs endpoint.
 
 Usage:
-  python scripts/load_test_runs.py --base-url http://127.0.0.1:8080 --requests 1000 --concurrency 100
+  python scripts/load_test_runs.py --base-url http://127.0.0.1:8080 \
+      --requests 1000 --concurrency 100
 """
 
 from __future__ import annotations

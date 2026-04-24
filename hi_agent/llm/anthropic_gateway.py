@@ -62,7 +62,13 @@ class AnthropicLLMGateway:
         default_thinking_budget: int | None = None,
     ) -> None:
         """Initialize AnthropicLLMGateway."""
+        import os as _os
+
         self._api_key_env = api_key_env
+        # Resolve and cache the key at construction time so the gateway is not
+        # sensitive to later os.environ mutations (e.g. env-var cleanup after
+        # build_gateway_from_config restores the prior env state).
+        self._api_key_resolved: str = _os.environ.get(api_key_env, "")
         self._default_model = default_model
         self._timeout = timeout_seconds
         self._base_url = base_url.rstrip("/")
@@ -77,6 +83,13 @@ class AnthropicLLMGateway:
             LLMTimeoutError: If the HTTP call exceeds *timeout_seconds*.
             LLMProviderError: On any non-200 HTTP response or connection failure.
         """
+        from hi_agent.observability.fallback import record_llm_request
+
+        record_llm_request(
+            provider="anthropic",
+            model=request.model or "",
+            run_id=request.metadata.get("run_id") if request.metadata else None,
+        )
         model = request.model if request.model != "default" else self._default_model
         payload = self._build_payload(request, model)
         raw = self._post(payload)
@@ -97,7 +110,7 @@ class AnthropicLLMGateway:
         payload = self._build_payload(request, model)
         payload["stream"] = True
 
-        api_key = os.environ.get(self._api_key_env, "")
+        api_key = self._api_key_resolved or os.environ.get(self._api_key_env, "")
         url = f"{self._base_url}/v1/messages"
         headers = {
             "Content-Type": "application/json",
@@ -230,7 +243,7 @@ class AnthropicLLMGateway:
 
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
         """POST payload to /v1/messages via urllib (sync, non-streaming)."""
-        api_key = os.environ.get(self._api_key_env, "")
+        api_key = self._api_key_resolved or os.environ.get(self._api_key_env, "")
         url = f"{self._base_url}/v1/messages"
         headers = {
             "Content-Type": "application/json",

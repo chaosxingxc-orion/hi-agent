@@ -116,13 +116,20 @@ def test_deadline_exceeded_returns_failed_not_crash():
 
 
 def test_execute_async_sets_run_id():
-    """execute_async must set executor._run_id so internal methods use correct id."""
+    """execute_async must set executor._run_id from kernel.start_run's return value.
+
+    DF-16 / K-2 / K-3 (Rule 5 branch parity): previously execute_async() called
+    start_run with a wrong signature and set _run_id to a locally-minted
+    deterministic_id, making the kernel's view of run_id disagree with the
+    executor's. The fix aligns the async path with sync: _run_id always comes
+    from the kernel.
+    """
     import asyncio
     import contextlib
     from unittest.mock import AsyncMock
 
     from hi_agent.contracts.task import TaskContract
-    from hi_agent.runner import RunExecutor, deterministic_id, execute_async
+    from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
 
     contract = TaskContract(task_id="t-async-id", goal="test")
@@ -143,9 +150,10 @@ def test_execute_async_sets_run_id():
     with contextlib.suppress(Exception):
         asyncio.run(execute_async(executor))
 
-    # After execute_async, _run_id must equal the deterministic run_id
-    expected = deterministic_id(contract.task_id, "run")
-    assert executor._run_id == expected, f"Expected {expected}, got {executor._run_id}"
+    # After execute_async, _run_id must equal the kernel's start_run return.
+    assert executor._run_id == "run-async-001", (
+        f"Expected run-async-001 (from kernel.start_run), got {executor._run_id}"
+    )
 
 
 # ---------------------------------------------------------------------------

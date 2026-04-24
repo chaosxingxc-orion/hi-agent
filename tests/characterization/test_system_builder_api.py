@@ -191,27 +191,27 @@ def test_build_watchdog_returns_object(builder):
 
 
 def test_build_short_term_store_returns_object(builder):
-    obj = builder.build_short_term_store()
+    obj = builder.build_short_term_store(profile_id="characterization-profile")
     assert obj is not None
 
 
 def test_build_mid_term_store_returns_object(builder):
-    obj = builder.build_mid_term_store()
+    obj = builder.build_mid_term_store(profile_id="characterization-profile")
     assert obj is not None
 
 
 def test_build_long_term_graph_returns_object(builder):
-    obj = builder.build_long_term_graph()
+    obj = builder.build_long_term_graph(profile_id="characterization-profile")
     assert obj is not None
 
 
 def test_build_retrieval_engine_returns_object(builder):
-    obj = builder.build_retrieval_engine()
+    obj = builder.build_retrieval_engine(profile_id="characterization-profile")
     assert obj is not None
 
 
 def test_build_memory_lifecycle_manager_returns_object(builder):
-    obj = builder.build_memory_lifecycle_manager()
+    obj = builder.build_memory_lifecycle_manager(profile_id="characterization-profile")
     assert obj is not None
 
 
@@ -229,7 +229,7 @@ def test_build_user_knowledge_store_returns_object(builder):
 
 
 def test_build_knowledge_manager_returns_object(builder):
-    obj = builder.build_knowledge_manager()
+    obj = builder.build_knowledge_manager(profile_id="characterization-profile")
     assert obj is not None
 
 
@@ -256,13 +256,17 @@ def test_build_budget_guard_returns_object(builder):
 
 
 def test_build_executor_returns_object(builder):
-    contract = TaskContract(task_id="char-test-001", goal="characterization test goal")
+    contract = TaskContract(
+        task_id="char-test-001", goal="characterization test goal", profile_id="test"
+    )
     obj = builder.build_executor(contract=contract)
     assert obj is not None
 
 
 def test_build_executor_has_execute_method(builder):
-    contract = TaskContract(task_id="char-test-002", goal="characterization test goal")
+    contract = TaskContract(
+        task_id="char-test-002", goal="characterization test goal", profile_id="test"
+    )
     obj = builder.build_executor(contract=contract)
     assert callable(getattr(obj, "execute", None))
 

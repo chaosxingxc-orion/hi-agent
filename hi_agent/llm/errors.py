@@ -7,10 +7,6 @@ class LLMError(Exception):
     """Base error for all LLM Gateway failures."""
 
 
-class LLMTimeoutError(LLMError):
-    """Raised when an LLM request exceeds the configured timeout."""
-
-
 class LLMProviderError(LLMError):
     """Raised when the LLM provider returns an HTTP or API-level error."""
 
@@ -23,6 +19,10 @@ class LLMProviderError(LLMError):
         """
         super().__init__(message)
         self.status_code = status_code
+
+
+class LLMTimeoutError(LLMProviderError):
+    """Raised when an LLM request exceeds the configured timeout."""
 
 
 class LLMBudgetExhaustedError(LLMError):

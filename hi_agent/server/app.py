@@ -73,6 +73,7 @@ from hi_agent.server.routes_profiles import (
     handle_global_skills,
 )
 from hi_agent.server.routes_runs import (
+    handle_cancel_run,
     handle_create_run,
     handle_gate_decision,
     handle_get_feedback,
@@ -473,6 +474,8 @@ async def handle_manifest(request: Request) -> JSONResponse:
     runtime_mode: str = "dev-smoke"
     manifest_env: str = "dev"
     manifest_llm_mode: str = "unknown"
+    manifest_llm_provider: str = "not_configured"
+    manifest_llm_backend: str = "none"
     manifest_kernel_mode: str = "local-fsm"
     manifest_execution_mode: str = "local"
     provenance_contract_version: str = "unknown"
@@ -499,8 +502,12 @@ async def handle_manifest(request: Request) -> JSONResponse:
                 _readiness_snap = _builder.readiness()
         runtime_mode = _rrm(manifest_env, _readiness_snap)
         manifest_llm_mode = _readiness_snap.get("llm_mode", "unknown")
+        manifest_llm_provider = _readiness_snap.get("llm_provider", "not_configured")
+        manifest_llm_backend = _readiness_snap.get("llm_backend", "none")
         manifest_kernel_mode = _readiness_snap.get("kernel_mode", "local-fsm")
         manifest_execution_mode = _readiness_snap.get("execution_mode", "local")
+        if _readiness_snap.get("models"):
+            models = list(_readiness_snap.get("models", models))
         _ev_enabled, _ev_source = _rep(_ev_mode, runtime_mode)
         evolve_policy = {"mode": _ev_mode, "effective": _ev_enabled, "source": _ev_source}
     except Exception as _ep_exc:
@@ -533,6 +540,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
                 "GET /runs/{run_id}",
                 "GET /runs/{run_id}/artifacts",
                 "POST /runs/{run_id}/signal",
+                "POST /runs/{run_id}/cancel",
                 "POST /runs/{run_id}/resume",
                 "GET /runs/{run_id}/events",
                 # Metrics
@@ -585,6 +593,8 @@ async def handle_manifest(request: Request) -> JSONResponse:
             "runtime_mode": runtime_mode,
             "environment": manifest_env,
             "llm_mode": manifest_llm_mode,
+            "llm_provider": manifest_llm_provider,
+            "llm_backend": manifest_llm_backend,
             "kernel_mode": manifest_kernel_mode,
             "execution_mode": manifest_execution_mode,
             "provenance_contract_version": provenance_contract_version,
@@ -1345,6 +1355,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/runs/{run_id}/artifacts", handle_run_artifacts, methods=["GET"]),
         Route("/runs/{run_id}", handle_get_run, methods=["GET"]),
         Route("/runs/{run_id}/signal", handle_signal_run, methods=["POST"]),
+        Route("/runs/{run_id}/cancel", handle_cancel_run, methods=["POST"]),
         Route("/runs/{run_id}/feedback", handle_submit_feedback, methods=["POST"]),
         Route("/runs/{run_id}/feedback", handle_get_feedback, methods=["GET"]),
         Route("/runs/{run_id}/resume", handle_resume_run, methods=["POST"]),
@@ -1675,6 +1686,34 @@ class AgentServer:
             self._default_executor_factory
         )
 
+        # DF-33: Register the rule15_volces profile so scripts/rule15_volces_gate.py
+        # has a real target.  Minimal live-LLM-backed single-stage profile used by
+        # the Rule 15 operator-shape gate.  Idempotent: no-op if pre-registered.
+        try:
+            from hi_agent.profiles.rule15_volces import (
+                build_rule15_volces_profile,
+                register_rule15_probe_capability,
+            )
+
+            _cap_registry = self._builder.build_capability_registry()
+            if _cap_registry is not None:
+                register_rule15_probe_capability(
+                    _cap_registry,
+                    llm_gateway=self._builder.build_llm_gateway(),
+                )
+            _profile_registry = self._builder.build_profile_registry()
+            if _profile_registry is not None and not _profile_registry.has(
+                "rule15_volces"
+            ):
+                self._builder.register_profile(build_rule15_volces_profile())
+        except Exception as _exc:
+            logger.warning(
+                "rule15_volces profile registration failed (%s: %s); "
+                "scripts/rule15_volces_gate.py will be unable to resolve the profile.",
+                type(_exc).__name__,
+                _exc,
+            )
+
         # Build a shared CapabilityInvoker and wire MCPServer.
         try:
             from hi_agent.server.mcp import MCPServer
@@ -1705,8 +1744,11 @@ class AgentServer:
 
         # Wire server-level subsystems so /health, /memory/*, /skills/*,
         # /context/* endpoints operate on live instances rather than None.
+        _server_profile = getattr(self._config, "active_profile", None) or "__server__"
         try:
-            self.memory_manager = self._builder.build_memory_lifecycle_manager()
+            self.memory_manager = self._builder.build_memory_lifecycle_manager(
+                profile_id=_server_profile
+            )
         except Exception as _exc:
             logger.warning(
                 "MemoryLifecycleManager initialization failed (%s: %s); "
@@ -1715,7 +1757,9 @@ class AgentServer:
                 _exc,
             )
         try:
-            self.knowledge_manager = self._builder.build_knowledge_manager()
+            self.knowledge_manager = self._builder.build_knowledge_manager(
+                profile_id=_server_profile
+            )
         except Exception as _exc:
             logger.warning(
                 "KnowledgeManager initialization failed (%s: %s); "
@@ -1724,7 +1768,9 @@ class AgentServer:
                 _exc,
             )
         try:
-            self.retrieval_engine = self._builder.build_retrieval_engine()
+            self.retrieval_engine = self._builder.build_retrieval_engine(
+                profile_id=_server_profile
+            )
         except Exception as _exc:
             logger.warning(
                 "RetrievalEngine initialization failed (%s: %s); "
@@ -1744,6 +1790,16 @@ class AgentServer:
             )
         try:
             self.metrics_collector = self._builder.build_metrics_collector()
+            # Register the collector as the process-wide singleton so that
+            # record_fallback() and record_llm_request() can reach it from
+            # deeply-nested call-sites without an explicit injection chain.
+            # Without this call, get_metrics_collector() returns None at
+            # serve-time and all Rule-14/Rule-15 counter increments are silently
+            # lost. (Audit finding: set_metrics_collector was only called in
+            # tests, never at server boot.)
+            from hi_agent.observability.collector import set_metrics_collector as _set_mc
+
+            _set_mc(self.metrics_collector)
         except Exception as _exc:
             logger.warning(
                 "MetricsCollector initialization failed (%s: %s); "
@@ -1851,6 +1907,25 @@ class AgentServer:
         elif isinstance(budget_data, TaskBudget):
             budget = budget_data
 
+        # DF-27 / Rule 14: if profile_id is absent here, apply the same loud
+        # default the HTTP boundary applies.  Direct callers of the factory
+        # (tests, internal retries, CLI) must behave identically.
+        _pid = run_data.get("profile_id")
+        if not _pid:
+            from hi_agent.observability.fallback import record_fallback
+
+            logger.warning(
+                "_default_executor_factory: run_data missing profile_id; "
+                "defaulting to 'default' (DF-27)."
+            )
+            record_fallback(
+                kind="route",
+                reason="missing_profile_id",
+                run_id=run_data.get("run_id"),
+                extra={"default_assigned": "default", "source": "executor_factory"},
+            )
+            _pid = "default"
+
         contract = TaskContract(
             task_id=task_id,
             goal=run_data.get("goal", ""),
@@ -1865,7 +1940,7 @@ class AgentServer:
             priority=int(run_data.get("priority", 5)),
             parent_task_id=run_data.get("parent_task_id"),
             decomposition_strategy=run_data.get("decomposition_strategy"),
-            profile_id=run_data.get("profile_id"),
+            profile_id=_pid,
         )
         config_patch = run_data.get("config_patch")  # optional dict, may be None
         workspace_key = run_data.get("_workspace_key")  # injected by handle_create_run
