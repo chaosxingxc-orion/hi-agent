@@ -13,6 +13,7 @@ Last updated: 2026-04-24
 - K-4/K-5/K-7/K-8: executor_facade + context + dream_scheduler fixes (WS-2/3)
 - K-11/K-12/K-13/K-14: test honesty + Language Rule (WS-4)
 - Platform positioning docs, Rule 10 response (WS-5)
+- [x] Round-8 downstream response written (`docs/hi-agent-optimization-response-2026-04-15-round8.md`) — 2026-04-24
 
 ## PENDING — Phase 2 (P-1, P-3, P-5 Design)
 
