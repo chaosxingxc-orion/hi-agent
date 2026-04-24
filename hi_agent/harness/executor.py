@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
+from hi_agent.artifacts.contracts import CapabilityPolicyError
 from hi_agent.harness.contracts import (
     ActionResult,
     ActionSpec,
@@ -180,6 +181,8 @@ class HarnessExecutor:
                     spec.action_id,
                     output,
                     upstream_artifact_ids=spec.upstream_artifact_ids,
+                    capability_name=spec.capability_name,
+                    run_context=spec.metadata,
                 )
 
                 self._action_states[spec.action_id] = ActionState.SUCCEEDED
@@ -258,6 +261,8 @@ class HarnessExecutor:
         output: Any,
         *,
         upstream_artifact_ids: list[str] | None = None,
+        capability_name: str = "",
+        run_context: dict | None = None,
     ) -> tuple[str, list[str]]:
         """Create and store an evidence record from action output.
 
@@ -267,10 +272,19 @@ class HarnessExecutor:
             upstream_artifact_ids: Artifact IDs from prior actions that fed
                 into producing this output.  Passed as ``source_refs`` to
                 the artifact adapter so lineage is recorded on each artifact.
+            capability_name: Name of the capability that produced this output.
+                Used for auto-filling artifact.producer_capability and for
+                looking up the capability descriptor to enforce provenance_required.
+            run_context: Metadata dict from the ActionSpec (spec.metadata).
+                Expected keys: run_id, stage_id, project_id.
 
         Returns:
             A tuple of (evidence_ref, artifact_ids) where artifact_ids is the
             list of IDs for any typed artifacts persisted during this call.
+
+        Raises:
+            CapabilityPolicyError: If the capability descriptor has
+                provenance_required=True but the output carries no provenance.
         """
         evidence_ref = f"ev-{action_id}-{uuid.uuid4().hex[:8]}"
         record = EvidenceRecord(
@@ -286,16 +300,53 @@ class HarnessExecutor:
         artifact_ids: list[str] = []
         if self._artifact_registry is not None and output is not None:
             try:
+                import hashlib
+                import json as _json
+
                 from hi_agent.artifacts.adapters import OutputToArtifactAdapter
 
+                # Enforce provenance_required policy before adaptation.
+                if capability_name and self._invoker is not None:
+                    cap_registry = getattr(self._invoker, "_registry", None)
+                    if cap_registry is not None:
+                        descriptor = cap_registry.get_descriptor(capability_name)
+                        if (
+                            descriptor is not None
+                            and getattr(descriptor, "provenance_required", False)
+                        ):
+                            output_dict = output if isinstance(output, dict) else {}
+                            if not output_dict.get("provenance"):
+                                raise CapabilityPolicyError(
+                                    f"capability '{capability_name}' requires provenance "
+                                    "but output carries no provenance dict. "
+                                    "Set provenance_required=False or include "
+                                    "'provenance' in the output."
+                                )
+
+                ctx = run_context or {}
                 adapter = OutputToArtifactAdapter()
                 for artifact in adapter.adapt(
                     action_id,
                     output,
                     source_refs=upstream_artifact_ids or [],
                 ):
+                    # Auto-fill producer provenance and content integrity fields.
+                    if capability_name and not artifact.producer_capability:
+                        artifact.producer_capability = capability_name
+                    if ctx.get("run_id") and not artifact.producer_run_id:
+                        artifact.producer_run_id = ctx["run_id"]
+                    if ctx.get("stage_id") and not artifact.producer_stage_id:
+                        artifact.producer_stage_id = ctx["stage_id"]
+                    if ctx.get("project_id") and not artifact.project_id:
+                        artifact.project_id = ctx["project_id"]
+                    if artifact.content and not artifact.content_hash:
+                        artifact.content_hash = hashlib.sha256(
+                            _json.dumps(artifact.content, sort_keys=True, default=str).encode()
+                        ).hexdigest()
                     self._artifact_registry.store(artifact)
                     artifact_ids.append(artifact.artifact_id)
+            except CapabilityPolicyError:
+                raise
             except Exception as exc:
                 logger.warning(
                     "HarnessExecutor._collect_evidence: artifact persistence failed: %s", exc
