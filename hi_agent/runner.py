@@ -1665,8 +1665,10 @@ class RunExecutor:
           (``"completed"`` or ``"failed"``).
         """
         from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        from hi_agent.observability.fallback import clear_fallback_events
 
         self._run_id = self.kernel.start_run(self.contract.task_id)
+        clear_fallback_events(self._run_id)
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id
@@ -1688,8 +1690,10 @@ class RunExecutor:
         choose among multiple successors when available.
         """
         from hi_agent.execution.stage_orchestrator import StageOrchestrator
+        from hi_agent.observability.fallback import clear_fallback_events
 
         self._run_id = self.kernel.start_run(self.contract.task_id)
+        clear_fallback_events(self._run_id)
         if self.session is not None:
             try:
                 self.session.run_id = self._run_id

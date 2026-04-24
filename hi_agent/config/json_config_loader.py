@@ -232,63 +232,65 @@ def build_gateway_from_config(
         env_var,
     )
 
-    # --- Build model registry with provider's declared models only ---
-    # Do not call register_defaults(): that would inject gpt-4.1 / claude-sonnet
-    # defaults and mix them with third-party provider models in the registry.
-    registry = ModelRegistry()
+    try:
+        # --- Build model registry with provider's declared models only ---
+        # Do not call register_defaults(): that would inject gpt-4.1 / claude-sonnet
+        # defaults and mix them with third-party provider models in the registry.
+        registry = ModelRegistry()
 
-    _tier_map = {
-        "strong": ModelTier.STRONG,
-        "medium": ModelTier.MEDIUM,
-        "light": ModelTier.LIGHT,
-    }
-    for tier_name, model_id in models_cfg.items():
-        tier = _tier_map.get(tier_name)
-        if tier and model_id:
-            registry.register(
-                RegisteredModel(
-                    model_id=model_id,
-                    provider=default_provider,
-                    tier=tier,
-                    cost_input_per_mtok=0.0,
-                    cost_output_per_mtok=0.0,
-                    speed="standard",
-                    context_window=128_000,
-                    max_output_tokens=8_192,
-                    capabilities=["code", "tool_use"],
+        _tier_map = {
+            "strong": ModelTier.STRONG,
+            "medium": ModelTier.MEDIUM,
+            "light": ModelTier.LIGHT,
+        }
+        for tier_name, model_id in models_cfg.items():
+            tier = _tier_map.get(tier_name)
+            if tier and model_id:
+                registry.register(
+                    RegisteredModel(
+                        model_id=model_id,
+                        provider=default_provider,
+                        tier=tier,
+                        cost_input_per_mtok=0.0,
+                        cost_output_per_mtok=0.0,
+                        speed="standard",
+                        context_window=128_000,
+                        max_output_tokens=8_192,
+                        capabilities=["code", "tool_use"],
+                    )
                 )
+
+        # --- Build raw gateway ---
+        features = provider_cfg.get("features", {})
+        thinking_budget: int | None = features.get("thinking_budget") or None
+        _timeout = int(provider_cfg.get("timeout_seconds", 120))
+
+        if api_format == "anthropic":
+            from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
+
+            raw_gw: object = AnthropicLLMGateway(
+                api_key_env=env_var,
+                default_model=default_model or "claude-sonnet-4-6",
+                timeout_seconds=_timeout,
+                base_url=base_url or "https://api.anthropic.com",
+                default_thinking_budget=thinking_budget,
+            )
+        else:
+            from hi_agent.llm.http_gateway import HttpLLMGateway
+
+            raw_gw = HttpLLMGateway(
+                base_url=base_url or "https://api.openai.com/v1",
+                api_key_env=env_var,
+                default_model=default_model or "gpt-4o",
+                timeout_seconds=_timeout,
             )
 
-    # --- Build raw gateway ---
-    features = provider_cfg.get("features", {})
-    thinking_budget: int | None = features.get("thinking_budget") or None
-    _timeout = int(provider_cfg.get("timeout_seconds", 120))
-
-    if api_format == "anthropic":
-        from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
-
-        raw_gw: object = AnthropicLLMGateway(
-            api_key_env=env_var,
-            default_model=default_model or "claude-sonnet-4-6",
-            timeout_seconds=_timeout,
-            base_url=base_url or "https://api.anthropic.com",
-            default_thinking_budget=thinking_budget,
-        )
-    else:
-        from hi_agent.llm.http_gateway import HttpLLMGateway
-
-        raw_gw = HttpLLMGateway(
-            base_url=base_url or "https://api.openai.com/v1",
-            api_key_env=env_var,
-            default_model=default_model or "gpt-4o",
-            timeout_seconds=_timeout,
-        )
-
-    tier_router = TierRouter(registry)
-    result = TierAwareLLMGateway(raw_gw, tier_router, registry)
-    # Restore env var to its prior state after the gateway has cached the key.
-    if _prev_env_val is None:
-        os.environ.pop(env_var, None)
-    else:
-        os.environ[env_var] = _prev_env_val
+        tier_router = TierRouter(registry)
+        result = TierAwareLLMGateway(raw_gw, tier_router, registry)
+    finally:
+        # Restore env var to its prior state after the gateway has cached the key.
+        if _prev_env_val is None:
+            os.environ.pop(env_var, None)
+        else:
+            os.environ[env_var] = _prev_env_val
     return result
