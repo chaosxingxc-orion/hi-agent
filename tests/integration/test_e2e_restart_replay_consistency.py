@@ -29,7 +29,12 @@ def test_e2e_restart_replay_consistency_match(tmp_path: Path) -> None:
     contract = TaskContract(task_id="e2e-restart-001", goal="restart replay consistency")
 
     first_process_store = RunStateStore(file_path=state_path)
-    executor = RunExecutor(contract, MockKernel(strict_mode=True), state_store=first_process_store, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        MockKernel(strict_mode=True),
+        state_store=first_process_store,
+        raw_memory=RawMemoryStore(),
+    )
     result = executor.execute()
     _persist_events(executor, events_path)
 
@@ -63,7 +68,12 @@ def test_e2e_restart_replay_consistency_detects_tampered_current_stage(
     contract = TaskContract(task_id="e2e-restart-002", goal="detect tampered stage")
 
     first_process_store = RunStateStore(file_path=state_path)
-    executor = RunExecutor(contract, MockKernel(strict_mode=True), state_store=first_process_store, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        MockKernel(strict_mode=True),
+        state_store=first_process_store,
+        raw_memory=RawMemoryStore(),
+    )
     result = executor.execute()
     _persist_events(executor, events_path)
 

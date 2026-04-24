@@ -72,7 +72,9 @@ def test_journey_execute_gate_approve() -> None:
             }
 
     invoker = GatingInvoker()
-    executor = RunExecutor(contract, kernel, stage_graph=graph, invoker=invoker, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract, kernel, stage_graph=graph, invoker=invoker, raw_memory=RawMemoryStore()
+    )
 
     # Intercept stage_a to register a gate and raise GatePendingError
     original_execute_stage = executor._execute_stage
@@ -309,7 +311,9 @@ def test_journey_subrun_dispatch_await() -> None:
 
     contract = TaskContract(task_id="journey-5-subrun", goal="subrun dispatch journey")
     kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract, kernel, delegation_manager=delegation_mgr, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract, kernel, delegation_manager=delegation_mgr, raw_memory=RawMemoryStore()
+    )
 
     # The parent run_id must be a real uuid (Rule 13) — not a semantic label.
     parent_run_id = f"run-journey-5-{uuid.uuid4().hex[:8]}"
@@ -465,8 +469,12 @@ def test_journey_profile_isolation() -> None:
     store_a = ShortTermMemoryStore(storage_dir=f"{tmpdir}/profile-a")
     store_b = ShortTermMemoryStore(storage_dir=f"{tmpdir}/profile-b")
 
-    executor_a = RunExecutor(contract_a, kernel_a, short_term_store=store_a, raw_memory=RawMemoryStore())
-    executor_b = RunExecutor(contract_b, kernel_b, short_term_store=store_b, raw_memory=RawMemoryStore())
+    executor_a = RunExecutor(
+        contract_a, kernel_a, short_term_store=store_a, raw_memory=RawMemoryStore()
+    )
+    executor_b = RunExecutor(
+        contract_b, kernel_b, short_term_store=store_b, raw_memory=RawMemoryStore()
+    )
 
     # Short-term stores must be different instances
     assert executor_a.short_term_store is not executor_b.short_term_store

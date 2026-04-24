@@ -74,7 +74,9 @@ def test_trace_chaos_minimal_regression(case: _ChaosCase, tmp_path) -> None:
         goal="chaos regression",
         constraints=constraints,
     )
-    executor = RunExecutor(contract, MockKernel(strict_mode=True), invoker=invoker, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract, MockKernel(strict_mode=True), invoker=invoker, raw_memory=RawMemoryStore()
+    )
     result = executor.execute()
 
     if case.name == "bad_event_line":

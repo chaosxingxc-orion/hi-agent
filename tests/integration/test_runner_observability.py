@@ -39,7 +39,9 @@ def test_runner_ignores_observability_hook_exceptions() -> None:
 
     contract = TaskContract(task_id="obs-002", goal="hook failures are best-effort")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, observability_hook=_failing_hook, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract, kernel, observability_hook=_failing_hook, raw_memory=RawMemoryStore()
+    )
 
     result = executor.execute()
 

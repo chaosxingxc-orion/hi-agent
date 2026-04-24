@@ -51,7 +51,9 @@ def _make_executor(task_id: str) -> RunExecutor:
     """Construct a real RunExecutor backed by the real agent-kernel MockKernel."""
     contract = TaskContract(task_id=task_id, goal=f"gate-resume test {task_id}")
     kernel = MockKernel(strict_mode=False)
-    return RunExecutor(contract, kernel, stage_graph=_three_stage_graph(), raw_memory=RawMemoryStore())
+    return RunExecutor(
+        contract, kernel, stage_graph=_three_stage_graph(), raw_memory=RawMemoryStore()
+    )
 
 
 def _install_one_shot_gate(

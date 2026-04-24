@@ -16,6 +16,8 @@ def test_detect_dead_end_and_no_dead_end_in_successful_run() -> None:
     }
     assert detect_dead_end("S3_build", failed_stage_dag) is True
 
-    executor = RunExecutor(TaskContract(task_id="int-002", goal="dead-end"), MockKernel(), raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        TaskContract(task_id="int-002", goal="dead-end"), MockKernel(), raw_memory=RawMemoryStore()
+    )
     executor.execute()
     assert detect_dead_end("S3_build", executor.dag) is False

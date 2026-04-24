@@ -90,7 +90,9 @@ def test_runner_does_not_invoke_recovery_hook_on_success() -> None:
     kernel = MockKernel(strict_mode=True)
     recovery_executor = RecordingRecoveryExecutor()
 
-    executor = RunExecutor(contract, kernel, recovery_executor=recovery_executor, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract, kernel, recovery_executor=recovery_executor, raw_memory=RawMemoryStore()
+    )
 
     result = executor.execute()
 
@@ -135,7 +137,12 @@ def test_runner_emits_recovery_completed_with_orchestrator_metadata() -> None:
                 action_status_map={"escalate_to_human": "failed"},
             )
 
-    executor = RunExecutor(contract, kernel, recovery_executor=SyntheticOrchestrationExecutor(), raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        recovery_executor=SyntheticOrchestrationExecutor(),
+        raw_memory=RawMemoryStore(),
+    )
 
     result = executor.execute()
 

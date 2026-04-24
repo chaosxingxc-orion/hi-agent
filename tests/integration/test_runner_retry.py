@@ -33,7 +33,9 @@ def test_runner_retries_once_then_recovers_and_completes() -> None:
     contract = TaskContract(task_id="int-retry-001", goal="retry recovery")
     kernel = MockKernel(strict_mode=True)
     invoker = FlakyInvoker({"build_draft": 1})
-    executor = RunExecutor(contract, kernel, invoker=invoker, action_max_retries=1, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract, kernel, invoker=invoker, action_max_retries=1, raw_memory=RawMemoryStore()
+    )
 
     result = executor.execute()
 
@@ -54,7 +56,9 @@ def test_runner_retries_exhausted_then_stage_fails() -> None:
     contract = TaskContract(task_id="int-retry-002", goal="retry exhausted")
     kernel = MockKernel(strict_mode=True)
     invoker = FlakyInvoker({"build_draft": 99})
-    executor = RunExecutor(contract, kernel, invoker=invoker, action_max_retries=1, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract, kernel, invoker=invoker, action_max_retries=1, raw_memory=RawMemoryStore()
+    )
 
     result = executor.execute()
 

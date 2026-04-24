@@ -193,7 +193,9 @@ class TestMultipleBranchesPerStage:
         contract = TaskContract(task_id="multi-branch-001", goal="multi-branch")
         kernel = MockKernel(strict_mode=True)
         route_engine = _MultiBranchRouteEngine(branch_count=2)
-        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+        )
 
         result = executor.execute()
 
@@ -211,7 +213,9 @@ class TestMultipleBranchesPerStage:
         contract = TaskContract(task_id="multi-branch-002", goal="multi-succeed")
         kernel = MockKernel(strict_mode=True)
         route_engine = _MultiBranchRouteEngine(branch_count=3)
-        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+        )
 
         result = executor.execute()
 
@@ -233,7 +237,9 @@ class TestBranchPruningAndTrajectoryState:
         )
         kernel = MockKernel(strict_mode=True)
         route_engine = _PartialFailRouteEngine()
-        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+        )
 
         result = executor.execute()
 
@@ -250,7 +256,9 @@ class TestBranchPruningAndTrajectoryState:
         )
         kernel = MockKernel(strict_mode=True)
         route_engine = _PartialFailRouteEngine()
-        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+        )
 
         executor.execute()
 
@@ -272,7 +280,9 @@ class TestBranchPruningAndTrajectoryState:
         )
         kernel = MockKernel(strict_mode=True)
         route_engine = _PartialFailRouteEngine()
-        executor = RunExecutor(contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+        )
 
         executor.execute()
 
