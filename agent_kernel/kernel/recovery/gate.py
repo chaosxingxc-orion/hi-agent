@@ -99,8 +99,10 @@ class PlannedRecoveryGateService(RecoveryGateService):
             reasoning_loop: Optional reasoning loop for corrected action derivation.
             reflection_builder: Optional builder for enriched reflection context.
             default_inference_config: Optional default ``InferenceConfig`` used
-                in ``reflect_and_retry`` turns.  When ``None``, defaults to
-                ``InferenceConfig(model_ref="gpt-4o-mini")``.
+                in ``reflect_and_retry`` turns.  Must not be ``None`` when
+                ``reflection_policy``, ``reasoning_loop``, and
+                ``reflection_builder`` are all provided; a ``RuntimeError``
+                is raised at reflect-and-retry time if it is missing.
             observability_hook: Optional hook for emitting recovery metrics.
                 Must implement ``on_recovery_triggered``.
             circuit_breaker_policy: Optional policy governing cross-run circuit
@@ -434,11 +436,13 @@ class PlannedRecoveryGateService(RecoveryGateService):
             reflection_round=reflection_round,
         )
 
-        inference_config = (
-            self._default_inference_config
-            if self._default_inference_config is not None
-            else InferenceConfig(model_ref="gpt-4o-mini")
-        )
+        if self._default_inference_config is None:
+            raise RuntimeError(
+                "PlannedRecoveryGateService._default_inference_config is None"
+                " — platform layer must inject InferenceConfig via constructor"
+                " before recovery"
+            )
+        inference_config = self._default_inference_config
 
         # Prefer the snapshot injected by the TurnEngine (keeping gate within its
         # authority boundary).  Fall back to building a minimal one only when
