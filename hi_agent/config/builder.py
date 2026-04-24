@@ -294,13 +294,35 @@ class SystemBuilder:
         return self._capability_registry
 
     def build_artifact_registry(self) -> Any:
-        """Build or return the shared ArtifactRegistry singleton."""
+        """Build or return the shared ArtifactRegistry singleton.
+
+        When episodic_storage_dir is configured, returns a durable ArtifactLedger
+        backed by a JSONL file so artifacts survive process restarts.
+        Falls back to in-memory ArtifactRegistry when no storage path is available.
+        """
         if not hasattr(self, "_artifact_registry") or self._artifact_registry is None:
             try:
-                from hi_agent.artifacts.registry import ArtifactRegistry
+                episodic_dir = getattr(self._config, "episodic_storage_dir", None)
+                if episodic_dir:
+                    from pathlib import Path
 
-                self._artifact_registry = ArtifactRegistry()
-                logger.info("build_artifact_registry: ArtifactRegistry created.")
+                    from hi_agent.artifacts.ledger import ArtifactLedger
+
+                    project_id = getattr(self._config, "project_id", "")
+                    base = str(Path(episodic_dir).parent)
+                    ledger_dir = Path(base) / "artifacts"
+                    if project_id:
+                        ledger_dir = ledger_dir / project_id
+                    self._artifact_registry = ArtifactLedger(ledger_dir / "ledger.jsonl")
+                    logger.info(
+                        "build_artifact_registry: ArtifactLedger created at %s.",
+                        ledger_dir / "ledger.jsonl",
+                    )
+                else:
+                    from hi_agent.artifacts.registry import ArtifactRegistry
+
+                    self._artifact_registry = ArtifactRegistry()
+                    logger.info("build_artifact_registry: ArtifactRegistry created (in-memory).")
             except Exception as exc:
                 logger.warning("build_artifact_registry: failed: %s", exc)
                 self._artifact_registry = None
