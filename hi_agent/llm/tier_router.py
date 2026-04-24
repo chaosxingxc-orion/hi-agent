@@ -53,6 +53,7 @@ class TierRouter:
             "complex": ModelTier.STRONG,
         }
         self._lock = threading.Lock()
+        self._calibration_log: list = []
         self._setup_defaults()
 
     def _setup_defaults(self) -> None:
@@ -376,6 +377,17 @@ class TierRouter:
                 ``"synthesis"``, ``"evaluation"``, etc.).
         """
         self.apply_overrides(overrides)
+
+    def ingest_calibration_signal(self, signal: object) -> None:
+        """Record a calibration signal for future TierRouter auto-tuning.
+
+        Currently record-only: signals are stored but do not modify tier routing.
+        Auto-calibration is deferred to Wave 10 (Phase E).
+
+        Args:
+            signal: A CalibrationSignal instance from hi_agent.evolve.contracts.
+        """
+        self._calibration_log.append(signal)
 
     def list_mappings(self) -> list[TierMapping]:
         """List all purpose -> tier mappings."""
