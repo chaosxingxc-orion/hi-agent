@@ -66,6 +66,9 @@ from hi_agent.server.event_bus import event_bus
 from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.ops_routes import handle_diagnostics, handle_doctor, handle_release_gate
 from hi_agent.server.rate_limiter import RateLimiter
+from hi_agent.server.routes_artifacts import (
+    artifact_routes,
+)
 from hi_agent.server.routes_events import handle_run_events_sse
 from hi_agent.server.routes_ops import handle_cancel_long_op, handle_get_long_op
 from hi_agent.server.routes_profiles import (
@@ -1297,36 +1300,6 @@ async def handle_plugins_status(request: Request) -> JSONResponse:
 
 
 # ------------------------------------------------------------------
-# Artifact endpoints
-# ------------------------------------------------------------------
-
-
-async def handle_list_artifacts(request: Request) -> JSONResponse:
-    """Return all stored artifacts."""
-    server: AgentServer = request.app.state.agent_server
-    registry = getattr(server, "artifact_registry", None)
-    if registry is None:
-        return JSONResponse({"artifacts": []})
-    artifact_type = request.query_params.get("type")
-    producer = request.query_params.get("producer")
-    artifacts = registry.query(artifact_type=artifact_type, producer_action_id=producer)
-    return JSONResponse({"artifacts": [a.to_dict() for a in artifacts], "count": len(artifacts)})
-
-
-async def handle_get_artifact(request: Request) -> JSONResponse:
-    """Return a single artifact by ID."""
-    artifact_id = request.path_params["artifact_id"]
-    server: AgentServer = request.app.state.agent_server
-    registry = getattr(server, "artifact_registry", None)
-    if registry is None:
-        return JSONResponse({"error": "artifact_registry_unavailable"}, status_code=503)
-    artifact = registry.get(artifact_id)
-    if artifact is None:
-        return JSONResponse({"error": "not_found", "artifact_id": artifact_id}, status_code=404)
-    return JSONResponse(artifact.to_dict())
-
-
-# ------------------------------------------------------------------
 # build_app: construct Starlette application
 # ------------------------------------------------------------------
 
@@ -1407,9 +1380,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # Tools (capability registry)
         Route("/tools", handle_tools_list, methods=["GET"]),
         Route("/tools/call", handle_tools_call, methods=["POST"]),
-        # Artifacts
-        Route("/artifacts", handle_list_artifacts, methods=["GET"]),
-        Route("/artifacts/{artifact_id}", handle_get_artifact, methods=["GET"]),
+        # Artifacts (routes extracted to routes_artifacts.py — includes by-project + provenance)
+        *artifact_routes,
         # Sessions
         Route("/sessions", handle_list_sessions, methods=["GET"]),
         Route("/sessions/{session_id}/runs", handle_get_session_runs, methods=["GET"]),
