@@ -64,6 +64,12 @@ def test_injected_metrics_wired_to_slo(fake_agent_server):
 
 
 def test_system_builder_build_server_works(monkeypatch, fake_agent_server):
+    """K-9 fix: build_server() must NOT pass unscoped memory_manager /
+    knowledge_manager.  Those are per-profile resources built by AgentServer
+    itself per-request; SystemBuilder.build_server() only wires shared
+    subsystems (skill_evolver, skill_loader, metrics_collector,
+    run_context_manager).
+    """
     from hi_agent.config.builder import SystemBuilder
 
     builder = SystemBuilder(TraceConfig(server_host="127.0.0.1", server_port=9090))
@@ -72,7 +78,7 @@ def test_system_builder_build_server_works(monkeypatch, fake_agent_server):
     metrics_collector = object()
     run_context_manager = object()
 
-    # Rule 13 (DF-12): memory_manager / knowledge_manager are per-profile and
+    # Rule 13 (DF-12) / K-9: memory_manager / knowledge_manager are per-profile and
     # are no longer pre-built at server construction time.
     monkeypatch.setattr(builder, "build_skill_evolver", lambda: skill_evolver)
     monkeypatch.setattr(builder, "build_skill_loader", lambda: skill_loader)
@@ -83,6 +89,10 @@ def test_system_builder_build_server_works(monkeypatch, fake_agent_server):
 
     assert isinstance(server, FakeAgentServer)
     assert server.server_address == ("127.0.0.1", 9090)
+    # memory_manager and knowledge_manager are NOT injected by build_server() —
+    # they are per-profile and built by AgentServer.__init__ per-request.
+    assert not hasattr(server, "memory_manager")
+    assert not hasattr(server, "knowledge_manager")
     assert server.skill_evolver is skill_evolver
     assert server.skill_loader is skill_loader
     assert server.metrics_collector is metrics_collector

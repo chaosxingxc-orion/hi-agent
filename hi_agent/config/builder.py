@@ -1298,7 +1298,7 @@ class SystemBuilder:
     def build_server(self) -> Any:
         """Build API server with all subsystems connected.
 
-        Rule 13 (DF-12): ``memory_manager`` and ``knowledge_manager`` are
+        Rule 13 (DF-12) / Rule 6 (K-9): ``memory_manager`` and ``knowledge_manager`` are
         **per-profile** resources and can no longer be pre-built at server
         construction time without a profile_id. Request handlers rebuild them
         per-run using the contract's profile_id (see ``server/routes_memory.py``

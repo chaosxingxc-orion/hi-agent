@@ -1132,7 +1132,7 @@ async def handle_capacity_advice(request: Request) -> JSONResponse:
                 "queue_timeouts": queue_timeouts,
             }
         except Exception:
-            pass
+            pass  # advisory telemetry — must not crash the capacity-advice handler
 
         health_payload: dict[str, Any] = {
             "subsystems": {"run_manager": run_manager_info},
@@ -1145,7 +1145,7 @@ async def handle_capacity_advice(request: Request) -> JSONResponse:
             if collector is not None:
                 metrics_snapshot = collector.snapshot()
         except Exception:
-            pass
+            pass  # advisory telemetry — must not crash the capacity-advice handler
 
         recommendations = recommend_server_capacity_tuning(health_payload, metrics_snapshot)
         return JSONResponse(
@@ -2374,8 +2374,8 @@ class AgentAPIHandler:
                     evolve_engine=server._builder.build_evolve_engine(),
                     harness_executor=server._builder.build_harness(),
                 )
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.warning("resume_from_checkpoint failed: %s", _exc)
 
         thread = threading.Thread(
             target=_resume_in_background,
