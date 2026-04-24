@@ -11,11 +11,11 @@ import uuid
 from typing import Any
 
 import pytest
-from starlette.testclient import TestClient
-
 from hi_agent.contracts import TaskContract
 from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer, build_app
+from starlette.testclient import TestClient
+
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 

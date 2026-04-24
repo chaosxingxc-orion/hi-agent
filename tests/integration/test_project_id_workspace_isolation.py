@@ -7,7 +7,6 @@ Verifies:
 """
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
 from hi_agent.config.memory_builder import MemoryBuilder
