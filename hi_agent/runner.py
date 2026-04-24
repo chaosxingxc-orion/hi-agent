@@ -426,6 +426,7 @@ class RunExecutor:
                     run_id=self._run_id_fallback,
                     task_contract=contract,
                     storage_dir=self._session_storage_dir,
+                    project_id=contract.project_id,
                 )
             except Exception as exc:
                 self._log_best_effort_exception(
@@ -1814,6 +1815,7 @@ class RunExecutor:
             acceptance_criteria=contract_data.get("acceptance_criteria", []),
             risk_level=contract_data.get("risk_level", "low"),
             profile_id=contract_data.get("profile_id", ""),  # J5-3: restore profile scoping
+            project_id=contract_data.get("project_id", ""),  # P1.4: restore project scoping
         )
 
         # 3. Restore session from checkpoint
