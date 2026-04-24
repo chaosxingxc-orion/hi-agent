@@ -66,7 +66,7 @@ class MemoryBuilder:
         )
 
     def build_short_term_store(
-        self, *, profile_id: str = "", workspace_key: WorkspaceKey | None = None
+        self, *, profile_id: str, workspace_key: WorkspaceKey | None = None
     ) -> Any:
         """Build short-term memory store, optionally scoped to a profile or workspace.
 
@@ -103,7 +103,7 @@ class MemoryBuilder:
         return store
 
     def build_mid_term_store(
-        self, profile_id: str = "", workspace_key: WorkspaceKey | None = None
+        self, *, profile_id: str, workspace_key: WorkspaceKey | None = None
     ) -> Any:
         """Build mid-term memory store, optionally scoped to a profile or workspace.
 
@@ -139,7 +139,7 @@ class MemoryBuilder:
         return store
 
     def build_long_term_graph(
-        self, profile_id: str = "", workspace_key: WorkspaceKey | None = None
+        self, *, profile_id: str, workspace_key: WorkspaceKey | None = None
     ) -> Any:
         """Build long-term memory graph, optionally scoped to a profile or workspace.
 

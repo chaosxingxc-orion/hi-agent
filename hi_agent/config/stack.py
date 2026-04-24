@@ -35,6 +35,11 @@ class ProfileAwareConfigStack:
     def __init__(self, home_dir: str | None = None, profile_id: str = "") -> None:
         from hi_agent.profile.manager import ProfileDirectoryManager
 
+        if not profile_id:
+            logger.warning(
+                "ProfileAwareConfigStack: instantiated with empty profile_id — "
+                "this may indicate a missing scope; use explicit profile_id in production."
+            )
         self._pdm = ProfileDirectoryManager(home_dir=home_dir)
         self._profile_id = profile_id
 

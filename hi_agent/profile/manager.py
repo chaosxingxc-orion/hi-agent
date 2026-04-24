@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+_logger = logging.getLogger(__name__)
 
 # G-1: Canonical identifier for the cross-project global profile.
 # Multiple project profiles can declare cross_profile_read=["hi_agent_global/..."]
@@ -43,6 +46,11 @@ class ProfileDirectoryManager:
 
     def episodic_dir(self, profile_id: str = "") -> Path:
         """Return <home>/episodes/<profile_id>/ or <home>/episodes/."""
+        if not profile_id:
+            _logger.warning(
+                "ProfileDirectoryManager.episodic_dir: called with empty profile_id — "
+                "this may indicate a missing scope; use explicit profile_id in production."
+            )
         path = self._home / "episodes" / profile_id if profile_id else self._home / "episodes"
         path.mkdir(parents=True, exist_ok=True)
         return path

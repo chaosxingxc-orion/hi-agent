@@ -1454,6 +1454,20 @@ def build_app(agent_server: AgentServer) -> Starlette:
                 agent_server._config_stack._base_path,
             )
 
+        # C3: Inject FeedbackStore so route handlers never hit the unscoped fallback.
+        try:
+            from hi_agent.evolve.feedback_store import FeedbackStore as _FeedbackStore
+
+            agent_server._feedback_store = _FeedbackStore()
+            logger.info("lifespan: FeedbackStore initialized.")
+        except Exception as _fb_exc:
+            logger.warning(
+                "lifespan: FeedbackStore initialization failed (%s: %s); "
+                "feedback endpoints will be unavailable.",
+                type(_fb_exc).__name__,
+                _fb_exc,
+            )
+
         # G-8: Long-running op coordinator + background poller
         from pathlib import Path as _Path
 
@@ -1666,7 +1680,8 @@ class AgentServer:
             _team_event_store.initialize()
             self.team_event_store = _team_event_store
         self.run_manager = RunManager(
-            max_concurrent=self._config.server_max_concurrent_runs,
+            max_concurrent=self._config.run_manager_max_concurrent,
+            queue_size=self._config.run_manager_queue_size,
             idempotency_store=_idempotency_store,
             run_store=_run_store,
         )

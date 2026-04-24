@@ -67,6 +67,9 @@ class TraceConfig:
     server_host: str = "0.0.0.0"
     server_port: int = 8080
     server_max_concurrent_runs: int = 32
+    # concurrent run limits for RunManager
+    run_manager_max_concurrent: int = 4
+    run_manager_queue_size: int = 16
 
     # Trace export (empty string = disabled)
     trace_export_dir: str = ""

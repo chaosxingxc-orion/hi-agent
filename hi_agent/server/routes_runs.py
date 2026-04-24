@@ -45,21 +45,14 @@ class GateDecisionRequest(BaseModel):
 
 logger = logging.getLogger(__name__)
 
-# Module-level fallback for FeedbackStore when the server does not have one.
-_feedback_store_fallback: Any = None
-
-
 def _get_feedback_store(server: Any) -> Any:
-    """Return the server's FeedbackStore, creating a module-level fallback if needed."""
-    global _feedback_store_fallback
+    """Return the server's FeedbackStore. Must be attached to server at startup."""
     store = getattr(server, "_feedback_store", None)
-    if store is not None:
-        return store
-    if _feedback_store_fallback is None:
-        from hi_agent.evolve.feedback_store import FeedbackStore
-
-        _feedback_store_fallback = FeedbackStore()
-    return _feedback_store_fallback
+    if store is None:
+        raise RuntimeError(
+            "_feedback_store not initialized on server — check lifespan setup in app.py"
+        )
+    return store
 
 
 async def handle_list_runs(request: Request) -> JSONResponse:
@@ -117,6 +110,11 @@ async def handle_create_run(request: Request) -> JSONResponse:
 
     if "goal" not in body:
         return JSONResponse({"error": "missing_goal"}, status_code=400)
+
+    _idem_header = request.headers.get("Idempotency-Key")
+    _idempotency_key_missing = _idem_header is None and "idempotency_key" not in body
+    if _idem_header:
+        body = dict(body, idempotency_key=_idem_header)
 
     server: Any = request.app.state.agent_server
     manager = server.run_manager
@@ -210,7 +208,8 @@ async def handle_create_run(request: Request) -> JSONResponse:
         manager.start_run(run_id, _executor_fn)
 
     run = manager.get_run(run_id, workspace=ctx)
-    return JSONResponse(manager.to_dict(run), status_code=201)  # type: ignore[arg-type]
+    extra_headers = {"X-Idempotency-Warning": "missing"} if _idempotency_key_missing else {}
+    return JSONResponse(manager.to_dict(run), status_code=201, headers=extra_headers)  # type: ignore[arg-type]
 
 
 async def handle_get_run(request: Request) -> JSONResponse:
