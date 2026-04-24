@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import PromotionBlocked, RunPostmortem
 
 if TYPE_CHECKING:
     from hi_agent.evolve.champion_challenger import ChampionChallenger
@@ -214,6 +214,7 @@ class SkillPromotionPipeline:
         evaluator: DatasetEvaluator,
         version_manager: SkillVersionManager | None = None,
         auto_promote: bool = False,
+        human_approval_required: bool = True,
     ) -> None:
         """Initialise the pipeline.
 
@@ -222,23 +223,53 @@ class SkillPromotionPipeline:
             version_manager: SkillVersionManager for executing promotions.
             auto_promote: When True, automatically promote skills that receive
                 a ``"promote"`` recommendation with confidence ≥ 0.7.
+            human_approval_required: When True (default), auto-promotion is
+                blocked and raises PromotionBlocked unless the caller
+                explicitly passes ``approved=True`` via an approval context.
+                Set to False only in automated evaluation pipelines where
+                human review is handled upstream.
         """
         self._evaluator = evaluator
         self._vm = version_manager
         self._auto_promote = auto_promote
+        self._human_approval_required = human_approval_required
 
-    def run(self, postmortems: list[RunPostmortem]) -> DatasetEvalResult:
+    def run(
+        self,
+        postmortems: list[RunPostmortem],
+        approval_context: object | None = None,
+    ) -> DatasetEvalResult:
         """Evaluate dataset and optionally auto-promote skills.
 
         Args:
             postmortems: List of run postmortems to evaluate.
+            approval_context: Optional object with an ``approved`` boolean
+                attribute.  When ``human_approval_required=True`` and
+                ``approval_context.approved`` is not ``True``, promotion is
+                blocked and :exc:`PromotionBlocked` is raised.
 
         Returns:
             A :class:`DatasetEvalResult` with promotions_triggered populated.
+
+        Raises:
+            PromotionBlocked: When human_approval_required=True and no
+                approved approval_context is provided.
         """
         result = self._evaluator.evaluate(postmortems)
 
-        if not self._auto_promote or self._vm is None:
+        if not self._auto_promote:
+            return result
+
+        # Human approval gate: block before attempting any promotion.
+        if self._human_approval_required and not getattr(
+            approval_context, "approved", False
+        ):
+            raise PromotionBlocked(
+                "Skill promotion requires human approval (human_approval_required=True). "
+                "Pass an approval_context with approved=True to grant approval."
+            )
+
+        if self._vm is None:
             return result
 
         for skill_id, summary in result.skills_evaluated.items():

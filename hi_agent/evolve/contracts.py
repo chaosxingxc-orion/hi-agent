@@ -108,6 +108,10 @@ class RunPostmortem:
     project_id: str = ""
 
 
+class PromotionBlocked(Exception):
+    """Raised when skill promotion is blocked pending human approval."""
+
+
 @dataclass
 class CalibrationSignal:
     """Cost/quality signal for TierRouter calibration."""
