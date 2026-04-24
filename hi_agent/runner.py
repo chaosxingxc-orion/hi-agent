@@ -1986,6 +1986,7 @@ class RunExecutor:
         strategy: str = "sequential",
         restart_policy: str = "reflect(2)",
         goal: str = "",
+        agent_role: Any | None = None,
     ) -> SubRunHandle:
         """Dispatch a child run via DelegationManager.
 
@@ -2005,6 +2006,10 @@ class RunExecutor:
                 ``"reflect(2)"``).
             goal: Task instruction for the child run. When omitted the
                 agent name is used as a fallback goal.
+            agent_role: Optional :class:`~hi_agent.contracts.team_runtime.AgentRole`
+                providing a typed role identity. When supplied, ``role_id`` is
+                added to the delegation config so the child run can inherit it.
+                When ``None``, existing behaviour is unchanged.
 
         Returns:
             A :class:`SubRunHandle` with the child run identifier.
@@ -2023,15 +2028,20 @@ class RunExecutor:
             )
 
         task_id = f"{self.run_id}-sub-{uuid.uuid4().hex[:8]}"
+        config: dict[str, Any] = {
+            "agent": agent,
+            "profile_id": profile_id,
+            "strategy": strategy,
+            "restart_policy": restart_policy,
+        }
+        if agent_role is not None:
+            role_id = getattr(agent_role, "role_id", None)
+            if role_id:
+                config["role_id"] = role_id
         req = DelegationRequest(
             goal=goal or f"agent={agent}",
             task_id=task_id,
-            config={
-                "agent": agent,
-                "profile_id": profile_id,
-                "strategy": strategy,
-                "restart_policy": restart_policy,
-            },
+            config=config,
         )
 
         # delegate() is async; run it to completion in a new event loop if
