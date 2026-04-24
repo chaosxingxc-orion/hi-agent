@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict
 
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.replay import verify_replay_against_files
 from hi_agent.runner import RunExecutor
 from hi_agent.state import RunStateStore
@@ -39,6 +40,7 @@ def test_replay_state_verify_match_passes(tmp_path) -> None:
         TaskContract(task_id="verify-001", goal="verify match"),
         MockKernel(strict_mode=True),
         state_store=store,
+        raw_memory=RawMemoryStore(),
     )
     executor.execute()
 
@@ -63,6 +65,7 @@ def test_replay_state_verify_result_mismatch(tmp_path) -> None:
         TaskContract(task_id="verify-002", goal="verify result mismatch"),
         MockKernel(strict_mode=True),
         state_store=store,
+        raw_memory=RawMemoryStore(),
     )
     executor.execute()
 
@@ -94,6 +97,7 @@ def test_replay_state_verify_task_view_mismatch(tmp_path) -> None:
         TaskContract(task_id="verify-003", goal="verify task view mismatch"),
         MockKernel(strict_mode=True),
         state_store=store,
+        raw_memory=RawMemoryStore(),
     )
     executor.execute()
 

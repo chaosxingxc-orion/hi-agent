@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -53,6 +54,7 @@ def test_runner_role_defaults_to_none_and_is_forwarded() -> None:
         TaskContract(task_id="runner-role-default", goal="role default"),
         MockKernel(strict_mode=True),
         invoker=invoker,
+        raw_memory=RawMemoryStore(),
     )
 
     result = executor.execute()
@@ -70,6 +72,7 @@ def test_runner_role_is_configurable_and_forwarded() -> None:
         MockKernel(strict_mode=True),
         runner_role="operator",
         invoker=invoker,
+        raw_memory=RawMemoryStore(),
     )
 
     result = executor.execute()
@@ -87,6 +90,7 @@ def test_runner_role_keeps_legacy_invoker_compatible() -> None:
         MockKernel(strict_mode=True),
         runner_role="operator",
         invoker=invoker,
+        raw_memory=RawMemoryStore(),
     )
 
     result = executor.execute()

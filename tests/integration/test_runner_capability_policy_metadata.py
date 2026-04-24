@@ -10,6 +10,7 @@ from hi_agent.capability import (
     register_default_capabilities,
 )
 from hi_agent.contracts import StageState, TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -59,7 +60,7 @@ def test_runner_fails_when_stage_action_policy_denies_invocation() -> None:
         constraints=["invoker_role:operator"],
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, invoker=invoker)
+    executor = RunExecutor(contract, kernel, invoker=invoker, raw_memory=RawMemoryStore())
 
     result = executor.execute()
 
@@ -82,7 +83,7 @@ def test_runner_completes_when_stage_action_policy_allows_all_actions() -> None:
         constraints=["invoker_role:operator"],
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, invoker=invoker)
+    executor = RunExecutor(contract, kernel, invoker=invoker, raw_memory=RawMemoryStore())
 
     result = executor.execute()
 
@@ -99,7 +100,7 @@ def test_runner_passes_role_and_metadata_to_invoker() -> None:
         constraints=["invoker_role:auditor"],
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, invoker=spy)
+    executor = RunExecutor(contract, kernel, invoker=spy, raw_memory=RawMemoryStore())
 
     result = executor.execute()
 

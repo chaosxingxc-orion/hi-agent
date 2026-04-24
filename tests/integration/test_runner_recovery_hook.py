@@ -1,6 +1,7 @@
 """Integration tests for runner recovery hook wiring."""
 
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.recovery import RecoveryOrchestrationResult
 from hi_agent.recovery.compensator import CompensationExecutionReport, CompensationPlan
 from hi_agent.runner import RunExecutor
@@ -26,7 +27,7 @@ def test_runner_uses_orchestrator_as_default_recovery_executor() -> None:
     )
     kernel = MockKernel(strict_mode=True)
 
-    executor = RunExecutor(contract, kernel)
+    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
     result = executor.execute()
 
@@ -69,6 +70,7 @@ def test_runner_invokes_recovery_hook_and_emits_events_on_failure() -> None:
         kernel,
         recovery_executor=recovery_executor,
         recovery_handlers=recovery_handlers,
+        raw_memory=RawMemoryStore(),
     )
 
     result = executor.execute()
@@ -88,7 +90,7 @@ def test_runner_does_not_invoke_recovery_hook_on_success() -> None:
     kernel = MockKernel(strict_mode=True)
     recovery_executor = RecordingRecoveryExecutor()
 
-    executor = RunExecutor(contract, kernel, recovery_executor=recovery_executor)
+    executor = RunExecutor(contract, kernel, recovery_executor=recovery_executor, raw_memory=RawMemoryStore())
 
     result = executor.execute()
 
@@ -133,7 +135,7 @@ def test_runner_emits_recovery_completed_with_orchestrator_metadata() -> None:
                 action_status_map={"escalate_to_human": "failed"},
             )
 
-    executor = RunExecutor(contract, kernel, recovery_executor=SyntheticOrchestrationExecutor())
+    executor = RunExecutor(contract, kernel, recovery_executor=SyntheticOrchestrationExecutor(), raw_memory=RawMemoryStore())
 
     result = executor.execute()
 

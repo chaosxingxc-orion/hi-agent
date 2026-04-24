@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import pytest
 from hi_agent.contracts import TaskContract
 from hi_agent.events import append_event, load_events
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.replay import ReplayEngine
 from hi_agent.runner import RunExecutor
 
@@ -73,7 +74,7 @@ def test_trace_chaos_minimal_regression(case: _ChaosCase, tmp_path) -> None:
         goal="chaos regression",
         constraints=constraints,
     )
-    executor = RunExecutor(contract, MockKernel(strict_mode=True), invoker=invoker)
+    executor = RunExecutor(contract, MockKernel(strict_mode=True), invoker=invoker, raw_memory=RawMemoryStore())
     result = executor.execute()
 
     if case.name == "bad_event_line":

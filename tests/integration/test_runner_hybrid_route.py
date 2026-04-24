@@ -3,6 +3,7 @@
 from typing import ClassVar
 
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.runner import RunExecutor
 
@@ -50,7 +51,7 @@ def test_runner_uses_injected_route_engine_proposals() -> None:
     contract = TaskContract(task_id="int-hybrid-001", goal="use injected route engine")
     kernel = MockKernel(strict_mode=True)
     hybrid = FakeHybridRouteEngine()
-    executor = RunExecutor(contract, kernel, route_engine=hybrid)
+    executor = RunExecutor(contract, kernel, route_engine=hybrid, raw_memory=RawMemoryStore())
 
     result = executor.execute()
 
@@ -69,7 +70,7 @@ def test_runner_default_route_engine_remains_backward_compatible() -> None:
     """Without injection, runner should keep using built-in RuleRouteEngine."""
     contract = TaskContract(task_id="int-hybrid-002", goal="default route remains stable")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel)
+    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
     result = executor.execute()
 

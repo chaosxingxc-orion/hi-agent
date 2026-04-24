@@ -10,6 +10,7 @@ internal mocking (P3 production integrity constraint).
 import pytest
 from hi_agent import GateEvent, SubRunHandle, SubRunResult
 from hi_agent.contracts import TaskContract, deterministic_id
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -31,7 +32,7 @@ def _make_executor(contract: TaskContract | None = None) -> RunExecutor:
     if contract is None:
         contract = _make_contract()
     kernel = MockKernel()
-    return RunExecutor(contract=contract, kernel=kernel)
+    return RunExecutor(contract=contract, kernel=kernel, raw_memory=RawMemoryStore())
 
 
 # ---------------------------------------------------------------------------
