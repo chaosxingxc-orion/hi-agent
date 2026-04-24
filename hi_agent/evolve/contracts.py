@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -105,3 +106,39 @@ class RunPostmortem:
     skills_used: list[str] = field(default_factory=list)
     policy_versions: dict[str, str] = field(default_factory=dict)
     project_id: str = ""
+
+
+@dataclass
+class CalibrationSignal:
+    """Cost/quality signal for TierRouter calibration."""
+
+    project_id: str
+    run_id: str
+    model: str
+    tier: str
+    cost_usd: float = 0.0
+    latency_ms: float = 0.0
+    quality_score: float = 0.0
+    recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+
+@dataclass
+class ProjectPostmortem:
+    """Aggregated postmortem for a completed research project.
+
+    Produced by EvolveEngine.on_project_completed() after all runs finish.
+    This is a platform-level record; downstream populates domain fields
+    (hypothesis_outcomes, failed_assumptions) via the postmortem API.
+    """
+
+    project_id: str
+    run_ids: list[str]
+    backtrack_count: int = 0
+    hypothesis_outcomes: list[str] = field(default_factory=list)
+    failed_assumptions: list[str] = field(default_factory=list)
+    cost_by_phase: dict[str, float] = field(default_factory=dict)
+    accepted_artifact_ids: list[str] = field(default_factory=list)
+    rejected_artifact_ids: list[str] = field(default_factory=list)
+    skill_deltas: list[str] = field(default_factory=list)
+    routing_deltas: list[str] = field(default_factory=list)
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
