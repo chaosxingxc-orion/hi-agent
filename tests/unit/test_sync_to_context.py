@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from hi_agent.context.run_context import RunContext
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -18,7 +19,12 @@ def _make_executor_with_context() -> RunExecutor:
     contract = TaskContract(task_id="t-001", goal="test goal")
     kernel = MockKernel()
     run_context = RunContext(run_id="run-001")
-    executor = RunExecutor(contract=contract, kernel=kernel, run_context=run_context)
+    executor = RunExecutor(
+        contract=contract,
+        kernel=kernel,
+        run_context=run_context,
+        raw_memory=RawMemoryStore(),
+    )
     return executor
 
 
@@ -116,7 +122,12 @@ class TestSyncToContextMutableCopies:
         """If run_context is None, _sync_to_context() returns early without error."""
         contract = TaskContract(task_id="t-001", goal="test goal")
         kernel = MockKernel()
-        executor = RunExecutor(contract=contract, kernel=kernel, run_context=None)
+        executor = RunExecutor(
+            contract=contract,
+            kernel=kernel,
+            run_context=None,
+            raw_memory=RawMemoryStore(),
+        )
         executor.dag = {"node": "value"}
         # Should not raise
         executor._sync_to_context()

@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from hi_agent.contracts import TaskContract
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -25,6 +26,7 @@ from tests.helpers.kernel_adapter_fixture import MockKernel
 def _make_executor(**kwargs) -> RunExecutor:
     contract = TaskContract(task_id="t-round4", goal="round4 test goal")
     k = MockKernel()
+    kwargs.setdefault("raw_memory", RawMemoryStore())
     return RunExecutor(contract=contract, kernel=k, **kwargs)
 
 

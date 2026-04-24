@@ -132,6 +132,8 @@ def test_execute_async_sets_run_id():
     from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
 
+    from hi_agent.memory.l0_raw import RawMemoryStore
+
     contract = TaskContract(task_id="t-async-id", goal="test")
     kernel = MagicMock()
     kernel.start_run = AsyncMock(return_value="run-async-001")
@@ -142,7 +144,7 @@ def test_execute_async_sets_run_id():
     sg = StageGraph()
     sg.add_edge("s1", "s2")
 
-    executor = RunExecutor(contract=contract, kernel=kernel, stage_graph=sg)
+    executor = RunExecutor(contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore())
     stage_exec = MagicMock()
     stage_exec.execute_stage = MagicMock(return_value="completed")
     executor._stage_executor = stage_exec
@@ -169,6 +171,8 @@ def test_execute_async_compatible_with_sync_kernel():
     from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
 
+    from hi_agent.memory.l0_raw import RawMemoryStore
+
     contract = TaskContract(task_id="t-sync-kernel", goal="test")
     # Sync kernel — start_run returns str, not coroutine
     kernel = MagicMock()
@@ -180,7 +184,7 @@ def test_execute_async_compatible_with_sync_kernel():
     sg = StageGraph()
     sg.add_edge("s1", "s2")
 
-    executor = RunExecutor(contract=contract, kernel=kernel, stage_graph=sg)
+    executor = RunExecutor(contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore())
     stage_exec = MagicMock()
     stage_exec.execute_stage = MagicMock(return_value="completed")
     executor._stage_executor = stage_exec
@@ -292,6 +296,8 @@ def test_execute_async_sets_run_start_monotonic():
     from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
 
+    from hi_agent.memory.l0_raw import RawMemoryStore
+
     contract = TaskContract(task_id="t-k15", goal="test")
     kernel = MagicMock()
     kernel.start_run = MagicMock(return_value="run-k15")
@@ -302,7 +308,7 @@ def test_execute_async_sets_run_start_monotonic():
     sg = StageGraph()
     sg.add_edge("s1", "s2")
 
-    executor = RunExecutor(contract=contract, kernel=kernel, stage_graph=sg)
+    executor = RunExecutor(contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore())
     stage_exec = MagicMock()
     stage_exec.execute_stage = MagicMock(return_value="completed")
     executor._stage_executor = stage_exec

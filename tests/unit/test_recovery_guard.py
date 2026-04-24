@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from hi_agent.contracts import TaskContract
 from hi_agent.execution.recovery_coordinator import RecoveryContext
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.runner import RunExecutor
 from hi_agent.runtime_adapter import RuntimeAdapter
 
@@ -34,6 +35,7 @@ def test_trigger_recovery_no_handlers_logs_warning_and_continues(
         contract=base_contract,
         kernel=mock_kernel,
         recovery_handlers=None,
+        raw_memory=RawMemoryStore(),
     )
     executor._run_id = "run-test-123"
 
@@ -58,6 +60,7 @@ def test_trigger_recovery_no_handlers_with_caplog(
         contract=base_contract,
         kernel=mock_kernel,
         recovery_handlers=None,
+        raw_memory=RawMemoryStore(),
     )
     executor._run_id = "run-test-123"
 
@@ -78,6 +81,7 @@ def test_trigger_recovery_with_handlers_proceeds(
         contract=base_contract,
         kernel=mock_kernel,
         recovery_handlers=handlers,
+        raw_memory=RawMemoryStore(),
     )
     executor._run_id = "run-test-123"
 
@@ -103,6 +107,7 @@ def test_trigger_recovery_build_context_exception_wrapping(
         contract=base_contract,
         kernel=mock_kernel,
         recovery_handlers=handlers,
+        raw_memory=RawMemoryStore(),
     )
     executor._run_id = "run-test-123"
 

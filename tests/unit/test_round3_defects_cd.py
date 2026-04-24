@@ -11,6 +11,7 @@ import tempfile
 from unittest.mock import MagicMock
 
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore
 from hi_agent.runner import RunExecutor
 
@@ -20,6 +21,7 @@ from tests.helpers.kernel_adapter_fixture import MockKernel
 def _make_executor(**kwargs) -> RunExecutor:
     contract = TaskContract(task_id="t-cd-001", goal="test goal")
     kernel = MockKernel()
+    kwargs.setdefault("raw_memory", RawMemoryStore())
     return RunExecutor(contract=contract, kernel=kernel, **kwargs)
 
 
