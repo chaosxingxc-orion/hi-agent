@@ -9,13 +9,20 @@ from hi_agent.capability.registry import CapabilityRegistry
 
 
 def test_invoker_raises_for_unavailable_capability(monkeypatch):
-    """Direct invoke of unavailable capability raises CapabilityUnavailableError."""
+    """Direct invoke of unavailable capability raises CapabilityUnavailableError.
+
+    Boundary mocks:
+    - ``spec`` (MagicMock): a CapabilitySpec registration entry — a data object, not the SUT.
+    - ``breaker`` (MagicMock): circuit-breaker adapter — external seam, not the SUT.
+    The SUT is CapabilityInvoker + real CapabilityRegistry.
+    """
     monkeypatch.delenv("FAKE_KEY_W4003_INVOKER", raising=False)
 
     desc = CapabilityDescriptor(
         name="gated_cap",
         required_env={"FAKE_KEY_W4003_INVOKER": "test key"},
     )
+    # Boundary mock: spec is a registration data-object stub, not the invoker under test.
     spec = MagicMock()
     spec.name = "gated_cap"
     spec.descriptor = desc
@@ -24,6 +31,7 @@ def test_invoker_raises_for_unavailable_capability(monkeypatch):
     registry = CapabilityRegistry()
     registry._capabilities["gated_cap"] = spec
 
+    # Boundary mock: circuit-breaker is an external seam; allow=True so it doesn't block.
     breaker = MagicMock()
     breaker.allow.return_value = True
 
@@ -37,13 +45,20 @@ def test_invoker_raises_for_unavailable_capability(monkeypatch):
 
 
 def test_invoker_allows_available_capability(monkeypatch):
-    """Invoker proceeds normally for available capabilities."""
+    """Invoker proceeds normally for available capabilities.
+
+    Boundary mocks:
+    - ``spec`` (MagicMock): capability registration data-object, not the SUT.
+    - ``breaker`` (MagicMock): circuit-breaker external seam.
+    SUT: CapabilityInvoker + real CapabilityRegistry.
+    """
     monkeypatch.setenv("FAKE_KEY_W4003_INVOKER", "sk-test")
 
     desc = CapabilityDescriptor(
         name="gated_cap",
         required_env={"FAKE_KEY_W4003_INVOKER": "test key"},
     )
+    # Boundary mock: spec is a registration data-object stub, not the invoker under test.
     spec = MagicMock()
     spec.name = "gated_cap"
     spec.descriptor = desc
@@ -52,6 +67,7 @@ def test_invoker_allows_available_capability(monkeypatch):
     registry = CapabilityRegistry()
     registry._capabilities["gated_cap"] = spec
 
+    # Boundary mock: circuit-breaker external seam; allow=True passes through.
     breaker = MagicMock()
     breaker.allow.return_value = True
 
@@ -61,16 +77,29 @@ def test_invoker_allows_available_capability(monkeypatch):
 
 
 def test_invoker_skips_probe_when_registry_lacks_method():
-    """If registry has no probe_availability, invoker proceeds normally (backward compat)."""
+    """If registry has no probe_availability, invoker proceeds normally (backward compat).
+
+    Boundary mocks:
+    - ``spec`` (MagicMock): capability registration data-object stub.
+    - ``registry`` (MagicMock): used here to simulate an older registry that lacks
+      ``probe_availability``; the SUT (CapabilityInvoker) must handle this gracefully.
+      This is the minimal seam needed to test a backward-compat code path without
+      the real CapabilityRegistry (which always has probe_availability).
+    - ``breaker`` (MagicMock): circuit-breaker external seam.
+    """
+    # Boundary mock: data-object stub for capability spec.
     spec = MagicMock()
     spec.name = "cap"
     spec.handler = MagicMock(return_value={"success": True})
 
-    # Registry without probe_availability
+    # Boundary mock: simulates an older registry missing probe_availability.
+    # A real CapabilityRegistry always has this method, so a MagicMock is the
+    # only way to exercise the backward-compat branch without monkey-patching.
     registry = MagicMock()
     registry.get.return_value = spec
     del registry.probe_availability  # ensure hasattr returns False
 
+    # Boundary mock: circuit-breaker external seam.
     breaker = MagicMock()
     breaker.allow.return_value = True
 

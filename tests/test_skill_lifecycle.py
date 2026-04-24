@@ -88,7 +88,7 @@ class TestRunExecutorSkillObserver:
         )
         outcome = executor.execute()
 
-        assert outcome in ("completed", "failed")
+        assert outcome == "completed"
         # Check that observations were written
         # Observer writes to {storage}/{skill_id}.jsonl files
         jsonl_files = (
@@ -173,7 +173,7 @@ class TestRunExecutorBackwardCompat:
             skill_observer=None,
         )
         outcome = executor.execute()
-        assert outcome in ("completed", "failed")
+        assert outcome == "completed"
 
     def test_none_version_mgr_no_error(self) -> None:
         """RunExecutor with skill_version_mgr=None completes without error."""
@@ -187,7 +187,7 @@ class TestRunExecutorBackwardCompat:
             skill_observer=None,
         )
         outcome = executor.execute()
-        assert outcome in ("completed", "failed")
+        assert outcome == "completed"
 
     def test_none_skill_loader_no_error(self) -> None:
         """RunExecutor with skill_loader=None completes without error."""
@@ -200,7 +200,7 @@ class TestRunExecutorBackwardCompat:
             skill_loader=None,
         )
         outcome = executor.execute()
-        assert outcome in ("completed", "failed")
+        assert outcome == "completed"
 
 
 # ---------------------------------------------------------------------------
@@ -493,7 +493,7 @@ class TestSkillLifecycleIntegration:
             skill_loader=loader,
         )
         outcome = executor.execute()
-        assert outcome in ("completed", "failed")
+        assert outcome == "completed"
 
         # 5. Get metrics from observer
         all_metrics = observer.get_all_metrics()

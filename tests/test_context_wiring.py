@@ -184,7 +184,7 @@ class TestRunExecutorBackwardCompat:
         executor = _make_executor(context_manager=None, session=None)
         assert executor.context_manager is None
         result = executor.execute()
-        assert result in ("completed", "failed")
+        assert result == "completed"
 
     def test_none_cm_session_context_still_works(self):
         """When CM is None but session is provided, session context works."""
@@ -340,7 +340,7 @@ class TestFullCycleContextManager:
             observability_hook=hook,
         )
         result = executor.execute()
-        assert result in ("completed", "failed")
+        assert result == "completed"
 
         # Should have context_health events
         health_events = [e for e in events if e[0] == "context_health"]

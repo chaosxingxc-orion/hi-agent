@@ -1,4 +1,4 @@
-"""Tests for session resume �?restoring RunExecutor from checkpoint and
+﻿"""Tests for session resume �?restoring RunExecutor from checkpoint and
 continuing execution.
 
 Validates that:
@@ -587,10 +587,10 @@ class TestBackwardCompat:
         kernel = MockKernel()
         executor = RunExecutor(contract, kernel)
         result = executor.execute()
-        # With default capabilities, forced failures lead to dead-ends
-        # which can result in "failed" �?the exact result depends on
-        # capability registration, so just ensure it returns a valid status.
-        assert result in ("completed", "failed")
+        # The "fail_action:analyze_data" constraint is intended to force failure, but the
+        # current MockKernel + heuristic-fallback path completes all stages regardless.
+        # Until the constraint is enforced end-to-end, the observable result is "completed".
+        assert result == "completed"
 
     def test_execute_emits_run_started(self) -> None:
         """RunStarted event should still be emitted."""
@@ -635,8 +635,7 @@ class TestBuilderCheckpoint:
                 assert callable(resume_fn)
 
                 result = resume_fn()
-                # Result depends on full subsystem wiring �?either outcome is valid
-                # as long as the resume function actually ran
-                assert result in ("completed", "failed")
+                # MockKernel always succeeds, so the resumed run must complete.
+                assert result == "completed"
         finally:
             os.unlink(path)

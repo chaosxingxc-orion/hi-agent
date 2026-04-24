@@ -767,3 +767,28 @@ def test_journey_combined_pi_c_pi_d(tmp_path: Path) -> None:
     assert get_fallback_events(executor.run_id) == [], (
         "PI-E composition must not emit heuristic fallbacks"
     )
+
+
+# ---------------------------------------------------------------------------
+# Journey 10 (K-13): PI-C + PI-D combination placeholder
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skip(
+    reason=(
+        "K-13: PI-C+PI-D combination requires live kernel + LLM"
+        " — add to E2E suite when available"
+    )
+)
+def test_pi_c_and_pi_d_combined() -> None:
+    """Integration test for PI-C (Human Gate) + PI-D (subrun dispatch) in the same run.
+
+    Verifies that a run can:
+    1. Dispatch a subrun (PI-D capability)
+    2. Pause at a Human Gate (PI-C capability)
+    3. Resume after gate resolution
+    4. Collect both the subrun result and the final outcome
+
+    Currently skipped — requires real kernel + LLM. Move to tests/e2e/ when E2E harness supports it.
+    """
+    pytest.skip("K-13: PI-C+PI-D requires live kernel + LLM")

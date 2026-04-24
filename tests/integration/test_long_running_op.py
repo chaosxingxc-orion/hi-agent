@@ -82,6 +82,16 @@ class TestLongRunningOpStore:
 
 
 class TestLongRunningOpCoordinator:
+    """Tests for LongRunningOpCoordinator.
+
+    The SUT is LongRunningOpCoordinator (and LongRunningOpStore).
+    ``backend`` is a MagicMock of the pluggable backend interface (e.g. slurm, ssh,
+    local subprocess).  This is an external seam — the coordinator delegates
+    job scheduling to the backend; the backend is not part of the subsystem
+    under test.  Boundary mock: MagicMock is intentionally mocking the
+    external job-scheduling backend, not the SUT.
+    """
+
     @pytest.fixture
     def coord(self, tmp_path):
         from hi_agent.experiment.coordinator import LongRunningOpCoordinator
@@ -93,6 +103,8 @@ class TestLongRunningOpCoordinator:
     def test_submit_returns_handle_immediately(self, coord):
         from hi_agent.experiment.op_store import OpStatus
 
+        # Boundary mock: backend is an external job-scheduling adapter (slurm/ssh/local),
+        # not part of the coordinator/store subsystem under test.
         backend = MagicMock()
         backend.submit.return_value = "ext-id-001"
         coord.register_backend("mock", backend)
@@ -103,6 +115,7 @@ class TestLongRunningOpCoordinator:
         backend.submit.assert_called_once_with({"command": "train.py"})
 
     def test_get_returns_handle(self, coord):
+        # Boundary mock: external job-scheduling backend, not the SUT.
         backend = MagicMock()
         backend.submit.return_value = "ext-002"
         coord.register_backend("mock", backend)
@@ -114,6 +127,7 @@ class TestLongRunningOpCoordinator:
     def test_cancel_marks_cancelled(self, coord):
         from hi_agent.experiment.op_store import OpStatus
 
+        # Boundary mock: external job-scheduling backend, not the SUT.
         backend = MagicMock()
         backend.submit.return_value = "ext-003"
         coord.register_backend("mock", backend)
@@ -132,6 +146,14 @@ class TestLongRunningOpCoordinator:
 
 
 class TestOpPoller:
+    """Tests for OpPoller.
+
+    The SUT is OpPoller (which wraps a real LongRunningOpCoordinator and LongRunningOpStore).
+    ``backend`` is a MagicMock of the external job-scheduling adapter.
+    Boundary mock: MagicMock is intentionally mocking the external backend
+    (status/fetch_artifacts), not the poller or coordinator subsystems under test.
+    """
+
     @pytest.fixture
     def setup(self, tmp_path):
         from hi_agent.experiment.coordinator import LongRunningOpCoordinator
@@ -145,6 +167,7 @@ class TestOpPoller:
     @pytest.mark.asyncio
     async def test_poller_marks_succeeded_on_backend_done(self, setup):
         store, coord, op_poller_cls, op_status_cls = setup
+        # Boundary mock: external backend (slurm/ssh/local); poller/coordinator/store are real.
         backend = MagicMock()
         backend.submit.return_value = "ext-poll-01"
         backend.status.return_value = "succeeded"
@@ -166,6 +189,7 @@ class TestOpPoller:
     @pytest.mark.asyncio
     async def test_poller_emits_heartbeat_for_running(self, setup):
         store, coord, op_poller_cls, op_status_cls = setup
+        # Boundary mock: external backend (slurm/ssh/local); poller/coordinator/store are real.
         backend = MagicMock()
         backend.submit.return_value = "ext-poll-02"
         backend.status.return_value = "running"
