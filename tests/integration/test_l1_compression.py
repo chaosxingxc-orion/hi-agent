@@ -292,7 +292,7 @@ class TestCompressionWithRunnerFlow:
         """After a full run, each stage should have a compressed summary."""
         contract = TaskContract(task_id="comp-run-001", goal="compress runner")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         result = executor.execute()
 
@@ -308,7 +308,7 @@ class TestCompressionWithRunnerFlow:
         """Raw memory store should have records for every stage."""
         contract = TaskContract(task_id="comp-run-002", goal="raw memory check")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel)
+        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
         executor.execute()
 
@@ -325,7 +325,7 @@ class TestCompressionWithRunnerFlow:
         contract = TaskContract(task_id="comp-run-003", goal="metrics check")
         kernel = MockKernel(strict_mode=True)
         compressor = MemoryCompressor()
-        executor = RunExecutor(contract, kernel, compressor=compressor)
+        executor = RunExecutor(contract, kernel, compressor=compressor, raw_memory=RawMemoryStore())
 
         executor.execute()
 
