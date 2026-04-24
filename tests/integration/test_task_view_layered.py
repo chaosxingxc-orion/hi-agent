@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from hi_agent.contracts import TaskContract
 from hi_agent.memory.compressor import MemoryCompressor
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l2_index import RunMemoryIndex
 from hi_agent.runner import STAGES, RunExecutor
@@ -24,7 +25,7 @@ def _build_run_data() -> tuple[RunExecutor, MockKernel]:
     """Execute a full run and return executor + kernel."""
     contract = TaskContract(task_id="tv-int-001", goal="task view integration")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel)
+    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
     executor.execute()
     return executor, kernel
 
