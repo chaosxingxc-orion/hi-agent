@@ -31,6 +31,12 @@ class Artifact:
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     content: Any = None
     project_id: str = ""
+    # Wave 8 / P2.2: producer provenance and content integrity fields
+    evidence_count: int = 0
+    content_hash: str = ""
+    producer_run_id: str = ""
+    producer_stage_id: str = ""
+    producer_capability: str = ""
 
     def __hash__(self) -> int:  # identity by artifact_id; mutable fields excluded
         """Hash by artifact_id; mutable fields excluded."""
@@ -111,3 +117,77 @@ class EvaluationArtifact(Artifact):
     def __post_init__(self) -> None:
         """Set artifact_type to 'evaluation'."""
         self.artifact_type = "evaluation"
+
+
+# Wave 8 / P2.2: Research-domain artifact types for downstream platform.
+
+
+class CapabilityPolicyError(Exception):
+    """Raised when a capability policy constraint is violated.
+
+    For example, when provenance_required=True but the output carries no
+    provenance dict, or when source_reference_policy='required' but
+    source_refs is empty.
+    """
+
+
+@dataclass
+class CitationArtifact(Artifact):
+    """A bibliographic citation with paper reference."""
+
+    paper_id: str = ""
+    doi: str = ""
+    authors: list[str] = field(default_factory=list)
+    year: int = 0
+    venue: str = ""
+
+    def __post_init__(self) -> None:
+        """Set artifact_type to 'citation'."""
+        self.artifact_type = "citation"
+
+
+@dataclass
+class PaperArtifact(Artifact):
+    """A research paper artifact."""
+
+    paper_id: str = ""
+    title: str = ""
+    abstract: str = ""
+    local_path: str = ""
+
+    def __post_init__(self) -> None:
+        """Set artifact_type to 'paper'."""
+        self.artifact_type = "paper"
+
+
+@dataclass
+class DatasetArtifact(Artifact):
+    """A dataset artifact."""
+
+    dataset_id: str = ""
+    schema_description: str = ""
+    row_count: int = 0
+
+    def __post_init__(self) -> None:
+        """Set artifact_type to 'dataset' and auto-compute content_hash if empty."""
+        self.artifact_type = "dataset"
+        if self.content and not self.content_hash:
+            import hashlib
+            import json as _json
+
+            self.content_hash = hashlib.sha256(
+                _json.dumps(self.content, sort_keys=True, default=str).encode()
+            ).hexdigest()
+
+
+@dataclass
+class LeanProofArtifact(Artifact):
+    """A Lean 4 formal proof artifact."""
+
+    theorem_name: str = ""
+    lean_file_path: str = ""
+    proof_status: str = "unverified"  # "verified" | "partial" | "unverified"
+
+    def __post_init__(self) -> None:
+        """Set artifact_type to 'lean_proof'."""
+        self.artifact_type = "lean_proof"
