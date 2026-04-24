@@ -1,0 +1,5 @@
+{
+  "_comment": "Register MCP servers here. Each entry is loaded at server startup. See docs/extension-guide.md.",
+  "version": "1.0",
+  "servers": []
+}

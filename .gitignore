@@ -15,4 +15,4 @@ venv/
 docs/reports/
 docs/superpowers/plans/
 docs/superpowers/specs/
-# config/llm_config.json is committed with empty credentials — set VOLCE_API_KEY env var for live tests
+config/llm_config.json

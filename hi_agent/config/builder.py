@@ -266,6 +266,22 @@ class SystemBuilder:
                         _readiness_rbt = {}
                     _profile_rbt = _rrm_rbt(_env_rbt, _readiness_rbt)
                     register_builtin_tools(registry, profile=_profile_rbt)
+                    # Load config-driven custom tools (config/tools.json).
+                    try:
+                        import os as _os_tc
+
+                        from hi_agent.config.tools_config_loader import load_tools_from_config
+
+                        _tools_path = _os_tc.path.join(
+                            _os_tc.path.dirname(__file__), "..", "..", "config", "tools.json"
+                        )
+                        load_tools_from_config(registry, config_path=_tools_path)
+                    except Exception as _tc_exc:
+                        logger.warning(
+                            "build_capability_registry: tools_config_loader failed (%s); "
+                            "custom tools not loaded.",
+                            _tc_exc,
+                        )
                     self._capability_registry = registry
                     logger.info(
                         "build_capability_registry: CapabilityRegistry created "
@@ -399,7 +415,7 @@ class SystemBuilder:
             self._knowledge_builder_inst = KnowledgeBuilder(
                 self._config,
                 long_term_graph_factory=lambda pid: self.build_long_term_graph(
-                    profile_id=pid
+                    profile_id=pid, workspace_key=None
                 ),
             )
         return self._knowledge_builder_inst
@@ -475,6 +491,29 @@ class SystemBuilder:
         """
         if self._plugin_loader is None:
             return
+
+        # Load top-level mcp_servers.json BEFORE plugin contributions.
+        if not getattr(self, "_mcp_config_loaded", False):
+            self._mcp_config_loaded = True
+            if self._mcp_registry is not None:
+                try:
+                    import os as _os_mcp
+
+                    from hi_agent.config.mcp_config_loader import load_mcp_servers_from_config
+
+                    _mcp_cfg_path = _os_mcp.path.join(
+                        _os_mcp.path.dirname(__file__), "..", "..", "config", "mcp_servers.json"
+                    )
+                    load_mcp_servers_from_config(
+                        self._mcp_registry, config_path=_mcp_cfg_path
+                    )
+                except Exception as _mcp_cfg_exc:
+                    logger.warning(
+                        "_wire_plugin_contributions: mcp_config_loader failed (%s); "
+                        "config-driven MCP servers not loaded.",
+                        _mcp_cfg_exc,
+                    )
+
         for manifest in self._plugin_loader._loaded.values():
             if manifest.status != "active":
                 continue
@@ -613,28 +652,31 @@ class SystemBuilder:
     # Memory tier builders
     # ------------------------------------------------------------------
 
-    def build_short_term_store(self, *, profile_id: str, workspace_key: Any = None) -> Any:
+    def build_short_term_store(self, *, profile_id: str, workspace_key: Any) -> Any:
         """Build short-term memory store scoped to a profile or workspace.
 
-        Rule 13 (DF-12): ``profile_id`` keyword-only and required.
+        Rule 6 / Rule 13 (DF-12): both ``profile_id`` and ``workspace_key``
+        are keyword-only and required (no silent unscoped fallback).
         """
         return self._get_memory_builder().build_short_term_store(
             profile_id=profile_id, workspace_key=workspace_key
         )
 
-    def build_mid_term_store(self, *, profile_id: str, workspace_key: Any = None) -> Any:
+    def build_mid_term_store(self, *, profile_id: str, workspace_key: Any) -> Any:
         """Build mid-term memory store scoped to a profile or workspace.
 
-        Rule 13 (DF-12): ``profile_id`` keyword-only and required.
+        Rule 6 / Rule 13 (DF-12): both ``profile_id`` and ``workspace_key``
+        are keyword-only and required (no silent unscoped fallback).
         """
         return self._get_memory_builder().build_mid_term_store(
             profile_id=profile_id, workspace_key=workspace_key
         )
 
-    def build_long_term_graph(self, *, profile_id: str, workspace_key: Any = None) -> Any:
+    def build_long_term_graph(self, *, profile_id: str, workspace_key: Any) -> Any:
         """Build long-term memory graph scoped to a profile or workspace.
 
-        Rule 13 (DF-12): ``profile_id`` keyword-only and required.
+        Rule 6 / Rule 13 (DF-12): both ``profile_id`` and ``workspace_key``
+        are keyword-only and required (no silent unscoped fallback).
         """
         return self._get_memory_builder().build_long_term_graph(
             profile_id=profile_id, workspace_key=workspace_key
@@ -1254,7 +1296,9 @@ class SystemBuilder:
         kernel = self.build_kernel()
         km = self.build_knowledge_manager(
             profile_id=_profile_id,
-            long_term_graph=self.build_long_term_graph(profile_id=_profile_id),
+            long_term_graph=self.build_long_term_graph(
+                profile_id=_profile_id, workspace_key=None
+            ),
         )
 
         def resume() -> str:
@@ -1283,7 +1327,9 @@ class SystemBuilder:
                 policy_versions=PolicyVersionSet(),
                 route_engine=self._build_route_engine(),
                 acceptance_policy=AcceptancePolicy(),
-                short_term_store=self.build_short_term_store(profile_id=_profile_id),
+                short_term_store=self.build_short_term_store(
+                    profile_id=_profile_id, workspace_key=None
+                ),
                 knowledge_query_fn=lambda q, **kw: km.query(q, **kw).wiki_pages,
                 llm_gateway=self.build_llm_gateway(),
             )

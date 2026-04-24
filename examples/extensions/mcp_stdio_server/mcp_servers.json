@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "servers": [
+    {
+      "name": "example_echo_mcp",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-c", "import sys, json; [print(json.dumps({'jsonrpc':'2.0','id':json.loads(l).get('id'),'result':{}})) for l in sys.stdin]"],
+      "health_check": {"interval_s": 120, "timeout_s": 5}
+    }
+  ]
+}

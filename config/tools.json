@@ -1,0 +1,5 @@
+{
+  "_comment": "Register custom tools here. Each entry is loaded at server startup. See docs/extension-guide.md.",
+  "version": "1.0",
+  "tools": []
+}

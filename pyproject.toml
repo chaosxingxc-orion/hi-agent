@@ -27,11 +27,13 @@ dev = [
   "pytest-asyncio>=1.0",
   "pytest-cov>=6.0",
   "pytest-timeout>=2.3",
+  "pytest-xdist>=3.5",
   "respx>=0.23",
   "ruff>=0.8",
   "anthropic>=0.40",
   "openai>=1.50",
   "tiktoken>=0.7",
+  "jsonschema>=4.0",
 ]
 
 [tool.setuptools]
@@ -44,11 +46,13 @@ include = ["hi_agent*", "agent_kernel*"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+addopts = ["--strict-markers", "--timeout=60"]
 markers = [
     "integration: integration tests using real components",
     "live_api: live API tests that call real external model endpoints (require VOLCE_API_KEY)",
     "prod_e2e: production end-to-end tests that require real model credentials",
     "smoke: import and minimal instantiation tests — no external dependencies required",
+    "serial: must not run in parallel (SQLite, file locks, port binding)",
 ]
 
 [tool.ruff]

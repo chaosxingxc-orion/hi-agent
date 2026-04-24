@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "hi-agent MCP servers config",
+  "type": "object",
+  "required": ["servers"],
+  "properties": {
+    "version": {"type": "string"},
+    "servers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "transport"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "id": {"type": "string"},
+          "transport": {"type": "string", "enum": ["stdio", "http", "sse"]},
+          "endpoint": {"type": "string"},
+          "command": {"type": "string"},
+          "args": {"type": "array", "items": {"type": "string"}},
+          "env": {"type": "object"},
+          "tools_filter": {"type": "array", "items": {"type": "string"}},
+          "health_check": {
+            "type": "object",
+            "properties": {
+              "interval_s": {"type": "number"},
+              "timeout_s": {"type": "number"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

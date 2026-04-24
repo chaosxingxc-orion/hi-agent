@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "tools": [
+    {
+      "name": "http_echo",
+      "description": "POST any JSON payload to an echo endpoint and return the response",
+      "timeout_s": 15,
+      "handler": {
+        "type": "http",
+        "url": "https://httpbin.org/post",
+        "method": "POST"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "message": {"type": "string", "description": "Message to echo"}
+        }
+      }
+    }
+  ]
+}

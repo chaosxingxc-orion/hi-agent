@@ -50,13 +50,13 @@
       "api_key": "",
       "base_url": "https://ark.cn-beijing.volces.com/api/coding/v1",
       "anthropic_base_url": "https://ark.cn-beijing.volces.com/api/coding",
-      "api_format": "openai",
+      "api_format": "anthropic",
       "timeout_seconds": 60,
       "max_retries": 1,
       "models": {
-        "strong": "doubao-seed-2.0-pro",
-        "medium": "doubao-seed-2.0-lite",
-        "light": "doubao-seed-2.0-lite"
+        "strong": "glm-5.1",
+        "medium": "kimi-k2.6",
+        "light": "kimi-k2.6"
       },
       "all_models": [
         "doubao-seed-2.0-code",
@@ -64,9 +64,9 @@
         "doubao-seed-2.0-lite",
         "doubao-seed-code",
         "minimax-m2.5",
-        "glm-4.7",
+        "glm-5.1",
         "deepseek-v3.2",
-        "kimi-k2.5"
+        "kimi-k2.6"
       ],
       "features": {
         "stream": true,
