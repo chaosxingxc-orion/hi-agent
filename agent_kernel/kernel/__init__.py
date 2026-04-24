@@ -1,5 +1,6 @@
 """agent_kernel.kernel — kernel contracts and execution primitives. Public surface."""
 
+from agent_kernel.kernel.admission.tenant_policy import TenantPolicy
 from agent_kernel.kernel.contracts import (
     Action,
     CancelRunRequest,
@@ -41,5 +42,6 @@ __all__ = [
     "TaskAttempt",
     "TaskRestartPolicy",
     "TaskViewRecord",
+    "TenantPolicy",
     "TraceFailureCode",
 ]

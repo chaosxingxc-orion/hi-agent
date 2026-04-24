@@ -788,3 +788,14 @@ RecoveryGateService (reflect_and_retry)
 | TaskEventLog | `InMemoryTaskEventLog`（平台层，无持久化后端） | `warnings.warn`（不阻断） |
 
 任意 `ValueError` 项违规均立即抛出，阻止不合规的生产部署。`InMemoryTaskEventLog` 为平台级关注点，当前无持久化后端，仅发出警告。
+
+---
+
+## Tenant Admission Contract
+
+`agent_kernel/kernel/admission/tenant_policy.py` owns the `TenantPolicy` dataclass and the admission gate logic. This is part of the kernel's declared public surface.
+
+**Invariants:**
+- `TenantPolicy` is exported via `agent_kernel.kernel.__init__` when used cross-boundary.
+- The admission gate never references provider names, model IDs, or hi_agent strategy classes.
+- Callers supply `TenantPolicy` instances; the kernel does not construct them from config files.
