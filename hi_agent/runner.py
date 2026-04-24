@@ -1135,7 +1135,7 @@ class RunExecutor:
             import datetime as _dt
             import uuid as _uuid
 
-            from agent_kernel.kernel.contracts import RuntimeEvent as _RuntimeEvent
+            from hi_agent.runtime_adapter import RuntimeEvent as _RuntimeEvent
 
             from hi_agent.server.event_bus import event_bus as _event_bus
 

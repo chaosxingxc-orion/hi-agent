@@ -159,7 +159,7 @@ class AsyncTaskScheduler:
 
     async def _execute_node(self, node_id: str) -> None:
         """Execute a single node under the concurrency semaphore."""
-        from agent_kernel.kernel.contracts import Action
+        from hi_agent.runtime_adapter import Action
 
         assert self._graph is not None
         assert self._semaphore is not None

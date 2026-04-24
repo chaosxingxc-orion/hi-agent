@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum, StrEnum
 from typing import Any
 
-from agent_kernel.kernel.contracts import SideEffectClass
+from hi_agent.runtime_adapter import SideEffectClass
 
 
 class EffectClass(StrEnum):

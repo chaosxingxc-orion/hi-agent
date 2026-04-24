@@ -10,12 +10,10 @@ All core types are imported from agent-kernel (single source of truth):
 from dataclasses import dataclass, field
 from typing import Any
 
-from agent_kernel.kernel.contracts import TraceFailureCode
-from agent_kernel.kernel.failure_mappings import (
+from hi_agent.runtime_adapter import (
     FAILURE_GATE_MAP as FAILURE_GATE_MAP,
-)
-from agent_kernel.kernel.failure_mappings import (
     FAILURE_RECOVERY_MAP as FAILURE_RECOVERY_MAP,
+    TraceFailureCode,
 )
 
 # Re-export as FailureCode for backward compatibility across hi-agent.

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 import contextlib
 
-from agent_kernel.kernel.contracts import RuntimeEvent
+from hi_agent.runtime_adapter import RuntimeEvent
 
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 

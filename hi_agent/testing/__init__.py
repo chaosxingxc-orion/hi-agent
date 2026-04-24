@@ -4,7 +4,7 @@ This module provides a stable import surface for hi-agent tests that rely on
 agent-kernel's in-memory testing primitives.
 """
 
-from agent_kernel.testing import (
+from hi_agent.runtime_adapter import (
     InMemoryDedupeStore,
     InMemoryKernelRuntimeEventLog,
     StaticRecoveryGateService,

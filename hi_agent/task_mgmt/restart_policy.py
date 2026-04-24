@@ -16,7 +16,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from agent_kernel.kernel.task_manager.contracts import (  # noqa: F401
+from hi_agent.runtime_adapter import (  # noqa: F401
     ExhaustedPolicy,
     TaskAttempt,
     TaskRestartPolicy,

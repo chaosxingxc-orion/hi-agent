@@ -1,5 +1,21 @@
 """Runtime adapter package."""
 
+from agent_kernel.kernel import (
+    Action,
+    FAILURE_GATE_MAP,
+    FAILURE_RECOVERY_MAP,
+    RuntimeEvent,
+    SideEffectClass,
+    TraceFailureCode,
+    ExhaustedPolicy,
+    TaskAttempt,
+    TaskRestartPolicy,
+)
+from agent_kernel.testing import (
+    InMemoryDedupeStore,
+    InMemoryKernelRuntimeEventLog,
+    StaticRecoveryGateService,
+)
 from hi_agent.runtime_adapter.async_kernel_facade_adapter import (
     AsyncKernelFacadeAdapter,
 )
@@ -46,7 +62,10 @@ from hi_agent.runtime_adapter.temporal_health import (
     check_temporal_connection,
 )
 
+# Kernel contract re-exports — hi_agent modules import these from here,
+# not directly from agent_kernel.
 __all__ = [
+    "Action",
     "AdapterHealthMonitor",
     "AsyncKernelFacadeAdapter",
     "ConsistencyIssue",
@@ -55,9 +74,14 @@ __all__ = [
     "ConsistencyReconciler",
     "EventBuffer",
     "EventSummaryStore",
+    "ExhaustedPolicy",
+    "FAILURE_GATE_MAP",
+    "FAILURE_RECOVERY_MAP",
     "FileBackedConsistencyJournal",
     "IllegalStateTransitionError",
     "InMemoryConsistencyJournal",
+    "InMemoryDedupeStore",
+    "InMemoryKernelRuntimeEventLog",
     "KernelFacadeAdapter",
     "KernelFacadeClient",
     "ReconcileLoop",
@@ -66,13 +90,19 @@ __all__ = [
     "RuntimeAdapter",
     "RuntimeAdapterBackendError",
     "RuntimeAdapterError",
+    "RuntimeEvent",
+    "SideEffectClass",
+    "StaticRecoveryGateService",
     "SubstrateHealthChecker",
     "SubstrateHealthReport",
     "SubstrateNetworkState",
+    "TaskAttempt",
+    "TaskRestartPolicy",
     "TemporalConnectionHealthCheck",
     "TemporalConnectionHealthReport",
     "TemporalConnectionProbeResult",
     "TemporalConnectionState",
+    "TraceFailureCode",
     "check_temporal_connection",
     "cmd_event_summary_get",
     "cmd_event_summary_ingest",
