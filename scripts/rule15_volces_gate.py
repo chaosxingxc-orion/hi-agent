@@ -201,6 +201,12 @@ def _assert_no_fallback_events(payload: dict[str, Any], *, label: str) -> None:
         raise RuntimeError(f"{label} must not emit fallback events; got {events!r}")
 
 
+def _assert_llm_fallback_count_zero(payload: dict[str, Any], *, label: str) -> None:
+    count = payload.get("llm_fallback_count", 0)
+    if count and count != 0:
+        raise RuntimeError(f"{label} llm_fallback_count must be 0; got {count!r}")
+
+
 def _wait_for_ready(client: HttpClient, timeout_s: float, poll_interval_s: float) -> dict[str, Any]:
     deadline = time.monotonic() + timeout_s
     last_error: str | None = None
@@ -337,6 +343,7 @@ def _run_gate_with_client(
         if state != "completed":
             raise RuntimeError(f"run {run_id} reached terminal state {state!r}; expected completed")
         _assert_no_fallback_events(terminal_payload, label=f"run {run_id}")
+        _assert_llm_fallback_count_zero(terminal_payload, label=f"run {run_id}")
         evidence.runs.append(
             RunEvidence(
                 run_id=run_id,

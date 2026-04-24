@@ -358,7 +358,7 @@ class HttpLLMGateway:
                 extra={"component": "http_llm_gateway", "model": str(payload.get("model", ""))},
             )
         except Exception:
-            pass
+            pass  # metrics must not crash caller — observability is best-effort
         raise last_exc  # type: ignore[misc]
 
     @staticmethod

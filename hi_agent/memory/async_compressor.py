@@ -128,7 +128,7 @@ class AsyncMemoryCompressor:
                 extra=event_extra,
             )
         except Exception:
-            pass
+            pass  # metrics must not crash caller — observability is best-effort
 
     async def compress(
         self,

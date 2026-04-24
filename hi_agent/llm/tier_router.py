@@ -135,6 +135,7 @@ class TierRouter:
         budget_remaining_usd: float | None = None,
         min_context_window: int = 0,
         skill_confidence: float | None = None,
+        meta: dict | None = None,
     ) -> RegisteredModel:
         """Select the best model for a given request.
 
@@ -187,6 +188,7 @@ class TierRouter:
                         "llm",  # type: ignore[arg-type]
                         "tier_router",
                         detail=f"tier_downgrade purpose={purpose} from={target_tier} to={_adj}",
+                        run_id=meta.get("run_id") if meta else None,
                     )
                     return model
 
@@ -210,6 +212,7 @@ class TierRouter:
                 "llm",  # type: ignore[arg-type]
                 "tier_router",
                 detail=f"tier_last_resort purpose={purpose} from={target_tier}",
+                run_id=meta.get("run_id") if meta else None,
             )
             return best
 
@@ -244,6 +247,7 @@ class TierRouter:
         self,
         purpose: str,
         complexity: str = "moderate",
+        meta: dict | None = None,
         **kwargs: object,
     ) -> tuple[RegisteredModel, str]:
         """Select model with fallback chain. Returns (model, actual_tier).
@@ -295,6 +299,7 @@ class TierRouter:
                             f"tier_downgrade purpose={purpose}"
                             f" from={target_tier} to={adj_tier}"
                         ),
+                        run_id=meta.get("run_id") if meta else None,
                     )
                     return model, adj_tier
 
@@ -318,6 +323,7 @@ class TierRouter:
                 "llm",  # type: ignore[arg-type]
                 "tier_router",
                 detail=f"tier_last_resort purpose={purpose} from={target_tier}",
+                run_id=meta.get("run_id") if meta else None,
             )
             return best, best.tier
 
