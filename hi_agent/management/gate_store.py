@@ -1,0 +1,219 @@
+"""Durable SQLite-backed gate store."""
+from __future__ import annotations
+
+import json
+import sqlite3
+import threading
+from pathlib import Path
+from time import time
+
+from hi_agent.management.gate_api import GateRecord, GateStatus, InMemoryGateAPI
+from hi_agent.management.gate_context import GateContext
+from hi_agent.management.gate_timeout import GateTimeoutPolicy
+
+
+class SQLiteGateStore:
+    """Durable gate store backed by SQLite.
+
+    Schema-compatible with InMemoryGateAPI interface so it can be swapped in
+    transparently. Only uses primitive types in the DB schema; complex objects
+    are serialized to JSON payload column.
+
+    Thread-safe for concurrent in-process access (WAL mode + threading.Lock).
+    """
+
+    _SCHEMA_VERSION = 1
+
+    _DDL = """
+    CREATE TABLE IF NOT EXISTS gates (
+        gate_ref TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL DEFAULT '',
+        project_id TEXT NOT NULL DEFAULT '',
+        stage_id TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL,
+        payload JSON NOT NULL,
+        created_at REAL NOT NULL,
+        updated_at REAL NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS gate_schema_version (version INTEGER PRIMARY KEY);
+    """
+
+    def __init__(self, db_path: str | Path) -> None:
+        self._path = Path(db_path)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._con = sqlite3.connect(str(self._path), check_same_thread=False)
+        self._con.execute("PRAGMA journal_mode=WAL")
+        self._con.execute("PRAGMA synchronous=NORMAL")
+        self._con.executescript(self._DDL)
+        self._con.commit()
+
+    def _record_to_payload(self, record: GateRecord) -> str:
+        ctx = record.context
+        ctx_dict = {
+            "gate_ref": ctx.gate_ref,
+            "run_id": ctx.run_id,
+            "stage_id": ctx.stage_id,
+            "branch_id": ctx.branch_id,
+            "submitter": ctx.submitter,
+            "decision_ref": ctx.decision_ref,
+            "rationale": ctx.rationale,
+            "opened_at": ctx.opened_at,
+            "metadata": ctx.metadata,
+        }
+        payload = {
+            "context": ctx_dict,
+            "status": record.status.value,
+            "timeout_seconds": record.timeout_seconds,
+            "timeout_policy": record.timeout_policy.value,
+            "resolution_by": record.resolution_by,
+            "resolution_comment": record.resolution_comment,
+            "resolution_reason": record.resolution_reason,
+            "resolved_at": record.resolved_at,
+            "escalation_target": record.escalation_target,
+        }
+        return json.dumps(payload)
+
+    def _row_to_record(self, row: tuple) -> GateRecord:
+        payload = json.loads(row[5])
+        ctx_data = payload["context"]
+        ctx = GateContext(
+            gate_ref=ctx_data["gate_ref"],
+            run_id=ctx_data["run_id"],
+            stage_id=ctx_data["stage_id"],
+            branch_id=ctx_data["branch_id"],
+            submitter=ctx_data["submitter"],
+            decision_ref=ctx_data.get("decision_ref"),
+            rationale=ctx_data.get("rationale"),
+            opened_at=float(ctx_data.get("opened_at", 0.0)),
+            metadata=dict(ctx_data.get("metadata") or {}),
+        )
+        return GateRecord(
+            context=ctx,
+            status=GateStatus(payload["status"]),
+            timeout_seconds=float(payload.get("timeout_seconds", 300.0)),
+            timeout_policy=GateTimeoutPolicy(payload.get("timeout_policy", "reject")),
+            resolution_by=payload.get("resolution_by"),
+            resolution_comment=payload.get("resolution_comment"),
+            resolution_reason=payload.get("resolution_reason"),
+            resolved_at=payload.get("resolved_at"),
+            escalation_target=payload.get("escalation_target"),
+        )
+
+    def create_gate(
+        self,
+        *,
+        context: GateContext,
+        timeout_seconds: float = 300.0,
+        timeout_policy: GateTimeoutPolicy = GateTimeoutPolicy.REJECT,
+        escalation_target: str | None = None,
+    ) -> GateRecord:
+        """Create and persist a new pending gate."""
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be > 0")
+        record = GateRecord(
+            context=context,
+            status=GateStatus.PENDING,
+            timeout_seconds=timeout_seconds,
+            timeout_policy=timeout_policy,
+            escalation_target=escalation_target.strip() if escalation_target else None,
+        )
+        now = time()
+        with self._lock:
+            self._con.execute(
+                "INSERT INTO gates "
+                "(gate_ref, run_id, project_id, stage_id, status, payload, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    context.gate_ref,
+                    context.run_id,
+                    "",
+                    context.stage_id,
+                    record.status.value,
+                    self._record_to_payload(record),
+                    now,
+                    now,
+                ),
+            )
+            self._con.commit()
+        return record
+
+    def get_gate(self, gate_ref: str) -> GateRecord:
+        """Fetch a gate by reference. Raises ValueError if not found."""
+        normalized = gate_ref.strip()
+        if not normalized:
+            raise ValueError("gate_ref must be a non-empty string")
+        row = self._con.execute(
+            "SELECT gate_ref, run_id, project_id, stage_id, status, payload "
+            "FROM gates WHERE gate_ref = ?",
+            (normalized,),
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"gate {normalized} not found")
+        return self._row_to_record(row)
+
+    def list_pending(self) -> list[GateRecord]:
+        """Return all gates currently in PENDING status."""
+        rows = self._con.execute(
+            "SELECT gate_ref, run_id, project_id, stage_id, status, payload "
+            "FROM gates WHERE status = ?",
+            (GateStatus.PENDING.value,),
+        ).fetchall()
+        return [self._row_to_record(r) for r in rows]
+
+    def resolve(
+        self,
+        *,
+        gate_ref: str,
+        action: str,
+        approver: str,
+        comment: str | None = None,
+        reason: str | None = None,
+    ) -> GateRecord:
+        """Resolve a pending gate. Delegates validation to InMemoryGateAPI, then persists."""
+        record = self.get_gate(gate_ref)
+        # Use InMemoryGateAPI only for action validation and status transition logic.
+        _mem = InMemoryGateAPI(enforce_separation_of_concerns=False)
+        _mem._records[gate_ref] = record
+        resolved = _mem.resolve(
+            gate_ref=gate_ref,
+            action=action,
+            approver=approver,
+            comment=comment,
+            reason=reason,
+        )
+        with self._lock:
+            self._con.execute(
+                "UPDATE gates SET status = ?, payload = ?, updated_at = ? WHERE gate_ref = ?",
+                (resolved.status.value, self._record_to_payload(resolved), time(), gate_ref),
+            )
+            self._con.commit()
+        return resolved
+
+    def apply_timeouts(self) -> list[GateRecord]:
+        """Apply timeout policy to pending gates. Returns changed records."""
+        # Delegate to InMemoryGateAPI logic over current pending set.
+        pending = self.list_pending()
+        if not pending:
+            return []
+        _mem = InMemoryGateAPI(enforce_separation_of_concerns=False)
+        for record in pending:
+            _mem._records[record.context.gate_ref] = record
+        changed = _mem.apply_timeouts()
+        for record in changed:
+            with self._lock:
+                self._con.execute(
+                    "UPDATE gates SET status = ?, payload = ?, updated_at = ? WHERE gate_ref = ?",
+                    (
+                        record.status.value,
+                        self._record_to_payload(record),
+                        time(),
+                        record.context.gate_ref,
+                    ),
+                )
+                self._con.commit()
+        return changed
+
+    def close(self) -> None:
+        """Close the underlying SQLite connection."""
+        self._con.close()
