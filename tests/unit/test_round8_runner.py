@@ -129,10 +129,9 @@ def test_execute_async_sets_run_id():
     from unittest.mock import AsyncMock
 
     from hi_agent.contracts.task import TaskContract
+    from hi_agent.memory.l0_raw import RawMemoryStore
     from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
-
-    from hi_agent.memory.l0_raw import RawMemoryStore
 
     contract = TaskContract(task_id="t-async-id", goal="test")
     kernel = MagicMock()
@@ -144,7 +143,9 @@ def test_execute_async_sets_run_id():
     sg = StageGraph()
     sg.add_edge("s1", "s2")
 
-    executor = RunExecutor(contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore()
+    )
     stage_exec = MagicMock()
     stage_exec.execute_stage = MagicMock(return_value="completed")
     executor._stage_executor = stage_exec
@@ -168,10 +169,9 @@ def test_execute_async_compatible_with_sync_kernel():
     import asyncio
 
     from hi_agent.contracts.task import TaskContract
+    from hi_agent.memory.l0_raw import RawMemoryStore
     from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
-
-    from hi_agent.memory.l0_raw import RawMemoryStore
 
     contract = TaskContract(task_id="t-sync-kernel", goal="test")
     # Sync kernel — start_run returns str, not coroutine
@@ -184,7 +184,9 @@ def test_execute_async_compatible_with_sync_kernel():
     sg = StageGraph()
     sg.add_edge("s1", "s2")
 
-    executor = RunExecutor(contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore()
+    )
     stage_exec = MagicMock()
     stage_exec.execute_stage = MagicMock(return_value="completed")
     executor._stage_executor = stage_exec
@@ -293,10 +295,9 @@ def test_execute_async_sets_run_start_monotonic():
     import time
 
     from hi_agent.contracts.task import TaskContract
+    from hi_agent.memory.l0_raw import RawMemoryStore
     from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
-
-    from hi_agent.memory.l0_raw import RawMemoryStore
 
     contract = TaskContract(task_id="t-k15", goal="test")
     kernel = MagicMock()
@@ -308,7 +309,9 @@ def test_execute_async_sets_run_start_monotonic():
     sg = StageGraph()
     sg.add_edge("s1", "s2")
 
-    executor = RunExecutor(contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore()
+    )
     stage_exec = MagicMock()
     stage_exec.execute_stage = MagicMock(return_value="completed")
     executor._stage_executor = stage_exec
