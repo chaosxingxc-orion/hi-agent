@@ -147,7 +147,7 @@ def make_llm_capability_handler(
             record_fallback(
                 "capability",
                 reason="heuristic_branch" if gateway is None else "llm_error_recovered",
-                run_id=payload.get("run_id") or "",
+                run_id=payload.get("run_id") or "unknown",  # TODO: wire real run_id here
                 extra={
                     "capability": capability_name,
                     "stage_id": stage_id,

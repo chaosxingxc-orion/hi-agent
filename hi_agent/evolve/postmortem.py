@@ -304,9 +304,9 @@ def _parse_llm_changes(content: str, run_id: str) -> list[EvolveChange]:
             from hi_agent.observability.fallback import record_fallback
 
             record_fallback(
-                kind="heuristic",
+                "heuristic",
                 reason="llm_json_parse_error",
-                run_id=run_id or "unknown_run",
+                run_id=run_id or "unknown",
                 extra={
                     "site": "postmortem._parse_llm_changes",
                     "error_type": type(exc).__name__,

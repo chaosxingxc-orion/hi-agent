@@ -124,7 +124,7 @@ class AsyncMemoryCompressor:
             record_fallback(
                 kind,
                 reason=reason,
-                run_id=run_id or "unknown_run",
+                run_id=run_id or "unknown",
                 extra=event_extra,
             )
         except Exception:

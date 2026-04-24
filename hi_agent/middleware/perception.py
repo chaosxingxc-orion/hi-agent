@@ -290,7 +290,7 @@ class PerceptionMiddleware:
             record_fallback(
                 "llm",
                 reason="perception_llm_failed",
-                run_id=run_id,
+                run_id=run_id or "unknown",
                 extra={"error": str(exc)},
             )
             return None

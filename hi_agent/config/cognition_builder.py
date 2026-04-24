@@ -419,7 +419,7 @@ class CognitionBuilder:
                     _record_fallback(
                         "llm",
                         reason="inference_fn_exception",
-                        run_id=run_id if run_id != "unknown" else None,
+                        run_id=run_id if run_id != "unknown" else "unknown",
                         extra={"error": str(exc)},
                     )
                     return _json.dumps(

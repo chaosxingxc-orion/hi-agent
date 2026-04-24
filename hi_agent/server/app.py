@@ -1919,9 +1919,9 @@ class AgentServer:
                 "defaulting to 'default' (DF-27)."
             )
             record_fallback(
-                kind="route",
+                "route",
                 reason="missing_profile_id",
-                run_id=run_data.get("run_id"),
+                run_id=run_data.get("run_id") or "unknown",
                 extra={"default_assigned": "default", "source": "executor_factory"},
             )
             _pid = "default"

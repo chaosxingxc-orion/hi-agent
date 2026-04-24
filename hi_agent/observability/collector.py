@@ -95,6 +95,13 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Route engine fell back to a default route (rule miss, LLM router failure).",
     ),
+    # Rule 7: system-scope fallback counter for events not tied to any run.
+    # Incremented when record_fallback() is called with run_id="system".
+    "hi_agent_fallback_no_run_scope_total": _MetricDef(
+        "hi_agent_fallback_no_run_scope_total",
+        "counter",
+        "Fallback events recorded with run_id='system' (no run scope).",
+    ),
     # Legacy fallback taxonomy counters (kept for backward-compatibility with
     # existing record_fallback() call-sites in context/, llm/, runner_stage/).
     # These predate the four-kind taxonomy but are retained so that their

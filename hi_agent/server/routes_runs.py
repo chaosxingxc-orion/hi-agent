@@ -141,7 +141,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             "Downstream should supply profile_id per downstream roadmap (P-3)."
         )
         record_fallback(
-            kind="route",
+            "route",
             reason="missing_profile_id",
             run_id=run_id,
             extra={"default_assigned": "default"},

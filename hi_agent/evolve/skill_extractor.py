@@ -94,13 +94,13 @@ class SkillExtractor:
                 from hi_agent.observability.fallback import record_fallback
 
                 # Skill extraction runs after the run completes (post-run evolution).
-                # Omit run_id so this event does not pollute result.fallback_events
+                # Use run_id="system" so this event does not pollute result.fallback_events
                 # for the primary run gate check; metrics counter and WARNING log
-                # still fire per Rule 14.
+                # still fire per Rule 7.
                 record_fallback(
                     "llm",
                     reason="skill_extractor_llm_failed",
-                    run_id=None,
+                    run_id="system",
                     extra={"error": str(exc), "source_run_id": postmortem.run_id},
                 )
 

@@ -135,7 +135,7 @@ class AsyncHTTPGateway:
         record_fallback(
             "llm",
             reason="async_retries_exhausted",
-            run_id=(request.metadata or {}).get("run_id"),
+            run_id=(request.metadata or {}).get("run_id") or "unknown",
             extra={
                 "provider": getattr(self._inner, "_provider", "unknown"),
                 "model": request.model or "",

@@ -212,8 +212,9 @@ def _cmd_run(args: argparse.Namespace) -> None:
                     file=sys.stderr,
                 )
                 record_fallback(
-                    kind="route",
+                    "route",
                     reason="missing_profile_id",
+                    run_id="system",
                     extra={"default_assigned": "default", "source": "cli_run"},
                 )
                 profile_id = "default"

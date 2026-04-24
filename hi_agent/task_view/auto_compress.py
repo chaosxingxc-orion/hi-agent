@@ -233,7 +233,7 @@ class AutoCompressTrigger:
             record_fallback(
                 "heuristic",
                 reason=reason,
-                run_id=run_id or "unknown_run",
+                run_id=run_id or "unknown",
                 extra={"stage_id": stage_id, **(extra or {})},
             )
         except Exception:

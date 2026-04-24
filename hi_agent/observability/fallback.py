@@ -1,7 +1,7 @@
 """Fallback taxonomy and structured recording for degradation paths.
 
 Every code path that substitutes a heuristic or degraded result for the
-primary path MUST call :func:`record_fallback` so that Rule 14 (Resilience
+primary path MUST call :func:`record_fallback` so that Rule 7 (Resilience
 Must Not Mask Signals) is satisfied:
 
 1. **Countable** — ``MetricsCollector.fallback.<kind>`` counter is incremented.
@@ -12,21 +12,19 @@ Must Not Mask Signals) is satisfied:
    ultimately exposed on ``RunResult.fallback_events`` and
    ``GET /runs/{id}``.
 
-Two call-shapes are supported:
+Call-shape — four-kind taxonomy tied to a specific run::
 
-* **New (preferred)** — four-kind taxonomy tied to a specific run::
+    record_fallback(
+        "llm",
+        reason="retries_exhausted",
+        run_id=run_id,
+        extra={"model": "gpt-5.1"},
+    )
 
-      record_fallback(
-          "llm",
-          reason="retries_exhausted",
-          run_id=run_id,
-          extra={"model": "gpt-5.1"},
-      )
-
-* **Legacy** — positional ``(kind, component, detail)`` used by older
-  call-sites that pre-date the four-kind taxonomy.  These recordings are
-  still counted via the ``fallback.<taxonomy>`` metric and logged, but
-  are not tied to a run (run_id is unknown at the call-site).
+``run_id`` and ``reason`` are required keyword-only arguments.  Use
+``run_id="system"`` for module/startup-level events not tied to a run;
+use ``run_id="unknown"`` when the run context is genuinely unavailable
+(add ``# TODO: wire real run_id here`` when doing so).
 """
 
 from __future__ import annotations
@@ -75,14 +73,24 @@ def _coerce_kind(kind: Any) -> str:
     return str(kind)
 
 
+def _increment_no_run_scope_counter() -> None:
+    """Increment the system-scope fallback counter (run_id == "system")."""
+    try:
+        from hi_agent.observability.collector import get_metrics_collector
+
+        collector = get_metrics_collector()
+        if collector is not None:
+            collector.increment("hi_agent_fallback_no_run_scope_total")
+    except Exception:  # pragma: no cover — metrics must never crash callers
+        pass
+
+
 def append_fallback_event(run_id: str, event: dict[str, Any]) -> None:
     """Append a fallback event to the run's event list.
 
     Thread-safe.  Callers are expected to pass event dicts with the shape
     ``{"kind", "reason", "ts", "extra"}``.
     """
-    if not run_id:
-        return
     with _EVENTS_LOCK:
         _EVENTS.setdefault(run_id, []).append(dict(event))
 
@@ -100,20 +108,24 @@ def clear_fallback_events(run_id: str) -> None:
 
 
 def record_fallback(
-    kind: Any,
-    component: str | None = None,
-    detail: str = "",
+    kind: str,
     *,
-    reason: str | None = None,
-    run_id: str | None = None,
+    reason: str,
+    run_id: str,
     extra: dict[str, Any] | None = None,
     logger: logging.Logger | None = None,
 ) -> None:
     """Record a fallback event.
 
-    Two call shapes are accepted:
+    All arguments are required.  Use ``run_id="system"`` for module/startup
+    events not tied to a specific run; use ``run_id="unknown"`` when the
+    run context is genuinely unavailable.
 
-    New form (Rule 14 canonical)::
+    The function never raises.  Metric increments and log emissions are
+    best-effort so a mis-wired observability stack cannot crash the
+    critical path.
+
+    Example::
 
         record_fallback(
             "llm",               # one of "llm" | "heuristic" | "capability" | "route"
@@ -121,41 +133,26 @@ def record_fallback(
             run_id=run_id,
             extra={"model": "gpt-5.1"},
         )
-
-    Legacy form (pre-existing call-sites)::
-
-        record_fallback(FallbackTaxonomy.UNEXPECTED_EXCEPTION, "http_llm_gateway",
-                        "all_retries_exhausted")
-
-    The function never raises.  Metric increments and log emissions are
-    best-effort so a mis-wired observability stack cannot crash the
-    critical path.
     """
 
     _log = logger or _logger
     kind_str = _coerce_kind(kind)
 
-    # Build a structured event dict regardless of call-shape.
+    # Build a structured event dict.
     event: dict[str, Any] = {
         "kind": kind_str,
-        "reason": reason if reason is not None else detail or "",
+        "reason": reason,
         "ts": time.time(),
         "extra": dict(extra) if extra else {},
     }
-    if component is not None:
-        event["extra"].setdefault("component", component)
 
-    # Increment fallback_<kind> counter (underscore: Prometheus requires [a-zA-Z0-9_]).
+    # --- 1. Increment fallback_<kind> counter. ---
     try:
         from hi_agent.observability.collector import get_metrics_collector
 
         collector = get_metrics_collector()
         if collector is not None:
-            labels: dict[str, str] = {}
-            if reason is not None:
-                labels["reason"] = reason
-            if component is not None:
-                labels["component"] = component
+            labels: dict[str, str] = {"reason": reason}
             if extra:
                 # Expose commonly-queried labels directly on the metric.
                 for lbl in ("model", "capability"):
@@ -167,37 +164,25 @@ def record_fallback(
         pass
 
     # --- 2. Emit a WARNING log carrying run_id / kind / reason / extra. ---
-    try:
-        if run_id is not None or reason is not None:
-            _log.warning(
-                "fallback recorded run_id=%s kind=%s reason=%s extra=%s",
-                run_id,
-                kind_str,
-                event["reason"],
-                event["extra"],
-            )
-        else:
-            # Legacy shape: preserve the previous INFO-level signal so
-            # existing log-scraping rules are not disturbed, but also
-            # emit a WARNING so the operator-shape gate can see it.
-            _log.warning(
-                "fallback recorded (legacy) kind=%s component=%s detail=%s",
-                kind_str,
-                component,
-                detail,
-            )
-    except Exception:  # pragma: no cover
-        pass
+    with contextlib.suppress(Exception):  # pragma: no cover — logging must not crash callers
+        _log.warning(
+            "fallback recorded run_id=%s kind=%s reason=%s extra=%s",
+            run_id,
+            kind_str,
+            reason,
+            event["extra"],
+        )
 
-    # --- 3. Append to the run's fallback_events list (if run_id known). ---
-    if run_id:
+    # --- 3. Append to the run's fallback_events list. ---
+    # system-scope events are not tied to a run; count them separately.
+    if run_id == "system":
+        _increment_no_run_scope_counter()
+    else:
         with contextlib.suppress(Exception):  # pragma: no cover
             append_fallback_event(run_id, event)
 
-    # Hint when a caller uses a kind outside the four-kind taxonomy.  This
-    # is not an error (legacy taxonomy is still valid) but the hint helps
-    # reviewers spot call-sites that should migrate.
-    if kind_str not in _VALID_KINDS and run_id is not None:
+    # Hint when a caller uses a kind outside the four-kind taxonomy.
+    if kind_str not in _VALID_KINDS:
         _log.debug(
             "record_fallback: kind=%r not in canonical four-kind set; consider migrating.",
             kind_str,

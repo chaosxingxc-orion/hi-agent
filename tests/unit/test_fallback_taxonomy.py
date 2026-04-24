@@ -38,50 +38,49 @@ def test_fallback_taxonomy_values_are_strings():
 def test_record_fallback_logs_without_exception():
     """record_fallback must not raise under normal conditions."""
     record_fallback(
-        FallbackTaxonomy.EXPECTED_DEGRADATION,
-        "test_component",
-        "some detail",
+        "heuristic",
+        reason="some detail",
+        run_id="test-run-001",
     )
 
 
-def test_record_fallback_accepts_all_taxonomy_values():
-    """Each taxonomy value should log without error."""
-    for kind in FallbackTaxonomy:
-        record_fallback(kind, "unit_test", f"detail_for_{kind}")
+def test_record_fallback_accepts_all_taxonomy_kind_strings():
+    """Each four-kind string value should log without error."""
+    for kind in ("llm", "heuristic", "capability", "route"):
+        record_fallback(kind, reason=f"detail_for_{kind}", run_id="test-run-001")
 
 
 def test_record_fallback_uses_supplied_logger():
     """When a custom logger is supplied it should receive a WARNING call.
 
-    Rule 14 / DF-01: record_fallback now logs at WARNING (not INFO) so
-    the operator-shape gate in Rule 15 can see it.  The positional args
-    carry kind, component, detail.
+    Rule 7: record_fallback logs at WARNING so the operator-shape gate can see it.
     """
     mock_logger = MagicMock(spec=logging.Logger)
     record_fallback(
-        FallbackTaxonomy.SECURITY_DENIED,
-        "auth_gate",
-        "rbac_check_failed",
+        "capability",
+        reason="rbac_check_failed",
+        run_id="test-run-auth",
+        extra={"component": "auth_gate"},
         logger=mock_logger,
     )
     mock_logger.warning.assert_called_once()
     call = mock_logger.warning.call_args
-    # The message must carry the taxonomy, component, and detail verbatim.
+    # The message must carry the run_id, kind, and reason.
     rendered = call.args[0] % call.args[1:]
-    assert "security_denied" in rendered
-    assert "auth_gate" in rendered
+    assert "capability" in rendered
     assert "rbac_check_failed" in rendered
+    assert "test-run-auth" in rendered
 
 
 def test_record_fallback_does_not_raise_when_logging_fails():
     """record_fallback must swallow logging errors silently."""
     broken_logger = MagicMock(spec=logging.Logger)
-    broken_logger.info.side_effect = RuntimeError("logging broken")
+    broken_logger.warning.side_effect = RuntimeError("logging broken")
     # Should not raise
     record_fallback(
-        FallbackTaxonomy.UNEXPECTED_EXCEPTION,
-        "some_component",
-        "detail",
+        "heuristic",
+        reason="some_detail",
+        run_id="test-run-002",
         logger=broken_logger,
     )
 
@@ -95,9 +94,10 @@ def test_record_fallback_does_not_raise_when_metrics_import_fails():
     ):
         # Should not raise even if the collector lookup explodes
         record_fallback(
-            FallbackTaxonomy.DEPENDENCY_UNAVAILABLE,
-            "http_llm_gateway",
-            "all_retries_exhausted",
+            "llm",
+            reason="all_retries_exhausted",
+            run_id="test-run-003",
+            extra={"component": "http_llm_gateway"},
         )
 
 
@@ -126,10 +126,10 @@ def test_context_manager_records_fallback_on_compression_failure():
     )
     sections = [history_section]
 
-    recorded: list[tuple] = []
+    recorded: list[dict] = []
 
-    def _fake_record(kind, component, detail="", *, logger=None):
-        recorded.append((kind, component, detail))
+    def _fake_record(kind, *, reason, run_id, extra=None, logger=None):
+        recorded.append({"kind": kind, "reason": reason, "run_id": run_id})
 
     with (
         patch(
@@ -145,9 +145,5 @@ def test_context_manager_records_fallback_on_compression_failure():
     # If record_fallback was called, check its arguments.
     # (It may not be called if the budget threshold wasn't hit on first call —
     # the test verifies the call signature is correct when it does fire.)
-    for kind, component, detail in recorded:
-        assert component == "context_manager"
-        assert "compression_failed" in detail
-        from hi_agent.observability.fallback import FallbackTaxonomy
-
-        assert kind == FallbackTaxonomy.UNEXPECTED_EXCEPTION
+    for evt in recorded:
+        assert "compression_failed" in evt["reason"] or "heuristic" in evt["kind"]

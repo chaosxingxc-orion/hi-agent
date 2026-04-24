@@ -354,7 +354,7 @@ class HttpLLMGateway:
             record_fallback(
                 "llm",
                 reason="retries_exhausted",
-                run_id=run_id,
+                run_id=run_id or "unknown",
                 extra={"component": "http_llm_gateway", "model": str(payload.get("model", ""))},
             )
         except Exception:

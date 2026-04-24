@@ -1034,7 +1034,7 @@ class ContextManager:
             record_fallback(
                 "heuristic",
                 reason=reason,
-                run_id=run_id or "unknown_run",
+                run_id=run_id or "unknown",
                 extra={"component": "context_manager", **(extra or {})},
             )
         except Exception:

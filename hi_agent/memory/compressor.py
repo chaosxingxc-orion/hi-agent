@@ -293,7 +293,7 @@ class MemoryCompressor:
             record_fallback(
                 "heuristic",
                 reason=reason,
-                run_id=run_id,
+                run_id=run_id or "unknown",
                 extra={
                     "site": site,
                     "stage_id": stage_id,
