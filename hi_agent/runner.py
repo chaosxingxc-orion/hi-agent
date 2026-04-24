@@ -323,17 +323,12 @@ class RunExecutor:
         self.decision_seq = 0
         self.event_emitter = event_emitter or EventEmitter()
         if raw_memory is None:
-            _pid = getattr(contract, "profile_id", "") or ""
-            import os as _os
-            _base = _os.path.join(".episodes", _pid) if _pid else ".episodes"
-            _logger.warning(
-                "runner.raw_memory_uninjected run_id=%s profile_id=%s base=%s"
-                " — inject via MemoryBuilder.build_raw_memory_store (Rule 6)",
-                self.run_id,
-                _pid or "(empty)",
-                _base,
+            raise ValueError(
+                "Runner.raw_memory must be injected by the builder — "
+                "unscoped RawMemoryStore is not permitted (Rule 6). "
+                "Check SystemBuilder.build_executor() wiring or pass "
+                "raw_memory=RawMemoryStore(...) in tests."
             )
-            raw_memory = RawMemoryStore(base_dir=_base)
         self.raw_memory = raw_memory
         self.compressor = compressor or MemoryCompressor()
         self.acceptance_policy = acceptance_policy or AcceptancePolicy()
@@ -1136,7 +1131,6 @@ class RunExecutor:
             import uuid as _uuid
 
             from hi_agent.runtime_adapter import RuntimeEvent as _RuntimeEvent
-
             from hi_agent.server.event_bus import event_bus as _event_bus
 
             _event_bus.publish(
