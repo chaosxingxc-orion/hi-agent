@@ -224,6 +224,11 @@ class CognitionBuilder:
                             if self._llm_budget_tracker is None:
                                 self._llm_budget_tracker = self._build_llm_budget_tracker()
                             self._llm_gateway = gw  # type: ignore[assignment]
+                            # Mirror the env-var path: expose _tier_router on the builder
+                            # so that downstream consumers (e.g. _build_delegation_manager)
+                            # can reach the router without accessing a private attribute of gw.
+                            if self._tier_router is None and hasattr(gw, "_tier_router"):
+                                self._tier_router = gw._tier_router  # type: ignore[union-attr]
                         _logger.info(
                             "build_llm_gateway: activated from llm_config.json (provider=%r)",
                             _dp,
@@ -409,6 +414,14 @@ class CognitionBuilder:
                     return resp.content
                 except Exception as exc:
                     _logger.warning("_reflection_orchestrator inference_fn error: %s", exc)
+                    from hi_agent.observability.fallback import record_fallback as _record_fallback
+
+                    _record_fallback(
+                        "llm",
+                        reason="inference_fn_exception",
+                        run_id=run_id if run_id != "unknown" else None,
+                        extra={"error": str(exc)},
+                    )
                     return _json.dumps(
                         {
                             "action": "retry_with_default",

@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import asyncio
 
-    from hi_agent.capability.governance import GovernedToolExecutor
     from hi_agent.contracts.directives import StageDirective
     from hi_agent.evolve.contracts import RunPostmortem
     from hi_agent.evolve.engine import EvolveEngine
@@ -28,8 +27,6 @@ if TYPE_CHECKING:
     from hi_agent.harness.executor import HarnessExecutor
     from hi_agent.memory.episode_builder import EpisodeBuilder
     from hi_agent.memory.episodic import EpisodicMemoryStore
-    from hi_agent.memory.long_term import LongTermConsolidator
-    from hi_agent.memory.mid_term import MidTermMemoryStore
     from hi_agent.memory.short_term import ShortTermMemoryStore
     from hi_agent.session.run_session import RunSession
     from hi_agent.skill.recorder import SkillUsageRecorder
@@ -325,16 +322,17 @@ class RunExecutor:
         self.branch_seq = 0
         self.decision_seq = 0
         self.event_emitter = event_emitter or EventEmitter()
-        # SA-1 (self-audit 2026-04-21, P-4 pattern): the default fallback
-        # silently creates a RawMemoryStore pinned to process CWD, with no
-        # run_id / profile scoping — the same shape that drove R4 F-2 / R5 G-5
-        # regressions. Log a warning when the fallback fires so missing
-        # injection is observable instead of silently degrading to global
-        # shared state.
         if raw_memory is None:
             _pid = getattr(contract, "profile_id", "") or ""
             import os as _os
             _base = _os.path.join(".episodes", _pid) if _pid else ".episodes"
+            _logger.warning(
+                "runner.raw_memory_uninjected run_id=%s profile_id=%s base=%s"
+                " — inject via MemoryBuilder.build_raw_memory_store (Rule 6)",
+                self.run_id,
+                _pid or "(empty)",
+                _base,
+            )
             raw_memory = RawMemoryStore(base_dir=_base)
         self.raw_memory = raw_memory
         self.compressor = compressor or MemoryCompressor()

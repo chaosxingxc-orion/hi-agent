@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from hi_agent.contracts.requests import RunResult
@@ -400,14 +401,20 @@ class RunFinalizer:
         _start = ctx.run_start_monotonic
         duration_ms = int((time.monotonic() - _start) * 1000) if _start is not None else 0
 
-        # Rule 14: drain any fallback events recorded for this run so they
-        # ride along on the RunResult and show up in GET /runs/{id}.
-        try:
-            from hi_agent.observability.fallback import get_fallback_events
+        # --- Collect fallback_events from lifecycle or context ---
+        _fallback_events: list[dict] = list(
+            getattr(ctx, "fallback_events", None) or []
+        )
 
-            fallback_events = get_fallback_events(ctx.run_id)
-        except Exception:
-            fallback_events = []
+        # --- Compute llm_fallback_count from fallback_events ---
+        llm_fallback_count = sum(
+            1
+            for e in _fallback_events
+            if e.get("kind") in ("llm", "heuristic_fallback")
+        )
+
+        # --- finished_at timestamp ---
+        finished_at = datetime.now(UTC).isoformat()
 
         run_result = RunResult(
             run_id=ctx.run_id,
@@ -419,7 +426,9 @@ class RunFinalizer:
             failed_stage_id=failed_stage_id,
             is_retryable=is_retryable,
             duration_ms=duration_ms,
-            fallback_events=fallback_events,
+            fallback_events=_fallback_events,
+            llm_fallback_count=llm_fallback_count,
+            finished_at=finished_at,
         )
 
         # --- Execution provenance (HI-W1-D3-001) ---

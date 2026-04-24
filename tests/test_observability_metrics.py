@@ -61,7 +61,6 @@ def test_aggregate_counters_sums_per_key() -> None:
 
 
 import contextlib
-import os
 
 from hi_agent.observability.collector import MetricsCollector, set_metrics_collector
 from hi_agent.observability.fallback import record_llm_request

@@ -37,28 +37,31 @@ from typing import Any
 import pytest
 
 # ---------------------------------------------------------------------------
-# Skip guard — all tests in this module require prod prerequisites
+# Skip guard — all tests in this module require prod prerequisites.
+# Evaluated at *fixture time* (not import time) so that other tests which call
+# build_gateway_from_config (which sets VOLCE_API_KEY as a side-effect) cannot
+# accidentally unseal the skip guard for a full test-suite run.
 # ---------------------------------------------------------------------------
 
-_has_api_key = bool(
-    os.environ.get("OPENAI_API_KEY")
-    or os.environ.get("ANTHROPIC_API_KEY")
-    or os.environ.get("VOLCE_API_KEY")
+_SKIP_REASON = (
+    "Production E2E prerequisites not met. "
+    "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or VOLCE_API_KEY *before* pytest "
+    "starts to run these tests. "
+    "Kernel runs in-process (local); HI_AGENT_KERNEL_BASE_URL is optional."
 )
 
-_PROD_PREREQS_MET = _has_api_key
+pytestmark = [pytest.mark.prod_e2e]
 
-pytestmark = [
-    pytest.mark.prod_e2e,
-    pytest.mark.skipif(
-        not _PROD_PREREQS_MET,
-        reason=(
-            "Production E2E prerequisites not met. "
-            "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or VOLCE_API_KEY to run these tests. "
-            "Kernel runs in-process (local); HI_AGENT_KERNEL_BASE_URL is optional."
-        ),
-    ),
-]
+
+def _check_prereqs() -> None:
+    """Raise pytest.skip if production credentials are absent."""
+    has = bool(
+        os.environ.get("OPENAI_API_KEY")
+        or os.environ.get("ANTHROPIC_API_KEY")
+        or os.environ.get("VOLCE_API_KEY")
+    )
+    if not has:
+        pytest.skip(_SKIP_REASON)
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +136,7 @@ def prod_client():
     Kernel runs in-process (LocalFSM) unless HI_AGENT_KERNEL_BASE_URL is set.
     LLM provider is resolved from env: OPENAI_API_KEY / ANTHROPIC_API_KEY / VOLCE_API_KEY.
     """
+    _check_prereqs()
     import os as _os
 
     from hi_agent.config.trace_config import TraceConfig

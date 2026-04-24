@@ -8,7 +8,7 @@ from typing import Any
 
 from hi_agent.contracts import deterministic_id
 from hi_agent.llm.protocol import LLMGateway
-from hi_agent.observability.fallback import FallbackTaxonomy, record_fallback
+from hi_agent.observability.fallback import record_fallback
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.route_engine.decision_audit import persist_route_decision_audit
 from hi_agent.route_engine.llm_engine import LLMRouteEngine
@@ -126,10 +126,13 @@ class HybridRouteEngine:
             return outcome
 
         record_fallback(
-            FallbackTaxonomy.HEURISTIC_FALLBACK,
-            "HybridRouteEngine",
-            f"run_id={run_id} rule_conf={round(rule_confidence, 3)}"
-            " reason=rule_confidence_below_threshold",
+            "route",
+            reason="rule_confidence_below_threshold",
+            run_id=run_id,
+            extra={
+                "component": "HybridRouteEngine",
+                "rule_confidence": round(rule_confidence, 3),
+            },
         )
         llm_decision = self._llm_engine.decide(
             stage_id=stage_id,

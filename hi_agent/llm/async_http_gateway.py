@@ -100,7 +100,13 @@ class AsyncHTTPGateway:
     async def async_complete(self, request: LLMRequest) -> LLMResponse:
         """Native async entry-point with async sleep in the retry loop."""
         from hi_agent.llm.errors import LLMProviderError
+        from hi_agent.observability.fallback import record_llm_request
 
+        record_llm_request(
+            provider=getattr(self._inner, "_provider", "unknown"),
+            model=request.model or "",
+            run_id=request.metadata.get("run_id") if request.metadata else None,
+        )
         last_exc: Exception | None = None
         for attempt in range(max(1, self._max_retries + 1)):
             try:
@@ -108,7 +114,14 @@ class AsyncHTTPGateway:
             except LLMProviderError as exc:
                 last_exc = exc
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2**attempt)
+                    if getattr(exc, "status_code", None) == 429:
+                        _base_backoff = self._retry_base * (2**attempt)
+                        _retry_after = float(
+                            (getattr(exc, "headers", None) or {}).get("Retry-After", 0) or 0
+                        )
+                        delay = min(max(_retry_after, 0.0), 2 * _base_backoff) or _base_backoff
+                    else:
+                        delay = self._retry_base * (2**attempt)
                     logger.warning(
                         "AsyncHTTPGateway retry %d/%d after %.1fs: %s",
                         attempt + 1,
@@ -117,4 +130,16 @@ class AsyncHTTPGateway:
                         exc,
                     )
                     await asyncio.sleep(delay)  # non-blocking — avoids time.sleep
+        from hi_agent.observability.fallback import record_fallback
+
+        record_fallback(
+            "llm",
+            reason="async_retries_exhausted",
+            run_id=(request.metadata or {}).get("run_id"),
+            extra={
+                "provider": getattr(self._inner, "_provider", "unknown"),
+                "model": request.model or "",
+                "attempts": self._max_retries,
+            },
+        )
         raise last_exc  # type: ignore[misc]

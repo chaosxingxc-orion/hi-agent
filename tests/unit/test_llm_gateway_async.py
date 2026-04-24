@@ -52,6 +52,10 @@ def _inner_gateway(gateway):
 def test_compat_sync_false_still_uses_stable_sync_gateway(mock_config, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key-e2")
     monkeypatch.setenv("HI_AGENT_ENV", "dev")
+    # Isolate from the real llm_config.json so the env-var path is exercised.
+    import hi_agent.config.json_config_loader as _jcl
+
+    monkeypatch.setattr(_jcl, "_DEFAULT_CONFIG_PATH", "/nonexistent/llm_config.json")
 
     from hi_agent.llm.async_http_gateway import AsyncHTTPGateway
 
@@ -67,6 +71,10 @@ def test_compat_sync_true_uses_sync_gateway(mock_config, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key-e2-sync")
     monkeypatch.setenv("HI_AGENT_ENV", "dev")
     mock_config.compat_sync_llm = True
+    # Isolate from the real llm_config.json so the env-var path is exercised.
+    import hi_agent.config.json_config_loader as _jcl
+
+    monkeypatch.setattr(_jcl, "_DEFAULT_CONFIG_PATH", "/nonexistent/llm_config.json")
 
     from hi_agent.llm.http_gateway import HttpLLMGateway
 

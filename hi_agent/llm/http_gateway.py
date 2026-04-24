@@ -108,6 +108,13 @@ class HttpLLMGateway:
             LLMProviderError: On any non-200 HTTP response or connection failure.
             LLMBudgetExhaustedError: If the configured budget tracker signals exhaustion.
         """
+        from hi_agent.observability.fallback import record_llm_request
+
+        record_llm_request(
+            provider=getattr(self, "_provider", "unknown"),
+            model=request.model or "",
+            run_id=request.metadata.get("run_id") if request.metadata else None,
+        )
         if self._budget_tracker is not None:
             self._budget_tracker.check()
             # Inject real-time remaining budget ratio into request metadata so
@@ -185,7 +192,8 @@ class HttpLLMGateway:
         """Execute the request directly via urllib (no failover)."""
         model = request.model if request.model != "default" else self._default_model
         payload = self._build_payload(request, model)
-        raw = self._post(payload)
+        run_id: str | None = (request.metadata or {}).get("run_id")
+        raw = self._post(payload, run_id=run_id)
         return self._parse_response(raw, model)
 
     def stream(self, request: LLMRequest) -> Iterator[LLMStreamChunk]:
@@ -281,7 +289,7 @@ class HttpLLMGateway:
             body["stop"] = request.stop_sequences
         return body
 
-    def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _post(self, payload: dict[str, Any], *, run_id: str | None = None) -> dict[str, Any]:
         """Run _post with retry logic for transient errors."""
         api_key = os.environ.get(self._api_key_env, "")
         url = f"{self._base_url}/chat/completions"
@@ -310,7 +318,13 @@ class HttpLLMGateway:
                     raise provider_exc from exc
                 last_exc = provider_exc
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
+                    if exc.code == 429:
+                        _base_backoff = self._retry_base * (2**attempt)
+                        _ra_raw = exc.headers.get("Retry-After", 0) if exc.headers else 0
+                        _retry_after = float(_ra_raw)
+                        delay = min(max(_retry_after, 0.0), 2 * _base_backoff) or _base_backoff
+                    else:
+                        delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     time.sleep(delay)
             except urllib.error.URLError as exc:
                 if "timed out" in str(exc.reason):
@@ -335,15 +349,13 @@ class HttpLLMGateway:
                     continue
                 raise last_exc from exc
         try:
-            from hi_agent.observability.fallback import (
-                FallbackTaxonomy,
-                record_fallback,
-            )
+            from hi_agent.observability.fallback import record_fallback
 
             record_fallback(
-                FallbackTaxonomy.DEPENDENCY_UNAVAILABLE,
-                "http_llm_gateway",
-                "all_retries_exhausted",
+                "llm",
+                reason="retries_exhausted",
+                run_id=run_id,
+                extra={"component": "http_llm_gateway", "model": str(payload.get("model", ""))},
             )
         except Exception:
             pass
@@ -523,7 +535,12 @@ class HTTPGateway:
                     status_code=status,
                 )
                 if attempt < self._max_retries:
-                    delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
+                    if status == 429:
+                        _base_backoff = self._retry_base * (2**attempt)
+                        _retry_after = float(exc.response.headers.get("Retry-After", 0) or 0)
+                        delay = min(max(_retry_after, 0.0), 2 * _base_backoff) or _base_backoff
+                    else:
+                        delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     await asyncio.sleep(delay)
             except httpx.TimeoutException as exc:
                 raise LLMTimeoutError(str(exc)) from exc

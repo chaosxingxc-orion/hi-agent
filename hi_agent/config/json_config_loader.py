@@ -206,14 +206,24 @@ def build_gateway_from_config(
         )
         return None
 
-    base_url = _resolve_provider_base_url(default_provider, provider_cfg)
     api_format = provider_cfg.get("api_format", "anthropic")
+    # For Anthropic-format providers, prefer anthropic_base_url when present
+    # because AnthropicLLMGateway._post appends /v1/messages itself — using base_url
+    # (which already contains /v1) would produce a double-/v1/ path.
+    if api_format == "anthropic" and provider_cfg.get("anthropic_base_url"):
+        base_url = str(provider_cfg["anthropic_base_url"])
+    else:
+        base_url = _resolve_provider_base_url(default_provider, provider_cfg)
     models_cfg = provider_cfg.get("models", {})
     default_model = (
         models_cfg.get("strong") or models_cfg.get("medium") or models_cfg.get("light") or ""
     )
 
-    # --- Inject API key into the env var consumed by the selected gateway ---
+    # Inject API key into the env var consumed by gateway constructors.
+    # We restore the prior env state after construction so this function does
+    # not permanently pollute os.environ — the gateways now cache the key at
+    # construction time (AnthropicLLMGateway._api_key_resolved).
+    _prev_env_val = os.environ.get(env_var)
     os.environ[env_var] = api_key
     _logger.info(
         "build_gateway_from_config: provider=%r format=%r key_env=%s",
@@ -275,4 +285,10 @@ def build_gateway_from_config(
         )
 
     tier_router = TierRouter(registry)
-    return TierAwareLLMGateway(raw_gw, tier_router, registry)
+    result = TierAwareLLMGateway(raw_gw, tier_router, registry)
+    # Restore env var to its prior state after the gateway has cached the key.
+    if _prev_env_val is None:
+        os.environ.pop(env_var, None)
+    else:
+        os.environ[env_var] = _prev_env_val
+    return result

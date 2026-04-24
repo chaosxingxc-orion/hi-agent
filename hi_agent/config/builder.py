@@ -20,7 +20,6 @@ from hi_agent.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
 from hi_agent.harness.governance import GovernanceEngine
 from hi_agent.llm.protocol import LLMGateway
-from hi_agent.llm.tier_router import TierAwareLLMGateway
 from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
@@ -868,50 +867,17 @@ class SystemBuilder:
             kernel = self.build_kernel()
 
             # Attempt to get an async LLM gateway for child-run summarization.
-            # Falls back to None (truncation-only mode) when unavailable.
-            # Wraps HTTPGateway with TierAwareLLMGateway.acomplete() so that
-            # async callers also benefit from tier routing and budget management.
+            # Reuse the cached, fully-wired gateway from build_llm_gateway() to
+            # avoid creating a second httpx.AsyncClient pool and a second event-loop
+            # binding (Rule 5 cross-loop stability).  TierAwareLLMGateway already
+            # implements acomplete() so it satisfies the AsyncLLMGateway surface.
             async_llm: Any | None = None
             try:
-                import os as _os
-
-                from hi_agent.llm.http_gateway import HTTPGateway as _HTTPGateway
-
-                for env_var, base_url, default_model in [
-                    (
-                        self._config.openai_api_key_env,
-                        self._config.openai_base_url,
-                        self._config.openai_default_model,
-                    ),
-                    (
-                        self._config.anthropic_api_key_env,
-                        self._config.anthropic_base_url + "/v1",
-                        self._config.anthropic_default_model,
-                    ),
-                ]:
-                    if _os.environ.get(env_var):
-                        _http_gw = _HTTPGateway(
-                            base_url=base_url,
-                            api_key=_os.environ[env_var],
-                            default_model=default_model,
-                            timeout=float(getattr(self._config, "llm_timeout_seconds", 120)),
-                        )
-                        # Wrap with TierAwareLLMGateway so async callers
-                        # go through tier routing (TierAwareLLMGateway now
-                        # implements acomplete() for the AsyncLLMGateway surface).
-                        _sync_gw = self.build_llm_gateway()
-                        if _sync_gw is not None and hasattr(_sync_gw, "_tier_router"):
-                            async_llm = TierAwareLLMGateway(
-                                inner=_http_gw,
-                                tier_router=_sync_gw._tier_router,  # type: ignore[union-attr]
-                                registry=_sync_gw._registry,  # type: ignore[union-attr]
-                            )
-                        else:
-                            async_llm = _http_gw
-                        break
+                _sync_gw = self.build_llm_gateway()
+                async_llm = _sync_gw
             except Exception as _exc:
                 logger.debug(
-                    "_build_delegation_manager: async LLM gateway unavailable (%s), "
+                    "_build_delegation_manager: LLM gateway unavailable (%s), "
                     "child-run summaries will be truncated.",
                     _exc,
                 )

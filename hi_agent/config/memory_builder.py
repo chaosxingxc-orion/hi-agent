@@ -233,7 +233,8 @@ class MemoryBuilder:
         short_term_store: Any = None,
         mid_term_store: Any = None,
         long_term_graph: Any = None,
-        profile_id: str = "",
+        *,
+        profile_id: str,
         wiki: Any = None,
     ) -> Any:
         """Build four-layer retrieval engine across all memory tiers.
@@ -285,7 +286,8 @@ class MemoryBuilder:
         short_term_store: Any = None,
         mid_term_store: Any = None,
         long_term_graph: Any = None,
-        profile_id: str = "",
+        *,
+        profile_id: str,
         wiki: Any = None,
     ) -> MemoryLifecycleManager:
         """Build MemoryLifecycleManager wiring all memory tiers.
@@ -323,6 +325,7 @@ class MemoryBuilder:
                 short_term_store=short,
                 mid_term_store=mid,
                 long_term_graph=graph,
+                profile_id=profile_id,
                 wiki=wiki,
             ),
         )
