@@ -3,6 +3,9 @@
 Validates high-concurrency capabilities of the kernel by exercising
 concurrent run starts, signal delivery, projection queries, and event
 consistency through KernelFacade backed by LocalWorkflowGateway.
+
+All tests marked serial: benchmark results require exclusive CPU access to be
+meaningful; concurrent test workers would produce unreliable latency numbers.
 """
 
 from __future__ import annotations
@@ -62,6 +65,7 @@ def _make_kernel() -> KernelFacade:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.serial
 @pytest.mark.asyncio
 async def test_concurrent_run_starts(benchmark_run_count: int = 100) -> None:
     """Start N runs concurrently and verify all get unique run_ids."""
@@ -101,6 +105,7 @@ async def test_concurrent_run_starts(benchmark_run_count: int = 100) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.serial
 @pytest.mark.asyncio
 async def test_concurrent_signal_delivery(benchmark_run_count: int = 50) -> None:
     """Start N runs, then send signals to all concurrently."""
@@ -149,6 +154,7 @@ async def test_concurrent_signal_delivery(benchmark_run_count: int = 50) -> None
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.serial
 @pytest.mark.asyncio
 async def test_concurrent_queries(benchmark_run_count: int = 100) -> None:
     """Start runs, then issue N concurrent query_run() calls."""
@@ -189,6 +195,7 @@ async def test_concurrent_queries(benchmark_run_count: int = 100) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.serial
 @pytest.mark.asyncio
 async def test_sequential_vs_concurrent_speedup() -> None:
     """Compare sequential start_run vs concurrent start_run for 50 runs."""
@@ -241,6 +248,7 @@ async def test_sequential_vs_concurrent_speedup() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.serial
 @pytest.mark.asyncio
 async def test_projection_consistency_under_concurrent_signals() -> None:
     """Send 20 concurrent signals to a single run, verify no events are lost."""

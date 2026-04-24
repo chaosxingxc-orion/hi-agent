@@ -6,6 +6,10 @@ import json
 import os
 from pathlib import Path
 
+# Prevent accidentally-added root-level test_*.py files from being collected.
+# All tests must live in tests/unit/, tests/integration/, or tests/e2e/.
+collect_ignore_glob = ["test_*.py"]
+
 
 def _set_env_if_blank(name: str, value: str) -> None:
     """Set an env var when it is absent or present-but-empty."""

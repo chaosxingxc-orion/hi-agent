@@ -1,20 +1,21 @@
 """Runtime adapter package."""
 
-from agent_kernel.kernel import (
-    Action,
-    FAILURE_GATE_MAP,
-    FAILURE_RECOVERY_MAP,
-    RuntimeEvent,
-    SideEffectClass,
-    TraceFailureCode,
-    ExhaustedPolicy,
-    TaskAttempt,
-    TaskRestartPolicy,
-)
 from agent_kernel.testing import (
     InMemoryDedupeStore,
     InMemoryKernelRuntimeEventLog,
     StaticRecoveryGateService,
+)
+
+from agent_kernel.kernel import (
+    FAILURE_GATE_MAP,
+    FAILURE_RECOVERY_MAP,
+    Action,
+    ExhaustedPolicy,
+    RuntimeEvent,
+    SideEffectClass,
+    TaskAttempt,
+    TaskRestartPolicy,
+    TraceFailureCode,
 )
 from hi_agent.runtime_adapter.async_kernel_facade_adapter import (
     AsyncKernelFacadeAdapter,
@@ -65,6 +66,8 @@ from hi_agent.runtime_adapter.temporal_health import (
 # Kernel contract re-exports — hi_agent modules import these from here,
 # not directly from agent_kernel.
 __all__ = [
+    "FAILURE_GATE_MAP",
+    "FAILURE_RECOVERY_MAP",
     "Action",
     "AdapterHealthMonitor",
     "AsyncKernelFacadeAdapter",
@@ -75,8 +78,6 @@ __all__ = [
     "EventBuffer",
     "EventSummaryStore",
     "ExhaustedPolicy",
-    "FAILURE_GATE_MAP",
-    "FAILURE_RECOVERY_MAP",
     "FileBackedConsistencyJournal",
     "IllegalStateTransitionError",
     "InMemoryConsistencyJournal",

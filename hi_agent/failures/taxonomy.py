@@ -12,7 +12,11 @@ from typing import Any
 
 from hi_agent.runtime_adapter import (
     FAILURE_GATE_MAP as FAILURE_GATE_MAP,
+)
+from hi_agent.runtime_adapter import (
     FAILURE_RECOVERY_MAP as FAILURE_RECOVERY_MAP,
+)
+from hi_agent.runtime_adapter import (
     TraceFailureCode,
 )
 
