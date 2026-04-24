@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 from hi_agent.context.manager import ContextBudget, ContextManager, ContextSection
 from hi_agent.contracts import TaskContract
+from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.observability.fallback import clear_fallback_events, get_fallback_events
 from hi_agent.runner import RunExecutor
 from hi_agent.runner_stage import StageExecutor
@@ -34,7 +35,7 @@ class _RecordingRouteEngine:
         self.providers.append(provider)
 
 
-def test_runner_context_manager_receives_run_id() -> None:
+def test_runner_context_manager_receives_run_id(tmp_path) -> None:
     contract = TaskContract(task_id="df39-runner-001", goal="ctx propagation")
     kernel = MagicMock()
     kernel.start_run.return_value = "run-df39-runner-001"
@@ -52,6 +53,7 @@ def test_runner_context_manager_receives_run_id() -> None:
             return _FakeSnapshot()
 
     context_manager = FakeContextManager()
+    raw_memory = RawMemoryStore(run_id="run-df39-runner-001", base_dir=str(tmp_path))
 
     executor = RunExecutor(
         contract=contract,
@@ -59,6 +61,7 @@ def test_runner_context_manager_receives_run_id() -> None:
         route_engine=route_engine,
         session=session,
         context_manager=context_manager,
+        raw_memory=raw_memory,
     )
     executor.run_id = expected_run_id
 

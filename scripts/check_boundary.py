@@ -6,7 +6,8 @@ Three rules are enforced:
 B-1 (reverse import): No agent_kernel/**/*.py may import from hi_agent.
 B-2 (adapter bypass): No hi_agent/**/*.py outside hi_agent/runtime_adapter/**
     may import from agent_kernel, except hi_agent/testing/** may import from
-    agent_kernel.testing.
+    agent_kernel.testing, and hi_agent/skills/** may import agent_kernel DTOs
+    (kernel public surface).
 B-3 (hardcoded model): No agent_kernel/**/*.py may contain model/provider
     strings (gpt-, claude-, volces, doubao) in non-comment, non-docstring code.
 
@@ -153,18 +154,29 @@ def check_b1(agent_kernel_dir: Path) -> list[str]:
 
 def check_b2(hi_agent_dir: Path) -> list[str]:
     """B-2: hi_agent files outside runtime_adapter may not import agent_kernel,
-    except hi_agent/testing may import agent_kernel.testing."""
+    except:
+    - hi_agent/testing may import agent_kernel.testing
+    - hi_agent/skills may import agent_kernel DTOs (public kernel surface)
+    """
     violations: list[str] = []
     if not hi_agent_dir.exists():
         return violations
 
     runtime_adapter_dir = hi_agent_dir / "runtime_adapter"
     testing_dir = hi_agent_dir / "testing"
+    skills_dir = hi_agent_dir / "skills"
 
     for path in _iter_python_files(hi_agent_dir):
         # Files inside runtime_adapter are allowed
         try:
             path.relative_to(runtime_adapter_dir)
+            continue
+        except ValueError:
+            pass
+
+        # Files inside hi_agent/skills are allowed (kernel DTOs are public surface)
+        try:
+            path.relative_to(skills_dir)
             continue
         except ValueError:
             pass

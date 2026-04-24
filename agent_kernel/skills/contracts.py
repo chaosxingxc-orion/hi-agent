@@ -4,29 +4,15 @@ The agent_kernel architecture treats skills as executor-governed
 capability runtimes. They are intentionally excluded from lifecycle
 authority, event authority, and recovery authority.
 
-Strategy-layer protocols (SkillRegistry, SkillResolver, SkillRuntime,
-factory protocols) have moved to hi_agent.skills. This module retains
-only the DTO contracts that the kernel itself exchanges. The strategy
-protocols are re-exported here for backward compatibility.
+This module retains only the DTO contracts that the kernel itself
+exchanges. Strategy-layer protocols (SkillRegistry, SkillResolver,
+SkillRuntime, factory protocols) live in hi_agent.skills.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
-
-# Strategy protocols live in hi_agent.skills; re-exported here for backward compat.
-# Import from the contracts submodule directly to avoid package __init__ cycles.
-from hi_agent.skills.contracts import (
-    LocalSkillRuntimeFactory,
-    ManagedSkillRuntime,
-    RemoteSkillGatewayFactory,
-    SkillRegistry,
-    SkillResolver,
-    SkillRuntime,
-    SkillRuntimeFactory,
-    SkillRuntimeHostFactory,
-)
 
 if TYPE_CHECKING:
     from agent_kernel.kernel.contracts import (
@@ -225,9 +211,6 @@ class SkillActionResolveInput:
 
 
 __all__ = [
-    "LocalSkillRuntimeFactory",
-    "ManagedSkillRuntime",
-    "RemoteSkillGatewayFactory",
     "ResolvedSkillPlan",
     "SkillActionResolveInput",
     "SkillDefinition",
@@ -235,12 +218,7 @@ __all__ = [
     "SkillExecutionResult",
     "SkillFailureCode",
     "SkillObservation",
-    "SkillRegistry",
     "SkillRequest",
-    "SkillResolver",
     "SkillResult",
-    "SkillRuntime",
-    "SkillRuntimeFactory",
     "SkillRuntimeHost",
-    "SkillRuntimeHostFactory",
 ]
