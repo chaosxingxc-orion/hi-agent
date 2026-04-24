@@ -117,7 +117,8 @@ def record_fallback(
 ) -> None:
     """Record a fallback event.
 
-    All arguments are required.  Use ``run_id="system"`` for module/startup
+    ``kind``, ``reason``, and ``run_id`` are required.  ``extra`` and
+    ``logger`` are optional.  Use ``run_id="system"`` for module/startup
     events not tied to a specific run; use ``run_id="unknown"`` when the
     run context is genuinely unavailable.
 
