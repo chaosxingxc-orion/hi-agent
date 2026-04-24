@@ -14,11 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import datetime
-import importlib.util
-import re
 import uuid
 from collections.abc import AsyncIterator
-from pathlib import Path
 from typing import Any, Literal
 
 from hi_agent.contracts import StageState
@@ -40,27 +37,6 @@ def _ensure_workflow_signal_run_compat(facade: object) -> None:
         return await signal_workflow(run_id, request)
 
     workflow_gateway.signal_run = _signal_run
-
-
-def _patch_agent_kernel_py2_except_syntax() -> bool:
-    """Hotfix Python3-incompatible ``except A, B:`` syntax in agent-kernel.
-
-    Returns:
-        True when a patch was applied, False otherwise.
-    """
-    spec = importlib.util.find_spec("agent_kernel")
-    if spec is None or not spec.origin:
-        return False
-    package_root = Path(spec.origin).resolve().parent
-    pattern = re.compile(r"except\s+([A-Za-z_][\w\.]*)\s*,\s*([A-Za-z_][\w\.]*)\s*:")
-    patched_any = False
-    for py_file in package_root.rglob("*.py"):
-        source = py_file.read_text(encoding="utf-8")
-        fixed = pattern.sub(r"except (\1, \2):", source)
-        if fixed != source:
-            py_file.write_text(fixed, encoding="utf-8")
-            patched_any = True
-    return patched_any
 
 
 class KernelFacadeAdapter:
@@ -690,19 +666,6 @@ def create_local_adapter() -> KernelFacadeAdapter:
         from agent_kernel.substrate.local.adaptor import (
             LocalSubstrateConfig,
         )
-    except SyntaxError:
-        # Temporary compatibility bridge: latest main may ship Python2-style
-        # exception syntax; patch in place then retry once.
-        if _patch_agent_kernel_py2_except_syntax():
-            from agent_kernel.runtime.kernel_runtime import (
-                KernelRuntime,
-                KernelRuntimeConfig,
-            )
-            from agent_kernel.substrate.local.adaptor import (
-                LocalSubstrateConfig,
-            )
-        else:
-            raise
     except ImportError as exc:
         raise ImportError(
             "agent-kernel is required for create_local_adapter(). "
