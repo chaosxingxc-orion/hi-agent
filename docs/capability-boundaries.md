@@ -15,6 +15,20 @@ hi-agent is the **capability platform layer**. The research team is the **busine
 
 ---
 
+## Internal boundary: hi_agent ↔ agent_kernel
+
+The following invariants are mechanically enforced by `scripts/check_boundary.py`.
+
+1. `agent_kernel/` declares an explicit public surface via its `__init__.py` files. All hi_agent imports of agent_kernel symbols use this surface only.
+2. No `agent_kernel/` file hardcodes a model name, provider name, tenant identity, `profile_id`, or skill policy value.
+3. No `agent_kernel/` file is mutated at runtime by any platform-layer code (no on-disk patching).
+4. `agent_kernel/` has no imports from `hi_agent/`.
+5. `hi_agent/` may import `agent_kernel` symbols **only** via (a) the declared `agent_kernel` public surface, or (b) a module inside `hi_agent/runtime_adapter/`. Enforced mechanically by `scripts/check_boundary.py`.
+
+**Maintaining the boundary**: Any PR touching `agent_kernel/**` must identify which of {contracts, admission, retry, failure, persistence, substrate, reasoning_loop} it belongs to. Strategy-surface changes to the kernel (skills policy, model selection, profile-awareness) are rejected.
+
+---
+
 # hi-agent Capability Boundaries
 
 **Version**: 1.0 | **Date**: 2026-04-12

@@ -36,3 +36,33 @@ jobs:
           --output docs/delivery/ci-rule15-structural.json
           --poll-timeout 60
           --ready-timeout 60
+
+  boundary-check:
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Remove after Tracks B3 + G2 land
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check kernel/platform boundary
+        run: python scripts/check_boundary.py
+
+  t3-evidence-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check T3 evidence on hot-path changes
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed_files.txt
+          python scripts/check_t3_evidence.py \
+            --changed-files /tmp/changed_files.txt \
+            --pr-body "$PR_BODY"

@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+"""T3 evidence checker for hot-path PR changes.
+
+Reads a list of changed files and the PR body. If any changed file matches
+a hot-path pattern and the PR body does not contain "T3 evidence:", exits 1
+with a clear error message. Otherwise exits 0.
+
+Usage:
+    python scripts/check_t3_evidence.py \
+        --changed-files /tmp/changed_files.txt \
+        --pr-body "PR body text here"
+"""
+
+from __future__ import annotations
+
+import argparse
+import fnmatch
+import sys
+from pathlib import Path
+
+HOT_PATH_PATTERNS = [
+    "hi_agent/llm/*",
+    "hi_agent/llm/**/*",
+    "hi_agent/runtime/*",
+    "hi_agent/runtime/**/*",
+    "hi_agent/config/cognition_builder.py",
+    "hi_agent/config/json_config_loader.py",
+    "hi_agent/config/builder.py",
+    "hi_agent/runner.py",
+    "hi_agent/runner_stage.py",
+    "hi_agent/runtime_adapter/*",
+    "hi_agent/runtime_adapter/**/*",
+    "hi_agent/memory/compressor.py",
+    "hi_agent/server/app.py",
+    "hi_agent/profiles/*",
+    "hi_agent/profiles/**/*",
+]
+
+T3_EVIDENCE_MARKER = "T3 evidence:"
+
+
+def _matches_hot_path(file_path: str) -> bool:
+    normalized = file_path.replace("\\", "/")
+    return any(fnmatch.fnmatch(normalized, pattern) for pattern in HOT_PATH_PATTERNS)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Check T3 evidence requirement for hot-path PRs"
+    )
+    parser.add_argument(
+        "--changed-files",
+        required=True,
+        help="Path to a file containing newline-separated list of changed file paths",
+    )
+    parser.add_argument(
+        "--pr-body",
+        required=True,
+        help="PR body text",
+    )
+    args = parser.parse_args(argv)
+
+    changed_files_path = Path(args.changed_files)
+    try:
+        raw = changed_files_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(
+            f"ERROR: Cannot read changed-files list from {args.changed_files}: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+
+    changed_files = [line.strip() for line in raw.splitlines() if line.strip()]
+    hot_path_hits = [f for f in changed_files if _matches_hot_path(f)]
+
+    if not hot_path_hits:
+        print("No hot-path files changed. T3 evidence not required.")
+        return 0
+
+    pr_body = args.pr_body or ""
+    if T3_EVIDENCE_MARKER in pr_body:
+        print(
+            f"Hot-path files changed ({len(hot_path_hits)} file(s)) and "
+            f"T3 evidence marker found. OK."
+        )
+        return 0
+
+    print(
+        "ERROR: Hot-path files changed but PR body does not contain 'T3 evidence:'",
+        file=sys.stderr,
+    )
+    print("", file=sys.stderr)
+    print("Hot-path files touched:", file=sys.stderr)
+    for f in hot_path_hits:
+        print(f"  {f}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print(
+        "Per Rule 8 (T3 Invariance), the PR description must include one of:\n"
+        "  T3 evidence: docs/delivery/<YYYY-MM-DD>-<sha>-rule15-volces.json\n"
+        "  T3 evidence: DEFERRED — <reason>",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
