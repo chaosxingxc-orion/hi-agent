@@ -11,6 +11,7 @@ from hi_agent.evolve.contracts import (
     EvolveChange,
     EvolveMetrics,
     EvolveResult,
+    ProjectPostmortem,
     RunPostmortem,
 )
 from hi_agent.evolve.postmortem import PostmortemAnalyzer
@@ -222,6 +223,47 @@ class EvolveEngine:
                             scope,
                             exc_info=True,
                         )
+
+    def on_project_completed(
+        self, project_id: str, run_ids: list[str]
+    ) -> ProjectPostmortem:
+        """Aggregate postmortems for all runs of a project into one ProjectPostmortem.
+
+        Args:
+            project_id: The project identifier.
+            run_ids: All run IDs that belong to this project.
+
+        Returns:
+            A ProjectPostmortem with the given project_id and run_ids.
+            Aggregation is record-only in Wave 8; richer cross-run analysis
+            is deferred to Wave 9 (Phase B).
+        """
+        backtrack_count = 0
+        accepted_artifacts: list[str] = []
+        rejected_artifacts: list[str] = []
+        skill_deltas: list[str] = []
+
+        for run_id in run_ids:
+            try:
+                postmortem_record = getattr(self._postmortem_analyzer, "get_postmortem", None)
+                if postmortem_record is not None:
+                    pm = postmortem_record(run_id)
+                    if pm is not None:
+                        backtrack_count += pm.branches_pruned
+            except Exception:
+                _logger.debug(
+                    "on_project_completed: skipping run_id=%s (no stored postmortem)",
+                    run_id,
+                )
+
+        return ProjectPostmortem(
+            project_id=project_id,
+            run_ids=list(run_ids),
+            backtrack_count=backtrack_count,
+            accepted_artifact_ids=accepted_artifacts,
+            rejected_artifact_ids=rejected_artifacts,
+            skill_deltas=skill_deltas,
+        )
 
     def batch_evolve(
         self,
