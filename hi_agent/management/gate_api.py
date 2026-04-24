@@ -16,6 +16,8 @@ class GateAction(StrEnum):
 
     APPROVE = "approve"
     REJECT = "reject"
+    BACKTRACK = "backtrack"
+    REMEDIATE = "remediate"
 
 
 class GateStatus(StrEnum):
@@ -25,6 +27,8 @@ class GateStatus(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     ESCALATED = "escalated"
+    BACKTRACKED = "backtracked"
+    REMEDIATED = "remediated"
 
 
 @dataclass(frozen=True)
@@ -115,8 +119,14 @@ class InMemoryGateAPI:
         if not normalized_approver:
             raise ValueError("approver must be a non-empty string")
         normalized_action = action.strip().lower()
-        if normalized_action not in {GateAction.APPROVE.value, GateAction.REJECT.value}:
-            raise ValueError("action must be 'approve' or 'reject'")
+        _valid_actions = {
+            GateAction.APPROVE.value,
+            GateAction.REJECT.value,
+            GateAction.BACKTRACK.value,
+            GateAction.REMEDIATE.value,
+        }
+        if normalized_action not in _valid_actions:
+            raise ValueError(f"action must be one of {sorted(_valid_actions)}")
 
         record = self.get_gate(gate_ref)
         if record.status is not GateStatus.PENDING:
@@ -130,11 +140,12 @@ class InMemoryGateAPI:
         ):
             raise PermissionError("submitter cannot approve gate when SoC is enforced")
 
-        target_status = (
-            GateStatus.APPROVED
-            if normalized_action == GateAction.APPROVE.value
-            else GateStatus.REJECTED
-        )
+        target_status = {
+            GateAction.APPROVE.value: GateStatus.APPROVED,
+            GateAction.REJECT.value: GateStatus.REJECTED,
+            GateAction.BACKTRACK.value: GateStatus.BACKTRACKED,
+            GateAction.REMEDIATE.value: GateStatus.REMEDIATED,
+        }.get(normalized_action, GateStatus.REJECTED)
         resolved = replace(
             record,
             status=target_status,
