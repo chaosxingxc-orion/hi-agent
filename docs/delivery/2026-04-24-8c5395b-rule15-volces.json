@@ -1,0 +1,33 @@
+{
+  "base_url": "http://127.0.0.1:8082",
+  "cancel_known": {},
+  "cancel_unknown": {},
+  "command": [
+    "C:\\Python314\\python.exe",
+    "D:\\chao_workspace\\hi-agent\\scripts\\rule15_volces_gate.py",
+    "--output",
+    "docs\\delivery\\2026-04-24-8c5395b-rule15-volces.json",
+    "--profile-id",
+    "rule15_volces",
+    "--port",
+    "8082"
+  ],
+  "error": "run 34a965a5-8a9d-4b88-87ea-8dd63b201235 reached terminal state 'failed'; expected completed",
+  "finished_at": "2026-04-24T10:46:31.928368+00:00",
+  "mode": "spawned",
+  "profile_id": "rule15_volces",
+  "ready": {},
+  "runs": [],
+  "server_command": [
+    "C:\\Python314\\python.exe",
+    "-m",
+    "hi_agent",
+    "serve",
+    "--port",
+    "8082"
+  ],
+  "server_pid": 53548,
+  "started_at": "2026-04-24T10:46:21.842239+00:00",
+  "status": "failed",
+  "total_duration_s": 0.0
+}
