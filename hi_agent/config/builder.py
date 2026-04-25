@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -55,6 +57,8 @@ class SystemBuilder:
         profile_registry: Any | None = None,
         capability_registry: Any | None = None,
         artifact_registry: Any | None = None,
+        config_dir: Path | None = None,
+        profile_dir: Path | None = None,
     ) -> None:
         """Initialize SystemBuilder.
 
@@ -67,11 +71,18 @@ class SystemBuilder:
                 build_capability_registry() returns it directly without creating a new one.
             artifact_registry: Optional pre-built ArtifactRegistry. When provided,
                 build_artifact_registry() returns it directly without creating a new one.
+            config_dir: Optional directory for config files (tools.json, mcp_servers.json).
+                Falls back to HI_AGENT_CONFIG_DIR env var, then repo-root config/.
+            profile_dir: Optional directory of JSON profile files to auto-register.
+                Falls back to HI_AGENT_PROFILE_DIR env var. When set, all *.json files
+                in the directory are loaded as ProfileSpec entries at init time.
         """
         import threading as _threading
 
         self._config = config if config is not None else TraceConfig()
         self._stack = config_stack
+        self._config_dir: Path = self._resolve_config_dir(config_dir)
+        self._profile_dir: Path | None = self._resolve_profile_dir(profile_dir)
         # Protects lazy singleton cache against concurrent build_executor() calls.
         # RLock (re-entrant) is required because several build_* methods acquire
         # this lock and then call other build_* methods that also acquire it
@@ -108,11 +119,56 @@ class SystemBuilder:
         if artifact_registry is not None:
             self._artifact_registry = artifact_registry
 
+        # Auto-load JSON profiles from profile_dir when configured.
+        if self._profile_dir is not None:
+            self._load_profiles_from_dir(self._profile_dir)
+
         # Redirect deprecated TraceConfig fields to their successors before any
         # subsystem is built, so callers that set legacy fields get expected behavior.
         self._redirect_deprecated_config()
         # Warn about deprecated fields that have no successor (dead fields).
         self._config.validate_no_deprecated()
+
+    @staticmethod
+    def _resolve_config_dir(config_dir: Path | None) -> Path:
+        """Resolve the config directory: kwarg > HI_AGENT_CONFIG_DIR env > repo-root config/."""
+        if config_dir is not None:
+            return config_dir
+        env = os.environ.get("HI_AGENT_CONFIG_DIR")
+        if env:
+            return Path(env)
+        return Path(__file__).parent.parent.parent / "config"
+
+    @staticmethod
+    def _resolve_profile_dir(profile_dir: Path | None) -> Path | None:
+        """Resolve the profile directory: kwarg > HI_AGENT_PROFILE_DIR env > None."""
+        if profile_dir is not None:
+            return profile_dir
+        env = os.environ.get("HI_AGENT_PROFILE_DIR")
+        if env:
+            return Path(env)
+        return None
+
+    def _load_profiles_from_dir(self, profile_dir: Path) -> None:
+        """Load JSON profile files from profile_dir into the ProfileRegistry."""
+        try:
+            from hi_agent.profiles.loader import load_profiles_from_dir
+
+            registry = self.build_profile_registry()
+            if registry is None:
+                logger.warning(
+                    "_load_profiles_from_dir: ProfileRegistry unavailable; skipping."
+                )
+                return
+            loaded = load_profiles_from_dir(profile_dir, registry)
+            if loaded:
+                logger.info(
+                    "_load_profiles_from_dir: registered %d profile(s) from %s.",
+                    len(loaded),
+                    profile_dir,
+                )
+        except Exception as exc:
+            logger.warning("_load_profiles_from_dir: failed (%s); profiles not loaded.", exc)
 
     def _redirect_deprecated_config(self) -> None:
         """Forward deprecated TraceConfig fields to their active successors.
@@ -266,16 +322,17 @@ class SystemBuilder:
                         _readiness_rbt = {}
                     _profile_rbt = _rrm_rbt(_env_rbt, _readiness_rbt)
                     register_builtin_tools(registry, profile=_profile_rbt)
-                    # Load config-driven custom tools (config/tools.json).
+                    # Load config-driven custom tools (tools.json from resolved config dir).
                     try:
-                        import os as _os_tc
-
-                        from hi_agent.config.tools_config_loader import load_tools_from_config
-
-                        _tools_path = _os_tc.path.join(
-                            _os_tc.path.dirname(__file__), "..", "..", "config", "tools.json"
+                        from hi_agent.config.tools_config_loader import (
+                            ConfigValidationError,
+                            load_tools_from_config,
                         )
+
+                        _tools_path = self._config_dir / "tools.json"
                         load_tools_from_config(registry, config_path=_tools_path)
+                    except ConfigValidationError as _tc_exc:
+                        raise _tc_exc
                     except Exception as _tc_exc:
                         logger.warning(
                             "build_capability_registry: tools_config_loader failed (%s); "
@@ -519,13 +576,9 @@ class SystemBuilder:
             self._mcp_config_loaded = True
             if self._mcp_registry is not None:
                 try:
-                    import os as _os_mcp
-
                     from hi_agent.config.mcp_config_loader import load_mcp_servers_from_config
 
-                    _mcp_cfg_path = _os_mcp.path.join(
-                        _os_mcp.path.dirname(__file__), "..", "..", "config", "mcp_servers.json"
-                    )
+                    _mcp_cfg_path = self._config_dir / "mcp_servers.json"
                     load_mcp_servers_from_config(
                         self._mcp_registry, config_path=_mcp_cfg_path
                     )

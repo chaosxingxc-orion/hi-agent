@@ -30,7 +30,7 @@ Edit `config/tools.json`:
 }
 ```
 
-Restart `hi-agent serve`. The tool appears at `GET /capabilities`.
+Restart `hi-agent serve`. The tool appears at `GET /tools`.
 
 ## Registering an MCP server
 
@@ -51,7 +51,7 @@ Edit `config/mcp_servers.json`:
 }
 ```
 
-Restart hi-agent. The MCP tools appear automatically in `GET /capabilities`.
+Restart hi-agent. The MCP tools appear automatically in `GET /tools`.
 
 **HTTP/SSE transport:**
 ```json
@@ -97,6 +97,65 @@ In `hi_agent_config.json` (or `HI_AGENT_*` env vars):
   }
 }
 ```
+
+## Configuring from a custom directory
+
+By default, `hi-agent` reads `tools.json` and `mcp_servers.json` from the `config/` directory
+in the source checkout. Wheel-installed deployments (or downstream developers who cannot modify
+the source tree) can point to a different directory:
+
+```bash
+HI_AGENT_CONFIG_DIR=/my/config python -m hi_agent serve
+```
+
+Or pass it explicitly on the CLI:
+
+```bash
+python -m hi_agent serve --config-dir /my/config
+python -m hi_agent run --local --config-dir /my/config --goal "..."
+```
+
+The directory must contain `tools.json` and/or `mcp_servers.json` in the same format documented
+above. Files that do not exist are silently ignored — you only need the files you want to
+customise.
+
+## JSON profile files
+
+Profiles can be loaded from a directory of JSON files instead of registering them in Python:
+
+```bash
+HI_AGENT_PROFILE_DIR=/my/profiles python -m hi_agent serve
+```
+
+Each `*.json` file in the directory is loaded as a `ProfileSpec`. Minimal format:
+
+```json
+{
+  "profile_id": "my_research",
+  "display_name": "My Research Profile",
+  "stage_actions": {"S1_plan": "search", "S3_synthesize": "synthesize"},
+  "required_capabilities": ["web_search"]
+}
+```
+
+## Opt-in strict mode for `project_id` and `profile_id`
+
+By default, `POST /runs` accepts requests without `project_id` or `profile_id` (and falls back
+to unscoped / `"default"` with a warning log and metric counter). For deployments that need to
+enforce these fields:
+
+```bash
+# Reject POST /runs with no project_id with HTTP 400
+HI_AGENT_PROJECT_ID_REQUIRED=1 python -m hi_agent serve
+
+# Reject POST /runs with no profile_id with HTTP 400
+HI_AGENT_PROFILE_ID_REQUIRED=1 python -m hi_agent serve
+```
+
+When `HI_AGENT_PROJECT_ID_REQUIRED` is not set, the existing `X-Project-Warning: unscoped`
+header behaviour is preserved. When `HI_AGENT_PROFILE_ID_REQUIRED` is not set, the existing
+`"default"` fallback behaviour is preserved. Existing callers that do not set these env vars
+are unaffected.
 
 ## Security notes
 

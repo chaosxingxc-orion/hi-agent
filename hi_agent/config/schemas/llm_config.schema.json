@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "hi-agent LLM Configuration",
+  "description": "Schema for config/llm_config.json as read by hi_agent.config.json_config_loader.",
+  "type": "object",
+  "properties": {
+    "default_provider": {
+      "type": "string",
+      "description": "Name of the active provider (must match a key in 'providers').",
+      "examples": ["anthropic", "openai", "volces"]
+    },
+    "providers": {
+      "type": "object",
+      "description": "Map of provider name to provider configuration.",
+      "additionalProperties": {
+        "$ref": "#/definitions/provider"
+      }
+    },
+    "budget": {
+      "$ref": "#/definitions/budget"
+    }
+  },
+  "definitions": {
+    "provider": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "description": "API key. Prefer injecting via env var instead of storing here."
+        },
+        "base_url": {
+          "type": "string",
+          "description": "Provider base URL (e.g. https://api.anthropic.com)."
+        },
+        "api_format": {
+          "type": "string",
+          "enum": ["anthropic", "openai"],
+          "description": "Wire protocol format."
+        },
+        "models": {
+          "type": "object",
+          "properties": {
+            "strong": {"type": "string"},
+            "medium": {"type": "string"},
+            "light":  {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "features": {
+          "type": "object",
+          "properties": {
+            "thinking_budget": {
+              "type": ["integer", "null"],
+              "description": "Anthropic extended-thinking token budget."
+            }
+          },
+          "additionalProperties": true
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Per-request timeout in seconds."
+        }
+      },
+      "additionalProperties": true
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "max_calls": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum total LLM calls per run."
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum total input tokens per run."
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum output tokens per individual LLM call."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

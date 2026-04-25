@@ -22,6 +22,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 import uuid
 from typing import Any, Literal
 
@@ -148,12 +149,31 @@ async def handle_create_run(request: Request) -> JSONResponse:
     # Wave 8 / P1.2: extract project_id and emit warning header if missing.
     _project_missing = not bool(body.get("project_id", ""))
 
+    # H1 Track5 / P-1 strict mode: opt-in 400 when HI_AGENT_PROJECT_ID_REQUIRED=1.
+    if _project_missing and os.environ.get("HI_AGENT_PROJECT_ID_REQUIRED"):
+        return JSONResponse(
+            {
+                "error": "missing_project_id",
+                "hint": "Set project_id in the request body",
+            },
+            status_code=400,
+        )
+
     # DF-27 / Rule 14: the builder now requires a non-empty profile_id.
     # Rather than silent-defaulting (which masks missing caller metadata) or
     # returning 400 (which is a breaking API change we defer until the
     # downstream roadmap P-3 lands), assign 'default' loudly here: one WARNING
     # log + one recorded fallback event so the fact is countable via /metrics
     # and inspectable on GET /runs/{id}.
+    # H1 Track5 / P-3 strict mode: opt-in 400 when HI_AGENT_PROFILE_ID_REQUIRED=1.
+    if not body.get("profile_id") and os.environ.get("HI_AGENT_PROFILE_ID_REQUIRED"):
+        return JSONResponse(
+            {
+                "error": "missing_profile_id",
+                "hint": "Set profile_id in the request body",
+            },
+            status_code=400,
+        )
     if not body.get("profile_id"):
         from hi_agent.observability.fallback import record_fallback
 

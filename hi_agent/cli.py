@@ -151,6 +151,15 @@ def _cmd_serve(args: argparse.Namespace) -> None:
             "  For formal E2E, use `serve --prod` with real API key + kernel endpoint."
         )
 
+    # Apply --config-dir / HI_AGENT_CONFIG_DIR before server startup.
+    config_dir_arg = getattr(args, "config_dir", None)
+    if config_dir_arg:
+        os.environ["HI_AGENT_CONFIG_DIR"] = config_dir_arg
+    # Apply --profile-dir / HI_AGENT_PROFILE_DIR before server startup.
+    profile_dir_arg = getattr(args, "profile_dir", None)
+    if profile_dir_arg:
+        os.environ["HI_AGENT_PROFILE_DIR"] = profile_dir_arg
+
     config = TraceConfig(server_host=args.host, server_port=args.port)
     server = AgentServer(host=args.host, port=args.port, config=config)
     server.start()
@@ -196,9 +205,18 @@ def _cmd_run(args: argparse.Namespace) -> None:
             config_patch["evolve_mode"] = _evolve_mode_override
 
         try:
+            from pathlib import Path as _Path
+
+            _config_dir_arg = getattr(args, "config_dir", None)
+            _profile_dir_arg = getattr(args, "profile_dir", None)
             stack = ConfigStack(base_config_path=config_file, profile=profile)
             config = stack.resolve()
-            builder = SystemBuilder(config=config, config_stack=stack)
+            builder = SystemBuilder(
+                config=config,
+                config_stack=stack,
+                config_dir=_Path(_config_dir_arg) if _config_dir_arg else None,
+                profile_dir=_Path(_profile_dir_arg) if _profile_dir_arg else None,
+            )
             profile_id = getattr(args, "profile_id", None)
             # DF-27: CLI boundary mirrors the POST /runs boundary — if no
             # profile_id is provided, default loudly to 'default' with a
@@ -595,6 +613,27 @@ def build_parser() -> argparse.ArgumentParser:
             "in-process kernel), which works out of the box without external dependencies."
         ),
     )
+    serve_parser.add_argument(
+        "--config-dir",
+        dest="config_dir",
+        required=False,
+        default=None,
+        help=(
+            "Directory containing tools.json and mcp_servers.json. "
+            "Overrides HI_AGENT_CONFIG_DIR env var. "
+            "Example: HI_AGENT_CONFIG_DIR=/my/config python -m hi_agent serve"
+        ),
+    )
+    serve_parser.add_argument(
+        "--profile-dir",
+        dest="profile_dir",
+        required=False,
+        default=None,
+        help=(
+            "Directory of JSON profile files to auto-register at startup. "
+            "Overrides HI_AGENT_PROFILE_DIR env var."
+        ),
+    )
 
     # run
     run_parser = subparsers.add_parser("run", help="Execute a task")
@@ -717,6 +756,26 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Override HI_AGENT_HOME directory (also settable via HI_AGENT_HOME env var). "
             "All profile-related paths are resolved under this directory."
+        ),
+    )
+    run_parser.add_argument(
+        "--config-dir",
+        dest="config_dir",
+        required=False,
+        default=None,
+        help=(
+            "Directory containing tools.json and mcp_servers.json. "
+            "Overrides HI_AGENT_CONFIG_DIR env var."
+        ),
+    )
+    run_parser.add_argument(
+        "--profile-dir",
+        dest="profile_dir",
+        required=False,
+        default=None,
+        help=(
+            "Directory of JSON profile files to auto-register before the run. "
+            "Overrides HI_AGENT_PROFILE_DIR env var."
         ),
     )
     _evolve_group = run_parser.add_mutually_exclusive_group()

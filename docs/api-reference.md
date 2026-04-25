@@ -19,11 +19,28 @@ Create a new agent run.
 {
   "goal": "Analyze quarterly revenue data",
   "profile_id": "my-agent-profile",
+  "project_id": "proj-acme-q1",
   "idempotency_key": "<uuid>"  // alternative to header
 }
 ```
 
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `goal` | string | Yes | Natural-language goal for the run. |
+| `profile_id` | string | Recommended | Runtime profile ID. Defaults to `"default"` with a warning when omitted. |
+| `project_id` | string | Recommended | Project scope. Scopes memory, artifacts, and gates to a project namespace. When omitted, the response includes `X-Project-Warning: unscoped`. |
+| `idempotency_key` | string | Recommended | Client-generated UUID for safe retries (alternative to the `Idempotency-Key` header). |
+
 `profile_id` is strongly recommended; if omitted, `"default"` is used with a warning log and `hi_agent_unscoped_profile_total` counter incremented.
+
+**Strict-mode env vars (opt-in)**
+
+| Env var | Effect |
+|---------|--------|
+| `HI_AGENT_PROJECT_ID_REQUIRED=1` | `POST /runs` without `project_id` returns `400 {"error": "missing_project_id"}` instead of the warning header. |
+| `HI_AGENT_PROFILE_ID_REQUIRED=1` | `POST /runs` without `profile_id` returns `400 {"error": "missing_profile_id"}` instead of the `"default"` fallback. |
+
+These env vars are off by default. Existing callers that do not set them are unaffected.
 
 **Response** `201 Created`
 
@@ -35,7 +52,7 @@ Create a new agent run.
 }
 ```
 
-**Warning header**
+**Warning headers**
 
 If `Idempotency-Key` is missing from the request headers AND the body contains no `idempotency_key` field:
 
@@ -43,7 +60,13 @@ If `Idempotency-Key` is missing from the request headers AND the body contains n
 X-Idempotency-Warning: missing
 ```
 
-The run is still created. This header is advisory — clients that require deduplication SHOULD supply the header.
+If `project_id` is missing from the request body (and `HI_AGENT_PROJECT_ID_REQUIRED` is not set):
+
+```
+X-Project-Warning: unscoped
+```
+
+The run is still created. These headers are advisory — clients that require deduplication or project scoping SHOULD supply the corresponding fields.
 
 ---
 
