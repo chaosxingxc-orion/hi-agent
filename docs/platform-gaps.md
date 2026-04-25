@@ -48,7 +48,7 @@ hi-agent is the **capability platform layer**. The research team is the **busine
 | Pattern | Description | Status |
 |---|---|---|
 | PI-A | Multi-stage TRACE pipeline execution | Supported (stable) |
-| PI-B | PI-A + reflect_and_infer + restart_policy | Supported (K-7 recursion guard in review) |
+| PI-B | PI-A + reflect_and_infer + restart_policy | Supported (K-7 recursion guard fixed WS-2/3/4) |
 | PI-C | PI-B + Human Gate (GatePendingError + continue_from_gate) | Supported (SQLiteGateStore added Wave 8 Track P3) |
 | PI-D | PI-B + dispatch_subrun + await_subrun_async | Supported (async path parity confirmed K-2/K-3/K-15) |
 | PI-E | PI-C + PI-D (gate + subrun orchestration) | Supported (combination test K-13 added to backlog) |

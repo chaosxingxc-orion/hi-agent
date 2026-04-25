@@ -180,3 +180,18 @@ Cancel a live run.
 - `200 OK` — run reached terminal state.
 - `404 Not Found` — unknown run_id.
 - `409 Conflict` — run already in terminal state.
+
+---
+
+## Environment Variables
+
+All env vars are optional unless noted. Defaults are shown.
+
+| Env var | Default | Description | Source |
+|---------|---------|-------------|--------|
+| `HI_AGENT_API_TIMEOUT_SECONDS` | `15.0` | HTTP timeout in seconds for CLI requests to the server; non-positive or non-numeric values fall back to the default. | `hi_agent/cli.py:29` |
+| `HI_AGENT_ALLOW_HEURISTIC_FALLBACK` | `""` (off in prod, on in non-prod) | Set to `1`/`true`/`yes`/`on` to unconditionally allow heuristic capability fallback; when unset, fallback is enabled only outside prod (`HI_AGENT_ENV != "prod"`). | `hi_agent/capability/defaults.py:30` |
+| `HI_AGENT_ENABLE_SHELL_EXEC` | `""` (disabled) | Set to `true` to enable the `shell_exec` builtin tool; the tool is additionally restricted to dev profiles (`dev`, `dev-smoke`) even when this flag is set. | `hi_agent/capability/tools/builtin.py:351` |
+| `HI_AGENT_EVOLVE_MODE` | `""` (unset — follows config) | Set to `on`, `off`, or `auto` to override the `evolve_mode` field in the active config; CLI flags `--evolve`/`--disable-evolve` take precedence over this env var. | `hi_agent/cli.py:200` |
+| `HI_AGENT_PROFILE` | `""` (no profile) | Selects the active runtime profile when no `--profile` CLI argument is given; explicit constructor argument takes precedence over this env var. | `hi_agent/config/stack.py:104` |
+| `WEBHOOK_URL` | `""` (disabled) | When set to a non-empty URL, a notification backend is wired to the `MetricsCollector` to forward alert events to the specified webhook endpoint. | `hi_agent/config/runtime_builder.py:107` |
