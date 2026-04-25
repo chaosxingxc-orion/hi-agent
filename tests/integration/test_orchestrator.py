@@ -66,7 +66,12 @@ class TestSimpleExecution:
         assert result.sub_results[0].outcome == "completed"
         # result payload is now structured RunResult dict
         assert result.sub_results[0].result["status"] == "completed"
-        mock_runner_cls.assert_called_once_with(contract, kernel)
+        # Assert the two required positional args without over-constraining kwargs,
+        # which grew after T3's Rule 6 strict injection sweep.
+        assert mock_runner_cls.call_count == 1
+        call_args = mock_runner_cls.call_args
+        assert call_args.args[0] is contract
+        assert call_args.args[1] is kernel
 
     def test_simple_task_failure_propagates(self) -> None:
         kernel = MockKernel(strict_mode=False)
