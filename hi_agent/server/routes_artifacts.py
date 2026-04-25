@@ -54,9 +54,16 @@ async def handle_get_artifact(request: Request) -> JSONResponse:
 
 
 async def handle_artifacts_by_project(request: Request) -> JSONResponse:
-    """Return all artifacts belonging to a project."""
+    """Return all artifacts belonging to a project, scoped to the authenticated tenant.
+
+    TE-3: tenant scope is enforced first — artifacts from other tenants are never
+    returned.  Since CO-5 (Artifact.tenant_id spine field) has not yet landed, the
+    check uses ``getattr(a, 'tenant_id', None)`` so the filter degrades gracefully
+    when the field is absent (returns all project artifacts for any tenant).
+    # TODO: add explicit project-tenant registry in Wave 10
+    """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     project_id = request.path_params["project_id"]
@@ -67,9 +74,30 @@ async def handle_artifacts_by_project(request: Request) -> JSONResponse:
     find_fn = getattr(registry, "find_by_project", None)
     if find_fn is None:
         # Fallback for ArtifactRegistry (no find_by_project): filter manually.
-        artifacts = [a for a in registry.all() if a.project_id == project_id]
+        candidates = [a for a in registry.all() if a.project_id == project_id]
     else:
-        artifacts = find_fn(project_id)
+        candidates = find_fn(project_id)
+
+    # TE-3: enforce tenant scope — filter by tenant_id when CO-5 field is present.
+    tenant_id = ctx.tenant_id
+
+    def _belongs_to_tenant(a: Any) -> bool:
+        art_tenant = getattr(a, "tenant_id", None)
+        # When tenant_id field is absent (pre-CO-5), allow access to avoid
+        # blocking all existing artifacts; once CO-5 lands this branch is removed.
+        if art_tenant is None:
+            return True
+        return art_tenant == tenant_id
+
+    artifacts = [a for a in candidates if _belongs_to_tenant(a)]
+
+    if not artifacts and candidates:
+        # All candidates exist but belong to a different tenant — return 404
+        # to avoid confirming project existence to unauthorized tenants.
+        return JSONResponse(
+            {"error": "not_found", "project_id": project_id}, status_code=404
+        )
+
     return JSONResponse(
         {"artifacts": [a.to_dict() for a in artifacts], "count": len(artifacts),
          "project_id": project_id}
