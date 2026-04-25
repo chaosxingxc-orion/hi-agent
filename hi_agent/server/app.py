@@ -83,6 +83,7 @@ from hi_agent.server.routes_runs import (
     handle_get_feedback,
     handle_get_run,
     handle_list_runs,
+    handle_reasoning_trace,
     handle_resume_run,
     handle_run_artifacts,
     handle_runs_active,
@@ -1038,6 +1039,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/runs/{run_id}/resume", handle_resume_run, methods=["POST"]),
         Route("/runs/{run_id}/gate_decision", handle_gate_decision, methods=["POST"]),
         Route("/runs/{run_id}/events", handle_run_events_sse, methods=["GET"]),
+        Route("/runs/{run_id}/reasoning-trace", handle_reasoning_trace, methods=["GET"]),
         # Metrics
         Route("/metrics", handle_metrics_prometheus, methods=["GET"]),
         Route("/metrics/json", handle_metrics_json, methods=["GET"]),

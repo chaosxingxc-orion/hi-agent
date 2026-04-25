@@ -556,3 +556,52 @@ async def handle_gate_decision(request: Request) -> JSONResponse:
             "status": "accepted",
         }
     )
+
+
+async def handle_reasoning_trace(request: Request) -> JSONResponse:
+    """Return the reasoning trace for a run (TE-5).
+
+    Reads <HI_AGENT_DATA_DIR>/traces/<run_id>.jsonl if present.
+
+    Returns:
+        200 with ``{run_id, entries, status: "available"}`` when the trace file exists.
+        200 with ``{run_id, entries: [], status: "not_available", deferred: "H4"}``
+            when no trace file is found (trace is optional, not an error).
+        401 when caller is not authenticated.
+    """
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+
+    run_id = request.path_params["run_id"]
+    data_dir = os.environ.get("HI_AGENT_DATA_DIR", "").strip()
+
+    if not data_dir:
+        return JSONResponse(
+            {"run_id": run_id, "entries": [], "status": "not_available", "deferred": "H4"}
+        )
+
+    from pathlib import Path
+
+    trace_file = Path(data_dir) / "traces" / f"{run_id}.jsonl"
+    if not trace_file.exists():
+        return JSONResponse(
+            {"run_id": run_id, "entries": [], "status": "not_available", "deferred": "H4"}
+        )
+
+    entries: list[dict] = []
+    try:
+        with trace_file.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    with contextlib.suppress(Exception):  # skip corrupt trace lines
+                        entries.append(json.loads(line))
+    except Exception as exc:
+        logger.warning("handle_reasoning_trace: failed to read trace file %s: %s", trace_file, exc)
+        return JSONResponse(
+            {"run_id": run_id, "entries": [], "status": "not_available", "deferred": "H4"}
+        )
+
+    return JSONResponse({"run_id": run_id, "entries": entries, "status": "available"})

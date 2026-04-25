@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
+import os
 import queue
 import threading
 import time
@@ -442,6 +444,7 @@ class RunManager:
             with self._lock:
                 self._active_count -= 1
             self._semaphore.release()
+            self._write_trace_stub(run)
             if (
                 run.idempotency_key is not None
                 and self._idempotency_store is not None
@@ -497,6 +500,7 @@ class RunManager:
             with self._lock:
                 self._active_count -= 1
             self._semaphore.release()
+            self._write_trace_stub(run)
             if (
                 run.idempotency_key is not None
                 and self._idempotency_store is not None
@@ -506,6 +510,58 @@ class RunManager:
                     run.idempotency_key,
                     json.dumps(self.to_dict(run)),
                 )
+
+    @staticmethod
+    def _write_trace_stub(run: ManagedRun) -> None:
+        """TE-5: Write a stub ReasoningTrace entry to HI_AGENT_DATA_DIR/traces/<run_id>.jsonl.
+
+        Called from the finally block of _execute_run / _execute_run_durable so
+        that every completed run leaves a trace file on disk when a data dir is
+        configured.  When HI_AGENT_DATA_DIR is not set, the call is a no-op.
+        """
+        data_dir = os.environ.get("HI_AGENT_DATA_DIR", "").strip()
+        if not data_dir:
+            return
+        try:
+            from pathlib import Path
+
+            from hi_agent.contracts.reasoning_trace import ReasoningTraceEntry
+
+            traces_dir = Path(data_dir) / "traces"
+            traces_dir.mkdir(parents=True, exist_ok=True)
+            trace_file = traces_dir / f"{run.run_id}.jsonl"
+            entry = ReasoningTraceEntry(
+                run_id=run.run_id,
+                stage_id=run.current_stage or "unknown",
+                step=0,
+                kind="placeholder",
+                content=f"run terminal state={run.state}",
+                metadata={"state": run.state, "error": run.error or ""},
+                created_at=datetime.now(UTC).isoformat(),
+            )
+            with trace_file.open("a", encoding="utf-8") as f:
+                import json as _json
+
+                f.write(
+                    _json.dumps(
+                        {
+                            "run_id": entry.run_id,
+                            "stage_id": entry.stage_id,
+                            "step": entry.step,
+                            "kind": entry.kind,
+                            "content": entry.content,
+                            "metadata": entry.metadata,
+                            "created_at": entry.created_at,
+                        }
+                    )
+                    + "\n"
+                )
+        except Exception as exc:  # trace write must never crash the run lifecycle
+            logging.getLogger(__name__).warning(
+                "_write_trace_stub: failed to write trace for run_id=%s: %s",
+                run.run_id,
+                exc,
+            )
 
     # -- public API ---------------------------------------------------------
 
