@@ -119,10 +119,16 @@ class TestHandleCreateRun:
     @pytest.mark.asyncio
     async def test_creates_run_without_executor(self) -> None:
         from hi_agent.server.routes_runs import handle_create_run
+        from hi_agent.server.run_manager import ManagedRun
 
         req = _make_request(json_body={"goal": "do something"})
         server = req.app.state.agent_server
-        server.run_manager.create_run.return_value = "run-abc"
+        fake_managed = ManagedRun(
+            run_id="run-abc",
+            task_contract={"goal": "do something"},
+            outcome="created",
+        )
+        server.run_manager.create_run.return_value = fake_managed
         server.run_manager.get_run.return_value = MagicMock(run_id="run-abc")
         server.run_manager.to_dict.return_value = {"run_id": "run-abc", "state": "pending"}
         server.executor_factory = None

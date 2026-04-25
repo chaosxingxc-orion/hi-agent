@@ -193,7 +193,7 @@ def client_b(shared_manager, ctx_b):
 @pytest.fixture()
 def user_a_run(shared_manager, ctx_a):
     """Create a run owned by user A and return (session_id, run_id)."""
-    run_id = shared_manager.create_run({"goal": "user a task"}, workspace=ctx_a)
+    run_id = shared_manager.create_run({"goal": "user a task"}, workspace=ctx_a).run_id
     return (ctx_a.session_id, run_id)
 
 

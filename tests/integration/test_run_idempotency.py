@@ -39,8 +39,8 @@ class TestIdempotentCreateRun:
     def test_same_key_same_payload_returns_same_run_id(self, manager):
         payload = {"goal": "analyse revenue", "idempotency_key": "client-key-1"}
 
-        run_id_1 = manager.create_run(dict(payload))
-        run_id_2 = manager.create_run(dict(payload))
+        run_id_1 = manager.create_run(dict(payload)).run_id
+        run_id_2 = manager.create_run(dict(payload)).run_id
 
         assert run_id_1 == run_id_2
 
@@ -57,16 +57,16 @@ class TestIdempotentCreateRun:
         payload_a = {"goal": "task A", "idempotency_key": "key-A"}
         payload_b = {"goal": "task B", "idempotency_key": "key-B"}
 
-        run_id_a = manager.create_run(dict(payload_a))
-        run_id_b = manager.create_run(dict(payload_b))
+        run_id_a = manager.create_run(dict(payload_a)).run_id
+        run_id_b = manager.create_run(dict(payload_b)).run_id
 
         assert run_id_a != run_id_b
 
     def test_no_idempotency_key_falls_through_to_normal_path(self, manager):
         payload = {"goal": "no-key task"}
 
-        run_id_1 = manager.create_run(dict(payload))
-        run_id_2 = manager.create_run(dict(payload))
+        run_id_1 = manager.create_run(dict(payload)).run_id
+        run_id_2 = manager.create_run(dict(payload)).run_id
 
         # Without idempotency_key, two separate run_ids are created.
         assert run_id_1 != run_id_2
@@ -74,7 +74,7 @@ class TestIdempotentCreateRun:
     def test_run_persisted_to_run_store_on_creation(self, manager, run_store):
         payload = {"goal": "persist me", "idempotency_key": "persist-key"}
 
-        run_id = manager.create_run(dict(payload))
+        run_id = manager.create_run(dict(payload)).run_id
         record = run_store.get(run_id)
 
         assert record is not None
@@ -84,7 +84,7 @@ class TestIdempotentCreateRun:
     def test_replayed_run_not_duplicated_in_run_store(self, manager, run_store):
         payload = {"goal": "dedup test", "idempotency_key": "dedup-key"}
 
-        run_id = manager.create_run(dict(payload))
+        run_id = manager.create_run(dict(payload)).run_id
         manager.create_run(dict(payload))  # replay
 
         # Only one record in the store.
@@ -98,8 +98,8 @@ class TestWithoutStores:
         """No stores injected — all existing behaviour is unchanged."""
         plain_manager = RunManager(max_concurrent=2)
 
-        run_id_1 = plain_manager.create_run({"goal": "test"})
-        run_id_2 = plain_manager.create_run({"goal": "test"})
+        run_id_1 = plain_manager.create_run({"goal": "test"}).run_id
+        run_id_2 = plain_manager.create_run({"goal": "test"}).run_id
 
         # Two separate run_ids without idempotency.
         assert run_id_1 != run_id_2

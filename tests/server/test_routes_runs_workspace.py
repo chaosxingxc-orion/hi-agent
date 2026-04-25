@@ -87,7 +87,7 @@ def two_user_setup():
     manager = RunManager(max_concurrent=2, queue_size=10)
     ctx_a = _make_ctx(user_id="u1", session_id="s1")
     ctx_b = _make_ctx(user_id="u2", session_id="s2")
-    run_id = manager.create_run({"goal": "user a task"}, workspace=ctx_a)
+    run_id = manager.create_run({"goal": "user a task"}, workspace=ctx_a).run_id
     return manager, run_id, ctx_a, ctx_b
 
 

@@ -44,6 +44,9 @@ class ManagedRun:
     session_id: str = ""
     current_stage: str | None = None
     stage_updated_at: str | None = None
+    idempotency_key: str | None = None
+    outcome: str = "created"  # "created" | "replayed" | "conflict"
+    response_snapshot: str = ""  # non-empty when replayed and original run is complete
 
 
 class RunManager:
@@ -184,13 +187,13 @@ class RunManager:
         self,
         task_contract_dict: dict[str, Any],
         workspace: TenantContext | None = None,
-    ) -> str:
+    ) -> ManagedRun:
         """Create a new run from task contract dict.
 
         When an ``idempotency_store`` is configured and the request carries an
         ``idempotency_key`` field, deduplication is enforced:
 
-        - ``"replayed"``  → returns the existing run_id (no new run created).
+        - ``"replayed"``  → returns a ManagedRun stub with outcome="replayed".
         - ``"conflict"``  → raises ``ValueError("idempotency_conflict")`` so the
           caller can return HTTP 409.
         - ``"created"``   → falls through to normal run creation.
@@ -206,7 +209,10 @@ class RunManager:
             workspace: Optional tenant/user/session context to bind to the run.
 
         Returns:
-            The new (or previously replayed) run_id.
+            A ManagedRun with ``outcome`` set to ``"created"`` or ``"replayed"``.
+            On ``"replayed"``, ``run_id`` is the original run_id and
+            ``response_snapshot`` is the cached response JSON (may be empty when
+            the original run is still in-flight).
 
         Raises:
             ValueError: With message ``"idempotency_conflict"`` when the same
@@ -239,12 +245,22 @@ class RunManager:
                 raise ValueError("idempotency_conflict")
 
             if outcome == "replayed":
-                return record.run_id
+                # Return a lightweight stub so the route can inspect outcome and
+                # response_snapshot without touching the run registry.
+                return ManagedRun(
+                    run_id=record.run_id,
+                    task_contract=task_contract_dict,
+                    outcome="replayed",
+                    idempotency_key=idempotency_key,
+                    response_snapshot=record.response_snapshot,
+                    tenant_id=tenant_id,
+                )
 
             # outcome == "created" — continue with candidate_run_id below.
             run_id = candidate_run_id
         else:
             run_id = str(uuid.uuid4())
+            idempotency_key = None
 
         # --- normal run creation -------------------------------------------
         now = datetime.now(UTC).isoformat()
@@ -256,6 +272,8 @@ class RunManager:
             tenant_id=workspace.tenant_id if workspace else "",
             user_id=workspace.user_id if workspace else "",
             session_id=workspace.session_id if workspace else "",
+            idempotency_key=idempotency_key,
+            outcome="created",
         )
         # --- duplicate task_id check and insertion under the same lock ------
         client_task_id = task_contract_dict.get("task_id", "")
@@ -295,7 +313,7 @@ class RunManager:
                 payload_json=json.dumps(task_contract_dict),
             )
 
-        return run_id
+        return run
 
     # -- internal helpers -----------------------------------------------------
 
@@ -424,6 +442,15 @@ class RunManager:
             with self._lock:
                 self._active_count -= 1
             self._semaphore.release()
+            if (
+                run.idempotency_key is not None
+                and self._idempotency_store is not None
+            ):
+                self._idempotency_store.mark_complete(
+                    run.tenant_id,
+                    run.idempotency_key,
+                    json.dumps(self.to_dict(run)),
+                )
 
     def _execute_run_durable(
         self,
@@ -470,6 +497,15 @@ class RunManager:
             with self._lock:
                 self._active_count -= 1
             self._semaphore.release()
+            if (
+                run.idempotency_key is not None
+                and self._idempotency_store is not None
+            ):
+                self._idempotency_store.mark_complete(
+                    run.tenant_id,
+                    run.idempotency_key,
+                    json.dumps(self.to_dict(run)),
+                )
 
     # -- public API ---------------------------------------------------------
 

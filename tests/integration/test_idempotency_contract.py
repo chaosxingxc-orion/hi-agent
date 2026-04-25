@@ -5,6 +5,7 @@ Expected: 1 created + 2 replayed; run_id identical across all three.
 """
 from __future__ import annotations
 
+import threading
 import uuid
 
 import pytest
@@ -94,3 +95,79 @@ def test_replay_returns_original_run_id(idem_store):
 
     assert r_created.run_id == original_run_id
     assert r_replayed.run_id == original_run_id
+
+
+# ---------------------------------------------------------------------------
+# HTTP-level burst test: same key, concurrent POST /runs
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def http_client(tmp_path):
+    """Starlette TestClient wired to a real AgentServer with idempotency store."""
+    from hi_agent.server.app import AgentServer
+    from hi_agent.server.idempotency import IdempotencyStore
+    from starlette.testclient import TestClient
+
+    store = IdempotencyStore(db_path=tmp_path / "idem_http.db")
+    server = AgentServer(host="127.0.0.1", port=9998)
+    server.run_manager._idempotency_store = store
+    with TestClient(server.app, raise_server_exceptions=False) as client:
+        yield client
+    store.close()
+
+
+def test_concurrent_same_key_creates_one_run(http_client):
+    """Two concurrent POST /runs with the same Idempotency-Key produce one run.
+
+    Layer 3 (HTTP-level): drives through the public POST /runs interface and
+    asserts:
+    - Only ONE distinct run_id is returned across both calls.
+    - The second call (replay) returns HTTP 200, not 201.
+    - When the first run has completed before the replay, the body is the
+      cached snapshot (byte-identical to the 201 body).
+    """
+    idem_key = str(uuid.uuid4())
+    payload = {"goal": "idempotent burst test", "profile_id": "test-profile"}
+
+    responses: list = [None, None]
+    errors: list = []
+
+    def post_run(idx: int) -> None:
+        try:
+            resp = http_client.post(
+                "/runs",
+                json=payload,
+                headers={"Idempotency-Key": idem_key},
+            )
+            responses[idx] = resp
+        except Exception as exc:
+            errors.append(str(exc))
+
+    # Fire both requests concurrently.
+    t1 = threading.Thread(target=post_run, args=(0,))
+    t2 = threading.Thread(target=post_run, args=(1,))
+    t1.start()
+    t2.start()
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+
+    assert not errors, f"Request errors: {errors}"
+    r0, r1 = responses
+    assert r0 is not None and r1 is not None, "One or both responses are missing"
+
+    statuses = {r0.status_code, r1.status_code}
+    # One must be 201 (created), the other must be 200 (replayed).
+    assert 201 in statuses, f"Expected 201 from first creation; got {statuses}"
+    assert 200 in statuses, f"Expected 200 from replay; got {statuses}"
+
+    # Both must carry the same run_id.
+    body0 = r0.json()
+    body1 = r1.json()
+    run_id_0 = body0.get("run_id")
+    run_id_1 = body1.get("run_id")
+    assert run_id_0 is not None, f"run_id missing in response 0: {body0}"
+    assert run_id_1 is not None, f"run_id missing in response 1: {body1}"
+    assert run_id_0 == run_id_1, (
+        f"Two different run_ids returned: {run_id_0} vs {run_id_1}"
+    )

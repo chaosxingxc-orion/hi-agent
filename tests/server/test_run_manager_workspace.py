@@ -22,7 +22,7 @@ def manager():
 
 def test_create_run_binds_workspace(manager):
     ctx = make_ctx()
-    run_id = manager.create_run({"goal": "test"}, workspace=ctx)
+    run_id = manager.create_run({"goal": "test"}, workspace=ctx).run_id
     run = manager.get_run(run_id, workspace=ctx)
     assert run is not None
     assert run.user_id == "u1"
@@ -32,7 +32,7 @@ def test_create_run_binds_workspace(manager):
 def test_get_run_wrong_user_returns_none(manager):
     ctx1 = make_ctx(user_id="u1")
     ctx2 = make_ctx(user_id="u2")
-    run_id = manager.create_run({"goal": "test"}, workspace=ctx1)
+    run_id = manager.create_run({"goal": "test"}, workspace=ctx1).run_id
     assert manager.get_run(run_id, workspace=ctx2) is None
 
 
@@ -49,7 +49,7 @@ def test_list_runs_filters_by_workspace(manager):
 def test_cancel_run_wrong_user_returns_false(manager):
     ctx1 = make_ctx(user_id="u1")
     ctx2 = make_ctx(user_id="u2")
-    run_id = manager.create_run({"goal": "test"}, workspace=ctx1)
+    run_id = manager.create_run({"goal": "test"}, workspace=ctx1).run_id
     result = manager.cancel_run(run_id, workspace=ctx2)
     assert result is False
 
@@ -63,6 +63,6 @@ def test_duplicate_task_id_raises(manager):
 
 def test_run_id_is_uuid4(manager):
     ctx = make_ctx()
-    run_id = manager.create_run({"goal": "test"}, workspace=ctx)
+    run_id = manager.create_run({"goal": "test"}, workspace=ctx).run_id
     parsed = uuid.UUID(run_id, version=4)
     assert str(parsed) == run_id

@@ -119,11 +119,31 @@ async def handle_create_run(request: Request) -> JSONResponse:
     server: Any = request.app.state.agent_server
     manager = server.run_manager
     try:
-        run_id = manager.create_run(body, workspace=ctx)
+        managed_run = manager.create_run(body, workspace=ctx)
     except ValueError as exc:
         if "idempotency_conflict" in str(exc):
             return JSONResponse({"error": str(exc)}, status_code=409)
         return JSONResponse({"error": str(exc)}, status_code=409)
+
+    # --- idempotent replay fast-path -----------------------------------------
+    if managed_run.outcome == "replayed":
+        if managed_run.response_snapshot:
+            try:
+                snapshot_body = json.loads(managed_run.response_snapshot)
+                return JSONResponse(snapshot_body, status_code=200)
+            except (ValueError, json.JSONDecodeError):
+                pass
+        # Original run is still in-flight — return pending notice.
+        return JSONResponse(
+            {
+                "run_id": managed_run.run_id,
+                "status": "pending",
+                "note": "idempotent_replay_in_progress",
+            },
+            status_code=200,
+        )
+
+    run_id = managed_run.run_id
 
     # Wave 8 / P1.2: extract project_id and emit warning header if missing.
     _project_missing = not bool(body.get("project_id", ""))

@@ -21,9 +21,10 @@ class TestRunManagerCreate:
     """Test run creation logic."""
 
     def test_create_returns_run_id(self) -> None:
-        """Creating a run returns a non-empty run_id."""
+        """Creating a run returns a ManagedRun with a non-empty run_id."""
         mgr = RunManager()
-        run_id = mgr.create_run({"goal": "test"})
+        managed = mgr.create_run({"goal": "test"})
+        run_id = managed.run_id
         assert run_id
         assert isinstance(run_id, str)
 
@@ -32,14 +33,14 @@ class TestRunManagerCreate:
         import uuid
 
         mgr = RunManager()
-        run_id = mgr.create_run({"task_id": "my-task-42", "goal": "test"})
+        run_id = mgr.create_run({"task_id": "my-task-42", "goal": "test"}).run_id
         parsed = uuid.UUID(run_id, version=4)
         assert str(parsed) == run_id
 
     def test_create_sets_initial_state(self) -> None:
         """New runs start in 'created' state."""
         mgr = RunManager()
-        run_id = mgr.create_run({"goal": "test"})
+        run_id = mgr.create_run({"goal": "test"}).run_id
         run = mgr.get_run(run_id)
         assert run is not None
         assert run.state == "created"
@@ -53,7 +54,7 @@ class TestRunManagerStartAndQuery:
     def test_start_run_executes(self) -> None:
         """Starting a run transitions through running to completed."""
         mgr = RunManager()
-        run_id = mgr.create_run({"goal": "test"})
+        run_id = mgr.create_run({"goal": "test"}).run_id
 
         def executor(run: ManagedRun) -> str:
             return "done"
@@ -73,7 +74,7 @@ class TestRunManagerStartAndQuery:
     def test_start_run_captures_error(self) -> None:
         """Executor exceptions transition the run to failed state."""
         mgr = RunManager()
-        run_id = mgr.create_run({"goal": "test"})
+        run_id = mgr.create_run({"goal": "test"}).run_id
 
         def bad_executor(run: ManagedRun) -> None:
             raise RuntimeError("boom")
@@ -116,7 +117,7 @@ class TestRunManagerCancel:
     def test_cancel_created_run(self) -> None:
         """Cancelling a created run sets state to cancelled."""
         mgr = RunManager()
-        run_id = mgr.create_run({"goal": "test"})
+        run_id = mgr.create_run({"goal": "test"}).run_id
         assert mgr.cancel_run(run_id) is True
         run = mgr.get_run(run_id)
         assert run is not None
@@ -125,7 +126,7 @@ class TestRunManagerCancel:
     def test_cancel_completed_run_fails(self) -> None:
         """Cancelling a completed run returns False."""
         mgr = RunManager()
-        run_id = mgr.create_run({"goal": "test"})
+        run_id = mgr.create_run({"goal": "test"}).run_id
         mgr.start_run(run_id, lambda r: "ok")
         run = mgr.get_run(run_id)
         assert run is not None
@@ -191,7 +192,7 @@ class TestRunManagerMaxConcurrent:
 
         ids = []
         for i in range(4):
-            rid = mgr.create_run({"task_id": f"r-{i}", "goal": "test"})
+            rid = mgr.create_run({"task_id": f"r-{i}", "goal": "test"}).run_id
             ids.append(rid)
             mgr.start_run(rid, slow_executor)
 
@@ -234,7 +235,7 @@ class TestRunManagerQueue:
 
         ids = []
         for i in range(3):
-            rid = mgr.create_run({"task_id": f"q-{i}", "goal": "test"})
+            rid = mgr.create_run({"task_id": f"q-{i}", "goal": "test"}).run_id
             ids.append(rid)
             mgr.start_run(rid, blocking_executor)
 
@@ -275,7 +276,7 @@ class TestRunManagerQueue:
         ids = []
         # Fill semaphore (1) + queue (2) = 3 accepted, 4th should be rejected.
         for i in range(5):
-            rid = mgr.create_run({"task_id": f"qf-{i}", "goal": "test"})
+            rid = mgr.create_run({"task_id": f"qf-{i}", "goal": "test"}).run_id
             ids.append(rid)
             mgr.start_run(rid, blocking_executor)
 
@@ -302,7 +303,7 @@ class TestRunManagerQueue:
             return "ok"
 
         for i in range(3):
-            rid = mgr.create_run({"task_id": f"pc-{i}", "goal": "test"})
+            rid = mgr.create_run({"task_id": f"pc-{i}", "goal": "test"}).run_id
             mgr.start_run(rid, blocking_executor)
 
         # Give worker time to dequeue first item and block on semaphore for second.
@@ -337,7 +338,7 @@ class TestRunManagerQueue:
             return "ok"
 
         for i in range(4):
-            rid = mgr.create_run({"task_id": f"st-{i}", "goal": "test"})
+            rid = mgr.create_run({"task_id": f"st-{i}", "goal": "test"}).run_id
             mgr.start_run(rid, blocking_executor)
 
         time.sleep(0.5)
@@ -364,11 +365,11 @@ class TestRunManagerQueue:
             results.append(run.run_id)
             return "done"
 
-        rid1 = mgr.create_run({"task_id": "first", "goal": "test"})
+        rid1 = mgr.create_run({"task_id": "first", "goal": "test"}).run_id
         mgr.start_run(rid1, executor)
         time.sleep(0.15)  # let worker pick it up
 
-        rid2 = mgr.create_run({"task_id": "second", "goal": "test"})
+        rid2 = mgr.create_run({"task_id": "second", "goal": "test"}).run_id
         mgr.start_run(rid2, executor)
 
         # second is queued while first is running.
@@ -391,7 +392,7 @@ class TestRunManagerSerialize:
     def test_to_dict(self) -> None:
         """to_dict produces a JSON-safe dictionary."""
         mgr = RunManager()
-        run_id = mgr.create_run({"goal": "test"})
+        run_id = mgr.create_run({"goal": "test"}).run_id
         run = mgr.get_run(run_id)
         assert run is not None
         d = mgr.to_dict(run)

@@ -56,7 +56,8 @@ hi-agent implements idempotent run creation via an SQLite-backed store (WAL mode
 | Condition | HTTP status | Body |
 |-----------|-------------|------|
 | First request with key | `201 Created` | new run |
-| Retry: same key + same body hash | `201 Created` | original run (replayed) |
+| Retry: same key + same body hash (original run complete) | `200 OK` | cached response snapshot (byte-identical to the `201` body) |
+| Retry: same key + same body hash (original run still in-flight) | `200 OK` | `{"run_id": "<id>", "status": "pending", "note": "idempotent_replay_in_progress"}` |
 | Same key + different body | `409 Conflict` | `{"error": "idempotency_conflict"}` |
 
 ### Usage
@@ -90,7 +91,13 @@ HI_AGENT_IDEMPOTENCY_TTL_HOURS=48
 
 ### Replay semantics
 
-A "replayed" response is identical to the original `201 Created` response — it returns the **original** `run_id`. Clients can poll `GET /runs/{run_id}` to observe the run's current state (it may already be `done`).
+A "replayed" response returns HTTP `200 OK` (not `201 Created`) to let clients distinguish a new creation from a replay.
+
+**When the original run has completed**: the body is the cached response snapshot — byte-identical to the original `201` body. Clients that require strict idempotency should compare this body.
+
+**When the original run is still in-flight**: the body is `{"run_id": "<id>", "status": "pending", "note": "idempotent_replay_in_progress"}`. Clients can poll `GET /runs/{run_id}` to observe the run's current state.
+
+In both cases the `run_id` in the replay response is always the **original** `run_id`.
 
 ---
 

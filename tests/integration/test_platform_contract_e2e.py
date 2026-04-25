@@ -440,7 +440,7 @@ def test_pc06_run_state_and_result_status_always_agree() -> None:
         kernel = MockKernel()
         executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
 
-        run_id = manager.create_run({"goal": "alignment check", "constraints": constraints})
+        run_id = manager.create_run({"goal": "alignment check", "constraints": constraints}).run_id
 
         def executor_fn(_run, executor=executor):
             return executor.execute()
@@ -478,7 +478,7 @@ def test_pc06_invalid_result_status_maps_to_failed() -> None:
     from hi_agent.server.run_manager import RunManager
 
     manager = RunManager(max_concurrent=1)
-    run_id = manager.create_run({"goal": "state validation test"})
+    run_id = manager.create_run({"goal": "state validation test"}).run_id
 
     def bad_executor(_run):
         return RunResult(run_id=run_id, status="banana_invalid_status")

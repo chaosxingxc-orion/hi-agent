@@ -83,7 +83,7 @@ def test_get_session_runs_returns_runs(store, manager):
     sid = store.create(tenant_id="t1", user_id="u1")
     # Create a run bound to that session
     ctx_with_sid = TenantContext(tenant_id="t1", user_id="u1", session_id=sid)
-    run_id = manager.create_run({"goal": "test"}, workspace=ctx_with_sid)
+    run_id = manager.create_run({"goal": "test"}, workspace=ctx_with_sid).run_id
     app = make_app(store, manager, ctx)
     client = TestClient(app)
     resp = client.get(f"/sessions/{sid}/runs")

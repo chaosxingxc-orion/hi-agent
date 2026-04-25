@@ -29,7 +29,7 @@ class _FakeCancellationToken:
 def test_cancel_run_sets_state():
     """cancel_run returns True and transitions run to 'cancelled'."""
     manager = RunManager(max_concurrent=1, queue_size=4)
-    run_id = manager.create_run({"goal": "test"})
+    run_id = manager.create_run({"goal": "test"}).run_id
     result = manager.cancel_run(run_id)
     assert result is True
     run = manager.get_run(run_id)
@@ -41,7 +41,7 @@ def test_cancel_run_sets_state():
 def test_cancel_run_signals_registered_token():
     """cancel_run calls .cancel() on a registered CancellationToken."""
     manager = RunManager(max_concurrent=1, queue_size=4)
-    run_id = manager.create_run({"goal": "test"})
+    run_id = manager.create_run({"goal": "test"}).run_id
     # Transition to running so cancel is accepted.
     with manager._lock:
         manager._runs[run_id].state = "running"
@@ -56,7 +56,7 @@ def test_cancel_run_signals_registered_token():
 def test_cancel_run_without_token_still_returns_true():
     """cancel_run succeeds even when no token is registered."""
     manager = RunManager(max_concurrent=1, queue_size=4)
-    run_id = manager.create_run({"goal": "test"})
+    run_id = manager.create_run({"goal": "test"}).run_id
     result = manager.cancel_run(run_id)
     assert result is True
     run = manager.get_run(run_id)
@@ -67,7 +67,7 @@ def test_cancel_run_without_token_still_returns_true():
 def test_cancel_run_already_terminal_returns_false():
     """cancel_run returns False when the run is already in a terminal state."""
     manager = RunManager(max_concurrent=1, queue_size=4)
-    run_id = manager.create_run({"goal": "test"})
+    run_id = manager.create_run({"goal": "test"}).run_id
     with manager._lock:
         manager._runs[run_id].state = "completed"
     result = manager.cancel_run(run_id)
@@ -86,7 +86,7 @@ def test_cancel_run_unknown_id_returns_false():
 def test_register_unregister_token():
     """register_cancellation_token / unregister_cancellation_token are symmetric."""
     manager = RunManager(max_concurrent=1, queue_size=4)
-    run_id = manager.create_run({"goal": "test"})
+    run_id = manager.create_run({"goal": "test"}).run_id
     token = _FakeCancellationToken()
     manager.register_cancellation_token(run_id, token)
     assert manager._active_executor_tokens.get(run_id) is token
