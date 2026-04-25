@@ -207,10 +207,18 @@ def build_gateway_from_config(
         return None
 
     api_format = provider_cfg.get("api_format", "anthropic")
-    # For Anthropic-format providers, prefer anthropic_base_url when present
-    # because AnthropicLLMGateway._post appends /v1/messages itself — using base_url
-    # (which already contains /v1) would produce a double-/v1/ path.
-    if api_format == "anthropic" and provider_cfg.get("anthropic_base_url"):
+    # Env var takes priority (allows structural gate / local override to redirect base URL).
+    # Fall back to anthropic_base_url for Anthropic-format providers (AnthropicLLMGateway
+    # appends /v1/messages itself, so base_url must not include /v1).
+    _env_base_url: str | None = None
+    for _env_name in _provider_base_url_envs(default_provider):
+        _val = os.environ.get(_env_name)
+        if _val:
+            _env_base_url = _val
+            break
+    if _env_base_url is not None:
+        base_url = _env_base_url
+    elif api_format == "anthropic" and provider_cfg.get("anthropic_base_url"):
         base_url = str(provider_cfg["anthropic_base_url"])
     else:
         base_url = _resolve_provider_base_url(default_provider, provider_cfg)

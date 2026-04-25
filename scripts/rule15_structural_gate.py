@@ -91,6 +91,22 @@ def _fake_chat_completion_payload(content: str) -> dict[str, Any]:
     }
 
 
+def _fake_anthropic_message_payload(content: str) -> dict[str, Any]:
+    return {
+        "id": f"msg_{uuid.uuid4().hex}",
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "text", "text": content}],
+        "model": "fake-structural-model",
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {
+            "input_tokens": 8,
+            "output_tokens": max(1, len(content.split())),
+        },
+    }
+
+
 def _fake_content_for_request(request_json: dict[str, Any]) -> str:
     messages = request_json.get("messages", [])
     text_parts: list[str] = []
@@ -166,7 +182,9 @@ class _FakeLLMHandler(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self) -> None:
-        if self.path != "/v1/chat/completions":
+        is_openai = self.path == "/v1/chat/completions"
+        is_anthropic = self.path == "/v1/messages"
+        if not is_openai and not is_anthropic:
             self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -185,7 +203,11 @@ class _FakeLLMHandler(BaseHTTPRequestHandler):
             state.request_count += 1
             request_number = state.request_count
 
-        payload = _fake_chat_completion_payload(_fake_content_for_request(request_json))
+        content = _fake_content_for_request(request_json)
+        if is_anthropic:
+            payload = _fake_anthropic_message_payload(content)
+        else:
+            payload = _fake_chat_completion_payload(content)
         payload["id"] = f"fake-{request_number}"
         if "model" in request_json:
             payload["model"] = request_json["model"]
@@ -207,7 +229,8 @@ def _run_fake_llm_server(port: int) -> Iterator[tuple[FakeLLMState, str]]:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield state, f"http://127.0.0.1:{actual_port}/v1"
+        # No /v1 suffix — AnthropicLLMGateway appends /v1/messages itself.
+        yield state, f"http://127.0.0.1:{actual_port}"
     finally:
         server.shutdown()
         server.server_close()
