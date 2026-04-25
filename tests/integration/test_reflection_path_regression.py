@@ -18,6 +18,12 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
+from hi_agent.contracts import CTSExplorationBudget
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
+from hi_agent.route_engine.acceptance import AcceptancePolicy
+
 import pytest
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
 
@@ -142,6 +148,7 @@ def test_recovery_sync_path_calls_reflect_and_infer(tmp_path: Any, monkeypatch: 
     graph.add_edge("stage_a", "stage_b")
 
     contract = TaskContract(task_id=task_id, goal="F-5 regression test")
+    _emitter = EventEmitter()
     executor = RunExecutor(
         contract,
         MockKernel(strict_mode=False),
@@ -151,6 +158,11 @@ def test_recovery_sync_path_calls_reflect_and_infer(tmp_path: Any, monkeypatch: 
         raw_memory=RawMemoryStore(),
         reflection_orchestrator=orchestrator,
         short_term_store=ShortTermMemoryStore(storage_dir=str(tmp_path), max_sessions=0),
+        event_emitter=_emitter,
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     with contextlib.suppress(Exception):
@@ -159,7 +171,7 @@ def test_recovery_sync_path_calls_reflect_and_infer(tmp_path: Any, monkeypatch: 
     # The sync path (no running loop) must have entered the reflect branch.
     # ReflectionPrompt events are emitted inside the reflect decision block
     # (before reflect_and_infer is called via sync bridge).
-    events = executor.event_emitter.events
+    events = _emitter.events
     reflect_events = [ev for ev in events if ev.event_type == "ReflectionPrompt"]
     assert len(reflect_events) >= 1 or len(calls) >= 1, (
         "The sync reflect path was not entered at all: no ReflectionPrompt event "
@@ -264,6 +276,11 @@ def test_recovery_passes_real_attempt_history(tmp_path: Any, monkeypatch: Any) -
         raw_memory=RawMemoryStore(),
         reflection_orchestrator=orchestrator,
         short_term_store=ShortTermMemoryStore(storage_dir=str(tmp_path), max_sessions=0),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     # Wrap _get_attempt_history on the executor instance to record calls and

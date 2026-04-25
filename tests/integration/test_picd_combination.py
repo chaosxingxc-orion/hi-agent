@@ -30,9 +30,13 @@ import uuid
 from typing import Any
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor, SubRunHandle, SubRunResult
 from hi_agent.task_mgmt.delegation import DelegationConfig, DelegationManager
 from hi_agent.trajectory.stage_graph import StageGraph
@@ -70,6 +74,11 @@ def _make_executor(
         invoker=invoker,
         delegation_manager=delegation_manager,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
 
