@@ -13,6 +13,9 @@ Resolution order:
 1. Explicit ``path`` argument.
 2. ``HI_AGENT_CONFIG_DIR/hi_agent_config.json`` (env var or default config/).
 3. Returns ``{}`` if not found.
+
+Also exposes ``get_posture`` — the current :class:`~hi_agent.config.posture.Posture`
+derived from the ``HI_AGENT_POSTURE`` environment variable.
 """
 
 from __future__ import annotations
@@ -22,7 +25,14 @@ import logging
 import os
 from pathlib import Path
 
+from hi_agent.config.posture import Posture
+
 logger = logging.getLogger(__name__)
+
+
+def get_posture() -> Posture:
+    """Return the current execution posture from HI_AGENT_POSTURE (default: dev)."""
+    return Posture.from_env()
 
 
 def load_runtime_config(path: Path | None = None) -> dict:
