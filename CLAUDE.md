@@ -16,7 +16,7 @@ Architecture reference → `docs/architecture-reference.md`
 
 ## AI Engineering Rules
 
-**Ten rules.** Rules 1–4 are daily-use engineering principles. Rules 5–7 are class-level patterns triggered by resource type. Rules 8–10 are delivery gates. All rules override default habits; CLAUDE.md overrides everything except explicit user instructions.
+**Thirteen rules.** Rules 1–4 are daily-use engineering principles. Rules 5–7 are class-level patterns triggered by resource type. Rules 8–10 are delivery gates. Rules 11–13 are platform-contract standards. All rules override default habits; CLAUDE.md overrides everything except explicit user instructions.
 
 Automated checks: `scripts/check_rules.py` enforces the Language Rule, Rule 4 (three-layer testing, advisory), Rule 5 (asyncio.run sites), Rule 6 (inline fallback pattern) via `.github/workflows/claude-rules.yml`. Hot-path T3 gate enforcement tracked as DF-46.
 
@@ -250,6 +250,93 @@ If leadership explicitly accepts the risk: reclassify as a **Known-Defect Notice
 
 ---
 
+### Rule 11 — Posture-Aware Defaults
+
+**Every config knob, fallback path, and persistence backend declares its default behaviour under three postures: `dev` / `research` / `prod`.**
+
+- `dev` may be permissive: missing scope emits warnings, in-memory backends allowed, schema validation warns and skips.
+- `research` and `prod` default to fail-closed: required scope must be present, persistence must be durable, schemas must be validated, fallbacks must emit metrics.
+
+The posture is set by `HI_AGENT_POSTURE={dev,research,prod}` (default `dev`); `Posture` lives in `hi_agent/config/posture.py`. Use `Posture.from_env()` at call sites — never hard-code the posture.
+
+Tests must cover at least `dev` and `research` paths for any new contract.
+
+**Enforcement:** every new `if posture.is_strict` branch gets a test for both dev-allow and research-reject.
+
+---
+
+### Rule 12 — Contract Spine Completeness
+
+**Every persistent record (run, idempotency, artifact, gate, trace, memory write, KG node, team event, feedback, evolution proposal) must explicitly carry at minimum `tenant_id`, plus the relevant subset of `{user_id, session_id, team_space_id, project_id, profile_id, run_id, parent_run_id, phase_id, attempt_id, capability_name}`.**
+
+A record that cannot answer "which tenant / project / profile / run / phase / capability does this belong to" cannot enter the research/prod default path.
+
+**Pre-commit check:** any new dataclass under `hi_agent/contracts/`, `hi_agent/artifacts/`, `hi_agent/server/{run_store,idempotency,team_run_registry,event_store,gate_*}` must declare a `tenant_id` field unless explicitly marked `# scope: process-internal` with reason.
+
+---
+
+### Rule 13 — Capability Maturity Model
+
+**Status reporting uses L0–L4, not "implemented" or ad-hoc labels.**
+
+| Level | Name | Criterion |
+|---|---|---|
+| L0 | demo code | happy path only, no stable contract |
+| L1 | tested component | unit/integration tests exist, not default path |
+| L2 | public contract | schema/API/state machine stable, docs + tests full |
+| L3 | production default | research/prod default-on, migration + observability |
+| L4 | ecosystem ready | third-party can register/extend/upgrade/rollback without source |
+
+Delivery notices report L-level per capability with evidence (commit SHA + test file + manifest field + posture coverage). Legacy labels (`experimental`=L1, `implemented_unstable`=L1, `public_contract`=L2, `production_ready`=L3) are retired after Wave 9.
+
+A capability cannot move to L3 without: (a) posture-aware default-on, (b) quarantined failure modes, (c) observable fallbacks per Rule 7, (d) doctor-check coverage.
+
+---
+
+## Ownership Tracks
+
+Hi-Agent has four long-term owner tracks. Every PR identifies its primary owner track in the commit body (`Owner: CO|RO|DX|TE|GOV`). A PR touching files outside its owner track requires either a co-owner approval or a GOV-track exception note in the PR body.
+
+### CO — Contract Owner
+
+**Owns:** API schema, profile schema, capability descriptor schema (single canonical), workflow / team spec, artifact schema, status / error model, compatibility policy, posture concept.
+
+**Files:** `hi_agent/contracts/**`, `hi_agent/artifacts/contracts.py`, `hi_agent/artifacts/validators.py`, `hi_agent/capability/registry.py` (canonical `CapabilityDescriptor`), `hi_agent/workflows/contracts.py`, `hi_agent/profiles/schema.json`, `hi_agent/config/profile.py`, `hi_agent/config/posture.py`, `agent_kernel/kernel/contracts.py`, `agent_kernel/service/openapi.py`.
+
+**Rule:** any change that alters a field on a public dataclass, route schema, descriptor, profile schema, or posture default is a CO change and must include a contract-version bump + migration note.
+
+### RO — Runtime Owner
+
+**Owns:** long-running execution, state machines, persistence boundaries.
+
+**Files:** `hi_agent/server/run_*.py`, `idempotency.py`, `team_run_registry.py`, `event_bus.py`, `event_store.py`, `runtime_mode_resolver.py`, `hi_agent/runtime/**`, `hi_agent/runtime_adapter/**`, `hi_agent/gate_protocol.py`, `agent_kernel/runtime/**`, `agent_kernel/kernel/{turn_engine,reasoning_loop,dedupe_store,idempotency_key_policy,retry_executor,minimal_runtime,branch_monitor,replay_fidelity,worker_main}.py`, `agent_kernel/kernel/{task_manager,persistence,recovery}/**`.
+
+**Rule:** process-restart recovery is a first-class test target, not an edge case. In-memory state under research/prod posture is a defect. Any change to a durable store (queue, registry, idempotency) requires a restart-survival test.
+
+### DX — Developer Experience Owner
+
+**Owns:** real-developer journey from first contact through upgrade.
+
+**Files:** `hi_agent/__main__.py`, `hi_agent/cli.py`, `hi_agent/cli_commands/**`, `hi_agent/ops/{doctor_report,diagnostics}.py`, `hi_agent/server/routes_manifest.py`, `hi_agent/config/{validator,readiness,builder,server_builder,*_config_loader,stack,watcher}.py`, `examples/**`, `docs/quickstart*.md`, `docs/extension-guide.md`, `docs/integration-guide.md`, `docs/api-reference.md`, `docs/posture-reference.md`.
+
+**Rule:** no capability reaches L2 (public_contract) without a documented quickstart path, doctor-check coverage, and structured error category in `/runs`. Every error a developer can hit must have an `error_category` and a `next_action`.
+
+### TE — Trust & Evolution Owner
+
+**Owns:** artifacts, evidence, provenance, evaluator/gate, trace, postmortem, calibration, promotion/rollback, audit.
+
+**Files:** `hi_agent/artifacts/{registry,adapters,confidence,ledger}.py`, `hi_agent/server/routes_artifacts.py`, `hi_agent/trace/**`, `hi_agent/observability/{audit,tracing,trace_context,trajectory_exporter,collector,fallback,metrics,notification}.py`, `hi_agent/evolve/**`, `hi_agent/skill/{evolver,observer,recorder}.py`, `hi_agent/ops/release_gate.py`, `agent_kernel/kernel/{event_export,failure_evidence,failure_mappings}.py`, `agent_kernel/kernel/recovery/reflection_builder.py`.
+
+**Rule:** every silent-degradation path in this domain must satisfy Rule 7's four-prong (Countable, Attributable, Inspectable, Gate-asserted). ArtifactLedger corruption is never silently skipped.
+
+### GOV — Governance (cross-track)
+
+**Owns:** `CLAUDE.md`, `docs/platform-capability-matrix.md`, `docs/TODO.md`, `docs/downstream-responses/**`, `.github/workflows/**`, `scripts/check_*.py`, `docs/delivery/**`.
+
+**Rule:** the capability matrix is the single source of truth for status. Delivery notice, TODO, and matrix must agree at every push to main. Any `CLOSED` status requires: (1) L2+ maturity, (2) default path enabled, (3) CI coverage. Any `DECLINED` requires a platform-neutral alternative statement.
+
+---
+
 ## Operational Appendix
 
 ### Narrow-Trigger Rules
@@ -272,6 +359,8 @@ Before accepting any new capability request into hi-agent:
 
 **G3 — Verification gate**: When new code is unavoidable, the request must be accompanied by a Rule 4 three-layer test plan AND a Rule 8 gate run plan before delivery authorization.
 
+**G4 — Posture & Spine gate**: Any capability accepted past G3 must declare (a) default behaviour under `dev`/`research`/`prod` postures, and (b) which contract-spine fields it carries (`tenant_id`, `project_id`, `profile_id`, `run_id`, etc.). A capability that cannot answer both stays at L0–L1 and cannot enter the research/prod default path.
+
 ### Rule Origin Mapping
 
 | New | Absorbed from |
@@ -286,6 +375,9 @@ Before accepting any new capability request into hi-agent:
 | Rule 8 | Old Rule 15 + Rule 18 + Rule 19 (CI plan → DF-46) |
 | Rule 9 | Old Rule 16 |
 | Rule 10 | Old Rule 17 (with old Rule 8 HTTP table as narrow-trigger) |
+| Rule 11 | New — posture-aware defaults (dev/research/prod knob system) |
+| Rule 12 | New — contract spine completeness (tenant/project/profile on every record) |
+| Rule 13 | New — capability maturity model (L0–L4 replaces fuzzy "implemented") |
 
 ---
 

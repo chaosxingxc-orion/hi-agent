@@ -1,76 +1,117 @@
 # hi-agent Platform Capability Matrix
 
-Last updated: 2026-04-25 (H1 Hardening, post-Wave 8)
+Last updated: 2026-04-25 (Wave 9 — Owner-Track Hardening)
 
 ---
 
-## Capability Status Legend
+## Capability Status Legend (Rule 13 — L0–L4 Maturity Model)
 
-| Status | Meaning |
-|---|---|
-| `not_started` | Not implemented |
-| `experimental` | Code exists, no stable tests or contract |
-| `implemented_unstable` | Code + tests exist, contract may change |
-| `public_contract` | Stable interface + full test coverage |
-| `production_ready` | Passed T3 Rule 8 gate |
-
----
-
-## Dimensions
-
-| Dimension | Status | Notes | Tests | Endpoint |
-|---|---|---|---|---|
-| TRACE single-run execution | `public_contract` | RunExecutor + StageOrchestrator; K-defects resolved | tests/integration/test_run_lifecycle*.py | POST /runs |
-| Config-driven extensibility | `public_contract` | HI_AGENT_CONFIG_DIR override; JSON profile loader; hi_agent_config.json; extension-guide walkthrough (H1-Track5) | tests/integration/test_config_dir_resolution.py | GET /tools |
-| Registry-based capability | `implemented_unstable` | CapabilityRegistry + CapabilityDescriptor with provenance_required/source_reference_policy | tests/unit/test_capability_descriptor_extended.py | GET /tools |
-| Long-running task stability | `experimental` | RunQueue typed; SQLiteRunQueue default-on deferred Wave 9; Temporal not wired | - | - |
-| Project-level cross-run state | `experimental` | project_id in TaskContract + memory (Wave 8); workspace L3 path fix | tests/integration/test_project_id*.py | POST /runs {project_id} |
-| Multi-agent team runtime | `experimental` | AgentRole/TeamRun/TeamSharedContext (Wave 8); no ResearchProjectSpec | tests/unit/test_agent_role*.py | - |
-| Evidence / anti-hallucination | `experimental` | ArtifactLedger (Wave 8); CitationValidator; provenance_required | tests/integration/test_artifact_ledger*.py | GET /artifacts |
-| Evolution closed loop | `experimental` | ProjectPostmortem + CalibrationSignal + on_project_completed + human_approval_required (Wave 8) | tests/unit/test_project_postmortem_dataclass.py | - |
-| Knowledge graph abstraction | `experimental` | KnowledgeGraphBackend Protocol + JsonGraphBackend alias (Wave 8) | tests/unit/test_knowledge_graph_backend_protocol.py | GET /knowledge/status |
-| Research workspace model | `not_started` | ResearchProjectSpec deferred Wave 10 (needs Phase B) | - | - |
-| Ops and release governance | `public_contract` | Tenant scope universal (H1-T2); /manifest auth + schema discovery (H1-T3); CI Rule-8 gate enforcement DF-46 closed (H1-T4); check_t3_freshness.py | tests/integration/test_tenant_scope_universal.py, test_manifest_contract.py | GET /health, GET /manifest |
-| Human gate lifecycle | `public_contract` | GatePendingError + continue_from_gate + SQLiteGateStore | tests/integration/test_dangerous_capability*.py | POST /runs/{id}/signal |
-| LLM tier routing | `implemented_unstable` | TierRouter + TierAwareLLMGateway; calibration signal ingest record-only | tests/unit/test_evolve_policy_resolution.py | - |
-| Provenance contract | `experimental` | CapabilityDescriptor + Artifact extended fields; ArtifactLedger | tests/integration/test_artifact_provenance.py | - |
-
----
-
-## Wave 8 Additions (P1–P7)
-
-| Track | Capability | Status |
+| Level | Name | Criterion |
 |---|---|---|
-| P1 | project_id first-class in TaskContract + memory + HTTP | `experimental` |
-| P2 | CapabilityDescriptor provenance/evidence fields + ArtifactLedger | `experimental` |
-| P3 | cancel_run CancellationToken propagation + SQLiteGateStore | `implemented_unstable` |
-| P4 | AgentRole/TeamRun/TeamSharedContext dataclasses | `experimental` |
-| P5 | /manifest endpoint + platform-capability-matrix.md | `implemented_unstable` |
-| P6 | ProjectPostmortem + CalibrationSignal + on_project_completed + human_approval_required | `experimental` |
-| P7 | KnowledgeGraphBackend Protocol + JsonGraphBackend alias | `experimental` |
+| L0 | demo code | happy path only, no stable contract |
+| L1 | tested component | unit/integration tests exist, not default path |
+| L2 | public contract | schema/API/state machine stable, docs + full tests |
+| L3 | production default | research/prod default-on, migration + observability |
+| L4 | ecosystem ready | third-party can register/extend/upgrade/rollback without source |
+
+Legacy labels still shown for backward reference: `experimental`≈L1, `implemented_unstable`≈L1, `public_contract`≈L2, `production_ready`≈L3.
 
 ---
 
-## H1 Hardening Additions (post-Wave 8)
+## Core Platform Dimensions
 
-| Track | Capability | Status |
+| Dimension | Level | Evidence | Tests | Endpoint | Posture Coverage |
+|---|---|---|---|---|---|
+| TRACE single-run execution | L2 | RunExecutor + StageOrchestrator; K-defects resolved; Wave 9 TE-5 adds reasoning trace schema | tests/integration/test_run_lifecycle*.py | POST /runs | dev ✓ research ✓ |
+| Config-driven extensibility | L2 | HI_AGENT_CONFIG_DIR; JSON profile loader with jsonschema validation (CO-8); hi_agent_config.json; extension-guide; quickstart (DX-2) | tests/integration/test_config_dir_resolution.py, test_profile_loader_schema.py | GET /tools | dev ✓ research ✓ (fail-closed) |
+| Registry-based capability | L2 | Canonical CapabilityDescriptor (CO-6 — DF-50 closed); /manifest exposes full descriptor surface (DX-4) | tests/contract/test_capability_descriptor_canonical.py | GET /tools, GET /manifest | dev ✓ |
+| Long-running task stability | L2 | RunQueue posture-default durable (RO-3); RunStore project_id first-class (CO-4); TeamRunRegistry durable (RO-4); process-kill restart test (RO-5 xfail — durable queue not yet wired through full boot) | test_run_queue_posture_default.py, test_team_run_registry_durability.py, test_process_kill_restart.py (xfail) | - | dev ✓ research L2→L3 in Wave 10 |
+| Project-level cross-run state | L2 | project_id in RunRecord + upsert (CO-4); posture-enforced required field (CO-2); list_runs_by_project query | test_run_store_project_id.py, test_project_id_posture.py | POST /runs {project_id} | dev warn research 400 |
+| Contract Spine Completeness | L2 | Artifact + tenant/user/session/team_space fields (CO-5); IdempotencyStore auth-scoped (RO-1/2); Artifact tenant-first query (TE-3) | test_artifact_spine_fields.py, test_idempotency_auth_scope.py, test_artifact_cross_tenant.py | - | dev ✓ research ✓ |
+| Multi-agent team runtime | L1 | TeamRunSpec platform contract (CO-7); TeamRunRegistry durable (RO-4); TeamRun/AgentRole dataclasses | test_team_run_spec.py, test_team_run_registry_durability.py | - | dev ✓ research partial |
+| Evidence / anti-hallucination | L2 | ArtifactLedger: corrupt-line quarantine+metric (TE-1); posture-default durable (TE-2); tenant-first query (TE-3); provenance fields on Artifact | test_artifact_ledger_corruption.py, test_ledger_posture_default.py, test_artifact_cross_tenant.py | GET /artifacts | dev ✓ research ✓ (fail-closed) |
+| Observability & Fallback | L2 | record_fallback() wired to per-kind Prometheus Counters (TE-4): hi_agent_{llm,heuristic,capability,route}_fallback_total | test_fallback_counters.py | GET /metrics | dev ✓ research ✓ |
+| Evolution closed loop | L1 | ProjectPostmortem + CalibrationSignal + on_project_completed; record-only; ReasoningTrace schema + write hook (TE-5) | test_reasoning_trace_schema.py | GET /runs/{id}/reasoning-trace (stub) | dev only |
+| Knowledge graph abstraction | L1 | KnowledgeGraphBackend Protocol + JsonGraphBackend alias | test_knowledge_graph_backend_protocol.py | GET /knowledge/status | dev only |
+| Research workspace model | L0 | ResearchProjectSpec deferred Wave 10; TeamRunSpec available as platform-neutral alternative | - | - | - |
+| Ops and release governance | L2 | Posture enum (CO-1/R11); G1-G4 intake gates; doctor posture checks (DX-3); T3 CI gate (GOV-4); capability matrix L0–L4 (GOV-2) | test_posture.py, test_doctor_posture_checks.py | GET /health, GET /manifest | dev ✓ research ✓ |
+| Human gate lifecycle | L2 | GatePendingError + continue_from_gate + SQLiteGateStore | tests/integration/test_dangerous_capability*.py | POST /runs/{id}/signal | dev ✓ research ✓ |
+| LLM tier routing | L1 | TierRouter + TierAwareLLMGateway; calibration signal ingest record-only | tests/unit/test_evolve_policy_resolution.py | - | dev only |
+| Error contract | L2 | Structured error categories at /runs boundary (CO-9): {error_category, message, retryable, next_action}; catalog in docs/api-reference.md | test_run_error_envelope.py | POST /runs | dev ✓ research ✓ |
+| Developer Experience (DX) | L2 | hi-agent init CLI (DX-1); quickstart doc (DX-2); posture-aware doctor (DX-3); full manifest surface (DX-4); profile path redaction (DX-5); posture-reference.md (DX-7) | test_cli_init.py, test_doctor_posture_checks.py, test_manifest_full_descriptor_surface.py | - | dev ✓ research ✓ |
+
+---
+
+## Wave 8 Additions (P1–P7) — Final Status
+
+| Track | Capability | L-Level | Wave 9 Uplift |
+|---|---|---|---|
+| P1 | project_id first-class in TaskContract + memory + HTTP | L2 | CO-2 (posture-required), CO-4 (RunRecord field), CO-3 (profile_id) |
+| P2 | CapabilityDescriptor provenance/evidence fields + ArtifactLedger | L2 | CO-6 (canonical unification), TE-1/2/3 (ledger hardening) |
+| P3 | cancel_run CancellationToken propagation + SQLiteGateStore | L2 | - |
+| P4 | AgentRole/TeamRun/TeamSharedContext dataclasses | L1 | CO-7 (TeamRunSpec), RO-4 (durable registry) |
+| P5 | /manifest endpoint + platform-capability-matrix.md | L2 | DX-4 (full descriptor surface), GOV-2 (L0–L4 migration) |
+| P6 | ProjectPostmortem + CalibrationSignal + evolution hooks | L1 | TE-5 (reasoning trace schema + write hook) |
+| P7 | KnowledgeGraphBackend Protocol + JsonGraphBackend alias | L1 | - |
+
+---
+
+## H1 Hardening Additions (post-Wave 8) — Final Status
+
+| Track | Capability | L-Level | Wave 9 Uplift |
+|---|---|---|---|
+| H1-T0 | G1/G2/G3/G4 intake decisions doc (governance gate) | L2 | GOV-1 adds G4 Posture & Spine gate to CLAUDE.md |
+| H1-T1 | Idempotency replay 200 + snapshot; mark_complete wired | L2 | RO-1/2/7/9 (auth scope, spine fields, terminal state, race fix) |
+| H1-T2 | Tenant scope universal: all routes | L2 | DX-5 (profile path leak), TE-3 (artifact tenant-first), RO-6 (cross-tenant tests) |
+| H1-T3 | /manifest: version from metadata, per-capability schemas | L2 | DX-4 (full canonical descriptor surface) |
+| H1-T4 | Test honesty; DF-46 CI gate closed | L2 | RO-5/6/8 (real restart, cross-tenant, finished_at) |
+| H1-T5 | HI_AGENT_CONFIG_DIR; JSON profile loader; strict-mode | L2 | CO-8 (jsonschema validation fail-closed), CO-1 (posture enum), R11 |
+
+---
+
+## Wave 9 Additions (CO/RO/DX/TE)
+
+| ID | Capability | L-Level | Commit / Test Evidence |
+|---|---|---|---|
+| CO-1 | Posture enum (dev/research/prod) | L2 | b35af2c; test_posture.py (32 tests) |
+| CO-2/3 | project_id/profile_id posture-required | L2 | CO merge; test_project_id_posture.py (8 tests) |
+| CO-4 | RunRecord project_id first-class | L2 | CO merge; test_run_store_project_id.py (7 tests) |
+| CO-5 | Artifact spine fields (tenant/user/session/team_space) | L2 | CO merge; test_artifact_spine_fields.py (8 tests) |
+| CO-6 | Canonical CapabilityDescriptor (DF-50 closed) | L2 | CO merge; test_capability_descriptor_canonical.py (8 tests) |
+| CO-7 | TeamRunSpec platform-neutral contract | L1 | CO merge; test_team_run_spec.py (10 tests) |
+| CO-8 | Profile jsonschema validation (fail-closed under research/prod) | L2 | CO merge; test_profile_loader_schema.py (6 tests) |
+| CO-9 | Structured HTTP error categories at /runs | L2 | CO merge; test_run_error_envelope.py (3 tests) |
+| RO-1/2 | Auth-scoped idempotency + spine fields | L2 | RO merge; test_idempotency_auth_scope.py |
+| RO-3 | RunQueue posture-default durable | L2 | RO merge; test_run_queue_posture_default.py |
+| RO-4 | TeamRunRegistry SQLite-durable | L2 | RO merge; test_team_run_registry_durability.py |
+| RO-5 | Cross-process restart integration test | L1 | RO merge; test_process_kill_restart.py (xfail — boot path) |
+| RO-6 | Cross-tenant isolation tests | L2 | RO merge; test_cross_tenant_isolation.py |
+| RO-7 | Idempotency terminal-state differentiation | L2 | RO merge; test_idempotency_terminal_state.py |
+| RO-8 | DF-51: finished_at on all terminal paths | L2 | RO merge; test_run_lifecycle_finished_at.py |
+| RO-9 | DF-52: idempotency race fix (atomic insert) | L2 | RO merge; test_idempotency_concurrency.py |
+| DX-1 | hi-agent init --posture CLI | L2 | DX merge; test_cli_init.py |
+| DX-2 | Quickstart doc (30-min research profile) | L2 | DX merge; docs/quickstart-research-profile.md |
+| DX-3 | Doctor posture checks (blocking under research) | L2 | DX merge; test_doctor_posture_checks.py |
+| DX-4 | /manifest full canonical descriptor surface | L2 | DX merge; test_manifest_full_descriptor_surface.py |
+| DX-5 | routes_profiles path leak fix | L2 | DX merge; test_routes_profiles_no_path_leak.py |
+| DX-7 | docs/posture-reference.md | L2 | DX merge; docs/posture-reference.md |
+| TE-1 | ArtifactLedger corrupt-line quarantine + metric | L2 | TE merge; test_artifact_ledger_corruption.py |
+| TE-2 | ArtifactLedger posture-default durable | L2 | TE merge; test_ledger_posture_default.py |
+| TE-3 | Artifact tenant-first query scope | L2 | TE merge; test_artifact_cross_tenant.py |
+| TE-4 | Fallback per-kind Prometheus Counters (Rule 7) | L2 | TE merge; test_fallback_counters.py |
+| TE-5 | ReasoningTrace schema + write hook + deferred route | L1 | TE merge; test_reasoning_trace_schema.py |
+
+---
+
+## What is NOT done in Wave 9 (deferred to Wave 10)
+
+| Item | Reason | Target |
 |---|---|---|
-| H1-T0 | G1/G2/G3 intake decisions doc (governance gate) | `public_contract` |
-| H1-T1 | Idempotency replay 200 + snapshot; mark_complete wired | `public_contract` |
-| H1-T2 | Tenant scope universal: artifacts/knowledge/memory/tools/manifest/skills/cost/replay | `public_contract` |
-| H1-T3 | /manifest: version from metadata, auto-derived endpoints, per-capability schemas | `public_contract` |
-| H1-T4 | Test honesty (5 weak assertions tightened, 4 mock-on-SUT skipped); DF-46 CI gate closed | internal |
-| H1-T5 | HI_AGENT_CONFIG_DIR; JSON profile loader; runtime_config_loader; strict-mode P-1/P-3 | `public_contract` |
-
-## What is NOT done in Wave 8 or H1
-
-- ResearchProjectSpec / TeamRunSpec DSL → Wave 9 (Phase B) — DECLINED as business-layer
-- Force capability outputs into ArtifactLedger → DECLINED as business-layer (research team policy)
-- SQLiteRunQueue as default server path → Wave 9 (Phase C)
-- Temporal as production main path → Wave 9 (Phase C)
-- Research workspace cold/warm/hot model → Wave 10 (Phase D/E)
-- feedback → routing decisions (TierRouter calibration active) → Wave 10 (Phase E)
-- Reflection-path silent-drop (I-6/F-5/F-6) → H2
-- Reasoning trace side-channel (P-2) → H2
-- Full skill A/B eval + promotion event → Wave 10 (Phase E)
-- Full GraphML/Cytoscape export encoding → Wave 9
+| ResearchProjectSpec → TeamRunSpec compile reference | Business-layer compile; platform provides TeamRunSpec | Wave 10 |
+| POST /artifacts write API | Needs CO-5 + TE-3 stable first | Wave 10 |
+| ProjectPostmortem lifecycle integration | Needs TE-2 durable ledger wired | Wave 10 |
+| Budget multi-level enforcement (project/profile/run/stage) | Descriptor fields exist; runtime enforcement deferred | Wave 10 |
+| Knowledge graph durable backend | JsonGraphBackend remains experimental | Wave 10 |
+| Self-evolution gated update + rollback | Needs human-approval design; TE-5 is schema only | Wave 10 |
+| Process-kill restart full boot integration | RO-5 xfail — durable queue not yet wired through server boot | Wave 10 pre-work |
+| Temporal as production main path | Not prioritized | Deferred |
