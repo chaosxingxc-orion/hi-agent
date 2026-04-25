@@ -106,7 +106,9 @@ class TestHandleCreateRun:
         import json
 
         body = json.loads(resp.body)
-        assert body["error"] == "missing_goal"
+        # validate_run_request_or_raise returns structured error_response; check 400 + goal mention
+        assert resp.status_code == 400
+        assert "goal" in str(body)
 
     @pytest.mark.asyncio
     async def test_invalid_json_returns_400(self) -> None:

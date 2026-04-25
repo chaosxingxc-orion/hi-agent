@@ -31,7 +31,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from hi_agent.config.posture import Posture
-from hi_agent.server.error_categories import ErrorCategory, error_response
+from hi_agent.server.error_categories import error_response
 from hi_agent.server.tenant_context import require_tenant_context
 from hi_agent.server.workspace_path import WorkspaceKey
 
@@ -111,14 +111,38 @@ async def handle_create_run(request: Request) -> JSONResponse:
     except (ValueError, json.JSONDecodeError):
         return JSONResponse({"error": "invalid_json"}, status_code=400)
 
-    if "goal" not in body:
-        return JSONResponse({"error": "missing_goal"}, status_code=400)
-
     _idem_header = request.headers.get("Idempotency-Key")
     _idempotency_key_missing = _idem_header is None and "idempotency_key" not in body
     if _idem_header:
         body = dict(body, idempotency_key=_idem_header)
 
+    # --- VALIDATE BEFORE ANY MUTATION (Rule A / HIGH-A1) --------------------
+    _posture = Posture.from_env()
+    _project_missing = not bool(body.get("project_id", ""))
+
+    from hi_agent.server._route_helpers import ValidationError, validate_run_request_or_raise
+
+    try:
+        body = validate_run_request_or_raise(body, ctx, _posture)
+    except ValidationError as exc:
+        return JSONResponse(
+            error_response(
+                exc.category,
+                exc.message,
+                retryable=False,
+                next_action=exc.next_action,
+            ),
+            status_code=exc.status_code,
+        )
+
+    # dev posture: warn when project_id absent (no error, just header)
+    if _project_missing and not _posture.requires_project_id:
+        logger.warning(
+            "POST /runs received without project_id under dev posture; "
+            "run will be unscoped."
+        )
+
+    # --- ALL VALIDATION DONE — proceed with mutation -------------------------
     server: Any = request.app.state.agent_server
     manager = server.run_manager
     try:
@@ -147,52 +171,6 @@ async def handle_create_run(request: Request) -> JSONResponse:
         )
 
     run_id = managed_run.run_id
-
-    # CO-2 / CO-3: posture-driven project_id and profile_id enforcement.
-    _posture = Posture.from_env()
-    _project_missing = not bool(body.get("project_id", ""))
-
-    if _project_missing:
-        if _posture.requires_project_id:
-            return JSONResponse(
-                error_response(
-                    ErrorCategory.SCOPE_REQUIRED,
-                    "project_id is required under research/prod posture",
-                    retryable=False,
-                    next_action="Set project_id in the request body",
-                ),
-                status_code=400,
-            )
-        # dev posture: warn and continue
-        logger.warning(
-            "POST /runs received without project_id under dev posture; "
-            "run will be unscoped."
-        )
-
-    if not body.get("profile_id") and _posture.requires_profile_id:
-        return JSONResponse(
-            error_response(
-                ErrorCategory.SCOPE_REQUIRED,
-                "profile_id is required under research/prod posture",
-                retryable=False,
-                next_action="Set profile_id in the request body",
-            ),
-            status_code=400,
-        )
-    if not body.get("profile_id"):
-        from hi_agent.observability.fallback import record_fallback
-
-        logger.warning(
-            "POST /runs received without profile_id; defaulting to 'default'. "
-            "Downstream should supply profile_id per downstream roadmap (P-3)."
-        )
-        record_fallback(
-            "route",
-            reason="missing_profile_id",
-            run_id=run_id,
-            extra={"default_assigned": "default"},
-        )
-        body["profile_id"] = "default"
 
     # Register run in RunContextManager so /runs/active reflects live runs.
     rcm = getattr(server, "run_context_manager", None)
