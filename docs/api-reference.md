@@ -183,6 +183,75 @@ Cancel a live run.
 
 ---
 
+## Error Response Format
+
+All error responses use the following JSON structure:
+
+```json
+{
+  "error_category": "scope_required",
+  "message": "project_id is required under research posture",
+  "retryable": false,
+  "next_action": "Add project_id to the request body"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `error_category` | string | Machine-readable error category (see table below) |
+| `message` | string | Human-readable explanation |
+| `retryable` | boolean | Whether the client can safely retry the same request |
+| `next_action` | string | Guidance on what to do next |
+
+### Error Category Reference
+
+| `error_category` | HTTP status | When it occurs | Retryable | `next_action` |
+|-----------------|-------------|----------------|-----------|---------------|
+| `scope_required` | 400 | `project_id` or `profile_id` missing under strict posture (`HI_AGENT_PROJECT_ID_REQUIRED=1` or `HI_AGENT_PROFILE_ID_REQUIRED=1`) | No | Add the required field to the request body |
+| `queue_full` | 503 | Run queue at capacity (`run_manager.max_concurrent` concurrent runs active) | Yes | Retry after a short backoff (recommended: exponential, starting at 2 s) |
+| `gateway_unavailable` | 503 | LLM backend unreachable (connection error or timeout on the gateway) | Yes | Check `GET /health`; retry after the backend recovers |
+| `idempotency_pending` | 202 | Same `Idempotency-Key` is already in-flight; replay in progress | No | Poll `GET /runs/{run_id}` to observe progress |
+| `invalid_request` | 400 | Malformed request body, missing required field (`goal`), or invalid field type | No | Fix the request body per the API reference |
+| `internal_error` | 500 | Unexpected server error (bug, unhandled exception) | No | Report the error with the response body; check server logs |
+
+---
+
+## Run Manager Capacity
+
+The run manager controls how many agent runs execute concurrently.
+
+**Default**: 4 concurrent runs.
+
+**Override**:
+```bash
+HI_AGENT_RUN_MANAGER_CAPACITY=8
+```
+
+Or via `hi_agent_config.json`:
+```json
+{
+  "run_manager": {
+    "max_concurrent": 8,
+    "queue_size": 64
+  }
+}
+```
+
+**Effect**: When the number of active runs reaches `max_concurrent`, new run requests enter a queue (up to `queue_size` depth). Runs beyond queue capacity return `503 {"error_category": "queue_full"}`.
+
+**Queue timeout**: If a queued run waits more than 30 seconds without a slot opening, it returns `503 {"error": "queue_timeout"}`.
+
+**Recommended sizing**:
+- For research use: set `max_concurrent` to 2× the number of concurrent LLM API calls your rate limit allows.
+- For prod use: set based on observed p95 run duration and required throughput. `max_concurrent = target_rph / 3600 * p95_seconds`.
+
+Example for a provider with a 10 concurrent call limit:
+```bash
+HI_AGENT_RUN_MANAGER_CAPACITY=5  # 2 LLM calls per run average → 10 total
+```
+
+---
+
 ## Environment Variables
 
 All env vars are optional unless noted. Defaults are shown.

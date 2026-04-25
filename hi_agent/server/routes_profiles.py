@@ -3,11 +3,17 @@
 Endpoints:
     GET /profiles/hi_agent_global/memory/l3  -- Global L3 memory summary
     GET /profiles/hi_agent_global/skills     -- Global skills listing
+
+DX-5: Absolute host filesystem paths are never returned in JSON responses.
+``path_token`` is the last two path components (parent.name/name), which
+identifies the location within the hi-agent data layout without leaking
+the operator's absolute directory structure.
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -30,10 +36,12 @@ async def handle_global_l3_summary(request: Request) -> JSONResponse:
     if mgr is None:
         return JSONResponse({"error": "profile_manager_not_available"}, status_code=503)
     path = mgr.get_global_memory_l3()
+    logger.debug("global_l3_summary: absolute path %s", path)
+    path_token = _path_token(path)
     if not path.exists():
-        return JSONResponse({"nodes": 0, "edges": 0, "path": str(path), "exists": False})
+        return JSONResponse({"nodes": 0, "edges": 0, "path_token": path_token, "exists": False})
     files = list(path.glob("*.json")) if path.is_dir() else []
-    return JSONResponse({"files": len(files), "path": str(path), "exists": True})
+    return JSONResponse({"files": len(files), "path_token": path_token, "exists": True})
 
 
 async def handle_global_skills(request: Request) -> JSONResponse:
@@ -49,10 +57,24 @@ async def handle_global_skills(request: Request) -> JSONResponse:
     if mgr is None:
         return JSONResponse({"error": "profile_manager_not_available"}, status_code=503)
     path = mgr.get_global_skills()
+    logger.debug("global_skills: absolute path %s", path)
+    path_token = _path_token(path)
     if not path.exists():
-        return JSONResponse({"skills": [], "path": str(path)})
+        return JSONResponse({"skills": [], "path_token": path_token})
     skill_dirs = [d.name for d in path.iterdir() if d.is_dir()] if path.is_dir() else []
-    return JSONResponse({"skills": skill_dirs, "path": str(path)})
+    return JSONResponse({"skills": skill_dirs, "path_token": path_token})
+
+
+def _path_token(path: Path) -> str:
+    """Return a non-leaking path token (last two components) for JSON responses.
+
+    Example: /home/user/.hi_agent/global/memory/l3 -> "memory/l3"
+    This identifies the logical location without exposing the absolute host path.
+    """
+    parts = path.parts
+    if len(parts) >= 2:
+        return f"{parts[-2]}/{parts[-1]}"
+    return path.name
 
 
 def _get_profile_dir_manager(request: Request):  # type: ignore[return]

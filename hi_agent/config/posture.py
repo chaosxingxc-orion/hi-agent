@@ -71,6 +71,11 @@ class Posture(StrEnum):
         return self.is_strict
 
     @property
+    def requires_durable_backend(self) -> bool:
+        """Alias: True when any durable backend is required (research/prod)."""
+        return self.is_strict
+
+    @property
     def requires_strict_profile_schema(self) -> bool:
         """Profile JSON parse errors raise ValueError instead of warn-and-skip."""
         return self.is_strict
