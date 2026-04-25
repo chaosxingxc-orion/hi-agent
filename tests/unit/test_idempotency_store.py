@@ -71,10 +71,10 @@ class TestMarkComplete:
         store.reserve_or_replay("t1", "key-001", "h1", "run-001")
         store.mark_complete("t1", "key-001", '{"result": "ok"}')
 
-        # Verify by replaying — record should reflect completed status.
+        # Verify by replaying — record should reflect succeeded status (RO-7: default terminal).
         outcome, record = store.reserve_or_replay("t1", "key-001", "h1", "run-999")
         assert outcome == "replayed"
-        assert record.status == "completed"
+        assert record.status == "succeeded"  # RO-7: default terminal is now "succeeded"
         assert record.response_snapshot == '{"result": "ok"}'
 
 
@@ -86,6 +86,116 @@ class TestMarkFailed:
         outcome, record = store.reserve_or_replay("t1", "key-fail", "hf", "run-x")
         assert outcome == "replayed"
         assert record.status == "failed"
+
+
+class TestSpineFields:
+    """RO-2: project_id, user_id, session_id are persisted in new rows."""
+
+    def test_new_record_stores_spine_fields(self, store):
+        outcome, record = store.reserve_or_replay(
+            tenant_id="t1",
+            idempotency_key="spine-001",
+            request_hash="h1",
+            run_id="run-001",
+            project_id="proj-abc",
+            user_id="user-xyz",
+            session_id="sess-123",
+        )
+        assert outcome == "created"
+        assert record.project_id == "proj-abc"
+        assert record.user_id == "user-xyz"
+        assert record.session_id == "sess-123"
+
+    def test_replayed_record_returns_original_spine_fields(self, store):
+        store.reserve_or_replay(
+            tenant_id="t1",
+            idempotency_key="spine-002",
+            request_hash="h2",
+            run_id="run-original",
+            project_id="proj-orig",
+            user_id="user-orig",
+            session_id="sess-orig",
+        )
+        outcome, record = store.reserve_or_replay(
+            tenant_id="t1",
+            idempotency_key="spine-002",
+            request_hash="h2",
+            run_id="run-retry",
+            project_id="proj-retry",
+            user_id="user-retry",
+            session_id="sess-retry",
+        )
+        assert outcome == "replayed"
+        # Original record fields are preserved.
+        assert record.project_id == "proj-orig"
+        assert record.user_id == "user-orig"
+        assert record.session_id == "sess-orig"
+
+    def test_spine_fields_default_to_empty_string(self, store):
+        outcome, record = store.reserve_or_replay(
+            tenant_id="t2",
+            idempotency_key="spine-003",
+            request_hash="h3",
+            run_id="run-003",
+        )
+        assert outcome == "created"
+        assert record.project_id == ""
+        assert record.user_id == ""
+        assert record.session_id == ""
+
+    def test_mark_complete_with_terminal_state(self, store):
+        """RO-7: mark_complete stores the exact terminal_state in status."""
+        store.reserve_or_replay("t1", "tc-001", "h1", "run-001")
+        store.mark_complete("t1", "tc-001", '{"ok": true}', terminal_state="cancelled")
+
+        outcome, record = store.reserve_or_replay("t1", "tc-001", "h1", "run-999")
+        assert outcome == "replayed"
+        assert record.status == "cancelled"
+
+    def test_mark_complete_defaults_to_succeeded(self, store):
+        store.reserve_or_replay("t1", "tc-002", "h2", "run-002")
+        store.mark_complete("t1", "tc-002", '{"ok": true}')
+
+        _, record = store.reserve_or_replay("t1", "tc-002", "h2", "run-999")
+        assert record.status == "succeeded"
+
+    def test_existing_db_migration_adds_spine_columns(self, tmp_path):
+        """RO-2: _migrate() adds missing columns to pre-existing databases."""
+        import sqlite3
+
+        db_file = tmp_path / "legacy.db"
+        # Create a legacy schema without spine columns.
+        conn = sqlite3.connect(str(db_file))
+        conn.execute(
+            "CREATE TABLE idempotency_records ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "tenant_id TEXT NOT NULL, "
+            "idempotency_key TEXT NOT NULL, "
+            "request_hash TEXT NOT NULL, "
+            "run_id TEXT NOT NULL, "
+            "status TEXT NOT NULL DEFAULT 'pending', "
+            "response_snapshot TEXT NOT NULL DEFAULT '', "
+            "created_at REAL NOT NULL, "
+            "updated_at REAL NOT NULL, "
+            "expires_at REAL NOT NULL, "
+            "UNIQUE (tenant_id, idempotency_key)"
+            ")"
+        )
+        conn.commit()
+        conn.close()
+
+        # Opening IdempotencyStore should run _migrate() without error.
+        store2 = IdempotencyStore(db_path=db_file)
+        outcome, record = store2.reserve_or_replay(
+            tenant_id="t1",
+            idempotency_key="migrated-key",
+            request_hash="h1",
+            run_id="run-001",
+            project_id="proj-migrated",
+        )
+        assert outcome == "created"
+        assert record.project_id == "proj-migrated"
+        store2.close()
 
 
 class TestHashPayload:

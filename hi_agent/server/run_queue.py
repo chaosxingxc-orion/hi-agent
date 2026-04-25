@@ -10,10 +10,34 @@ Follows the same code style as ``SQLiteRunStore`` and
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 import time
 from pathlib import Path
+
+
+def _resolve_db_path(db_path: str | None) -> str:
+    """RO-3: resolve RunQueue db_path based on posture when caller passes None.
+
+    - dev posture  → ":memory:" (no durability required)
+    - research/prod → file path from HI_AGENT_DATA_DIR env var, or
+      "./hi_agent_data/run_queue.sqlite" as default.
+    """
+    if db_path is not None:
+        return db_path
+    # Import here to avoid circular import at module load time.
+    try:
+        from hi_agent.config.posture import Posture
+
+        posture = Posture.from_env()
+        if not posture.requires_durable_queue:
+            return ":memory:"
+    except Exception:
+        return ":memory:"
+
+    data_dir = os.environ.get("HI_AGENT_DATA_DIR", "./hi_agent_data")
+    return str(Path(data_dir) / "run_queue.sqlite")
 
 
 class RunQueue:
@@ -41,23 +65,33 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
 
     def __init__(
         self,
-        db_path: str = ":memory:",
+        db_path: str | None = None,
         lease_timeout_seconds: float = 300.0,
     ) -> None:
         """Open (or create) the run queue database.
 
+        RO-3: When ``db_path`` is ``None`` (the default), the path is resolved
+        from the current posture:
+        - dev  → ``:memory:`` (ephemeral)
+        - research/prod → file-backed path from ``HI_AGENT_DATA_DIR`` (or
+          ``./hi_agent_data/run_queue.sqlite`` as fallback).
+
         Args:
-            db_path: Filesystem path or ``":memory:"`` for an in-memory DB.
+            db_path: Explicit filesystem path, ``":memory:"``, or ``None``
+                to auto-resolve from posture.
             lease_timeout_seconds: Seconds before an uncompleted lease expires
                 and the run is eligible for re-claiming.
         """
         self._lease_timeout = lease_timeout_seconds
         self._lock = threading.Lock()
 
-        if db_path != ":memory:":
-            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        resolved = _resolve_db_path(db_path)
+        self.db_path = resolved  # expose for inspection in tests (RO-3)
 
-        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        if resolved != ":memory:":
+            Path(resolved).parent.mkdir(parents=True, exist_ok=True)
+
+        self._conn = sqlite3.connect(resolved, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(self._CREATE_TABLE)
         self._conn.execute(self._CREATE_INDEX)
