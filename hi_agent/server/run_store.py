@@ -30,6 +30,7 @@ class RunRecord:
     updated_at: float
     user_id: str = "__legacy__"  # workspace owner; "__legacy__" for pre-migration rows
     session_id: str = "__legacy__"  # workspace session; "__legacy__" for pre-migration rows
+    project_id: str = ""  # project scope; empty for pre-migration / unscoped rows
 
 
 class SQLiteRunStore:
@@ -128,6 +129,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             error_summary=row[10],
             created_at=row[11],
             updated_at=row[12],
+            project_id=row[13] if len(row) > 13 else "",
         )
 
     # -- public API ----------------------------------------------------------
@@ -143,8 +145,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                 "INSERT OR REPLACE INTO run_records "
                 "(run_id, tenant_id, user_id, session_id, task_contract_json, status, priority, "
                 "attempt_count, cancellation_flag, result_summary, error_summary, "
-                "created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "created_at, updated_at, project_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.run_id,
                     record.tenant_id,
@@ -159,6 +161,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                     record.error_summary,
                     record.created_at,
                     record.updated_at,
+                    record.project_id,
                 ),
             )
             self._conn.commit()
@@ -176,7 +179,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cur = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at "
+                "error_summary, created_at, updated_at, project_id "
                 "FROM run_records WHERE run_id = ?",
                 (run_id,),
             )
@@ -196,7 +199,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cur = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at "
+                "error_summary, created_at, updated_at, project_id "
                 "FROM run_records WHERE tenant_id = ? ORDER BY created_at ASC",
                 (tenant_id,),
             )
@@ -221,7 +224,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             row = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at "
+                "error_summary, created_at, updated_at, project_id "
                 "FROM run_records WHERE run_id=? AND tenant_id=? AND user_id=? AND session_id=?",
                 (run_id, tenant_id, user_id, session_id),
             ).fetchone()
@@ -328,6 +331,28 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         if row is None:
             return False
         return bool(row[0])
+
+    def list_runs_by_project(self, tenant_id: str, project_id: str) -> list[RunRecord]:
+        """Return all run records for a tenant scoped to a project.
+
+        Args:
+            tenant_id: Tenant whose runs to retrieve.
+            project_id: Project scope to filter by.
+
+        Returns:
+            List of RunRecord instances ordered by created_at ascending.
+        """
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
+                "status, priority, attempt_count, cancellation_flag, result_summary, "
+                "error_summary, created_at, updated_at, project_id "
+                "FROM run_records WHERE tenant_id = ? AND project_id = ? "
+                "ORDER BY created_at ASC",
+                (tenant_id, project_id),
+            )
+            rows = cur.fetchall()
+        return [self._row_to_record(r) for r in rows]
 
     def close(self) -> None:
         """Close the underlying database connection."""
