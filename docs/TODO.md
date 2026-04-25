@@ -1,6 +1,6 @@
 # hi-agent Engineering TODO
 
-Last updated: 2026-04-25 (H2 wave started)
+Last updated: 2026-04-25 (Wave 9 — Owner-Track Hardening DONE)
 
 ## DONE (Wave 1-4, SA-1..SA-8, 2026-04-22/24)
 
@@ -15,19 +15,6 @@ Last updated: 2026-04-25 (H2 wave started)
 - Platform positioning docs, Rule 10 response (WS-5)
 - [x] Round-8 downstream response written (`docs/hi-agent-optimization-response-2026-04-15-round8.md`) — 2026-04-24
 
-## PENDING — Phase 2 (P-1, P-3, P-5 Design)
-
-- P-1 Provenance: `RawMemoryEntry.provenance` field, `CapabilitySpec.source_reference`
-- P-3 Cross-Run Project aggregation: `project_id` scope model design
-- P-5 Confidence scoring: `Artifact.confidence: float` field
-- docs/specs/provenance-spec.md (design draft)
-
-## PENDING — Phase 3 (P-4, P-6, P-7)
-
-- P-4 Dynamic re-planning API: `StageDirective(skip_to, insert_stage)`
-- P-6 KG inference: transitive query + conflict detection on LongTermMemoryGraph (JSON)
-- P-7 Feedback path: `submit_run_feedback()` → EvolveEngine
-
 ## DONE (Wave H1, DF-46, 2026-04-25)
 
 - [x] DF-46 CI gate enforcement: scripts/check_t3_freshness.py + .github/workflows/claude-rules.yml step — 2026-04-25
@@ -41,17 +28,83 @@ Last updated: 2026-04-25 (H2 wave started)
 - [x] **C2/C3** `routes_profiles.py` tenant scope + Rule 7 observability
 - [x] **K-13** PI-C + PI-D combination test (`tests/integration/test_picd_combination.py`)
 
-## DEFERRED — DF-50
+## DONE (Wave 9 — Owner-Track Hardening, 2026-04-25)
 
-- **DF-50** `CapabilityDescriptor` schema duplication: `hi_agent/capability/registry.py:14-33` and `hi_agent/capability/adapters/descriptor_factory.py:9-35` have different schemas. Defer to consolidation refactor (H3 candidate).
+Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2026-04-25.md` and H1 review:
 
-## OPEN — H2 First-Run Concurrency Gate Findings (2026-04-25)
+### Contract Owner (CO) track — CLOSED
 
-Discovered when running concurrency gate for the first time (H1 never ran it):
+- [x] **F5/CO-1** Posture enum (dev/research/prod) — `hi_agent/config/posture.py`; `test_posture.py` (32 tests); commit b35af2c
+- [x] **F1/CO-2** project_id posture-required (research/prod → 400, dev → warning header) — `routes_runs.py`; `test_project_id_posture.py`
+- [x] **CO-3** profile_id posture-required — `routes_runs.py`; `test_project_id_posture.py`
+- [x] **F2/CO-4** RunRecord project_id first-class + orphan column closed in SQLiteRunStore — `run_store.py`; `test_run_store_project_id.py` (7 tests)
+- [x] **F4/CO-5** Artifact spine fields (tenant_id, user_id, session_id, team_space_id) — `artifacts/contracts.py`; `test_artifact_spine_fields.py` (8 tests)
+- [x] **F6/DF-50/CO-6** CapabilityDescriptor unified — registry.py canonical, descriptor_factory.py converted to factory fn; `test_capability_descriptor_canonical.py` (8 tests)
+- [x] **F16/CO-7** TeamRunSpec platform-neutral contract — `contracts/team_runtime.py`; `test_team_run_spec.py` (10 tests)
+- [x] **F8/CO-8** Profile jsonschema validation fail-closed under research/prod — `profiles/loader.py` + `profiles/schema.json`; `test_profile_loader_schema.py` (6 tests)
+- [x] **CO-9** Structured HTTP error categories at /runs boundary — `server/error_categories.py`; `test_run_error_envelope.py` (3 tests)
 
-- **DF-51** `finished_at` is `null` on failed runs — `run_manager.py` does not populate `finished_at` when a run fails due to `queue_full` or other non-exception terminal states. Affects observability and Rule 7 lifecycle completeness.
-- **DF-52** Idempotency race condition under concurrent load — 5 concurrent requests with the same `Idempotency-Key` each created a distinct run (5 run_ids, 5 × 201). The idempotency store write is not atomic under concurrent requests. Affects HTTP contract correctness.
-- **DF-53** Run manager capacity=4 limits concurrent gate — `HI_AGENT_RUN_MANAGER_CAPACITY` defaults to 4; 20 concurrent runs overflow to `queue_full` failures. Not a defect per se but limits the concurrency gate's meaningful pass criteria. Document default and override in `docs/api-reference.md`.
+### Runtime Owner (RO) track — CLOSED
+
+- [x] **F3/RO-1** IdempotencyStore auth-scoped (tenant from workspace, not body) — `idempotency.py`; `test_idempotency_auth_scope.py`
+- [x] **RO-2** Idempotency record binds project_id/user_id/session_id — `idempotency.py`
+- [x] **F12/RO-3** RunQueue posture-default durable (SQLite under research/prod) — `run_queue.py`; `test_run_queue_posture_default.py`
+- [x] **F11/RO-4** TeamRunRegistry SQLite-durable (in-memory dev only) — `team_run_registry.py`; `test_team_run_registry_durability.py`
+- [x] **F15/RO-5** Cross-process restart integration test (xfail — boot path not yet fully wired) — `test_process_kill_restart.py`
+- [x] **F15/RO-6** Cross-tenant isolation tests — `test_cross_tenant_isolation.py`
+- [x] **RO-7** Idempotency terminal-state differentiation — `run_manager.py`; `test_idempotency_terminal_state.py`
+- [x] **DF-51/RO-8** finished_at populated on all terminal paths — `run_manager.py`; `test_run_lifecycle_finished_at.py`
+- [x] **DF-52/RO-9** Idempotency atomic insert (UNIQUE-constraint race fix) — `idempotency.py`; `test_idempotency_concurrency.py`
+
+### Developer Experience (DX) track — CLOSED
+
+- [x] **F7/DX-1** hi-agent init --posture CLI scaffolds config dir — `cli.py` + `cli_commands/init.py`; `test_cli_init.py`
+- [x] **F17/DX-2** docs/quickstart-research-profile.md (30-min first run guide) — `docs/quickstart-research-profile.md`
+- [x] **DX-3** Doctor posture checks (blocking under research) — `ops/diagnostics.py`; `test_doctor_posture_checks.py`
+- [x] **F13/DX-4** /manifest full canonical descriptor surface — `routes_manifest.py`; `test_manifest_full_descriptor_surface.py`
+- [x] **F9/DX-5** routes_profiles path leak fix (path_token not absolute path) — `routes_profiles.py`; `test_routes_profiles_no_path_leak.py`
+- [x] **DX-6** Error category catalog in docs/api-reference.md — `docs/api-reference.md`
+- [x] **DX-7** docs/posture-reference.md (posture defaults per capability) — `docs/posture-reference.md`
+- [x] **DF-53/DX-8** HI_AGENT_RUN_MANAGER_CAPACITY documented in api-reference.md
+
+### Trust & Evolution (TE) track — CLOSED
+
+- [x] **F10/TE-1** ArtifactLedger corrupt-line quarantine + metric + WARNING — `artifacts/ledger.py`; `test_artifact_ledger_corruption.py`
+- [x] **TE-2** ArtifactLedger posture-default durable — `artifacts/registry.py`; `test_ledger_posture_default.py`
+- [x] **TE-3** Artifact tenant-first query scope (cross-tenant → 404) — `routes_artifacts.py`; `test_artifact_cross_tenant.py`
+- [x] **F14/TE-4** Fallback per-kind Prometheus Counters (Rule 7 four-prong) — `observability/fallback.py`; `test_fallback_counters.py`
+- [x] **TE-5** ReasoningTrace schema + write hook + deferred query route — `contracts/reasoning_trace.py`; `test_reasoning_trace_schema.py`
+
+### Governance (GOV) track — CLOSED
+
+- [x] **GOV-1** CLAUDE.md restructured — Ownership Tracks, R11/R12/R13, G4 gate, owner-track table — commit f768dc4
+- [x] **GOV-2** docs/platform-capability-matrix.md migrated to L0–L4 model — commit f768dc4
+- [x] **GOV-3** docs/TODO.md updated — all Wave 9 findings closed — (this commit)
+- [x] **GOV-4** T3 freshness hard CI gate — scripts/check_t3_freshness.py + .github/workflows/claude-rules.yml (already in H1 wave, confirmed active)
+- [x] **GOV-5** Wave 9 delivery notice — `docs/downstream-responses/2026-04-25-wave9-delivery-notice.md` (pending)
+
+## PENDING — Phase 2 (deferred from Wave 9)
+
+- P-1 Provenance: `RawMemoryEntry.provenance` field, `CapabilitySpec.source_reference`
+- P-3 Cross-Run Project aggregation: `project_id` scope model design
+- P-5 Confidence scoring: `Artifact.confidence: float` field
+- docs/specs/provenance-spec.md (design draft)
+
+## PENDING — Phase 3 (P-4, P-6, P-7)
+
+- P-4 Dynamic re-planning API: `StageDirective(skip_to, insert_stage)`
+- P-6 KG inference: transitive query + conflict detection on LongTermMemoryGraph (JSON)
+- P-7 Feedback path: `submit_run_feedback()` → EvolveEngine
+
+## OPEN — Wave 10 Candidates (deferred from Wave 9)
+
+- **RO-5 boot path**: Process-kill restart xfail — durable RunQueue not yet wired through `app.py` server boot; full posture-aware boot requires server startup changes
+- **POST /artifacts write API**: Needs CO-5 + TE-3 stable first (now satisfied; Wave 10 P1)
+- **ProjectPostmortem lifecycle integration**: Needs TE-2 durable ledger wired (now satisfied; Wave 10)
+- **Budget multi-level enforcement (project/profile/run/stage)**: Descriptor fields exist; runtime enforcement deferred
+- **Knowledge graph durable backend**: JsonGraphBackend remains experimental
+- **Self-evolution gated update + rollback**: Needs human-approval design; TE-5 is schema only
+- **ResearchProjectSpec → TeamRunSpec compile reference**: CO-7 introduces TeamRunSpec; downstream compile is research team's
 
 ## WARNING DEBT (low priority)
 
