@@ -1,6 +1,6 @@
 # hi-agent Engineering TODO
 
-Last updated: 2026-04-25
+Last updated: 2026-04-25 (H2 wave started)
 
 ## DONE (Wave 1-4, SA-1..SA-8, 2026-04-22/24)
 
@@ -32,11 +32,18 @@ Last updated: 2026-04-25
 
 - [x] DF-46 CI gate enforcement: scripts/check_t3_freshness.py + .github/workflows/claude-rules.yml step — 2026-04-25
 
-## DEFERRED — H2 Hardening Pass 2
+## IN-FLIGHT — H2 Hardening Pass 2 (2026-04-25)
 
-- **DF-47** I-6/F-5/F-6 reflection-path silent-drop family (`ShortTermMemoryStore.save()` drops reflection session IDs; `reflect_and_infer` skipped in async context; `attempts=[]` hardcoded). Pairs with P3-2 TierRouter.calibrate (W10).
-- **DF-48** P-2 reasoning trace expansion — CapabilityDescriptor + runner reasoning field exposure. Larger capability-layer expansion, bundling with H1 violates Rule 2 anti-bundle.
-- **DF-49** Rule 6 inline-fallback sweep — ~20 `or DefaultClass()` patterns in `runner.py`, `evolve/engine.py`, `task_mgmt/scheduler.py`, `knowledge/knowledge_manager.py`. Dedicated Rule 6 sweep wave.
+- **DF-47** I-6/F-5/F-6 reflection-path — code is **CORRECT AT HEAD** (`recovery_coordinator.py:357-386`); H2-T4 adds regression test pins (`test_reflection_path_regression.py`).
+- **DF-48** P-2 reasoning trace side-channel — code is **IMPLEMENTED AT HEAD** (`runner_stage.py:84,90,104,110` + `short_term.py:323`); H2-T4 adds persistence regression test (`test_reasoning_trace_persistence.py`).
+- **DF-49** Rule 6 inline-fallback sweep — 12 violations confirmed in `runner.py` (5), `evolve/engine.py` (3), `task_mgmt/scheduler.py` (2), `knowledge/knowledge_manager.py` (2); H2-T3 sweeps all.
+- **C1** Broken test collection import (`test_skill_runtime_factory.py:10`) — H2-T1.
+- **C2/C3** `routes_profiles.py` missing tenant scope + silent except — H2-T2.
+- **K-13** PI-C + PI-D combination test — H2-T6.
+
+## DEFERRED — DF-50
+
+- **DF-50** `CapabilityDescriptor` schema duplication: `hi_agent/capability/registry.py:14-33` and `hi_agent/capability/adapters/descriptor_factory.py:9-35` have different schemas. Defer to consolidation refactor (H3 candidate).
 
 ## WARNING DEBT (low priority)
 
