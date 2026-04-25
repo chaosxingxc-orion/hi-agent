@@ -61,8 +61,20 @@ class TaskScheduler:
         """Initialize TaskScheduler."""
         self._tasks: dict[str, TaskHandle] = {}
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
-        self._communicator = communicator or TaskCommunicator()
-        self._monitor = monitor or TaskMonitor()
+        if communicator is None:
+            raise ValueError(
+                "TaskScheduler.communicator must be injected by the builder — "
+                "unscoped TaskCommunicator is not permitted (Rule 6). "
+                "Pass communicator=TaskCommunicator() explicitly."
+            )
+        self._communicator = communicator
+        if monitor is None:
+            raise ValueError(
+                "TaskScheduler.monitor must be injected by the builder — "
+                "unscoped TaskMonitor is not permitted (Rule 6). "
+                "Pass monitor=TaskMonitor() explicitly."
+            )
+        self._monitor = monitor
         self._lock = threading.Lock()
         self._step_count: int = 0
         self._default_execute_fn: Callable | None = None

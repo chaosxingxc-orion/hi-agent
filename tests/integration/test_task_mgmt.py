@@ -203,7 +203,7 @@ def _make_diamond_graph() -> TrajectoryGraph:
 class TestSchedulerLoadGraph:
     def test_load_graph_creates_handles(self) -> None:
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
         assert len(sched._tasks) == 3
         assert "A" in sched._tasks
@@ -212,7 +212,7 @@ class TestSchedulerLoadGraph:
 
     def test_load_graph_resolves_dependencies(self) -> None:
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
         assert sched._tasks["A"].dependencies == []
         assert sched._tasks["B"].dependencies == ["A"]
@@ -224,7 +224,7 @@ class TestSchedulerLoadGraph:
 class TestSchedulerReadyTasks:
     def test_get_ready_respects_deps(self) -> None:
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
 
         ready = sched.get_ready_tasks()
@@ -233,7 +233,7 @@ class TestSchedulerReadyTasks:
 
     def test_ready_after_dep_completed(self) -> None:
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
 
         sched._tasks["A"].status = TaskStatus.COMPLETED
@@ -245,7 +245,7 @@ class TestSchedulerReadyTasks:
 class TestSchedulerExecution:
     def test_schedule_without_execute_fn_raises(self) -> None:
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
         with pytest.raises(RuntimeError, match="requires execute_fn"):
             sched.schedule()
@@ -258,7 +258,7 @@ class TestSchedulerExecution:
             order.append(task.task_id)
             return f"result_{task.task_id}"
 
-        sched = TaskScheduler(max_workers=1)
+        sched = TaskScheduler(max_workers=1, communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g, execute_fn=execute)
         result = sched.schedule()
 
@@ -276,7 +276,7 @@ class TestSchedulerExecution:
                 executed.append(task.task_id)
             return f"result_{task.task_id}"
 
-        sched = TaskScheduler(max_workers=4)
+        sched = TaskScheduler(max_workers=4, communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g, execute_fn=execute)
         result = sched.schedule()
 
@@ -289,7 +289,7 @@ class TestSchedulerExecution:
 
     def test_cancel_task(self) -> None:
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
 
         sched.cancel_task("B", reason="not needed")
@@ -310,7 +310,7 @@ class TestSchedulerExecution:
                 raise RuntimeError("always fail")
             return "ok"
 
-        sched = TaskScheduler(max_workers=1)
+        sched = TaskScheduler(max_workers=1, communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g, execute_fn=execute)
         result = sched.schedule(max_steps=5)
 
@@ -325,7 +325,7 @@ class TestSchedulerExecution:
                 raise RuntimeError("fail B")
             return "ok"
 
-        sched = TaskScheduler(max_workers=1)
+        sched = TaskScheduler(max_workers=1, communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g, execute_fn=execute)
         # Set max_retries to 0 so B fails immediately
         sched._tasks["B"].max_retries = 0
@@ -339,7 +339,7 @@ class TestSchedulerExecution:
 class TestSchedulerYieldResume:
     def test_yield_task_marks_yielded(self) -> None:
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
 
         sched._tasks["A"].status = TaskStatus.RUNNING
@@ -355,7 +355,7 @@ class TestSchedulerYieldResume:
     def test_yield_triggers_blocker_scheduling(self) -> None:
         """When a task yields blocked_by=['C'], C should remain PENDING (schedulable)."""
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
 
         sched._tasks["A"].status = TaskStatus.RUNNING
@@ -366,7 +366,7 @@ class TestSchedulerYieldResume:
 
     def test_resume_task_restores_and_marks_ready(self) -> None:
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
 
         sched._tasks["A"].status = TaskStatus.YIELDED
@@ -382,7 +382,7 @@ class TestSchedulerYieldResume:
 
     def test_check_unblock_resumes_dependent(self) -> None:
         g = _make_chain_graph()
-        sched = TaskScheduler()
+        sched = TaskScheduler(communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g)
 
         # Simulate: B is yielded waiting for A
@@ -416,7 +416,7 @@ class TestSchedulerYieldResume:
                     pass
             return f"done_{task.task_id}"
 
-        sched = TaskScheduler(max_workers=2)
+        sched = TaskScheduler(max_workers=2, communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g, execute_fn=execute)
         result = sched.schedule()
 
@@ -433,7 +433,7 @@ class TestSchedulerYieldResumeManual:
             ["A", "B", "C"],
             [("A", "B"), ("A", "C")],
         )
-        sched = TaskScheduler(max_workers=1)
+        sched = TaskScheduler(max_workers=1, communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g, execute_fn=lambda t: f"result_{t.task_id}")
 
         # Complete A first
@@ -735,6 +735,7 @@ class TestIntegration:
         sched = TaskScheduler(
             max_workers=1,
             communicator=comm,
+            monitor=TaskMonitor(),
         )
         sched.load_graph(g, execute_fn=lambda t: f"done_{t.task_id}")
         result = sched.schedule()
@@ -748,7 +749,7 @@ class TestIntegration:
         """Monitor detects stuck tasks during scheduling."""
         mon = TaskMonitor(heartbeat_timeout_seconds=0)
         g = _make_chain_graph()
-        sched = TaskScheduler(max_workers=1, monitor=mon)
+        sched = TaskScheduler(max_workers=1, communicator=TaskCommunicator(), monitor=mon)
         sched.load_graph(g, execute_fn=lambda t: f"done_{t.task_id}")
 
         # Run the schedule
@@ -800,7 +801,7 @@ class TestIntegration:
                 results[task.task_id] = val
             return val
 
-        sched = TaskScheduler(max_workers=4)
+        sched = TaskScheduler(max_workers=4, communicator=TaskCommunicator(), monitor=TaskMonitor())
         sched.load_graph(g, execute_fn=execute)
         result = sched.schedule()
 
