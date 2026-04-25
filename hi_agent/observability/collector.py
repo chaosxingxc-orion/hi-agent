@@ -102,6 +102,12 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Fallback events recorded with run_id='system' (no run scope).",
     ),
+    # TE-1: corrupt lines encountered while loading the artifact ledger.
+    "hi_agent_artifact_corrupt_line_total": _MetricDef(
+        "hi_agent_artifact_corrupt_line_total",
+        "counter",
+        "Corrupt lines skipped while loading the artifact ledger JSONL file.",
+    ),
     # Legacy fallback taxonomy counters (kept for backward-compatibility with
     # existing record_fallback() call-sites in context/, llm/, runner_stage/).
     # These predate the four-kind taxonomy but are retained so that their

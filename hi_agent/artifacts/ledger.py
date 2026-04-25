@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 from pathlib import Path
 
 from hi_agent.artifacts.contracts import Artifact
+
+_logger = logging.getLogger(__name__)
 
 
 class ArtifactLedger:
@@ -30,7 +33,7 @@ class ArtifactLedger:
         if not self._path.exists():
             return
         with self._path.open("r", encoding="utf-8") as f:
-            for line in f:
+            for offset, line in enumerate(f):
                 line = line.strip()
                 if not line:
                     continue
@@ -39,7 +42,33 @@ class ArtifactLedger:
                     artifact = Artifact.from_dict(data)
                     self._store[artifact.artifact_id] = artifact
                 except Exception:
-                    pass  # corrupt line — skip, do not abort startup
+                    # --- TE-1: quarantine + metric + log; skip but do not abort startup ---
+                    preview = line[:120] if len(line) > 120 else line
+                    _logger.warning(
+                        "ArtifactLedger._load: corrupt line at offset %d in %s — "
+                        "quarantining. preview=%r",
+                        offset,
+                        self._path,
+                        preview,
+                    )
+                    quarantine_path = Path(str(self._path) + ".quarantine.jsonl")
+                    try:
+                        with quarantine_path.open("a", encoding="utf-8") as qf:
+                            qf.write(line + "\n" if not line.endswith("\n") else line)
+                    except Exception as qe:  # quarantine write failure must not crash load
+                        _logger.warning(
+                            "ArtifactLedger._load: failed to write quarantine file %s: %s",
+                            quarantine_path,
+                            qe,
+                        )
+                    try:
+                        from hi_agent.observability.collector import get_metrics_collector
+
+                        collector = get_metrics_collector()
+                        if collector is not None:
+                            collector.increment("hi_agent_artifact_corrupt_line_total")
+                    except Exception:  # metrics must never crash callers
+                        pass
 
     def register(self, artifact: Artifact) -> None:
         """Persist artifact to the ledger and update in-memory index."""
