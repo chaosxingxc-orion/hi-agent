@@ -24,11 +24,15 @@ class IdempotencyRecord:
     idempotency_key: str
     request_hash: str  # SHA-256 of canonical sorted-key JSON payload
     run_id: str
-    status: str  # "pending" | "completed" | "failed"
+    status: str  # "pending" | "completed" | "failed" | "cancelled" | "timed_out"
     response_snapshot: str  # JSON-serialized final result, empty until complete
     created_at: float
     updated_at: float
     expires_at: float
+    # RO-2: spine fields for cross-record traceability
+    project_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
 
 
 def _hash_payload(payload: dict[str, Any]) -> str:
@@ -57,6 +61,9 @@ CREATE TABLE IF NOT EXISTS idempotency_records (
     created_at        REAL    NOT NULL,
     updated_at        REAL    NOT NULL,
     expires_at        REAL    NOT NULL,
+    project_id        TEXT    NOT NULL DEFAULT '',
+    user_id           TEXT    NOT NULL DEFAULT '',
+    session_id        TEXT    NOT NULL DEFAULT '',
     UNIQUE (tenant_id, idempotency_key)
 )
 """
@@ -86,8 +93,27 @@ ON idempotency_records (tenant_id, idempotency_key)
         self._conn.execute(self._CREATE_TABLE)
         self._conn.execute(self._CREATE_INDEX)
         self._conn.commit()
+        self._migrate()
 
     # -- helpers -------------------------------------------------------------
+
+    def _migrate(self) -> None:
+        """Add RO-2 spine columns to existing databases via ALTER TABLE."""
+        cx = self._conn
+        cols = {row[1] for row in cx.execute("PRAGMA table_info(idempotency_records)")}
+        if "project_id" not in cols:
+            cx.execute(
+                "ALTER TABLE idempotency_records ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "user_id" not in cols:
+            cx.execute(
+                "ALTER TABLE idempotency_records ADD COLUMN user_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "session_id" not in cols:
+            cx.execute(
+                "ALTER TABLE idempotency_records ADD COLUMN session_id TEXT NOT NULL DEFAULT ''"
+            )
+        cx.commit()
 
     def _row_to_record(self, row: tuple) -> IdempotencyRecord:
         return IdempotencyRecord(
@@ -100,6 +126,9 @@ ON idempotency_records (tenant_id, idempotency_key)
             created_at=row[6],
             updated_at=row[7],
             expires_at=row[8],
+            project_id=row[9] if len(row) > 9 else "",
+            user_id=row[10] if len(row) > 10 else "",
+            session_id=row[11] if len(row) > 11 else "",
         )
 
     # -- public API ----------------------------------------------------------
@@ -111,15 +140,25 @@ ON idempotency_records (tenant_id, idempotency_key)
         request_hash: str,
         run_id: str,
         ttl_seconds: float = 86400.0,
+        project_id: str = "",
+        user_id: str = "",
+        session_id: str = "",
     ) -> tuple[Literal["created", "replayed", "conflict"], IdempotencyRecord]:
         """Reserve a new idempotency slot or replay/conflict an existing one.
 
+        RO-9: Uses INSERT + catch-on-IntegrityError for atomic reserve under
+        concurrent submissions. SQLite serializes writers, so the UNIQUE
+        constraint guarantees exactly one winner.
+
         Args:
-            tenant_id: Tenant owning the request.
+            tenant_id: Authenticated tenant (from TenantContext, not request body).
             idempotency_key: Client-supplied idempotency key.
             request_hash: SHA-256 of the canonical request payload.
             run_id: The run_id to associate on first creation.
             ttl_seconds: How long (seconds) before the record expires.
+            project_id: Project scope from the run contract (RO-2).
+            user_id: Authenticated user (from TenantContext) (RO-2).
+            session_id: Session scope from TenantContext (RO-2).
 
         Returns:
             A tuple of (outcome, record) where outcome is one of:
@@ -132,65 +171,96 @@ ON idempotency_records (tenant_id, idempotency_key)
         expires_at = now + ttl_seconds
 
         with self._lock:
-            # Try to fetch existing record first.
+            # RO-9: attempt atomic INSERT; on UNIQUE violation read the winner back.
+            try:
+                self._conn.execute(
+                    "INSERT INTO idempotency_records "
+                    "(tenant_id, idempotency_key, request_hash, run_id, status, "
+                    "response_snapshot, created_at, updated_at, expires_at, "
+                    "project_id, user_id, session_id) "
+                    "VALUES (?, ?, ?, ?, 'pending', '', ?, ?, ?, ?, ?, ?)",
+                    (
+                        tenant_id,
+                        idempotency_key,
+                        request_hash,
+                        run_id,
+                        now,
+                        now,
+                        expires_at,
+                        project_id,
+                        user_id,
+                        session_id,
+                    ),
+                )
+                self._conn.commit()
+                record = IdempotencyRecord(
+                    tenant_id=tenant_id,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    run_id=run_id,
+                    status="pending",
+                    response_snapshot="",
+                    created_at=now,
+                    updated_at=now,
+                    expires_at=expires_at,
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                return "created", record
+            except sqlite3.IntegrityError:
+                # UNIQUE violation: another concurrent insert won the race.
+                # Fall through to read the existing record.
+                self._conn.rollback()
+
             cur = self._conn.execute(
                 "SELECT tenant_id, idempotency_key, request_hash, run_id, "
-                "status, response_snapshot, created_at, updated_at, expires_at "
+                "status, response_snapshot, created_at, updated_at, expires_at, "
+                "project_id, user_id, session_id "
                 "FROM idempotency_records "
                 "WHERE tenant_id = ? AND idempotency_key = ?",
                 (tenant_id, idempotency_key),
             )
             row = cur.fetchone()
-
-            if row is not None:
-                record = self._row_to_record(row)
-                outcome: Literal["created", "replayed", "conflict"] = (
-                    "replayed" if record.request_hash == request_hash else "conflict"
+            if row is None:
+                # Should not happen after IntegrityError, but guard defensively.
+                raise RuntimeError(
+                    f"idempotency record vanished after UNIQUE conflict for key={idempotency_key!r}"
                 )
-                return outcome, record
-
-            # First time — insert.
-            self._conn.execute(
-                "INSERT INTO idempotency_records "
-                "(tenant_id, idempotency_key, request_hash, run_id, status, "
-                "response_snapshot, created_at, updated_at, expires_at) "
-                "VALUES (?, ?, ?, ?, 'pending', '', ?, ?, ?)",
-                (tenant_id, idempotency_key, request_hash, run_id, now, now, expires_at),
+            record = self._row_to_record(row)
+            outcome: Literal["created", "replayed", "conflict"] = (
+                "replayed" if record.request_hash == request_hash else "conflict"
             )
-            self._conn.commit()
-            record = IdempotencyRecord(
-                tenant_id=tenant_id,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                run_id=run_id,
-                status="pending",
-                response_snapshot="",
-                created_at=now,
-                updated_at=now,
-                expires_at=expires_at,
-            )
-            return "created", record
+            return outcome, record
 
     def mark_complete(
         self,
         tenant_id: str,
         idempotency_key: str,
         response_json: str,
+        terminal_state: str = "succeeded",
     ) -> None:
-        """Mark an idempotency record as completed with a response snapshot.
+        """Mark an idempotency record as complete with a terminal state snapshot.
+
+        RO-7: the stored status reflects the actual run outcome so that replays
+        can surface the precise terminal state to callers.
 
         Args:
             tenant_id: Tenant owning the record.
             idempotency_key: Client-supplied idempotency key.
             response_json: JSON-serialized final result.
+            terminal_state: One of "succeeded", "failed", "cancelled",
+                "timed_out". Stored verbatim as the record status.
         """
+        _valid = frozenset({"succeeded", "failed", "cancelled", "timed_out"})
+        status = terminal_state if terminal_state in _valid else "succeeded"
         now = time.time()
         with self._lock:
             self._conn.execute(
                 "UPDATE idempotency_records "
-                "SET status = 'completed', response_snapshot = ?, updated_at = ? "
+                "SET status = ?, response_snapshot = ?, updated_at = ? "
                 "WHERE tenant_id = ? AND idempotency_key = ?",
-                (response_json, now, tenant_id, idempotency_key),
+                (status, response_json, now, tenant_id, idempotency_key),
             )
             self._conn.commit()
 

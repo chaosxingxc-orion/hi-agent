@@ -27,6 +27,20 @@ from hi_agent.server.tenant_context import TenantContext
 _VALID_RESULT_STATES: frozenset[str] = frozenset(s.value for s in RunState)
 
 
+def _run_state_to_terminal(state: str) -> str:
+    """Map a ManagedRun.state to an idempotency terminal code (RO-7).
+
+    Returns one of: "succeeded", "failed", "cancelled", "timed_out".
+    """
+    if state in ("completed", "succeeded"):
+        return "succeeded"
+    if state == "cancelled":
+        return "cancelled"
+    if state in ("timed_out", "queue_timeout"):
+        return "timed_out"
+    return "failed"
+
+
 @dataclass
 class ManagedRun:
     """A run managed by the server."""
@@ -39,6 +53,10 @@ class ManagedRun:
     thread: threading.Thread | None = field(default=None, repr=False)
     created_at: str = ""
     updated_at: str = ""
+    # RO-8: finished_at is set by _execute_run/_execute_run_durable in the
+    # finally block so that every terminal state (success, failure, cancel)
+    # populates it — not only runs that produce a RunResult with .finished_at.
+    finished_at: str | None = None
     tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
@@ -221,7 +239,14 @@ class RunManager:
                 the workspace.
         """
         idempotency_key: str | None = task_contract_dict.get("idempotency_key")
-        tenant_id: str = task_contract_dict.get("tenant_id", "default")
+        # RO-1: derive tenant_id from authenticated workspace, not request body.
+        # The body-trust bug (original line 224) allowed callers to forge
+        # tenant_id, making idempotency records cross tenant boundaries.
+        tenant_id: str = (
+            workspace.tenant_id
+            if workspace
+            else task_contract_dict.get("tenant_id", "default")
+        )
 
         # --- idempotency check (only when store + key are present) ----------
         if self._idempotency_store is not None and idempotency_key:
@@ -234,11 +259,15 @@ class RunManager:
             # Allocate a tentative run_id as UUID4; only used on "created" path.
             candidate_run_id = str(uuid.uuid4())
 
+            # RO-2: pass project_id, user_id, session_id from authenticated workspace.
             outcome, record = self._idempotency_store.reserve_or_replay(
                 tenant_id=tenant_id,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
                 run_id=candidate_run_id,
+                project_id=task_contract_dict.get("project_id", ""),
+                user_id=workspace.user_id if workspace else "",
+                session_id=workspace.session_id if workspace else "",
             )
 
             if outcome == "conflict":
@@ -290,7 +319,7 @@ class RunManager:
             self._run_store.upsert(
                 RunRecord(
                     run_id=run_id,
-                    tenant_id=tenant_id,
+                    tenant_id=tenant_id,  # already authenticated-workspace-derived above
                     user_id=workspace.user_id if workspace else "__legacy__",
                     session_id=workspace.session_id if workspace else "__legacy__",
                     task_contract_json=json.dumps(task_contract_dict),
@@ -439,17 +468,25 @@ class RunManager:
                 run.error = str(exc)
                 run.updated_at = datetime.now(UTC).isoformat()
         finally:
+            # RO-8: set finished_at on every terminal path so to_dict() always
+            # has a non-None value regardless of whether RunResult.finished_at exists.
+            _now_iso = datetime.now(UTC).isoformat()
             with self._lock:
                 self._active_count -= 1
+                if run.finished_at is None:
+                    run.finished_at = _now_iso
             self._semaphore.release()
             if (
                 run.idempotency_key is not None
                 and self._idempotency_store is not None
             ):
+                # RO-7: map run.state to one of the four canonical terminal codes.
+                _terminal = _run_state_to_terminal(run.state)
                 self._idempotency_store.mark_complete(
                     run.tenant_id,
                     run.idempotency_key,
                     json.dumps(self.to_dict(run)),
+                    terminal_state=_terminal,
                 )
 
     def _execute_run_durable(
@@ -494,17 +531,24 @@ class RunManager:
             if self._run_queue is not None:
                 self._run_queue.fail(run_id, "run_manager", str(exc))
         finally:
+            # RO-8: set finished_at on every terminal path (durable path).
+            _now_iso_d = datetime.now(UTC).isoformat()
             with self._lock:
                 self._active_count -= 1
+                if run.finished_at is None:
+                    run.finished_at = _now_iso_d
             self._semaphore.release()
             if (
                 run.idempotency_key is not None
                 and self._idempotency_store is not None
             ):
+                # RO-7: map run.state to one of the four canonical terminal codes.
+                _terminal = _run_state_to_terminal(run.state)
                 self._idempotency_store.mark_complete(
                     run.tenant_id,
                     run.idempotency_key,
                     json.dumps(self.to_dict(run)),
+                    terminal_state=_terminal,
                 )
 
     # -- public API ---------------------------------------------------------
@@ -682,6 +726,7 @@ class RunManager:
         except AttributeError:
             result_payload = run.result
         # Surface llm_fallback_count and finished_at from RunResult when available.
+        # RO-8: fall back to ManagedRun.finished_at so all terminal paths have a value.
         _result = run.result
         _llm_fallback_count: int = 0
         _finished_at: str | None = None
@@ -689,6 +734,9 @@ class RunManager:
             _llm_fallback_count = int(_result.llm_fallback_count or 0)
         if _result is not None and hasattr(_result, "finished_at"):
             _finished_at = _result.finished_at
+        # RO-8: prefer ManagedRun.finished_at when RunResult is absent (failure, cancel).
+        if _finished_at is None:
+            _finished_at = run.finished_at
         # Include top-level fallback_events recorded at the server boundary
         # (e.g. route/missing_profile_id events from routes_runs.py).
         # These are keyed on the server-boundary run_id, which differs from the

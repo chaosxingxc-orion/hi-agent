@@ -59,6 +59,22 @@ def load_runtime_config(path: Path | None = None) -> dict:
     return data
 
 
+def get_posture():  # -> Posture (lazy import avoids circular dependency)
+    """Return the current platform posture from the environment.
+
+    Convenience wrapper so callers can do::
+
+        from hi_agent.config.runtime_config_loader import get_posture
+        if get_posture().requires_durable_queue: ...
+
+    Returns:
+        The current :class:`~hi_agent.config.posture.Posture` value.
+    """
+    from hi_agent.config.posture import Posture
+
+    return Posture.from_env()
+
+
 def _resolve_path(path: Path | None) -> Path | None:
     """Return the resolved path to hi_agent_config.json, or None if unset."""
     if path is not None:
