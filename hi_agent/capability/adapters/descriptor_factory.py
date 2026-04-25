@@ -1,38 +1,65 @@
-"""Auto-generates CapabilityDescriptor metadata using naming heuristics."""
+"""Capability descriptor factory: auto-generates metadata via naming heuristics.
+
+CO-6: The duplicate CapabilityDescriptor class that used to live here has been
+removed.  The single canonical definition is now
+hi_agent.capability.registry.CapabilityDescriptor.
+
+This module re-exports CapabilityDescriptor for backward compatibility so that
+all existing import sites (tests, adapters) continue to work without change.
+
+Use build_capability_view(desc) to get the dict shape consumed by the adapter
+layer when you need to expose a descriptor over a generic interface.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import ClassVar
 
+# Re-export canonical class — single import point going forward.
+from hi_agent.capability.registry import CapabilityDescriptor
 
-@dataclass(frozen=True)
-class CapabilityDescriptor:
-    """Rich metadata describing a capability beyond its callable spec.
+__all__ = [
+    "CapabilityDescriptor",
+    "CapabilityDescriptorFactory",
+    "build_capability_view",
+]
 
-    Fields:
-        name: Canonical capability name.
-        effect_class: One of read_only, idempotent_write, irreversible_write,
-            unknown_effect.
-        tags: Free-form classification tags.
-        sandbox_level: Isolation tier (e.g. "none", "container", "vm").
-        description: Human-readable summary.
-        parameters: JSON-schema dict of accepted parameters.
-        extra: Catch-all for additional metadata.
+
+def build_capability_view(desc: CapabilityDescriptor) -> dict:
+    """Produce the dict shape needed by the adapter/toolset layer.
+
+    Maps canonical CapabilityDescriptor fields to the keys expected by the
+    CoreToolAdapter and related consumers.  Unknown fields are silently
+    omitted — only the listed keys are guaranteed.
+
+    Args:
+        desc: A canonical CapabilityDescriptor instance.
+
+    Returns:
+        Dict with keys: name, effect_class, tags, sandbox_level, description,
+        parameters, extra, toolset_id, required_env, output_budget_tokens,
+        availability_probe, risk_class, requires_approval, requires_auth,
+        source_reference_policy, provenance_required.
     """
-
-    name: str
-    effect_class: str = "unknown_effect"
-    tags: tuple[str, ...] = ()
-    sandbox_level: str = "none"
-    description: str = ""
-    parameters: dict = field(default_factory=dict)
-    extra: dict = field(default_factory=dict)
-    # Governance metadata (W4-001)
-    toolset_id: str = "default"
-    required_env: dict = field(default_factory=dict)  # {"ENV_VAR": "description"}
-    output_budget_tokens: int = 0  # 0 = unlimited
-    availability_probe: object = field(default=None)  # Callable[[], tuple[bool, str]] | None
+    return {
+        "name": desc.name,
+        "effect_class": desc.effect_class,
+        "tags": list(desc.tags),
+        "sandbox_level": desc.sandbox_level,
+        "description": desc.description,
+        "parameters": dict(desc.parameters),
+        "extra": dict(desc.extra),
+        "toolset_id": desc.toolset_id,
+        "required_env": dict(desc.required_env),
+        "output_budget_tokens": desc.output_budget_tokens,
+        "availability_probe": desc.availability_probe,
+        # Governance fields (platform layer)
+        "risk_class": desc.risk_class,
+        "requires_approval": desc.requires_approval,
+        "requires_auth": desc.requires_auth,
+        "source_reference_policy": desc.source_reference_policy,
+        "provenance_required": desc.provenance_required,
+    }
 
 
 class CapabilityDescriptorFactory:
