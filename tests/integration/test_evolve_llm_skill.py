@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 
+from hi_agent.evolve.champion_challenger import ChampionChallenger
 from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
+from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillExtractor
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, TokenUsage
 from hi_agent.skill.registry import SkillRegistry
@@ -167,7 +169,12 @@ def test_no_gateway_uses_heuristics():
 def test_engine_auto_registers_candidates_in_registry():
     """EvolveEngine registers extracted candidates in SkillRegistry."""
     registry = SkillRegistry()
-    engine = EvolveEngine(skill_registry=registry)
+    engine = EvolveEngine(
+        skill_extractor=SkillExtractor(),
+        regression_detector=RegressionDetector(),
+        champion_challenger=ChampionChallenger(),
+        skill_registry=registry,
+    )
     pm = _make_postmortem()
 
     result = engine.on_run_completed(pm)
@@ -183,7 +190,11 @@ def test_engine_auto_registers_candidates_in_registry():
 
 def test_engine_without_registry_backward_compat():
     """EvolveEngine works fine without a skill registry (default None)."""
-    engine = EvolveEngine()
+    engine = EvolveEngine(
+        skill_extractor=SkillExtractor(),
+        regression_detector=RegressionDetector(),
+        champion_challenger=ChampionChallenger(),
+    )
     pm = _make_postmortem()
 
     result = engine.on_run_completed(pm)
@@ -210,6 +221,8 @@ def test_full_flow_postmortem_llm_extract_register_verify():
     extractor = SkillExtractor(gateway=gateway)
     engine = EvolveEngine(
         skill_extractor=extractor,
+        regression_detector=RegressionDetector(),
+        champion_challenger=ChampionChallenger(),
         skill_registry=registry,
     )
 

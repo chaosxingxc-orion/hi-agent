@@ -49,18 +49,36 @@ class EvolveEngine:
 
         Args:
             llm_gateway: Optional LLM gateway for deeper analysis.
-            skill_extractor: Skill extractor instance; created if not provided.
-            regression_detector: Regression detector; created if not provided.
-            champion_challenger: Champion/challenger comparator; created if not provided.
+            skill_extractor: Skill extractor instance; required (Rule 6).
+            regression_detector: Regression detector; required (Rule 6).
+            champion_challenger: Champion/challenger comparator; required (Rule 6).
             skill_registry: Optional skill registry for auto-registering candidates.
             version_manager: Optional skill version manager for auto-promote.
             comparison_interval: Number of runs between champion/challenger comparisons.
         """
         self._llm = llm_gateway
         self._postmortem_analyzer = PostmortemAnalyzer(llm_gateway=llm_gateway)
-        self._skill_extractor = skill_extractor or SkillExtractor()
-        self._regression_detector = regression_detector or RegressionDetector()
-        self._champion_challenger = champion_challenger or ChampionChallenger()
+        if skill_extractor is None:
+            raise ValueError(
+                "EvolveEngine.skill_extractor must be injected by the builder — "
+                "unscoped SkillExtractor is not permitted (Rule 6). "
+                "Pass skill_extractor=SkillExtractor() explicitly."
+            )
+        self._skill_extractor = skill_extractor
+        if regression_detector is None:
+            raise ValueError(
+                "EvolveEngine.regression_detector must be injected by the builder — "
+                "unscoped RegressionDetector is not permitted (Rule 6). "
+                "Pass regression_detector=RegressionDetector() explicitly."
+            )
+        self._regression_detector = regression_detector
+        if champion_challenger is None:
+            raise ValueError(
+                "EvolveEngine.champion_challenger must be injected by the builder — "
+                "unscoped ChampionChallenger is not permitted (Rule 6). "
+                "Pass champion_challenger=ChampionChallenger() explicitly."
+            )
+        self._champion_challenger = champion_challenger
         self._skill_registry = skill_registry
         self._version_manager = version_manager
         self._comparison_interval = comparison_interval
@@ -224,9 +242,7 @@ class EvolveEngine:
                             exc_info=True,
                         )
 
-    def on_project_completed(
-        self, project_id: str, run_ids: list[str]
-    ) -> ProjectPostmortem:
+    def on_project_completed(self, project_id: str, run_ids: list[str]) -> ProjectPostmortem:
         """Aggregate postmortems for all runs of a project into one ProjectPostmortem.
 
         Args:

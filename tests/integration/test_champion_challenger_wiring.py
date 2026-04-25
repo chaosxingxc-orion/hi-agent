@@ -5,6 +5,8 @@ from __future__ import annotations
 from hi_agent.evolve.champion_challenger import ChampionChallenger
 from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
+from hi_agent.evolve.regression_detector import RegressionDetector
+from hi_agent.evolve.skill_extractor import SkillExtractor
 from hi_agent.skill.version import SkillVersionManager
 
 
@@ -78,6 +80,8 @@ class TestEvolveEngineChampionWiring:
         cc.register_challenger("skill-A", "v2", {"quality": 0.9})
 
         engine = EvolveEngine(
+            skill_extractor=SkillExtractor(),
+            regression_detector=RegressionDetector(),
             champion_challenger=cc,
             version_manager=vm,
             comparison_interval=1,
@@ -94,6 +98,8 @@ class TestEvolveEngineChampionWiring:
         cc = ChampionChallenger()
 
         engine = EvolveEngine(
+            skill_extractor=SkillExtractor(),
+            regression_detector=RegressionDetector(),
             champion_challenger=cc,
             comparison_interval=1,
         )
@@ -108,6 +114,8 @@ class TestEvolveEngineChampionWiring:
         vm.set_champion("sk1", "v1")
 
         engine = EvolveEngine(
+            skill_extractor=SkillExtractor(),
+            regression_detector=RegressionDetector(),
             champion_challenger=cc,
             version_manager=vm,
             comparison_interval=100,

@@ -364,7 +364,11 @@ class TestEvolveEngine:
 
     def test_on_run_completed_end_to_end(self) -> None:
         """End-to-end test: on_run_completed produces a valid EvolveResult."""
-        engine = EvolveEngine()
+        engine = EvolveEngine(
+            skill_extractor=SkillExtractor(),
+            regression_detector=RegressionDetector(),
+            champion_challenger=ChampionChallenger(),
+        )
         pm = _make_postmortem(
             outcome="completed",
             stages_completed=["understand", "gather", "build"],
@@ -381,7 +385,11 @@ class TestEvolveEngine:
 
     def test_on_run_completed_extracts_skills(self) -> None:
         """Successful runs should produce skill candidate changes."""
-        engine = EvolveEngine(skill_extractor=SkillExtractor(min_confidence=0.5))
+        engine = EvolveEngine(
+            skill_extractor=SkillExtractor(min_confidence=0.5),
+            regression_detector=RegressionDetector(),
+            champion_challenger=ChampionChallenger(),
+        )
         pm = _make_postmortem(
             outcome="completed",
             stages_completed=["understand", "gather", "build"],
@@ -397,7 +405,11 @@ class TestEvolveEngine:
     def test_on_run_completed_records_regression_data(self) -> None:
         """After enough runs, regression detection should work."""
         detector = RegressionDetector(baseline_window=3, threshold=0.15)
-        engine = EvolveEngine(regression_detector=detector)
+        engine = EvolveEngine(
+            skill_extractor=SkillExtractor(),
+            regression_detector=detector,
+            champion_challenger=ChampionChallenger(),
+        )
 
         # Record 4 good runs.
         for i in range(4):
@@ -421,7 +433,11 @@ class TestEvolveEngine:
 
     def test_batch_evolve_scope_isolation(self) -> None:
         """Batch evolve should only return changes matching the requested scope."""
-        engine = EvolveEngine(skill_extractor=SkillExtractor(min_confidence=0.5))
+        engine = EvolveEngine(
+            skill_extractor=SkillExtractor(min_confidence=0.5),
+            regression_detector=RegressionDetector(),
+            champion_challenger=ChampionChallenger(),
+        )
 
         postmortems = [
             _make_postmortem(
@@ -449,7 +465,11 @@ class TestEvolveEngine:
 
     def test_change_scope_isolation_routing_only(self) -> None:
         """Batch evolve with routing_only scope excludes skill candidates."""
-        engine = EvolveEngine(skill_extractor=SkillExtractor(min_confidence=0.5))
+        engine = EvolveEngine(
+            skill_extractor=SkillExtractor(min_confidence=0.5),
+            regression_detector=RegressionDetector(),
+            champion_challenger=ChampionChallenger(),
+        )
 
         postmortems = [
             _make_postmortem(

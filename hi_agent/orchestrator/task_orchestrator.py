@@ -140,9 +140,24 @@ class TaskOrchestrator:
         Creates a single :class:`RunExecutor` for the contract and runs it
         to completion.
         """
+        from hi_agent.contracts import CTSExplorationBudget
+        from hi_agent.contracts.policy import PolicyVersionSet
+        from hi_agent.events import EventEmitter
+        from hi_agent.memory import MemoryCompressor
+        from hi_agent.memory.l0_raw import RawMemoryStore
+        from hi_agent.route_engine.acceptance import AcceptancePolicy
         from hi_agent.runner import RunExecutor
 
-        runner = RunExecutor(contract, self._kernel)
+        runner = RunExecutor(
+            contract,
+            self._kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         run_result = runner.execute()
         succeeded = run_result.status == "completed"
         sub = SubTaskResult(
@@ -256,9 +271,24 @@ class TaskOrchestrator:
         Raises:
             RuntimeError: If the sub-task execution fails.
         """
+        from hi_agent.contracts import CTSExplorationBudget
+        from hi_agent.contracts.policy import PolicyVersionSet
+        from hi_agent.events import EventEmitter
+        from hi_agent.memory import MemoryCompressor
+        from hi_agent.memory.l0_raw import RawMemoryStore
+        from hi_agent.route_engine.acceptance import AcceptancePolicy
         from hi_agent.runner import RunExecutor
 
-        runner = RunExecutor(node.task_contract, self._kernel)
+        runner = RunExecutor(
+            node.task_contract,
+            self._kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         status = runner.execute()
         if status != "completed":
             raise RuntimeError(f"Sub-task {node.node_id} failed with status: {status}")

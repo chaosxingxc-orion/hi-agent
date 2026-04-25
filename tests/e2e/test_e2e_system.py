@@ -22,9 +22,11 @@ from hi_agent.contracts import (
 )
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
+from hi_agent.evolve.champion_challenger import ChampionChallenger
 from hi_agent.evolve.contracts import RunPostmortem
 from hi_agent.evolve.engine import EvolveEngine
-from hi_agent.evolve.skill_extractor import SkillCandidate
+from hi_agent.evolve.regression_detector import RegressionDetector
+from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
 from hi_agent.failures.collector import FailureCollector
 from hi_agent.failures.watchdog import ProgressWatchdog
 from hi_agent.harness.contracts import (
@@ -61,7 +63,11 @@ class TestFullTracePipelineAllSubsystems:
     def test_full_trace_pipeline_all_subsystems(self, tmp_path: Path) -> None:
         """Full S1-S5 pipeline with every subsystem wired in."""
         kernel = MockKernel(strict_mode=True)
-        evolve = EvolveEngine()
+        evolve = EvolveEngine(
+            skill_extractor=SkillExtractor(),
+            regression_detector=RegressionDetector(),
+            champion_challenger=ChampionChallenger(),
+        )
         event_emitter = EventEmitter()
         failure_collector = FailureCollector()
         watchdog = ProgressWatchdog()
@@ -406,7 +412,11 @@ class TestSkillLifecycleEndToEnd:
         """Extract skill from successful run, register, promote to certified."""
         skill_dir = str(tmp_path / "skills")
         registry = SkillRegistry(storage_dir=skill_dir)
-        evolve = EvolveEngine()
+        evolve = EvolveEngine(
+            skill_extractor=SkillExtractor(),
+            regression_detector=RegressionDetector(),
+            champion_challenger=ChampionChallenger(),
+        )
 
         # Simulate a successful run postmortem
         postmortem = RunPostmortem(
