@@ -18,14 +18,13 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
+import pytest
 from hi_agent.contracts import CTSExplorationBudget
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
 from hi_agent.memory import MemoryCompressor
-from hi_agent.route_engine.acceptance import AcceptancePolicy
-
-import pytest
 from hi_agent.memory.short_term import ShortTermMemory, ShortTermMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 
 # ---------------------------------------------------------------------------
 # Test 1 — I-6: reflection session_id round-trip
