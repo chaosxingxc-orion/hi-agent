@@ -1,7 +1,8 @@
 """Track C: TeamRunRegistry status + finished_at columns."""
 import time
-from hi_agent.server.team_run_registry import TeamRunRegistry
+
 from hi_agent.contracts.team_runtime import TeamRun
+from hi_agent.server.team_run_registry import TeamRunRegistry
 
 
 def _make_team_run():
@@ -21,7 +22,9 @@ def test_set_status_completed_sets_finished_at(tmp_path):
     reg.register(_make_team_run())
     before = time.time()
     reg.set_status("t1", "completed")
-    row = reg._conn.execute("SELECT status, finished_at FROM team_runs WHERE team_id='t1'").fetchone()
+    row = reg._conn.execute(
+        "SELECT status, finished_at FROM team_runs WHERE team_id='t1'"
+    ).fetchone()
     assert row[0] == "completed"
     assert row[1] >= before
 
@@ -42,8 +45,9 @@ def test_set_status_running_finished_at_zero(tmp_path):
 
 
 def test_feedback_store_spine_fields():
-    from hi_agent.evolve.feedback_store import FeedbackStore, RunFeedback
     import dataclasses
+
+    from hi_agent.evolve.feedback_store import RunFeedback
     fields = {f.name for f in dataclasses.fields(RunFeedback)}
     for spine in ("tenant_id", "user_id", "session_id", "project_id"):
         assert spine in fields, f"RunFeedback missing spine field: {spine}"

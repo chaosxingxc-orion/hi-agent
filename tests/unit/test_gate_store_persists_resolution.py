@@ -1,8 +1,6 @@
 """Track C: SQLiteGateStore persists resolution and has spine columns."""
-import pytest
-from hi_agent.management.gate_store import SQLiteGateStore
 from hi_agent.management.gate_context import GateContext
-from hi_agent.management.gate_timeout import GateTimeoutPolicy
+from hi_agent.management.gate_store import SQLiteGateStore
 
 
 def _ctx(gate_ref="g1"):
