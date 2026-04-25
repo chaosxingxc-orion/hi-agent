@@ -5,24 +5,7 @@
 > - L1 hi-agent detail: [`../hi_agent/ARCHITECTURE.md`](../hi_agent/ARCHITECTURE.md)
 > - L1 agent-kernel detail: this file
 
-## Documentation And Style Refresh (2026-04-16)
-
-The codebase now uses a unified style baseline aligned with the Google Python
-Style Guide for code, docstrings, and test sources.
-
-Applied scope:
-
-- `agent_kernel/`
-- `python_tests/`
-- `scripts/`
-- Excluded: vendored third-party sources under `external/`
-
-Validation snapshot after refresh:
-
-- `python -m ruff check agent_kernel python_tests scripts`
-- `python -m ruff check agent_kernel python_tests scripts --select D`
-- `python -m ruff format --check agent_kernel python_tests scripts`
-- `python -m pytest -q` -> `7216 passed, 2 skipped, 6 warnings`
+> Last updated: 2026-04-25. Style baseline: Google Python Style Guide.
 
 agent-kernel v0.2.0 -- 企业级 Agent 内核，基于六权限生命周期协议构建。
 
@@ -555,6 +538,10 @@ cfg = KernelConfig.from_env()      # 从环境变量构建
 
 (完整列表见 `config.py` 中的 `env_map`)
 
+### Posture integration
+
+`agent_kernel` does not own posture — it is purely runtime-substrate. `hi_agent`'s `Posture` (from `HI_AGENT_POSTURE`) governs which backends are required and whether project_id/profile_id are enforced at the hi_agent layer. `agent_kernel` receives authenticated `TenantContext` from `hi_agent`'s auth middleware and uses it for idempotency keying and record spine (tenant_id, project_id, user_id, session_id).
+
 ---
 
 ## 12. 部署
@@ -574,21 +561,7 @@ docker-compose up
 
 ### 12.2 容器构建
 
-```dockerfile
-# Dockerfile: python:3.12-slim, 非 root 用户 (kernel)
-docker build -t agent-kernel .
-docker run -p 8400:8400 agent-kernel
-```
-
-容器内置:
-- `EXPOSE 8400`
-- `HEALTHCHECK` 探测 `/health/liveness`
-- 入口点: `uvicorn agent_kernel.service.http_server:create_app_temporal --factory`
-
-`create_app_temporal()` 是 Starlette 应用 factory，异步 lifespan 内:
-1. 创建 Temporal 客户端
-2. 构建 SQLite 后端的 `AgentKernelRuntimeBundle`
-3. 以 asyncio task 启动 Temporal Worker
+Base image: `python:3.12-slim`, non-root user `kernel`. See `Dockerfile` at repo root. Entry point: `uvicorn agent_kernel.service.http_server:create_app_temporal --factory`. `create_app_temporal()` is a Starlette lifespan factory: creates Temporal client, builds `AgentKernelRuntimeBundle` with SQLite backend, starts Temporal Worker as asyncio task.
 
 ### 12.3 基座选项
 

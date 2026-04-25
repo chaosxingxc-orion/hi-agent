@@ -170,3 +170,23 @@ Commit `1455852` (env isolation + run-scoped fallback events) touched hot-path f
 The research 2026-04-16 strategic roadmap went unanswered for 8 days (Rule 10 event). Resolved:
 - `docs/platform-gaps.md` — authoritative gap response table.
 - `docs/downstream-responses/2026-04-24-roadmap-response.md` — formal letter.
+
+---
+
+## Rule Origin Mapping (R1–R13)
+
+| New | Absorbed from |
+|-----|---------------|
+| Rule 1 | Old Rule 1 + Rule 2 (Think Before Coding) |
+| Rule 2 | Old Rule 3 + Rule 4 |
+| Rule 3 | Old Rule 5 + Rule 6 + Rule 11 (fail-fast sync) |
+| Rule 4 | Old Rule 7 |
+| Rule 5 | Old Rule 12 |
+| Rule 6 | Old Rule 13 |
+| Rule 7 | Old Rule 14 |
+| Rule 8 | Old Rule 15 + Rule 18 + Rule 19 (CI plan → DF-46) |
+| Rule 9 | Old Rule 16 |
+| Rule 10 | Old Rule 17 (with old Rule 8 HTTP table as narrow-trigger) |
+| Rule 11 | New — posture-aware defaults (dev/research/prod knob system) |
+| Rule 12 | New — contract spine completeness (tenant/project/profile on every record) |
+| Rule 13 | New — capability maturity model (L0–L4 replaces fuzzy "implemented") |

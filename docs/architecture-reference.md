@@ -90,3 +90,21 @@ Middleware: Perception(light) → Control(medium) → Execution(dynamic) → Eva
 | **Knowledge** | Stable facts: wiki + knowledge graph + four-layer retrieval |
 | **Skill** | Reusable process unit: 5-stage lifecycle, A/B versioning, textual gradient evolution |
 | **Feedback** | Optimization signals from results, evaluations, and experiments |
+
+---
+
+## Wave 9 Module Additions
+
+| Module | Purpose |
+|---|---|
+| `hi_agent/config/posture.py` | `Posture(StrEnum)` — dev/research/prod execution posture |
+| `hi_agent/server/error_categories.py` | `ErrorCategory(StrEnum)` + `error_response()` for /runs structured errors |
+| `hi_agent/contracts/team_runtime.py::TeamRunSpec` | Platform-neutral multi-agent team spec |
+| `hi_agent/contracts/reasoning_trace.py` | `ReasoningTrace` + `ReasoningTraceEntry` schema |
+| `hi_agent/cli_commands/init.py` | `hi-agent init --posture` scaffolding logic |
+| `hi_agent/profiles/schema.json` | JSON Schema for profile validation (fail-closed under research/prod) |
+| `hi_agent/templates/posture/` | Scaffold templates for dev/research/prod config dirs |
+
+**CapabilityDescriptor unification (DF-50 closed):** canonical definition is `hi_agent/capability/registry.py::CapabilityDescriptor`. The `hi_agent/capability/adapters/descriptor_factory.py` is now a factory function (`build_capability_view`) that returns a dict from the canonical descriptor — it no longer defines a separate class.
+
+**runtime_mode vs Posture:** `runtime_mode` (derived by `server/runtime_mode_resolver.py` from `HI_AGENT_ENV`) governs LLM routing and kernel connection. `Posture` (derived by `config/posture.py` from `HI_AGENT_POSTURE`) governs contract-spine enforcement and persistence durability. These are orthogonal: research posture + dev-smoke runtime_mode is valid (for a research team developing without a real LLM API key).

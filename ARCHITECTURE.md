@@ -144,6 +144,42 @@ All LLM parameters flow through `config/llm_config.json` (gitignored; copy from 
 
 ---
 
+## Platform Contract (Wave 9)
+
+### Posture System
+
+`HI_AGENT_POSTURE={dev,research,prod}` (default `dev`) controls fail-closed vs permissive defaults. Code: `hi_agent/config/posture.py::Posture.from_env()`.
+
+| Posture | project_id | queue backend | schema validation | idempotency scope |
+|---|---|---|---|---|
+| `dev` | warn-only | in-memory allowed | warn + skip | body tenant_id |
+| `research` | 400 required | SQLite file | ValueError | authenticated TenantContext |
+| `prod` | 400 required | SQLite file | ValueError | authenticated TenantContext |
+
+### Owner Tracks
+
+| Track | Owns | Rule |
+|---|---|---|
+| CO | API/artifact/capability/profile schemas, posture | Any public-dataclass/schema/posture change = CO; include contract-version bump |
+| RO | Execution, state machines, persistence boundaries | In-memory state under research/prod = defect; durable-store changes need restart test |
+| DX | Developer journey: first contact → upgrade | No L2 without documented quickstart, doctor-check, and structured error category |
+| TE | Artifacts, evidence, provenance, evolution | Every silent-degradation path: Countable + Attributable + Inspectable + Gate-asserted |
+| GOV | CLAUDE.md, capability matrix, CI, delivery docs | Capability matrix = single source of truth; delivery notice, TODO, matrix agree at every push |
+
+### Capability Maturity (L0–L4)
+
+| Level | Name | Criterion |
+|---|---|---|
+| L0 | demo code | happy path only, no stable contract |
+| L1 | tested component | unit/integration tests exist, not default path |
+| L2 | public contract | schema/API/state machine stable, docs + full tests |
+| L3 | production default | research/prod default-on, migration + observability |
+| L4 | ecosystem ready | third-party can register/extend/upgrade/rollback without source |
+
+Wave 9 contracts: `TeamRunSpec` (`hi_agent/contracts/team_runtime.py`), `ReasoningTrace` (`hi_agent/contracts/reasoning_trace.py`), canonical `CapabilityDescriptor` (`hi_agent/capability/registry.py`), `ArtifactLedger` quarantine (`hi_agent/artifacts/ledger.py`).
+
+---
+
 ## Quality Gate
 
 ```bash
@@ -152,6 +188,6 @@ python -m pytest tests/integration/test_live_llm_api.py -m live_api -v       # l
 python -m ruff check hi_agent/ agent_kernel/                                  # lint
 ```
 
-Current baseline: **11,110 passed, 1 skipped, 0 failures** (2026-04-20, offline suite excluding live API and prod E2E; all xfail/xpass stubs deleted).
+Current baseline: **4,100 passed (unit+integration, Wave 9)** (2026-04-25, offline suite excluding live API and prod E2E; all xfail/xpass stubs deleted).
 
 Live API test suite (`@pytest.mark.live_api`): 33 tests × 5 scenarios (smoke, multi-turn, code generation, state isolation, latency) parameterized over all 8 Volces Ark models. Auto-skipped when `VOLCE_API_KEY` is absent; config loaded from `config/llm_config.json` (gitignored) — copy from `config/llm_config.example.json`.

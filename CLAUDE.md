@@ -55,10 +55,7 @@ Do not pick one reading silently and ship it expecting the requester to ask agai
 - Do not improve, reformat, or rename adjacent code in the same commit. Match surrounding style exactly.
 - Remove only imports/variables/functions that **your** change made unused — leave pre-existing dead code for a separate cleanup commit.
 
-**Parallel-dispatch anti-bundle clause:** when multiple agents run in parallel and any two touch the same file:
-1. The second-to-commit agent **rebases** onto the first — never `git reset --soft` + re-commit (silently absorbs the other agent's work).
-2. Any commit spanning >1 defect ID in its message OR touching files in >2 distinct modules must be split before merge.
-3. `git diff --cached --stat | wc -l` > 6 files is a yellow flag; >10 is a red flag requiring justification in the commit body.
+**Parallel-dispatch:** second agent to commit must rebase — never `git reset --soft` (silently absorbs other agent's work). Commits spanning >1 defect ID or >2 distinct modules must be split. See `docs/rules-incident-log.md` (DF-45 incident).
 
 ---
 
@@ -82,16 +79,7 @@ Before every commit, audit every touched file across all dimensions below. Fix d
 | **ID uniqueness** | Runtime IDs from caller or `uuid.uuid4()`. No `run_id='default'` semantic-label fallback. |
 | **Fail-fast test sync** | If a PR tightens a silent path to fail-fast (`raise RuntimeError`, 503, hard validation), update all affected tests in the same PR. |
 
-**Smoke + lint** — required before every commit touching `hi_agent/server/`, `hi_agent/runtime_adapter/`, `agent_kernel/service/`, or any `__init__.py`:
-
-```bash
-ruff check .                                      # exit 0 required
-python -c "import hi_agent; import agent_kernel"  # exit 0, no stderr
-python -m hi_agent serve --port 8080 &            # background
-sleep 3 && curl -sf http://127.0.0.1:8080/health | jq .
-```
-
-Pass criteria: ruff clean, import clean, `/health` returns 200 within 3 s. Rule 3 gates a **commit**, not a delivery (Rule 8 gates delivery).
+**Smoke + lint** — required before commits touching `hi_agent/server/`, `hi_agent/runtime_adapter/`, `agent_kernel/service/`, or any `__init__.py`. Enforced by `scripts/check_rules.py`: ruff clean + import clean + `/health` returns 200 in 3 s.
 
 ---
 
@@ -103,10 +91,7 @@ A feature is implementable only when all three layers are designed. A feature is
 - **Layer 2 — Integration**: real components wired together. **Zero mocks on the subsystem under test.** Skip with `@pytest.mark.skip(reason="awaiting real implementation")` if a dependency is absent — never fake it.
 - **Layer 3 — E2E**: drive through the public interface (HTTP / CLI / top-level API); assert on observable outputs, not internal variables.
 
-**Test honesty is not optional**:
-- An integration test that `MagicMock`s the executor is a unit test mislabeled.
-- An assertion of shape `result.status in ["completed", "failed"]` is not a test — it is documentation that the feature might not work.
-- A test named `test_foo_works` that passes when `foo` raises is a lie.
+**Test honesty is not optional**: MagicMocking the subsystem under test in integration = mislabeled unit test; accepting any terminal status = documentation, not a test; a test that passes when the subject raises = a lie.
 
 ---
 
@@ -125,11 +110,7 @@ A feature is implementable only when all three layers are designed. A feature is
 - **Sync bridge**: route through `hi_agent.runtime.sync_bridge` (persistent loop on dedicated thread; marshals via `asyncio.run_coroutine_threadsafe`).
 - **Per-call construction** (cheap resources only): `async with httpx.AsyncClient(...) as c:` inside the coroutine.
 
-**Pre-commit check:**
-```bash
-rg -n 'asyncio\.run\(' hi_agent/ agent_kernel/
-```
-Every match must be in an entry point (`__main__`, CLI, test) or routed through `sync_bridge`.
+`asyncio.run(` site check enforced by `scripts/check_rules.py` — every match must be in an entry point (`__main__`, CLI, test) or routed through `sync_bridge`.
 
 ---
 
@@ -139,27 +120,7 @@ Every match must be in an entry point (`__main__`, CLI, test) or routed through 
 
 When a class needs profile/workspace/project scoping, scope is a **required constructor argument**, not an optional kwarg with a default. Missing scope must be a hard error, not a silent fresh unscoped instance.
 
-**Forbidden patterns:**
-```python
-self.raw_memory = raw_memory or RawMemoryStore()          # silent unscoped instance
-def build_short_term_store(profile_id: str = "") -> ...:  # optional scope
-```
-
-**Required patterns:**
-```python
-def __init__(self, raw_memory: RawMemoryStore):           # injection required
-    self.raw_memory = raw_memory                          # no fallback
-
-def build_short_term_store(*, profile_id: str, workspace_key: WorkspaceKey) -> ...:
-    if not profile_id:
-        raise ValueError("profile_id required")
-```
-
-**Pre-commit check:**
-```bash
-rg -n ' or [A-Z][a-zA-Z]*Store\(|\bor [A-Z][a-zA-Z]*Graph\(|\bor [A-Z][a-zA-Z]*Gateway\(' hi_agent/
-```
-Every match is a defect candidate. Remaining fallbacks must be documented inline with the threat they answer.
+**Forbidden:** `x or DefaultX()` fallback; optional scope kwargs with defaults. **Required:** scope as required kwarg; raises `ValueError` if missing. Inline-fallback check enforced by `scripts/check_rules.py` — every match is a defect candidate.
 
 ---
 
@@ -184,10 +145,7 @@ Before any artifact leaves the repo (zip, pip, docker, PM2 bundle), the followin
 
 1. **Long-lived process** — PM2 / systemd / docker run; not foreground `python -m hi_agent serve`. Process survives steps 2–6.
 2. **Real LLM** — `HI_AGENT_LLM_MODE=real`, pointing at the provider downstream will use. Mock gateways disqualify.
-3. **Sequential real-LLM runs (N≥3)** — three back-to-back `POST /runs`, each:
-   - reaches `state=done` in ≤ `2 × observed_p95`,
-   - has `llm_fallback_count == 0` in run metadata (Rule 7),
-   - emits ≥1 outgoing LLM request in access log + `hi_agent_llm_requests_total` metric.
+3. **Sequential real-LLM runs (N≥3)** — three back-to-back `POST /runs`, each: reaches `state=done` in ≤ `2 × observed_p95`; `llm_fallback_count == 0`; emits ≥1 LLM request in access log + metric.
 4. **Cross-loop resource stability** — runs 2 and 3 reuse the same gateway/adapter instance as run 1 (Rule 5 stress test). No `Event loop is closed`, no `ConnectTimeout` on call ≥2.
 5. **Lifecycle observability** — each run reports a non-`None` `current_stage` within 30 s; `finished_at` populated on terminal. `current_stage==None` for >60 s on a non-terminal run is a FAIL.
 6. **Cancellation round-trip** — `POST /runs/{id}/cancel` on a live run → 200 + drives terminal; on unknown id → 404, not 200.
@@ -198,11 +156,7 @@ All six hold. Any FAIL blocks ship. The artifact owner records the gate run in `
 
 Hot-path files: `hi_agent/llm/**`, `hi_agent/runtime/**`, `hi_agent/config/cognition_builder.py`, `hi_agent/config/json_config_loader.py`, `hi_agent/config/builder.py`, `hi_agent/runner.py`, `hi_agent/runner_stage.py`, `hi_agent/runtime_adapter/**`, `hi_agent/memory/compressor.py`, `hi_agent/server/app.py`, `hi_agent/profiles/**`
 
-On any PR touching hot-path files, the PR description must include one of:
-- `T3 evidence: docs/delivery/<YYYY-MM-DD>-<sha>-rule15-volces.json` (gate run from this PR's tip), OR
-- `T3 evidence: DEFERRED — <reason>` (PR tagged "requires gate before release"; may merge to dev but NOT to release)
-
-T1/T2 (unit + integration) passing does NOT preserve T3. At any time the repository has exactly one "last known T3" tag.
+Hot-path PR descriptions must include `T3 evidence: docs/delivery/<date>-<sha>-rule15-volces.json` or `T3 evidence: DEFERRED — <reason>`. T1/T2 passing does NOT preserve T3.
 
 ---
 
@@ -218,13 +172,7 @@ A self-audit with open findings in a downstream-correctness category **blocks de
 - Resource lifetime (async clients, file handles, subprocesses, background tasks)
 - Observability (missing metric, log, or health signal for a failure path)
 
-**Forbidden phrasing in delivery notices:**
-- "P0/P1 fixed, H-level open, shipping this version"
-- "Flagged but not fixed — ok for this round"
-- "Will address in follow-up PR"
-- "Orange severity, architectural debt, safe to ship"
-
-If leadership explicitly accepts the risk: reclassify as a **Known-Defect Notice**, signed by name, acknowledged in writing by downstream before transfer, with user-visible symptoms spelled out per defect.
+**Forbidden:** any phrasing that ships with open ship-blocking findings ("H-level open, shipping this version", "follow-up PR", "architectural debt, safe to ship"). If leadership accepts the risk: reclassify as **Known-Defect Notice**, signed by name, acknowledged in writing by downstream, user-visible symptoms spelled out per defect.
 
 ---
 
@@ -295,45 +243,15 @@ A capability cannot move to L3 without: (a) posture-aware default-on, (b) quaran
 
 ## Ownership Tracks
 
-Hi-Agent has four long-term owner tracks. Every PR identifies its primary owner track in the commit body (`Owner: CO|RO|DX|TE|GOV`). A PR touching files outside its owner track requires either a co-owner approval or a GOV-track exception note in the PR body.
+Every PR identifies its primary owner track in the commit body (`Owner: CO|RO|DX|TE|GOV`). A PR touching files outside its owner track requires co-owner approval or a GOV-track exception note.
 
-### CO — Contract Owner
-
-**Owns:** API schema, profile schema, capability descriptor schema (single canonical), workflow / team spec, artifact schema, status / error model, compatibility policy, posture concept.
-
-**Files:** `hi_agent/contracts/**`, `hi_agent/artifacts/contracts.py`, `hi_agent/artifacts/validators.py`, `hi_agent/capability/registry.py` (canonical `CapabilityDescriptor`), `hi_agent/workflows/contracts.py`, `hi_agent/profiles/schema.json`, `hi_agent/config/profile.py`, `hi_agent/config/posture.py`, `agent_kernel/kernel/contracts.py`, `agent_kernel/service/openapi.py`.
-
-**Rule:** any change that alters a field on a public dataclass, route schema, descriptor, profile schema, or posture default is a CO change and must include a contract-version bump + migration note.
-
-### RO — Runtime Owner
-
-**Owns:** long-running execution, state machines, persistence boundaries.
-
-**Files:** `hi_agent/server/run_*.py`, `idempotency.py`, `team_run_registry.py`, `event_bus.py`, `event_store.py`, `runtime_mode_resolver.py`, `hi_agent/runtime/**`, `hi_agent/runtime_adapter/**`, `hi_agent/gate_protocol.py`, `agent_kernel/runtime/**`, `agent_kernel/kernel/{turn_engine,reasoning_loop,dedupe_store,idempotency_key_policy,retry_executor,minimal_runtime,branch_monitor,replay_fidelity,worker_main}.py`, `agent_kernel/kernel/{task_manager,persistence,recovery}/**`.
-
-**Rule:** process-restart recovery is a first-class test target, not an edge case. In-memory state under research/prod posture is a defect. Any change to a durable store (queue, registry, idempotency) requires a restart-survival test.
-
-### DX — Developer Experience Owner
-
-**Owns:** real-developer journey from first contact through upgrade.
-
-**Files:** `hi_agent/__main__.py`, `hi_agent/cli.py`, `hi_agent/cli_commands/**`, `hi_agent/ops/{doctor_report,diagnostics}.py`, `hi_agent/server/routes_manifest.py`, `hi_agent/config/{validator,readiness,builder,server_builder,*_config_loader,stack,watcher}.py`, `examples/**`, `docs/quickstart*.md`, `docs/extension-guide.md`, `docs/integration-guide.md`, `docs/api-reference.md`, `docs/posture-reference.md`.
-
-**Rule:** no capability reaches L2 (public_contract) without a documented quickstart path, doctor-check coverage, and structured error category in `/runs`. Every error a developer can hit must have an `error_category` and a `next_action`.
-
-### TE — Trust & Evolution Owner
-
-**Owns:** artifacts, evidence, provenance, evaluator/gate, trace, postmortem, calibration, promotion/rollback, audit.
-
-**Files:** `hi_agent/artifacts/{registry,adapters,confidence,ledger}.py`, `hi_agent/server/routes_artifacts.py`, `hi_agent/trace/**`, `hi_agent/observability/{audit,tracing,trace_context,trajectory_exporter,collector,fallback,metrics,notification}.py`, `hi_agent/evolve/**`, `hi_agent/skill/{evolver,observer,recorder}.py`, `hi_agent/ops/release_gate.py`, `agent_kernel/kernel/{event_export,failure_evidence,failure_mappings}.py`, `agent_kernel/kernel/recovery/reflection_builder.py`.
-
-**Rule:** every silent-degradation path in this domain must satisfy Rule 7's four-prong (Countable, Attributable, Inspectable, Gate-asserted). ArtifactLedger corruption is never silently skipped.
-
-### GOV — Governance (cross-track)
-
-**Owns:** `CLAUDE.md`, `docs/platform-capability-matrix.md`, `docs/TODO.md`, `docs/downstream-responses/**`, `.github/workflows/**`, `scripts/check_*.py`, `docs/delivery/**`.
-
-**Rule:** the capability matrix is the single source of truth for status. Delivery notice, TODO, and matrix must agree at every push to main. Any `CLOSED` status requires: (1) L2+ maturity, (2) default path enabled, (3) CI coverage. Any `DECLINED` requires a platform-neutral alternative statement.
+| Track | Owns | Key file globs | Rule |
+|---|---|---|---|
+| **CO** | API/artifact/capability/profile schemas, posture concept | `hi_agent/contracts/**`, `artifacts/contracts.py`, `capability/registry.py`, `config/posture.py`, `profiles/schema.json`, `agent_kernel/kernel/contracts.py` | Any public-dataclass/schema/descriptor/posture change = CO; include contract-version bump + migration note. |
+| **RO** | Execution, state machines, persistence boundaries | `server/run_*.py`, `idempotency.py`, `team_run_registry.py`, `event_*.py`, `runtime/**`, `runtime_adapter/**`, `gate_protocol.py`, `agent_kernel/runtime/**`, `agent_kernel/kernel/{turn_engine,reasoning_loop,...}`, `agent_kernel/kernel/{task_manager,persistence,recovery}/**` | In-memory state under research/prod = defect. Durable-store changes require restart-survival test. |
+| **DX** | Developer journey: first contact → upgrade | `__main__.py`, `cli.py`, `cli_commands/**`, `ops/{doctor_report,diagnostics}.py`, `server/routes_manifest.py`, `config/{validator,readiness,builder,...,watcher}.py`, `examples/**`, `docs/quickstart*.md`, `docs/posture-reference.md`, `docs/api-reference.md` | No L2 without documented quickstart path, doctor-check coverage, and structured error category in `/runs`. |
+| **TE** | Artifacts, evidence, provenance, evolution | `artifacts/{registry,adapters,confidence,ledger}.py`, `routes_artifacts.py`, `trace/**`, `observability/**`, `evolve/**`, `skill/{evolver,observer,recorder}.py`, `ops/release_gate.py`, `agent_kernel/kernel/{event_export,failure_evidence,failure_mappings}.py` | Every silent-degradation path: Countable + Attributable + Inspectable + Gate-asserted. ArtifactLedger corruption never silently skipped. |
+| **GOV** | CLAUDE.md, capability matrix, CI, delivery | `CLAUDE.md`, `docs/platform-capability-matrix.md`, `docs/TODO.md`, `docs/downstream-responses/**`, `.github/workflows/**`, `scripts/check_*.py`, `docs/delivery/**` | Capability matrix = single source of truth. Delivery notice, TODO, matrix agree at every push to main. |
 
 ---
 
@@ -353,54 +271,12 @@ These apply only when the stated condition is true. Full detail and incident rec
 
 Before accepting any new capability request into hi-agent:
 
-**G1 — Positioning gate**: Does the request belong to the capability-layer (runtime, memory, LLM routing, observability, contract)? If it belongs to the business layer → decline and redirect to the research team.
+**G1 — Positioning gate**: capability-layer only (runtime, memory, LLM routing, observability, contract); business-layer → decline and redirect to research team.
 
-**G2 — Abstraction gate**: Can the request be satisfied by composing existing capabilities without new code? If yes → provide a composition example, no new code.
+**G2 — Abstraction gate**: composable from existing capabilities without new code → provide a composition example, no new code.
 
-**G3 — Verification gate**: When new code is unavoidable, the request must be accompanied by a Rule 4 three-layer test plan AND a Rule 8 gate run plan before delivery authorization.
+**G3 — Verification gate**: new code requires a Rule 4 three-layer test plan AND a Rule 8 gate run plan before delivery authorization.
 
-**G4 — Posture & Spine gate**: Any capability accepted past G3 must declare (a) default behaviour under `dev`/`research`/`prod` postures, and (b) which contract-spine fields it carries (`tenant_id`, `project_id`, `profile_id`, `run_id`, etc.). A capability that cannot answer both stays at L0–L1 and cannot enter the research/prod default path.
+**G4 — Posture & Spine gate**: declare (a) default behaviour under `dev`/`research`/`prod` postures and (b) which contract-spine fields it carries; otherwise stays at L0–L1 and cannot enter research/prod default path.
 
-### Rule Origin Mapping
-
-| New | Absorbed from |
-|-----|---------------|
-| Rule 1 | Old Rule 1 + Rule 2 (Think Before Coding) |
-| Rule 2 | Old Rule 3 + Rule 4 |
-| Rule 3 | Old Rule 5 + Rule 6 + Rule 11 (fail-fast sync) |
-| Rule 4 | Old Rule 7 |
-| Rule 5 | Old Rule 12 |
-| Rule 6 | Old Rule 13 |
-| Rule 7 | Old Rule 14 |
-| Rule 8 | Old Rule 15 + Rule 18 + Rule 19 (CI plan → DF-46) |
-| Rule 9 | Old Rule 16 |
-| Rule 10 | Old Rule 17 (with old Rule 8 HTTP table as narrow-trigger) |
-| Rule 11 | New — posture-aware defaults (dev/research/prod knob system) |
-| Rule 12 | New — contract spine completeness (tenant/project/profile on every record) |
-| Rule 13 | New — capability maturity model (L0–L4 replaces fuzzy "implemented") |
-
----
-
-## Production Integrity (P3)
-
-No Mock implementations in production. Using mocks to bypass real failures is **strictly forbidden**.
-
-| Rule | Detail |
-|------|--------|
-| No mock bypass | Do not use Mock/Stub/Fake to conceal missing components or broken wiring. |
-| Tests reflect reality | A passing test must mean the real path works. |
-| Missing = exposed | Unimplemented dependencies → `skip`/`xfail`, never faked. |
-| Legitimate mock uses | (1) external HTTP calls in unit tests; (2) fault injection; (3) performance benchmarks. Document reason in docstring. |
-| Zero mocks in integration | Integration and E2E tests use real components only. |
-
----
-
-## Quick Start
-
-```bash
-python -m hi_agent run --goal "Analyze quarterly revenue data" --local
-python -m hi_agent serve --port 8080
-python -m hi_agent resume --checkpoint .checkpoint/checkpoint_run-001.json
-python -m pytest tests/ -v
-python -m ruff check .
-```
+Rule origin history (R1–R13) → `docs/rules-incident-log.md`.
