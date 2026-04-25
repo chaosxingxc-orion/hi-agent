@@ -15,6 +15,10 @@ JSON profile file format::
 All fields except ``profile_id`` and ``display_name`` are optional.
 Callable fields (``stage_graph_factory``, ``evaluator_factory``) cannot be
 expressed in JSON and are always ``None`` after a JSON load.
+
+CO-8: jsonschema validation is applied before ProfileSpec.from_dict().
+Under research/prod posture, validation failures raise ValueError (fail-closed).
+Under dev posture, validation failures emit WARNING and skip the file.
 """
 
 from __future__ import annotations
@@ -28,6 +32,42 @@ if TYPE_CHECKING:
     from hi_agent.profiles.registry import ProfileRegistry
 
 logger = logging.getLogger(__name__)
+
+# Load the profile JSON schema once at module import time.
+_SCHEMA_PATH = Path(__file__).parent / "schema.json"
+_PROFILE_SCHEMA: dict | None = None
+
+
+def _get_profile_schema() -> dict:
+    """Return the loaded profile JSON schema (lazy singleton)."""
+    global _PROFILE_SCHEMA  # intentional module-level cache
+    if _PROFILE_SCHEMA is None:
+        _PROFILE_SCHEMA = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    return _PROFILE_SCHEMA
+
+
+def _validate_profile_data(data: dict, json_file_name: str) -> None:
+    """Validate *data* against the profile JSON schema.
+
+    Always raises ValueError on schema violation so the loader can decide
+    whether to re-raise (strict posture) or warn-and-skip (dev posture).
+
+    Args:
+        data: Parsed JSON object to validate.
+        json_file_name: File name for error messages.
+
+    Raises:
+        ValueError: When schema validation fails.
+    """
+    import jsonschema
+
+    schema = _get_profile_schema()
+    try:
+        jsonschema.validate(instance=data, schema=schema)
+    except jsonschema.ValidationError as exc:
+        raise ValueError(
+            f"profile schema validation failed for {json_file_name}: {exc.message}"
+        ) from exc
 
 
 def load_profiles_from_dir(profile_dir: Path, registry: ProfileRegistry) -> list[str]:
@@ -76,6 +116,24 @@ def load_profiles_from_dir(profile_dir: Path, registry: ProfileRegistry) -> list
             logger.warning(
                 "load_profiles_from_dir: skipping %s — root must be a JSON object.",
                 json_file.name,
+            )
+            continue
+
+        # CO-8: validate against profile schema before constructing ProfileSpec.
+        # Under research/prod posture: re-raise so startup fails hard (fail-closed).
+        # Under dev posture: warn and skip the file.
+        try:
+            _validate_profile_data(data, json_file.name)
+        except ValueError as schema_exc:
+            from hi_agent.config.posture import Posture
+
+            posture = Posture.from_env()
+            if posture.requires_strict_profile_schema:
+                raise
+            logger.warning(
+                "load_profiles_from_dir: skipping %s — %s (dev posture: warn-and-skip)",
+                json_file.name,
+                schema_exc,
             )
             continue
 
