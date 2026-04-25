@@ -47,7 +47,7 @@
       }
     },
     "volces": {
-      "api_key": "f103e564-61c5-462c-9d4a-95ec035c56f0",
+      "api_key": "",
       "base_url": "https://ark.cn-beijing.volces.com/api/coding/v1",
       "anthropic_base_url": "https://ark.cn-beijing.volces.com/api/coding",
       "api_format": "anthropic",
