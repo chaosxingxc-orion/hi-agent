@@ -26,8 +26,8 @@ class CircuitState:
         return self.status == "open"
 
 
-class CircuitBreaker:
-    """Failure-count based circuit breaker."""
+class CircuitBreaker:  # scope: process-internal
+    """Failure-count based circuit breaker (per-capability, not a shared server resource)."""
 
     def __init__(
         self,

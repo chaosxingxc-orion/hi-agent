@@ -84,3 +84,23 @@ class Posture(StrEnum):
     def requires_authenticated_idempotency_scope(self) -> bool:
         """IdempotencyStore must key on authenticated TenantContext, not request body."""
         return self.is_strict
+
+    @property
+    def requires_durable_event_store(self) -> bool:
+        """SQLiteEventStore must be used, not event_store=None."""
+        return self.is_strict
+
+    @property
+    def requires_durable_audit_store(self) -> bool:
+        """SqliteDecisionAuditStore must be used, not in-memory."""
+        return self.is_strict
+
+    @property
+    def requires_durable_gate_store(self) -> bool:
+        """SQLiteGateStore must be wired to gate routes."""
+        return self.is_strict
+
+    @property
+    def requires_durable_feedback_store(self) -> bool:
+        """FeedbackStore must have a storage_path."""
+        return self.is_strict

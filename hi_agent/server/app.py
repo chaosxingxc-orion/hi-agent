@@ -58,12 +58,13 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from hi_agent.auth.operation_policy import require_operation
+from hi_agent.config.posture import Posture
 from hi_agent.config.stack import ConfigStack
 from hi_agent.config.watcher import ConfigFileWatcher
+from hi_agent.server._durable_backends import build_durable_backends
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
-from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.ops_routes import handle_diagnostics, handle_doctor, handle_release_gate
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.routes_artifacts import (
@@ -104,7 +105,6 @@ from hi_agent.server.routes_tools_mcp import (
     handle_tools_list,
 )
 from hi_agent.server.run_manager import RunManager
-from hi_agent.server.run_store import SQLiteRunStore
 from hi_agent.server.session_store import SessionStore
 from hi_agent.server.team_event_store import TeamEventStore
 
@@ -1132,18 +1132,14 @@ def build_app(agent_server: AgentServer) -> Starlette:
                 agent_server._config_stack._base_path,
             )
 
-        # C3: Inject FeedbackStore so route handlers never hit the unscoped fallback.
-        try:
-            from hi_agent.evolve.feedback_store import FeedbackStore as _FeedbackStore
-
-            agent_server._feedback_store = _FeedbackStore()
-            logger.info("lifespan: FeedbackStore initialized.")
-        except Exception as _fb_exc:
+        # C3: FeedbackStore is already constructed by build_durable_backends() in
+        # AgentServer.__init__ and stored at agent_server._feedback_store.
+        # Log its presence so the lifespan confirms wiring.
+        if agent_server._feedback_store is not None:
+            logger.info("lifespan: FeedbackStore already wired (Rule 6).")
+        else:
             logger.warning(
-                "lifespan: FeedbackStore initialization failed (%s: %s); "
-                "feedback endpoints will be unavailable.",
-                type(_fb_exc).__name__,
-                _fb_exc,
+                "lifespan: FeedbackStore is None; feedback endpoints will be unavailable."
             )
 
         # G-8: Long-running op coordinator + background poller
@@ -1343,25 +1339,57 @@ class AgentServer:
         self._watcher: ConfigFileWatcher | None = None
         self._watcher_task: asyncio.Task[None] | None = None
 
-        # RunManager respects server_max_concurrent_runs from config.
-        # Durable stores are opt-in: only instantiated when a db_dir is configured.
-        _db_dir = getattr(self._config, "server_db_dir", None)
-        _idempotency_store: IdempotencyStore | None = None
-        _run_store: SQLiteRunStore | None = None
-        if _db_dir:
-            _idempotency_store = IdempotencyStore(db_path=f"{_db_dir}/idempotency.db")
-            _run_store = SQLiteRunStore(db_path=f"{_db_dir}/runs.db")
-            _session_store = SessionStore(db_path=f"{_db_dir}/sessions.db")
-            _session_store.initialize()
-            self.session_store = _session_store
-            _team_event_store = TeamEventStore(db_path=f"{_db_dir}/team_events.db")
-            _team_event_store.initialize()
-            self.team_event_store = _team_event_store
+        # Rule 6 — Single Construction Path: all durable backends are built in
+        # one call. HI_AGENT_DATA_DIR takes priority over server_db_dir from config.
+        _data_dir: str | None = os.environ.get("HI_AGENT_DATA_DIR") or getattr(
+            self._config, "server_db_dir", None
+        )
+        _posture = Posture.from_env()
+        try:
+            _backends = build_durable_backends(_data_dir, _posture)
+        except RuntimeError as _be:
+            logger.warning(
+                "build_durable_backends failed (%s); durable stores unavailable.",
+                _be,
+            )
+            _backends = {
+                "idempotency_store": None,
+                "run_store": None,
+                "run_queue": None,
+                "session_store": None,
+                "team_event_store": None,
+                "team_run_registry": None,
+                "event_store": None,
+                "decision_audit_store": None,
+                "gate_store": None,
+                "feedback_store": None,
+            }
+        self._idempotency_store = _backends["idempotency_store"]
+        self._run_store = _backends["run_store"]
+        self._run_queue = _backends["run_queue"]
+        self._session_store = _backends["session_store"]
+        self._team_event_store = _backends["team_event_store"]
+        self._team_run_registry = _backends["team_run_registry"]
+        self._event_store = _backends["event_store"]
+        self._decision_audit_store = _backends["decision_audit_store"]
+        self._gate_store = _backends["gate_store"]
+        self._feedback_store = _backends["feedback_store"]
+
+        # Expose session_store and team_event_store at the old attribute names
+        # so existing routes that access server.session_store / server.team_event_store
+        # continue to work without change.
+        self.session_store = self._session_store
+        self.team_event_store = self._team_event_store
+
+        # Inject durable event store into the module-level EventBus singleton.
+        event_bus.set_event_store(self._event_store)
+
         self.run_manager = RunManager(
             max_concurrent=self._config.run_manager_max_concurrent,
             queue_size=self._config.run_manager_queue_size,
-            idempotency_store=_idempotency_store,
-            run_store=_run_store,
+            idempotency_store=self._idempotency_store,
+            run_store=self._run_store,
+            run_queue=self._run_queue,
         )
 
         from hi_agent.config.builder import SystemBuilder

@@ -189,6 +189,10 @@ class EventBus:
             if run_id in self._queues and not self._queues[run_id]:
                 del self._queues[run_id]
 
+    def set_event_store(self, store: SQLiteEventStore | None) -> None:
+        """Inject a durable event store post-construction (called by AgentServer)."""
+        self._event_store = store
+
     def get_stats(self) -> dict[str, int]:
         """Return bus statistics.
 
