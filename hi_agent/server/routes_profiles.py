@@ -7,8 +7,14 @@ Endpoints:
 
 from __future__ import annotations
 
+import logging
+
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+
+from hi_agent.server.tenant_context import require_tenant_context
+
+logger = logging.getLogger(__name__)
 
 
 async def handle_global_l3_summary(request: Request) -> JSONResponse:
@@ -16,6 +22,10 @@ async def handle_global_l3_summary(request: Request) -> JSONResponse:
 
     GET /profiles/hi_agent_global/memory/l3
     """
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     mgr = _get_profile_dir_manager(request)
     if mgr is None:
         return JSONResponse({"error": "profile_manager_not_available"}, status_code=503)
@@ -31,6 +41,10 @@ async def handle_global_skills(request: Request) -> JSONResponse:
 
     GET /profiles/hi_agent_global/skills
     """
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     mgr = _get_profile_dir_manager(request)
     if mgr is None:
         return JSONResponse({"error": "profile_manager_not_available"}, status_code=503)
@@ -54,5 +68,9 @@ def _get_profile_dir_manager(request: Request):  # type: ignore[return]
         from hi_agent.profile.manager import ProfileDirectoryManager
 
         return ProfileDirectoryManager()
-    except Exception:
+    except Exception as exc:
+        logger.warning("profile_manager_init_failed: %s", exc, exc_info=True)
+        from hi_agent.observability.fallback import record_fallback
+
+        record_fallback("capability", reason="profile_manager_init_failed", run_id="system")
         return None
