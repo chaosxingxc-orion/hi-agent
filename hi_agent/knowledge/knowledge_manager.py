@@ -77,14 +77,11 @@ class KnowledgeManager:
     ) -> None:
         """Initialize KnowledgeManager.
 
-        Rule 13 (DF-11, J7-1): both ``user_store`` and ``graph`` must be
-        injected by ``build_knowledge_manager(...)``. Inline fallback
-        construction of either diverges from the builder's profile-scoped
-        instances — the recurring F-2/G-5/I-7/J7-1 defect shape.
-
-        ``wiki`` retains the inline-construct fallback because the knowledge
-        wiki is a stateless directory-backed reader that does not share mutable
-        state across callers (documented exception per Rule 13).
+        Rule 6/13 (DF-11, J7-1): all four shared resources — ``wiki``,
+        ``user_store``, ``graph``, and ``renderer`` — must be injected by
+        ``build_knowledge_manager(...)``. Inline fallback construction of any
+        of these diverges from the builder's profile-scoped instances
+        (Rule 6 / Rule 13 / H2-Track3).
         """
         if user_store is None:
             raise ValueError(
@@ -99,10 +96,22 @@ class KnowledgeManager:
                 "scoped graph (Rule 13 / J7-1)."
             )
         self._storage_dir = storage_dir
-        self._wiki = wiki or KnowledgeWiki(f"{storage_dir}/wiki")
+        if wiki is None:
+            raise ValueError(
+                "KnowledgeManager.wiki must be injected by the builder — "
+                "unscoped KnowledgeWiki is not permitted (Rule 6). "
+                "Pass wiki=KnowledgeWiki(storage_dir/wiki) explicitly."
+            )
+        self._wiki = wiki
         self._user_store = user_store
         self._graph = graph
-        self._renderer = renderer or GraphRenderer(self._graph)
+        if renderer is None:
+            raise ValueError(
+                "KnowledgeManager.renderer must be injected by the builder — "
+                "unscoped GraphRenderer is not permitted (Rule 6). "
+                "Pass renderer=GraphRenderer(graph) explicitly."
+            )
+        self._renderer = renderer
 
     @property
     def wiki(self) -> KnowledgeWiki:

@@ -117,17 +117,21 @@ def client(server: AgentServer) -> TestClient:
 @pytest.fixture()
 def client_with_knowledge(tmp_path) -> TestClient:
     """TestClient with a real KnowledgeManager wired to a temp directory."""
+    from hi_agent.knowledge.graph_renderer import GraphRenderer
     from hi_agent.knowledge.knowledge_manager import KnowledgeManager
     from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+    from hi_agent.knowledge.wiki import KnowledgeWiki
     from hi_agent.memory.long_term import LongTermMemoryGraph
 
     s = AgentServer()
     s.executor_factory = _make_mock_executor_factory()
     _kdir = str(tmp_path / "knowledge")
+    _graph = LongTermMemoryGraph(f"{_kdir}/graph.json")
     s.knowledge_manager = KnowledgeManager(
-        storage_dir=_kdir,
+        wiki=KnowledgeWiki(f"{_kdir}/wiki"),
         user_store=UserKnowledgeStore(f"{_kdir}/user"),
-        graph=LongTermMemoryGraph(f"{_kdir}/graph.json"),
+        graph=_graph,
+        renderer=GraphRenderer(_graph),
     )
     return TestClient(s.app, raise_server_exceptions=False)
 

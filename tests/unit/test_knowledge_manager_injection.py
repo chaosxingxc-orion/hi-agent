@@ -46,14 +46,25 @@ def test_knowledge_manager_raises_on_missing_graph_mentions_builder() -> None:
         KnowledgeManager(user_store=user_store, graph=None)
 
 
-def test_knowledge_manager_constructs_when_both_injected() -> None:
-    """KnowledgeManager must construct successfully when both dependencies are injected."""
+def test_knowledge_manager_constructs_when_all_injected() -> None:
+    """KnowledgeManager must construct successfully when all dependencies are injected."""
+    from hi_agent.knowledge.graph_renderer import GraphRenderer
+    from hi_agent.knowledge.wiki import KnowledgeWiki
     from hi_agent.memory.long_term import LongTermMemoryGraph
 
     user_store = _make_user_store()
     graph = MagicMock(spec=LongTermMemoryGraph)
+    wiki = MagicMock(spec=KnowledgeWiki)
+    renderer = MagicMock(spec=GraphRenderer)
 
-    manager = KnowledgeManager(user_store=user_store, graph=graph)
+    manager = KnowledgeManager(
+        wiki=wiki,
+        user_store=user_store,
+        graph=graph,
+        renderer=renderer,
+    )
 
     assert manager._user_store is user_store
     assert manager._graph is graph
+    assert manager._wiki is wiki
+    assert manager._renderer is renderer

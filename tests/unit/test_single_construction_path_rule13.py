@@ -54,12 +54,16 @@ class TestKnowledgeManagerRequiresUserStoreAndGraph:
             )
 
     def test_accepts_injected_user_store_and_graph(self, tmp_path) -> None:
+        from hi_agent.knowledge.graph_renderer import GraphRenderer
+        from hi_agent.knowledge.wiki import KnowledgeWiki
+
         store = UserKnowledgeStore(str(tmp_path / "user"))
         graph = LongTermMemoryGraph(str(tmp_path / "graph.json"))
         km = KnowledgeManager(
-            storage_dir=str(tmp_path / "k"),
+            wiki=KnowledgeWiki(str(tmp_path / "wiki")),
             user_store=store,
             graph=graph,
+            renderer=GraphRenderer(graph),
         )
         assert km.user_store is store
         assert km.graph is graph

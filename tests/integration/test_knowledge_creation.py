@@ -8,8 +8,10 @@ from typing import Any
 from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
+from hi_agent.knowledge.graph_renderer import GraphRenderer
 from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
+from hi_agent.knowledge.wiki import KnowledgeWiki
 from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.memory.long_term import LongTermMemoryGraph
@@ -72,10 +74,12 @@ def _make_executor(
 def test_knowledge_ingested_after_successful_run(tmp_path) -> None:
     """KnowledgeManager.ingest_from_session is called on completed run."""
     _kdir = str(tmp_path / "knowledge")
+    _graph = LongTermMemoryGraph(f"{_kdir}/graph.json")
     km = KnowledgeManager(
-        storage_dir=_kdir,
+        wiki=KnowledgeWiki(f"{_kdir}/wiki"),
         user_store=UserKnowledgeStore(f"{_kdir}/user"),
-        graph=LongTermMemoryGraph(f"{_kdir}/graph.json"),
+        graph=_graph,
+        renderer=GraphRenderer(_graph),
     )
     session = FakeSession(
         findings=["Revenue grew 12% YoY"],
@@ -95,10 +99,12 @@ def test_knowledge_ingested_after_successful_run(tmp_path) -> None:
 def test_knowledge_ingested_after_failed_run(tmp_path) -> None:
     """KnowledgeManager.ingest_from_session is called even when run fails."""
     _kdir = str(tmp_path / "knowledge")
+    _graph = LongTermMemoryGraph(f"{_kdir}/graph.json")
     km = KnowledgeManager(
-        storage_dir=_kdir,
+        wiki=KnowledgeWiki(f"{_kdir}/wiki"),
         user_store=UserKnowledgeStore(f"{_kdir}/user"),
-        graph=LongTermMemoryGraph(f"{_kdir}/graph.json"),
+        graph=_graph,
+        renderer=GraphRenderer(_graph),
     )
     session = FakeSession(
         findings=["Partial analysis completed before failure"],
@@ -119,10 +125,12 @@ def test_knowledge_ingested_after_failed_run(tmp_path) -> None:
 def test_ingested_items_in_wiki_and_graph(tmp_path) -> None:
     """Ingested findings appear as wiki pages; facts appear in graph."""
     _kdir = str(tmp_path / "knowledge")
+    _graph = LongTermMemoryGraph(f"{_kdir}/graph.json")
     km = KnowledgeManager(
-        storage_dir=_kdir,
+        wiki=KnowledgeWiki(f"{_kdir}/wiki"),
         user_store=UserKnowledgeStore(f"{_kdir}/user"),
-        graph=LongTermMemoryGraph(f"{_kdir}/graph.json"),
+        graph=_graph,
+        renderer=GraphRenderer(_graph),
     )
     session = FakeSession(
         findings=["Insight A", "Insight B"],
@@ -152,10 +160,12 @@ def test_ingested_items_in_wiki_and_graph(tmp_path) -> None:
 def test_user_feedback_stored(tmp_path) -> None:
     """User feedback from session is ingested into user knowledge store."""
     _kdir = str(tmp_path / "knowledge")
+    _graph = LongTermMemoryGraph(f"{_kdir}/graph.json")
     km = KnowledgeManager(
-        storage_dir=_kdir,
+        wiki=KnowledgeWiki(f"{_kdir}/wiki"),
         user_store=UserKnowledgeStore(f"{_kdir}/user"),
-        graph=LongTermMemoryGraph(f"{_kdir}/graph.json"),
+        graph=_graph,
+        renderer=GraphRenderer(_graph),
     )
     session = FakeSession(
         user_feedback=["I prefer concise summaries", "Use metric units"],
@@ -178,10 +188,12 @@ def test_backward_compat_no_knowledge_manager(tmp_path) -> None:
 def test_backward_compat_no_session(tmp_path) -> None:
     """Even with knowledge_manager set, None session is safe."""
     _kdir = str(tmp_path / "knowledge")
+    _graph = LongTermMemoryGraph(f"{_kdir}/graph.json")
     km = KnowledgeManager(
-        storage_dir=_kdir,
+        wiki=KnowledgeWiki(f"{_kdir}/wiki"),
         user_store=UserKnowledgeStore(f"{_kdir}/user"),
-        graph=LongTermMemoryGraph(f"{_kdir}/graph.json"),
+        graph=_graph,
+        renderer=GraphRenderer(_graph),
     )
     contract = TaskContract(task_id="kc-nosess", goal="no session test")
     kernel = MockKernel()

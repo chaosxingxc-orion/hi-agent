@@ -442,9 +442,12 @@ class TestGraphRenderer:
 class TestKnowledgeManager:
     def _make_km(self, tmp_path) -> KnowledgeManager:
         """Helper: construct a fully-injected KnowledgeManager for tests."""
+        graph = LongTermMemoryGraph(str(tmp_path / "graph.json"))
         return KnowledgeManager(
+            wiki=KnowledgeWiki(str(tmp_path / "wiki")),
             user_store=UserKnowledgeStore(str(tmp_path / "user")),
-            graph=LongTermMemoryGraph(str(tmp_path / "graph.json")),
+            graph=graph,
+            renderer=GraphRenderer(graph),
         )
 
     def test_ingest_text_creates_wiki_page(self, tmp_path) -> None:
