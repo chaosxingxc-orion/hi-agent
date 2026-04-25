@@ -15,6 +15,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from typing import ClassVar
 
 
 def _resolve_db_path(db_path: str | None) -> str:
@@ -63,6 +64,17 @@ CREATE INDEX IF NOT EXISTS idx_run_queue_status_priority
 ON run_queue (status, priority ASC, enqueued_at ASC)
 """
 
+    _MIGRATE_SPINE: ClassVar[list[str]] = [
+        "ALTER TABLE run_queue ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE run_queue ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE run_queue ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE run_queue ADD COLUMN project_id TEXT NOT NULL DEFAULT ''",
+    ]
+    _CREATE_SPINE_INDEX = """\
+CREATE INDEX IF NOT EXISTS idx_run_queue_spine
+ON run_queue (tenant_id, user_id, session_id, status)
+"""
+
     def __init__(
         self,
         db_path: str | None = None,
@@ -96,6 +108,17 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
         self._conn.execute(self._CREATE_TABLE)
         self._conn.execute(self._CREATE_INDEX)
         self._conn.commit()
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add spine columns to run_queue table if missing."""
+        cols = {row[1] for row in self._conn.execute("PRAGMA table_info(run_queue)")}
+        for stmt in self._MIGRATE_SPINE:
+            col = stmt.split("ADD COLUMN ")[1].split(" ")[0]
+            if col not in cols:
+                self._conn.execute(stmt)
+        self._conn.execute(self._CREATE_SPINE_INDEX)
+        self._conn.commit()
 
     # -- public API -----------------------------------------------------------
 
@@ -104,6 +127,10 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
         run_id: str,
         priority: int = 0,
         payload_json: str = "",
+        tenant_id: str = "",
+        user_id: str = "",
+        session_id: str = "",
+        project_id: str = "",
     ) -> None:
         """Add run to queue.  Idempotent by run_id.
 
@@ -115,6 +142,10 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
             priority: Lower integer = higher urgency (same convention as
                 the in-memory PriorityQueue in RunManager).
             payload_json: Opaque JSON string stored alongside the run.
+            tenant_id: Tenant spine field for cross-record traceability.
+            user_id: User spine field.
+            session_id: Session spine field.
+            project_id: Project spine field.
         """
         now = time.time()
         with self._lock:
@@ -122,9 +153,13 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
                 "INSERT OR IGNORE INTO run_queue "
                 "(run_id, status, priority, attempt_count, max_attempts, "
                 " worker_id, lease_expires_at, cancellation_flag, "
-                " payload_json, enqueued_at, updated_at) "
-                "VALUES (?, 'queued', ?, 0, 3, NULL, NULL, 0, ?, ?, ?)",
-                (run_id, priority, payload_json, now, now),
+                " payload_json, enqueued_at, updated_at, "
+                " tenant_id, user_id, session_id, project_id) "
+                "VALUES (?, 'queued', ?, 0, 3, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    run_id, priority, payload_json, now, now,
+                    tenant_id, user_id, session_id, project_id,
+                ),
             )
             self._conn.commit()
 
@@ -313,6 +348,22 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
         if row is None:
             return False
         return bool(row[0])
+
+    def dequeue_unclaimed(self, run_id: str) -> None:
+        """Remove a queued run that was never claimed. Rollback primitive.
+
+        Only removes the run when it is still in 'queued' status (never claimed
+        by a worker), making it safe to use as a creation-failure rollback.
+
+        Args:
+            run_id: Identifier of the run to remove.
+        """
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM run_queue WHERE run_id = ? AND status = 'queued'",
+                (run_id,),
+            )
+            self._conn.commit()
 
     def close(self) -> None:
         """Close the underlying database connection."""

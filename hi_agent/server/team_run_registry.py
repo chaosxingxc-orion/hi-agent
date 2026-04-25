@@ -10,6 +10,7 @@ import json
 import sqlite3
 import threading
 from pathlib import Path
+from typing import ClassVar
 
 from hi_agent.contracts.team_runtime import TeamRun
 
@@ -54,9 +55,16 @@ CREATE TABLE IF NOT EXISTS team_runs (
     pi_run_id   TEXT    NOT NULL DEFAULT '',
     project_id  TEXT    NOT NULL DEFAULT '',
     member_runs TEXT    NOT NULL DEFAULT '[]',
-    created_at  TEXT    NOT NULL DEFAULT ''
+    created_at  TEXT    NOT NULL DEFAULT '',
+    status      TEXT    NOT NULL DEFAULT 'created',
+    finished_at REAL    NOT NULL DEFAULT 0
 )
 """
+
+    _MIGRATE_COLS: ClassVar[list[str]] = [
+        "ALTER TABLE team_runs ADD COLUMN status TEXT NOT NULL DEFAULT 'created'",
+        "ALTER TABLE team_runs ADD COLUMN finished_at REAL NOT NULL DEFAULT 0",
+    ]
 
     def __init__(self, db_path: str | None = None) -> None:
         """Open (or create) the team run registry database.
@@ -80,6 +88,16 @@ CREATE TABLE IF NOT EXISTS team_runs (
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(self._CREATE_TABLE)
         self._conn.commit()
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add status and finished_at columns to team_runs table if missing."""
+        cols = {row[1] for row in self._conn.execute("PRAGMA table_info(team_runs)")}
+        for stmt in self._MIGRATE_COLS:
+            col = stmt.split("ADD COLUMN ")[1].split(" ")[0]
+            if col not in cols:
+                self._conn.execute(stmt)
+        self._conn.commit()
 
     # -- serialization helpers -----------------------------------------------
 
@@ -91,10 +109,14 @@ CREATE TABLE IF NOT EXISTS team_runs (
             team_run.project_id,
             member_json,
             team_run.created_at,
+            "created",
+            0.0,
         )
 
     def _from_row(self, row: tuple) -> TeamRun:
-        team_id, pi_run_id, project_id, member_json, created_at = row
+        team_id, pi_run_id, project_id, member_json, created_at = (
+            row[0], row[1], row[2], row[3], row[4]
+        )
         raw_members = json.loads(member_json) if member_json else []
         member_runs = tuple(tuple(pair) for pair in raw_members)
         return TeamRun(
@@ -118,8 +140,8 @@ CREATE TABLE IF NOT EXISTS team_runs (
         with self._lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO team_runs "
-                "(team_id, pi_run_id, project_id, member_runs, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "(team_id, pi_run_id, project_id, member_runs, created_at, status, finished_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 row,
             )
             self._conn.commit()
@@ -132,7 +154,8 @@ CREATE TABLE IF NOT EXISTS team_runs (
         """
         with self._lock:
             cur = self._conn.execute(
-                "SELECT team_id, pi_run_id, project_id, member_runs, created_at "
+                "SELECT team_id, pi_run_id, project_id, member_runs, "
+                "created_at, status, finished_at "
                 "FROM team_runs WHERE team_id = ?",
                 (team_id,),
             )
@@ -159,6 +182,27 @@ CREATE TABLE IF NOT EXISTS team_runs (
         """
         with self._lock:
             self._conn.execute("DELETE FROM team_runs WHERE team_id = ?", (team_id,))
+            self._conn.commit()
+
+    def set_status(self, team_id: str, status: str, finished_at: float | None = None) -> None:
+        """Update the status of a team run.
+
+        Args:
+            team_id: Team identifier.
+            status: New status value (e.g. 'running', 'completed', 'failed', 'cancelled').
+            finished_at: Explicit finished_at epoch timestamp. When None, auto-set for
+                terminal states (completed/failed/cancelled) and left 0 for non-terminal.
+        """
+        import time as _time
+        now = _time.time()
+        ft = finished_at if finished_at is not None else (
+            now if status in ("completed", "failed", "cancelled") else 0.0
+        )
+        with self._lock:
+            self._conn.execute(
+                "UPDATE team_runs SET status = ?, finished_at = ? WHERE team_id = ?",
+                (status, ft, team_id),
+            )
             self._conn.commit()
 
     def close(self) -> None:

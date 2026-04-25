@@ -126,9 +126,9 @@ ON idempotency_records (tenant_id, idempotency_key)
             created_at=row[6],
             updated_at=row[7],
             expires_at=row[8],
-            project_id=row[9] if len(row) > 9 else "",
-            user_id=row[10] if len(row) > 10 else "",
-            session_id=row[11] if len(row) > 11 else "",
+            project_id=row[9],
+            user_id=row[10],
+            session_id=row[11],
         )
 
     # -- public API ----------------------------------------------------------
@@ -278,6 +278,24 @@ ON idempotency_records (tenant_id, idempotency_key)
                 "SET status = 'failed', updated_at = ? "
                 "WHERE tenant_id = ? AND idempotency_key = ?",
                 (now, tenant_id, idempotency_key),
+            )
+            self._conn.commit()
+
+    def release(self, tenant_id: str, idempotency_key: str) -> None:
+        """Delete a pending idempotency slot. Rollback primitive for create_run failures.
+
+        Only deletes records in status='pending'. Completed/failed records are not removed
+        (they are needed for replay).
+
+        Args:
+            tenant_id: Tenant owning the record.
+            idempotency_key: Client-supplied idempotency key.
+        """
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM idempotency_records "
+                "WHERE tenant_id = ? AND idempotency_key = ? AND status = 'pending'",
+                (tenant_id, idempotency_key),
             )
             self._conn.commit()
 

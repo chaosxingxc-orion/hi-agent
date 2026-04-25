@@ -251,6 +251,7 @@ class RunManager:
         )
 
         # --- idempotency check (only when store + key are present) ----------
+        outcome: str = ""  # set to "created" | "replayed" | "conflict" when idem is active
         if self._idempotency_store is not None and idempotency_key:
             # Build hash from payload excluding the idempotency_key itself so
             # that the canonical hash represents the actual request content.
@@ -310,6 +311,13 @@ class RunManager:
         client_task_id = task_contract_dict.get("task_id", "")
         with self._lock:
             if client_task_id and self._task_id_exists_unlocked(client_task_id, workspace):
+                # Clean up orphan idempotency slot reserved above (HIGH-A2).
+                if (
+                    self._idempotency_store is not None
+                    and idempotency_key is not None
+                    and outcome == "created"
+                ):
+                    self._idempotency_store.release(tenant_id, idempotency_key)
                 raise ValueError(f"run with task_id '{client_task_id}' already exists in workspace")
             self._runs[run_id] = run
 
@@ -446,6 +454,8 @@ class RunManager:
             self._active_count += 1
             run.state = "running"
             run.updated_at = datetime.now(UTC).isoformat()
+        if self._run_store is not None:
+            self._run_store.mark_running(run.run_id)
         try:
             result = executor_fn(run)
             with self._lock:
@@ -478,6 +488,15 @@ class RunManager:
                 self._active_count -= 1
                 if run.finished_at is None:
                     run.finished_at = _now_iso
+            # Sync terminal state to run_store.
+            if self._run_store is not None:
+                _result_str = (run.result and str(run.result)) or ""
+                if run.state == "completed":
+                    self._run_store.mark_complete(run.run_id, _result_str)
+                elif run.state == "cancelled":
+                    self._run_store.mark_cancelled(run.run_id)
+                else:
+                    self._run_store.mark_failed(run.run_id, run.error or "")
             self._semaphore.release()
             self._write_trace_stub(run)
             if (
@@ -508,6 +527,8 @@ class RunManager:
             self._active_count += 1
             run.state = "running"
             run.updated_at = datetime.now(UTC).isoformat()
+        if self._run_store is not None:
+            self._run_store.mark_running(run.run_id)
         try:
             result = executor_fn(run)
             with self._lock:
@@ -541,6 +562,15 @@ class RunManager:
                 self._active_count -= 1
                 if run.finished_at is None:
                     run.finished_at = _now_iso_d
+            # Sync terminal state to run_store.
+            if self._run_store is not None:
+                _result_str_d = (run.result and str(run.result)) or ""
+                if run.state == "completed":
+                    self._run_store.mark_complete(run.run_id, _result_str_d)
+                elif run.state == "cancelled":
+                    self._run_store.mark_cancelled(run.run_id)
+                else:
+                    self._run_store.mark_failed(run.run_id, run.error or "")
             self._semaphore.release()
             self._write_trace_stub(run)
             if (
@@ -759,6 +789,10 @@ class RunManager:
         if self._run_queue is not None:
             with contextlib.suppress(Exception):
                 self._run_queue.cancel(run_id)
+        # Sync cancellation to run_store.
+        if self._run_store is not None:
+            with contextlib.suppress(Exception):
+                self._run_store.mark_cancelled(run_id)
         # Propagate to in-process CancellationToken if one is registered.
         with self._lock:
             token = self._active_executor_tokens.get(run_id)

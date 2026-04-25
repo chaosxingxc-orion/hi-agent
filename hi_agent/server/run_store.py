@@ -31,6 +31,7 @@ class RunRecord:
     user_id: str = "__legacy__"  # workspace owner; "__legacy__" for pre-migration rows
     session_id: str = "__legacy__"  # workspace session; "__legacy__" for pre-migration rows
     project_id: str = ""  # project scope; empty for pre-migration / unscoped rows
+    finished_at: float = 0.0  # 0 until terminal state; epoch seconds
 
 
 class SQLiteRunStore:
@@ -54,7 +55,8 @@ CREATE TABLE IF NOT EXISTS run_records (
     result_summary      TEXT    NOT NULL DEFAULT '',
     error_summary       TEXT    NOT NULL DEFAULT '',
     created_at          REAL    NOT NULL,
-    updated_at          REAL    NOT NULL
+    updated_at          REAL    NOT NULL,
+    finished_at         REAL    NOT NULL DEFAULT 0
 )
 """
     _CREATE_INDEX = """\
@@ -107,6 +109,10 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cx.execute(
                 "ALTER TABLE run_records ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"
             )
+        if "finished_at" not in cols:
+            cx.execute(
+                "ALTER TABLE run_records ADD COLUMN finished_at REAL NOT NULL DEFAULT 0"
+            )
         cx.commit()
         cx.execute(
             "CREATE INDEX IF NOT EXISTS idx_run_records_workspace "
@@ -129,7 +135,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             error_summary=row[10],
             created_at=row[11],
             updated_at=row[12],
-            project_id=row[13] if len(row) > 13 else "",
+            project_id=row[13],
+            finished_at=row[14],
         )
 
     # -- public API ----------------------------------------------------------
@@ -145,8 +152,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                 "INSERT OR REPLACE INTO run_records "
                 "(run_id, tenant_id, user_id, session_id, task_contract_json, status, priority, "
                 "attempt_count, cancellation_flag, result_summary, error_summary, "
-                "created_at, updated_at, project_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "created_at, updated_at, project_id, finished_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.run_id,
                     record.tenant_id,
@@ -162,6 +169,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                     record.created_at,
                     record.updated_at,
                     record.project_id,
+                    record.finished_at,
                 ),
             )
             self._conn.commit()
@@ -179,7 +187,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cur = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at, project_id "
+                "error_summary, created_at, updated_at, project_id, finished_at "
                 "FROM run_records WHERE run_id = ?",
                 (run_id,),
             )
@@ -199,7 +207,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cur = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at, project_id "
+                "error_summary, created_at, updated_at, project_id, finished_at "
                 "FROM run_records WHERE tenant_id = ? ORDER BY created_at ASC",
                 (tenant_id,),
             )
@@ -224,7 +232,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             row = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at, project_id "
+                "error_summary, created_at, updated_at, project_id, finished_at "
                 "FROM run_records WHERE run_id=? AND tenant_id=? AND user_id=? AND session_id=?",
                 (run_id, tenant_id, user_id, session_id),
             ).fetchone()
@@ -248,7 +256,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                 rows = self._conn.execute(
                     "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                     "status, priority, attempt_count, cancellation_flag, result_summary, "
-                    "error_summary, created_at, updated_at "
+                    "error_summary, created_at, updated_at, project_id, finished_at "
                     "FROM run_records WHERE tenant_id=? AND user_id=? AND session_id=? "
                     "ORDER BY created_at DESC",
                     (tenant_id, user_id, session_id),
@@ -257,7 +265,7 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                 rows = self._conn.execute(
                     "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                     "status, priority, attempt_count, cancellation_flag, result_summary, "
-                    "error_summary, created_at, updated_at "
+                    "error_summary, created_at, updated_at, project_id, finished_at "
                     "FROM run_records WHERE tenant_id=? AND user_id=? ORDER BY created_at DESC",
                     (tenant_id, user_id),
                 ).fetchall()
@@ -273,9 +281,9 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         with self._lock:
             self._conn.execute(
                 "UPDATE run_records "
-                "SET status = 'cancelled', cancellation_flag = 1, updated_at = ? "
+                "SET status = 'cancelled', cancellation_flag = 1, updated_at = ?, finished_at = ? "
                 "WHERE run_id = ?",
-                (now, run_id),
+                (now, now, run_id),
             )
             self._conn.commit()
 
@@ -290,9 +298,9 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         with self._lock:
             self._conn.execute(
                 "UPDATE run_records "
-                "SET status = 'completed', result_summary = ?, updated_at = ? "
+                "SET status = 'completed', result_summary = ?, updated_at = ?, finished_at = ? "
                 "WHERE run_id = ?",
-                (result_summary, now, run_id),
+                (result_summary, now, now, run_id),
             )
             self._conn.commit()
 
@@ -307,9 +315,9 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
         with self._lock:
             self._conn.execute(
                 "UPDATE run_records "
-                "SET status = 'failed', error_summary = ?, updated_at = ? "
+                "SET status = 'failed', error_summary = ?, updated_at = ?, finished_at = ? "
                 "WHERE run_id = ?",
-                (error_summary, now, run_id),
+                (error_summary, now, now, run_id),
             )
             self._conn.commit()
 
@@ -346,13 +354,37 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cur = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at, project_id "
+                "error_summary, created_at, updated_at, project_id, finished_at "
                 "FROM run_records WHERE tenant_id = ? AND project_id = ? "
                 "ORDER BY created_at ASC",
                 (tenant_id, project_id),
             )
             rows = cur.fetchall()
         return [self._row_to_record(r) for r in rows]
+
+    def mark_running(self, run_id: str) -> None:
+        """Set status=running. Called when RunManager begins execution.
+
+        Args:
+            run_id: Identifier of the run.
+        """
+        now = time.time()
+        with self._lock:
+            self._conn.execute(
+                "UPDATE run_records SET status = 'running', updated_at = ? WHERE run_id = ?",
+                (now, run_id),
+            )
+            self._conn.commit()
+
+    def delete(self, run_id: str) -> None:
+        """Delete a run record. Used as rollback primitive when creation fails post-insert.
+
+        Args:
+            run_id: Identifier of the run to delete.
+        """
+        with self._lock:
+            self._conn.execute("DELETE FROM run_records WHERE run_id = ?", (run_id,))
+            self._conn.commit()
 
     def close(self) -> None:
         """Close the underlying database connection."""

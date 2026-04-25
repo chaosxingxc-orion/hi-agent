@@ -6,6 +6,7 @@ import sqlite3
 import threading
 from pathlib import Path
 from time import time
+from typing import ClassVar
 
 from hi_agent.management.gate_api import GateRecord, GateStatus, InMemoryGateAPI
 from hi_agent.management.gate_context import GateContext
@@ -33,10 +34,21 @@ class SQLiteGateStore:
         status TEXT NOT NULL,
         payload JSON NOT NULL,
         created_at REAL NOT NULL,
-        updated_at REAL NOT NULL
+        updated_at REAL NOT NULL,
+        resolved_at REAL NOT NULL DEFAULT 0,
+        tenant_id TEXT NOT NULL DEFAULT '',
+        user_id TEXT NOT NULL DEFAULT '',
+        session_id TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS gate_schema_version (version INTEGER PRIMARY KEY);
     """
+
+    _MIGRATE_SPINE: ClassVar[list[str]] = [
+        "ALTER TABLE gates ADD COLUMN resolved_at REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE gates ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE gates ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE gates ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
+    ]
 
     def __init__(self, db_path: str | Path) -> None:
         self._path = Path(db_path)
@@ -46,6 +58,16 @@ class SQLiteGateStore:
         self._con.execute("PRAGMA journal_mode=WAL")
         self._con.execute("PRAGMA synchronous=NORMAL")
         self._con.executescript(self._DDL)
+        self._con.commit()
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add spine columns to gates table if missing."""
+        cols = {row[1] for row in self._con.execute("PRAGMA table_info(gates)")}
+        for stmt in self._MIGRATE_SPINE:
+            col = stmt.split("ADD COLUMN ")[1].split(" ")[0]
+            if col not in cols:
+                self._con.execute(stmt)
         self._con.commit()
 
     def _record_to_payload(self, record: GateRecord) -> str:
@@ -107,6 +129,10 @@ class SQLiteGateStore:
         timeout_seconds: float = 300.0,
         timeout_policy: GateTimeoutPolicy = GateTimeoutPolicy.REJECT,
         escalation_target: str | None = None,
+        tenant_id: str = "",
+        user_id: str = "",
+        session_id: str = "",
+        project_id: str = "",
     ) -> GateRecord:
         """Create and persist a new pending gate."""
         if timeout_seconds <= 0:
@@ -122,17 +148,21 @@ class SQLiteGateStore:
         with self._lock:
             self._con.execute(
                 "INSERT INTO gates "
-                "(gate_ref, run_id, project_id, stage_id, status, payload, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "(gate_ref, run_id, project_id, stage_id, status, payload, created_at, updated_at, "
+                " tenant_id, user_id, session_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     context.gate_ref,
                     context.run_id,
-                    "",
+                    project_id,
                     context.stage_id,
                     record.status.value,
                     self._record_to_payload(record),
                     now,
                     now,
+                    tenant_id,
+                    user_id,
+                    session_id,
                 ),
             )
             self._con.commit()

@@ -20,6 +20,10 @@ class RunFeedback:
     rating: float  # 0.0 (worst) - 1.0 (best)
     notes: str = ""
     submitted_at: str = ""  # ISO 8601; set automatically if empty
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
 
 
 class FeedbackStore:
@@ -71,6 +75,9 @@ class FeedbackStore:
         try:
             with open(self._storage_path, encoding="utf-8") as f:
                 raw = json.load(f)
-            self._records = {k: RunFeedback(**v) for k, v in raw.items()}
+            self._records = {}
+            for k, v in raw.items():
+                fields = {f: v[f] for f in v if f in RunFeedback.__dataclass_fields__}
+                self._records[k] = RunFeedback(**fields)
         except (OSError, json.JSONDecodeError, TypeError) as exc:
             _logger.warning("feedback_store: load failed: %s", exc)
