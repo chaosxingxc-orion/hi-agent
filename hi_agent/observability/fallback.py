@@ -147,7 +147,7 @@ def record_fallback(
         "extra": dict(extra) if extra else {},
     }
 
-    # --- 1. Increment fallback_<kind> counter. ---
+    # --- 1. Increment fallback_<kind> counter (generic) and per-kind named counter (TE-4). ---
     try:
         from hi_agent.observability.collector import get_metrics_collector
 
@@ -161,6 +161,10 @@ def record_fallback(
                     if val is not None:
                         labels[lbl] = str(val)
             collector.increment(f"fallback_{kind_str}", labels=labels or None)
+            # TE-4: also increment the canonical Rule-7 named counter for the four
+            # known kinds so that /metrics exposes hi_agent_<kind>_fallback_total.
+            named = f"hi_agent_{kind_str}_fallback_total"
+            collector.increment(named, labels=labels or None)
     except Exception:  # pragma: no cover — metrics must never crash callers
         pass
 

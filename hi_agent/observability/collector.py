@@ -102,6 +102,35 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Fallback events recorded with run_id='system' (no run scope).",
     ),
+    # TE-1: corrupt lines encountered while loading the artifact ledger.
+    "hi_agent_artifact_corrupt_line_total": _MetricDef(
+        "hi_agent_artifact_corrupt_line_total",
+        "counter",
+        "Corrupt lines skipped while loading the artifact ledger JSONL file.",
+    ),
+    # TE-4: per-kind Prometheus counters required by Rule 7.
+    # Incremented by record_fallback() in addition to the generic fallback_<kind>
+    # counters so that /metrics exposes the canonical Rule-7 names.
+    "hi_agent_llm_fallback_total": _MetricDef(
+        "hi_agent_llm_fallback_total",
+        "counter",
+        "LLM fallback events (Rule 7 gate counter).",
+    ),
+    "hi_agent_heuristic_fallback_total": _MetricDef(
+        "hi_agent_heuristic_fallback_total",
+        "counter",
+        "Heuristic fallback events (Rule 7 gate counter).",
+    ),
+    "hi_agent_capability_fallback_total": _MetricDef(
+        "hi_agent_capability_fallback_total",
+        "counter",
+        "Capability fallback events (Rule 7 gate counter).",
+    ),
+    "hi_agent_route_fallback_total": _MetricDef(
+        "hi_agent_route_fallback_total",
+        "counter",
+        "Route fallback events (Rule 7 gate counter).",
+    ),
     # Legacy fallback taxonomy counters (kept for backward-compatibility with
     # existing record_fallback() call-sites in context/, llm/, runner_stage/).
     # These predate the four-kind taxonomy but are retained so that their

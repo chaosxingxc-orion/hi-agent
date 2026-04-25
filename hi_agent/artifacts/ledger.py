@@ -2,11 +2,40 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 from pathlib import Path
 
 from hi_agent.artifacts.contracts import Artifact
+
+_logger = logging.getLogger(__name__)
+
+
+def _resolve_ledger_path(ledger_path: str | Path | None) -> Path | None:
+    """Resolve the ledger file path applying posture-aware defaults (TE-2).
+
+    - Under research/prod posture: a path must be available.  If ``ledger_path``
+      is ``None``, ``HI_AGENT_DATA_DIR`` is consulted.  Missing both raises
+      ``ValueError``.
+    - Under dev posture: ``None`` is accepted; returns ``None`` (in-memory mode).
+    """
+    if ledger_path is not None:
+        return Path(ledger_path)
+
+    from hi_agent.config.posture import Posture
+
+    posture = Posture.from_env()
+    if posture.requires_durable_ledger:
+        data_dir = os.environ.get("HI_AGENT_DATA_DIR", "").strip()
+        if not data_dir:
+            raise ValueError(
+                "ArtifactLedger requires HI_AGENT_DATA_DIR under research/prod posture"
+            )
+        return Path(data_dir) / "artifacts.jsonl"
+
+    # Dev posture with no path: in-memory mode.
+    return None
 
 
 class ArtifactLedger:
@@ -16,21 +45,28 @@ class ArtifactLedger:
     The file is fsync'd after each write to survive sudden process death.
     Reads replay the full file.
 
+    When constructed with ``ledger_path=None`` under dev posture the ledger
+    operates in in-memory mode (no file backing).  Under research/prod posture
+    a path is always required (see :func:`_resolve_ledger_path`).
+
     Thread-safe for concurrent in-process writers.
     """
 
-    def __init__(self, ledger_path: str | Path) -> None:
-        self._path = Path(ledger_path)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, ledger_path: str | Path | None = None) -> None:
+        self._path: Path | None = _resolve_ledger_path(ledger_path)
+        if self._path is not None:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._store: dict[str, Artifact] = {}
         self._load()
 
     def _load(self) -> None:
+        if self._path is None:
+            return
         if not self._path.exists():
             return
         with self._path.open("r", encoding="utf-8") as f:
-            for line in f:
+            for offset, line in enumerate(f):
                 line = line.strip()
                 if not line:
                     continue
@@ -39,16 +75,43 @@ class ArtifactLedger:
                     artifact = Artifact.from_dict(data)
                     self._store[artifact.artifact_id] = artifact
                 except Exception:
-                    pass  # corrupt line — skip, do not abort startup
+                    # --- TE-1: quarantine + metric + log; skip but do not abort startup ---
+                    preview = line[:120] if len(line) > 120 else line
+                    _logger.warning(
+                        "ArtifactLedger._load: corrupt line at offset %d in %s — "
+                        "quarantining. preview=%r",
+                        offset,
+                        self._path,
+                        preview,
+                    )
+                    quarantine_path = Path(str(self._path) + ".quarantine.jsonl")
+                    try:
+                        with quarantine_path.open("a", encoding="utf-8") as qf:
+                            qf.write(line + "\n" if not line.endswith("\n") else line)
+                    except Exception as qe:  # quarantine write failure must not crash load
+                        _logger.warning(
+                            "ArtifactLedger._load: failed to write quarantine file %s: %s",
+                            quarantine_path,
+                            qe,
+                        )
+                    try:
+                        from hi_agent.observability.collector import get_metrics_collector
+
+                        collector = get_metrics_collector()
+                        if collector is not None:
+                            collector.increment("hi_agent_artifact_corrupt_line_total")
+                    except Exception:  # metrics must never crash callers
+                        pass
 
     def register(self, artifact: Artifact) -> None:
         """Persist artifact to the ledger and update in-memory index."""
         with self._lock:
             self._store[artifact.artifact_id] = artifact
-            with self._path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(artifact.to_dict(), default=str) + "\n")
-                f.flush()
-                os.fsync(f.fileno())
+            if self._path is not None:
+                with self._path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(artifact.to_dict(), default=str) + "\n")
+                    f.flush()
+                    os.fsync(f.fileno())
 
     def store(self, artifact: Artifact) -> None:
         """Alias for register() — satisfies ArtifactRegistry interface."""
