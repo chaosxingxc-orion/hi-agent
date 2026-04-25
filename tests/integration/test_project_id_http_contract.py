@@ -1,7 +1,7 @@
 """Integration test: project_id threading through POST /runs HTTP contract.
 
 Verifies:
-- POST /runs without project_id returns X-Project-Warning: unscoped header.
+- POST /runs without project_id (dev posture) returns X-Hi-Agent-Warning: project_id-missing.
 - POST /runs with project_id does NOT return that header.
 """
 
@@ -65,20 +65,26 @@ def _post_run(client: TestClient, body: dict) -> Any:
     )
 
 
-def test_missing_project_id_returns_warning_header(client: TestClient) -> None:
-    """POST /runs without project_id must set X-Project-Warning: unscoped."""
+def test_missing_project_id_returns_warning_header(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dev posture: missing project_id must set X-Hi-Agent-Warning: project_id-missing."""
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     resp = _post_run(client, {"goal": "test goal"})
     assert resp.status_code in (201, 503), f"Unexpected status: {resp.status_code}"
-    assert resp.headers.get("X-Project-Warning") == "unscoped", (
-        f"Expected X-Project-Warning: unscoped, got headers: {dict(resp.headers)}"
+    assert resp.headers.get("X-Hi-Agent-Warning") == "project_id-missing", (
+        f"Expected X-Hi-Agent-Warning: project_id-missing, got headers: {dict(resp.headers)}"
     )
 
 
-def test_with_project_id_no_warning_header(client: TestClient) -> None:
-    """POST /runs with project_id must NOT set X-Project-Warning."""
+def test_with_project_id_no_warning_header(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /runs with project_id must NOT set X-Hi-Agent-Warning."""
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     resp = _post_run(client, {"goal": "test goal", "project_id": "proj-123"})
     assert resp.status_code in (201, 503), f"Unexpected status: {resp.status_code}"
-    assert "X-Project-Warning" not in resp.headers, (
-        f"X-Project-Warning should be absent when project_id provided, "
+    assert "X-Hi-Agent-Warning" not in resp.headers, (
+        f"X-Hi-Agent-Warning should be absent when project_id provided, "
         f"got headers: {dict(resp.headers)}"
     )

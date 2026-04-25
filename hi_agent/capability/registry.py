@@ -13,7 +13,16 @@ RiskClass = Literal[
 
 @dataclass(frozen=True)
 class CapabilityDescriptor:
-    """Machine-readable risk metadata for a capability."""
+    """Machine-readable risk metadata for a capability.
+
+    This is the single canonical definition.  Fields from two historical
+    sources are unified here:
+    - Platform governance fields (risk_class, side_effect_class, …)
+    - Adapter/factory fields (effect_class, tags, sandbox_level, …)
+
+    Use build_capability_view() from descriptor_factory to produce
+    the dict shape consumed by the adapter layer.
+    """
 
     name: str
     risk_class: RiskClass = "read_only"
@@ -31,6 +40,15 @@ class CapabilityDescriptor:
     provenance_required: bool = False
     reproducibility_level: str = "stochastic"  # "deterministic" | "seeded" | "stochastic"
     license_policy: tuple[str, ...] = field(default_factory=tuple)
+    # CO-6: adapter/factory fields (from descriptor_factory.py, now canonical here)
+    effect_class: str = "unknown_effect"   # read_only | idempotent_write | irreversible_write
+    tags: tuple[str, ...] = ()
+    sandbox_level: str = "none"
+    description: str = ""
+    parameters: dict = field(default_factory=dict)   # JSON Schema dict for the capability
+    extra: dict = field(default_factory=dict)        # catch-all for additional metadata
+    toolset_id: str = "default"
+    output_budget_tokens: int = 0  # 0 = unlimited
 
 
 @dataclass(frozen=True)

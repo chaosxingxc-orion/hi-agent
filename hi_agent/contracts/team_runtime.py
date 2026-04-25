@@ -45,3 +45,32 @@ class TeamRun:
     # (agent_role_id, run_id) pairs for each team member
     member_runs: tuple[tuple[str, str], ...] = ()
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+
+@dataclass(frozen=True)
+class TeamRunSpec:
+    """Platform-neutral contract describing how a team run should execute.
+
+    TeamRunSpec is a pure data declaration — it carries no runtime state.
+    The platform layer uses it to wire roles, phases, capabilities, and
+    policies without coupling to any business-layer logic.
+    """
+
+    team_id: str
+    project_id: str
+    profile_id: str
+    roles: tuple[AgentRole, ...] = ()
+    phases: tuple[str, ...] = ()  # phase IDs in execution order
+    capability_bindings: dict[str, list[str]] = field(
+        default_factory=dict
+    )  # phase_id → capability names
+    artifact_requirements: dict[str, list[str]] = field(
+        default_factory=dict
+    )  # phase_id → required artifact types
+    gate_hooks: tuple[str, ...] = ()  # gate type names in evaluation order
+    budget_policy: dict = field(
+        default_factory=dict
+    )  # e.g. {"max_cost_usd": 5.0, "max_tokens": 100000}
+    replan_policy: dict = field(
+        default_factory=dict
+    )  # e.g. {"allowed": True, "approval_required_after": 2}

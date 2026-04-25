@@ -302,6 +302,7 @@ class RunManager:
                     error_summary="",
                     created_at=now_ts,
                     updated_at=now_ts,
+                    project_id=task_contract_dict.get("project_id", ""),
                 )
             )
 

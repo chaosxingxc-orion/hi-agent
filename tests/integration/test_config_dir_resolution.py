@@ -1,10 +1,10 @@
-"""Integration tests for H1 Track5 config-dir resolution and strict-mode gates.
+"""Integration tests for H1 Track5 config-dir resolution and posture-driven gates.
 
 Tests:
 1. SystemBuilder(config_dir=...) loads tools.json from that directory.
-2. HI_AGENT_PROJECT_ID_REQUIRED=1 + missing project_id -> 400.
-3. HI_AGENT_PROFILE_ID_REQUIRED=1 + missing profile_id -> 400.
-4. Existing non-strict behaviour is unaffected when env vars are not set.
+2. HI_AGENT_POSTURE=research + missing project_id -> 400.
+3. HI_AGENT_POSTURE=research + missing profile_id -> 400.
+4. Existing dev-posture behaviour is unaffected (permissive defaults).
 """
 
 from __future__ import annotations
@@ -138,63 +138,65 @@ def test_env_var_config_dir_loads_tools(tmp_path: Path, monkeypatch: pytest.Monk
 
 
 # ---------------------------------------------------------------------------
-# Test 2 — HI_AGENT_PROJECT_ID_REQUIRED=1 → 400 when project_id missing
+# Test 2 — HI_AGENT_POSTURE=research → 400 when project_id missing
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
 def test_project_id_required_strict_mode_returns_400(monkeypatch: pytest.MonkeyPatch) -> None:
-    """HI_AGENT_PROJECT_ID_REQUIRED=1 + no project_id in body -> 400 missing_project_id."""
-    monkeypatch.setenv("HI_AGENT_PROJECT_ID_REQUIRED", "1")
+    """HI_AGENT_POSTURE=research + no project_id in body -> 400 scope_required."""
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     client = _make_client()
 
     resp = _post_run(client, {"goal": "test goal"})
     assert resp.status_code == 400, (
-        f"Expected 400 in strict project_id mode, got {resp.status_code}"
+        f"Expected 400 in research posture, got {resp.status_code}"
     )
     body = resp.json()
-    assert body.get("error") == "missing_project_id", f"Unexpected body: {body}"
+    assert body.get("error_category") == "scope_required", f"Unexpected body: {body}"
 
 
 @pytest.mark.integration
 def test_project_id_required_strict_mode_passes_when_provided(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """HI_AGENT_PROJECT_ID_REQUIRED=1 + project_id provided -> not 400."""
-    monkeypatch.setenv("HI_AGENT_PROJECT_ID_REQUIRED", "1")
+    """HI_AGENT_POSTURE=research + project_id and profile_id provided -> not 400."""
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     client = _make_client()
 
-    resp = _post_run(client, {"goal": "test goal", "project_id": "proj-123"})
+    resp = _post_run(
+        client, {"goal": "test goal", "project_id": "proj-123", "profile_id": "default"}
+    )
     assert resp.status_code != 400, (
-        f"Should not be 400 when project_id is provided; got {resp.status_code}"
+        f"Should not be 400 when project_id and profile_id are provided; got {resp.status_code}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Test 3 — HI_AGENT_PROFILE_ID_REQUIRED=1 → 400 when profile_id missing
+# Test 3 — HI_AGENT_POSTURE=research → 400 when profile_id missing
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
 def test_profile_id_required_strict_mode_returns_400(monkeypatch: pytest.MonkeyPatch) -> None:
-    """HI_AGENT_PROFILE_ID_REQUIRED=1 + no profile_id in body -> 400 missing_profile_id."""
-    monkeypatch.setenv("HI_AGENT_PROFILE_ID_REQUIRED", "1")
+    """HI_AGENT_POSTURE=research + no profile_id in body -> 400 scope_required."""
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     client = _make_client()
 
     resp = _post_run(client, {"goal": "test goal", "project_id": "proj-123"})
     assert resp.status_code == 400, (
-        f"Expected 400 in strict profile_id mode, got {resp.status_code}"
+        f"Expected 400 in research posture for missing profile_id, got {resp.status_code}"
     )
     body = resp.json()
-    assert body.get("error") == "missing_profile_id", f"Unexpected body: {body}"
+    assert body.get("error_category") == "scope_required", f"Unexpected body: {body}"
 
 
 @pytest.mark.integration
 def test_profile_id_required_strict_mode_passes_when_provided(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """HI_AGENT_PROFILE_ID_REQUIRED=1 + profile_id provided -> not 400."""
-    monkeypatch.setenv("HI_AGENT_PROFILE_ID_REQUIRED", "1")
+    """HI_AGENT_POSTURE=research + profile_id provided -> not 400."""
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     client = _make_client()
 
     resp = _post_run(
@@ -207,27 +209,27 @@ def test_profile_id_required_strict_mode_passes_when_provided(
 
 
 # ---------------------------------------------------------------------------
-# Test 4 — Non-strict behaviour preserved when env vars are not set
+# Test 4 — Dev-posture behaviour: permissive defaults
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
 def test_non_strict_project_id_returns_warning_header(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Without HI_AGENT_PROJECT_ID_REQUIRED, missing project_id still gives X-Project-Warning."""
-    monkeypatch.delenv("HI_AGENT_PROJECT_ID_REQUIRED", raising=False)
+    """Under dev posture, missing project_id gives X-Hi-Agent-Warning: project_id-missing."""
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     client = _make_client()
 
     resp = _post_run(client, {"goal": "test goal"})
     assert resp.status_code in (201, 503), f"Unexpected status: {resp.status_code}"
-    assert resp.headers.get("X-Project-Warning") == "unscoped", (
-        f"Expected X-Project-Warning: unscoped header, got: {dict(resp.headers)}"
+    assert resp.headers.get("X-Hi-Agent-Warning") == "project_id-missing", (
+        f"Expected X-Hi-Agent-Warning: project_id-missing header, got: {dict(resp.headers)}"
     )
 
 
 @pytest.mark.integration
 def test_non_strict_profile_id_uses_default_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Without HI_AGENT_PROFILE_ID_REQUIRED, missing profile_id falls back to 'default'."""
-    monkeypatch.delenv("HI_AGENT_PROFILE_ID_REQUIRED", raising=False)
+    """Under dev posture, missing profile_id falls back to 'default'."""
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     client = _make_client()
 
     resp = _post_run(client, {"goal": "test goal", "project_id": "proj-123"})

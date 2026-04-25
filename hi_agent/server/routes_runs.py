@@ -30,6 +30,8 @@ from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from hi_agent.config.posture import Posture
+from hi_agent.server.error_categories import ErrorCategory, error_response
 from hi_agent.server.tenant_context import require_tenant_context
 from hi_agent.server.workspace_path import WorkspaceKey
 
@@ -146,32 +148,35 @@ async def handle_create_run(request: Request) -> JSONResponse:
 
     run_id = managed_run.run_id
 
-    # Wave 8 / P1.2: extract project_id and emit warning header if missing.
+    # CO-2 / CO-3: posture-driven project_id and profile_id enforcement.
+    _posture = Posture.from_env()
     _project_missing = not bool(body.get("project_id", ""))
 
-    # H1 Track5 / P-1 strict mode: opt-in 400 when HI_AGENT_PROJECT_ID_REQUIRED=1.
-    if _project_missing and os.environ.get("HI_AGENT_PROJECT_ID_REQUIRED"):
-        return JSONResponse(
-            {
-                "error": "missing_project_id",
-                "hint": "Set project_id in the request body",
-            },
-            status_code=400,
+    if _project_missing:
+        if _posture.requires_project_id:
+            return JSONResponse(
+                error_response(
+                    ErrorCategory.SCOPE_REQUIRED,
+                    "project_id is required under research/prod posture",
+                    retryable=False,
+                    next_action="Set project_id in the request body",
+                ),
+                status_code=400,
+            )
+        # dev posture: warn and continue
+        logger.warning(
+            "POST /runs received without project_id under dev posture; "
+            "run will be unscoped."
         )
 
-    # DF-27 / Rule 14: the builder now requires a non-empty profile_id.
-    # Rather than silent-defaulting (which masks missing caller metadata) or
-    # returning 400 (which is a breaking API change we defer until the
-    # downstream roadmap P-3 lands), assign 'default' loudly here: one WARNING
-    # log + one recorded fallback event so the fact is countable via /metrics
-    # and inspectable on GET /runs/{id}.
-    # H1 Track5 / P-3 strict mode: opt-in 400 when HI_AGENT_PROFILE_ID_REQUIRED=1.
-    if not body.get("profile_id") and os.environ.get("HI_AGENT_PROFILE_ID_REQUIRED"):
+    if not body.get("profile_id") and _posture.requires_profile_id:
         return JSONResponse(
-            {
-                "error": "missing_profile_id",
-                "hint": "Set profile_id in the request body",
-            },
+            error_response(
+                ErrorCategory.SCOPE_REQUIRED,
+                "profile_id is required under research/prod posture",
+                retryable=False,
+                next_action="Set profile_id in the request body",
+            ),
             status_code=400,
         )
     if not body.get("profile_id"):
@@ -255,7 +260,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
     if _idempotency_key_missing:
         extra_headers["X-Idempotency-Warning"] = "missing"
     if _project_missing:
-        extra_headers["X-Project-Warning"] = "unscoped"
+        extra_headers["X-Hi-Agent-Warning"] = "project_id-missing"
     return JSONResponse(
         manager.to_dict(run), status_code=201, headers=extra_headers  # type: ignore[arg-type]
     )
@@ -408,7 +413,6 @@ async def handle_resume_run(request: Request) -> JSONResponse:
         ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    import os
     import threading
 
     run_id = request.path_params["run_id"]
