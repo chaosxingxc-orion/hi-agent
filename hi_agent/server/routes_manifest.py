@@ -104,6 +104,32 @@ async def handle_manifest(request: Request) -> JSONResponse:
                                 if desc
                                 else 0,
                                 "availability_reason": reason,
+                                # DX-4: full CapabilityDescriptor surface (getattr fallback for
+                                # CO-6 canonical unification compatibility)
+                                "risk_class": getattr(desc, "risk_class", "unknown")
+                                if desc
+                                else "unknown",
+                                "requires_approval": getattr(desc, "requires_approval", False)
+                                if desc
+                                else False,
+                                "provenance_required": getattr(desc, "provenance_required", False)
+                                if desc
+                                else False,
+                                "source_reference_policy": getattr(
+                                    desc, "source_reference_policy", "optional"
+                                )
+                                if desc
+                                else "optional",
+                                "reproducibility_level": getattr(
+                                    desc, "reproducibility_level", "stochastic"
+                                )
+                                if desc
+                                else "stochastic",
+                                "license_policy": list(
+                                    getattr(desc, "license_policy", ()) or ()
+                                )
+                                if desc
+                                else [],
                             }
                             for name, desc, status, reason in registry.list_with_views()
                         ]
