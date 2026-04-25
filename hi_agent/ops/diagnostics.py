@@ -41,6 +41,9 @@ def build_doctor_report(builder) -> DoctorReport:
     # 8. Evolve policy effective value
     _check_evolve_policy(builder, issues_info)
 
+    # 9. Posture-aware checks
+    _check_posture(issues_blocking, issues_warnings, issues_info)
+
     # Determine status
     if issues_blocking:
         status = "error"
@@ -262,3 +265,198 @@ def _check_evolve_policy(builder, info: list) -> None:
             )
     except Exception:
         pass
+
+
+def _check_posture(blocking: list, warnings: list, info: list) -> None:
+    """Posture-aware checks (DX-3).
+
+    Checks:
+    1. HI_AGENT_POSTURE is set and parseable.
+    2. Under research/prod: HI_AGENT_DATA_DIR must be set (blocking).
+    3. Under research/prod: project_id enforcement is active.
+    4. Under research/prod: profile_id enforcement is active.
+    5. T3 gate freshness: docs/delivery/ newest JSON < 7 days old.
+    """
+    from hi_agent.config.posture import Posture
+
+    # --- 1. Posture set and valid ---
+    raw_posture = os.environ.get("HI_AGENT_POSTURE", "")
+    posture: Posture
+    if not raw_posture:
+        info.append(
+            DoctorIssue(
+                subsystem="posture",
+                code="posture.not_set",
+                severity="info",
+                message="HI_AGENT_POSTURE is not set; defaulting to 'dev'.",
+                fix="Set HI_AGENT_POSTURE=dev|research|prod",
+                verify="echo $HI_AGENT_POSTURE",
+            )
+        )
+        posture = Posture.DEV
+    else:
+        try:
+            posture = Posture(raw_posture.strip().lower())
+            info.append(
+                DoctorIssue(
+                    subsystem="posture",
+                    code="posture.active",
+                    severity="info",
+                    message=f"Active posture: {posture.value!r}",
+                    fix="",
+                    verify="echo $HI_AGENT_POSTURE",
+                )
+            )
+        except ValueError:
+            valid = [p.value for p in Posture]
+            blocking.append(
+                DoctorIssue(
+                    subsystem="posture",
+                    code="posture.invalid",
+                    severity="blocking",
+                    message=(
+                        f"HI_AGENT_POSTURE={raw_posture!r} is not valid. "
+                        f"Valid values: {valid}"
+                    ),
+                    fix=f"Set HI_AGENT_POSTURE to one of {valid}",
+                    verify="echo $HI_AGENT_POSTURE",
+                )
+            )
+            return
+
+    if not posture.requires_durable_backend:
+        # Dev posture — skip remaining checks
+        return
+
+    # --- 2. HI_AGENT_DATA_DIR required under research/prod ---
+    data_dir = os.environ.get("HI_AGENT_DATA_DIR", "")
+    if not data_dir:
+        blocking.append(
+            DoctorIssue(
+                subsystem="posture",
+                code="posture.data_dir_missing",
+                severity="blocking",
+                message=(
+                    f"HI_AGENT_DATA_DIR is required under {posture.value!r} posture "
+                    "for durable queue and ledger backends."
+                ),
+                fix="export HI_AGENT_DATA_DIR=/var/hi_agent (or any writable directory)",
+                verify="echo $HI_AGENT_DATA_DIR",
+            )
+        )
+    else:
+        info.append(
+            DoctorIssue(
+                subsystem="posture",
+                code="posture.data_dir_ok",
+                severity="info",
+                message=f"HI_AGENT_DATA_DIR={data_dir!r}",
+                fix="",
+                verify="ls $HI_AGENT_DATA_DIR",
+            )
+        )
+
+    # --- 3. project_id enforcement ---
+    if posture.requires_project_id:
+        proj_required = os.environ.get("HI_AGENT_PROJECT_ID_REQUIRED", "")
+        if not proj_required:
+            warnings.append(
+                DoctorIssue(
+                    subsystem="posture",
+                    code="posture.project_id_not_enforced",
+                    severity="warning",
+                    message=(
+                        f"Under {posture.value!r} posture, project_id enforcement is "
+                        "recommended. Set HI_AGENT_PROJECT_ID_REQUIRED=1 to enforce."
+                    ),
+                    fix="export HI_AGENT_PROJECT_ID_REQUIRED=1",
+                    verify="echo $HI_AGENT_PROJECT_ID_REQUIRED",
+                )
+            )
+
+    # --- 4. profile_id enforcement ---
+    if posture.requires_profile_id:
+        prof_required = os.environ.get("HI_AGENT_PROFILE_ID_REQUIRED", "")
+        if not prof_required:
+            warnings.append(
+                DoctorIssue(
+                    subsystem="posture",
+                    code="posture.profile_id_not_enforced",
+                    severity="warning",
+                    message=(
+                        f"Under {posture.value!r} posture, profile_id enforcement is "
+                        "recommended. Set HI_AGENT_PROFILE_ID_REQUIRED=1 to enforce."
+                    ),
+                    fix="export HI_AGENT_PROFILE_ID_REQUIRED=1",
+                    verify="echo $HI_AGENT_PROFILE_ID_REQUIRED",
+                )
+            )
+
+    # --- 5. T3 gate freshness ---
+    _check_t3_gate_freshness(warnings, info)
+
+
+def _check_t3_gate_freshness(warnings: list, info: list) -> None:
+    """Check that the most recent T3 gate record is < 7 days old."""
+    import time
+    from pathlib import Path
+
+    delivery_dir = Path(__file__).parent.parent.parent / "docs" / "delivery"
+    if not delivery_dir.exists():
+        warnings.append(
+            DoctorIssue(
+                subsystem="t3_gate",
+                code="t3_gate.no_delivery_dir",
+                severity="warning",
+                message="docs/delivery/ directory not found; T3 gate has never been recorded.",
+                fix="Run the Rule 8 operator-shape gate and record in docs/delivery/",
+                verify="ls docs/delivery/",
+            )
+        )
+        return
+
+    json_files = sorted(delivery_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
+    if not json_files:
+        warnings.append(
+            DoctorIssue(
+                subsystem="t3_gate",
+                code="t3_gate.no_records",
+                severity="warning",
+                message="No T3 gate records found in docs/delivery/.",
+                fix="Run the Rule 8 operator-shape gate and record in docs/delivery/",
+                verify="ls docs/delivery/*.json",
+            )
+        )
+        return
+
+    newest = json_files[-1]
+    age_seconds = time.time() - newest.stat().st_mtime
+    age_days = age_seconds / 86400
+
+    if age_days > 7:
+        warnings.append(
+            DoctorIssue(
+                subsystem="t3_gate",
+                code="t3_gate.stale",
+                severity="warning",
+                message=(
+                    f"Most recent T3 gate record ({newest.name}) is "
+                    f"{age_days:.1f} days old (>7). Re-run the Rule 8 gate."
+                ),
+                fix="Run the Rule 8 operator-shape gate and record in docs/delivery/",
+                verify=f"ls -la docs/delivery/{newest.name}",
+            )
+        )
+    else:
+        info.append(
+            DoctorIssue(
+                subsystem="t3_gate",
+                code="t3_gate.fresh",
+                severity="info",
+                message=(
+                    f"T3 gate record {newest.name!r} is {age_days:.1f} days old (ok)."
+                ),
+                fix="",
+                verify=f"ls -la docs/delivery/{newest.name}",
+            )
+        )
