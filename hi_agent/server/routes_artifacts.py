@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 async def handle_list_artifacts(request: Request) -> JSONResponse:
     """Return all stored artifacts, with optional type and producer filters."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: Any = request.app.state.agent_server
@@ -32,14 +32,18 @@ async def handle_list_artifacts(request: Request) -> JSONResponse:
         return JSONResponse({"artifacts": []})
     artifact_type = request.query_params.get("type")
     producer = request.query_params.get("producer")
-    artifacts = registry.query(artifact_type=artifact_type, producer_action_id=producer)
+    artifacts = registry.query(
+        artifact_type=artifact_type,
+        producer_action_id=producer,
+        tenant_id=ctx.tenant_id,
+    )
     return JSONResponse({"artifacts": [a.to_dict() for a in artifacts], "count": len(artifacts)})
 
 
 async def handle_get_artifact(request: Request) -> JSONResponse:
     """Return a single artifact by ID."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     artifact_id = request.path_params["artifact_id"]
@@ -47,7 +51,7 @@ async def handle_get_artifact(request: Request) -> JSONResponse:
     registry = getattr(server, "artifact_registry", None)
     if registry is None:
         return JSONResponse({"error": "artifact_registry_unavailable"}, status_code=503)
-    artifact = registry.get(artifact_id)
+    artifact = registry.get(artifact_id, tenant_id=ctx.tenant_id)
     if artifact is None:
         return JSONResponse({"error": "not_found", "artifact_id": artifact_id}, status_code=404)
     return JSONResponse(artifact.to_dict())
@@ -60,7 +64,6 @@ async def handle_artifacts_by_project(request: Request) -> JSONResponse:
     returned.  CO-5 (Artifact.tenant_id spine field) is landed; the check uses
     ``getattr(a, 'tenant_id', None)`` for defensive compatibility with any legacy
     artifacts that pre-date CO-5.
-    # TODO: add explicit project-tenant registry in Wave 10
     """
     try:
         ctx = require_tenant_context()
@@ -83,10 +86,8 @@ async def handle_artifacts_by_project(request: Request) -> JSONResponse:
 
     def _belongs_to_tenant(a: Any) -> bool:
         art_tenant = getattr(a, "tenant_id", None)
-        # When tenant_id field is absent (pre-CO-5), allow access to avoid
-        # blocking all existing artifacts; once CO-5 lands this branch is removed.
-        if art_tenant is None:
-            return True
+        if art_tenant is None or art_tenant == "":
+            return True  # legacy dev artifact without tenant_id — visible to all tenants
         return art_tenant == tenant_id
 
     artifacts = [a for a in candidates if _belongs_to_tenant(a)]
@@ -107,7 +108,7 @@ async def handle_artifacts_by_project(request: Request) -> JSONResponse:
 async def handle_get_artifact_provenance(request: Request) -> JSONResponse:
     """Return the provenance dict for a single artifact."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     artifact_id = request.path_params["artifact_id"]
@@ -115,7 +116,7 @@ async def handle_get_artifact_provenance(request: Request) -> JSONResponse:
     registry = getattr(server, "artifact_registry", None)
     if registry is None:
         return JSONResponse({"error": "artifact_registry_unavailable"}, status_code=503)
-    artifact = registry.get(artifact_id)
+    artifact = registry.get(artifact_id, tenant_id=ctx.tenant_id)
     if artifact is None:
         return JSONResponse({"error": "not_found", "artifact_id": artifact_id}, status_code=404)
     return JSONResponse({"artifact_id": artifact_id, "provenance": artifact.provenance})

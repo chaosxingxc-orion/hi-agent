@@ -496,21 +496,26 @@ async def handle_gate_decision(request: Request) -> JSONResponse:
         200 with ``{run_id, decision, event_id, status}`` on success.
         400 on validation error.
         401 when caller is not authenticated.
+        404 when run does not exist or belongs to a different tenant.
     """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
 
     run_id = request.path_params["run_id"]
+    server: Any = request.app.state.agent_server
+
+    # Ownership gate: ensure caller owns this run
+    manager = server.run_manager
+    if manager.get_run(run_id, workspace=ctx) is None:
+        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
 
     try:
         raw = await request.json()
         body = GateDecisionRequest(**raw)
     except Exception as exc:
         return JSONResponse({"error": "invalid_request", "detail": str(exc)}, status_code=400)
-
-    server: Any = request.app.state.agent_server
     event_id = str(uuid.uuid4())
 
     # Attempt to apply via a live GateCoordinator if the system exposes one.
@@ -552,11 +557,18 @@ async def handle_reasoning_trace(request: Request) -> JSONResponse:
         401 when caller is not authenticated.
     """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
 
     run_id = request.path_params["run_id"]
+    server: Any = request.app.state.agent_server
+
+    # Ownership gate: ensure caller owns this run
+    manager = server.run_manager
+    if manager.get_run(run_id, workspace=ctx) is None:
+        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
+
     data_dir = os.environ.get("HI_AGENT_DATA_DIR", "").strip()
 
     if not data_dir:

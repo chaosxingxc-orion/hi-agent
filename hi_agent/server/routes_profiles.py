@@ -29,9 +29,12 @@ async def handle_global_l3_summary(request: Request) -> JSONResponse:
     GET /profiles/hi_agent_global/memory/l3
     """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    # Global profile routes are admin-only: require tenant_id == "admin" or is_admin flag.
+    if not getattr(ctx, "is_admin", False) and getattr(ctx, "tenant_id", "") != "admin":
+        return JSONResponse({"error": "admin_required"}, status_code=403)
     mgr = _get_profile_dir_manager(request)
     if mgr is None:
         return JSONResponse({"error": "profile_manager_not_available"}, status_code=503)
@@ -50,9 +53,12 @@ async def handle_global_skills(request: Request) -> JSONResponse:
     GET /profiles/hi_agent_global/skills
     """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    # Global profile routes are admin-only: require tenant_id == "admin" or is_admin flag.
+    if not getattr(ctx, "is_admin", False) and getattr(ctx, "tenant_id", "") != "admin":
+        return JSONResponse({"error": "admin_required"}, status_code=403)
     mgr = _get_profile_dir_manager(request)
     if mgr is None:
         return JSONResponse({"error": "profile_manager_not_available"}, status_code=503)

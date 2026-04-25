@@ -706,10 +706,15 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_rt
 
     try:
-        _rtc_rt()
+        _ctx_rt = _rtc_rt()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     run_id = request.path_params["run_id"]
+
+    # Ownership gate: ensure caller owns this run
+    _mgr_rt = request.app.state.agent_server.run_manager
+    if _mgr_rt.get_run(run_id, workspace=_ctx_rt) is None:
+        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
 
     try:
         body = await request.json()
@@ -766,12 +771,17 @@ async def handle_replay_status(request: Request) -> JSONResponse:
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_rs
 
     try:
-        _rtc_rs()
+        _ctx_rs = _rtc_rs()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     import os
 
     run_id = request.path_params["run_id"]
+
+    # Ownership gate: ensure caller owns this run
+    _mgr_rs = request.app.state.agent_server.run_manager
+    if _mgr_rs.get_run(run_id, workspace=_ctx_rs) is None:
+        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
     _loop = asyncio.get_running_loop()
     candidates = [
         f"replay_{run_id}.jsonl",
