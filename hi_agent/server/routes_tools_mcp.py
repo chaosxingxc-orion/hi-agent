@@ -8,6 +8,8 @@ import logging
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from hi_agent.server.tenant_context import require_tenant_context
+
 logger = logging.getLogger(__name__)
 
 
@@ -54,6 +56,10 @@ async def handle_tools_call(request: Request) -> JSONResponse:
 
         {"success": bool, "result": {...}}
     """
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     try:
         body = await request.json()
     except (ValueError, json.JSONDecodeError):
@@ -122,7 +128,18 @@ async def handle_tools_call(request: Request) -> JSONResponse:
         return JSONResponse({"success": False, "error": str(exc)}, status_code=503)
     except Exception as exc:
         logger.warning("handle_tools_call error for %r: %s", name, exc)
-        return JSONResponse({"success": False, "error": str(exc)}, status_code=500)
+        from hi_agent.observability.fallback import record_fallback
+
+        record_fallback("capability", reason=type(exc).__name__, run_id="unknown")
+        return JSONResponse(
+            {
+                "success": False,
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "hint": "Check /runs/{run_id}/events for detail",
+            },
+            status_code=500,
+        )
 
 
 # ------------------------------------------------------------------

@@ -10,9 +10,15 @@ from __future__ import annotations
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from hi_agent.server.tenant_context import require_tenant_context
+
 
 async def handle_get_long_op(request: Request) -> JSONResponse:
     """GET /long-ops/{op_id} — return current op handle state."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     op_id = request.path_params["op_id"]
     server = request.app.state.agent_server
     coord = getattr(server, "op_coordinator", None)
@@ -37,6 +43,10 @@ async def handle_get_long_op(request: Request) -> JSONResponse:
 
 async def handle_cancel_long_op(request: Request) -> JSONResponse:
     """POST /long-ops/{op_id}/cancel — cancel an active op."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     op_id = request.path_params["op_id"]
     server = request.app.state.agent_server
     coord = getattr(server, "op_coordinator", None)

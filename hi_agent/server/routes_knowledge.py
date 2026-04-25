@@ -8,9 +8,15 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from hi_agent.server.tenant_context import require_tenant_context
+
 
 async def handle_knowledge_ingest(request: Request) -> JSONResponse:
     """Ingest text knowledge as a wiki page."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -42,6 +48,10 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
 
 async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
     """Ingest structured facts into the knowledge graph."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -69,6 +79,10 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
 
 async def handle_knowledge_query(request: Request) -> JSONResponse:
     """Query knowledge across all sources."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -97,6 +111,10 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
 
 async def handle_knowledge_status(request: Request) -> JSONResponse:
     """Return knowledge system stats."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -110,6 +128,10 @@ async def handle_knowledge_status(request: Request) -> JSONResponse:
 
 async def handle_knowledge_lint(request: Request) -> JSONResponse:
     """Run knowledge health check."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -123,6 +145,10 @@ async def handle_knowledge_lint(request: Request) -> JSONResponse:
 
 async def handle_knowledge_sync(request: Request) -> JSONResponse:
     """Sync graph nodes to wiki pages."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:

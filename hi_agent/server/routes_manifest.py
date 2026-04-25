@@ -21,6 +21,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from hi_agent.server.tenant_context import require_tenant_context
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,6 +61,10 @@ def _derive_endpoints(request: Request) -> list[str]:
 
 async def handle_manifest(request: Request) -> JSONResponse:
     """Return dynamic system capabilities manifest."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     capabilities: list[str] = []
     capability_views: list[dict] = []

@@ -9,10 +9,15 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from hi_agent.auth.operation_policy import require_operation
+from hi_agent.server.tenant_context import require_tenant_context
 
 
 async def handle_memory_dream(request: Request) -> JSONResponse:
     """Trigger dream consolidation (short-term -> mid-term)."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     try:
         body = await request.json()
@@ -44,6 +49,10 @@ async def handle_memory_dream(request: Request) -> JSONResponse:
 @require_operation("memory.consolidate")
 async def handle_memory_consolidate(request: Request) -> JSONResponse:
     """Trigger consolidation (mid-term -> long-term)."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     try:
         body = await request.json()
@@ -74,6 +83,10 @@ async def handle_memory_consolidate(request: Request) -> JSONResponse:
 
 async def handle_memory_status(request: Request) -> JSONResponse:
     """Return memory tier status."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     try:
         body = await request.json()

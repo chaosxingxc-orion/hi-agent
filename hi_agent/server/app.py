@@ -334,6 +334,12 @@ async def handle_cost(request: Request) -> JSONResponse:
         run_count: Number of runs that reported cost.
         avg_cost_per_run: Average cost per run.
     """
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_cost
+
+    try:
+        _rtc_cost()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: AgentServer = request.app.state.agent_server
     collector = getattr(server, "metrics_collector", None)
     if collector is None:
@@ -414,6 +420,12 @@ from hi_agent.server.routes_memory import (
 
 async def handle_skills_list(request: Request) -> JSONResponse:
     """List all discovered skills with eligibility status."""
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_sl
+
+    try:
+        _rtc_sl()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: AgentServer = request.app.state.agent_server
     loader = server.skill_loader
     if loader is None:
@@ -447,6 +459,12 @@ async def handle_skills_list(request: Request) -> JSONResponse:
 
 async def handle_skills_status(request: Request) -> JSONResponse:
     """Overall skill system status (counts, top performers)."""
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_ss
+
+    try:
+        _rtc_ss()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
     loader = server.skill_loader
@@ -490,6 +508,12 @@ async def handle_skills_status(request: Request) -> JSONResponse:
 @require_operation("skill.evolve")
 async def handle_skills_evolve(request: Request) -> JSONResponse:
     """Trigger evolution cycle, return EvolutionReport."""
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_se
+
+    try:
+        _rtc_se()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
     if evolver is None:
@@ -508,6 +532,12 @@ async def handle_skills_evolve(request: Request) -> JSONResponse:
 
 async def handle_skill_metrics(request: Request) -> JSONResponse:
     """Get skill metrics from observer."""
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_sm
+
+    try:
+        _rtc_sm()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -527,6 +557,12 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
 
 async def handle_skill_versions(request: Request) -> JSONResponse:
     """List versions with champion/challenger status."""
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_sv
+
+    try:
+        _rtc_sv()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -560,6 +596,12 @@ async def handle_skill_versions(request: Request) -> JSONResponse:
 
 async def handle_skill_optimize(request: Request) -> JSONResponse:
     """Trigger prompt optimization for one skill."""
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_so
+
+    try:
+        _rtc_so()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -594,6 +636,12 @@ async def handle_skill_optimize(request: Request) -> JSONResponse:
 @require_operation("skill.promote")
 async def handle_skill_promote(request: Request) -> JSONResponse:
     """Promote challenger to champion."""
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_sp
+
+    try:
+        _rtc_sp()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -654,6 +702,12 @@ async def handle_context_health(request: Request) -> JSONResponse:
 
 async def handle_replay_trigger(request: Request) -> JSONResponse:
     """Trigger replay of a recorded run from its event JSONL file."""
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_rt
+
+    try:
+        _rtc_rt()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     run_id = request.path_params["run_id"]
 
     try:
@@ -708,6 +762,12 @@ async def handle_replay_trigger(request: Request) -> JSONResponse:
 
 async def handle_replay_status(request: Request) -> JSONResponse:
     """Check whether a replay event file exists for the given run."""
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_rs
+
+    try:
+        _rtc_rs()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     import os
 
     run_id = request.path_params["run_id"]
@@ -746,6 +806,12 @@ async def handle_capacity_advice(request: Request) -> JSONResponse:
     This keeps the endpoint self-contained with no external dependencies
     beyond what the server already tracks.
     """
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_ca
+
+    try:
+        _rtc_ca()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     from hi_agent.management.capacity_advisor import (
         recommend_server_capacity_tuning,
         recommendations_to_payload,

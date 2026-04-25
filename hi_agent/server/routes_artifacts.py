@@ -15,11 +15,17 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from hi_agent.server.tenant_context import require_tenant_context
+
 logger = logging.getLogger(__name__)
 
 
 async def handle_list_artifacts(request: Request) -> JSONResponse:
     """Return all stored artifacts, with optional type and producer filters."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: Any = request.app.state.agent_server
     registry = getattr(server, "artifact_registry", None)
     if registry is None:
@@ -32,6 +38,10 @@ async def handle_list_artifacts(request: Request) -> JSONResponse:
 
 async def handle_get_artifact(request: Request) -> JSONResponse:
     """Return a single artifact by ID."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     artifact_id = request.path_params["artifact_id"]
     server: Any = request.app.state.agent_server
     registry = getattr(server, "artifact_registry", None)
@@ -45,6 +55,10 @@ async def handle_get_artifact(request: Request) -> JSONResponse:
 
 async def handle_artifacts_by_project(request: Request) -> JSONResponse:
     """Return all artifacts belonging to a project."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     project_id = request.path_params["project_id"]
     server: Any = request.app.state.agent_server
     registry = getattr(server, "artifact_registry", None)
@@ -64,6 +78,10 @@ async def handle_artifacts_by_project(request: Request) -> JSONResponse:
 
 async def handle_get_artifact_provenance(request: Request) -> JSONResponse:
     """Return the provenance dict for a single artifact."""
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     artifact_id = request.path_params["artifact_id"]
     server: Any = request.app.state.agent_server
     registry = getattr(server, "artifact_registry", None)
