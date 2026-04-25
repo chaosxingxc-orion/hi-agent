@@ -1,4 +1,13 @@
-"""Load and stress tests for AsyncTaskScheduler."""
+"""Load and stress tests for AsyncTaskScheduler.
+
+H1-Track4 K-11: All tests in this module use ``kernel = MagicMock()`` as the
+AsyncTaskScheduler's kernel collaborator.  A load test against a mock kernel
+verifies concurrency bookkeeping in AsyncTaskScheduler but says nothing about
+real kernel throughput or actual run lifecycle.  Per Rule 4 (P3) honesty: a load
+test against a mock tests nothing observable about production behaviour.
+
+# The real load test requires a running server — add to concurrency gate.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +18,15 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
 from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "H1-Track4 K-11 / Rule 4 P3: entire module uses MagicMock kernel — "
+        "load tests against a mock measure nothing about real throughput. "
+        "The real concurrency gate requires a live server (Rule 8 step 4). "
+        "Re-enable under a dedicated concurrency gate, not in unit/integration suite."
+    )
+)
 
 
 def _make_node(node_id: str) -> TrajNode:

@@ -412,12 +412,17 @@ def test_tc09_concurrent_runs_isolated(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # TC10 - cancel signal terminates run
 
-def test_tc10_cancel_signal_terminates_run(client: TestClient) -> None:
-    """POST /runs/{id}/signal with 'cancel' must reach the run.
+_TERMINAL_STATES = frozenset({"completed", "failed", "aborted", "cancelled"})
 
-    Users need a way to stop long-running tasks.  A cancel signal must be
-    accepted without a server error, and the run must eventually reach a
-    terminal state.
+
+def test_tc10_cancel_signal_terminates_run(client: TestClient) -> None:
+    """POST /runs/{id}/signal with 'cancel' must drive run to a terminal state.
+
+    The cancel contract: a cancel signal must be accepted, and the run must
+    eventually reach *some* terminal state.  The specific terminal state is
+    non-deterministic (may race to completed, aborted, or cancelled) — this
+    test asserts reachability of a terminal state, not a specific outcome.
+    A separate failure-injection test covers the explicit 'failed' path.
     """
     resp = client.post("/runs", json={"goal": "Long analysis task"})
     assert resp.status_code == 201
@@ -430,14 +435,35 @@ def test_tc10_cancel_signal_terminates_run(client: TestClient) -> None:
         f"Unexpected status {sig_resp.status_code} sending cancel signal"
     )
 
-    # Run must reach a terminal state regardless — cancel timing is non-deterministic
-    # (may race to "completed", may be "aborted", or may fail mid-stage).  This
-    # three-way is intentional and documents the cancel contract: test intent is
-    # terminal-state-reached, not a specific outcome.
+    # _wait_for_terminal raises TimeoutError if terminal is not reached —
+    # the assertion below is therefore always true when we reach it.
     final = _wait_for_terminal(client, run_id, timeout=15.0)
-    assert final["state"] in ("completed", "failed", "aborted"), (
-        f"Run must reach a terminal state after cancel, got {final['state']!r}"
+    assert final["state"] in _TERMINAL_STATES, (
+        f"_wait_for_terminal returned non-terminal state {final['state']!r}"
     )
+
+
+def test_tc10_failure_scenario(client: TestClient) -> None:
+    """A run configured to fail must reach state='failed' (not 'completed').
+
+    This is the failure-path complement to the cancel test above.  It uses
+    explicit failure injection (fail_action constraint on MockKernel) so the
+    outcome is deterministic.
+    """
+    from hi_agent.server.app import AgentServer
+
+    fail_server = AgentServer()
+    fail_server.executor_factory = _make_mock_executor_factory(fail_stage="analyze_goal")
+
+    with TestClient(fail_server.app, raise_server_exceptions=False) as fail_client:
+        resp = fail_client.post("/runs", json={"goal": "trigger failure"})
+        assert resp.status_code == 201
+        run_id = resp.json()["run_id"]
+
+        final = _wait_for_terminal(fail_client, run_id, timeout=15.0)
+        assert final["state"] == "failed", (
+            f"Failure-injected run must reach state='failed', got {final['state']!r}"
+        )
 
 
 # ---------------------------------------------------------------------------

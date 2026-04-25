@@ -7,6 +7,7 @@ import time
 from typing import Any
 from unittest.mock import patch
 
+import pytest
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.contracts import TaskContract
@@ -264,6 +265,15 @@ class TestCLIRun:
 class TestServerRoundTrip:
     """Full round-trip: create server, POST /runs, verify run executes."""
 
+    @pytest.mark.skip(
+        reason=(
+            "H1-Track4: assertion accepts 'running' as a valid terminal state, "
+            "meaning the test passes even when execution has not completed. "
+            "Rule 4 honesty: this test needs a deterministic executor and a "
+            "proper wait-for-terminal loop. Covered by test_e2e_customer_scenarios "
+            "TC01 which uses _wait_for_terminal with a real executor factory."
+        )
+    )
     def test_post_run_creates_and_starts(self) -> None:
         from hi_agent.server.app import AgentServer
         from starlette.testclient import TestClient
@@ -288,4 +298,4 @@ class TestServerRoundTrip:
 
             run = server.run_manager.get_run(run_id)
             assert run is not None
-            assert run.state in ("completed", "failed", "running")
+            assert run.state == "completed"

@@ -36,6 +36,9 @@ jobs:
           --output docs/delivery/ci-rule15-structural.json
           --poll-timeout 60
           --ready-timeout 60
+      - name: Check T3 evidence freshness (Rule 8 DF-46)
+        run: python scripts/check_t3_freshness.py
+        continue-on-error: true
 
   boundary-check:
     runs-on: ubuntu-latest

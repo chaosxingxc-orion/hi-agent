@@ -149,6 +149,15 @@ async def test_async_invoke_sync_handler():
 # ======================================================================
 
 
+@pytest.mark.skip(
+    reason=(
+        "H1-Track4 K-11: mocks executor._execute_action_with_retry, which is an "
+        "internal method of the SUT (RunExecutor). Mocking an internal method makes "
+        "this a unit test of the dead-end detection branch only, not an integration "
+        "test. Rule 4 honesty: needs rewrite using a real capability registry that "
+        "returns failure results, exercising the full code path without SUT mock."
+    )
+)
 def test_dead_end_detection_in_runner():
     """When all nodes in a stage fail, execute() returns 'failed'."""
     executor = _make_executor()

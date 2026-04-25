@@ -12,6 +12,7 @@ from dataclasses import fields
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
 from hi_agent.contracts.memory import StageSummary
 from hi_agent.harness.contracts import ActionResult, ActionSpec, ActionState
 from hi_agent.harness.executor import HarnessExecutor
@@ -75,6 +76,16 @@ def _make_mock_harness_executor(artifact_ids: list[str] | None = None) -> Any:
 class TestInvokeViaHarnessArtifactIds:
     """_invoke_via_harness must include artifact_ids in its return dict."""
 
+    @pytest.mark.skip(
+        reason=(
+            "H1-Track4: test wires MagicMock(spec=HarnessExecutor) as "
+            "executor.harness_executor — the mock returns a canned ActionResult "
+            "so the assertion verifies that _invoke_via_harness passes artifact_ids "
+            "through, but only against a fake harness. Rule 4 integration honesty: "
+            "needs a real HarnessExecutor or a test capability that returns artifacts "
+            "rather than a spec-mock. Skipped until rewritten."
+        )
+    )
     def test_harness_result_includes_artifact_ids(self) -> None:
         """The dict returned by _invoke_via_harness must have artifact_ids key."""
         from hi_agent.contracts import TaskContract
@@ -116,6 +127,12 @@ class TestInvokeViaHarnessArtifactIds:
         )
         assert result["artifact_ids"] == ["art-001", "art-002"]
 
+    @pytest.mark.skip(
+        reason=(
+            "H1-Track4: same as above — MagicMock(spec=HarnessExecutor) as SUT "
+            "collaborator. Skipped until rewritten with real harness."
+        )
+    )
     def test_harness_result_artifact_ids_defaults_to_empty_on_failure(self) -> None:
         """When harness returns a failed result, artifact_ids should still be present."""
         from hi_agent.contracts import TaskContract

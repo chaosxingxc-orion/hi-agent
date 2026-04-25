@@ -543,7 +543,12 @@ class TestRunsEndpoints:
         run_id = body["run_id"]
         parsed = uuid.UUID(run_id, version=4)
         assert str(parsed) == run_id
-        assert body["state"] in ("created", "running", "completed")
+        # POST /runs returns state immediately after starting the background
+        # thread; valid states are "created" (not yet picked up) or "running"
+        # (thread already started).  "completed" should not appear here — if
+        # the executor finishes synchronously before this line, that is a
+        # test infrastructure race, not a valid contract state on POST response.
+        assert body["state"] in ("created", "running")
 
         resp2 = client.get(f"/runs/{run_id}")
         assert resp2.status_code == 200

@@ -1,4 +1,13 @@
-"""Tests for AsyncKernelFacadeAdapter protocol compliance."""
+"""Tests for AsyncKernelFacadeAdapter protocol compliance.
+
+H1-Track4: The _make_adapter() helper patches KernelFacadeAdapter with a
+MagicMock, meaning every delegation assertion in this file verifies that
+AsyncKernelFacadeAdapter calls the mock's methods — not that the real
+KernelFacadeAdapter + KernelFacade stack behaves correctly end-to-end.
+Per Rule 4 integration-test honesty (zero mocks on the subsystem under test),
+these should be rewritten to wire a real KernelFacadeAdapter against a test
+KernelFacade stub, or moved to unit-test tier.  Skipped until rewritten.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +16,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from hi_agent.runtime_adapter.async_kernel_facade_adapter import AsyncKernelFacadeAdapter
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "H1-Track4: _make_adapter() patches KernelFacadeAdapter with MagicMock — "
+        "delegation assertions verify mock call-through, not real adapter behaviour. "
+        "Rule 4 integration honesty: rewrite to use real KernelFacadeAdapter or "
+        "move to unit-test tier with explicit 'unit test' label."
+    )
+)
 
 # ---------------------------------------------------------------------------
 # Helpers

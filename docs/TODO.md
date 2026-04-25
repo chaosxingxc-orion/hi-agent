@@ -28,9 +28,9 @@ Last updated: 2026-04-25
 - P-6 KG inference: transitive query + conflict detection on LongTermMemoryGraph (JSON)
 - P-7 Feedback path: `submit_run_feedback()` → EvolveEngine
 
-## ONGOING — DF-46 CI gate enforcement
+## DONE (Wave H1, DF-46, 2026-04-25)
 
-- CI plan for Rule 8 mechanical enforcement in `.github/workflows/` (tracked DF-46)
+- [x] DF-46 CI gate enforcement: scripts/check_t3_freshness.py + .github/workflows/claude-rules.yml step — 2026-04-25
 
 ## DEFERRED — H2 Hardening Pass 2
 

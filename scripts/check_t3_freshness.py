@@ -1,0 +1,198 @@
+#!/usr/bin/env python
+"""Rule 8 T3 Invariance freshness check (DF-46).
+
+Exit 0: T3 evidence covers HEAD (no hot-path changes since last gate recording).
+Exit 1: T3 stale — hot-path file(s) changed since the last gate SHA.
+
+Usage::
+
+    python scripts/check_t3_freshness.py
+
+The script:
+1. Finds the most recent ``docs/delivery/*-rule15-*.json`` file.
+2. Extracts the gate SHA from the JSON ``sha`` field, or falls back to parsing
+   the filename (e.g. ``2026-04-24-8c5395b-rule15-volces.json`` → ``8c5395b``).
+3. Lists files changed between <gate_sha>..HEAD via ``git diff --name-only``.
+4. Checks those paths against the hot-path glob list from CLAUDE.md Rule 8.
+5. Exits 1 if any hot-path file changed; exits 0 otherwise.
+"""
+
+from __future__ import annotations
+
+import fnmatch
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Hot-path patterns — from CLAUDE.md Rule 8
+# ---------------------------------------------------------------------------
+_HOT_PATH_PATTERNS: list[str] = [
+    "hi_agent/llm/**",
+    "hi_agent/runtime/**",
+    "hi_agent/config/cognition_builder.py",
+    "hi_agent/config/json_config_loader.py",
+    "hi_agent/config/builder.py",
+    "hi_agent/runner.py",
+    "hi_agent/runner_stage.py",
+    "hi_agent/runtime_adapter/**",
+    "hi_agent/memory/compressor.py",
+    "hi_agent/server/app.py",
+    "hi_agent/profiles/**",
+]
+
+
+def _is_hot_path(file_path: str) -> bool:
+    """Return True if *file_path* matches any hot-path glob pattern."""
+    for pattern in _HOT_PATH_PATTERNS:
+        if fnmatch.fnmatch(file_path, pattern):
+            return True
+        # Also match with forward-slash normalization
+        normalized = file_path.replace("\\", "/")
+        if fnmatch.fnmatch(normalized, pattern):
+            return True
+    return False
+
+
+def _find_latest_delivery_file(repo_root: Path) -> Path | None:
+    """Return the most recently modified rule15 delivery JSON file."""
+    delivery_dir = repo_root / "docs" / "delivery"
+    if not delivery_dir.is_dir():
+        return None
+    candidates = sorted(
+        delivery_dir.glob("*-rule15-*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
+
+
+def _extract_sha_from_json(delivery_file: Path) -> str | None:
+    """Try to read the ``sha`` field from the delivery JSON."""
+    try:
+        data = json.loads(delivery_file.read_text(encoding="utf-8"))
+        sha = data.get("sha")
+        if sha and isinstance(sha, str) and len(sha) >= 7:
+            return sha
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
+def _extract_sha_from_filename(delivery_file: Path) -> str | None:
+    """Fall back: parse a 7-char hex SHA from the filename stem.
+
+    Filename convention: ``YYYY-MM-DD-<sha7>-rule15-<tag>.json``
+    """
+    match = re.search(r"-([0-9a-f]{7,40})-rule15", delivery_file.name)
+    if match:
+        return match.group(1)
+    return None
+
+
+def _git(args: list[str], *, repo_root: Path) -> str:
+    """Run a git command and return stdout, stripping trailing whitespace."""
+    result = subprocess.run(
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"git {' '.join(args)} failed (exit {result.returncode}):\n{result.stderr}"
+        )
+    return result.stdout.strip()
+
+
+def main() -> int:
+    repo_root = Path(__file__).resolve().parent.parent
+
+    # 1. Find latest delivery file.
+    delivery_file = _find_latest_delivery_file(repo_root)
+    if delivery_file is None:
+        print(
+            "T3-WARN: No docs/delivery/*-rule15-*.json found. "
+            "T3 gate has never been recorded — treating as stale.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"T3: Using delivery file: {delivery_file.name}")
+
+    # 2. Extract gate SHA.
+    gate_sha = _extract_sha_from_json(delivery_file) or _extract_sha_from_filename(
+        delivery_file
+    )
+    if not gate_sha:
+        print(
+            f"T3-ERROR: Cannot determine gate SHA from {delivery_file.name}. "
+            "Add a 'sha' field to the delivery JSON or use the naming convention "
+            "YYYY-MM-DD-<sha>-rule15-<tag>.json.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"T3: Gate SHA = {gate_sha}")
+
+    # 3. Get HEAD SHA.
+    try:
+        head_sha = _git(["rev-parse", "HEAD"], repo_root=repo_root)
+    except RuntimeError as exc:
+        print(f"T3-ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"T3: HEAD SHA  = {head_sha}")
+
+    if head_sha.startswith(gate_sha) or gate_sha.startswith(head_sha[:len(gate_sha)]):
+        print("T3: HEAD matches gate SHA — T3 is fresh.")
+        return 0
+
+    # 4. Get changed files between gate and HEAD.
+    try:
+        diff_output = _git(
+            ["diff", "--name-only", f"{gate_sha}..HEAD"],
+            repo_root=repo_root,
+        )
+    except RuntimeError as exc:
+        print(
+            f"T3-WARN: Could not compute diff from {gate_sha} to HEAD: {exc}\n"
+            "Treating T3 as stale (gate SHA may not be reachable in this repo).",
+            file=sys.stderr,
+        )
+        return 1
+
+    changed_files = [f for f in diff_output.splitlines() if f.strip()]
+
+    # 5. Filter hot-path files.
+    hot_path_changes = [f for f in changed_files if _is_hot_path(f)]
+
+    if not hot_path_changes:
+        print(
+            f"T3: {len(changed_files)} file(s) changed since gate; "
+            "none are on the hot path. T3 is fresh."
+        )
+        return 0
+
+    # 6. Exit 1 with structured output.
+    print(
+        f"T3-STALE: {len(hot_path_changes)} hot-path file(s) changed since gate "
+        f"({gate_sha}):",
+        file=sys.stderr,
+    )
+    for f in hot_path_changes:
+        print(f"  {f}", file=sys.stderr)
+    print(
+        "\nRule 8 T3 Invariance violated. Record a fresh gate run before release:\n"
+        "  python scripts/rule15_volces_gate.py \\\n"
+        "      --output docs/delivery/<date>-<sha>-rule15-volces.json\n"
+        "Or tag this PR: T3 evidence: DEFERRED — <reason>",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

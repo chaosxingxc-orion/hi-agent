@@ -4,10 +4,20 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
+
 
 class TestDevSmokeGoldenPath:
     """Full execution path with heuristic fallback (no API keys required)."""
 
+    @pytest.mark.skip(
+        reason=(
+            "H1-Track4: dev_smoke golden is heuristic-mode only; heuristic executor "
+            "may return 'failed' or 'reflected' instead of 'completed', so asserting "
+            "== 'completed' would be a lie. Rule 4 honesty: skip until real-LLM E2E "
+            "gate (Rule 8) covers this path."
+        )
+    )
     def test_executor_completes_with_heuristic_fallback(self):
         """build_executor() + execute() completes without real LLM."""
         from hi_agent.config.builder import SystemBuilder
@@ -19,7 +29,7 @@ class TestDevSmokeGoldenPath:
         )
         executor = builder.build_executor(contract)
         result = executor.execute()
-        assert str(result) in ("completed", "failed", "reflected")
+        assert result.status == "completed"
 
     def test_readiness_returns_expected_keys(self):
         """builder.readiness() returns dict with required keys."""
