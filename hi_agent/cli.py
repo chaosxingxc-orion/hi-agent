@@ -520,6 +520,13 @@ def _cmd_tools(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _cmd_init(args) -> None:
+    """Scaffold a posture-specific config directory."""
+    from hi_agent.cli_commands.init import run_init
+
+    run_init(args)
+
+
 def _run_doctor(args) -> None:
     """Run hi-agent doctor diagnostic."""
     from hi_agent.config.builder import SystemBuilder
@@ -794,6 +801,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Force evolve off (evolve_mode=off). Overrides HI_AGENT_EVOLVE_MODE.",
     )
 
+    # init
+    init_parser = subparsers.add_parser(
+        "init", help="Scaffold a posture-specific config directory"
+    )
+    init_parser.add_argument(
+        "--posture",
+        choices=["dev", "research", "prod"],
+        required=True,
+        help="Deployment posture to scaffold (dev | research | prod)",
+    )
+    init_parser.add_argument(
+        "--config-dir",
+        dest="config_dir",
+        default="./hi_agent_config",
+        help="Directory to create config files in (default: ./hi_agent_config)",
+    )
+
     # doctor
     doctor_parser = subparsers.add_parser("doctor", help="Diagnose platform health")
     doctor_parser.add_argument(
@@ -887,6 +911,7 @@ def main() -> None:
         "readiness": _cmd_readiness,
         "tools": _cmd_tools,
         "doctor": _run_doctor,
+        "init": _cmd_init,
     }
 
     handler = handlers.get(args.command)
