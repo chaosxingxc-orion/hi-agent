@@ -2,6 +2,7 @@
 
 Wave 8 / P2.7
 """
+
 from __future__ import annotations
 
 from hi_agent.artifacts.contracts import (
@@ -144,9 +145,7 @@ def test_dataset_artifact_auto_hashes_content() -> None:
 
     content = {"rows": [1, 2, 3]}
     d = DatasetArtifact(artifact_id="d2", content=content)
-    expected = hashlib.sha256(
-        json.dumps(content, sort_keys=True, default=str).encode()
-    ).hexdigest()
+    expected = hashlib.sha256(json.dumps(content, sort_keys=True, default=str).encode()).hexdigest()
     assert d.content_hash == expected
 
 

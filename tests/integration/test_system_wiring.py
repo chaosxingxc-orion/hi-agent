@@ -122,7 +122,10 @@ class TestAgentServerFactory:
 
         server = AgentServer(host="127.0.0.1", port=9999)
         run_data = {
-            "goal": "test", "task_family": "quick_task", "risk_level": "low", "profile_id": "test"
+            "goal": "test",
+            "task_family": "quick_task",
+            "risk_level": "low",
+            "profile_id": "test",
         }
         factory_result = server._default_executor_factory(run_data)
         assert callable(factory_result)

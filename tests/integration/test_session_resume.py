@@ -1,4 +1,4 @@
-﻿"""Tests for session resume �?restoring RunExecutor from checkpoint and
+"""Tests for session resume �?restoring RunExecutor from checkpoint and
 continuing execution.
 
 Validates that:
@@ -23,8 +23,12 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.session.run_session import LLMCallRecord, RunSession
 
@@ -114,7 +118,16 @@ class TestResumeFromCheckpoint:
         )
         try:
             kernel = MockKernel()
-            result = RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
+            result = RunExecutor.resume_from_checkpoint(
+                path,
+                kernel,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
             assert result == "completed"
         finally:
             os.unlink(path)
@@ -136,7 +149,15 @@ class TestResumeFromCheckpoint:
                     captured.update(payload)
 
             result = RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+                path,
+                kernel,
+                observability_hook=hook,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
             )
             assert result == "completed"
             assert captured.get("run_id") == "run-resume-id-test"
@@ -166,7 +187,15 @@ class TestCompletedStagesSkipped:
                     skipped.append(payload.get("stage_id", ""))
 
             result = RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+                path,
+                kernel,
+                observability_hook=hook,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
             )
             assert result == "completed"
             assert "S1_understand" in skipped
@@ -190,7 +219,15 @@ class TestCompletedStagesSkipped:
                     started.append(payload.get("stage_id", ""))
 
             RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+                path,
+                kernel,
+                observability_hook=hook,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
             )
             assert "S1_understand" not in started
             assert "S2_gather" not in started
@@ -230,7 +267,16 @@ class TestSeqRestore:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
+                RunExecutor.resume_from_checkpoint(
+                path,
+                kernel,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             assert captured_seq["action_seq"] == 10
             assert captured_seq["branch_seq"] == 7
@@ -261,7 +307,16 @@ class TestL1SummariesRestored:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
+                RunExecutor.resume_from_checkpoint(
+                path,
+                kernel,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             assert "S1_understand" in captured["summaries"]
             assert "S2_gather" in captured["summaries"]
@@ -296,7 +351,16 @@ class TestL0RecordsAvailable:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
+                RunExecutor.resume_from_checkpoint(
+                path,
+                kernel,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             assert captured["l0_count"] > 0
         finally:
@@ -328,7 +392,16 @@ class TestCompactBoundariesRestored:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
+                RunExecutor.resume_from_checkpoint(
+                path,
+                kernel,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             assert captured["boundary_count"] >= 2
             assert captured["boundary"] is not None
@@ -363,7 +436,16 @@ class TestLLMCostContinuation:
                 return orig_execute_remaining(self_inner)
 
             with patch.object(RunExecutor, "_execute_remaining", patched):
-                RunExecutor.resume_from_checkpoint(path, kernel, raw_memory=RawMemoryStore())
+                RunExecutor.resume_from_checkpoint(
+                path,
+                kernel,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             # 2 stages * 0.01 cost each = 0.02
             assert captured["cost_before"] >= 0.02
@@ -395,7 +477,15 @@ class TestResumeFromS3:
                     executed.append(payload.get("stage_id", ""))
 
             result = RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+                path,
+                kernel,
+                observability_hook=hook,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
             )
             assert result == "completed"
             assert executed == ["S3_build", "S4_synthesize", "S5_review"]
@@ -427,7 +517,15 @@ class TestResumeFullyCompleted:
                     already_completed.append(True)
 
             result = RunExecutor.resume_from_checkpoint(
-                path, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+                path,
+                kernel,
+                observability_hook=hook,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
             )
             assert result == "completed"
             assert executed == []  # no stages re-executed
@@ -543,6 +641,11 @@ class TestCLIResume:
 
             def _patched_resume(cls, cp_path, kernel, **kwargs):  # type: ignore[no-untyped-def]
                 kwargs.setdefault("raw_memory", RawMemoryStore())
+                kwargs.setdefault("event_emitter", EventEmitter())
+                kwargs.setdefault("compressor", MemoryCompressor())
+                kwargs.setdefault("acceptance_policy", AcceptancePolicy())
+                kwargs.setdefault("cts_budget", CTSExplorationBudget())
+                kwargs.setdefault("policy_versions", PolicyVersionSet())
                 return _orig_resume(cls, cp_path, kernel, **kwargs)
 
             with (
@@ -572,7 +675,16 @@ class TestBackwardCompat:
     def test_execute_completes(self) -> None:
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         result = executor.execute()
         assert result == "completed"
 
@@ -586,7 +698,15 @@ class TestBackwardCompat:
                 stages.append(payload.get("stage_id", ""))
 
         executor = RunExecutor(
-            contract, kernel, observability_hook=hook, raw_memory=RawMemoryStore()
+            contract,
+            kernel,
+            observability_hook=hook,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
         executor.execute()
         assert stages == [
@@ -601,7 +721,17 @@ class TestBackwardCompat:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="compat-test", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         result = executor.execute()
         assert result == "completed"
         # Session should have L0 records and stage states
@@ -614,7 +744,16 @@ class TestBackwardCompat:
             constraints=["fail_action:analyze_data"],
         )
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         result = executor.execute()
         # The "fail_action:analyze_data" constraint is intended to force failure, but the
         # current MockKernel + heuristic-fallback path completes all stages regardless.
@@ -625,7 +764,16 @@ class TestBackwardCompat:
         """RunStarted event should still be emitted."""
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         executor.execute()
         event_types = [e.event_type for e in executor.event_emitter.events]
         assert "RunStarted" in event_types
@@ -634,7 +782,16 @@ class TestBackwardCompat:
         """Stage summaries should be created for all completed stages."""
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         result = executor.execute()
         if result == "completed":
             assert len(executor.stage_summaries) == 5

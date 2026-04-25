@@ -12,9 +12,12 @@ from __future__ import annotations
 import asyncio
 import json
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord, RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import STAGES, RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -292,7 +295,16 @@ class TestCompressionWithRunnerFlow:
         """After a full run, each stage should have a compressed summary."""
         contract = TaskContract(task_id="comp-run-001", goal="compress runner")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute()
 
@@ -308,7 +320,16 @@ class TestCompressionWithRunnerFlow:
         """Raw memory store should have records for every stage."""
         contract = TaskContract(task_id="comp-run-002", goal="raw memory check")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -325,7 +346,16 @@ class TestCompressionWithRunnerFlow:
         contract = TaskContract(task_id="comp-run-003", goal="metrics check")
         kernel = MockKernel(strict_mode=True)
         compressor = MemoryCompressor()
-        executor = RunExecutor(contract, kernel, compressor=compressor, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            compressor=compressor,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 

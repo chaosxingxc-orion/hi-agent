@@ -52,9 +52,7 @@ def test_fake_llm_state_starts_at_zero() -> None:
 def test_structural_gate_evidence_payload_shape() -> None:
     payload = {
         "status": "passed",
-        "runs": [
-            {"run_id": "run-1", "final_state": "completed", "fallback_events": []}
-        ],
+        "runs": [{"run_id": "run-1", "final_state": "completed", "fallback_events": []}],
         "cancel_known": {"status_code": 200},
         "cancel_unknown": {"status_code": 404},
         "fake_llm": {"request_count": 3},

@@ -1,7 +1,11 @@
 """Integration tests for runner capability/event/memory pipeline."""
 
-from hi_agent.contracts import StageState, TaskContract
+from hi_agent.contracts import CTSExplorationBudget, StageState, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.trajectory.stage_graph import StageGraph
 
@@ -16,7 +20,16 @@ def test_runner_fails_on_forced_action_failure() -> None:
         constraints=["fail_action:build_draft"],
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 
@@ -28,7 +41,16 @@ def test_runner_records_task_view_and_memory_artifacts() -> None:
     """Runner should emit task-view artifacts and compressed stage summaries."""
     contract = TaskContract(task_id="int-pipe-002", goal="artifact path")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 
@@ -46,7 +68,17 @@ def test_runner_custom_stage_graph_controls_execution_path() -> None:
 
     contract = TaskContract(task_id="int-pipe-003", goal="custom graph path")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        stage_graph=graph,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 

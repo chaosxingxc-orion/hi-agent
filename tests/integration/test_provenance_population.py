@@ -93,9 +93,7 @@ def test_build_provenance_from_capability_result_returns_none_when_absent() -> N
     assert build_provenance_from_capability_result(None) is None
     assert build_provenance_from_capability_result({"success": True}) is None
     # Empty url is treated as no-source.
-    assert (
-        build_provenance_from_capability_result({"provenance": {"url": ""}}) is None
-    )
+    assert build_provenance_from_capability_result({"provenance": {"url": ""}}) is None
 
 
 def test_build_provenance_from_capability_result_round_trips_fields() -> None:

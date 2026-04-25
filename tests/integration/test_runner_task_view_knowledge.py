@@ -1,7 +1,11 @@
 """Integration test for runner task-view knowledge enrichment."""
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -22,6 +26,11 @@ def test_runner_calls_knowledge_query_and_records_knowledge_in_task_view() -> No
         kernel,
         knowledge_query_fn=_knowledge_query,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     result = executor.execute()

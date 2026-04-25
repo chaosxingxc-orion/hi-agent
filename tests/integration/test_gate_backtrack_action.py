@@ -3,6 +3,7 @@
 Verifies that InMemoryGateAPI accepts the new action values and transitions
 the gate to BACKTRACKED / REMEDIATED status correctly.
 """
+
 from __future__ import annotations
 
 import pytest

@@ -460,9 +460,7 @@ class TestI8RestartPolicyDefault:
         policy = TaskRestartPolicy(max_attempts=3, on_exhausted="reflect")
         decision = engine._decide(policy, "t-i8", attempt_seq=1, failure=None)
 
-        assert decision.action == "reflect", (
-            f"Expected 'reflect' but got {decision.action!r}"
-        )
+        assert decision.action == "reflect", f"Expected 'reflect' but got {decision.action!r}"
         assert decision.reflection_prompt is not None, (
             "reflect action should produce a reflection_prompt"
         )
@@ -478,9 +476,7 @@ class TestI8RestartPolicyDefault:
         policy = TaskRestartPolicy(max_attempts=5, on_exhausted="escalate")
         decision = engine._decide(policy, "t-i8b", attempt_seq=1, failure=None)
 
-        assert decision.action == "retry", (
-            f"Expected 'retry' but got {decision.action!r}"
-        )
+        assert decision.action == "retry", f"Expected 'retry' but got {decision.action!r}"
         assert decision.reflection_prompt is None, (
             "retry action must not produce a reflection_prompt"
         )
@@ -502,9 +498,7 @@ def _make_builder_f4(tmp_path):
 def _make_contract_f4(profile_id: str | None = "test"):
     from hi_agent.contracts import TaskContract
 
-    return TaskContract(
-        task_id="t1", goal="test goal", profile_id=profile_id or "test-profile"
-    )
+    return TaskContract(task_id="t1", goal="test goal", profile_id=profile_id or "test-profile")
 
 
 class TestF4RawMemoryStoreBaseDir:

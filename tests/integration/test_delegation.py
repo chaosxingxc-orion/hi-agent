@@ -201,8 +201,7 @@ async def test_delegation_manager_concurrency_limit() -> None:
     manager = DelegationManager(kernel=kernel, config=config, llm=None)
 
     requests = [
-        DelegationRequest(goal=f"Task {i}", task_id=f"t-{i}", timeout_seconds=5.0)
-        for i in range(5)
+        DelegationRequest(goal=f"Task {i}", task_id=f"t-{i}", timeout_seconds=5.0) for i in range(5)
     ]
     results = await manager.delegate(requests, parent_run_id="parent-run-X")
 
@@ -215,9 +214,7 @@ async def test_delegation_manager_concurrency_limit() -> None:
 async def test_delegation_manager_handles_exception() -> None:
     """When spawn raises, the result should carry status='failed' with error text."""
     kernel = MagicMock()
-    kernel.spawn_child_run_async = AsyncMock(
-        side_effect=RuntimeError("kernel unavailable")
-    )
+    kernel.spawn_child_run_async = AsyncMock(side_effect=RuntimeError("kernel unavailable"))
 
     config = DelegationConfig(max_concurrent=1, poll_interval_seconds=0.01)
     manager = DelegationManager(kernel=kernel, config=config, llm=None)

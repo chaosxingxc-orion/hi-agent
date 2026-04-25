@@ -37,6 +37,11 @@ class _AnalyzeGoalRouteEngine:
         ]
 
 
+from hi_agent.contracts import CTSExplorationBudget
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.trajectory.stage_graph import (
     StageGraph,
     ValidationReport,
@@ -235,7 +240,16 @@ class TestStageGraphWithRunner:
         """Runner with default graph should complete all 5 stages."""
         contract = TaskContract(task_id="graph-run-001", goal="graph integration")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute()
 
@@ -257,6 +271,11 @@ class TestStageGraphWithRunner:
             stage_graph=graph,
             route_engine=_AnalyzeGoalRouteEngine(),
             raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         result = executor.execute()
@@ -280,6 +299,11 @@ class TestStageGraphWithRunner:
             stage_graph=graph,
             route_engine=_AnalyzeGoalRouteEngine(),
             raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         executor.execute()
@@ -299,7 +323,17 @@ class TestStageGraphWithRunner:
 
         contract = TaskContract(task_id="graph-run-004", goal="validated graph")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            stage_graph=graph,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute()
 

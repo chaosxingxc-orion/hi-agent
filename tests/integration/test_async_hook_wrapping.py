@@ -16,9 +16,13 @@ import contextlib
 from typing import Any
 
 import pytest
-from hi_agent.contracts import TaskContract, deterministic_id
+from hi_agent.contracts import CTSExplorationBudget, TaskContract, deterministic_id
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.middleware.hooks import ExecutionHookManager, HookEvent, HookRegistry
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -50,7 +54,16 @@ async def test_pre_tool_hook_fires_inside_running_loop() -> None:
         goal="test hook firing inside running loop",
         task_family="test",
     )
-    executor = RunExecutor(contract=contract, kernel=kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract=contract,
+        kernel=kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     # Replace with a spy-augmented hook manager
     registry = HookRegistry()

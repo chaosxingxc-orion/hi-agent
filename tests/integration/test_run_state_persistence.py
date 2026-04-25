@@ -1,7 +1,11 @@
 """Integration tests for run state snapshot persistence."""
 
-from hi_agent.contracts import StageState, TaskContract
+from hi_agent.contracts import CTSExplorationBudget, StageState, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.state import RunStateStore
 
@@ -13,7 +17,17 @@ def test_run_state_snapshot_persisted_on_completed(tmp_path) -> None:
     contract = TaskContract(task_id="int-state-001", goal="persist completed state")
     kernel = MockKernel(strict_mode=True)
     store = RunStateStore(file_path=tmp_path / "run_state.json")
-    executor = RunExecutor(contract, kernel, state_store=store, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        state_store=store,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 
@@ -41,7 +55,17 @@ def test_run_state_snapshot_persisted_on_failed(tmp_path) -> None:
     )
     kernel = MockKernel(strict_mode=True)
     store = RunStateStore(file_path=tmp_path / "run_state.json")
-    executor = RunExecutor(contract, kernel, state_store=store, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        state_store=store,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 

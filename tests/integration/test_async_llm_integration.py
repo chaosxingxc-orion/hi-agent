@@ -7,14 +7,19 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from hi_agent.contracts import CTSExplorationBudget
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.llm.protocol import (
     AsyncLLMGateway,
     LLMRequest,
     LLMResponse,
     TokenUsage,
 )
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.async_compressor import AsyncMemoryCompressor, CompressionResult
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 
 # ---------------------------------------------------------------------------
 # Mock async gateway
@@ -218,7 +223,16 @@ def test_runner_track_llm_cost():
 
     contract = TaskContract(task_id="t-001", goal="test goal")
     kernel = MockKernel()
-    executor = RunExecutor(contract=contract, kernel=kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract=contract,
+        kernel=kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     # Manually wire up session and cost calculator
     mock_session = MagicMock()

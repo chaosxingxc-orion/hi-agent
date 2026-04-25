@@ -1,4 +1,5 @@
 """Smoke test: hi_agent.runtime_adapter.errors importable and raisable."""
+
 import pytest
 
 

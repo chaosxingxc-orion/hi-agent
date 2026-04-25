@@ -1,4 +1,5 @@
 """Smoke test: hi_agent.runtime_adapter.reconcile_loop importable and instantiable."""
+
 import pytest
 
 

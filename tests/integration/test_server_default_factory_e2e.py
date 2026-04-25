@@ -117,8 +117,7 @@ def test_sdf01_real_factory_completes_run(
     # DF-27: the loud-default WARNING must fire because the POST body carried
     # no profile_id.  Assert it instead of asserting "no fallback events".
     assert any(
-        "POST /runs received without profile_id" in rec.getMessage()
-        for rec in caplog.records
+        "POST /runs received without profile_id" in rec.getMessage() for rec in caplog.records
     ), "DF-27: missing loud-default WARNING for missing profile_id"
 
     final = _wait_terminal(dev_client, run_id)

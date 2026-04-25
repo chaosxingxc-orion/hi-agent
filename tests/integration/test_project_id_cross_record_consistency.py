@@ -2,6 +2,7 @@
 
 Uses real objects (no mocks on SUT).
 """
+
 from __future__ import annotations
 
 from hi_agent.artifacts.contracts import Artifact

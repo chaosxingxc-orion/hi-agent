@@ -3,6 +3,7 @@
 Scenario: same Idempotency-Key + same body submitted 3 times.
 Expected: 1 created + 2 replayed; run_id identical across all three.
 """
+
 from __future__ import annotations
 
 import threading
@@ -168,6 +169,4 @@ def test_concurrent_same_key_creates_one_run(http_client):
     run_id_1 = body1.get("run_id")
     assert run_id_0 is not None, f"run_id missing in response 0: {body0}"
     assert run_id_1 is not None, f"run_id missing in response 1: {body1}"
-    assert run_id_0 == run_id_1, (
-        f"Two different run_ids returned: {run_id_0} vs {run_id_1}"
-    )
+    assert run_id_0 == run_id_1, f"Two different run_ids returned: {run_id_0} vs {run_id_1}"

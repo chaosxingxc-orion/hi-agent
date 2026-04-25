@@ -270,14 +270,23 @@ class TestDecideStageIdInPrompt:
 
 
 def _make_executor_real(**kwargs):
-    from hi_agent.contracts import TaskContract
+    from hi_agent.contracts import CTSExplorationBudget, TaskContract
+    from hi_agent.contracts.policy import PolicyVersionSet
+    from hi_agent.events import EventEmitter
+    from hi_agent.memory import MemoryCompressor
     from hi_agent.memory.l0_raw import RawMemoryStore
+    from hi_agent.route_engine.acceptance import AcceptancePolicy
 
     from tests.helpers.kernel_adapter_fixture import MockKernel
 
     contract = TaskContract(task_id="t-cd-001", goal="test goal")
     kernel = MockKernel()
     kwargs.setdefault("raw_memory", RawMemoryStore())
+    kwargs.setdefault("event_emitter", EventEmitter())
+    kwargs.setdefault("compressor", MemoryCompressor())
+    kwargs.setdefault("acceptance_policy", AcceptancePolicy())
+    kwargs.setdefault("cts_budget", CTSExplorationBudget())
+    kwargs.setdefault("policy_versions", PolicyVersionSet())
     from hi_agent.runner import RunExecutor
 
     return RunExecutor(contract=contract, kernel=kernel, **kwargs)
@@ -375,8 +384,12 @@ class TestD4FinalizeCallsConsolidate:
 
 
 def _make_executor_round4(**kwargs):
-    from hi_agent.contracts import TaskContract
+    from hi_agent.contracts import CTSExplorationBudget, TaskContract
+    from hi_agent.contracts.policy import PolicyVersionSet
+    from hi_agent.events import EventEmitter
+    from hi_agent.memory import MemoryCompressor
     from hi_agent.memory.l0_raw import RawMemoryStore
+    from hi_agent.route_engine.acceptance import AcceptancePolicy
     from hi_agent.runner import RunExecutor
 
     from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -384,6 +397,11 @@ def _make_executor_round4(**kwargs):
     contract = TaskContract(task_id="t-round4", goal="round4 test goal")
     k = MockKernel()
     kwargs.setdefault("raw_memory", RawMemoryStore())
+    kwargs.setdefault("event_emitter", EventEmitter())
+    kwargs.setdefault("compressor", MemoryCompressor())
+    kwargs.setdefault("acceptance_policy", AcceptancePolicy())
+    kwargs.setdefault("cts_budget", CTSExplorationBudget())
+    kwargs.setdefault("policy_versions", PolicyVersionSet())
     return RunExecutor(contract=contract, kernel=k, **kwargs)
 
 
@@ -1217,8 +1235,13 @@ def test_deadline_exceeded_returns_failed_not_crash():
 
 def test_execute_async_sets_run_id():
     """execute_async must set executor._run_id from kernel.start_run's return value."""
+    from hi_agent.contracts import CTSExplorationBudget
+    from hi_agent.contracts.policy import PolicyVersionSet
     from hi_agent.contracts.task import TaskContract
+    from hi_agent.events import EventEmitter
+    from hi_agent.memory import MemoryCompressor
     from hi_agent.memory.l0_raw import RawMemoryStore
+    from hi_agent.route_engine.acceptance import AcceptancePolicy
     from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
 
@@ -1233,7 +1256,15 @@ def test_execute_async_sets_run_id():
     sg.add_edge("s1", "s2")
 
     executor = RunExecutor(
-        contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore()
+        contract=contract,
+        kernel=kernel,
+        stage_graph=sg,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     stage_exec = MagicMock()
     stage_exec.execute_stage = MagicMock(return_value="completed")
@@ -1254,8 +1285,13 @@ def test_execute_async_sets_run_id():
 
 def test_execute_async_compatible_with_sync_kernel():
     """execute_async() must not crash when given a sync kernel (no await on str)."""
+    from hi_agent.contracts import CTSExplorationBudget
+    from hi_agent.contracts.policy import PolicyVersionSet
     from hi_agent.contracts.task import TaskContract
+    from hi_agent.events import EventEmitter
+    from hi_agent.memory import MemoryCompressor
     from hi_agent.memory.l0_raw import RawMemoryStore
+    from hi_agent.route_engine.acceptance import AcceptancePolicy
     from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
 
@@ -1270,7 +1306,15 @@ def test_execute_async_compatible_with_sync_kernel():
     sg.add_edge("s1", "s2")
 
     executor = RunExecutor(
-        contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore()
+        contract=contract,
+        kernel=kernel,
+        stage_graph=sg,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     stage_exec = MagicMock()
     stage_exec.execute_stage = MagicMock(return_value="completed")
@@ -1369,8 +1413,13 @@ def test_execute_async_sets_run_start_monotonic():
     """execute_async must set _run_start_monotonic so duration is measurable."""
     import time
 
+    from hi_agent.contracts import CTSExplorationBudget
+    from hi_agent.contracts.policy import PolicyVersionSet
     from hi_agent.contracts.task import TaskContract
+    from hi_agent.events import EventEmitter
+    from hi_agent.memory import MemoryCompressor
     from hi_agent.memory.l0_raw import RawMemoryStore
+    from hi_agent.route_engine.acceptance import AcceptancePolicy
     from hi_agent.runner import RunExecutor, execute_async
     from hi_agent.trajectory.stage_graph import StageGraph
 
@@ -1385,7 +1434,15 @@ def test_execute_async_sets_run_start_monotonic():
     sg.add_edge("s1", "s2")
 
     executor = RunExecutor(
-        contract=contract, kernel=kernel, stage_graph=sg, raw_memory=RawMemoryStore()
+        contract=contract,
+        kernel=kernel,
+        stage_graph=sg,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     stage_exec = MagicMock()
     stage_exec.execute_stage = MagicMock(return_value="completed")

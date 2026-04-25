@@ -26,11 +26,7 @@ def _make_unsigned_jwt(payload: dict[str, Any]) -> str:
     header = {"alg": "none", "typ": "JWT"}
 
     def _b64(obj: dict) -> str:
-        return (
-            base64.urlsafe_b64encode(json.dumps(obj).encode("utf-8"))
-            .decode("ascii")
-            .rstrip("=")
-        )
+        return base64.urlsafe_b64encode(json.dumps(obj).encode("utf-8")).decode("ascii").rstrip("=")
 
     return f"{_b64(header)}.{_b64(payload)}."
 

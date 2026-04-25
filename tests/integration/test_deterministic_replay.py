@@ -1,7 +1,11 @@
 """Integration test for deterministic replay."""
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -11,8 +15,26 @@ def test_same_contract_replay_produces_stable_ids_and_summaries() -> None:
     """Executing same contract twice should produce stable deterministic output."""
     contract = TaskContract(task_id="int-003", goal="deterministic replay")
 
-    first = RunExecutor(contract, MockKernel(), raw_memory=RawMemoryStore())
-    second = RunExecutor(contract, MockKernel(), raw_memory=RawMemoryStore())
+    first = RunExecutor(
+        contract,
+        MockKernel(),
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
+    second = RunExecutor(
+        contract,
+        MockKernel(),
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     first.execute()
     second.execute()
 

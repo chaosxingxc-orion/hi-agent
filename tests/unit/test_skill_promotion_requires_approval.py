@@ -9,11 +9,13 @@ from hi_agent.evolve.dataset_evaluator import DatasetEvaluator, SkillPromotionPi
 
 class _Approved:
     """Minimal approval context that signals approval."""
+
     approved = True
 
 
 class _NotApproved:
     """Minimal approval context that denies approval."""
+
     approved = False
 
 

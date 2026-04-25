@@ -19,8 +19,12 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
@@ -31,6 +35,7 @@ from tests.helpers.kernel_adapter_fixture import MockKernel
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_mock_executor_factory(*, fail_stage: str | None = None) -> Callable:
     """Return an executor factory backed by MockKernel (no real LLM/kernel needed).
 
@@ -39,11 +44,7 @@ def _make_mock_executor_factory(*, fail_stage: str | None = None) -> Callable:
     """
 
     def factory(run_data: dict[str, Any]) -> Callable[[], Any]:
-        task_id = (
-            run_data.get("task_id")
-            or run_data.get("run_id")
-            or uuid.uuid4().hex[:12]
-        )
+        task_id = run_data.get("task_id") or run_data.get("run_id") or uuid.uuid4().hex[:12]
         constraints: list[str] = []
         if fail_stage:
             constraints.append(f"fail_action:{fail_stage}")
@@ -53,7 +54,16 @@ def _make_mock_executor_factory(*, fail_stage: str | None = None) -> Callable:
             constraints=constraints,
         )
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         return executor.execute
 
     return factory
@@ -82,14 +92,13 @@ def _wait_for_terminal(
         if data.get("state") in terminal:
             return data
         time.sleep(poll_interval)
-    raise TimeoutError(
-        f"Run {run_id!r} did not reach a terminal state within {timeout:.1f}s"
-    )
+    raise TimeoutError(f"Run {run_id!r} did not reach a terminal state within {timeout:.1f}s")
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def server() -> AgentServer:
@@ -126,6 +135,7 @@ def client_with_knowledge(tmp_path) -> TestClient:
 # ---------------------------------------------------------------------------
 # TC01 - health check returns ok
 
+
 def test_tc01_health_check_returns_ok(client: TestClient) -> None:
     """A freshly started server must report healthy before any run is submitted.
 
@@ -147,6 +157,7 @@ def test_tc01_health_check_returns_ok(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # TC02 �?系统清单包含 TRACE 阶段
 # ---------------------------------------------------------------------------
+
 
 def test_tc02_manifest_exposes_trace_stages(client: TestClient) -> None:
     """GET /manifest must enumerate the TRACE stages so integrators know what to expect.
@@ -176,6 +187,7 @@ def test_tc02_manifest_exposes_trace_stages(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # TC03 �?提交任务 �?轮询 �?完成 (Happy Path)
 # ---------------------------------------------------------------------------
+
 
 def test_tc03_submit_goal_poll_completed(client: TestClient) -> None:
     """Core user journey: submit a goal, wait, get 'completed'.
@@ -216,6 +228,7 @@ def test_tc03_submit_goal_poll_completed(client: TestClient) -> None:
 # TC04 �?同一目标两次提交得到两个不同 run_id,无 duplicate 错误
 # ---------------------------------------------------------------------------
 
+
 def test_tc04_two_runs_same_goal_unique_ids_no_duplicate(client: TestClient) -> None:
     """Submitting the same goal twice must produce two independent runs.
 
@@ -235,8 +248,7 @@ def test_tc04_two_runs_same_goal_unique_ids_no_duplicate(client: TestClient) -> 
     run_id_2 = resp2.json()["run_id"]
 
     assert run_id_1 != run_id_2, (
-        "Two separate submissions must receive different run_ids. "
-        f"Both got: {run_id_1!r}"
+        f"Two separate submissions must receive different run_ids. Both got: {run_id_1!r}"
     )
 
     final1 = _wait_for_terminal(client, run_id_1)
@@ -252,6 +264,7 @@ def test_tc04_two_runs_same_goal_unique_ids_no_duplicate(client: TestClient) -> 
 
 # ---------------------------------------------------------------------------
 # TC05 - missing goal returns 400
+
 
 def test_tc05_missing_goal_returns_400(client: TestClient) -> None:
     """POST /runs without 'goal' must return 400 Bad Request.
@@ -272,6 +285,7 @@ def test_tc05_missing_goal_returns_400(client: TestClient) -> None:
 
 # ---------------------------------------------------------------------------
 # TC06 - list submitted runs
+
 
 def test_tc06_list_runs_shows_all_submitted(client: TestClient) -> None:
     """GET /runs must return every run that was submitted this session.
@@ -308,6 +322,7 @@ def test_tc06_list_runs_shows_all_submitted(client: TestClient) -> None:
 # TC07 �?查询不存在的 run_id 返回 404
 # ---------------------------------------------------------------------------
 
+
 def test_tc07_unknown_run_id_returns_404(client: TestClient) -> None:
     """GET /runs/{nonexistent-id} must return 404, not 500.
 
@@ -323,6 +338,7 @@ def test_tc07_unknown_run_id_returns_404(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # TC08 �?任务失败时服务不崩溃,状态为 failed
 # ---------------------------------------------------------------------------
+
 
 def test_tc08_run_failure_service_stays_healthy() -> None:
     """A task that fails must leave the service fully operational.
@@ -360,6 +376,7 @@ def test_tc08_run_failure_service_stays_healthy() -> None:
 # ---------------------------------------------------------------------------
 # TC09 �?并发提交三个任务,全部独立完成,run_id 互不相同
 # ---------------------------------------------------------------------------
+
 
 def test_tc09_concurrent_runs_isolated(client: TestClient) -> None:
     """Three concurrent runs must each complete independently with unique IDs.
@@ -404,9 +421,7 @@ def test_tc09_concurrent_runs_isolated(client: TestClient) -> None:
 
     for r in results:
         # Rule 7: concurrent normal runs (no failure injection) must complete.
-        assert r["state"] == "completed", (
-            f"Run {r['run_id']!r} must complete, got {r['state']!r}"
-        )
+        assert r["state"] == "completed", f"Run {r['run_id']!r} must complete, got {r['state']!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -469,6 +484,7 @@ def test_tc10_failure_scenario(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # TC11 �?SSE 事件流为有效格式
 # ---------------------------------------------------------------------------
+
 
 def test_tc11_sse_endpoint_returns_correct_content_type(
     client: TestClient,
@@ -542,8 +558,7 @@ def test_tc11_sse_endpoint_returns_correct_content_type(
 
     media_type = sse_response.media_type or ""
     assert "text/event-stream" in media_type, (
-        f"SSE endpoint must return Content-Type: text/event-stream, "
-        f"got {media_type!r}"
+        f"SSE endpoint must return Content-Type: text/event-stream, got {media_type!r}"
     )
 
     # Also verify the route is registered at the right path.
@@ -560,6 +575,7 @@ def test_tc11_sse_endpoint_returns_correct_content_type(
 # ---------------------------------------------------------------------------
 # TC12 �?知识库:摄入后可查到
 # ---------------------------------------------------------------------------
+
 
 def test_tc12_knowledge_ingest_then_query(client_with_knowledge: TestClient) -> None:
     """Ingested knowledge must be retrievable through the query endpoint.
@@ -602,6 +618,7 @@ def test_tc12_knowledge_ingest_then_query(client_with_knowledge: TestClient) -> 
 # ---------------------------------------------------------------------------
 # TC13 - knowledge status response shape
 
+
 def test_tc13_knowledge_status_format(client_with_knowledge: TestClient) -> None:
     """GET /knowledge/status must return a valid stats response.
 
@@ -614,14 +631,13 @@ def test_tc13_knowledge_status_format(client_with_knowledge: TestClient) -> None
     body = resp.json()
     # Must contain at least one numeric size indicator.
     numeric_fields = {k: v for k, v in body.items() if isinstance(v, (int, float))}
-    assert numeric_fields, (
-        f"Knowledge status response has no numeric fields: {body}"
-    )
+    assert numeric_fields, f"Knowledge status response has no numeric fields: {body}"
 
 
 # ---------------------------------------------------------------------------
 # TC14 �?成本追踪端点在多次运行后可用
 # ---------------------------------------------------------------------------
+
 
 def test_tc14_cost_tracking_after_runs(client: TestClient) -> None:
     """GET /cost must return a valid cost breakdown after runs complete.
@@ -640,15 +656,14 @@ def test_tc14_cost_tracking_after_runs(client: TestClient) -> None:
     assert cost_resp.status_code == 200
     body = cost_resp.json()
     # Must include at minimum a total cost field.
-    assert "total_usd" in body, (
-        f"Cost response missing 'total_usd': {body}"
-    )
+    assert "total_usd" in body, f"Cost response missing 'total_usd': {body}"
     assert isinstance(body["total_usd"], (int, float))
 
 
 # ---------------------------------------------------------------------------
 # TC15 �?健康检查在服务有任务历史后仍然正常
 # ---------------------------------------------------------------------------
+
 
 def test_tc15_health_stable_after_mixed_workload() -> None:
     """Health endpoint must return 'ok' even after a mix of successful and failed runs.
@@ -662,10 +677,8 @@ def test_tc15_health_stable_after_mixed_workload() -> None:
     def alternating_factory(run_data: dict[str, Any]) -> Callable[[], Any]:
         """Alternates: even runs succeed, odd runs use a failing stage."""
         run_count[0] += 1
-        fail = (run_count[0] % 2 == 0)
-        return _make_mock_executor_factory(
-            fail_stage="S3_build" if fail else None
-        )(run_data)
+        fail = run_count[0] % 2 == 0
+        return _make_mock_executor_factory(fail_stage="S3_build" if fail else None)(run_data)
 
     s.executor_factory = alternating_factory
     c = TestClient(s.app, raise_server_exceptions=False)

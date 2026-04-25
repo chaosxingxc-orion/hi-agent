@@ -13,12 +13,17 @@ from __future__ import annotations
 from typing import ClassVar
 
 from hi_agent.contracts import (
+    CTSExplorationBudget,
     NodeState,
     StageState,
     TaskContract,
     deterministic_id,
 )
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.base import BranchProposal
 from hi_agent.runner import STAGES, RunExecutor
 
@@ -90,7 +95,16 @@ class TestBranchHappyPath:
         """Standard run branches should all reach succeeded state."""
         contract = TaskContract(task_id="branch-happy-001", goal="branch happy path")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute()
 
@@ -103,7 +117,16 @@ class TestBranchHappyPath:
         """Kernel events should record proposed->active->succeeded transitions."""
         contract = TaskContract(task_id="branch-happy-002", goal="branch events")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -127,7 +150,16 @@ class TestBranchFailurePath:
             constraints=["fail_action:analyze_goal"],
         )
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute()
 
@@ -155,7 +187,16 @@ class TestDeadEndDetection:
             constraints=["fail_action:build_draft"],
         )
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute()
 
@@ -176,7 +217,16 @@ class TestDeadEndDetection:
             constraints=["fail_action:build_draft"],
         )
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -194,7 +244,15 @@ class TestMultipleBranchesPerStage:
         kernel = MockKernel(strict_mode=True)
         route_engine = _MultiBranchRouteEngine(branch_count=2)
         executor = RunExecutor(
-            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+            contract,
+            kernel,
+            route_engine=route_engine,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         result = executor.execute()
@@ -214,7 +272,15 @@ class TestMultipleBranchesPerStage:
         kernel = MockKernel(strict_mode=True)
         route_engine = _MultiBranchRouteEngine(branch_count=3)
         executor = RunExecutor(
-            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+            contract,
+            kernel,
+            route_engine=route_engine,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         result = executor.execute()
@@ -238,7 +304,15 @@ class TestBranchPruningAndTrajectoryState:
         kernel = MockKernel(strict_mode=True)
         route_engine = _PartialFailRouteEngine()
         executor = RunExecutor(
-            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+            contract,
+            kernel,
+            route_engine=route_engine,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         result = executor.execute()
@@ -257,7 +331,15 @@ class TestBranchPruningAndTrajectoryState:
         kernel = MockKernel(strict_mode=True)
         route_engine = _PartialFailRouteEngine()
         executor = RunExecutor(
-            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+            contract,
+            kernel,
+            route_engine=route_engine,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         executor.execute()
@@ -281,7 +363,15 @@ class TestBranchPruningAndTrajectoryState:
         kernel = MockKernel(strict_mode=True)
         route_engine = _PartialFailRouteEngine()
         executor = RunExecutor(
-            contract, kernel, route_engine=route_engine, raw_memory=RawMemoryStore()
+            contract,
+            kernel,
+            route_engine=route_engine,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         executor.execute()

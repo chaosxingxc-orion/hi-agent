@@ -12,9 +12,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor, SubRunHandle, execute_async
 from hi_agent.trajectory.stage_graph import StageGraph
 
@@ -73,7 +77,16 @@ def test_journey_execute_gate_approve() -> None:
 
     invoker = GatingInvoker()
     executor = RunExecutor(
-        contract, kernel, stage_graph=graph, invoker=invoker, raw_memory=RawMemoryStore()
+        contract,
+        kernel,
+        stage_graph=graph,
+        invoker=invoker,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     # Intercept stage_a to register a gate and raise GatePendingError
@@ -122,7 +135,17 @@ def test_journey_execute_gate_backtrack() -> None:
     graph = _simple_graph("stage_a", "stage_b")
     contract = TaskContract(task_id="journey-2-gate-backtrack", goal="gate backtrack journey")
     kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        stage_graph=graph,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     _gate_id = "gate-journey-2"
     _gate_called = [False]
@@ -210,6 +233,11 @@ def test_journey_execute_reflect_retry() -> None:
         invoker=invoker,
         restart_policy_engine=restart_engine,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     result = executor.execute()
@@ -237,7 +265,17 @@ def test_journey_execute_graph_gate() -> None:
     graph = _simple_graph("stage_a", "stage_b")
     contract = TaskContract(task_id="journey-4-graph-gate", goal="graph gate journey")
     kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        stage_graph=graph,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     _gate_id = "gate-journey-4"
     _gate_called = [False]
@@ -312,7 +350,15 @@ def test_journey_subrun_dispatch_await() -> None:
     contract = TaskContract(task_id="journey-5-subrun", goal="subrun dispatch journey")
     kernel = MockKernel(strict_mode=False)
     executor = RunExecutor(
-        contract, kernel, delegation_manager=delegation_mgr, raw_memory=RawMemoryStore()
+        contract,
+        kernel,
+        delegation_manager=delegation_mgr,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     # The parent run_id must be a real uuid (Rule 13) — not a semantic label.
@@ -429,6 +475,11 @@ def test_journey_checkpoint_resume(tmp_path: Path) -> None:
         stage_graph=graph,
         invoker=AlwaysSucceedInvoker(),
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     # Resume should complete (remaining stages s3→s4→s5 succeed by default)
@@ -470,10 +521,26 @@ def test_journey_profile_isolation() -> None:
     store_b = ShortTermMemoryStore(storage_dir=f"{tmpdir}/profile-b")
 
     executor_a = RunExecutor(
-        contract_a, kernel_a, short_term_store=store_a, raw_memory=RawMemoryStore()
+        contract_a,
+        kernel_a,
+        short_term_store=store_a,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     executor_b = RunExecutor(
-        contract_b, kernel_b, short_term_store=store_b, raw_memory=RawMemoryStore()
+        contract_b,
+        kernel_b,
+        short_term_store=store_b,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     # Short-term stores must be different instances
@@ -522,7 +589,16 @@ async def test_journey_async_full() -> None:
         goal="async full journey",
         task_family="quick_task",
     )
-    executor = RunExecutor(contract=contract, kernel=kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract=contract,
+        kernel=kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = await execute_async(executor, max_concurrency=4)
 
@@ -696,6 +772,11 @@ def test_journey_combined_pi_c_pi_d(tmp_path: Path) -> None:
         delegation_manager=delegation_mgr,
         restart_policy_engine=restart_engine,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     # NOTE: executor.run_id is assigned by execute() via kernel.start_run,
@@ -758,8 +839,7 @@ def test_journey_combined_pi_c_pi_d(tmp_path: Path) -> None:
 
     # PI-B retry happened on stage_flaky.
     assert flaky_attempts.get("stage_flaky", 0) >= 2, (
-        f"PI-B reflect retry must have run stage_flaky at least twice; "
-        f"got {flaky_attempts!r}"
+        f"PI-B reflect retry must have run stage_flaky at least twice; got {flaky_attempts!r}"
     )
     assert executor._stage_attempt.get("stage_flaky", 0) >= 1, (
         "_stage_attempt must record reflect retries"
@@ -788,8 +868,7 @@ def test_journey_combined_pi_c_pi_d(tmp_path: Path) -> None:
 
 @pytest.mark.skip(
     reason=(
-        "K-13: PI-C+PI-D combination requires live kernel + LLM"
-        " — add to E2E suite when available"
+        "K-13: PI-C+PI-D combination requires live kernel + LLM — add to E2E suite when available"
     )
 )
 def test_pi_c_and_pi_d_combined() -> None:

@@ -1,9 +1,13 @@
 """Integration tests for runner recovery hook wiring."""
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.recovery import RecoveryOrchestrationResult
 from hi_agent.recovery.compensator import CompensationExecutionReport, CompensationPlan
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -27,7 +31,16 @@ def test_runner_uses_orchestrator_as_default_recovery_executor() -> None:
     )
     kernel = MockKernel(strict_mode=True)
 
-    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 
@@ -71,6 +84,11 @@ def test_runner_invokes_recovery_hook_and_emits_events_on_failure() -> None:
         recovery_executor=recovery_executor,
         recovery_handlers=recovery_handlers,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     result = executor.execute()
@@ -91,7 +109,15 @@ def test_runner_does_not_invoke_recovery_hook_on_success() -> None:
     recovery_executor = RecordingRecoveryExecutor()
 
     executor = RunExecutor(
-        contract, kernel, recovery_executor=recovery_executor, raw_memory=RawMemoryStore()
+        contract,
+        kernel,
+        recovery_executor=recovery_executor,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     result = executor.execute()
@@ -142,6 +168,11 @@ def test_runner_emits_recovery_completed_with_orchestrator_metadata() -> None:
         kernel,
         recovery_executor=SyntheticOrchestrationExecutor(),
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     result = executor.execute()

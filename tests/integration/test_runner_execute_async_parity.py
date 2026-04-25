@@ -15,8 +15,12 @@ from __future__ import annotations
 import contextlib
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor, execute_async
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -48,7 +52,16 @@ async def test_execute_async_start_run_matches_sync_signature():
     """
     contract = TaskContract(task_id="task-parity-001", goal="hello")
     sync_kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract=contract, kernel=sync_kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract=contract,
+        kernel=sync_kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     recorder = _RecordingAsyncKernel()
     executor.kernel = recorder  # swap to the recording async kernel
@@ -76,7 +89,16 @@ async def test_execute_async_sets_run_id_and_monotonic():
     """
     contract = TaskContract(task_id="task-parity-002", goal="hello")
     sync_kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract=contract, kernel=sync_kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract=contract,
+        kernel=sync_kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     recorder = _RecordingAsyncKernel(fixed_run_id="async-run-42")
     executor.kernel = recorder

@@ -79,8 +79,6 @@ def test_rule15_probe_capability_handler_executes() -> None:
     spec = registry.get(RULE15_PROBE_CAPABILITY)
     assert spec is not None
 
-    result = spec.handler(
-        {"stage_id": RULE15_PROBE_STAGE, "goal": "probe", "run_id": "test-run"}
-    )
+    result = spec.handler({"stage_id": RULE15_PROBE_STAGE, "goal": "probe", "run_id": "test-run"})
     assert isinstance(result, dict)
     assert result.get("success") is True

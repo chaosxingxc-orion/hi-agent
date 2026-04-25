@@ -14,8 +14,12 @@ from typing import Any
 # Allow heuristic fallback so tests can run without real LLM credentials.
 os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -59,7 +63,16 @@ class TestBranchIdConsistency:
         """At least one BranchProposed event must be emitted during execute."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -76,7 +89,16 @@ class TestBranchIdConsistency:
         """
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -97,7 +119,16 @@ class TestBranchIdConsistency:
         """
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -116,7 +147,16 @@ class TestBranchIdConsistency:
         """branch_id in ActionDispatched must equal branch_id in BranchProposed."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -133,7 +173,16 @@ class TestBranchIdConsistency:
         """_make_branch_id must still exist (not deleted) with a deprecation note."""
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         assert hasattr(executor, "_make_branch_id"), (
             "_make_branch_id should still exist (deprecated but not deleted)"

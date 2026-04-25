@@ -3,8 +3,12 @@
 import asyncio
 
 import pytest
-from hi_agent.contracts import TaskContract, deterministic_id
+from hi_agent.contracts import CTSExplorationBudget, TaskContract, deterministic_id
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor, execute_async
 
 from tests.helpers.kernel_facade_fixture import MockKernelFacade
@@ -22,7 +26,16 @@ def contract():
 @pytest.mark.asyncio
 async def test_run_executor_uses_async_scheduler(contract):
     kernel = MockKernelFacade()
-    executor = RunExecutor(contract=contract, kernel=kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract=contract,
+        kernel=kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = await execute_async(executor, max_concurrency=4)
 
@@ -42,7 +55,16 @@ async def test_multiple_concurrent_runs():
             goal=f"Goal {i}",
             task_family="test",
         )
-        executor = RunExecutor(contract=contract, kernel=kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract=contract,
+            kernel=kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         return await execute_async(executor, max_concurrency=16)
 
     results = await asyncio.gather(*[run_one(i) for i in range(50)])

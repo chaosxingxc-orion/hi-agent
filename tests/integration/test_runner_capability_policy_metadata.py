@@ -9,8 +9,12 @@ from hi_agent.capability import (
     CircuitBreaker,
     register_default_capabilities,
 )
-from hi_agent.contracts import StageState, TaskContract
+from hi_agent.contracts import CTSExplorationBudget, StageState, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -60,7 +64,17 @@ def test_runner_fails_when_stage_action_policy_denies_invocation() -> None:
         constraints=["invoker_role:operator"],
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, invoker=invoker, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        invoker=invoker,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 
@@ -83,7 +97,17 @@ def test_runner_completes_when_stage_action_policy_allows_all_actions() -> None:
         constraints=["invoker_role:operator"],
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, invoker=invoker, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        invoker=invoker,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 
@@ -100,7 +124,17 @@ def test_runner_passes_role_and_metadata_to_invoker() -> None:
         constraints=["invoker_role:auditor"],
     )
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, invoker=spy, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        invoker=spy,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 

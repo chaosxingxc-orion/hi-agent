@@ -279,13 +279,15 @@ def test_structured_summary_serialization_is_json_compatible():
 @pytest.mark.asyncio
 async def test_structured_compressor_calls_llm():
     """StructuredCompressor must call the LLM and return a StructuredSummary."""
-    llm_response_json = json.dumps({
-        "goal": "LLM goal",
-        "progress": "LLM progress",
-        "decisions": "LLM decision",
-        "modified_files": ["llm_file.py"],
-        "next_steps": "LLM next",
-    })
+    llm_response_json = json.dumps(
+        {
+            "goal": "LLM goal",
+            "progress": "LLM progress",
+            "decisions": "LLM decision",
+            "modified_files": ["llm_file.py"],
+            "next_steps": "LLM next",
+        }
+    )
     gateway = _mock_llm_gateway(llm_response_json)
     config = StructuredCompressorConfig(head_count=1, tail_token_budget=50)
     compressor = StructuredCompressor(llm=gateway, config=config)
@@ -314,13 +316,15 @@ async def test_structured_compressor_calls_llm():
 @pytest.mark.asyncio
 async def test_structured_compressor_returns_compressed_messages():
     """Returned message list = [injection] + head + tail; middle is gone."""
-    llm_response_json = json.dumps({
-        "goal": "G",
-        "progress": "P",
-        "decisions": "D",
-        "modified_files": [],
-        "next_steps": "N",
-    })
+    llm_response_json = json.dumps(
+        {
+            "goal": "G",
+            "progress": "P",
+            "decisions": "D",
+            "modified_files": [],
+            "next_steps": "N",
+        }
+    )
     gateway = _mock_llm_gateway(llm_response_json)
     config = StructuredCompressorConfig(head_count=2, tail_token_budget=100)
     compressor = StructuredCompressor(llm=gateway, config=config)
@@ -359,21 +363,21 @@ async def test_structured_compressor_incremental_update():
     )
 
     # LLM returns incremental info
-    llm_response_json = json.dumps({
-        "goal": "Should be ignored in merge",
-        "progress": "Phase 2 complete",
-        "decisions": "Decision B",
-        "modified_files": ["new.py"],
-        "next_steps": "Phase 3",
-    })
+    llm_response_json = json.dumps(
+        {
+            "goal": "Should be ignored in merge",
+            "progress": "Phase 2 complete",
+            "decisions": "Decision B",
+            "modified_files": ["new.py"],
+            "next_steps": "Phase 3",
+        }
+    )
     gateway = _mock_llm_gateway(llm_response_json)
     config = StructuredCompressorConfig(head_count=1, tail_token_budget=50)
     compressor = StructuredCompressor(llm=gateway, config=config)
 
     messages = _make_mixed_messages(10)
-    _, merged_summary = await compressor.compress(
-        messages, existing_summary=existing
-    )
+    _, merged_summary = await compressor.compress(messages, existing_summary=existing)
 
     # Original goal is preserved through the merge
     assert merged_summary.goal == "Original goal"
@@ -402,13 +406,15 @@ async def test_parse_llm_response_valid_json():
     config = StructuredCompressorConfig()
     compressor = StructuredCompressor(llm=gateway, config=config)
 
-    response_json = json.dumps({
-        "goal": "Parse test goal",
-        "progress": "Parsed progress",
-        "decisions": "Parsed decision",
-        "modified_files": ["parsed.py"],
-        "next_steps": "Parsed next",
-    })
+    response_json = json.dumps(
+        {
+            "goal": "Parse test goal",
+            "progress": "Parsed progress",
+            "decisions": "Parsed decision",
+            "modified_files": ["parsed.py"],
+            "next_steps": "Parsed next",
+        }
+    )
     fallback_messages = _make_messages(3)
 
     summary = compressor._parse_llm_response(response_json, fallback_messages)
@@ -428,13 +434,15 @@ def test_parse_llm_response_valid_json_with_code_fence():
 
     response_with_fence = (
         "```json\n"
-        + json.dumps({
-            "goal": "Fenced goal",
-            "progress": "Fenced progress",
-            "decisions": "Fenced decision",
-            "modified_files": [],
-            "next_steps": "Fenced next",
-        })
+        + json.dumps(
+            {
+                "goal": "Fenced goal",
+                "progress": "Fenced progress",
+                "decisions": "Fenced decision",
+                "modified_files": [],
+                "next_steps": "Fenced next",
+            }
+        )
         + "\n```"
     )
     summary = compressor._parse_llm_response(response_with_fence, [])

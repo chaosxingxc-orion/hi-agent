@@ -1,4 +1,5 @@
 """Unit tests for AgentRole, TeamSharedContext, and TeamRun dataclasses (P4.1)."""
+
 from __future__ import annotations
 
 import pytest

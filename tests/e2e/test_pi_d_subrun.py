@@ -18,7 +18,12 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from hi_agent.contracts import CTSExplorationBudget
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.observability.fallback import clear_fallback_events, get_fallback_events
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor, SubRunHandle
 from hi_agent.task_mgmt.delegation import DelegationConfig, DelegationManager
 from hi_agent.trajectory.stage_graph import StageGraph
@@ -82,6 +87,11 @@ def test_pi_d_dispatch_subrun_and_consume_output(profile_id_for_test: str) -> No
         stage_graph=graph,
         invoker=SubrunDispatchingInvoker(),
         delegation_manager=delegation_mgr,
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     # Pre-assign a real uuid-based parent run_id so clear_fallback_events can

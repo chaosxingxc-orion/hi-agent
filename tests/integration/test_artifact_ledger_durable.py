@@ -2,6 +2,7 @@
 
 Wave 8 / P2.7
 """
+
 from __future__ import annotations
 
 from pathlib import Path

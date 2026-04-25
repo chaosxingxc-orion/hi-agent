@@ -1,4 +1,5 @@
 """Smoke test: hi_agent.runtime_adapter.temporal_health importable and instantiable."""
+
 import pytest
 
 

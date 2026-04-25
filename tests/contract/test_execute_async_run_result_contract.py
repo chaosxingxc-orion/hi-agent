@@ -10,8 +10,12 @@ Verifies:
 from __future__ import annotations
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.contracts.requests import RunResult
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor, execute_async
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -25,7 +29,15 @@ def _contract(goal: str = "Say hello", task_family: str = "quick_task") -> TaskC
 def _make_executor(contract: TaskContract | None = None) -> RunExecutor:
     c = contract or _contract()
     kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract=c, kernel=kernel)
+    executor = RunExecutor(
+        contract=c,
+        kernel=kernel,
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     # Swap to async facade so execute_async can call start_run / execute_turn.
     executor.kernel = MockKernelFacade()  # type: ignore[assignment]
     return executor
@@ -67,7 +79,15 @@ async def test_execute_async_run_result_status_matches_execute():
 
     # Synchronous path
     sync_kernel = MockKernel(strict_mode=False)
-    sync_executor = RunExecutor(contract=contract, kernel=sync_kernel)
+    sync_executor = RunExecutor(
+        contract=contract,
+        kernel=sync_kernel,
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     sync_result = sync_executor.execute()
 
     # Async path

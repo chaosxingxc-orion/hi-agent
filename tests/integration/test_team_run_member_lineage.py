@@ -1,4 +1,5 @@
 """Integration: team run member registration and lineage tracking (P4.3)."""
+
 from __future__ import annotations
 
 from hi_agent.contracts.team_runtime import TeamRun

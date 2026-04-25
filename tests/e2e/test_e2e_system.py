@@ -41,6 +41,7 @@ from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import STAGES, RunExecutor
 from hi_agent.server.app import AgentServer
 from hi_agent.skill.recorder import SkillUsageRecorder
@@ -90,6 +91,9 @@ class TestFullTracePipelineAllSubsystems:
             episode_builder=episode_builder,
             episodic_store=episodic_store,
             skill_recorder=skill_recorder,
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         result = executor.execute()
@@ -183,6 +187,10 @@ class TestFullPipelineWithFailuresAndRecovery:
             event_emitter=event_emitter,
             failure_collector=failure_collector,
             watchdog=watchdog,
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         result = executor.execute()
@@ -222,6 +230,11 @@ class TestFullPipelineWithFailuresAndRecovery:
             kernel=kernel,
             failure_collector=failure_collector,
             watchdog=watchdog,
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         result = executor.execute()
@@ -321,6 +334,11 @@ class TestEpisodicMemoryAcrossTwoRuns:
             kernel=kernel,
             episode_builder=builder,
             episodic_store=store,
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
         result1 = executor1.execute()
         assert result1 == "completed"
@@ -337,6 +355,11 @@ class TestEpisodicMemoryAcrossTwoRuns:
             kernel=kernel,
             episode_builder=builder,
             episodic_store=store,
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
         result2 = executor2.execute()
         assert result2 == "completed"
@@ -583,7 +606,15 @@ class TestStateMachinesMatchRuntimeBehavior:
         # Start the run -- this moves to active
         sm.transition("active")
 
-        executor = RunExecutor(contract=contract, kernel=kernel)
+        executor = RunExecutor(
+            contract=contract,
+            kernel=kernel,
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         result = executor.execute()
 
         # Run completed successfully
@@ -626,6 +657,9 @@ class TestPolicyVersionPinning:
             kernel=kernel,
             event_emitter=event_emitter,
             policy_versions=custom_policy,
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
         )
 
         result = executor.execute()
@@ -663,6 +697,10 @@ class TestPolicyVersionPinning:
             contract=contract,
             kernel=kernel,
             policy_versions=custom_policy,
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
         )
 
         result = executor.execute()
@@ -792,6 +830,10 @@ class TestBudgetEnforcement:
             kernel=kernel,
             event_emitter=event_emitter,
             failure_collector=failure_collector,
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         _ = executor.execute()
@@ -819,6 +861,10 @@ class TestBudgetEnforcement:
             contract=contract,
             kernel=kernel,
             event_emitter=event_emitter,
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         executor.execute()
@@ -842,6 +888,10 @@ class TestBudgetEnforcement:
             contract=contract,
             kernel=kernel,
             cts_budget=cts_budget,
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            policy_versions=PolicyVersionSet(),
         )
 
         executor.execute()
@@ -888,7 +938,15 @@ class TestHTTPAPIRoundTrip:
                     goal=run_data["goal"],
                     task_family=run_data.get("task_family", "quick_task"),
                 )
-                runner = RunExecutor(contract, kernel)
+                runner = RunExecutor(
+                    contract,
+                    kernel,
+                    event_emitter=EventEmitter(),
+                    compressor=MemoryCompressor(),
+                    acceptance_policy=AcceptancePolicy(),
+                    cts_budget=CTSExplorationBudget(),
+                    policy_versions=PolicyVersionSet(),
+                )
                 return runner.execute()
 
             return _run

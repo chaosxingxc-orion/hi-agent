@@ -27,6 +27,11 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from hi_agent.contracts import CTSExplorationBudget
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskRestartPolicy
 from hi_agent.trajectory.stage_graph import StageGraph
@@ -87,6 +92,11 @@ def test_pi_b_reflect_retry_on_flaky_stage(profile_id_for_test: str) -> None:
         stage_graph=graph,
         invoker=FlakyOnceInvoker(),
         restart_policy_engine=engine,
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     result = executor.execute()

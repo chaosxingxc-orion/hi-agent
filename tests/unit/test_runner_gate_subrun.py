@@ -10,9 +10,13 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine
 
@@ -26,7 +30,16 @@ from tests.helpers.kernel_adapter_fixture import MockKernel
 def _make_executor(kernel=None) -> RunExecutor:
     contract = TaskContract(task_id="t-001", goal="test goal")
     k = kernel or MockKernel()
-    return RunExecutor(contract=contract, kernel=k, raw_memory=RawMemoryStore())
+    return RunExecutor(
+        contract=contract,
+        kernel=k,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -15,8 +15,12 @@ import json
 import os
 import tempfile
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.session.run_session import RunSession
 
@@ -43,14 +47,32 @@ class TestRunExecutorSessionNone:
     def test_execute_completes_without_explicit_session(self) -> None:
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         result = executor.execute()
         assert result == "completed"
 
     def test_default_session_created_internally(self) -> None:
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         # A default session should be created internally
         assert executor.session is not None
 
@@ -58,7 +80,17 @@ class TestRunExecutorSessionNone:
         """Passing session=None explicitly should still create default."""
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, session=None, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=None,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         # Default session created internally
         assert executor.session is not None
 
@@ -75,7 +107,17 @@ class TestRunExecutorSessionL0Records:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-l0", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute()
         assert result == "completed"
@@ -87,7 +129,17 @@ class TestRunExecutorSessionL0Records:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-l0-events", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -98,7 +150,17 @@ class TestRunExecutorSessionL0Records:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-stages", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -109,7 +171,17 @@ class TestRunExecutorSessionL0Records:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-events", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -129,7 +201,17 @@ class TestRunExecutorSessionCompactBoundary:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-compact", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute()
         assert result == "completed"
@@ -141,7 +223,17 @@ class TestRunExecutorSessionCompactBoundary:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-l1", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -152,7 +244,17 @@ class TestRunExecutorSessionCompactBoundary:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-cb-stage", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -180,7 +282,16 @@ class TestRunExecutorSessionCostSummary:
             observed.append((name, payload))
 
         executor = RunExecutor(
-            contract, kernel, session=session, observability_hook=hook, raw_memory=RawMemoryStore()
+            contract,
+            kernel,
+            session=session,
+            observability_hook=hook,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
         executor.execute()
 
@@ -194,7 +305,17 @@ class TestRunExecutorSessionCostSummary:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-llm", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -212,7 +333,16 @@ class TestRunExecutorSessionCostSummary:
             observed.append((name, payload))
 
         executor = RunExecutor(
-            contract, kernel, session=session, observability_hook=hook, raw_memory=RawMemoryStore()
+            contract,
+            kernel,
+            session=session,
+            observability_hook=hook,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
         executor.execute()
 
@@ -237,7 +367,17 @@ class TestRunExecutorSessionCheckpoint:
                 task_contract=contract,
                 storage_dir=tmpdir,
             )
-            executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+            executor = RunExecutor(
+                contract,
+                kernel,
+                session=session,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             executor.execute()
 
@@ -254,7 +394,17 @@ class TestRunExecutorSessionCheckpoint:
                 task_contract=contract,
                 storage_dir=tmpdir,
             )
-            executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+            executor = RunExecutor(
+                contract,
+                kernel,
+                session=session,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             executor.execute()
 
@@ -280,7 +430,17 @@ class TestRunExecutorSessionCheckpoint:
                 task_contract=contract,
                 storage_dir=tmpdir,
             )
-            executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+            executor = RunExecutor(
+                contract,
+                kernel,
+                session=session,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             executor.execute()
 
@@ -310,7 +470,17 @@ class TestRunExecutorSessionCheckpointState:
                 task_contract=contract,
                 storage_dir=tmpdir,
             )
-            executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+            executor = RunExecutor(
+                contract,
+                kernel,
+                session=session,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             executor.execute()
 
@@ -326,7 +496,17 @@ class TestRunExecutorSessionCheckpointState:
                 task_contract=contract,
                 storage_dir=tmpdir,
             )
-            executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+            executor = RunExecutor(
+                contract,
+                kernel,
+                session=session,
+                raw_memory=RawMemoryStore(),
+                event_emitter=EventEmitter(),
+                compressor=MemoryCompressor(),
+                acceptance_policy=AcceptancePolicy(),
+                cts_budget=CTSExplorationBudget(),
+                policy_versions=PolicyVersionSet(),
+            )
 
             executor.execute()
 
@@ -337,7 +517,17 @@ class TestRunExecutorSessionCheckpointState:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-ckpt-llm", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -348,7 +538,17 @@ class TestRunExecutorSessionCheckpointState:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-ckpt-cb", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 
@@ -360,7 +560,17 @@ class TestRunExecutorSessionCheckpointState:
         contract = _make_contract()
         kernel = MockKernel()
         session = RunSession(run_id="test-run-roundtrip", task_contract=contract)
-        executor = RunExecutor(contract, kernel, session=session, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            session=session,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute()
 

@@ -1,4 +1,5 @@
 """Tests for scripts/check_rules.py (DF-42 CLAUDE.md rule enforcement)."""
+
 from __future__ import annotations
 
 import subprocess

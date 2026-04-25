@@ -5,9 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.memory.short_term import ShortTermMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -28,7 +32,17 @@ def _make_executor(
     )
     kernel = MockKernel(strict_mode=False)
     store = short_term_store or ShortTermMemoryStore(storage_dir=str(tmp_path / "stm"))
-    return RunExecutor(contract, kernel, short_term_store=store, raw_memory=RawMemoryStore())
+    return RunExecutor(
+        contract,
+        kernel,
+        short_term_store=store,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
 
 # All five stage actions must fail for the run to be "failed".
@@ -57,7 +71,17 @@ def _make_failing_executor(
     )
     kernel = MockKernel(strict_mode=False)
     store = short_term_store or ShortTermMemoryStore(storage_dir=str(tmp_path / "stm"))
-    return RunExecutor(contract, kernel, short_term_store=store, raw_memory=RawMemoryStore())
+    return RunExecutor(
+        contract,
+        kernel,
+        short_term_store=store,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
 
 class TestSTMAfterSuccessfulRun:
@@ -177,7 +201,16 @@ class TestBackwardCompatibility:
     def test_no_store_no_error(self) -> None:
         contract = TaskContract(task_id="compat-001", goal="backward compat test")
         kernel = MockKernel(strict_mode=True)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         assert executor.short_term_store is None
 
         result = executor.execute()
@@ -190,7 +223,16 @@ class TestBackwardCompatibility:
             constraints=_ALL_FAIL_CONSTRAINTS,
         )
         kernel = MockKernel(strict_mode=False)
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         assert executor.short_term_store is None
 
         result = executor.execute()

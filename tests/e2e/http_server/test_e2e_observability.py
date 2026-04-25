@@ -27,9 +27,7 @@ def test_metrics_endpoint_returns_prometheus_format(e2e_client):
     """GET /metrics returns 200 with hi_agent_ prefixed metric lines."""
     resp = e2e_client.get("/metrics")
     assert resp.status_code == 200
-    assert "hi_agent_" in resp.text, (
-        "Metrics body does not contain any hi_agent_ prefixed metric"
-    )
+    assert "hi_agent_" in resp.text, "Metrics body does not contain any hi_agent_ prefixed metric"
 
 
 def test_metrics_body_is_text(e2e_client):
@@ -50,6 +48,4 @@ def test_run_does_not_decrease_runs_total(e2e_client):
     before = _get_metric_value(e2e_client, "hi_agent_runs_total")
     e2e_client.post("/runs", json={"goal": "metric test run", "profile_id": "default"})
     after = _get_metric_value(e2e_client, "hi_agent_runs_total")
-    assert after >= before, (
-        f"hi_agent_runs_total decreased after a POST /runs: {before} -> {after}"
-    )
+    assert after >= before, f"hi_agent_runs_total decreased after a POST /runs: {before} -> {after}"

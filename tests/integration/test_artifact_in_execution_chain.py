@@ -13,10 +13,15 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from hi_agent.contracts import CTSExplorationBudget
 from hi_agent.contracts.memory import StageSummary
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.harness.contracts import ActionResult, ActionSpec, ActionState
 from hi_agent.harness.executor import HarnessExecutor
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 
 # ---------------------------------------------------------------------------
 # D4-1: StageSummary has artifact_ids field
@@ -97,7 +102,17 @@ class TestInvokeViaHarnessArtifactIds:
         contract = TaskContract(task_id="test-aid-001", goal="artifact ids test")
 
         harness = _make_mock_harness_executor(["art-001", "art-002"])
-        executor = RunExecutor(contract, kernel, invoker=None, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            invoker=None,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         executor.harness_executor = harness
         executor.run_id = "run-0001"
 
@@ -152,7 +167,17 @@ class TestInvokeViaHarnessArtifactIds:
         )
         mock_executor.execute.return_value = mock_result
 
-        executor = RunExecutor(contract, kernel, invoker=None, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            invoker=None,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         executor.harness_executor = mock_executor
         executor.run_id = "run-0001"
 

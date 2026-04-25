@@ -20,8 +20,12 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskRestartPolicy
 from hi_agent.trajectory.stage_graph import StageGraph
@@ -92,6 +96,11 @@ def _run_with_policy(policy: TaskRestartPolicy, task_id: str, goal: str) -> RunE
         invoker=invoker,
         restart_policy_engine=engine,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     # We don't care whether the overall run ends completed or failed —
     # the assertion is on the event log's differentiating content.

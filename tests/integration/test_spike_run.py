@@ -1,8 +1,12 @@
 """Spike 1: verify Run S1->S5 completes with greedy optimizer."""
 
 import pytest
-from hi_agent.contracts import StageState, TaskContract
+from hi_agent.contracts import CTSExplorationBudget, StageState, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import STAGES, RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import IllegalStateTransition, MockKernel
@@ -12,7 +16,16 @@ def test_run_s1_to_s5_completes() -> None:
     """A quick_task run should complete all S1->S5 stages."""
     contract = TaskContract(task_id="test-001", goal="spike test", task_family="quick_task")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 
@@ -24,7 +37,16 @@ def test_all_stages_reach_completed() -> None:
     contract = TaskContract(task_id="test-002", goal="stage check")
     kernel = MockKernel(strict_mode=True)
 
-    RunExecutor(contract, kernel, raw_memory=RawMemoryStore()).execute()
+    RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    ).execute()
 
     for stage_id in STAGES:
         kernel.assert_stage_state(stage_id, StageState.COMPLETED)
@@ -34,7 +56,16 @@ def test_trajectory_nodes_created() -> None:
     """The spike flow should create one trajectory node per stage."""
     contract = TaskContract(task_id="test-003", goal="node check")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     executor.execute()
 
@@ -44,8 +75,26 @@ def test_trajectory_nodes_created() -> None:
 def test_action_ids_are_deterministic() -> None:
     """Replaying the same contract should produce identical node IDs."""
     contract = TaskContract(task_id="test-004", goal="determinism check")
-    first_executor = RunExecutor(contract, MockKernel(), raw_memory=RawMemoryStore())
-    second_executor = RunExecutor(contract, MockKernel(), raw_memory=RawMemoryStore())
+    first_executor = RunExecutor(
+        contract,
+        MockKernel(),
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
+    second_executor = RunExecutor(
+        contract,
+        MockKernel(),
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     first_executor.execute()
     second_executor.execute()

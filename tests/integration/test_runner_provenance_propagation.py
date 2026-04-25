@@ -3,9 +3,13 @@
 Uses real RunExecutor + MockKernel (no internal component mocking).
 """
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.execution_provenance import CONTRACT_VERSION, ExecutionProvenance
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -14,7 +18,16 @@ from tests.helpers.kernel_adapter_fixture import MockKernel
 def _make_executor(task_id: str, goal: str = "test provenance") -> RunExecutor:
     contract = TaskContract(task_id=task_id, goal=goal)
     kernel = MockKernel(strict_mode=True)
-    return RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+    return RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
 
 def test_provenance_present_on_completed_run() -> None:

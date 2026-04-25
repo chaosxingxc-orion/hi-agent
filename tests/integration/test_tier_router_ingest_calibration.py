@@ -18,8 +18,12 @@ def test_ingest_signal_appends_to_log():
     """ingest_calibration_signal stores the signal in _calibration_log."""
     router = _make_router()
     sig = CalibrationSignal(
-        project_id="p1", run_id="r1", model="gpt-4", tier="strong",
-        cost_usd=0.01, quality_score=0.9,
+        project_id="p1",
+        run_id="r1",
+        model="gpt-4",
+        tier="strong",
+        cost_usd=0.01,
+        quality_score=0.9,
     )
     router.ingest_calibration_signal(sig)
     assert len(router._calibration_log) == 1
@@ -31,8 +35,12 @@ def test_ingest_signal_does_not_change_routing():
     router = _make_router()
     initial_tier = router.get_tier_for_purpose("control")
     sig = CalibrationSignal(
-        project_id="p1", run_id="r1", model="gpt-4", tier="tier_a",
-        cost_usd=0.01, quality_score=0.9,
+        project_id="p1",
+        run_id="r1",
+        model="gpt-4",
+        tier="tier_a",
+        cost_usd=0.01,
+        quality_score=0.9,
     )
     router.ingest_calibration_signal(sig)
     assert router.get_tier_for_purpose("control") == initial_tier
@@ -43,7 +51,10 @@ def test_ingest_multiple_signals():
     router = _make_router()
     for i in range(5):
         sig = CalibrationSignal(
-            project_id="p1", run_id=f"r{i}", model="gpt-4", tier="medium",
+            project_id="p1",
+            run_id=f"r{i}",
+            model="gpt-4",
+            tier="medium",
         )
         router.ingest_calibration_signal(sig)
     assert len(router._calibration_log) == 5

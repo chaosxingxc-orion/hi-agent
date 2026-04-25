@@ -11,9 +11,13 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.contracts.requests import RunResult
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor, execute_async
 from hi_agent.task_mgmt.async_scheduler import AsyncTaskScheduler
 from hi_agent.task_mgmt.budget_guard import BudgetGuard
@@ -47,9 +51,13 @@ def _make_executor(
     # internal bookkeeping.  We monkey-patch its `kernel` attribute to point
     # to the facade so execute_async() can call start_run / execute_turn.
     mock_kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(
-        contract=contract, kernel=mock_kernel, **kwargs, raw_memory=RawMemoryStore()
-    )
+    kwargs.setdefault("raw_memory", RawMemoryStore())
+    kwargs.setdefault("event_emitter", EventEmitter())
+    kwargs.setdefault("compressor", MemoryCompressor())
+    kwargs.setdefault("acceptance_policy", AcceptancePolicy())
+    kwargs.setdefault("cts_budget", CTSExplorationBudget())
+    kwargs.setdefault("policy_versions", PolicyVersionSet())
+    executor = RunExecutor(contract=contract, kernel=mock_kernel, **kwargs)
     # execute_async reads executor.kernel �?replace with the async facade.
     executor.kernel = facade  # type: ignore[assignment]
     return executor, facade
@@ -225,7 +233,16 @@ async def test_execute_vs_execute_async_equivalence():
 
     # --- Synchronous execute() ---
     sync_kernel = MockKernel(strict_mode=False)
-    sync_executor = RunExecutor(contract=contract, kernel=sync_kernel, raw_memory=RawMemoryStore())
+    sync_executor = RunExecutor(
+        contract=contract,
+        kernel=sync_kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     sync_status = sync_executor.execute()
 
     assert sync_status == "completed"

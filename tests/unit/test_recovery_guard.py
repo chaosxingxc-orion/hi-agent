@@ -6,9 +6,13 @@ import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.execution.recovery_coordinator import RecoveryContext
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.runtime_adapter import RuntimeAdapter
 
@@ -36,6 +40,11 @@ def test_trigger_recovery_no_handlers_logs_warning_and_continues(
         kernel=mock_kernel,
         recovery_handlers=None,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     executor._run_id = "run-test-123"
 
@@ -61,6 +70,11 @@ def test_trigger_recovery_no_handlers_with_caplog(
         kernel=mock_kernel,
         recovery_handlers=None,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     executor._run_id = "run-test-123"
 
@@ -82,6 +96,11 @@ def test_trigger_recovery_with_handlers_proceeds(
         kernel=mock_kernel,
         recovery_handlers=handlers,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     executor._run_id = "run-test-123"
 
@@ -108,6 +127,11 @@ def test_trigger_recovery_build_context_exception_wrapping(
         kernel=mock_kernel,
         recovery_handlers=handlers,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     executor._run_id = "run-test-123"
 

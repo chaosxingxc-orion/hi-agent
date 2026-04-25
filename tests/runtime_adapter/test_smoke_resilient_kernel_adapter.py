@@ -1,4 +1,5 @@
 """Smoke test: hi_agent.runtime_adapter.resilient_kernel_adapter importable."""
+
 import pytest
 
 

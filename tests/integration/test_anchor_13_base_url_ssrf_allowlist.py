@@ -20,6 +20,7 @@ import pytest
 # KernelFacadeClient base_url allowlist
 # ---------------------------------------------------------------------------
 
+
 def test_kernel_facade_client_rejects_private_ip(monkeypatch) -> None:
     """Azure/AWS/GCP metadata IP (169.254.169.254) must be rejected."""
     monkeypatch.delenv("HI_AGENT_KERNEL_BASE_URL_OVERRIDE_UNSAFE", raising=False)
@@ -61,6 +62,7 @@ def test_kernel_facade_client_accepts_loopback() -> None:
 # ---------------------------------------------------------------------------
 # web_fetch URL policy — initial URL + redirect chain
 # ---------------------------------------------------------------------------
+
 
 def test_web_fetch_rejects_loopback() -> None:
     """URLPolicy default instance must block http://127.0.0.1/…"""

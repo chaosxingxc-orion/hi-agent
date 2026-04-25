@@ -14,7 +14,12 @@ Pattern:
 from __future__ import annotations
 
 import pytest
+from hi_agent.contracts import CTSExplorationBudget
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory import MemoryCompressor
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.trajectory.stage_graph import StageGraph
 
@@ -48,6 +53,11 @@ def test_pi_c_gate_blocks_then_resumes(profile_id_for_test: str) -> None:
         kernel,
         stage_graph=graph,
         invoker=RecordingInvoker(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     gate_id = f"pi-c-gate-{profile_id_for_test}"

@@ -79,6 +79,7 @@ def test_truncated_placeholder_format() -> None:
     assert f"size={len(content)}chars" in placeholder
     # hash must be present (16-char hex prefix)
     import re
+
     assert re.search(r"hash=[0-9a-f]{16}", placeholder)
 
 
@@ -275,9 +276,7 @@ def test_create_tool_result_budget_defaults() -> None:
 
 
 def test_create_tool_result_budget_custom() -> None:
-    b = create_tool_result_budget(
-        {"max_single_result_chars": 500, "max_cumulative_chars": 2000}
-    )
+    b = create_tool_result_budget({"max_single_result_chars": 500, "max_cumulative_chars": 2000})
     cfg = b._config
     assert cfg.max_single_result_chars == 500
     assert cfg.max_cumulative_chars == 2000

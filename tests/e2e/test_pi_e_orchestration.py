@@ -32,11 +32,16 @@ import uuid
 from typing import Any
 
 import pytest
+from hi_agent.contracts import CTSExplorationBudget
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory import MemoryCompressor
 from hi_agent.observability.fallback import (
     clear_fallback_events,
     get_fallback_events,
 )
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.task_mgmt.delegation import DelegationConfig, DelegationManager
 from hi_agent.task_mgmt.restart_policy import RestartPolicyEngine, TaskRestartPolicy
@@ -76,9 +81,7 @@ def test_pi_e_full_orchestration(profile_id_for_test: str) -> None:
     graph.add_edge("pi_e_s_sub", "pi_e_s_flaky")
     graph.add_edge("pi_e_s_flaky", "pi_e_s_final")
 
-    contract = make_contract(
-        profile_id_for_test, goal="PI-E: subrun + reflect + gate composition"
-    )
+    contract = make_contract(profile_id_for_test, goal="PI-E: subrun + reflect + gate composition")
     kernel = make_mock_kernel()
 
     artifact_store: dict[str, Any] = {}
@@ -130,6 +133,11 @@ def test_pi_e_full_orchestration(profile_id_for_test: str) -> None:
         invoker=PiEInvoker(),
         delegation_manager=delegation_mgr,
         restart_policy_engine=restart_engine,
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     # Pre-clear fallback events for the run_id start_run will assign.

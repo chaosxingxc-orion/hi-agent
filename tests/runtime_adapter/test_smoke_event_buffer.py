@@ -1,4 +1,5 @@
 """Smoke test: hi_agent.runtime_adapter.event_buffer importable and instantiable."""
+
 import pytest
 
 

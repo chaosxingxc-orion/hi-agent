@@ -1,4 +1,5 @@
 """Smoke test: hi_agent.runtime_adapter.protocol importable and structurally valid."""
+
 import pytest
 
 

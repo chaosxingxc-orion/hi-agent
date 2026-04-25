@@ -19,9 +19,7 @@ def test_kernel_facade_adapter_keeps_unknown_branch_failure_as_reason() -> None:
 
     adapter._call = fake_call  # type: ignore[method-assign]
 
-    adapter.mark_branch_state(
-        "run-1", "stage-1", "branch-1", "failed", "acceptance_rejected"
-    )
+    adapter.mark_branch_state("run-1", "stage-1", "branch-1", "failed", "acceptance_rejected")
 
     request = captured["request"]
     assert captured["method_name"] == "mark_branch_state"

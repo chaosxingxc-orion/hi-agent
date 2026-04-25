@@ -1,4 +1,5 @@
 """Smoke test: hi_agent.runtime_adapter.event_signals_bridge importable and callable."""
+
 import pytest
 
 

@@ -16,8 +16,12 @@ from __future__ import annotations
 import json
 import os
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.skill.evolver import SkillEvolver
 from hi_agent.skill.loader import SkillLoader
@@ -86,7 +90,13 @@ class TestRunExecutorSkillObserver:
             contract=contract,
             kernel=kernel,
             skill_observer=observer,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         outcome = executor.execute()
 
         assert outcome == "completed"
@@ -111,7 +121,13 @@ class TestRunExecutorSkillObserver:
             contract=contract,
             kernel=kernel,
             skill_observer=observer,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         executor.execute()
 
         # Read all observations
@@ -145,7 +161,13 @@ class TestRunExecutorSkillObserver:
             contract=contract,
             kernel=kernel,
             skill_observer=observer,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         executor.execute()
 
         # Observations exist (scores may be None from mock results)
@@ -172,7 +194,13 @@ class TestRunExecutorBackwardCompat:
             contract=contract,
             kernel=kernel,
             skill_observer=None,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         outcome = executor.execute()
         assert outcome == "completed"
 
@@ -186,7 +214,13 @@ class TestRunExecutorBackwardCompat:
             kernel=kernel,
             skill_version_mgr=None,
             skill_observer=None,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         outcome = executor.execute()
         assert outcome == "completed"
 
@@ -199,7 +233,13 @@ class TestRunExecutorBackwardCompat:
             contract=contract,
             kernel=kernel,
             skill_loader=None,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         outcome = executor.execute()
         assert outcome == "completed"
 
@@ -492,7 +532,13 @@ class TestSkillLifecycleIntegration:
             skill_observer=observer,
             skill_version_mgr=version_mgr,
             skill_loader=loader,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         outcome = executor.execute()
         assert outcome == "completed"
 
@@ -538,7 +584,13 @@ class TestSkillLifecycleIntegration:
             contract=contract,
             kernel=kernel,
             skill_loader=loader,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         # The route_engine should have a context provider that includes skills
         if hasattr(executor.route_engine, "_context_provider"):

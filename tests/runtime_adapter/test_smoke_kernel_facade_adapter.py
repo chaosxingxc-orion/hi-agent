@@ -1,4 +1,5 @@
 """Smoke test: hi_agent.runtime_adapter.kernel_facade_adapter importable."""
+
 import pytest
 
 

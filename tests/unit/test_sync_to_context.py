@@ -7,8 +7,12 @@ to prevent unintended shared state mutations.
 from __future__ import annotations
 
 from hi_agent.context.run_context import RunContext
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -24,6 +28,11 @@ def _make_executor_with_context() -> RunExecutor:
         kernel=kernel,
         run_context=run_context,
         raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     return executor
 
@@ -127,6 +136,11 @@ class TestSyncToContextMutableCopies:
             kernel=kernel,
             run_context=None,
             raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
         executor.dag = {"node": "value"}
         # Should not raise

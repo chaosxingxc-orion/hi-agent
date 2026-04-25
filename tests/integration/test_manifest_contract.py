@@ -56,9 +56,7 @@ def test_manifest_endpoints_contains_manifest_self_reference(test_client: TestCl
     assert resp.status_code == 200
     endpoints = resp.json().get("endpoints", [])
     assert isinstance(endpoints, list), "endpoints must be a list"
-    assert "GET /manifest" in endpoints, (
-        f"/manifest missing from endpoints list. Got: {endpoints}"
-    )
+    assert "GET /manifest" in endpoints, f"/manifest missing from endpoints list. Got: {endpoints}"
 
 
 def test_manifest_endpoints_is_not_empty(test_client: TestClient) -> None:
@@ -89,8 +87,7 @@ def test_manifest_at_least_one_capability_has_parameters_key(test_client: TestCl
         pytest.skip("No capabilities registered in this environment — cannot assert parameters key")
     has_params = any("parameters" in item for item in items)
     assert has_params, (
-        "No entry in capabilities_with_params has a 'parameters' key. "
-        f"Got items: {items[:3]}"
+        f"No entry in capabilities_with_params has a 'parameters' key. Got items: {items[:3]}"
     )
 
 

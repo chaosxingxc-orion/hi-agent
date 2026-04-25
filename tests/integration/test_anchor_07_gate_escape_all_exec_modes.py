@@ -18,9 +18,13 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor, execute_async
 from hi_agent.trajectory.stage_graph import StageGraph
 
@@ -55,7 +59,17 @@ def test_execute_propagates_gate_pending_error() -> None:
     graph = _two_stage_graph()
     contract = TaskContract(task_id="anchor-7-execute", goal="gate via execute()")
     kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        stage_graph=graph,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     gate_id = "gate-anchor-7-exec"
     _install_gate_on_stage_a(executor, gate_id, "final_approval")
@@ -74,7 +88,17 @@ def test_execute_graph_propagates_gate_pending_error() -> None:
     graph = _two_stage_graph()
     contract = TaskContract(task_id="anchor-7-graph", goal="gate via execute_graph()")
     kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        stage_graph=graph,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     gate_id = "gate-anchor-7-graph"
     _install_gate_on_stage_a(executor, gate_id, "artifact_review")
@@ -108,7 +132,17 @@ def test_execute_async_gate_propagates_or_records_terminally() -> None:
         task_family="quick_task",
     )
     kernel = MockKernelFacade()
-    executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        stage_graph=graph,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     gate_id = "gate-anchor-7-async"
     _install_gate_on_stage_a(executor, gate_id, "route_direction")
@@ -143,7 +177,17 @@ def test_execute_remaining_propagates_gate_pending_error(tmp_path: Path) -> None
         goal="gate via _execute_remaining()",
     )
     kernel = MockKernel(strict_mode=False)
-    executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        stage_graph=graph,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     # Start the run so run_id is available for the resume-like path.
     executor._run_id = kernel.start_run(contract.task_id)
 

@@ -14,13 +14,17 @@ import tempfile
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.failures.collector import FailureCollector
 from hi_agent.failures.taxonomy import FailureCode, FailureRecord
 from hi_agent.failures.watchdog import ProgressWatchdog
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import ManagedSkill, SkillRegistry
@@ -134,7 +138,13 @@ def test_failure_collector_receives_records_on_action_failure():
         kernel,
         route_engine=_FailingRouteEngine(num_proposals=2),
         failure_collector=collector,
-     raw_memory=RawMemoryStore())
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     runner.execute()
 
     records = collector.get_all()
@@ -167,7 +177,13 @@ def test_failure_collector_summary_included_in_postmortem():
         route_engine=_FailingRouteEngine(num_proposals=1),
         failure_collector=collector,
         evolve_engine=evolve,
-     raw_memory=RawMemoryStore())
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     runner.execute()
 
     # Postmortem should have failure codes from the collector
@@ -197,7 +213,13 @@ def test_watchdog_triggers_gate_b_on_repeated_failures():
         route_engine=_ManyFailRouteEngine(count=5),
         failure_collector=collector,
         watchdog=watchdog,
-     raw_memory=RawMemoryStore())
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     runner.execute()
 
     # Watchdog should have detected no-progress
@@ -219,7 +241,13 @@ def test_watchdog_reset_at_stage_transition():
         contract,
         kernel,
         watchdog=watchdog,
-     raw_memory=RawMemoryStore())
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     runner.execute()
 
     # After completion, watchdog should have been reset at each stage
@@ -247,7 +275,13 @@ def test_episode_stored_after_successful_run():
             kernel,
             episode_builder=episode_builder,
             episodic_store=episodic_store,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         result = runner.execute()
         assert result == "completed"
 
@@ -275,7 +309,13 @@ def test_episode_stored_after_failed_run():
             route_engine=_FailingRouteEngine(num_proposals=1),
             episode_builder=episode_builder,
             episodic_store=episodic_store,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         result = runner.execute()
         assert result == "failed"
 
@@ -298,7 +338,13 @@ def test_no_episode_when_builder_is_none():
             kernel,
             episode_builder=None,
             episodic_store=episodic_store,
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         runner.execute()
 
         assert episodic_store.count() == 0
@@ -329,7 +375,13 @@ def test_skill_recorder_records_usage():
         kernel,
         route_engine=_SkillRouteEngine(skill_id="skill-abc"),
         skill_recorder=recorder,
-     raw_memory=RawMemoryStore())
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     result = runner.execute()
     assert result == "completed"
 
@@ -354,7 +406,13 @@ def test_skill_recorder_not_called_without_skill_id():
         contract,
         kernel,
         skill_recorder=recorder,
-     raw_memory=RawMemoryStore())
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     runner.execute()
 
     run_skills = recorder.get_run_skills(runner.run_id)
@@ -371,7 +429,16 @@ def test_backward_compat_all_none():
     contract = _make_contract()
     kernel = MockKernel()
 
-    runner = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+    runner = RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     result = runner.execute()
     assert result == "completed"
 
@@ -389,7 +456,13 @@ def test_backward_compat_explicit_none():
         episode_builder=None,
         episodic_store=None,
         skill_recorder=None,
-     raw_memory=RawMemoryStore())
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     result = runner.execute()
     assert result == "completed"
 
@@ -399,7 +472,16 @@ def test_default_failure_collector_created():
     contract = _make_contract()
     kernel = MockKernel()
 
-    runner = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+    runner = RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     assert runner.failure_collector is not None
     assert isinstance(runner.failure_collector, FailureCollector)
 
@@ -409,6 +491,15 @@ def test_default_watchdog_created():
     contract = _make_contract()
     kernel = MockKernel()
 
-    runner = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+    runner = RunExecutor(
+        contract,
+        kernel,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
     assert runner.watchdog is not None
     assert isinstance(runner.watchdog, ProgressWatchdog)

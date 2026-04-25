@@ -9,7 +9,11 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 
 
 def _make_contract() -> TaskContract:
@@ -37,7 +41,16 @@ def test_runner_raises_on_missing_raw_memory() -> None:
     kernel = _make_kernel()
 
     with pytest.raises(ValueError, match="must be injected by the builder"):
-        RunExecutor(contract=contract, kernel=kernel, raw_memory=None)
+        RunExecutor(
+            contract=contract,
+            kernel=kernel,
+            raw_memory=None,
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
 
 def test_runner_raises_mentions_rule6() -> None:
@@ -48,7 +61,16 @@ def test_runner_raises_mentions_rule6() -> None:
     kernel = _make_kernel()
 
     with pytest.raises(ValueError, match="Rule 6"):
-        RunExecutor(contract=contract, kernel=kernel, raw_memory=None)
+        RunExecutor(
+            contract=contract,
+            kernel=kernel,
+            raw_memory=None,
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
 
 def test_runner_raises_mentions_builder_wiring() -> None:
@@ -59,7 +81,16 @@ def test_runner_raises_mentions_builder_wiring() -> None:
     kernel = _make_kernel()
 
     with pytest.raises(ValueError, match="SystemBuilder"):
-        RunExecutor(contract=contract, kernel=kernel, raw_memory=None)
+        RunExecutor(
+            contract=contract,
+            kernel=kernel,
+            raw_memory=None,
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
 
 def test_runner_does_not_raise_when_raw_memory_provided(tmp_path) -> None:
@@ -71,6 +102,15 @@ def test_runner_does_not_raise_when_raw_memory_provided(tmp_path) -> None:
     kernel = _make_kernel()
     raw_memory = RawMemoryStore(run_id="run-injection-ok", base_dir=str(tmp_path))
 
-    executor = RunExecutor(contract=contract, kernel=kernel, raw_memory=raw_memory)
+    executor = RunExecutor(
+        contract=contract,
+        kernel=kernel,
+        raw_memory=raw_memory,
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     assert executor.raw_memory is raw_memory

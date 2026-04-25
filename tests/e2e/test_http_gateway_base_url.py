@@ -49,9 +49,7 @@ def test_base_url_path_is_preserved(base_url: str, expected_suffix: str) -> None
     """HTTPGateway must call {base_url}/chat/completions regardless of path segment."""
     gw = HTTPGateway(base_url=base_url, api_key="k")
     captured: list[str] = []
-    gw._client = httpx.AsyncClient(
-        base_url=gw._base_url, transport=_capture_url(captured)
-    )
+    gw._client = httpx.AsyncClient(base_url=gw._base_url, transport=_capture_url(captured))
 
     from hi_agent.llm.protocol import LLMRequest
 
@@ -68,9 +66,7 @@ def test_base_url_path_is_preserved(base_url: str, expected_suffix: str) -> None
 def test_dev_smoke_clamp_skipped_when_api_key_present(monkeypatch) -> None:
     """HttpLLMGateway must not clamp timeout/retries when credentials are set."""
     monkeypatch.setenv("OPENAI_API_KEY", "present")
-    gw = HttpLLMGateway(
-        timeout_seconds=120, max_retries=3, runtime_mode="dev-smoke"
-    )
+    gw = HttpLLMGateway(timeout_seconds=120, max_retries=3, runtime_mode="dev-smoke")
     assert gw._timeout == 120
     assert gw._max_retries == 3
 
@@ -78,8 +74,6 @@ def test_dev_smoke_clamp_skipped_when_api_key_present(monkeypatch) -> None:
 def test_dev_smoke_clamp_applies_when_api_key_absent(monkeypatch) -> None:
     """HttpLLMGateway clamps to 3s/0-retries only when credentials are missing."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    gw = HttpLLMGateway(
-        timeout_seconds=120, max_retries=3, runtime_mode="dev-smoke"
-    )
+    gw = HttpLLMGateway(timeout_seconds=120, max_retries=3, runtime_mode="dev-smoke")
     assert gw._timeout == 3
     assert gw._max_retries == 0

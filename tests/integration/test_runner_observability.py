@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -18,7 +22,17 @@ def test_runner_emits_observability_signals() -> None:
 
     contract = TaskContract(task_id="obs-001", goal="test observability hook")
     kernel = MockKernel(strict_mode=True)
-    executor = RunExecutor(contract, kernel, observability_hook=_hook, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        observability_hook=_hook,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     result = executor.execute()
 
@@ -40,7 +54,15 @@ def test_runner_ignores_observability_hook_exceptions() -> None:
     contract = TaskContract(task_id="obs-002", goal="hook failures are best-effort")
     kernel = MockKernel(strict_mode=True)
     executor = RunExecutor(
-        contract, kernel, observability_hook=_failing_hook, raw_memory=RawMemoryStore()
+        contract,
+        kernel,
+        observability_hook=_failing_hook,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
     result = executor.execute()

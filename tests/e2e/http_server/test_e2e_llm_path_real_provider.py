@@ -35,9 +35,7 @@ def test_real_llm_run_completes(e2e_client):
         "/runs",
         json={"goal": "Say hello in one sentence.", "profile_id": "default"},
     )
-    assert resp.status_code == 200, (
-        f"POST /runs returned {resp.status_code}: {resp.text}"
-    )
+    assert resp.status_code == 200, f"POST /runs returned {resp.status_code}: {resp.text}"
     run_id = resp.json()["run_id"]
 
     for _ in range(_POLL_MAX_ROUNDS):

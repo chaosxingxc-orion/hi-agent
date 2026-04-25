@@ -17,6 +17,11 @@ from typing import Any
 import pytest
 from hi_agent.capability.registry import CapabilityRegistry
 from hi_agent.config.builder import SystemBuilder
+from hi_agent.contracts import CTSExplorationBudget
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.server.app import AgentServer, build_app
 from starlette.testclient import TestClient
 
@@ -62,7 +67,16 @@ def _make_factory():
             project_id=run_data.get("project_id", ""),
         )
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         return executor.execute
 
     return factory
@@ -103,8 +117,7 @@ def test_custom_config_dir_loads_tools(tmp_path: Path) -> None:
     assert registry is not None, "build_capability_registry() returned None"
     registered_names = set(registry.list_names())
     assert tool_name in registered_names, (
-        f"Expected custom tool {tool_name!r} in registry; "
-        f"got: {sorted(registered_names)}"
+        f"Expected custom tool {tool_name!r} in registry; got: {sorted(registered_names)}"
     )
 
 

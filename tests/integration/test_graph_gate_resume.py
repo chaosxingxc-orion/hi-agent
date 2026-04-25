@@ -26,9 +26,13 @@ other tests; here we focus on the behavioural contract of PI-C itself.
 from __future__ import annotations
 
 import pytest
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.trajectory.stage_graph import StageGraph
 
@@ -52,7 +56,15 @@ def _make_executor(task_id: str) -> RunExecutor:
     contract = TaskContract(task_id=task_id, goal=f"gate-resume test {task_id}")
     kernel = MockKernel(strict_mode=False)
     return RunExecutor(
-        contract, kernel, stage_graph=_three_stage_graph(), raw_memory=RawMemoryStore()
+        contract,
+        kernel,
+        stage_graph=_three_stage_graph(),
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
 
 
@@ -204,9 +216,7 @@ def test_execute_graph_gate_on_first_stage_resumes_correctly() -> None:
     with pytest.raises(GatePendingError) as exc_info:
         executor.execute_graph()
     assert exc_info.value.gate_id == gate_id
-    assert visited == ["stage_a"], (
-        f"expected only stage_a visited before gate, got {visited!r}"
-    )
+    assert visited == ["stage_a"], f"expected only stage_a visited before gate, got {visited!r}"
 
     # Gate fired before stage_a completed → pass last_stage=stage_a with an
     # empty completed set so the coordinator re-executes it.
@@ -218,8 +228,7 @@ def test_execute_graph_gate_on_first_stage_resumes_correctly() -> None:
     )
 
     assert result.status == "completed", (
-        f"first-stage gate resume did not complete — got {result.status!r} "
-        f"(error={result.error!r})"
+        f"first-stage gate resume did not complete — got {result.status!r} (error={result.error!r})"
     )
     # All three stages must have executed by end of run.
     assert "stage_a" in visited and "stage_b" in visited and "stage_c" in visited, (
@@ -246,9 +255,7 @@ def test_execute_graph_gate_id_is_structured_attribute() -> None:
     # Must be an attribute, not just part of the message.
     exc = exc_info.value
     assert hasattr(exc, "gate_id"), "GatePendingError missing gate_id attribute"
-    assert isinstance(exc.gate_id, str), (
-        f"gate_id must be str, got {type(exc.gate_id).__name__}"
-    )
+    assert isinstance(exc.gate_id, str), f"gate_id must be str, got {type(exc.gate_id).__name__}"
     assert exc.gate_id == gate_id, f"gate_id mismatch: {exc.gate_id!r} != {gate_id!r}"
 
     # Resume via the attribute value — must succeed without KeyError / AttributeError.

@@ -5,6 +5,7 @@ _collect_evidence must raise CapabilityPolicyError.
 
 Wave 8 / P2.7
 """
+
 from __future__ import annotations
 
 from agent_kernel.kernel.contracts import SideEffectClass

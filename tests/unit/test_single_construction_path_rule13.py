@@ -30,9 +30,7 @@ class TestHarnessExecutorRequiresEvidenceStore:
 
     def test_accepts_injected_evidence_store(self) -> None:
         store = EvidenceStore()
-        executor = HarnessExecutor(
-            governance=GovernanceEngine(), evidence_store=store
-        )
+        executor = HarnessExecutor(governance=GovernanceEngine(), evidence_store=store)
         assert executor._evidence_store is store
 
 
@@ -77,9 +75,7 @@ def mb(tmp_path):
 
 @pytest.fixture()
 def kb(tmp_path):
-    return KnowledgeBuilder(
-        TraceConfig(episodic_storage_dir=str(tmp_path / "episodes"))
-    )
+    return KnowledgeBuilder(TraceConfig(episodic_storage_dir=str(tmp_path / "episodes")))
 
 
 class TestBuildShortTermStoreRejectsEmptyProfileId:

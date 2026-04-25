@@ -7,8 +7,12 @@ max-steps safety limit.
 
 from __future__ import annotations
 
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
 
@@ -41,7 +45,17 @@ def _make_executor_with_stub(
     """
     kernel = MockKernel(strict_mode=True)
     contract = _make_contract(task_id=task_id)
-    executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+    executor = RunExecutor(
+        contract,
+        kernel,
+        stage_graph=graph,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
+    )
 
     fail_stages = fail_stages or set()
     fail_once_stages = fail_once_stages or set()
@@ -69,7 +83,16 @@ class TestExecuteGraphLinear:
     def test_execute_graph_linear(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute_graph()
 
@@ -79,7 +102,16 @@ class TestExecuteGraphLinear:
     def test_execute_graph_emits_run_started(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute_graph()
 
@@ -90,7 +122,16 @@ class TestExecuteGraphLinear:
     def test_execute_graph_run_id_assigned(self) -> None:
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         executor.execute_graph()
 
@@ -212,6 +253,11 @@ class TestExecuteGraphMultipleSuccessors:
             stage_graph=graph,
             route_engine=MockRouteEngine(),
             raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         stages_executed: list[str] = []
@@ -284,7 +330,17 @@ class TestExecuteGraphMaxStepsSafety:
 
         kernel = MockKernel(strict_mode=True)
         contract = _make_contract(task_id="runaway-001")
-        executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            stage_graph=graph,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         step_count = {"n": 0}
 
@@ -310,7 +366,17 @@ class TestExecuteGraphEmpty:
         contract = _make_contract(task_id="empty-001")
         graph = StageGraph()
 
-        executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            stage_graph=graph,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute_graph()
 
@@ -323,7 +389,16 @@ class TestFindStartStage:
     def test_finds_root_of_linear_graph(self) -> None:
         kernel = MockKernel()
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         start = executor._find_start_stage()
 
@@ -333,7 +408,15 @@ class TestFindStartStage:
         kernel = MockKernel()
         contract = _make_contract()
         executor = RunExecutor(
-            contract, kernel, stage_graph=StageGraph(), raw_memory=RawMemoryStore()
+            contract,
+            kernel,
+            stage_graph=StageGraph(),
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         start = executor._find_start_stage()
@@ -347,7 +430,17 @@ class TestFindStartStage:
         graph = StageGraph()
         graph.add_edge("B", "A")
         graph.add_edge("A", "B")
-        executor = RunExecutor(contract, kernel, stage_graph=graph, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            stage_graph=graph,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         start = executor._find_start_stage()
 
@@ -360,7 +453,16 @@ class TestSelectNextStage:
     def test_default_lexical_selection(self) -> None:
         kernel = MockKernel()
         contract = _make_contract()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         executor._run_id = "test-run"
 
         result = executor._select_next_stage({"C", "A", "B"})
@@ -383,6 +485,11 @@ class TestSelectNextStage:
             kernel,
             route_engine=CustomRouter(),
             raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
         executor._run_id = "test-run"
 
@@ -406,6 +513,11 @@ class TestSelectNextStage:
             kernel,
             route_engine=BrokenRouter(),
             raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
         executor._run_id = "test-run"
 

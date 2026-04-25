@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from hi_agent.contracts import CTSExplorationBudget
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.workflows.contracts import (
     FallbackPolicy,
     WorkflowNode,
@@ -228,5 +233,11 @@ class TestWorkflowSpec:
             contract=contract,
             kernel=kernel,
             stage_graph=wf.to_stage_graph(),
-         raw_memory=RawMemoryStore())
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         assert executor.stage_graph is not None

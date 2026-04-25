@@ -5,6 +5,7 @@ Uses real RunManager (no mocks on the SUT) to verify that cancel_run():
 2. Signals a registered CancellationToken via .cancel().
 3. Calls RunQueue.cancel() when a durable queue is wired in.
 """
+
 from __future__ import annotations
 
 import pytest

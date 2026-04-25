@@ -4,6 +4,7 @@ Verifies that a gate created in one store instance is readable and
 resolvable from a fresh store instance pointing at the same DB file.
 This confirms durability of the SQLite WAL-backed store (P3.2).
 """
+
 from __future__ import annotations
 
 import pytest

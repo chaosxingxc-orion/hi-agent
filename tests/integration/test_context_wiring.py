@@ -11,9 +11,11 @@ from hi_agent.context.manager import (
     ContextManager,
     ContextSnapshot,
 )
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
 from hi_agent.memory import MemoryCompressor, RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
 from hi_agent.runner import RunExecutor
 
@@ -50,6 +52,9 @@ def _make_executor(
         "event_emitter": EventEmitter(),
         "raw_memory": RawMemoryStore(),
         "compressor": MemoryCompressor(),
+        "acceptance_policy": AcceptancePolicy(),
+        "cts_budget": CTSExplorationBudget(),
+        "policy_versions": PolicyVersionSet(),
         "context_manager": context_manager,
     }
     if observability_hook is not None:

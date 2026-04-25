@@ -7,9 +7,13 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from hi_agent.context.manager import ContextBudget, ContextManager, ContextSection
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.observability.fallback import clear_fallback_events, get_fallback_events
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 from hi_agent.runner_stage import StageExecutor
 from hi_agent.task_view.auto_compress import AutoCompressTrigger
@@ -62,6 +66,11 @@ def test_runner_context_manager_receives_run_id(tmp_path) -> None:
         session=session,
         context_manager=context_manager,
         raw_memory=raw_memory,
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     executor.run_id = expected_run_id
 

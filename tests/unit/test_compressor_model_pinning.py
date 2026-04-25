@@ -13,8 +13,7 @@ from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord
 
 _EMPTY_SUMMARY_JSON = (
-    '{"findings":[],"decisions":[],"outcome":"active",'
-    '"contradiction_refs":[],"key_entities":[]}'
+    '{"findings":[],"decisions":[],"outcome":"active","contradiction_refs":[],"key_entities":[]}'
 )
 
 

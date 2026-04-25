@@ -5,10 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import pytest
-from hi_agent.contracts import TaskContract
-from hi_agent.events import append_event, load_events
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter, append_event, load_events
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.replay import ReplayEngine
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -75,7 +78,15 @@ def test_trace_chaos_minimal_regression(case: _ChaosCase, tmp_path) -> None:
         constraints=constraints,
     )
     executor = RunExecutor(
-        contract, MockKernel(strict_mode=True), invoker=invoker, raw_memory=RawMemoryStore()
+        contract,
+        MockKernel(strict_mode=True),
+        invoker=invoker,
+        raw_memory=RawMemoryStore(),
+        event_emitter=EventEmitter(),
+        compressor=MemoryCompressor(),
+        acceptance_policy=AcceptancePolicy(),
+        cts_budget=CTSExplorationBudget(),
+        policy_versions=PolicyVersionSet(),
     )
     result = executor.execute()
 

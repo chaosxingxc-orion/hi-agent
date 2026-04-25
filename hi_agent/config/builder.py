@@ -12,7 +12,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 from hi_agent.config.trace_config import TraceConfig
-from hi_agent.contracts import TaskContract
+from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
 from hi_agent.evolve.engine import EvolveEngine
@@ -156,9 +156,7 @@ class SystemBuilder:
 
             registry = self.build_profile_registry()
             if registry is None:
-                logger.warning(
-                    "_load_profiles_from_dir: ProfileRegistry unavailable; skipping."
-                )
+                logger.warning("_load_profiles_from_dir: ProfileRegistry unavailable; skipping.")
                 return
             loaded = load_profiles_from_dir(profile_dir, registry)
             if loaded:
@@ -579,9 +577,7 @@ class SystemBuilder:
                     from hi_agent.config.mcp_config_loader import load_mcp_servers_from_config
 
                     _mcp_cfg_path = self._config_dir / "mcp_servers.json"
-                    load_mcp_servers_from_config(
-                        self._mcp_registry, config_path=_mcp_cfg_path
-                    )
+                    load_mcp_servers_from_config(self._mcp_registry, config_path=_mcp_cfg_path)
                 except Exception as _mcp_cfg_exc:
                     logger.warning(
                         "_wire_plugin_contributions: mcp_config_loader failed (%s); "
@@ -1207,6 +1203,7 @@ class SystemBuilder:
             skill_loader=self.build_skill_loader(),
             state_store=RunStateStore(),
             policy_versions=PolicyVersionSet(),
+            cts_budget=CTSExplorationBudget(),
             route_engine=self._build_route_engine(stage_actions=stage_actions),
             acceptance_policy=AcceptancePolicy(),
             short_term_store=_short_term_store,
@@ -1371,9 +1368,7 @@ class SystemBuilder:
         kernel = self.build_kernel()
         km = self.build_knowledge_manager(
             profile_id=_profile_id,
-            long_term_graph=self.build_long_term_graph(
-                profile_id=_profile_id, workspace_key=None
-            ),
+            long_term_graph=self.build_long_term_graph(profile_id=_profile_id, workspace_key=None),
         )
 
         def resume() -> str:
@@ -1400,6 +1395,7 @@ class SystemBuilder:
                 skill_loader=self.build_skill_loader(),
                 state_store=RunStateStore(),
                 policy_versions=PolicyVersionSet(),
+                cts_budget=CTSExplorationBudget(),
                 route_engine=self._build_route_engine(),
                 acceptance_policy=AcceptancePolicy(),
                 short_term_store=self.build_short_term_store(

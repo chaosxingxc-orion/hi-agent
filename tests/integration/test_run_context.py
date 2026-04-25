@@ -13,13 +13,18 @@ from __future__ import annotations
 
 from hi_agent.context.run_context import RunContext, RunContextManager
 from hi_agent.contracts import (
+    CTSExplorationBudget,
     NodeState,
     NodeType,
     StageSummary,
     TaskContract,
     TrajectoryNode,
 )
+from hi_agent.contracts.policy import PolicyVersionSet
+from hi_agent.events import EventEmitter
+from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -216,7 +221,17 @@ class TestRunnerWithRunContext:
         )
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, run_context=ctx, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            run_context=ctx,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         # Verify executor picked up the initial state
         assert executor.action_seq == 42
@@ -229,7 +244,16 @@ class TestRunnerWithRunContext:
         """RunExecutor without run_context works as before."""
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
         assert executor.run_context is None
         result = executor.execute()
         assert result == "completed"
@@ -245,7 +269,17 @@ class TestRunnerSyncsBackToContext:
         ctx = RunContext(run_id="run-sync")
         contract = _make_contract()
         kernel = MockKernel()
-        executor = RunExecutor(contract, kernel, run_context=ctx, raw_memory=RawMemoryStore())
+        executor = RunExecutor(
+            contract,
+            kernel,
+            run_context=ctx,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
+        )
 
         result = executor.execute()
         assert result == "completed"
@@ -276,10 +310,26 @@ class TestMultipleRunnersIsolated:
         kernel_b = MockKernel()
 
         executor_a = RunExecutor(
-            contract_a, kernel_a, run_context=ctx_a, raw_memory=RawMemoryStore()
+            contract_a,
+            kernel_a,
+            run_context=ctx_a,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
         executor_b = RunExecutor(
-            contract_b, kernel_b, run_context=ctx_b, raw_memory=RawMemoryStore()
+            contract_b,
+            kernel_b,
+            run_context=ctx_b,
+            raw_memory=RawMemoryStore(),
+            event_emitter=EventEmitter(),
+            compressor=MemoryCompressor(),
+            acceptance_policy=AcceptancePolicy(),
+            cts_budget=CTSExplorationBudget(),
+            policy_versions=PolicyVersionSet(),
         )
 
         result_a = executor_a.execute()

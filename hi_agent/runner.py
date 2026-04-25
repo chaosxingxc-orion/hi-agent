@@ -321,7 +321,13 @@ class RunExecutor:
         self.action_seq = 0
         self.branch_seq = 0
         self.decision_seq = 0
-        self.event_emitter = event_emitter or EventEmitter()
+        if event_emitter is None:
+            raise ValueError(
+                "Runner.event_emitter must be injected by the builder — "
+                "unscoped EventEmitter is not permitted (Rule 6). "
+                "Pass event_emitter=EventEmitter() in tests or wire via SystemBuilder."
+            )
+        self.event_emitter = event_emitter
         if raw_memory is None:
             raise ValueError(
                 "Runner.raw_memory must be injected by the builder — "
@@ -330,8 +336,20 @@ class RunExecutor:
                 "raw_memory=RawMemoryStore(...) in tests."
             )
         self.raw_memory = raw_memory
-        self.compressor = compressor or MemoryCompressor()
-        self.acceptance_policy = acceptance_policy or AcceptancePolicy()
+        if compressor is None:
+            raise ValueError(
+                "Runner.compressor must be injected by the builder — "
+                "unscoped MemoryCompressor is not permitted (Rule 6). "
+                "Pass compressor=MemoryCompressor() in tests or wire via SystemBuilder."
+            )
+        self.compressor = compressor
+        if acceptance_policy is None:
+            raise ValueError(
+                "Runner.acceptance_policy must be injected by the builder — "
+                "unscoped AcceptancePolicy is not permitted (Rule 6). "
+                "Pass acceptance_policy=AcceptancePolicy() in tests or wire via SystemBuilder."
+            )
+        self.acceptance_policy = acceptance_policy
         self.policy_version = "acceptance_v1"
         self.state_store = state_store
         self.recovery_handlers = recovery_handlers
@@ -351,7 +369,13 @@ class RunExecutor:
             self._supports_optional_invoke_arguments(self.invoker.invoke)
         )
         self.current_stage = ""
-        self.cts_budget = cts_budget or CTSExplorationBudget()
+        if cts_budget is None:
+            raise ValueError(
+                "Runner.cts_budget must be injected by the builder — "
+                "unscoped CTSExplorationBudget is not permitted (Rule 6). "
+                "Pass cts_budget=CTSExplorationBudget() in tests or wire via SystemBuilder."
+            )
+        self.cts_budget = cts_budget
         self._total_branches_opened = 0
         self._stage_active_branches: dict[str, int] = {}
         self._compress_snip_threshold = compress_snip_threshold
@@ -371,7 +395,13 @@ class RunExecutor:
         self._completed_subrun_results: dict[str, object] = {}
         # Pending async reflection background tasks, tracked for cancellation on finalize.
         self._pending_reflection_tasks: list[object] = []
-        self.policy_versions = policy_versions or PolicyVersionSet()
+        if policy_versions is None:
+            raise ValueError(
+                "Runner.policy_versions must be injected by the builder — "
+                "unscoped PolicyVersionSet is not permitted (Rule 6). "
+                "Pass policy_versions=PolicyVersionSet() in tests or wire via SystemBuilder."
+            )
+        self.policy_versions = policy_versions
 
         # --- Final wiring: FailureCollector, Watchdog, Episode, Skill ---
         self.failure_collector = failure_collector
@@ -1877,6 +1907,7 @@ class RunExecutor:
         # 8. Reconstruct raw_memory so L0 events from resumed stages are appended.
         try:
             import os as _os
+
             _resume_pid = getattr(contract, "profile_id", "") or ""
             _default_base = _os.path.join(".episodes", _resume_pid) if _resume_pid else ".episodes"
             base_dir = kwargs.get("raw_memory_base_dir", _default_base)
@@ -2270,9 +2301,7 @@ async def execute_async(
     # auto_select() is retained as a fallback for callers that supply an
     # executor without a stage_graph (e.g. pure goal-driven entry points).
     _existing_stage_graph = getattr(executor, "stage_graph", None)
-    if _existing_stage_graph is not None and getattr(
-        _existing_stage_graph, "transitions", None
-    ):
+    if _existing_stage_graph is not None and getattr(_existing_stage_graph, "transitions", None):
         _template_name = "from_stage_graph"
         graph = factory.from_stage_graph(_existing_stage_graph)
     else:

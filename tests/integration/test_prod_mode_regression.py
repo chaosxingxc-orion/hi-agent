@@ -74,9 +74,7 @@ def test_stage_event_with_string_payload_still_parses() -> None:
 def test_unrelated_event_type_is_ignored() -> None:
     rm = RunManager()
     run = _seed_run(rm)
-    event = SimpleNamespace(
-        event_type="RunStarted", run_id="r1", payload_json={"stage_name": "x"}
-    )
+    event = SimpleNamespace(event_type="RunStarted", run_id="r1", payload_json={"stage_name": "x"})
     rm._on_stage_event(event)
     assert run.current_stage is None
 
