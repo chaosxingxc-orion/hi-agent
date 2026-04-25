@@ -84,7 +84,7 @@ Gap: `ReasoningTraceEntry` and `GateRecord` do not yet carry `tenant_id`. Accept
 | TeamRunRegistry | in-memory dict | `$HI_AGENT_DATA_DIR/team_run_registry.sqlite` | `test_team_run_registry_durability.py` |
 | ArtifactLedger | in-memory allowed | `$HI_AGENT_DATA_DIR/artifacts/<name>.jsonl` required | `test_ledger_posture_default.py` |
 | IdempotencyStore | SQLite (always) | SQLite + auth scope + atomic insert | `test_idempotency_concurrency.py`, `test_idempotency_auth_scope.py` |
-| Cross-process restart | xfail (boot wiring pending) | xfail (boot wiring pending) | `test_process_kill_restart.py` (marked `xfail`) |
+| Cross-process restart | not yet (boot wiring pending) | not yet (boot wiring pending) | `test_process_kill_restart.py` (pending — not valid evidence) |
 
 **Known limitation (Wave 10 pre-work):** The durable RunQueue path is correctly implemented in `run_queue.py` but the server `app.py` boot path does not yet pass the resolved SQLite path through. Cross-process restart tests are honest `xfail`. Resolution targeted Wave 10.
 
@@ -124,7 +124,7 @@ Key test counts:
 
 **Ruff:** `ruff check .` exits 0 at HEAD
 
-**T3 Gate:** Deferred — hot-path files not changed in Wave 9 (posture and contract layers are config/server, not the LLM runtime hot path). T3 inherited from Wave 7 gate at b035213. Wave 9 does not touch `hi_agent/llm/`, `hi_agent/runtime/`, or `hi_agent/runner.py` hot paths.
+**T3 Gate:** T3 evidence: DEFERRED — hot-path files changed in this wave; Wave 10 will provide a fresh gate run.
 
 **Process-kill restart:** xfail at `tests/integration/test_process_kill_restart.py` — durable queue implemented at the component level but not yet wired through `app.py` server boot path. Known limitation, honest xfail, targeted Wave 10.
 

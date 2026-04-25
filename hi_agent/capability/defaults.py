@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import uuid
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -147,7 +148,7 @@ def make_llm_capability_handler(
             record_fallback(
                 "capability",
                 reason="heuristic_branch" if gateway is None else "llm_error_recovered",
-                run_id=payload.get("run_id") or "unknown",  # TODO: wire real run_id here
+                run_id=payload.get("run_id") or str(uuid.uuid4()),
                 extra={
                     "capability": capability_name,
                     "stage_id": stage_id,

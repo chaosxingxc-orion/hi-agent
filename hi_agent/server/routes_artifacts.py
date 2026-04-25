@@ -57,9 +57,9 @@ async def handle_artifacts_by_project(request: Request) -> JSONResponse:
     """Return all artifacts belonging to a project, scoped to the authenticated tenant.
 
     TE-3: tenant scope is enforced first — artifacts from other tenants are never
-    returned.  Since CO-5 (Artifact.tenant_id spine field) has not yet landed, the
-    check uses ``getattr(a, 'tenant_id', None)`` so the filter degrades gracefully
-    when the field is absent (returns all project artifacts for any tenant).
+    returned.  CO-5 (Artifact.tenant_id spine field) is landed; the check uses
+    ``getattr(a, 'tenant_id', None)`` for defensive compatibility with any legacy
+    artifacts that pre-date CO-5.
     # TODO: add explicit project-tenant registry in Wave 10
     """
     try:

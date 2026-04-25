@@ -5,9 +5,6 @@ authenticated tenant does not own the requested project's artifacts.
 
 Auth approach: _InjectCtxMiddleware injects TenantContext directly, matching
 the pattern from test_workspace_isolation.py.
-
-Note: since CO-5 (Artifact.tenant_id) has not landed yet, artifacts carry a
-synthetic tenant_id attribute attached at test time to exercise the gate.
 """
 from __future__ import annotations
 
@@ -37,20 +34,6 @@ class _InjectCtxMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         finally:
             reset_tenant_context(token)
-
-
-class _TenantArtifact:
-    """Wraps an Artifact with an explicit tenant_id (simulates CO-5 spine field)."""
-
-    def __init__(self, artifact: Artifact, tenant_id: str) -> None:
-        self._artifact = artifact
-        self.tenant_id = tenant_id
-        self.project_id = artifact.project_id
-
-    def to_dict(self):
-        d = self._artifact.to_dict()
-        d["tenant_id"] = self.tenant_id
-        return d
 
 
 class _FakeRegistry:
@@ -85,8 +68,9 @@ def _build_app(ctx: TenantContext, registry):
 
 @pytest.fixture()
 def artifact_for_tenant_a():
-    base = Artifact(artifact_id="art-A1", artifact_type="base", project_id="proj-A")
-    return _TenantArtifact(base, tenant_id="tenant-A")
+    return Artifact(
+        artifact_id="art-A1", artifact_type="base", project_id="proj-A", tenant_id="tenant-A"
+    )
 
 
 @pytest.fixture()

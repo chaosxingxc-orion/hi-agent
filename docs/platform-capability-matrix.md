@@ -25,7 +25,7 @@ Legacy labels still shown for backward reference: `experimental`≈L1, `implemen
 | TRACE single-run execution | L2 | RunExecutor + StageOrchestrator; K-defects resolved; Wave 9 TE-5 adds reasoning trace schema | tests/integration/test_run_lifecycle*.py | POST /runs | dev ✓ research ✓ |
 | Config-driven extensibility | L2 | HI_AGENT_CONFIG_DIR; JSON profile loader with jsonschema validation (CO-8); hi_agent_config.json; extension-guide; quickstart (DX-2) | tests/integration/test_config_dir_resolution.py, test_profile_loader_schema.py | GET /tools | dev ✓ research ✓ (fail-closed) |
 | Registry-based capability | L2 | Canonical CapabilityDescriptor (CO-6 — DF-50 closed); /manifest exposes full descriptor surface (DX-4) | tests/contract/test_capability_descriptor_canonical.py | GET /tools, GET /manifest | dev ✓ |
-| Long-running task stability | L2 | RunQueue posture-default durable (RO-3); RunStore project_id first-class (CO-4); TeamRunRegistry durable (RO-4); process-kill restart test (RO-5 xfail — durable queue not yet wired through full boot) | test_run_queue_posture_default.py, test_team_run_registry_durability.py, test_process_kill_restart.py (xfail) | - | dev ✓ research L2→L3 in Wave 10 |
+| Long-running task stability | L1 (server-path); L2 component-only | RunQueue posture-default durable (RO-3); RunStore project_id first-class (CO-4); TeamRunRegistry durable (RO-4); cross-process restart not yet wired through full server boot (RO-5 pending Wave 10) | test_run_queue_posture_default.py, test_team_run_registry_durability.py | - | dev ✓ research L2→L3 in Wave 10 |
 | Project-level cross-run state | L2 | project_id in RunRecord + upsert (CO-4); posture-enforced required field (CO-2); list_runs_by_project query | test_run_store_project_id.py, test_project_id_posture.py | POST /runs {project_id} | dev warn research 400 |
 | Contract Spine Completeness | L2 | Artifact + tenant/user/session/team_space fields (CO-5); IdempotencyStore auth-scoped (RO-1/2); Artifact tenant-first query (TE-3) | test_artifact_spine_fields.py, test_idempotency_auth_scope.py, test_artifact_cross_tenant.py | - | dev ✓ research ✓ |
 | Multi-agent team runtime | L1 | TeamRunSpec platform contract (CO-7); TeamRunRegistry durable (RO-4); TeamRun/AgentRole dataclasses | test_team_run_spec.py, test_team_run_registry_durability.py | - | dev ✓ research partial |
@@ -84,7 +84,7 @@ Legacy labels still shown for backward reference: `experimental`≈L1, `implemen
 | RO-1/2 | Auth-scoped idempotency + spine fields | L2 | RO merge; test_idempotency_auth_scope.py |
 | RO-3 | RunQueue posture-default durable | L2 | RO merge; test_run_queue_posture_default.py |
 | RO-4 | TeamRunRegistry SQLite-durable | L2 | RO merge; test_team_run_registry_durability.py |
-| RO-5 | Cross-process restart integration test | L1 | RO merge; test_process_kill_restart.py (xfail — boot path) |
+| RO-5 | Cross-process restart integration test | L1 | RO merge; test_process_kill_restart.py (pending boot-path wiring — not valid evidence) |
 | RO-6 | Cross-tenant isolation tests | L2 | RO merge; test_cross_tenant_isolation.py |
 | RO-7 | Idempotency terminal-state differentiation | L2 | RO merge; test_idempotency_terminal_state.py |
 | RO-8 | DF-51: finished_at on all terminal paths | L2 | RO merge; test_run_lifecycle_finished_at.py |

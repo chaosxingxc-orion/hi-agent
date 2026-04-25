@@ -38,11 +38,11 @@ jobs:
           --ready-timeout 60
       - name: Check T3 evidence freshness (Rule 8 DF-46)
         run: python scripts/check_t3_freshness.py
-        continue-on-error: true
+      - name: Check doc consistency
+        run: python scripts/check_doc_consistency.py
 
   boundary-check:
     runs-on: ubuntu-latest
-    continue-on-error: true  # Remove after Tracks B3 + G2 land
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

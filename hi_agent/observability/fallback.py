@@ -23,8 +23,8 @@ Call-shape — four-kind taxonomy tied to a specific run::
 
 ``run_id`` and ``reason`` are required keyword-only arguments.  Use
 ``run_id="system"`` for module/startup-level events not tied to a run;
-use ``run_id="unknown"`` when the run context is genuinely unavailable
-(add ``# TODO: wire real run_id here`` when doing so).
+use ``str(uuid.uuid4())`` when the run context is genuinely unavailable
+(e.g. in a heuristic fallback branch where no run_id is in scope).
 """
 
 from __future__ import annotations
