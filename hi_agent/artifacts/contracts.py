@@ -31,6 +31,12 @@ class Artifact:
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     content: Any = None
     project_id: str = ""
+    # CO-5: tenant/user/session/team spine fields for cross-run scoping.
+    # Defaults empty for backward compatibility with existing JSON artifacts.
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    team_space_id: str = ""
     # Wave 8 / P2.2: producer provenance and content integrity fields
     evidence_count: int = 0
     content_hash: str = ""
