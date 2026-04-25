@@ -1,6 +1,6 @@
 # hi-agent Engineering TODO
 
-Last updated: 2026-04-24
+Last updated: 2026-04-25
 
 ## DONE (Wave 1-4, SA-1..SA-8, 2026-04-22/24)
 
@@ -31,6 +31,12 @@ Last updated: 2026-04-24
 ## ONGOING — DF-46 CI gate enforcement
 
 - CI plan for Rule 8 mechanical enforcement in `.github/workflows/` (tracked DF-46)
+
+## DEFERRED — H2 Hardening Pass 2
+
+- **DF-47** I-6/F-5/F-6 reflection-path silent-drop family (`ShortTermMemoryStore.save()` drops reflection session IDs; `reflect_and_infer` skipped in async context; `attempts=[]` hardcoded). Pairs with P3-2 TierRouter.calibrate (W10).
+- **DF-48** P-2 reasoning trace expansion — CapabilityDescriptor + runner reasoning field exposure. Larger capability-layer expansion, bundling with H1 violates Rule 2 anti-bundle.
+- **DF-49** Rule 6 inline-fallback sweep — ~20 `or DefaultClass()` patterns in `runner.py`, `evolve/engine.py`, `task_mgmt/scheduler.py`, `knowledge/knowledge_manager.py`. Dedicated Rule 6 sweep wave.
 
 ## WARNING DEBT (low priority)
 
