@@ -32,18 +32,26 @@ Last updated: 2026-04-25 (H2 wave started)
 
 - [x] DF-46 CI gate enforcement: scripts/check_t3_freshness.py + .github/workflows/claude-rules.yml step — 2026-04-25
 
-## IN-FLIGHT — H2 Hardening Pass 2 (2026-04-25)
+## DONE (Wave H2, 2026-04-25)
 
-- **DF-47** I-6/F-5/F-6 reflection-path — code is **CORRECT AT HEAD** (`recovery_coordinator.py:357-386`); H2-T4 adds regression test pins (`test_reflection_path_regression.py`).
-- **DF-48** P-2 reasoning trace side-channel — code is **IMPLEMENTED AT HEAD** (`runner_stage.py:84,90,104,110` + `short_term.py:323`); H2-T4 adds persistence regression test (`test_reasoning_trace_persistence.py`).
-- **DF-49** Rule 6 inline-fallback sweep — 12 violations confirmed in `runner.py` (5), `evolve/engine.py` (3), `task_mgmt/scheduler.py` (2), `knowledge/knowledge_manager.py` (2); H2-T3 sweeps all.
-- **C1** Broken test collection import (`test_skill_runtime_factory.py:10`) — H2-T1.
-- **C2/C3** `routes_profiles.py` missing tenant scope + silent except — H2-T2.
-- **K-13** PI-C + PI-D combination test — H2-T6.
+- [x] **DF-47** I-6/F-5/F-6 reflection-path regression pins — `tests/integration/test_reflection_path_regression.py`
+- [x] **DF-48** reasoning trace persistence regression pin — `tests/integration/test_reasoning_trace_persistence.py`
+- [x] **DF-49** Rule 6 inline-fallback sweep — 12 sites fixed across `runner.py`, `evolve/engine.py`, `task_mgmt/scheduler.py`, `knowledge/knowledge_manager.py`
+- [x] **C1** broken test collection (`test_skill_runtime_factory.py` deleted)
+- [x] **C2/C3** `routes_profiles.py` tenant scope + Rule 7 observability
+- [x] **K-13** PI-C + PI-D combination test (`tests/integration/test_picd_combination.py`)
 
 ## DEFERRED — DF-50
 
 - **DF-50** `CapabilityDescriptor` schema duplication: `hi_agent/capability/registry.py:14-33` and `hi_agent/capability/adapters/descriptor_factory.py:9-35` have different schemas. Defer to consolidation refactor (H3 candidate).
+
+## OPEN — H2 First-Run Concurrency Gate Findings (2026-04-25)
+
+Discovered when running concurrency gate for the first time (H1 never ran it):
+
+- **DF-51** `finished_at` is `null` on failed runs — `run_manager.py` does not populate `finished_at` when a run fails due to `queue_full` or other non-exception terminal states. Affects observability and Rule 7 lifecycle completeness.
+- **DF-52** Idempotency race condition under concurrent load — 5 concurrent requests with the same `Idempotency-Key` each created a distinct run (5 run_ids, 5 × 201). The idempotency store write is not atomic under concurrent requests. Affects HTTP contract correctness.
+- **DF-53** Run manager capacity=4 limits concurrent gate — `HI_AGENT_RUN_MANAGER_CAPACITY` defaults to 4; 20 concurrent runs overflow to `queue_full` failures. Not a defect per se but limits the concurrency gate's meaningful pass criteria. Document default and override in `docs/api-reference.md`.
 
 ## WARNING DEBT (low priority)
 
