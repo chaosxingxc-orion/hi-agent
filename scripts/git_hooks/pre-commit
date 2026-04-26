@@ -1,0 +1,11 @@
+#!/bin/sh
+# Pre-commit hook: check for accidentally staged API secrets
+# Install: cp scripts/git_hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+python scripts/check_secrets.py
+if [ $? -ne 0 ]; then
+    echo "Commit rejected: potential secrets detected."
+    echo "Fix the issue and try again."
+    exit 1
+fi
+exit 0

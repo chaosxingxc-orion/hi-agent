@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to llm_config.json and fill in your API keys. Never commit llm_config.json.",
+  "_comment": "Copy this file to llm_config.json (or llm_config.local.json) and fill in your API keys. See docs/secret-hygiene.md for workflow.",
   "default_provider": "volces",
   "providers": {
     "anthropic": {
