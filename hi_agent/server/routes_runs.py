@@ -343,7 +343,8 @@ async def handle_submit_feedback(request: Request) -> JSONResponse:
     run_id = request.path_params["run_id"]
     server: Any = request.app.state.agent_server
     manager = server.run_manager
-    if manager.get_run(run_id, workspace=ctx) is None:
+    run = manager.get_run(run_id, workspace=ctx)
+    if run is None:
         return JSONResponse({"error": "run_not_found", "run_id": run_id}, status_code=404)
     try:
         body = await request.json()
@@ -357,6 +358,9 @@ async def handle_submit_feedback(request: Request) -> JSONResponse:
     notes = body.get("notes", "")
     from hi_agent.evolve.feedback_store import RunFeedback
 
+    # Spine-3 / P0-4: derive project_id from the run's task_contract (the
+    # authoritative source persisted at create-time), not from TenantContext —
+    # project scope belongs to the run, not the per-request auth context.
     feedback = RunFeedback(
         run_id=run_id,
         rating=float(rating),
@@ -364,7 +368,7 @@ async def handle_submit_feedback(request: Request) -> JSONResponse:
         tenant_id=ctx.tenant_id,
         user_id=ctx.user_id,
         session_id=ctx.session_id,
-        project_id="",  # TODO: expose project_id in TenantContext when downstream wires it
+        project_id=str(run.task_contract.get("project_id", "")),
     )
     store = _get_feedback_store(server)
     store.submit(feedback)

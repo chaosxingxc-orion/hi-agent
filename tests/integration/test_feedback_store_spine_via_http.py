@@ -104,8 +104,11 @@ class TestFeedbackStoreSpineViaHttp:
         yield rm
         rm.shutdown()
 
-    def _create_run(self, client) -> str:
-        resp = client.post("/runs", json={"goal": "feedback spine test goal"})
+    def _create_run(self, client, project_id: str = "") -> str:
+        payload: dict = {"goal": "feedback spine test goal"}
+        if project_id:
+            payload["project_id"] = project_id
+        resp = client.post("/runs", json=payload)
         assert resp.status_code in (200, 201, 202), f"create failed: {resp.text}"
         run_id = resp.json().get("run_id")
         assert run_id
@@ -151,3 +154,41 @@ class TestFeedbackStoreSpineViaHttp:
         assert record is not None
         assert record.rating == pytest.approx(0.75)
         assert record.notes == "accuracy great"
+
+    def test_feedback_post_carries_project_id_from_run(
+        self, manager, feedback_store, ctx
+    ):
+        """Spine-3 / P0-4: POST /runs/{id}/feedback must persist the run's
+        project_id on the RunFeedback row, derived from the run record (not
+        from TenantContext, which does not carry project scope)."""
+        app = _build_app(manager, feedback_store, ctx)
+        with TestClient(app, raise_server_exceptions=True) as client:
+            run_id = self._create_run(client, project_id="proj-X")
+            resp = client.post(
+                f"/runs/{run_id}/feedback",
+                json={"rating": 0.8, "notes": "project scoped feedback"},
+            )
+        assert resp.status_code == 200, f"submit_feedback failed: {resp.text}"
+        record = feedback_store.get(run_id)
+        assert record is not None, f"no feedback record for run_id={run_id!r}"
+        assert record.project_id == "proj-X", (
+            f"project_id mismatch: got {record.project_id!r}, expected 'proj-X'"
+        )
+
+    def test_feedback_project_id_empty_when_run_unscoped(
+        self, manager, feedback_store, ctx
+    ):
+        """When the run was created without a project_id, the feedback row
+        carries an empty project_id (preserves prior unscoped behaviour for
+        legacy callers)."""
+        app = _build_app(manager, feedback_store, ctx)
+        with TestClient(app, raise_server_exceptions=True) as client:
+            run_id = self._create_run(client)  # no project_id
+            resp = client.post(
+                f"/runs/{run_id}/feedback",
+                json={"rating": 0.5, "notes": "no project"},
+            )
+        assert resp.status_code == 200
+        record = feedback_store.get(run_id)
+        assert record is not None
+        assert record.project_id == ""
