@@ -108,12 +108,12 @@ def test_record_fallback_does_not_raise_when_metrics_import_fails():
 
 def test_context_manager_records_fallback_on_compression_failure():
     """ContextManager must call record_fallback when _compact_history raises."""
-    from hi_agent.context.manager import ContextManager, ContextSection
+    from hi_agent.context.manager import ContextBudget, ContextManager, ContextSection
 
     compressor = MagicMock()
     compressor.compress.side_effect = RuntimeError("compressor_broken")
 
-    cm = ContextManager(compressor=compressor, max_compression_failures=5)
+    cm = ContextManager(budget=ContextBudget(), compressor=compressor, max_compression_failures=5)
 
     # Force utilization above orange threshold so auto-compress fires.
     cm._budget._replace = None  # type: ignore[attr-defined]

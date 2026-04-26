@@ -213,7 +213,7 @@ def test_context_manager_passes_run_id_to_memory_compressor() -> None:
             return SimpleNamespace(findings=["summary"])
 
     compressor = RecordingCompressor()
-    manager = ContextManager(compressor=compressor)
+    manager = ContextManager(budget=ContextBudget(), compressor=compressor)
     section = ContextSection(
         name="history",
         content="history text",

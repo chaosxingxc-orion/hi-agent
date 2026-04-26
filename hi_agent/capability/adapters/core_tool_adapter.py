@@ -42,7 +42,7 @@ class CoreToolAdapter:
 
     Usage::
 
-        adapter = CoreToolAdapter()
+        adapter = CoreToolAdapter(CapabilityDescriptorFactory())
         spec = adapter.adapt_tool({
             "name": "search_docs",
             "description": "Full-text search over docs.",
@@ -64,12 +64,17 @@ class CoreToolAdapter:
 
         Args:
             descriptor_factory: Factory used to build rich descriptors.
-                Defaults to a vanilla ``CapabilityDescriptorFactory``.
+                Must be an explicit ``CapabilityDescriptorFactory()`` instance.
             overrides: Mapping of ``tool_name -> override_dict`` applied
                 when building descriptors.  This is the "capability
                 overrides YAML" concept expressed as a simple dict.
         """
-        self._factory = descriptor_factory or CapabilityDescriptorFactory()
+        if descriptor_factory is None:
+            raise ValueError(
+                "descriptor_factory is required; "
+                "pass an explicit CapabilityDescriptorFactory() instance"
+            )
+        self._factory = descriptor_factory
         self._overrides: dict[str, dict] = overrides or {}
 
     # ------------------------------------------------------------------ #

@@ -72,6 +72,7 @@ NO_SCOPE_ALLOWLIST = frozenset({
     # Tools/MCP — invocation routes, tenant injected via ctx downstream (Wave 10.1)
     "handle_tools_call",
     "handle_tools_list",
+    "handle_mcp_tools",
     "handle_mcp_tools_list",
     "handle_mcp_tools_call",
 })

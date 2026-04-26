@@ -51,6 +51,7 @@ def test_check_rules_script_runs_on_current_head():
         f"Expected a clean pass; got {result.returncode}\n"
         f"stdout={result.stdout}\nstderr={result.stderr}"
     )
+    assert "Rule 6" in result.stdout
     assert "[PASS] Rule 12" in result.stdout
     assert "[PASS] Rule 13" in result.stdout
     assert "Rule 12" in result.stdout

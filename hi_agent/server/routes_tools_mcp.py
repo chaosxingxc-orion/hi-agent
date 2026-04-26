@@ -25,6 +25,10 @@ async def handle_tools_list(request: Request) -> JSONResponse:
 
         {"tools": [{"name": "file_read", "description": "...", "parameters": {...}}, ...]}
     """
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     try:
         invoker = server._builder.build_invoker()
@@ -154,6 +158,10 @@ async def handle_mcp_tools(request: Request) -> JSONResponse:
     endpoints return a consistent view.
     """
     try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+    try:
         server = request.app.state.agent_server
         mcp_srv = getattr(server, "_mcp_server", None)
         if mcp_srv is not None:
@@ -184,6 +192,10 @@ async def handle_mcp_tools_list(request: Request) -> JSONResponse:
     Returns an MCP-compatible response:
     {"tools": [{"name": str, "description": str, "inputSchema": {...}}]}
     """
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     mcp_server = getattr(server, "_mcp_server", None)
     if mcp_server is None:
@@ -207,6 +219,10 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
     Returns an MCP-compatible content response:
         {"content": [{"type": "text", "text": str}], "isError": bool}
     """
+    try:
+        require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     server = request.app.state.agent_server
     mcp_server = getattr(server, "_mcp_server", None)
     if mcp_server is None:

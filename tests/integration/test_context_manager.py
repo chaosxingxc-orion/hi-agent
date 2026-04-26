@@ -68,7 +68,7 @@ class TestContextBudget:
         assert b.history_budget == 0
 
     def test_adjust_budget_changes_allocation(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         mgr.adjust_budget(system_prompt=4_000, skill_prompts=8_000)
         assert mgr._budget.system_prompt == 4_000
         assert mgr._budget.skill_prompts == 8_000
@@ -83,7 +83,7 @@ class TestAssembly:
     """Test that prepare_context assembles all sections."""
 
     def test_prepare_context_assembles_all_sections(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         snap = mgr.prepare_context(
             purpose="routing",
             system_prompt="Be helpful.",
@@ -109,7 +109,7 @@ class TestAssembly:
         assert system_section.tokens <= 10 + 1  # +1 for rounding in count_tokens
 
     def test_extra_context_injected(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         snap = mgr.prepare_context(
             extra_context={"custom_section": "Hello custom context"},
         )
@@ -120,6 +120,7 @@ class TestAssembly:
     def test_missing_sources_handled_gracefully(self):
         """skill_loader=None, memory_retriever=None → empty sections."""
         mgr = ContextManager(
+            budget=ContextBudget(),
             skill_loader=None,
             memory_retriever=None,
         )
@@ -135,7 +136,7 @@ class TestAssembly:
         assert memory_section.tokens == 0
 
     def test_purpose_recorded_in_snapshot(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         snap = mgr.prepare_context(purpose="action")
         assert snap.purpose == "action"
 
@@ -149,25 +150,25 @@ class TestThresholds:
     """Test health level thresholds."""
 
     def test_green_below_70(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         health = mgr._check_health(100_000)
         # 100k / 192k ≈ 52% → GREEN
         assert health == ContextHealth.GREEN
 
     def test_yellow_70_to_85(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         # 70% of 192k = 134_400
         health = mgr._check_health(140_000)
         assert health == ContextHealth.YELLOW
 
     def test_orange_85_to_95(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         # 85% of 192k = 163_200
         health = mgr._check_health(170_000)
         assert health == ContextHealth.ORANGE
 
     def test_red_above_95(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         # 95% of 192k = 182_400
         health = mgr._check_health(185_000)
         assert health == ContextHealth.RED
@@ -270,7 +271,7 @@ class TestCompressionFallback:
                 return "Compressed summary"
 
         compressor = MockCompressor()
-        mgr = ContextManager(compressor=compressor)
+        mgr = ContextManager(budget=ContextBudget(), compressor=compressor)
         mgr.add_history_entry("user", "A" * 2000)
 
         section = mgr._assemble_history()
@@ -279,7 +280,7 @@ class TestCompressionFallback:
         assert "Compressed summary" in result.content
 
     def test_trim_reduces_lowest_priority_sections(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         sections = [
             ContextSection(name="system", content="sys", tokens=100, budget=200),
             ContextSection(name="tools", content="tools", tokens=100, budget=200),
@@ -333,6 +334,7 @@ class TestCompressionFallback:
                 raise RuntimeError("Compression failed")
 
         mgr = ContextManager(
+            budget=ContextBudget(),
             compressor=FailingCompressor(),
             max_compression_failures=3,
         )
@@ -360,27 +362,35 @@ class TestDiminishingReturns:
     """Tests for diminishing returns detection."""
 
     def test_diminishing_after_low_output_iterations(self):
-        mgr = ContextManager(diminishing_window=3, diminishing_threshold=100)
+        mgr = ContextManager(
+            budget=ContextBudget(), diminishing_window=3, diminishing_threshold=100
+        )
         mgr.record_response(50)
         mgr.record_response(30)
         mgr.record_response(20)
         assert mgr.check_diminishing_returns() is True
 
     def test_not_diminishing_when_output_healthy(self):
-        mgr = ContextManager(diminishing_window=3, diminishing_threshold=100)
+        mgr = ContextManager(
+            budget=ContextBudget(), diminishing_window=3, diminishing_threshold=100
+        )
         mgr.record_response(500)
         mgr.record_response(400)
         mgr.record_response(300)
         assert mgr.check_diminishing_returns() is False
 
     def test_not_diminishing_with_insufficient_data(self):
-        mgr = ContextManager(diminishing_window=3, diminishing_threshold=100)
+        mgr = ContextManager(
+            budget=ContextBudget(), diminishing_window=3, diminishing_threshold=100
+        )
         mgr.record_response(10)
         # Only 1 iteration, need 3
         assert mgr.check_diminishing_returns() is False
 
     def test_not_diminishing_with_mixed_output(self):
-        mgr = ContextManager(diminishing_window=3, diminishing_threshold=100)
+        mgr = ContextManager(
+            budget=ContextBudget(), diminishing_window=3, diminishing_threshold=100
+        )
         mgr.record_response(10)
         mgr.record_response(500)  # healthy
         mgr.record_response(10)
@@ -396,7 +406,7 @@ class TestHistoryManagement:
     """Tests for history entry tracking."""
 
     def test_add_history_entry_and_get_after_compact(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         mgr.add_history_entry("user", "Hello")
         mgr.add_history_entry("assistant", "Hi there")
         mgr.add_history_entry("user", "How are you?")
@@ -407,7 +417,7 @@ class TestHistoryManagement:
         assert entries[0]["content"] == "Hello"
 
     def test_compact_offset_filters_compressed_entries(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         mgr.add_history_entry("user", "Old message 1")
         mgr.add_history_entry("user", "Old message 2")
         mgr.add_history_entry("user", "New message 3")
@@ -420,13 +430,13 @@ class TestHistoryManagement:
         assert entries[0]["content"] == "New message 3"
 
     def test_history_includes_metadata(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         mgr.add_history_entry("user", "test", metadata={"source": "cli"})
         entries = mgr.get_history_after_compact()
         assert entries[0]["metadata"]["source"] == "cli"
 
     def test_history_assembly_includes_compact_summary(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         mgr.add_history_entry("user", "Old stuff")
         mgr._compact_offset = 1
         mgr._compact_summary = "Previously discussed old stuff."
@@ -539,7 +549,7 @@ class TestHealthReport:
     """Tests for get_health_report."""
 
     def test_health_report_structure(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         report = mgr.get_health_report()
         assert isinstance(report, ContextHealthReport)
         assert isinstance(report.health, ContextHealth)
@@ -549,7 +559,9 @@ class TestHealthReport:
         assert report.circuit_breaker_open is False
 
     def test_health_report_reflects_diminishing(self):
-        mgr = ContextManager(diminishing_window=2, diminishing_threshold=100)
+        mgr = ContextManager(
+            budget=ContextBudget(), diminishing_window=2, diminishing_threshold=100
+        )
         mgr.record_response(10)
         mgr.record_response(5)
         report = mgr.get_health_report()
@@ -565,20 +577,20 @@ class TestBudgetAdjustment:
     """Tests for dynamic budget changes."""
 
     def test_adjust_budget_updates_values(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         original = mgr._budget.memory_context
         mgr.adjust_budget(memory_context=5_000)
         assert mgr._budget.memory_context == 5_000
         assert mgr._budget.memory_context != original
 
     def test_set_model_context_window(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         mgr.set_model_context_window(128_000)
         assert mgr._budget.total_window == 128_000
         assert mgr._budget.effective_window == 128_000 - mgr._budget.output_reserve
 
     def test_adjust_budget_ignores_unknown_keys(self):
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         original_window = mgr._budget.total_window
         mgr.adjust_budget(nonexistent_field=999)
         assert mgr._budget.total_window == original_window
@@ -594,7 +606,7 @@ class TestIntegration:
 
     def test_with_mock_session_context(self):
         """ContextManager with a mock session providing history."""
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
         mgr.add_history_entry("user", "Analyze revenue data")
         mgr.add_history_entry("assistant", "I will gather quarterly reports.")
         mgr.add_history_entry("user", "Focus on Q3 anomalies.")
@@ -623,7 +635,7 @@ class TestIntegration:
             def build_prompt(self, budget_tokens=None):
                 return MockSkillPrompt()
 
-        mgr = ContextManager(skill_loader=MockSkillLoader())
+        mgr = ContextManager(budget=ContextBudget(), skill_loader=MockSkillLoader())
         snap = mgr.prepare_context()
         skills = snap.get_section("skills")
         assert skills is not None
@@ -641,7 +653,7 @@ class TestIntegration:
             def retrieve(self, query="", budget_tokens=None):
                 return MockMemoryContext()
 
-        mgr = ContextManager(memory_retriever=MockRetriever())
+        mgr = ContextManager(budget=ContextBudget(), memory_retriever=MockRetriever())
         snap = mgr.prepare_context()
         memory = snap.get_section("memory")
         assert memory is not None
@@ -678,7 +690,7 @@ class TestIntegration:
     def test_monitor_integration(self):
         """ContextMonitor tracks snapshots from ContextManager."""
         monitor = ContextMonitor()
-        mgr = ContextManager()
+        mgr = ContextManager(budget=ContextBudget())
 
         for i in range(5):
             mgr.add_history_entry("user", f"Message {i}")
@@ -713,6 +725,7 @@ class TestIntegration:
                 return MockMemoryCtx()
 
         mgr = ContextManager(
+            budget=ContextBudget(),
             skill_loader=MockSkillLoader(),
             memory_retriever=MockRetriever(),
         )

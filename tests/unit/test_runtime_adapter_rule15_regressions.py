@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from hi_agent.runtime_adapter.consistency import InMemoryConsistencyJournal
 from hi_agent.runtime_adapter.errors import RuntimeAdapterBackendError
 from hi_agent.runtime_adapter.kernel_facade_adapter import KernelFacadeAdapter
 from hi_agent.runtime_adapter.resilient_kernel_adapter import ResilientKernelAdapter
@@ -34,7 +35,9 @@ def test_resilient_adapter_wraps_exhausted_failures_with_backend_error() -> None
         def mark_branch_state(self, *args, **kwargs):
             raise ValueError("backend exploded")
 
-    adapter = ResilientKernelAdapter(FailingInner(), max_retries=0)
+    adapter = ResilientKernelAdapter(
+        FailingInner(), max_retries=0, journal=InMemoryConsistencyJournal()
+    )
 
     with pytest.raises(RuntimeAdapterBackendError) as exc_info:
         adapter.mark_branch_state("run-1", "stage-1", "branch-1", "failed")

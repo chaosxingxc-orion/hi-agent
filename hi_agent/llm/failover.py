@@ -356,7 +356,11 @@ class FailoverChain:
     ) -> None:
         self._factory = gateway_factory
         self._pool = pool
-        self._policy = policy or RetryPolicy()
+        if policy is None:
+            raise ValueError(
+                "policy is required; pass an explicit RetryPolicy() instance"
+            )
+        self._policy = policy
 
     # ------------------------------------------------------------------
     # Public API

@@ -191,7 +191,7 @@ def test_inject_disabled_returns_deep_copy():
 
 def test_inject_system_prompt():
     """System prompt is wrapped in a cached text block list."""
-    injector = PromptCacheInjector()
+    injector = PromptCacheInjector(PromptCacheConfig())
     system_text = "You are a helpful assistant."
 
     result = injector.inject_system(system_text)
@@ -206,7 +206,7 @@ def test_inject_system_prompt():
 
 def test_inject_system_prompt_empty_string():
     """Empty system prompt is still wrapped correctly."""
-    injector = PromptCacheInjector()
+    injector = PromptCacheInjector(PromptCacheConfig())
     result = injector.inject_system("")
     assert result[0]["text"] == ""
     assert result[0]["cache_control"] == {"type": "ephemeral"}

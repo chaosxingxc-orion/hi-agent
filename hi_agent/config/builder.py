@@ -36,6 +36,7 @@ from hi_agent.skill.matcher import SkillMatcher
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry
 from hi_agent.state import RunStateStore
+from hi_agent.task_decomposition.decomposer import TaskDecomposer
 
 
 class MissingCapabilityError(RuntimeError):
@@ -1414,7 +1415,7 @@ class SystemBuilder:
     def build_orchestrator(self) -> TaskOrchestrator:
         """Build a fully-wired TaskOrchestrator."""
         kernel = self.build_kernel()
-        return TaskOrchestrator(kernel=kernel)
+        return TaskOrchestrator(kernel=kernel, decomposer=TaskDecomposer())
 
     def build_server(self) -> Any:
         """Build API server with all subsystems connected.

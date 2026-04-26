@@ -181,7 +181,11 @@ class ContextManager:
         diminishing_threshold: int = 100,  # minimum tokens per iteration
     ) -> None:
         """Initialize ContextManager."""
-        self._budget = budget or ContextBudget()
+        if budget is None:
+            raise ValueError(
+                "budget is required; pass an explicit ContextBudget() instance"
+            )
+        self._budget = budget
         self._session = session
         self._memory_retriever = memory_retriever
         self._skill_loader = skill_loader

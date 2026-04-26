@@ -16,6 +16,7 @@ from hi_agent.orchestrator.task_orchestrator import (
     SubTaskResult,
     TaskOrchestrator,
 )
+from hi_agent.task_decomposition.decomposer import TaskDecomposer
 from hi_agent.task_decomposition.feedback import DecompositionFeedback
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
@@ -50,7 +51,7 @@ class TestSimpleExecution:
 
     def test_simple_task_delegates_to_run_executor(self) -> None:
         kernel = MockKernel(strict_mode=False)
-        orchestrator = TaskOrchestrator(kernel)
+        orchestrator = TaskOrchestrator(kernel, decomposer=TaskDecomposer())
         contract = _simple_contract()
 
         with patch(_RUNNER_PATCH) as mock_runner_cls:
@@ -75,7 +76,7 @@ class TestSimpleExecution:
 
     def test_simple_task_failure_propagates(self) -> None:
         kernel = MockKernel(strict_mode=False)
-        orchestrator = TaskOrchestrator(kernel)
+        orchestrator = TaskOrchestrator(kernel, decomposer=TaskDecomposer())
         contract = _simple_contract()
 
         with patch(_RUNNER_PATCH) as mock_runner_cls:
@@ -101,7 +102,7 @@ class TestDecomposedExecution:
 
     def test_decomposed_task_creates_dag_and_executes(self) -> None:
         kernel = MockKernel(strict_mode=False)
-        orchestrator = TaskOrchestrator(kernel)
+        orchestrator = TaskOrchestrator(kernel, decomposer=TaskDecomposer())
         contract = _simple_contract(decomposition_strategy="linear")
 
         with patch(_RUNNER_PATCH) as mock_runner_cls:
@@ -119,7 +120,7 @@ class TestDecomposedExecution:
 
     def test_decomposed_dag_strategy_has_parallel_nodes(self) -> None:
         kernel = MockKernel(strict_mode=False)
-        orchestrator = TaskOrchestrator(kernel)
+        orchestrator = TaskOrchestrator(kernel, decomposer=TaskDecomposer())
         contract = _simple_contract(decomposition_strategy="dag")
 
         with patch(_RUNNER_PATCH) as mock_runner_cls:
@@ -134,7 +135,7 @@ class TestDecomposedExecution:
 
     def test_subtask_failure_propagates_in_decomposed(self) -> None:
         kernel = MockKernel(strict_mode=False)
-        orchestrator = TaskOrchestrator(kernel)
+        orchestrator = TaskOrchestrator(kernel, decomposer=TaskDecomposer())
         contract = _simple_contract(decomposition_strategy="linear")
 
         call_count = 0
@@ -161,6 +162,7 @@ class TestDecomposedExecution:
         completed_subs: list[SubTaskResult] = []
         orchestrator = TaskOrchestrator(
             kernel,
+            decomposer=TaskDecomposer(),
             on_subtask_complete=completed_subs.append,
         )
         contract = _simple_contract(decomposition_strategy="linear")
@@ -177,7 +179,7 @@ class TestDecomposedExecution:
     def test_feedback_recorded_after_decomposed_run(self) -> None:
         kernel = MockKernel(strict_mode=False)
         feedback = DecompositionFeedback()
-        orchestrator = TaskOrchestrator(kernel, feedback=feedback)
+        orchestrator = TaskOrchestrator(kernel, decomposer=TaskDecomposer(), feedback=feedback)
         contract = _simple_contract(
             decomposition_strategy="linear",
             task_family="code_gen",
@@ -204,7 +206,7 @@ class TestRollback:
 
     def test_rollback_on_failure_recorded(self) -> None:
         kernel = MockKernel(strict_mode=False)
-        orchestrator = TaskOrchestrator(kernel)
+        orchestrator = TaskOrchestrator(kernel, decomposer=TaskDecomposer())
         contract = _simple_contract(decomposition_strategy="linear")
 
         call_count = 0
@@ -311,7 +313,7 @@ class TestDAGDependencyRespected:
     def test_node_b_waits_for_node_a(self) -> None:
         """Verify sequential dependency: B cannot start until A completes."""
         kernel = MockKernel(strict_mode=False)
-        orchestrator = TaskOrchestrator(kernel)
+        orchestrator = TaskOrchestrator(kernel, decomposer=TaskDecomposer())
 
         # Use linear strategy which creates a strict chain
         contract = _simple_contract(decomposition_strategy="linear")

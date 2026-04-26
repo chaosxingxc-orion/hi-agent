@@ -25,7 +25,7 @@ RuntimeAdapter protocol and adds:
 Usage::
 
     inner = KernelFacadeAdapter(facade)
-    adapter = ResilientKernelAdapter(inner)
+    adapter = ResilientKernelAdapter(inner, journal=InMemoryConsistencyJournal())
 
     # Optionally persist the consistency journal across restarts:
     journal = FileBackedConsistencyJournal(".hi_agent/consistency.jsonl")
@@ -91,7 +91,7 @@ class ResilientKernelAdapter:
         health_window_s: int = 300,
         degraded_error_rate: float = 0.1,
         unhealthy_error_rate: float = 0.5,
-        journal: Any | None = None,
+        journal: InMemoryConsistencyJournal | None = None,
     ) -> None:
         """Create a resilient wrapper around *inner*.
 
@@ -117,7 +117,11 @@ class ResilientKernelAdapter:
             degraded_error_rate=degraded_error_rate,
             unhealthy_error_rate=unhealthy_error_rate,
         )
-        self._journal = journal or InMemoryConsistencyJournal()
+        if journal is None:
+            raise ValueError(
+                "journal is required; pass an explicit InMemoryConsistencyJournal() instance"
+            )
+        self._journal = journal
 
     # ------------------------------------------------------------------
     # Resilience core

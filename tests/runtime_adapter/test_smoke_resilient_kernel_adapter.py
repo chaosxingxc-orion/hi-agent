@@ -43,7 +43,9 @@ def test_resilient_kernel_adapter_instantiable():
             return "local-fsm"
 
     try:
-        adapter = ResilientKernelAdapter(_MinimalInner())
+        from hi_agent.runtime_adapter.consistency import InMemoryConsistencyJournal
+
+        adapter = ResilientKernelAdapter(_MinimalInner(), journal=InMemoryConsistencyJournal())
         assert adapter is not None
     except TypeError as e:
         pytest.skip(f"Constructor requires dependencies not available in smoke: {e}")

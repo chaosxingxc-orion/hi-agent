@@ -101,7 +101,11 @@ class RuntimeConfigManager:
         now_fn: Callable[[], float] | None = None,
     ) -> None:
         """Initialize manager with shared implementation primitives."""
-        self._history = history or ConfigHistory()
+        if history is None:
+            raise ValueError(
+                "history is required; pass an explicit ConfigHistory() instance"
+            )
+        self._history = history
         self._store = RuntimeConfigStore(
             initial_config=initial,
             now_fn=now_fn,

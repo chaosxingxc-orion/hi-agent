@@ -96,7 +96,11 @@ class TaskOrchestrator:
     ) -> None:
         """Initialize TaskOrchestrator."""
         self._kernel = kernel
-        self._decomposer = decomposer or TaskDecomposer()
+        if decomposer is None:
+            raise ValueError(
+                "decomposer is required; pass an explicit TaskDecomposer() instance"
+            )
+        self._decomposer = decomposer
         self._feedback = feedback
         self._max_parallel = max_parallel
         self._on_subtask_complete = on_subtask_complete

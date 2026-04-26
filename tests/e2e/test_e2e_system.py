@@ -49,6 +49,7 @@ from hi_agent.server.app import AgentServer
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry
 from hi_agent.state_machine.definitions import run_state_machine
+from hi_agent.task_decomposition.decomposer import TaskDecomposer
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
@@ -265,7 +266,7 @@ class TestTaskDecompositionViaOrchestrator:
             task_family="quick_task",
             decomposition_strategy="linear",
         )
-        orchestrator = TaskOrchestrator(kernel=kernel)
+        orchestrator = TaskOrchestrator(kernel=kernel, decomposer=TaskDecomposer())
         result = orchestrator.execute(contract)
 
         assert result.success is True
@@ -288,7 +289,7 @@ class TestTaskDecompositionViaOrchestrator:
             task_family="research",
             decomposition_strategy="dag",
         )
-        orchestrator = TaskOrchestrator(kernel=kernel)
+        orchestrator = TaskOrchestrator(kernel=kernel, decomposer=TaskDecomposer())
         result = orchestrator.execute(contract)
 
         assert result.success is True
@@ -305,7 +306,7 @@ class TestTaskDecompositionViaOrchestrator:
             goal="Simple task",
             task_family="quick_task",
         )
-        orchestrator = TaskOrchestrator(kernel=kernel)
+        orchestrator = TaskOrchestrator(kernel=kernel, decomposer=TaskDecomposer())
         result = orchestrator.execute(contract)
 
         assert result.success is True

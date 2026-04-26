@@ -313,7 +313,11 @@ class StructuredCompressor:
         config: StructuredCompressorConfig | None = None,
     ) -> None:
         self._llm = llm
-        self._config = config or StructuredCompressorConfig()
+        if config is None:
+            raise ValueError(
+                "config is required; pass an explicit StructuredCompressorConfig() instance"
+            )
+        self._config = config
         self._partitioner = MessagePartitioner(
             head_count=self._config.head_count,
             tail_token_budget=self._config.tail_token_budget,

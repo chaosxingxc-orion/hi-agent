@@ -65,8 +65,11 @@ _PROMPT_RETURNING_FUNCS = frozenset(
     {"format_results_for_context", "to_context_block", "_build_compression_prompt", "build_prompt"}
 )
 
-# Rule 13 — inline fallback to a shared-state resource constructor.
+# Rule 13 — inline fallback to a shared-state resource constructor (suffix-class form).
 _RULE13_RE = re.compile(r" or [A-Z][A-Za-z]+(Store|Graph|Gateway|Manager|Engine|Registry)\(")
+
+# Rule 6 — constructor-call inline fallback: ``x or SomeClass()`` (any PascalCase class).
+_RULE6_CONSTRUCTOR_RE = re.compile(r"\bor\s+[A-Z][A-Za-z0-9_]*\(")
 
 # Rule 13 scope — builder defaulting profile_id="".
 _RULE13_SCOPE_RE = re.compile(r'def build_[a-z_]+\([^)]*profile_id[^)]*=\s*[\'\"][\'\"]')
@@ -197,6 +200,59 @@ def check_rule_12(files: list[Path], repo: Path) -> RuleResult:
             result.violations.append(
                 f"{_rel(path, repo)}:{node.lineno}: asyncio.run(...) outside "
                 f"entry point (enclosing function: {enclosing or '<module>'})"
+            )
+    return result
+
+
+# --------------------------------------------------------------------------- #
+# Rule 6 — constructor-call inline fallback: ``x or SomeClass()``
+# --------------------------------------------------------------------------- #
+
+# False-positive exclusions: boolean identity patterns that legitimately use
+# ``or`` followed by a capitalized name that is NOT a constructor call.
+_RULE6_ALLOWLIST_RE = re.compile(
+    r"""
+    # allow: ``or True``, ``or False``, ``or None``  (builtins, not constructors)
+    \bor\s+(True|False|None)\b
+    """,
+    re.VERBOSE,
+)
+
+# Patterns that look like constructor calls but are common false positives.
+_RULE6_FP_WORDS = frozenset({"True", "False", "None", "NotImplemented", "Ellipsis"})
+
+
+def check_rule_6(files: list[Path], repo: Path) -> RuleResult:
+    """Check for constructor-call inline fallbacks: ``x or SomeClass(...)``.
+
+    Warning-mode: flags sites for manual review.  Fixed sites in hi_agent/
+    should not appear here; remaining agent_kernel/ sites are tracked as
+    pre-existing debt (W4-D closure).
+    """
+    result = RuleResult(
+        "Rule 6",
+        "constructor-call inline fallback (x or ClassName())",
+        is_warning=True,
+    )
+    for path in files:
+        try:
+            src = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for lineno, line in enumerate(src.splitlines(), start=1):
+            stripped = line.lstrip()
+            if stripped.startswith("#"):
+                continue
+            m = _RULE6_CONSTRUCTOR_RE.search(line)
+            if not m:
+                continue
+            # Extract the class name from the match to filter false positives.
+            after_or = line[m.start():].split("or", 1)[1].lstrip()
+            class_name = after_or.split("(")[0].rstrip()
+            if class_name in _RULE6_FP_WORDS:
+                continue
+            result.violations.append(
+                f"{_rel(path, repo)}:{lineno}: {line.strip()}"
             )
     return result
 
@@ -382,6 +438,7 @@ def check_rule_7(repo: Path) -> RuleResult:
 def run_checks(repo: Path) -> list[RuleResult]:
     src_files = _source_files(repo)
     return [
+        check_rule_6(src_files, repo),
         check_rule_12(src_files, repo),
         check_rule_13(src_files, repo),
         check_rule_13_scope(repo),

@@ -7,7 +7,7 @@ N messages are stable across turns, making them ideal cache anchors.
 Usage:
     from hi_agent.llm.cache import PromptCacheInjector, CacheAwareTokenUsage
 
-    injector = PromptCacheInjector(config=PromptCacheConfig(anchor_messages=3))
+    injector = PromptCacheInjector(PromptCacheConfig(anchor_messages=3))
     cached_messages = injector.inject(messages)
     cached_system = injector.inject_system(system_prompt)
 """
@@ -139,7 +139,11 @@ class PromptCacheInjector:
     """
 
     def __init__(self, config: PromptCacheConfig | None = None) -> None:
-        self._config = config or PromptCacheConfig()
+        if config is None:
+            raise ValueError(
+                "config is required; pass an explicit PromptCacheConfig() instance"
+            )
+        self._config = config
 
     # -- public API -----------------------------------------------------------
 

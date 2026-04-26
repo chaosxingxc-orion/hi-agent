@@ -84,10 +84,12 @@ class RuntimeBuilder:
                     )
                     self._kernel = create_local_adapter()
                 from hi_agent.runtime_adapter import ResilientKernelAdapter
+                from hi_agent.runtime_adapter.consistency import InMemoryConsistencyJournal
 
                 self._kernel = ResilientKernelAdapter(
                     self._kernel,
                     max_retries=self._config.kernel_max_retries,
+                    journal=InMemoryConsistencyJournal(),
                 )
         return self._kernel
 

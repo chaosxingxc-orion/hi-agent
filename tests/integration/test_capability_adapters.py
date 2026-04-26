@@ -159,7 +159,7 @@ class TestCoreToolAdapterAdaptTool:
     """Verify single-tool adaptation."""
 
     def test_adapt_read_only_tool(self) -> None:
-        adapter = CoreToolAdapter()
+        adapter = CoreToolAdapter(CapabilityDescriptorFactory())
         tool_info = _make_tool(
             "search_docs",
             description="Full-text search.",
@@ -172,7 +172,7 @@ class TestCoreToolAdapterAdaptTool:
         assert spec.handler is _echo_handler
 
     def test_adapt_write_tool(self) -> None:
-        adapter = CoreToolAdapter()
+        adapter = CoreToolAdapter(CapabilityDescriptorFactory())
 
         def writer(payload: dict) -> dict:
             return {"written": True}
@@ -183,7 +183,7 @@ class TestCoreToolAdapterAdaptTool:
         assert spec.handler({"x": 1}) == {"written": True}
 
     def test_placeholder_handler_when_none_provided(self) -> None:
-        adapter = CoreToolAdapter()
+        adapter = CoreToolAdapter(CapabilityDescriptorFactory())
         tool_info = _make_tool("query_something")
         spec = adapter.adapt_tool(tool_info)
         assert spec.name == "query_something"
@@ -196,7 +196,7 @@ class TestCoreToolAdapterAdaptTool:
         overrides = {
             "search_docs": {"effect_class": "irreversible_write"},
         }
-        adapter = CoreToolAdapter(overrides=overrides)
+        adapter = CoreToolAdapter(CapabilityDescriptorFactory(), overrides=overrides)
         tool_info = _make_tool("search_docs", handler=_echo_handler)
         # Should not raise — override is consumed internally.
         spec = adapter.adapt_tool(tool_info)
@@ -208,7 +208,7 @@ class TestCoreToolAdapterBatchRegistration:
 
     def test_batch_register(self) -> None:
         registry = CapabilityRegistry()
-        adapter = CoreToolAdapter()
+        adapter = CoreToolAdapter(CapabilityDescriptorFactory())
 
         tools = [
             _make_tool("get_user", handler=_echo_handler),
@@ -226,13 +226,13 @@ class TestCoreToolAdapterBatchRegistration:
 
     def test_batch_register_empty_list(self) -> None:
         registry = CapabilityRegistry()
-        adapter = CoreToolAdapter()
+        adapter = CoreToolAdapter(CapabilityDescriptorFactory())
         assert adapter.register_tools(registry, []) == 0
         assert registry.list_names() == []
 
     def test_registered_tool_is_invocable(self) -> None:
         registry = CapabilityRegistry()
-        adapter = CoreToolAdapter()
+        adapter = CoreToolAdapter(CapabilityDescriptorFactory())
         adapter.register_tools(
             registry,
             [_make_tool("get_status", handler=lambda p: {"ok": True})],
@@ -244,7 +244,7 @@ class TestCoreToolAdapterBatchRegistration:
         """Overrides dict is respected in batch mode."""
         overrides = {"get_status": {"effect_class": "irreversible_write"}}
         registry = CapabilityRegistry()
-        adapter = CoreToolAdapter(overrides=overrides)
+        adapter = CoreToolAdapter(CapabilityDescriptorFactory(), overrides=overrides)
         adapter.register_tools(
             registry,
             [_make_tool("get_status", handler=_echo_handler)],

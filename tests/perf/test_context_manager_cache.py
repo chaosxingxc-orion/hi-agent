@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from hi_agent.context.manager import ContextManager
+from hi_agent.context.manager import ContextBudget, ContextManager
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -13,6 +13,7 @@ from hi_agent.context.manager import ContextManager
 
 def _make_manager(**kwargs) -> ContextManager:
     """Return a fresh ContextManager with no external dependencies."""
+    kwargs.setdefault("budget", ContextBudget())
     return ContextManager(**kwargs)
 
 
