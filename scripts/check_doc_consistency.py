@@ -433,6 +433,9 @@ def check_score_cap() -> list[str]:
     - T3 stale: max 76.5
     - T3 fresh but no clean-env evidence JSON for current HEAD: max 78.0
     - T3 fresh + clean-env evidence present + HEAD aligned: no cap
+
+    Extended (W6-A): if score > 76.5 and no 'Validated by:' field present,
+    emit a WARNING (not hard FAIL) about missing validation record.
     """
     errors: list[str] = []
     notices = sorted(DOCS.glob("downstream-responses/2026-*-delivery-notice.md"), reverse=True)
@@ -470,9 +473,10 @@ def check_score_cap() -> list[str]:
         cap = 78.0
         status = "fresh-no-clean-env"
     else:
-        return errors  # no cap
+        cap = None
+        status = "uncapped"
 
-    if score > cap:
+    if cap is not None and score > cap:
         try:
             rel = latest_notice.relative_to(DOCS.parent)
         except ValueError:
@@ -482,7 +486,66 @@ def check_score_cap() -> list[str]:
             f"{score}, max allowed {cap} (T3: {status})"
         )
 
+    # W6-A extension: warn when score > 76.5 but Validated by: is absent
+    if score > 76.5:
+        has_validated_by = bool(re.search(r"Validated by:\s*\S", src, re.IGNORECASE))
+        if not has_validated_by:
+            try:
+                rel = latest_notice.relative_to(DOCS.parent)
+            except ValueError:
+                rel = latest_notice
+            errors.append(
+                f"  WARNING MISSING-VALIDATED-BY: {rel} declares readiness {score} > 76.5 "
+                "but has no 'Validated by:' field. Add 'Validated by: <scripts>' to the "
+                "notice header block (generated automatically by release_notice.py)."
+            )
+
     return errors
+
+
+def check_validated_by_header() -> list[str]:
+    """W6-A: Wave notices with score > 76.5 must carry a 'Validated by:' field.
+
+    Scans all wave notices in docs/downstream-responses/ for a ``Validated by:``
+    field inside the code block at the top of the notice.  If the notice's
+    declared ``Current verified readiness:`` exceeds 76.5 but ``Validated by:``
+    is missing or empty, emits a WARNING (not a hard FAIL — this is a new field
+    introduced in Wave 10.6).
+
+    Draft notices (``Status: draft``) are exempt.
+    """
+    warnings: list[str] = []
+    for notice in DOCS.glob("downstream-responses/2026-*-wave*-notice.md"):
+        src = notice.read_text(encoding="utf-8", errors="replace")
+        lines = src.splitlines()
+        # Skip draft notices
+        if any(re.search(r"Status:.*draft", line, re.IGNORECASE) for line in lines):
+            continue
+
+        score: float | None = None
+        for line in lines:
+            m = re.search(r"Current verified readiness:\s*([\d.]+)", line)
+            if m:
+                with contextlib.suppress(ValueError):
+                    score = float(m.group(1))
+                break
+
+        if score is None or score <= 76.5:
+            continue
+
+        has_validated_by = bool(re.search(r"Validated by:\s*\S", src, re.IGNORECASE))
+        if not has_validated_by:
+            try:
+                rel = notice.relative_to(DOCS.parent)
+            except ValueError:
+                rel = notice
+            warnings.append(
+                f"  WARNING MISSING-VALIDATED-BY: {rel} declares readiness {score} > 76.5 "
+                "but has no 'Validated by:' field in the notice header block. "
+                "Regenerate with scripts/release_notice.py to add this field."
+            )
+
+    return warnings
 
 
 def main() -> int:
@@ -500,6 +563,8 @@ def main() -> int:
     # W5-A: wave-specific HEAD alignment + score cap
     all_errors.extend(check_notice_head_alignment())
     all_errors.extend(check_score_cap())
+    # W6-A: validated-by header presence check
+    all_errors.extend(check_validated_by_header())
     if all_errors:
         print("FAIL check_doc_consistency:")
         for e in all_errors:
