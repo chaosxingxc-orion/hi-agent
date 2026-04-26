@@ -275,12 +275,7 @@ async def handle_ready(request: Request) -> JSONResponse:
             from hi_agent.config.builder import SystemBuilder
 
             builder = SystemBuilder(config=getattr(server, "_config", None))
-        # Plumb durable-backend state into ReadinessProbe so /ready reflects
-        # whether the critical run_store is actually constructed (Fix 6).
-        _run_store_ok = getattr(server, "_run_store", None) is not None
-        from hi_agent.config.readiness import ReadinessProbe as _ReadinessProbe
-
-        snapshot = _ReadinessProbe(builder, durable_backends_ok=_run_store_ok).snapshot()
+        snapshot = builder.readiness()
     except Exception as exc:
         snapshot = {
             "ready": False,
@@ -468,7 +463,7 @@ async def handle_skills_status(request: Request) -> JSONResponse:
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_ss
 
     try:
-        ctx = _rtc_ss()
+        _rtc_ss()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: AgentServer = request.app.state.agent_server
@@ -483,7 +478,7 @@ async def handle_skills_status(request: Request) -> JSONResponse:
         loader.discover()
         all_skills = loader.list_skills(eligible_only=False)
         eligible = [s for s in all_skills if s.check_eligibility()[0]]
-        all_metrics = evolver._observer.get_all_metrics(tenant_id=ctx.tenant_id)
+        all_metrics = evolver._observer.get_all_metrics()
 
         top = sorted(
             all_metrics.items(),
@@ -541,7 +536,7 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_sm
 
     try:
-        ctx = _rtc_sm()
+        _rtc_sm()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     skill_id = request.path_params["skill_id"]
@@ -555,7 +550,7 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
     try:
         from dataclasses import asdict
 
-        metrics = evolver._observer.get_metrics(skill_id, tenant_id=ctx.tenant_id)
+        metrics = evolver._observer.get_metrics(skill_id)
         return JSONResponse(asdict(metrics))
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -1020,92 +1015,106 @@ async def handle_plugins_status(request: Request) -> JSONResponse:
 
 
 # ------------------------------------------------------------------
-# Startup rehydration helper (RO — W4-C)
+# W5-C: Recovery — rehydrate lease-expired runs on startup
 # ------------------------------------------------------------------
 
 
-async def _rehydrate_runs(
-    run_store: Any,
-    run_manager: Any,
-    posture: Any,
-) -> None:
-    """On startup: find non-terminal runs in run_store and rehydrate them.
+def _rehydrate_runs(agent_server: AgentServer) -> None:
+    """Re-enqueue lease-expired runs according to the current posture.
 
-    Posture-gated:
-    - dev: no-op.
-    - research/prod: injects ManagedRun stubs into run_manager so
-      GET /runs/{id} returns data without a store fallback.  When
-      HI_AGENT_RECOVERY_REENQUEUE=1, also re-enqueues each run into
-      the durable RunQueue (requires run_manager._run_queue to be set).
+    Called once during server lifespan startup.  Under research/prod posture
+    this is the fail-safe default: every expired lease is re-enqueued unless
+    ``HI_AGENT_RECOVERY_REENQUEUE=0`` is set (migration opt-out).
+    Under dev posture only a warning is emitted.
+
+    Double-execute prevention: each re-enqueue first claims an adoption_token
+    via a CAS UPDATE.  A concurrent recovery pass that races this one will
+    find the token already set and skip the run.
+
+    Args:
+        agent_server: The running AgentServer instance.
     """
-    import os as _os_reh
+    import os
+    import uuid
 
-    from hi_agent.observability.fallback import record_fallback as _rec_fb
-    from hi_agent.server.run_manager import ManagedRun as _ManagedRun
+    from hi_agent.server.recovery import RecoveryState, decide_recovery_action
 
-    if run_store is None:
+    run_queue = agent_server._run_queue
+    if run_queue is None:
+        logger.debug("_rehydrate_runs: no run_queue wired; skipping recovery.")
         return
-    if not posture.is_strict:
-        return
+
+    # Opt-out: HI_AGENT_RECOVERY_REENQUEUE=0 reverts to warn-only for migration.
+    reenqueue_flag = os.environ.get("HI_AGENT_RECOVERY_REENQUEUE", "1")
+    opt_out = reenqueue_flag == "0"
+
+    posture = Posture.from_env()
 
     try:
-        pending = run_store.list_pending()
-    except Exception as _exc:
-        logger.warning("_rehydrate_runs: list_pending() failed: %s", _exc)
+        expired = run_queue.expire_stale_leases()
+    except Exception as exc:
+        logger.warning("_rehydrate_runs: expire_stale_leases failed: %s", exc)
         return
 
-    reenqueue = _os_reh.environ.get("HI_AGENT_RECOVERY_REENQUEUE", "0") == "1"
-    rehydrated = 0
+    if not expired:
+        logger.debug("_rehydrate_runs: no lease-expired runs found.")
+        return
 
-    for record in pending:
-        run_id = record.run_id
-        # Build a minimal ManagedRun stub so route handlers can look it up.
-        stub = _ManagedRun(
+    logger.info(
+        "_rehydrate_runs: found %d lease-expired run(s); posture=%s opt_out=%s",
+        len(expired),
+        posture,
+        opt_out,
+    )
+
+    for entry in expired:
+        run_id = entry["run_id"]
+        tenant_id = entry["tenant_id"]
+        lease_age_s = entry["lease_age_s"]
+
+        decision = decide_recovery_action(
             run_id=run_id,
-            task_contract={},
-            state=record.status,
-            tenant_id=record.tenant_id,
-            user_id=record.user_id,
-            session_id=record.session_id,
-            created_at="",
-            updated_at="",
+            tenant_id=tenant_id,
+            current_state=RecoveryState.LEASE_EXPIRED,
+            posture=posture,
         )
-        run_manager._inject_rehydrated_run(run_id, stub)
 
-        if reenqueue:
-            _rec_fb(
-                "heuristic",
-                reason="startup_rehydration",
-                run_id=run_id,
-                extra={"tenant_id": record.tenant_id, "status": record.status},
-            )
-            rq = getattr(run_manager, "_run_queue", None)
-            if rq is not None:
-                try:
-                    rq.enqueue(
-                        run_id=run_id,
-                        priority=record.priority,
-                        payload_json=record.task_contract_json,
-                        tenant_id=record.tenant_id,
-                        user_id=record.user_id,
-                        session_id=record.session_id,
-                        project_id=record.project_id,
-                    )
-                except Exception as _eq:
-                    logger.warning(
-                        "_rehydrate_runs: enqueue failed for run_id=%s: %s", run_id, _eq
-                    )
-            rehydrated += 1
-        else:
-            logger.warning(
-                "Startup: found non-terminal run %s (state=%s, lease may be stale). "
-                "Set HI_AGENT_RECOVERY_REENQUEUE=1 to re-enqueue.",
+        # Opt-out overrides research/prod decision to warn-only.
+        effective_requeue = decision.should_requeue and not opt_out
+
+        if effective_requeue:
+            token = str(uuid.uuid4())
+            claimed = run_queue.claim_with_adoption_token(run_id, token)
+            if not claimed:
+                logger.warning(
+                    "_rehydrate_runs: run_id=%s already adopted by another pass; skipping.",
+                    run_id,
+                )
+                continue
+            try:
+                run_queue.reenqueue(run_id=run_id, tenant_id=tenant_id)
+            except Exception as exc:
+                logger.warning(
+                    "_rehydrate_runs: reenqueue failed for run_id=%s: %s", run_id, exc
+                )
+                continue
+            logger.info(
+                "_rehydrate_runs: re-enqueued run_id=%s tenant_id=%s lease_age_s=%.1f reason=%r",
                 run_id,
-                record.status,
+                tenant_id,
+                lease_age_s,
+                decision.reason,
             )
-
-    if rehydrated:
-        logger.info("Startup rehydration complete: %d runs re-enqueued.", rehydrated)
+        else:
+            reason = "opt_out=1" if opt_out and decision.should_requeue else decision.reason
+            logger.warning(
+                "_rehydrate_runs: warn-only for run_id=%s tenant_id=%s "
+                "lease_age_s=%.1f reason=%r",
+                run_id,
+                tenant_id,
+                lease_age_s,
+                reason,
+            )
 
 
 # ------------------------------------------------------------------
@@ -1242,27 +1251,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
         if agent_server._feedback_store is not None:
             logger.info("lifespan: FeedbackStore already wired (Rule 6).")
         else:
-            _lifespan_posture = Posture.from_env()
-            if _lifespan_posture.is_strict:
-                raise RuntimeError(
-                    "lifespan: FeedbackStore is None under strict posture; "
-                    "set HI_AGENT_DATA_DIR to enable durable storage."
-                )
             logger.warning(
                 "lifespan: FeedbackStore is None; feedback endpoints will be unavailable."
             )
-
-        # W4-C: Rehydrate non-terminal runs from run_store into run_manager
-        # so GET /runs/{id} can serve them after a process restart.
-        try:
-            _reh_posture = Posture.from_env()
-            await _rehydrate_runs(
-                run_store=agent_server._run_store,
-                run_manager=agent_server.run_manager,
-                posture=_reh_posture,
-            )
-        except Exception as _reh_exc:
-            logger.warning("lifespan: _rehydrate_runs failed (non-fatal): %s", _reh_exc)
 
         # G-8: Long-running op coordinator + background poller
         from pathlib import Path as _Path
@@ -1280,6 +1271,12 @@ def build_app(agent_server: AgentServer) -> Starlette:
         _op_poller = _OpPoller(coordinator=_op_coordinator, store=_op_store, poll_interval=30.0)
         _poller_task = asyncio.create_task(_op_poller.run())
         logger.info("G-8: OpPoller started (db=%s)", _op_db)
+
+        # W5-C: Recovery — re-enqueue lease-expired runs (posture-driven).
+        try:
+            _rehydrate_runs(agent_server)
+        except Exception as _rh_exc:
+            logger.warning("lifespan: _rehydrate_runs raised unexpectedly: %s", _rh_exc)
 
         try:
             yield
@@ -1470,8 +1467,6 @@ class AgentServer:
         try:
             _backends = build_durable_backends(_data_dir, _posture)
         except RuntimeError as _be:
-            if _posture.is_strict:
-                raise
             logger.warning(
                 "build_durable_backends failed (%s); durable stores unavailable.",
                 _be,

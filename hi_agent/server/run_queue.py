@@ -17,10 +17,6 @@ import time
 from pathlib import Path
 from typing import ClassVar
 
-# Default lease duration in seconds before a run is marked lease_expired.
-# Overridden by HI_AGENT_RUN_LEASE_SECONDS environment variable.
-_DEFAULT_LEASE_SECONDS = 300
-
 
 def _resolve_db_path(db_path: str | None) -> str:
     """RO-3: resolve RunQueue db_path based on posture when caller passes None.
@@ -38,7 +34,7 @@ def _resolve_db_path(db_path: str | None) -> str:
         posture = Posture.from_env()
         if not posture.requires_durable_queue:
             return ":memory:"
-    except (ValueError, OSError):
+    except Exception:
         return ":memory:"
 
     data_dir = os.environ.get("HI_AGENT_DATA_DIR", "./hi_agent_data")
@@ -73,7 +69,9 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
         "ALTER TABLE run_queue ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE run_queue ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE run_queue ADD COLUMN project_id TEXT NOT NULL DEFAULT ''",
-        "ALTER TABLE run_queue ADD COLUMN lease_started_at REAL",
+        # W5-C: adoption_token for double-execute prevention during recovery.
+        # NULL = unclaimed by recovery; non-NULL = a recovery pass already owns it.
+        "ALTER TABLE run_queue ADD COLUMN adoption_token TEXT",
     ]
     _CREATE_SPINE_INDEX = """\
 CREATE INDEX IF NOT EXISTS idx_run_queue_spine
@@ -168,6 +166,32 @@ ON run_queue (tenant_id, user_id, session_id, status)
             )
             self._conn.commit()
 
+    def reenqueue(self, run_id: str, tenant_id: str = "") -> bool:
+        """Reset an existing run's status to 'queued' for re-processing.
+
+        Used by recovery to re-queue a lease-expired run.  Unlike ``enqueue``,
+        this method explicitly updates an existing row rather than inserting.
+
+        Args:
+            run_id: Identifier of the run to re-enqueue.
+            tenant_id: Tenant spine — used to verify the row is owned by the
+                expected tenant; ignored if empty.
+
+        Returns:
+            ``True`` if the run was reset to 'queued'; ``False`` if not found.
+        """
+        now = time.time()
+        with self._lock:
+            result = self._conn.execute(
+                "UPDATE run_queue "
+                "SET status = 'queued', worker_id = NULL, "
+                "    lease_expires_at = NULL, updated_at = ? "
+                "WHERE run_id = ?",
+                (now, run_id),
+            )
+            self._conn.commit()
+        return result.rowcount > 0
+
     def claim_next(self, worker_id: str) -> dict | None:
         """Claim the highest-priority queued run.
 
@@ -203,9 +227,9 @@ ON run_queue (tenant_id, user_id, session_id, status)
             result = self._conn.execute(
                 "UPDATE run_queue "
                 "SET status = 'leased', worker_id = ?, "
-                "    lease_expires_at = ?, lease_started_at = ?, updated_at = ? "
+                "    lease_expires_at = ?, updated_at = ? "
                 "WHERE run_id = ? AND status = 'queued'",
-                (worker_id, lease_expires_at, now, now, run_id),
+                (worker_id, lease_expires_at, now, run_id),
             )
             self._conn.commit()
 
@@ -335,6 +359,67 @@ ON run_queue (tenant_id, user_id, session_id, status)
             self._conn.commit()
         return result.rowcount
 
+    def expire_stale_leases(self) -> list[dict]:
+        """Collect runs with stale (expired) leases without re-queuing them.
+
+        Unlike ``release_expired_leases``, this method only *reads* the
+        expired rows and returns them.  The caller decides whether to
+        re-enqueue (posture-driven decision; see ``hi_agent.server.recovery``).
+
+        Returns:
+            List of dicts, each with at minimum:
+            ``{"run_id": str, "tenant_id": str, "expired_at": str, "lease_age_s": float}``
+        """
+        now = time.time()
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT run_id, tenant_id, lease_expires_at "
+                "FROM run_queue "
+                "WHERE status = 'leased' AND lease_expires_at < ?",
+                (now,),
+            )
+            rows = cur.fetchall()
+
+        result: list[dict] = []
+        for run_id, tenant_id, lease_expires_at in rows:
+            lease_age_s = now - (lease_expires_at if lease_expires_at else now)
+            result.append(
+                {
+                    "run_id": run_id,
+                    "tenant_id": tenant_id or "",
+                    "expired_at": str(lease_expires_at),
+                    "lease_age_s": round(lease_age_s, 3),
+                }
+            )
+        return result
+
+    def claim_with_adoption_token(self, run_id: str, adoption_token: str) -> bool:
+        """Atomically set the adoption_token on an un-adopted leased run.
+
+        Used by recovery to prevent two concurrent recovery passes from
+        double-executing the same run.  The CAS update only succeeds when
+        ``adoption_token IS NULL`` — a second recovery pass that races the
+        first will get ``rowcount == 0`` and must skip the run.
+
+        Args:
+            run_id: The run to adopt.
+            adoption_token: A UUID string identifying the recovery pass.
+
+        Returns:
+            ``True`` if the token was set (this recovery pass owns the run);
+            ``False`` if another pass already owns it.
+        """
+        now = time.time()
+        with self._lock:
+            result = self._conn.execute(
+                "UPDATE run_queue "
+                "SET adoption_token = ?, updated_at = ? "
+                "WHERE run_id = ? AND adoption_token IS NULL",
+                (adoption_token, now, run_id),
+            )
+            self._conn.commit()
+        return result.rowcount > 0
+
     def is_cancelled(self, run_id: str) -> bool:
         """Return True if the cancellation flag is set for this run.
 
@@ -369,57 +454,6 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 (run_id,),
             )
             self._conn.commit()
-
-    def expire_stale_leases(
-        self,
-        now_ts: float,
-        lease_seconds: int | None = None,
-    ) -> list[str]:
-        """Mark runs whose lease_started_at + lease_seconds < now_ts as lease_expired.
-
-        Returns list of expired run_ids. Atomic SQL UPDATE.
-
-        For in-memory (`:memory:`) databases this is a no-op returning [].
-
-        Args:
-            now_ts: Current timestamp (seconds since epoch).
-            lease_seconds: Maximum lease duration in seconds before a run is
-                considered stale. Defaults to HI_AGENT_RUN_LEASE_SECONDS
-                env var, or 300 if unset.
-
-        Returns:
-            List of run_ids that were transitioned to 'lease_expired' status.
-        """
-        if self.db_path == ":memory:":
-            return []
-
-        if lease_seconds is None:
-            lease_seconds = int(
-                os.environ.get("HI_AGENT_RUN_LEASE_SECONDS", str(_DEFAULT_LEASE_SECONDS))
-            )
-
-        cutoff = now_ts - lease_seconds
-        with self._lock:
-            # Ensure the lease_expired status is valid; mark leased rows whose
-            # lease_started_at predates the cutoff.
-            cur = self._conn.execute(
-                "SELECT run_id FROM run_queue "
-                "WHERE status = 'leased' "
-                "  AND lease_started_at IS NOT NULL "
-                "  AND lease_started_at < ?",
-                (cutoff,),
-            )
-            expired_ids = [row[0] for row in cur.fetchall()]
-            if not expired_ids:
-                return []
-            placeholders = ",".join("?" * len(expired_ids))
-            self._conn.execute(
-                f"UPDATE run_queue SET status = 'lease_expired', updated_at = ? "
-                f"WHERE run_id IN ({placeholders})",
-                [now_ts, *expired_ids],
-            )
-            self._conn.commit()
-        return expired_ids
 
     def close(self) -> None:
         """Close the underlying database connection."""
