@@ -138,9 +138,9 @@ CREATE TABLE IF NOT EXISTS team_runs (
             project_id=project_id,
             member_runs=member_runs,
             created_at=created_at,
-            tenant_id=row[7] if len(row) > 7 else "",
-            user_id=row[8] if len(row) > 8 else "",
-            session_id=row[9] if len(row) > 9 else "",
+            tenant_id=row[7],
+            user_id=row[8],
+            session_id=row[9],
         )
 
     # -- public API ----------------------------------------------------------
