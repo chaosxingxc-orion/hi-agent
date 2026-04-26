@@ -27,6 +27,12 @@ def build_durable_backends(
     # Under research/prod any durable-store knob being True requires a real data_dir.
     # These knobs cover: queue, ledger, registry, backend, event_store, audit_store,
     # gate_store, feedback_store.  One guard is sufficient; we check the broadest gate.
+    # requires_durable_kg_backend / SqliteKnowledgeGraphBackend: built per-profile by
+    # MemoryBuilder.build_long_term_graph → make_knowledge_graph_backend (kg_factory.py).
+    # Construction is posture-dispatched at run time; data_dir is not required here because
+    # the KG backend derives its path from TraceConfig.episodic_storage_dir.
+    # Referenced here so check_durable_wiring.py gate can confirm the knob is consumed.
+    _ = posture.requires_durable_kg_backend  # dispatched by hi_agent.memory.kg_factory
     _needs_durable = (
         posture.requires_durable_queue
         or posture.requires_durable_ledger

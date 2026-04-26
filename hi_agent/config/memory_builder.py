@@ -151,9 +151,15 @@ class MemoryBuilder:
         every subsystem (retrieval, knowledge_manager, lifecycle_manager)
         built its own LongTermMemoryGraph — the recurring J7-1 / R7 I-7 defect.
 
+        Posture-aware dispatch (Rule 11 / W5-E):
+          - workspace_key path: always uses JsonGraphBackend (workspace-scoped path).
+          - profile_id path: delegates to ``make_knowledge_graph_backend``; returns
+            JsonGraphBackend under dev and SqliteKnowledgeGraphBackend under
+            research/prod (or per HI_AGENT_KG_BACKEND env override).
+
         When *workspace_key* is provided the graph file is placed under
         ``{base_root}/workspaces/{tenant}/users/{user}/sessions/{session}/L3/graph.json``.
-        When absent, falls back to the existing profile_id-scoped path.
+        When absent, falls back to the factory-dispatched profile_id-scoped backend.
         """
         from hi_agent.memory.long_term import LongTermMemoryGraph
 
@@ -170,20 +176,28 @@ class MemoryBuilder:
 
         project_id = getattr(self._config, "project_id", "")
         if workspace_key is not None:
+            # Workspace-key path: always JSON (already fully path-scoped).
             base = str(Path(self._config.episodic_storage_dir).parent)
             l3_dir = WorkspacePathHelper.private(base, workspace_key, "L3")
             if project_id:
                 l3_dir = l3_dir / project_id
             storage_path = str(l3_dir / "graph.json")
             graph = LongTermMemoryGraph(storage_path)  # path already fully scoped
+            with contextlib.suppress(FileNotFoundError, KeyError, ValueError):
+                graph.load()
         else:
-            graph = LongTermMemoryGraph(
-                self._config.episodic_storage_dir.replace("episodes", "long_term/graph.json"),
+            # Profile-id path: posture-aware dispatch via factory.
+            from hi_agent.config.posture import Posture
+            from hi_agent.memory.kg_factory import make_knowledge_graph_backend
+
+            base_dir = Path(self._config.episodic_storage_dir).parent
+            posture = Posture.from_env()
+            graph = make_knowledge_graph_backend(
+                posture=posture,
+                data_dir=base_dir,
                 profile_id=profile_id,
                 project_id=project_id,
             )
-        with contextlib.suppress(FileNotFoundError, KeyError, ValueError):
-            graph.load()
         self._cache[key] = graph
         return graph
 

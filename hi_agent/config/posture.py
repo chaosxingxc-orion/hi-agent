@@ -104,3 +104,8 @@ class Posture(StrEnum):
     def requires_durable_feedback_store(self) -> bool:
         """FeedbackStore must have a storage_path."""
         return self.is_strict
+
+    @property
+    def requires_durable_kg_backend(self) -> bool:
+        """KG backend must be SqliteKnowledgeGraphBackend, not JsonGraphBackend."""
+        return self.is_strict
