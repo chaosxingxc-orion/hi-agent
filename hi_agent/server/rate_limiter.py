@@ -5,9 +5,13 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 
 @dataclass
@@ -112,17 +116,24 @@ class RateLimiter:
     # Token bucket logic (thread-safe)
     # ------------------------------------------------------------------
 
-    def _consume(self, client_ip: str, *, tenant_id: str = "") -> tuple[bool, float]:
+    def _consume(
+        self,
+        client_ip: str,
+        *,
+        tenant_id: str = "",
+        exec_ctx: RunExecutionContext | None = None,
+    ) -> tuple[bool, float]:
         """Try to consume one token for the request bucket.
 
-        When *tenant_id* is non-empty the bucket key is ``tenant:<tenant_id>``;
-        otherwise it falls back to ``ip:<client_ip>``.  This keeps all
-        existing IP-based behaviour intact when no TenantContext is present.
+        When *exec_ctx* is provided, its ``tenant_id`` takes precedence over
+        the *tenant_id* kwarg for bucket key selection.  When neither provides
+        a tenant, the bucket falls back to ``ip:<client_ip>``.
 
         Returns:
             ``(allowed, retry_after_seconds)``.
         """
-        bucket_key = f"tenant:{tenant_id}" if tenant_id else f"ip:{client_ip}"
+        effective_tenant = (exec_ctx.tenant_id if exec_ctx is not None else "") or tenant_id
+        bucket_key = f"tenant:{effective_tenant}" if effective_tenant else f"ip:{client_ip}"
         now = time.monotonic()
 
         with self._lock:

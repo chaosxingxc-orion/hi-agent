@@ -145,3 +145,44 @@ class TaskContract:
                 "(hi_agent_unscoped_project_total). Pass project_id to scope "
                 "memory/artifacts/gates."
             )
+
+    @classmethod
+    def from_dict(cls, payload: dict) -> TaskContract:
+        """Construct from HTTP request body. Body spine fields take precedence.
+
+        Args:
+            payload: Dictionary of fields (e.g. parsed JSON request body).
+                     ``tenant_id``, ``user_id``, ``session_id`` are read when
+                     present; all other TaskContract fields follow normal defaults.
+
+        Returns:
+            A new :class:`TaskContract` instance with fields populated from payload.
+        """
+        budget_raw = payload.get("budget")
+        budget: TaskBudget | None = None
+        if isinstance(budget_raw, dict):
+            valid = {k: v for k, v in budget_raw.items() if k in TaskBudget.__dataclass_fields__}
+            budget = TaskBudget(**valid)
+        elif isinstance(budget_raw, TaskBudget):
+            budget = budget_raw
+
+        return cls(
+            task_id=payload.get("task_id", ""),
+            goal=payload.get("goal", ""),
+            constraints=list(payload.get("constraints", [])),
+            acceptance_criteria=list(payload.get("acceptance_criteria", [])),
+            task_family=payload.get("task_family", "quick_task"),
+            budget=budget,
+            deadline=payload.get("deadline"),
+            risk_level=payload.get("risk_level", "low"),
+            environment_scope=list(payload.get("environment_scope", [])),
+            input_refs=list(payload.get("input_refs", [])),
+            priority=int(payload.get("priority", 5)),
+            parent_task_id=payload.get("parent_task_id"),
+            decomposition_strategy=payload.get("decomposition_strategy"),
+            profile_id=payload.get("profile_id"),
+            stage_goal=payload.get("stage_goal", ""),
+            exit_criterion=dict(payload.get("exit_criterion", {})),
+            cross_profile_read=list(payload.get("cross_profile_read", [])),
+            project_id=payload.get("project_id", ""),
+        )

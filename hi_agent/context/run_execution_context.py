@@ -1,9 +1,7 @@
-"""Wave 11 seed: unified identity context for a run execution.
+"""Unified identity context for a run execution.
 
 Carries the full tenant/project/run/stage spine so durable-write callers
 can derive every persistent record's identity fields from one place.
-Today only declared and unit-tested; later waves will plumb it through
-RunFeedback, SkillObservation, GateContext, RunQueue, etc.
 """
 
 from __future__ import annotations
@@ -47,12 +45,7 @@ class RunExecutionContext:
         return replace(self, capability_name=capability_name)
 
     def to_spine_kwargs(self) -> dict[str, str]:
-        """Return the four-field spine subset used by current durable writers.
-
-        Existing Wave 10/10.1/10.2 store APIs accept ``tenant_id``, ``user_id``,
-        ``session_id``, ``project_id`` as kwargs. Use this until callers are
-        migrated to accept the full RunExecutionContext.
-        """
+        """Return the four-field spine subset used by current durable writers."""
         return {
             "tenant_id": self.tenant_id,
             "user_id": self.user_id,
@@ -61,12 +54,7 @@ class RunExecutionContext:
         }
 
     def to_spine_kwargs_full(self) -> dict[str, str]:
-        """Return all 10 identity fields as strings.
-
-        Non-string fields are coerced to ``str``; unset fields remain ``""``.
-        Use when a writer needs the full identity bundle rather than the
-        four-field subset returned by ``to_spine_kwargs()``.
-        """
+        """Return all 10 identity fields as strings."""
         return {
             "tenant_id": self.tenant_id,
             "user_id": self.user_id,
@@ -82,20 +70,14 @@ class RunExecutionContext:
 
     @classmethod
     def from_managed_run(cls, run: ManagedRun) -> RunExecutionContext:
-        """Build a RunExecutionContext from a ManagedRun instance.
-
-        Uses ``getattr`` with fallbacks so this works safely across
-        ManagedRun versions during the Wave 10.3 pilot rollout.
-        """
-        # Inline import avoids a circular-import at module load time;
-        # TYPE_CHECKING guard above keeps type checkers happy.
+        """Build a RunExecutionContext from a ManagedRun instance."""
         from hi_agent.server.run_manager import ManagedRun as _ManagedRun  # noqa: F401
 
         return cls(
             tenant_id=getattr(run, "tenant_id", "") or "",
             user_id=getattr(run, "user_id", "") or "",
             session_id=getattr(run, "session_id", "") or "",
-            project_id=getattr(run, "project_id", "") or "",
+            project_id=getattr(run, "task_contract", {}).get("project_id", "") or "",
             run_id=run.run_id,
             profile_id="",
             parent_run_id="",

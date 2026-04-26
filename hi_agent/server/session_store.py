@@ -82,6 +82,7 @@ class SessionStore:
         user_id: str,
         team_id: str = "",
         name: str = "",
+        *,
         exec_ctx: RunExecutionContext | None = None,
     ) -> str:
         """Create a new session and return its ID.
@@ -91,9 +92,9 @@ class SessionStore:
             user_id: User identifier.
             team_id: Optional team identifier.
             name: Optional session name.
-            exec_ctx: Optional RunExecutionContext; when provided, spine fields
-                (tenant_id, user_id) are sourced from it, overriding the
-                positional arguments for those fields.
+            exec_ctx: Optional RunExecutionContext; when provided, tenant_id
+                and user_id are derived from exec_ctx when the caller's own
+                values are empty. exec_ctx fields take precedence for spine.
 
         Returns:
             Newly generated session ID (UUID4).

@@ -11,6 +11,10 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 
 @dataclass
@@ -141,12 +145,27 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
 
     # -- public API ----------------------------------------------------------
 
-    def upsert(self, record: RunRecord) -> None:
+    def upsert(self, record: RunRecord, *, exec_ctx: RunExecutionContext | None = None) -> None:
         """Insert or replace a run record.
 
         Args:
             record: The run record to persist.
+            exec_ctx: Optional RunExecutionContext; when provided, spine fields
+                (tenant_id, user_id, session_id, project_id, run_id) are
+                derived from exec_ctx when the record's own fields are empty.
+                Explicit record fields always take precedence over exec_ctx.
         """
+        if exec_ctx is not None:
+            if not record.tenant_id:
+                record.tenant_id = exec_ctx.tenant_id
+            if record.user_id in ("", "__legacy__"):
+                record.user_id = exec_ctx.user_id or record.user_id
+            if record.session_id in ("", "__legacy__"):
+                record.session_id = exec_ctx.session_id or record.session_id
+            if not record.project_id:
+                record.project_id = exec_ctx.project_id
+            if not record.run_id:
+                record.run_id = exec_ctx.run_id
         with self._lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO run_records "

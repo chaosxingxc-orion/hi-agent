@@ -8,6 +8,10 @@ import threading
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 _logger = logging.getLogger(__name__)
 
@@ -41,8 +45,25 @@ class FeedbackStore:
         if self._storage_path and self._storage_path.exists():
             self._load()
 
-    def submit(self, feedback: RunFeedback) -> None:
-        """Record feedback for a run. Overwrites prior feedback for the same run_id."""
+    def submit(self, feedback: RunFeedback, *, exec_ctx: RunExecutionContext | None = None) -> None:
+        """Record feedback for a run. Overwrites prior feedback for the same run_id.
+
+        Args:
+            feedback: The RunFeedback record to persist.
+            exec_ctx: Optional RunExecutionContext; when provided, spine fields
+                (tenant_id, user_id, session_id, project_id) are derived from
+                exec_ctx when the feedback's own fields are empty.
+                Explicit feedback fields always take precedence over exec_ctx.
+        """
+        if exec_ctx is not None:
+            if not feedback.tenant_id:
+                feedback.tenant_id = exec_ctx.tenant_id
+            if not feedback.user_id:
+                feedback.user_id = exec_ctx.user_id
+            if not feedback.session_id:
+                feedback.session_id = exec_ctx.session_id
+            if not feedback.project_id:
+                feedback.project_id = exec_ctx.project_id
         if not feedback.submitted_at:
             feedback.submitted_at = datetime.now(UTC).isoformat()
         with self._lock:

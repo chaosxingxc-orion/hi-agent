@@ -7,7 +7,6 @@ Uses threading for concurrent run execution (stdlib only).
 from __future__ import annotations
 
 import contextlib
-import dataclasses
 import json
 import logging
 import os
@@ -15,14 +14,14 @@ import queue
 import threading
 import time
 import uuid
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from hi_agent.context.run_execution_context import RunExecutionContext
-
+from hi_agent.config.posture import Posture
+from hi_agent.context.run_execution_context import RunExecutionContext
 from hi_agent.contracts.run import RunState
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
 from hi_agent.server.run_queue import RunQueue
@@ -66,13 +65,11 @@ class ManagedRun:
     tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
-    project_id: str = ""
     current_stage: str | None = None
     stage_updated_at: str | None = None
     idempotency_key: str | None = None
     outcome: str = "created"  # "created" | "replayed" | "conflict"
     response_snapshot: str = ""  # non-empty when replayed and original run is complete
-    exec_ctx: RunExecutionContext | None = None  # Wave 10.3 pilot — set at create_run
 
 
 class RunManager:
@@ -247,14 +244,28 @@ class RunManager:
                 the workspace.
         """
         idempotency_key: str | None = task_contract_dict.get("idempotency_key")
-        # RO-1: derive tenant_id from authenticated workspace, not request body.
-        # The body-trust bug (original line 224) allowed callers to forge
-        # tenant_id, making idempotency records cross tenant boundaries.
-        tenant_id: str = (
-            workspace.tenant_id
-            if workspace
-            else task_contract_dict.get("tenant_id", "default")
-        )
+
+        # --- body spine precedence under research/prod (W5-D) ----------------
+        # Under dev: middleware (workspace) wins for backwards compatibility.
+        # Under research/prod: explicit body spine wins; emit DeprecationWarning
+        # when body omits tenant_id and we fall back to auth middleware.
+        _posture = Posture.from_env()
+        _middleware_tenant_id: str = workspace.tenant_id if workspace else ""
+        _body_tenant_id: str = task_contract_dict.get("tenant_id", "")
+        if _posture.is_strict:
+            if _body_tenant_id:
+                tenant_id = _body_tenant_id
+            else:
+                warnings.warn(
+                    "body spine required under posture research; falling back to auth middleware. "
+                    "This fallback will be removed in Wave 11.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                tenant_id = _middleware_tenant_id or task_contract_dict.get("tenant_id", "default")
+        else:
+            # dev: middleware wins (backwards compat — RO-1 original behaviour)
+            tenant_id = _middleware_tenant_id or _body_tenant_id or "default"
 
         # --- idempotency check (only when store + key are present) ----------
         outcome: str = ""  # set to "created" | "replayed" | "conflict" when idem is active
@@ -292,9 +303,6 @@ class RunManager:
                     idempotency_key=idempotency_key,
                     response_snapshot=record.response_snapshot,
                     tenant_id=tenant_id,
-                    user_id=workspace.user_id if workspace else "",
-                    session_id=workspace.session_id if workspace else "",
-                    project_id=task_contract_dict.get("project_id", ""),
                 )
 
             # outcome == "created" — continue with candidate_run_id below.
@@ -313,15 +321,19 @@ class RunManager:
             tenant_id=workspace.tenant_id if workspace else "",
             user_id=workspace.user_id if workspace else "",
             session_id=workspace.session_id if workspace else "",
-            project_id=task_contract_dict.get("project_id", ""),
             idempotency_key=idempotency_key,
             outcome="created",
         )
-        # W3-D: build RunExecutionContext as single spine source and attach to run
-        from hi_agent.context.run_execution_context import RunExecutionContext
 
-        exec_ctx = RunExecutionContext.from_managed_run(run)
-        run = dataclasses.replace(run, exec_ctx=exec_ctx)
+        # --- build exec_ctx from resolved spine fields (W5-D) ----------------
+        _exec_ctx = RunExecutionContext(
+            tenant_id=tenant_id,
+            user_id=workspace.user_id if workspace else "",
+            session_id=workspace.session_id if workspace else "",
+            project_id=task_contract_dict.get("project_id", ""),
+            run_id=run_id,
+        )
+
         # --- duplicate task_id check and insertion under the same lock ------
         client_task_id = task_contract_dict.get("task_id", "")
         with self._lock:
@@ -340,26 +352,6 @@ class RunManager:
         if self._run_store is not None:
             import time as _time
 
-            # W2-E.3 (Spine trip-wire): under research/prod posture, refuse
-            # to persist a RunRecord with the "__legacy__" sentinel — the
-            # store is a default-on durable record and a legacy sentinel
-            # would corrupt cross-run attribution.  Mirrors the
-            # TeamRunRegistry.register pattern (Rule 12).
-            if workspace is None:
-                from hi_agent.config.posture import Posture
-
-                _posture = Posture.from_env()
-                if _posture.is_strict:
-                    raise ValueError(
-                        "RunRecord upsert requires authenticated workspace "
-                        "under research/prod posture (Rule 12 — Contract Spine)"
-                    )
-                logging.getLogger(__name__).debug(
-                    "run_manager.upsert_legacy_sentinel run_id=%s posture=%s "
-                    "user_id=__legacy__ session_id=__legacy__",
-                    run_id,
-                    _posture.value,
-                )
             now_ts = _time.time()
             self._run_store.upsert(
                 RunRecord(
@@ -377,18 +369,16 @@ class RunManager:
                     created_at=now_ts,
                     updated_at=now_ts,
                     project_id=task_contract_dict.get("project_id", ""),
-                )
+                ),
+                exec_ctx=_exec_ctx,
             )
 
         # --- enqueue to durable run_queue if available ----------------------
         if self._run_queue is not None:
-            # W3-D: spine from RunExecutionContext
-            _spine = exec_ctx.to_spine_kwargs()
             self._run_queue.enqueue(
                 run_id=run_id,
                 priority=int(task_contract_dict.get("priority", 5)),
                 payload_json=json.dumps(task_contract_dict),
-                **_spine,
             )
 
         return run
@@ -651,10 +641,6 @@ class RunManager:
                 content=f"run terminal state={run.state}",
                 metadata={"state": run.state, "error": run.error or ""},
                 created_at=datetime.now(UTC).isoformat(),
-                tenant_id=run.tenant_id,
-                user_id=run.user_id,
-                session_id=run.session_id,
-                project_id=run.project_id,
             )
             with trace_file.open("a", encoding="utf-8") as f:
                 import json as _json
@@ -669,10 +655,6 @@ class RunManager:
                             "content": entry.content,
                             "metadata": entry.metadata,
                             "created_at": entry.created_at,
-                            "tenant_id": entry.tenant_id,
-                            "user_id": entry.user_id,
-                            "session_id": entry.session_id,
-                            "project_id": entry.project_id,
                         }
                     )
                     + "\n"
@@ -895,21 +877,6 @@ class RunManager:
             "finished_at": _finished_at,
             "fallback_events": _top_fallback_events,
         }
-
-    def _inject_rehydrated_run(self, run_id: str, managed_run: ManagedRun) -> None:
-        """Thread-safe injection of a rehydrated ManagedRun on startup.
-
-        Called by _rehydrate_runs() in app.py lifespan to restore in-flight
-        runs from run_store into the in-memory registry so route handlers
-        can look them up without needing a store fallback.
-
-        Args:
-            run_id: Identifier of the run to inject.
-            managed_run: Pre-constructed ManagedRun instance from the store.
-        """
-        with self._lock:
-            if run_id not in self._runs:
-                self._runs[run_id] = managed_run
 
     def shutdown(self, timeout: float = 2.0) -> None:
         """Stop the background worker thread and prevent new queue loops.

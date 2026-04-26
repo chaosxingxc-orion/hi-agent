@@ -6,6 +6,10 @@ import sqlite3
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 
 class OpStatus(StrEnum):
@@ -28,8 +32,7 @@ class OpHandle:
     completed_at: float = 0.0
     error: str = ""
     tenant_id: str = ""
-    user_id: str = ""
-    session_id: str = ""
+    run_id: str = ""
     project_id: str = ""
 
     def __post_init__(self):
@@ -49,14 +52,11 @@ class LongRunningOpStore:
         heartbeat_at REAL DEFAULT 0,
         completed_at REAL DEFAULT 0,
         error        TEXT DEFAULT '',
-        tenant_id    TEXT DEFAULT '',
-        user_id      TEXT DEFAULT '',
-        session_id   TEXT DEFAULT '',
-        project_id   TEXT DEFAULT ''
+        tenant_id    TEXT NOT NULL DEFAULT '',
+        run_id       TEXT NOT NULL DEFAULT '',
+        project_id   TEXT NOT NULL DEFAULT ''
     )
     """
-
-    _SPINE_COLUMNS = ("tenant_id", "user_id", "session_id", "project_id")
 
     def __init__(self, db_path: Path):
         self._db = str(db_path)
@@ -70,10 +70,6 @@ class LongRunningOpStore:
     def _init_db(self) -> None:
         with self._conn() as conn:
             conn.execute(self._CREATE)
-            existing = {row[1] for row in conn.execute("PRAGMA table_info(ops)").fetchall()}
-            for col in self._SPINE_COLUMNS:
-                if col not in existing:
-                    conn.execute(f"ALTER TABLE ops ADD COLUMN {col} TEXT DEFAULT ''")
             conn.commit()
 
     def create(
@@ -83,29 +79,26 @@ class LongRunningOpStore:
         backend: str,
         external_id: str,
         submitted_at: float,
+        exec_ctx: RunExecutionContext | None = None,
         tenant_id: str = "",
-        user_id: str = "",
-        session_id: str = "",
+        run_id: str = "",
         project_id: str = "",
     ) -> OpHandle:
-        from hi_agent.config.posture_guards import require_tenant
+        """Create a new operation handle.
 
-        tenant_id = require_tenant(tenant_id or None, where="LongRunningOpStore.create")
+        When exec_ctx is provided, its spine fields (tenant_id, run_id,
+        project_id) override the corresponding kwargs.
+        """
+        if exec_ctx is not None:
+            tenant_id = exec_ctx.tenant_id or tenant_id
+            run_id = exec_ctx.run_id or run_id
+            project_id = exec_ctx.project_id or project_id
         with self._conn() as conn:
             conn.execute(
-                "INSERT INTO ops (op_id, backend, external_id, submitted_at,"
-                " tenant_id, user_id, session_id, project_id)"
-                " VALUES (?,?,?,?,?,?,?,?)",
-                (
-                    op_id,
-                    backend,
-                    external_id,
-                    submitted_at,
-                    tenant_id,
-                    user_id,
-                    session_id,
-                    project_id,
-                ),
+                "INSERT INTO ops "
+                "(op_id, backend, external_id, submitted_at, tenant_id, run_id, project_id) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (op_id, backend, external_id, submitted_at, tenant_id, run_id, project_id),
             )
             conn.commit()
         return OpHandle(
@@ -114,8 +107,7 @@ class LongRunningOpStore:
             external_id=external_id,
             submitted_at=submitted_at,
             tenant_id=tenant_id,
-            user_id=user_id,
-            session_id=session_id,
+            run_id=run_id,
             project_id=project_id,
         )
 

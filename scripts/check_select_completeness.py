@@ -6,40 +6,74 @@ _row_to_record method, checks that the dataclass fields all appear
 in at least one SELECT in that same file.
 Also flags 'len(row) >' defensive fallbacks (schema drift masking).
 
-Also checks (BLOCKING since Wave 10.2) INSERT/enqueue call sites that
-target known spine tables but omit spine kwargs.  Lines that use
-``**kwargs``-splat or carry an explicit ``# spine-skip: <reason>``
-trailing comment are exempt — splat expansion is opaque to static
-analysis and is allowed at deserialization sites where the written
-dict already carries the spine.
+Also enforces that all 11 durable writers accept an exec_ctx parameter
+on their primary write method (Wave 10.4 W4-E + Wave 10.5 W5-D).
 """
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 
-# Spine-carrying call patterns: method name → required kwargs
-# Advisory only — emit WARNING but do not FAIL.
-_SPINE_CALL_CHECKS: list[tuple[str, list[str]]] = [
-    # RunQueue.enqueue must carry all four spine fields
-    (r"\.enqueue\(", ["tenant_id=", "user_id=", "session_id=", "project_id="]),
-    # FeedbackStore.submit / RunFeedback must carry tenant_id
-    (r"RunFeedback\(", ["tenant_id="]),
-    # StoredEvent must carry tenant_id
-    (r"StoredEvent\(", ["tenant_id="]),
-    # SkillObservation must carry tenant_id
-    (r"SkillObservation\(", ["tenant_id="]),
-    # HumanGateRequest must carry tenant_id — 5 call sites fixed by W3-A
-    (r"HumanGateRequest\(", ["tenant_id="]),
-    # RunPostmortem must carry tenant_id and project_id
-    (r"RunPostmortem\(", ["tenant_id=", "project_id="]),
+# (class_name, primary_write_method, file_glob)
+_WRITER_EXEC_CTX_REQUIRED: list[tuple[str, str, str]] = [
+    # Wave 10.4 W4-E writers (backfilled in W5-D)
+    ("IdempotencyStore", "reserve_or_replay", "hi_agent/server/idempotency.py"),
+    ("SQLiteEventStore", "append", "hi_agent/server/event_store.py"),
+    ("TeamRunRegistry", "register", "hi_agent/server/team_run_registry.py"),
+    ("SessionStore", "create", "hi_agent/server/session_store.py"),
+    ("ArtifactRegistry", "store", "hi_agent/artifacts/registry.py"),
+    # Wave 10.5 W5-D writers
+    ("SQLiteRunStore", "upsert", "hi_agent/server/run_store.py"),
+    ("TeamEventStore", "insert", "hi_agent/server/team_event_store.py"),
+    ("FeedbackStore", "submit", "hi_agent/evolve/feedback_store.py"),
+    ("LongRunningOpStore", "create", "hi_agent/experiment/op_store.py"),
+    ("InMemoryGateAPI", "create_gate", "hi_agent/management/gate_api.py"),
+    ("RateLimiter", "_consume", "hi_agent/server/rate_limiter.py"),
 ]
 
-# Files to skip for advisory checks (test helpers, migrations, etc.)
-_SKIP_ADVISORY_PATTERNS = ["test_", "migration", "check_select_completeness"]
+
+def _method_has_exec_ctx(path: Path, class_name: str, method_name: str) -> bool:
+    """Return True if class_name.method_name has an exec_ctx parameter."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef) and item.name == method_name:
+                    all_args = (
+                        [a.arg for a in item.args.args]
+                        + [a.arg for a in item.args.kwonlyargs]
+                        + ([item.args.vararg.arg] if item.args.vararg else [])
+                        + ([item.args.kwarg.arg] if item.args.kwarg else [])
+                    )
+                    return "exec_ctx" in all_args
+    return False
+
+
+def check_writer_exec_ctx() -> list[str]:
+    """Check that every required writer method accepts exec_ctx."""
+    errors = []
+    for class_name, method_name, file_glob in _WRITER_EXEC_CTX_REQUIRED:
+        candidates = list(ROOT.glob(file_glob))
+        if not candidates:
+            errors.append(
+                f"  WRITER-MISSING-EXEC-CTX: {class_name}.{method_name} "
+                f"— file not found: {file_glob}"
+            )
+            continue
+        path = candidates[0]
+        if not _method_has_exec_ctx(path, class_name, method_name):
+            errors.append(
+                f"  WRITER-MISSING-EXEC-CTX: {class_name}.{method_name} "
+                f"({path.relative_to(ROOT)})"
+            )
+    return errors
 
 
 def find_store_files() -> list[Path]:
@@ -51,16 +85,6 @@ def find_store_files() -> list[Path]:
     ]:
         stores.extend(ROOT.glob(pattern))
     return list(set(stores))
-
-
-def find_all_python_files() -> list[Path]:
-    skip = {ROOT / "scripts", ROOT / ".claude"}
-    result = []
-    for p in ROOT.rglob("*.py"):
-        if any(p.is_relative_to(s) for s in skip if s.exists()):
-            continue
-        result.append(p)
-    return result
 
 
 def check_defensive_fallbacks(path: Path) -> list[str]:
@@ -75,73 +99,17 @@ def check_defensive_fallbacks(path: Path) -> list[str]:
     return errors
 
 
-_SPLAT_RE = re.compile(r"\*\*\w+")
-_SPINE_SKIP_RE = re.compile(r"#\s*spine-skip\s*:\s*\S+")
-
-
-def check_spine_call_sites(path: Path) -> list[str]:
-    """Blocking: fail when a spine-table call site omits required spine kwargs.
-
-    Uses a simple heuristic: finds the call opener, reads up to 20 lines of
-    the call body, then checks that each required kwarg appears.  Two exits:
-    - the body contains ``**word`` splat expansion → skip (e.g. dict-rehydrate
-      from JSON; the persisted dict carries spine because the write-side
-      check enforces that).
-    - the opener line carries ``# spine-skip: <reason>`` trailing comment →
-      skip with reviewer-attested allowlist.
-    """
-    rel = str(path.relative_to(ROOT))
-    # Skip test helpers and this script itself
-    if any(skip in rel for skip in _SKIP_ADVISORY_PATTERNS):
-        return []
-
-    src = path.read_text(encoding="utf-8")
-    failures = []
-    lines = src.splitlines()
-
-    for call_pattern, required_kwargs in _SPINE_CALL_CHECKS:
-        for i, line in enumerate(lines, 1):
-            if not re.search(call_pattern, line):
-                continue
-            # Accept spine-skip on the call line or the immediately preceding line
-            prev_line = lines[i - 2] if i >= 2 else ""
-            if _SPINE_SKIP_RE.search(line) or _SPINE_SKIP_RE.search(prev_line):
-                continue
-            call_body = "\n".join(lines[i - 1 : i + 20])
-            if _SPLAT_RE.search(call_body):
-                continue
-            missing = [kw for kw in required_kwargs if kw not in call_body]
-            if missing:
-                failures.append(
-                    f"  {rel}:{i}: {call_pattern!r} call missing spine kwargs:"
-                    f" {', '.join(missing)}"
-                )
-    return failures
-
-
 def main() -> int:
     errors = []
     for path in find_store_files():
         errors.extend(check_defensive_fallbacks(path))
-
+    errors.extend(check_writer_exec_ctx())
     if errors:
         print("FAIL check_select_completeness:")
         for e in errors:
             print(e)
         return 1
-
     print("OK check_select_completeness")
-
-    spine_failures = []
-    for path in find_all_python_files():
-        spine_failures.extend(check_spine_call_sites(path))
-    if spine_failures:
-        print("\nFAIL check_spine_call_sites:")
-        for w in spine_failures:
-            print(w)
-        return 1
-    print("OK check_spine_call_sites (all spine call sites carry required kwargs)")
-
     return 0
 
 

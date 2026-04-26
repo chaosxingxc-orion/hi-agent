@@ -96,28 +96,24 @@ class SQLiteEventStore:
     # Write
     # ------------------------------------------------------------------
 
-    def append(
-        self,
-        event: StoredEvent,
-        exec_ctx: RunExecutionContext | None = None,
-    ) -> None:
+    def append(self, event: StoredEvent, *, exec_ctx: RunExecutionContext | None = None) -> None:
         """Persist *event*.  Idempotent: duplicate ``event_id`` is silently ignored.
 
         Args:
             event: The StoredEvent to persist.
             exec_ctx: Optional RunExecutionContext; when provided, spine fields
-                (tenant_id, user_id, session_id, run_id) are sourced from it,
-                overriding the values already set on *event*.
+                (tenant_id, user_id, session_id, run_id) are derived from
+                exec_ctx when the event's own fields are empty or legacy values.
         """
         if exec_ctx is not None:
-            from dataclasses import replace as _replace
-            event = _replace(
-                event,
-                tenant_id=exec_ctx.tenant_id or event.tenant_id,
-                user_id=exec_ctx.user_id or event.user_id,
-                session_id=exec_ctx.session_id or event.session_id,
-                run_id=exec_ctx.run_id or event.run_id,
-            )
+            if not event.tenant_id:
+                event.tenant_id = exec_ctx.tenant_id
+            if event.user_id in ("", "__legacy__"):
+                event.user_id = exec_ctx.user_id or event.user_id
+            if event.session_id in ("", "__legacy__"):
+                event.session_id = exec_ctx.session_id or event.session_id
+            if not event.run_id:
+                event.run_id = exec_ctx.run_id
         with self._lock:
             self._conn.execute(
                 """

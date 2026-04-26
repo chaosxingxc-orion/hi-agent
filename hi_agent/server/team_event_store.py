@@ -1,6 +1,10 @@
 import sqlite3
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 
 @dataclass
@@ -16,6 +20,7 @@ class TeamEvent:
     publish_reason: str
     schema_version: int
     created_at: float
+    project_id: str = field(default="")
 
 
 _SCHEMA = """
@@ -31,7 +36,8 @@ CREATE TABLE IF NOT EXISTS team_events (
     source_session_id TEXT  NOT NULL DEFAULT '',
     publish_reason  TEXT    NOT NULL DEFAULT '',
     schema_version  INTEGER NOT NULL DEFAULT 1,
-    created_at      REAL    NOT NULL DEFAULT 0.0
+    created_at      REAL    NOT NULL DEFAULT 0.0,
+    project_id      TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_team_events_space
   ON team_events (tenant_id, team_space_id, id);
@@ -42,7 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_team_events_type
 _SELECT_COLS = (
     "event_id, tenant_id, team_space_id, event_type, payload_json, "
     "source_run_id, source_user_id, source_session_id, "
-    "publish_reason, schema_version, created_at"
+    "publish_reason, schema_version, created_at, project_id"
 )
 
 
@@ -63,14 +69,19 @@ class TeamEventStore:
             raise RuntimeError("TeamEventStore not initialized")
         return self._conn
 
-    def insert(self, event: TeamEvent) -> None:
+    def insert(self, event: TeamEvent, *, exec_ctx: RunExecutionContext | None = None) -> None:
+        if exec_ctx is not None:
+            if not event.tenant_id:
+                event.tenant_id = exec_ctx.tenant_id
+            if not event.project_id:
+                event.project_id = exec_ctx.project_id
         with self._lock:
             self._cx().execute(
                 "INSERT OR IGNORE INTO team_events "
                 "(event_id, tenant_id, team_space_id, event_type, payload_json, "
                 "source_run_id, source_user_id, source_session_id, "
-                "publish_reason, schema_version, created_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                "publish_reason, schema_version, created_at, project_id) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     event.event_id,
                     event.tenant_id,
@@ -83,6 +94,7 @@ class TeamEventStore:
                     event.publish_reason,
                     event.schema_version,
                     event.created_at,
+                    event.project_id,
                 ),
             )
             self._cx().commit()
