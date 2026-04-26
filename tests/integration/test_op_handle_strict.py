@@ -10,7 +10,7 @@ class TestLongRunningOpStoreCreatePosture:
     """LongRunningOpStore.create raises under strict posture when tenant_id is empty."""
 
     def _make_store(self, tmp_path: Path):
-        from hi_agent.experiment.op_store import LongRunningOpStore
+        from hi_agent.operations.op_store import LongRunningOpStore
 
         return LongRunningOpStore(tmp_path / "ops.db")
 
@@ -56,8 +56,8 @@ class TestLongRunningOpCoordinatorSubmitPosture:
     """LongRunningOpCoordinator.submit raises under strict posture when tenant_id is empty."""
 
     def _make_coordinator(self, tmp_path: Path):
-        from hi_agent.experiment.coordinator import LongRunningOpCoordinator
-        from hi_agent.experiment.op_store import LongRunningOpStore
+        from hi_agent.operations.coordinator import LongRunningOpCoordinator
+        from hi_agent.operations.op_store import LongRunningOpStore
 
         store = LongRunningOpStore(tmp_path / "ops.db")
         coord = LongRunningOpCoordinator(store)

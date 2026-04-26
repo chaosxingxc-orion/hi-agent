@@ -245,8 +245,8 @@ class TestCrossTenantReplay:
 
 def _build_op_coordinator(tmp_path):
     """Build a real LongRunningOpCoordinator backed by a temporary SQLite store."""
-    from hi_agent.experiment.coordinator import LongRunningOpCoordinator
-    from hi_agent.experiment.op_store import LongRunningOpStore
+    from hi_agent.operations.coordinator import LongRunningOpCoordinator
+    from hi_agent.operations.op_store import LongRunningOpStore
 
     store = LongRunningOpStore(tmp_path / "ops.db")
     coord = LongRunningOpCoordinator(store=store)

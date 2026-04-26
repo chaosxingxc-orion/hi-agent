@@ -39,7 +39,7 @@ def _make_ctx(**overrides):
 
 def test_op_store_explicit_tenant_id_wins(tmp_path):
     """op_store.create(): explicit tenant_id kwarg wins over exec_ctx.tenant_id."""
-    from hi_agent.experiment.op_store import LongRunningOpStore
+    from hi_agent.operations.op_store import LongRunningOpStore
 
     store = LongRunningOpStore(db_path=tmp_path / "test.db")
     ctx = _make_ctx(tenant_id="ctx-tenant")
@@ -59,7 +59,7 @@ def test_op_store_explicit_tenant_id_wins(tmp_path):
 
 def test_op_store_explicit_run_id_wins(tmp_path):
     """op_store.create(): explicit run_id kwarg wins over exec_ctx.run_id."""
-    from hi_agent.experiment.op_store import LongRunningOpStore
+    from hi_agent.operations.op_store import LongRunningOpStore
 
     store = LongRunningOpStore(db_path=tmp_path / "test.db")
     ctx = _make_ctx(run_id="ctx-run")
@@ -79,7 +79,7 @@ def test_op_store_explicit_run_id_wins(tmp_path):
 
 def test_op_store_explicit_project_id_wins(tmp_path):
     """op_store.create(): explicit project_id kwarg wins over exec_ctx.project_id."""
-    from hi_agent.experiment.op_store import LongRunningOpStore
+    from hi_agent.operations.op_store import LongRunningOpStore
 
     store = LongRunningOpStore(db_path=tmp_path / "test.db")
     ctx = _make_ctx(project_id="ctx-project")
@@ -99,7 +99,7 @@ def test_op_store_explicit_project_id_wins(tmp_path):
 
 def test_op_store_exec_ctx_fills_empty_fields(tmp_path):
     """op_store.create(): exec_ctx fills fields the caller did not specify."""
-    from hi_agent.experiment.op_store import LongRunningOpStore
+    from hi_agent.operations.op_store import LongRunningOpStore
 
     store = LongRunningOpStore(db_path=tmp_path / "test.db")
     ctx = _make_ctx(tenant_id="ctx-tenant", run_id="ctx-run", project_id="ctx-proj")
@@ -119,7 +119,7 @@ def test_op_store_exec_ctx_fills_empty_fields(tmp_path):
 
 def test_op_store_persisted_record_reflects_kwargs_win(tmp_path):
     """The row written to SQLite uses kwargs-wins values, not exec_ctx values."""
-    from hi_agent.experiment.op_store import LongRunningOpStore
+    from hi_agent.operations.op_store import LongRunningOpStore
 
     store = LongRunningOpStore(db_path=tmp_path / "test.db")
     ctx = _make_ctx(tenant_id="ctx-tenant", run_id="ctx-run", project_id="ctx-proj")

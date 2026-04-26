@@ -421,7 +421,7 @@ from hi_agent.server.routes_memory import (
 
 async def handle_skills_list(request: Request) -> JSONResponse:
     """List all discovered skills with eligibility status."""
-    # TODO W5-G: per-tenant skill overlay needed — currently returns global registry to all tenants.
+    # TODO: per-tenant skill overlay needed — currently returns global registry to all tenants.
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_sl
 
     try:
@@ -461,7 +461,7 @@ async def handle_skills_list(request: Request) -> JSONResponse:
 
 async def handle_skills_status(request: Request) -> JSONResponse:
     """Overall skill system status (counts, top performers)."""
-    # TODO W5-G: per-tenant skill overlay needed — currently returns global stats to all tenants.
+    # TODO: per-tenant skill overlay needed — currently returns global stats to all tenants.
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_ss
 
     try:
@@ -982,7 +982,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
 
 async def handle_plugins_list(request: Request) -> JSONResponse:
     """Return list of loaded plugins."""
-    # TODO W5-G: per-tenant plugin overlay needed — global plugin list returned to all callers.
+    # TODO: per-tenant plugin overlay needed — global plugin list returned to all callers.
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
@@ -998,7 +998,7 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
 
 async def handle_plugins_status(request: Request) -> JSONResponse:
     """Return plugin system status summary."""
-    # TODO W5-G: per-tenant plugin overlay needed — global plugin status returned to all callers.
+    # TODO: per-tenant plugin overlay needed — global plugin status returned to all callers.
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
@@ -1019,7 +1019,7 @@ async def handle_plugins_status(request: Request) -> JSONResponse:
 
 
 # ------------------------------------------------------------------
-# W5-C: Recovery — rehydrate lease-expired runs on startup
+# Recovery — rehydrate lease-expired runs on startup
 # ------------------------------------------------------------------
 
 
@@ -1264,9 +1264,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # G-8: Long-running op coordinator + background poller
         from pathlib import Path as _Path
 
-        from hi_agent.experiment.coordinator import LongRunningOpCoordinator as _OpCoord
-        from hi_agent.experiment.op_store import LongRunningOpStore as _OpStore
-        from hi_agent.experiment.poller import OpPoller as _OpPoller
+        from hi_agent.operations.coordinator import LongRunningOpCoordinator as _OpCoord
+        from hi_agent.operations.op_store import LongRunningOpStore as _OpStore
+        from hi_agent.operations.poller import OpPoller as _OpPoller
 
         _db_dir = getattr(agent_server._config, "server_db_dir", None)
         _op_db = _Path(_db_dir) / "ops.db" if _db_dir else _Path(".hi_agent") / "ops.db"
@@ -1278,7 +1278,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         _poller_task = asyncio.create_task(_op_poller.run())
         logger.info("G-8: OpPoller started (db=%s)", _op_db)
 
-        # W5-C: Recovery — re-enqueue lease-expired runs (posture-driven).
+        # Recovery — re-enqueue lease-expired runs (posture-driven).
         try:
             _rehydrate_runs(agent_server)
         except Exception as _rh_exc:

@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS team_runs (
     finished_at REAL    NOT NULL DEFAULT 0,
     tenant_id   TEXT    NOT NULL DEFAULT '',
     user_id     TEXT    NOT NULL DEFAULT '',
-    session_id  TEXT    NOT NULL DEFAULT ''
+    session_id  TEXT    NOT NULL DEFAULT '',
+    lead_run_id TEXT    NOT NULL DEFAULT ''
 )
 """
 
@@ -73,6 +74,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
         "ALTER TABLE team_runs ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE team_runs ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE team_runs ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE team_runs ADD COLUMN lead_run_id TEXT NOT NULL DEFAULT ''",
     ]
 
     def __init__(self, db_path: str | None = None) -> None:
@@ -112,6 +114,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
 
     def _to_row(self, team_run: TeamRun) -> tuple:
         member_json = json.dumps(list(team_run.member_runs))
+        lead = team_run.lead_run_id if team_run.lead_run_id else team_run.pi_run_id
         return (
             team_run.team_id,
             team_run.pi_run_id,
@@ -123,6 +126,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
             getattr(team_run, "tenant_id", ""),
             getattr(team_run, "user_id", ""),
             getattr(team_run, "session_id", ""),
+            lead,
         )
 
     def _from_row(self, row: tuple) -> TeamRun:
@@ -132,8 +136,11 @@ CREATE TABLE IF NOT EXISTS team_runs (
         tenant_id = row[7]
         user_id = row[8]
         session_id = row[9]
+        lead_run_id = row[10] if len(row) > 10 else ""
         raw_members = json.loads(member_json) if member_json else []
         member_runs = tuple(tuple(pair) for pair in raw_members)
+        # Prefer lead_run_id from DB; fall back to pi_run_id for legacy rows.
+        effective_lead = lead_run_id if lead_run_id else pi_run_id
         return TeamRun(
             team_id=team_id,
             pi_run_id=pi_run_id,
@@ -143,6 +150,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
             tenant_id=tenant_id,
             user_id=user_id,
             session_id=session_id,
+            lead_run_id=effective_lead,
         )
 
     # -- public API ----------------------------------------------------------
@@ -176,8 +184,8 @@ CREATE TABLE IF NOT EXISTS team_runs (
             self._conn.execute(
                 "INSERT OR REPLACE INTO team_runs "
                 "(team_id, pi_run_id, project_id, member_runs, created_at, status, finished_at, "
-                "tenant_id, user_id, session_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "tenant_id, user_id, session_id, lead_run_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 row,
             )
             self._conn.commit()
@@ -191,7 +199,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
         with self._lock:
             cur = self._conn.execute(
                 "SELECT team_id, pi_run_id, project_id, member_runs, "
-                "created_at, status, finished_at, tenant_id, user_id, session_id "
+                "created_at, status, finished_at, tenant_id, user_id, session_id, lead_run_id "
                 "FROM team_runs WHERE team_id = ?",
                 (team_id,),
             )

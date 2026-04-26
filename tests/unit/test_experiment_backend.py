@@ -10,7 +10,7 @@ import pytest
 class TestExperimentBackendProtocol:
     def test_local_backend_implements_protocol(self):
         """LocalBackend must satisfy ExperimentBackend protocol."""
-        from hi_agent.experiment.backend.local import LocalBackend
+        from hi_agent.operations.backend.local import LocalBackend
 
         # Runtime check that LocalBackend has all required methods
         required = ["submit", "status", "fetch_artifacts", "cancel"]
@@ -20,7 +20,7 @@ class TestExperimentBackendProtocol:
 
     def test_ssh_backend_implements_protocol(self):
         """SSHBackend must satisfy ExperimentBackend protocol."""
-        from hi_agent.experiment.backend.ssh import SSHBackend
+        from hi_agent.operations.backend.ssh import SSHBackend
 
         required = ["submit", "status", "fetch_artifacts", "cancel"]
         backend = SSHBackend(host="localhost", user="test", work_dir="/tmp")
@@ -31,7 +31,7 @@ class TestExperimentBackendProtocol:
 class TestLocalBackend:
     @pytest.fixture
     def backend(self, tmp_path):
-        from hi_agent.experiment.backend.local import LocalBackend
+        from hi_agent.operations.backend.local import LocalBackend
 
         return LocalBackend(work_dir=tmp_path)
 
@@ -109,7 +109,7 @@ class TestLocalBackend:
 class TestSSHBackendStub:
     def test_ssh_backend_submit_raises_not_configured(self):
         """SSHBackend stub must raise when called without real SSH setup."""
-        from hi_agent.experiment.backend.ssh import SSHBackend
+        from hi_agent.operations.backend.ssh import SSHBackend
 
         backend = SSHBackend(host="localhost", user="test", work_dir="/tmp")
         with pytest.raises((NotImplementedError, RuntimeError, Exception)):
@@ -119,9 +119,9 @@ class TestSSHBackendStub:
 class TestBackendIntegrationWithCoordinator:
     @pytest.fixture
     def coord_with_local(self, tmp_path):
-        from hi_agent.experiment.backend.local import LocalBackend
-        from hi_agent.experiment.coordinator import LongRunningOpCoordinator
-        from hi_agent.experiment.op_store import LongRunningOpStore
+        from hi_agent.operations.backend.local import LocalBackend
+        from hi_agent.operations.coordinator import LongRunningOpCoordinator
+        from hi_agent.operations.op_store import LongRunningOpStore
 
         store = LongRunningOpStore(db_path=tmp_path / "ops.db")
         coord = LongRunningOpCoordinator(store=store)
@@ -129,7 +129,7 @@ class TestBackendIntegrationWithCoordinator:
         return coord
 
     def test_submit_via_coordinator_returns_handle(self, coord_with_local):
-        from hi_agent.experiment.op_store import OpStatus
+        from hi_agent.operations.op_store import OpStatus
 
         h = coord_with_local.submit(
             op_spec={"command": [sys.executable, "-c", "print('hello')"]},
@@ -144,8 +144,8 @@ class TestBackendIntegrationWithCoordinator:
         """End-to-end: submit echo, poll, assert succeeded."""
         import asyncio
 
-        from hi_agent.experiment.op_store import OpStatus
-        from hi_agent.experiment.poller import OpPoller
+        from hi_agent.operations.op_store import OpStatus
+        from hi_agent.operations.poller import OpPoller
 
         # Submit
         h = coord_with_local.submit(

@@ -2,7 +2,7 @@
 import time
 
 from hi_agent.context.run_execution_context import RunExecutionContext
-from hi_agent.experiment.op_store import LongRunningOpStore
+from hi_agent.operations.op_store import LongRunningOpStore
 
 
 def _make_store(tmp_path):

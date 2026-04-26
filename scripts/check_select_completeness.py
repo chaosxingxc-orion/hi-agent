@@ -7,7 +7,7 @@ in at least one SELECT in that same file.
 Also flags 'len(row) >' defensive fallbacks (schema drift masking).
 
 Also enforces that all 11 durable writers accept an exec_ctx parameter
-on their primary write method (Wave 10.4 W4-E + Wave 10.5 W5-D).
+on their primary write method.
 """
 from __future__ import annotations
 
@@ -20,17 +20,17 @@ ROOT = Path(__file__).parent.parent
 
 # (class_name, primary_write_method, file_glob)
 _WRITER_EXEC_CTX_REQUIRED: list[tuple[str, str, str]] = [
-    # Wave 10.4 W4-E writers (backfilled in W5-D)
+    # Run state writers
     ("IdempotencyStore", "reserve_or_replay", "hi_agent/server/idempotency.py"),
     ("SQLiteEventStore", "append", "hi_agent/server/event_store.py"),
     ("TeamRunRegistry", "register", "hi_agent/server/team_run_registry.py"),
     ("SessionStore", "create", "hi_agent/server/session_store.py"),
     ("ArtifactRegistry", "store", "hi_agent/artifacts/registry.py"),
-    # Wave 10.5 W5-D writers
+    # Operations and team writers
     ("SQLiteRunStore", "upsert", "hi_agent/server/run_store.py"),
     ("TeamEventStore", "insert", "hi_agent/server/team_event_store.py"),
     ("FeedbackStore", "submit", "hi_agent/evolve/feedback_store.py"),
-    ("LongRunningOpStore", "create", "hi_agent/experiment/op_store.py"),
+    ("LongRunningOpStore", "create", "hi_agent/operations/op_store.py"),
     ("InMemoryGateAPI", "create_gate", "hi_agent/management/gate_api.py"),
     ("RateLimiter", "_consume", "hi_agent/server/rate_limiter.py"),
 ]
@@ -102,7 +102,8 @@ def check_defensive_fallbacks(path: Path) -> list[str]:
 _SPINE_CLASSES = {
     "RunFeedback": ["tenant_id"],
     "HumanGateRequest": ["tenant_id"],
-    "RunPostmortem": ["tenant_id"],
+    "RunRetrospective": ["tenant_id"],
+    "ProjectRetrospective": ["tenant_id"],
 }
 
 

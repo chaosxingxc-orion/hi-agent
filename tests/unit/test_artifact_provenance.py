@@ -10,7 +10,7 @@ import pytest
 class TestArtifactHashing:
     def test_hash_artifact_sha256(self, tmp_path):
         """_hash_artifact must return correct SHA-256 hex digest."""
-        from hi_agent.experiment.provenance import hash_artifact
+        from hi_agent.operations.provenance import hash_artifact
 
         f = tmp_path / "results.json"
         content = b'{"accuracy": 0.92, "loss": 0.08}'
@@ -20,7 +20,7 @@ class TestArtifactHashing:
 
     def test_hash_artifact_deterministic(self, tmp_path):
         """Same content always produces same hash."""
-        from hi_agent.experiment.provenance import hash_artifact
+        from hi_agent.operations.provenance import hash_artifact
 
         f = tmp_path / "data.bin"
         f.write_bytes(b"hello world" * 1000)
@@ -30,7 +30,7 @@ class TestArtifactHashing:
 
     def test_hash_artifact_different_content_different_hash(self, tmp_path):
         """Different content produces different hash."""
-        from hi_agent.experiment.provenance import hash_artifact
+        from hi_agent.operations.provenance import hash_artifact
 
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
@@ -40,7 +40,7 @@ class TestArtifactHashing:
 
     def test_hash_artifact_large_file(self, tmp_path):
         """Must handle files larger than a single read chunk."""
-        from hi_agent.experiment.provenance import hash_artifact
+        from hi_agent.operations.provenance import hash_artifact
 
         f = tmp_path / "large.bin"
         data = b"x" * (200 * 1024)  # 200 KB > 65536 chunk size
@@ -52,7 +52,7 @@ class TestArtifactHashing:
 class TestArtifactRecord:
     def test_artifact_record_from_path(self, tmp_path):
         """ArtifactRecord.from_path computes all fields."""
-        from hi_agent.experiment.provenance import ArtifactRecord
+        from hi_agent.operations.provenance import ArtifactRecord
 
         f = tmp_path / "metrics.json"
         f.write_text('{"loss": 0.1}', encoding="utf-8")
@@ -66,7 +66,7 @@ class TestArtifactRecord:
         """ArtifactRecord must be JSON-serializable."""
         import dataclasses
 
-        from hi_agent.experiment.provenance import ArtifactRecord
+        from hi_agent.operations.provenance import ArtifactRecord
 
         f = tmp_path / "out.txt"
         f.write_text("done")
@@ -79,9 +79,9 @@ class TestPollerArtifactIndexing:
     @pytest.mark.asyncio
     async def test_poller_emits_artifact_indexed_event(self, tmp_path):
         """On op success, poller emits experiment.artifact_indexed per artifact."""
-        from hi_agent.experiment.coordinator import LongRunningOpCoordinator
-        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
-        from hi_agent.experiment.poller import OpPoller
+        from hi_agent.operations.coordinator import LongRunningOpCoordinator
+        from hi_agent.operations.op_store import LongRunningOpStore, OpStatus
+        from hi_agent.operations.poller import OpPoller
 
         # Create artifact files that the backend will "return"
         artifact = tmp_path / "results.json"
@@ -118,9 +118,9 @@ class TestPollerArtifactIndexing:
     @pytest.mark.asyncio
     async def test_poller_skips_hashing_nonexistent_path(self, tmp_path):
         """Poller must not crash if an artifact path does not exist."""
-        from hi_agent.experiment.coordinator import LongRunningOpCoordinator
-        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
-        from hi_agent.experiment.poller import OpPoller
+        from hi_agent.operations.coordinator import LongRunningOpCoordinator
+        from hi_agent.operations.op_store import LongRunningOpStore, OpStatus
+        from hi_agent.operations.poller import OpPoller
 
         backend = MagicMock()
         backend.submit.return_value = "ext-prov-02"

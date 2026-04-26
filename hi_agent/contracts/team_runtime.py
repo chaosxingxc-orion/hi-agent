@@ -1,10 +1,12 @@
-"""Team-level runtime contracts for multi-agent research teams.
+"""Team-level runtime contracts for multi-agent coordination.
 
 These dataclasses define the platform-level identity and state for a
-coordinated team of agents operating on a shared research project.
+coordinated team of agents operating on a shared project.
 """
 from __future__ import annotations
 
+import dataclasses
+import warnings
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
@@ -15,7 +17,8 @@ class AgentRole:
     """Declares the identity, capabilities, and memory scope of one agent in a team."""
 
     role_id: str
-    role_name: str  # "pi" | "survey" | "analysis" | "writer_author" | ...
+    role_name: str  # "lead" | "worker" | "reviewer" | "summarizer" | ...
+    # Examples are illustrative; role_name is an opaque string the platform does not interpret.
     model_tier: str = "tier_b"
     capabilities: tuple[str, ...] = ()
     memory_scope: Literal["private", "shared", "both"] = "private"
@@ -29,10 +32,33 @@ class TeamSharedContext:
     team_id: str
     project_id: str
     artifact_handoff_ids: tuple[str, ...] = ()
+    # Canonical generic fields (Wave 11+)
+    working_set: tuple[str, ...] = ()
+    assertions: tuple[str, ...] = ()
+    # Deprecated aliases — use working_set / assertions instead.
+    # Will be removed in Wave 12.
     hypotheses: tuple[str, ...] = ()
     claims: tuple[str, ...] = ()
     phase_history: tuple[str, ...] = ()
     updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def __post_init__(self) -> None:
+        if self.hypotheses and not self.working_set:
+            warnings.warn(
+                "TeamSharedContext.hypotheses is deprecated; use working_set instead. "
+                "hypotheses will be removed in Wave 12.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            object.__setattr__(self, "working_set", self.hypotheses)
+        if self.claims and not self.assertions:
+            warnings.warn(
+                "TeamSharedContext.claims is deprecated; use assertions instead. "
+                "claims will be removed in Wave 12.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            object.__setattr__(self, "assertions", self.claims)
 
 
 @dataclass(frozen=True)
@@ -40,7 +66,6 @@ class TeamRun:
     """Records the structure and membership of a team run."""
 
     team_id: str
-    pi_run_id: str
     project_id: str
     # (agent_role_id, run_id) pairs for each team member
     member_runs: tuple[tuple[str, str], ...] = ()
@@ -50,6 +75,26 @@ class TeamRun:
     tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
+    # Deprecated: use lead_run_id instead. Will be removed in Wave 12.
+    pi_run_id: str = ""
+    # Canonical field (Wave 11+). Prefer lead_run_id for all new callers.
+    lead_run_id: str = dataclasses.field(default="")
+
+    def __post_init__(self) -> None:
+        if self.pi_run_id and not self.lead_run_id:
+            warnings.warn(
+                "TeamRun.pi_run_id is deprecated; use lead_run_id instead. "
+                "pi_run_id will be removed in Wave 12.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            # Frozen dataclass: use object.__setattr__ to bypass freeze.
+            object.__setattr__(self, "lead_run_id", self.pi_run_id)
+        elif self.pi_run_id and self.lead_run_id and self.pi_run_id != self.lead_run_id:
+            raise ValueError(
+                f"TeamRun: pi_run_id={self.pi_run_id!r} and lead_run_id={self.lead_run_id!r} "
+                "are both set but differ; pass only lead_run_id."
+            )
 
 
 @dataclass(frozen=True)

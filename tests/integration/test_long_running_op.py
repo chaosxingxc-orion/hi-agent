@@ -16,12 +16,12 @@ import pytest
 class TestLongRunningOpStore:
     @pytest.fixture
     def store(self, tmp_path):
-        from hi_agent.experiment.op_store import LongRunningOpStore
+        from hi_agent.operations.op_store import LongRunningOpStore
 
         return LongRunningOpStore(db_path=tmp_path / "ops.db")
 
     def test_create_and_retrieve(self, store):
-        from hi_agent.experiment.op_store import OpStatus
+        from hi_agent.operations.op_store import OpStatus
 
         h = store.create(
             op_id="op-001", backend="local", external_id="pid-1", submitted_at=time.time()
@@ -32,7 +32,7 @@ class TestLongRunningOpStore:
         assert retrieved.status == OpStatus.PENDING
 
     def test_update_status_to_running(self, store):
-        from hi_agent.experiment.op_store import OpStatus
+        from hi_agent.operations.op_store import OpStatus
 
         store.create(op_id="op-002", backend="local", external_id="pid-2", submitted_at=time.time())
         store.update_status("op-002", OpStatus.RUNNING, heartbeat_at=time.time())
@@ -40,7 +40,7 @@ class TestLongRunningOpStore:
         assert h.status == OpStatus.RUNNING
 
     def test_update_status_to_succeeded_with_artifacts(self, store):
-        from hi_agent.experiment.op_store import OpStatus
+        from hi_agent.operations.op_store import OpStatus
 
         store.create(op_id="op-003", backend="ssh", external_id="job-3", submitted_at=time.time())
         store.update_status(
@@ -55,7 +55,7 @@ class TestLongRunningOpStore:
 
     def test_handle_survives_store_recreation(self, tmp_path):
         """Simulate server restart 鈥?new store instance reads existing DB."""
-        from hi_agent.experiment.op_store import LongRunningOpStore
+        from hi_agent.operations.op_store import LongRunningOpStore
 
         db = tmp_path / "ops.db"
         s1 = LongRunningOpStore(db_path=db)
@@ -69,7 +69,7 @@ class TestLongRunningOpStore:
         assert h.backend == "local"
 
     def test_list_active_excludes_completed(self, store):
-        from hi_agent.experiment.op_store import OpStatus
+        from hi_agent.operations.op_store import OpStatus
 
         store.create(op_id="a1", backend="local", external_id="e1", submitted_at=time.time())
         store.create(op_id="a2", backend="local", external_id="e2", submitted_at=time.time())
@@ -99,14 +99,14 @@ class TestLongRunningOpCoordinator:
 
     @pytest.fixture
     def coord(self, tmp_path):
-        from hi_agent.experiment.coordinator import LongRunningOpCoordinator
-        from hi_agent.experiment.op_store import LongRunningOpStore
+        from hi_agent.operations.coordinator import LongRunningOpCoordinator
+        from hi_agent.operations.op_store import LongRunningOpStore
 
         store = LongRunningOpStore(db_path=tmp_path / "ops.db")
         return LongRunningOpCoordinator(store=store)
 
     def test_submit_returns_handle_immediately(self, coord):
-        from hi_agent.experiment.op_store import OpStatus
+        from hi_agent.operations.op_store import OpStatus
 
         # Boundary mock: backend is an external job-scheduling adapter (slurm/ssh/local),
         # not part of the coordinator/store subsystem under test.
@@ -130,7 +130,7 @@ class TestLongRunningOpCoordinator:
         assert retrieved.op_id == h.op_id
 
     def test_cancel_marks_cancelled(self, coord):
-        from hi_agent.experiment.op_store import OpStatus
+        from hi_agent.operations.op_store import OpStatus
 
         # Boundary mock: external job-scheduling backend, not the SUT.
         backend = MagicMock()
@@ -161,9 +161,9 @@ class TestOpPoller:
 
     @pytest.fixture
     def setup(self, tmp_path):
-        from hi_agent.experiment.coordinator import LongRunningOpCoordinator
-        from hi_agent.experiment.op_store import LongRunningOpStore, OpStatus
-        from hi_agent.experiment.poller import OpPoller
+        from hi_agent.operations.coordinator import LongRunningOpCoordinator
+        from hi_agent.operations.op_store import LongRunningOpStore, OpStatus
+        from hi_agent.operations.poller import OpPoller
 
         store = LongRunningOpStore(db_path=tmp_path / "ops.db")
         coord = LongRunningOpCoordinator(store=store)
