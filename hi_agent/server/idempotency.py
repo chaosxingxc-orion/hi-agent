@@ -13,7 +13,10 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 
 @dataclass
@@ -143,6 +146,7 @@ ON idempotency_records (tenant_id, idempotency_key)
         project_id: str = "",
         user_id: str = "",
         session_id: str = "",
+        exec_ctx: RunExecutionContext | None = None,
     ) -> tuple[Literal["created", "replayed", "conflict"], IdempotencyRecord]:
         """Reserve a new idempotency slot or replay/conflict an existing one.
 
@@ -159,6 +163,9 @@ ON idempotency_records (tenant_id, idempotency_key)
             project_id: Project scope from the run contract (RO-2).
             user_id: Authenticated user (from TenantContext) (RO-2).
             session_id: Session scope from TenantContext (RO-2).
+            exec_ctx: Optional RunExecutionContext; when provided, spine fields
+                (tenant_id, user_id, session_id, project_id) are sourced from
+                it, overriding the positional arguments for those fields.
 
         Returns:
             A tuple of (outcome, record) where outcome is one of:
@@ -167,6 +174,11 @@ ON idempotency_records (tenant_id, idempotency_key)
             - ``"conflict"`` — same key but DIFFERENT hash; existing record
               returned (caller should raise 409).
         """
+        if exec_ctx is not None:
+            tenant_id = exec_ctx.tenant_id or tenant_id
+            user_id = exec_ctx.user_id or user_id
+            session_id = exec_ctx.session_id or session_id
+            project_id = exec_ctx.project_id or project_id
         now = time.time()
         expires_at = now + ttl_seconds
 

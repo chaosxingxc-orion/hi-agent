@@ -11,6 +11,10 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 
 @dataclass
@@ -72,7 +76,14 @@ class SessionStore:
             raise RuntimeError("SessionStore not initialized — call initialize() first")
         return self._conn
 
-    def create(self, tenant_id: str, user_id: str, team_id: str = "", name: str = "") -> str:
+    def create(
+        self,
+        tenant_id: str,
+        user_id: str,
+        team_id: str = "",
+        name: str = "",
+        exec_ctx: RunExecutionContext | None = None,
+    ) -> str:
         """Create a new session and return its ID.
 
         Args:
@@ -80,10 +91,16 @@ class SessionStore:
             user_id: User identifier.
             team_id: Optional team identifier.
             name: Optional session name.
+            exec_ctx: Optional RunExecutionContext; when provided, spine fields
+                (tenant_id, user_id) are sourced from it, overriding the
+                positional arguments for those fields.
 
         Returns:
             Newly generated session ID (UUID4).
         """
+        if exec_ctx is not None:
+            tenant_id = exec_ctx.tenant_id or tenant_id
+            user_id = exec_ctx.user_id or user_id
         sid = str(uuid.uuid4())
         with self._lock:
             self._cx().execute(

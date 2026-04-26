@@ -10,9 +10,12 @@ import json
 import sqlite3
 import threading
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from hi_agent.contracts.team_runtime import TeamRun
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 
 def _resolve_team_registry_path(db_path: str | None) -> str:
@@ -123,16 +126,10 @@ CREATE TABLE IF NOT EXISTS team_runs (
         )
 
     def _from_row(self, row: tuple) -> TeamRun:
-        (
-            team_id,
-            pi_run_id,
-            project_id,
-            member_json,
-            created_at,
-            tenant_id,
-            user_id,
-            session_id,
-        ) = (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
+        team_id, pi_run_id, project_id, member_json, created_at = (
+            row[0], row[1], row[2], row[3], row[4]
+        )
+        # row[5]=status, row[6]=finished_at (not surfaced on TeamRun)
         raw_members = json.loads(member_json) if member_json else []
         member_runs = tuple(tuple(pair) for pair in raw_members)
         return TeamRun(
@@ -141,14 +138,18 @@ CREATE TABLE IF NOT EXISTS team_runs (
             project_id=project_id,
             member_runs=member_runs,
             created_at=created_at,
-            tenant_id=tenant_id,
-            user_id=user_id,
-            session_id=session_id,
+            tenant_id=row[7] if len(row) > 7 else "",
+            user_id=row[8] if len(row) > 8 else "",
+            session_id=row[9] if len(row) > 9 else "",
         )
 
     # -- public API ----------------------------------------------------------
 
-    def register(self, team_run: TeamRun) -> None:
+    def register(
+        self,
+        team_run: TeamRun,
+        exec_ctx: RunExecutionContext | None = None,
+    ) -> None:
         """Register or replace a TeamRun in the registry.
 
         Rule 12 — Contract Spine: under research/prod posture, ``tenant_id`` is
@@ -159,10 +160,20 @@ CREATE TABLE IF NOT EXISTS team_runs (
         Args:
             team_run: TeamRun to register. Replaces any existing entry for
                 the same team_id.
+            exec_ctx: Optional RunExecutionContext; when provided, spine fields
+                (tenant_id, user_id, session_id) are sourced from it.
 
         Raises:
             ValueError: research/prod posture and ``team_run.tenant_id`` empty.
         """
+        if exec_ctx is not None:
+            from dataclasses import replace as _replace
+            team_run = _replace(
+                team_run,
+                tenant_id=exec_ctx.tenant_id or team_run.tenant_id,
+                user_id=exec_ctx.user_id or team_run.user_id,
+                session_id=exec_ctx.session_id or team_run.session_id,
+            )
         from hi_agent.config.posture import Posture
 
         posture = Posture.from_env()
@@ -191,7 +202,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
         with self._lock:
             cur = self._conn.execute(
                 "SELECT team_id, pi_run_id, project_id, member_runs, "
-                "created_at, tenant_id, user_id, session_id "
+                "created_at, status, finished_at, tenant_id, user_id, session_id "
                 "FROM team_runs WHERE team_id = ?",
                 (team_id,),
             )

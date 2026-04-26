@@ -6,6 +6,10 @@ import sqlite3
 import threading
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 
 @dataclass
@@ -92,8 +96,28 @@ class SQLiteEventStore:
     # Write
     # ------------------------------------------------------------------
 
-    def append(self, event: StoredEvent) -> None:
-        """Persist *event*.  Idempotent: duplicate ``event_id`` is silently ignored."""
+    def append(
+        self,
+        event: StoredEvent,
+        exec_ctx: RunExecutionContext | None = None,
+    ) -> None:
+        """Persist *event*.  Idempotent: duplicate ``event_id`` is silently ignored.
+
+        Args:
+            event: The StoredEvent to persist.
+            exec_ctx: Optional RunExecutionContext; when provided, spine fields
+                (tenant_id, user_id, session_id, run_id) are sourced from it,
+                overriding the values already set on *event*.
+        """
+        if exec_ctx is not None:
+            from dataclasses import replace as _replace
+            event = _replace(
+                event,
+                tenant_id=exec_ctx.tenant_id or event.tenant_id,
+                user_id=exec_ctx.user_id or event.user_id,
+                session_id=exec_ctx.session_id or event.session_id,
+                run_id=exec_ctx.run_id or event.run_id,
+            )
         with self._lock:
             self._conn.execute(
                 """

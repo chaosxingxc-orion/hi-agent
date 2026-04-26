@@ -43,6 +43,9 @@ class Artifact:
     producer_run_id: str = ""
     producer_stage_id: str = ""
     producer_capability: str = ""
+    # Wave 10.4 W4-E: run_id spine field for direct run traceability (Rule 12).
+    # Default "" for backward compatibility.
+    run_id: str = ""
 
     def __hash__(self) -> int:  # identity by artifact_id; mutable fields excluded
         """Hash by artifact_id; mutable fields excluded."""

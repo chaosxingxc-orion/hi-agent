@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Any
 
 from hi_agent.artifacts.contracts import Artifact
 from hi_agent.artifacts.metrics import (
@@ -11,6 +12,9 @@ from hi_agent.artifacts.metrics import (
 )
 
 _logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 
 class ArtifactRegistry:
@@ -34,6 +38,32 @@ class ArtifactRegistry:
                 "durable file path instead"
             )
         self._store: dict[str, Artifact] = {}
+
+    def create(
+        self,
+        exec_ctx: RunExecutionContext | None = None,
+        **kwargs: Any,
+    ) -> Artifact:
+        """Create and store an Artifact, optionally enriching from exec_ctx.
+
+        Args:
+            exec_ctx: Optional RunExecutionContext; when provided, ``run_id``
+                and ``project_id`` (and tenant/user/session spine) are sourced
+                from it unless already set in *kwargs*.
+            **kwargs: Additional keyword arguments forwarded to ``Artifact()``.
+
+        Returns:
+            The newly created and stored Artifact.
+        """
+        if exec_ctx is not None:
+            kwargs.setdefault("run_id", exec_ctx.run_id)
+            kwargs.setdefault("project_id", exec_ctx.project_id)
+            kwargs.setdefault("tenant_id", exec_ctx.tenant_id)
+            kwargs.setdefault("user_id", exec_ctx.user_id)
+            kwargs.setdefault("session_id", exec_ctx.session_id)
+        artifact = Artifact(**kwargs)
+        self._store[artifact.artifact_id] = artifact
+        return artifact
 
     def store(self, artifact: Artifact) -> None:
         """Store an artifact (overwrites if same ID exists)."""

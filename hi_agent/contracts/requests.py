@@ -147,6 +147,12 @@ class RunResult:
     """Count of LLM/heuristic fallback events (gate-assertable scalar)."""
     finished_at: str | None = None
     """ISO-8601 UTC timestamp when the run reached a terminal state."""
+    # Wave 10.4 W4-E: optional spine fields for HTTP body enrichment (Rule 12).
+    # Default "" — backwards-compatible; included in to_dict() only when non-empty.
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
 
     @property
     def success(self) -> bool:
@@ -169,7 +175,7 @@ class RunResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
-        return {
+        d: dict[str, Any] = {
             "run_id": self.run_id,
             "status": self.status,
             "stages": self.stages,
@@ -186,3 +192,9 @@ class RunResult:
             "llm_fallback_count": self.llm_fallback_count,
             "finished_at": self.finished_at,
         }
+        # Additive: include spine fields when non-empty (backwards-compatible).
+        for _field in ("tenant_id", "user_id", "session_id", "project_id"):
+            val = getattr(self, _field, "")
+            if val:
+                d[_field] = val
+        return d
