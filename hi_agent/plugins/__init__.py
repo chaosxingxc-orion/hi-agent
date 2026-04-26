@@ -1,1 +1,27 @@
-"""hi_agent.plugins — unified plugin manifests for ExtensionManifest protocol."""
+"""Plugin system for hi-agent — canonical namespace (hi_agent.plugins).
+
+Plugins extend hi-agent's capabilities beyond built-in defaults.  Each
+plugin declares a manifest describing what it provides and hooks into the
+platform lifecycle.
+
+Plugin types:
+- capability plugins: register new CapabilitySpec entries
+- skill plugins: add SKILL.md definitions to the skill loader search path
+- MCP plugins: register new MCP server connections
+
+Usage::
+
+    # In a plugin directory, create plugin.json:
+    # {"name": "my-plugin", "version": "1.0.0", "type": "capability", ...}
+
+    # Then register the directory:
+    from hi_agent.plugins.loader import PluginLoader
+    loader = PluginLoader(plugin_dirs=["./plugins"])
+    loader.load_all()
+"""
+
+from hi_agent.plugins.lifecycle import PluginLifecycle
+from hi_agent.plugins.loader import PluginLoader
+from hi_agent.plugins.manifest import PluginManifest
+
+__all__ = ["PluginLifecycle", "PluginLoader", "PluginManifest"]

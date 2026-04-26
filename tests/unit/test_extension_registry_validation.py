@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from hi_agent.config.posture import Posture
 from hi_agent.contracts.extension_manifest import ExtensionRegistry
-from hi_agent.plugin.manifest import PluginManifest
+from hi_agent.plugins.manifest import PluginManifest
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -51,7 +51,7 @@ def run_inspect(args) -> None:
     # Attempt to load the plugin manifest from file system as a demo lookup.
     # In a full DI wiring, this would query a server-managed ExtensionRegistry.
     try:
-        from hi_agent.plugin.manifest import PluginManifest
+        from hi_agent.plugins.manifest import PluginManifest
 
         # Search common plugin directories for a matching manifest.
         home_dir = Path.home() / ".hi_agent" / "plugins"
@@ -127,7 +127,7 @@ def run_validate(args) -> None:
     # Build a minimal PluginManifest from the JSON data for dry-run validation.
     try:
         from hi_agent.contracts.extension_manifest import ExtensionRegistry
-        from hi_agent.plugin.manifest import PluginManifest
+        from hi_agent.plugins.manifest import PluginManifest
 
         manifest = PluginManifest(
             name=data.get("name", ""),
@@ -213,5 +213,5 @@ def run_extensions(args) -> None:
         sys.exit(1)
 
 
-# Backwards-compatible alias used by Wave 10.4 tests.
+# Backwards-compatible alias for existing callers.
 handle_extensions = run_extensions

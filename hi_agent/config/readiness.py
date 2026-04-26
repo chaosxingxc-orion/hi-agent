@@ -245,7 +245,7 @@ class ReadinessProbe:
 
         # --- plugins: use cached singleton so readiness reflects same state as runs ---
         try:
-            from hi_agent.plugin.loader import PluginLoader
+            from hi_agent.plugins.loader import PluginLoader
 
             if self._builder._plugin_loader is None:
                 self._builder._plugin_loader = PluginLoader()

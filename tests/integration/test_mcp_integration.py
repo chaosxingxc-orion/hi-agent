@@ -446,7 +446,7 @@ def test_mi07_plugin_manifest_wires_mcp_to_tools_list(
     """
     import json as _json
 
-    from hi_agent.plugin.loader import PluginLoader
+    from hi_agent.plugins.loader import PluginLoader
     from hi_agent.server.app import AgentServer
     from starlette.testclient import TestClient
 
@@ -538,7 +538,7 @@ def test_mi08_http_tools_call_reaches_external_mcp_tool(
     """
     import json as _json
 
-    from hi_agent.plugin.loader import PluginLoader
+    from hi_agent.plugins.loader import PluginLoader
     from hi_agent.server.app import AgentServer
     from starlette.testclient import TestClient
 

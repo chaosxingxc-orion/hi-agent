@@ -21,8 +21,8 @@ def _app_with_plugin_loader(monkeypatch):
     a plugin loader with at least one loaded manifest.
     """
     import hi_agent.server.routes_manifest as _routes_manifest
-    from hi_agent.plugin.loader import PluginLoader
-    from hi_agent.plugin.manifest import PluginManifest
+    from hi_agent.plugins.loader import PluginLoader
+    from hi_agent.plugins.manifest import PluginManifest
     from hi_agent.server.routes_manifest import handle_manifest
 
     # Patch require_tenant_context in the routes_manifest module namespace to

@@ -280,7 +280,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
         if builder is not None and hasattr(builder, "build_skill_loader"):
             plugin_loader = getattr(builder, "_plugin_loader", None)
             if plugin_loader is None:
-                from hi_agent.plugin.loader import PluginLoader
+                from hi_agent.plugins.loader import PluginLoader
 
                 plugin_loader = PluginLoader()
                 plugin_loader.load_all()

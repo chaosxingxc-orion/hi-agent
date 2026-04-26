@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from hi_agent.config.posture import Posture
 from hi_agent.contracts.extension_manifest import ExtensionManifestMixin
-from hi_agent.plugin.manifest import PluginManifest
+from hi_agent.plugins.manifest import PluginManifest
 
 # ---------------------------------------------------------------------------
 # Helpers

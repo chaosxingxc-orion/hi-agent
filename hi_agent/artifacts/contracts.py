@@ -128,9 +128,6 @@ class EvaluationArtifact(Artifact):
         self.artifact_type = "evaluation"
 
 
-# Wave 8 / P2.2: Research-domain artifact types for downstream platform.
-
-
 class CapabilityPolicyError(Exception):
     """Raised when a capability policy constraint is violated.
 
@@ -138,35 +135,6 @@ class CapabilityPolicyError(Exception):
     provenance dict, or when source_reference_policy='required' but
     source_refs is empty.
     """
-
-
-@dataclass
-class CitationArtifact(Artifact):
-    """A bibliographic citation with paper reference."""
-
-    paper_id: str = ""
-    doi: str = ""
-    authors: list[str] = field(default_factory=list)
-    year: int = 0
-    venue: str = ""
-
-    def __post_init__(self) -> None:
-        """Set artifact_type to 'citation'."""
-        self.artifact_type = "citation"
-
-
-@dataclass
-class PaperArtifact(Artifact):
-    """A research paper artifact."""
-
-    paper_id: str = ""
-    title: str = ""
-    abstract: str = ""
-    local_path: str = ""
-
-    def __post_init__(self) -> None:
-        """Set artifact_type to 'paper'."""
-        self.artifact_type = "paper"
 
 
 @dataclass
@@ -189,14 +157,31 @@ class DatasetArtifact(Artifact):
             ).hexdigest()
 
 
-@dataclass
-class LeanProofArtifact(Artifact):
-    """A Lean 4 formal proof artifact."""
+# CitationArtifact, PaperArtifact, and LeanProofArtifact have moved to
+# examples.research_overlay.artifacts.  They are research-domain types and do
+# not belong in the platform artifact module.  A backward-compat shim below
+# forwards attribute access (removed in a future release).
 
-    theorem_name: str = ""
-    lean_file_path: str = ""
-    proof_status: str = "unverified"  # "verified" | "partial" | "unverified"
 
-    def __post_init__(self) -> None:
-        """Set artifact_type to 'lean_proof'."""
-        self.artifact_type = "lean_proof"
+def __getattr__(name: str) -> object:
+    """Backward-compat shim for research-domain artifact classes.
+
+    CitationArtifact, PaperArtifact, and LeanProofArtifact have moved to
+    ``examples.research_overlay.artifacts``.  Import them from there instead.
+    This shim emits DeprecationWarning and will be removed in a future release.
+    """
+    _overlay_classes = {"CitationArtifact", "PaperArtifact", "LeanProofArtifact"}
+    if name in _overlay_classes:
+        import importlib
+        import warnings
+
+        warnings.warn(
+            f"{name} has moved to examples.research_overlay.artifacts. "
+            "Import it from there instead. This compatibility shim will be "
+            "removed in Wave 12.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        overlay = importlib.import_module("examples.research_overlay.artifacts")
+        return getattr(overlay, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

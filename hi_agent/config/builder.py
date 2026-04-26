@@ -555,7 +555,7 @@ class SystemBuilder:
         endpoints and executor builds.
         """
         if self._plugin_loader is None:
-            from hi_agent.plugin.loader import PluginLoader
+            from hi_agent.plugins.loader import PluginLoader
 
             self._plugin_loader = PluginLoader()
             self._plugin_loader.load_all()
