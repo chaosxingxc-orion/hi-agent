@@ -97,8 +97,21 @@ class TaskDecomposer:
         if self.llm_gateway is not None:
             try:
                 return self._llm_dag_decompose(contract)
-            except Exception:
-                pass  # fall through to heuristic DAG below
+            except Exception as exc:
+                # run_id not in scope here; attribute via task_id so the event
+                # is traceable to its task without losing per-call attribution.
+                from hi_agent.observability.fallback import record_fallback
+
+                record_fallback(
+                    "heuristic",
+                    reason="llm_decomposer_dag_error",
+                    run_id=f"task:{contract.task_id}",
+                    extra={
+                        "site": "TaskDecomposer._dag_decompose",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc)[:200],
+                    },
+                )
 
         dag = TaskDAG()
 
@@ -160,8 +173,20 @@ class TaskDecomposer:
         if self.llm_gateway is not None:
             try:
                 return self._llm_tree_decompose(contract)
-            except Exception:
-                pass  # fall through to linear
+            except Exception as exc:
+                # run_id not in scope here; attribute via task_id.
+                from hi_agent.observability.fallback import record_fallback
+
+                record_fallback(
+                    "heuristic",
+                    reason="llm_decomposer_tree_error",
+                    run_id=f"task:{contract.task_id}",
+                    extra={
+                        "site": "TaskDecomposer._tree_decompose",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc)[:200],
+                    },
+                )
         return self._linear_decompose(contract)
 
     def _llm_dag_decompose(self, contract: TaskContract) -> TaskDAG:

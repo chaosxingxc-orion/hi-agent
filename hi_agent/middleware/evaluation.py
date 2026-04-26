@@ -238,11 +238,20 @@ class EvaluationMiddleware:
             try:
                 score, _issues = self._llm_evaluate(task_goal, str(output), run_id=run_id)
                 return score, "llm", {"evaluator_id": "llm", "fallback_reason": ""}
-            except Exception:
-                logger.warning(
-                    "LLM evaluation failed for node '%s', falling back to heuristic scoring",
-                    node_id,
-                    exc_info=True,
+            except Exception as exc:
+                from hi_agent.observability.fallback import record_fallback
+
+                record_fallback(
+                    "heuristic",
+                    reason="llm_evaluator_failed_heuristic_score",
+                    run_id=run_id or "unknown",
+                    extra={
+                        "site": "EvaluationMiddleware._assess_quality",
+                        "node_id": node_id,
+                        "error_type": type(exc).__name__,
+                        "error": str(exc)[:200],
+                    },
+                    logger=logger,
                 )
 
         return (

@@ -210,10 +210,20 @@ class ControlMiddleware:
                 stages = [
                     (s["stage_id"], s.get("description", s["stage_name"])) for s in llm_stages
                 ]
-            except Exception:
-                logger.warning(
-                    "LLM decomposition failed, falling back to default stages",
-                    exc_info=True,
+            except Exception as exc:
+                from hi_agent.observability.fallback import record_fallback
+
+                record_fallback(
+                    "heuristic",
+                    reason="llm_stage_decompose_failed_default_plan",
+                    run_id=run_id or "unknown",
+                    extra={
+                        "site": "ControlMiddleware._decompose",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc)[:200],
+                        "default_stage_count": len(_DEFAULT_STAGES),
+                    },
+                    logger=logger,
                 )
 
         if stages is None:

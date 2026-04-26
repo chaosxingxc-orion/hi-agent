@@ -65,13 +65,18 @@ class PostmortemAnalyzer:
                                 if lc.confidence > c.confidence:
                                     changes[i] = lc
                                 break
-            except Exception:
-                import logging
+            except Exception as exc:
+                from hi_agent.observability.fallback import record_fallback
 
-                logging.getLogger(__name__).warning(
-                    "postmortem._llm_analyze failed for run %s",
-                    postmortem.run_id,
-                    exc_info=True,
+                record_fallback(
+                    "heuristic",
+                    reason="postmortem_llm_analyze_failed",
+                    run_id=postmortem.run_id or "unknown",
+                    extra={
+                        "site": "PostmortemAnalyzer.analyze",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc)[:200],
+                    },
                 )
 
         metrics = EvolveMetrics(
