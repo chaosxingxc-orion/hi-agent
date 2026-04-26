@@ -1,0 +1,176 @@
+{
+  "base_url": "http://127.0.0.1:18083",
+  "cancel_known": {
+    "final_response": {
+      "created_at": "2026-04-26T05:13:28.243179+00:00",
+      "current_stage": null,
+      "error": null,
+      "fallback_events": [],
+      "finished_at": null,
+      "llm_fallback_count": 0,
+      "result": null,
+      "run_id": "1ae9d4da-2d97-4e25-95dc-c4170e91e962",
+      "stage_updated_at": null,
+      "state": "cancelled",
+      "task_contract": {
+        "goal": "Rule 15 Volces gate run 0",
+        "profile_id": "rule15_volces",
+        "project_id": "rule15_gate_project"
+      },
+      "updated_at": "2026-04-26T05:13:28.275659+00:00"
+    },
+    "final_status_code": 200,
+    "response": {
+      "cancellation_propagated": {
+        "queue": true,
+        "token": false
+      },
+      "run_id": "1ae9d4da-2d97-4e25-95dc-c4170e91e962",
+      "state": "cancelled"
+    },
+    "run_id": "1ae9d4da-2d97-4e25-95dc-c4170e91e962",
+    "status_code": 200
+  },
+  "cancel_unknown": {
+    "response": {
+      "error": "run_not_found",
+      "run_id": "rule15-unknown-run"
+    },
+    "run_id": "rule15-unknown-run",
+    "status_code": 404
+  },
+  "command": [
+    "C:\\Python314\\python.exe",
+    "D:\\chao_workspace\\hi-agent\\scripts\\rule15_volces_gate.py",
+    "--output",
+    "docs\\delivery\\2026-04-26-a3e7bed-rule15-volces.json",
+    "--profile-id",
+    "rule15_volces",
+    "--port",
+    "18083"
+  ],
+  "error": null,
+  "finished_at": "2026-04-26T05:19:27.981750+00:00",
+  "mode": "spawned",
+  "profile_id": "rule15_volces",
+  "ready": {
+    "auth_posture": "dev_risk_open",
+    "capabilities": [
+      "analyze_goal",
+      "build_draft",
+      "evaluate_acceptance",
+      "file_read",
+      "file_write",
+      "rule15_probe_capability",
+      "search_evidence",
+      "synthesize",
+      "web_fetch"
+    ],
+    "evolve_policy": {
+      "effective": true,
+      "mode": "auto",
+      "source": "auto_dev_on"
+    },
+    "execution_mode": "local",
+    "health": "ok",
+    "kernel_mode": "local-fsm",
+    "llm_backend": "AnthropicLLMGateway",
+    "llm_mode": "real",
+    "llm_provider": "volces",
+    "mcp_servers": [],
+    "models": [
+      {
+        "name": "glm-5.1",
+        "provider": "volces",
+        "status": "configured",
+        "tier": "strong"
+      },
+      {
+        "name": "kimi-k2.6",
+        "provider": "volces",
+        "status": "configured",
+        "tier": "light"
+      }
+    ],
+    "plugins": [],
+    "prerequisites": {
+      "hint": "Use HI_AGENT_ENV=prod or `serve --prod` to require real credentials.",
+      "mode": "dev \u2014 heuristic fallback active, no external dependencies required"
+    },
+    "ready": true,
+    "runtime_mode": "dev-smoke",
+    "skills": [],
+    "subsystems": {
+      "capabilities": {
+        "count": 9,
+        "status": "ok"
+      },
+      "durable_backends": {
+        "status": "ok"
+      },
+      "kernel": {
+        "mode": "local",
+        "status": "ok"
+      },
+      "llm": {
+        "models": 2,
+        "status": "ok"
+      },
+      "mcp": {
+        "capability_mode": "infrastructure_only",
+        "connected": 0,
+        "note": "External MCP transport (stdio/SSE/HTTP) not yet implemented. Platform tools are available via /mcp/tools/list as MCP-compatible endpoints. External server registration and forwarding are deferred.",
+        "registered_only": 0,
+        "servers": 0,
+        "status": "ok",
+        "transport_status": "not_wired"
+      },
+      "plugins": {
+        "count": 0,
+        "status": "ok"
+      },
+      "skills": {
+        "discovered": 0,
+        "status": "ok"
+      }
+    }
+  },
+  "runs": [
+    {
+      "create_status": 201,
+      "duration_s": 166.26740680006333,
+      "fallback_events": [],
+      "final_state": "completed",
+      "polls": 167,
+      "run_id": "d2f96e27-3411-41c7-bef3-41a0528a251b"
+    },
+    {
+      "create_status": 201,
+      "duration_s": 86.20652360003442,
+      "fallback_events": [],
+      "final_state": "completed",
+      "polls": 87,
+      "run_id": "36d33ffe-ad60-4c40-8bc9-671938f0614a"
+    },
+    {
+      "create_status": 201,
+      "duration_s": 107.17935310001485,
+      "fallback_events": [],
+      "final_state": "completed",
+      "polls": 108,
+      "run_id": "81e18828-e85a-4bf3-be54-4c756b6856dc"
+    }
+  ],
+  "server_command": [
+    "C:\\Python314\\python.exe",
+    "-m",
+    "hi_agent",
+    "serve",
+    "--port",
+    "18083"
+  ],
+  "server_pid": 73296,
+  "started_at": "2026-04-26T05:13:27.225319+00:00",
+  "status": "passed",
+  "total_duration_s": 360.75643830001354
+}

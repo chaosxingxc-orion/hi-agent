@@ -263,6 +263,7 @@ def _create_run(client: HttpClient, index: int, profile_id: str) -> tuple[int, d
         {
             "goal": f"Rule 15 Volces gate run {index}",
             "profile_id": profile_id,
+            "project_id": "rule15_gate_project",
         },
     )
 
