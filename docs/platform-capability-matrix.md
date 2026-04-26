@@ -141,6 +141,28 @@ Legacy labels still shown for backward reference: `experimental`≈L1, `implemen
 
 ---
 
+## Wave 10.5 Additions — Default-Path Closure & Evidence Sprint (2026-04-26, HEAD 3b99805)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| RecoveryState enum + decide_recovery_action() | L3 | RO | `tests/unit/test_recovery_state_machine.py` | R11 — posture-driven default; dev=warn, research/prod=re-enqueue |
+| _rehydrate_runs posture-aware re-enqueue | L3 | RO | W5-C integration in `server/app.py` | Class L — default ON under research/prod |
+| RunExecutionContext all 11 durable writers | L3 | CO+RO+TE | `tests/unit/test_artifact_registry_exec_ctx.py` + 10 per-writer tests | R12 — Class K full coverage |
+| ArtifactRegistry.create() factory with exec_ctx | L3 | CO+TE | `tests/unit/test_artifact_registry_exec_ctx.py` | R12 — spine merge at construction |
+| ExtensionManifest 4 enforcement fields | L3 | CO | `tests/unit/test_extension_manifest_enforcement_fields.py` (17 cases) | Class D — required_posture, tenant_scope, dangerous_capabilities, config_schema |
+| ExtensionRegistry validated register() | L3 | CO+RO | `tests/unit/test_extension_registry_validation.py` (13 cases) | Class D — posture-aware; dev=warn, research/prod=reject |
+| ExtensionRegistry fail-closed enable() gate | L3 | CO+RO | `tests/unit/test_extension_registry_enable_gate.py` (13 cases) | Class D — production_eligibility check before enable |
+| ExtensionDisallowedError typed exception | L3 | CO | `tests/unit/test_extension_registry_enable_gate.py` | Class D — reasons list on exception |
+| hi-agent extensions validate CLI subcommand | L3 | DX | `tests/integration/test_extensions_cli_validate.py` | Class P — dry-run manifest validation |
+| KG SQLite backend default under research/prod | L3 | RO | `tests/integration/test_kg_server_uses_factory.py` | Class R — make_knowledge_graph_backend() wired into SystemBuilder |
+| KG backend posture-aware factory (dev→JSON, research/prod→SQLite) | L3 | RO | `tests/integration/test_kg_backend_factory_posture.py` | Class R — HI_AGENT_KG_BACKEND env override for migration |
+| _tenant_guard.py centralized tenant isolation | L3 | RO | `scripts/check_route_scope.py` | R12 — require_tenant_owns() returns 404 |
+| Cross-tenant denial: routes_runs, artifacts, sessions, team, ops | L3 | TE | 5 new cross-tenant test files (W5-G) | Class H — 25-route audit complete |
+| verify_clean_env.py portable CLI with JSON evidence | L3 | GOV | `tests/unit/test_verify_clean_env_args.py`, `test_verify_clean_env_preflight.py` | R8 — basetemp+cache-dir CLI, no repo pollution |
+| check_doc_consistency HEAD-alignment + score-cap rules | L3 | GOV | `tests/unit/test_check_notice_head_alignment.py`, `test_check_score_cap.py` | Class A — governance enforcement for delivery notices |
+| API key source policy (config/llm_config.json only) | L3 | DX | `tests/unit/test_json_config_loader_no_env.py` | Class E — VOLCE_API_KEY env var removed from production path |
+| Wave 10.5 clean-env evidence (90 tests) | L3 | DX | `docs/delivery/2026-04-26-3b9980594e887a6ce4a733f93b27724f58c00708-clean-env.json` | R8 — portable tmpdir, HEAD-aligned |
+
 ## Wave 10.4 Additions — Platform Maturation Sprint (2026-04-26, HEAD f5e3cff)
 
 | Capability | Level | Owner | Evidence | Rule / Class |
