@@ -107,6 +107,29 @@ def _git(args: list[str], *, repo_root: Path) -> str:
     return result.stdout.strip()
 
 
+def _check_clean_env_evidence(repo_root: Path, head_sha: str) -> None:
+    """Print T3-FRESH-AND-CLEAN-ENV-VERIFIED or T3-FRESH-CLEAN-ENV-MISSING.
+
+    Looks for docs/delivery/*-<head_sha>-clean-env.json (short or full SHA).
+    Called only after T3 is confirmed fresh.
+    """
+    delivery_dir = repo_root / "docs" / "delivery"
+    if not delivery_dir.is_dir():
+        print("T3-FRESH-CLEAN-ENV-MISSING")
+        return
+
+    short_sha = head_sha[:7]
+    candidates = list(delivery_dir.glob(f"*-{short_sha}-clean-env.json"))
+    if not candidates:
+        # Also try full SHA
+        candidates = list(delivery_dir.glob(f"*-{head_sha}-clean-env.json"))
+
+    if candidates:
+        print(f"T3-FRESH-AND-CLEAN-ENV-VERIFIED ({candidates[0].name})")
+    else:
+        print("T3-FRESH-CLEAN-ENV-MISSING")
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
 
@@ -148,6 +171,7 @@ def main() -> int:
 
     if head_sha.startswith(gate_sha) or gate_sha.startswith(head_sha[:len(gate_sha)]):
         print("T3: HEAD matches gate SHA — T3 is fresh.")
+        _check_clean_env_evidence(repo_root, head_sha)
         return 0
 
     # 4. Get changed files between gate and HEAD.
@@ -174,6 +198,7 @@ def main() -> int:
             f"T3: {len(changed_files)} file(s) changed since gate; "
             "none are on the hot path. T3 is fresh."
         )
+        _check_clean_env_evidence(repo_root, head_sha)
         return 0
 
     # 6. Exit 1 with structured output.

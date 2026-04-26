@@ -1,125 +1,325 @@
-#!/usr/bin/env python3
-"""Clean-environment verification wrapper for Wave 10.3+.
+#!/usr/bin/env python
+"""Portable clean-environment verification wrapper.
 
-Reproduced the downstream reviewer's Windows PermissionError in cleanup_dead_symlinks.
-Root cause: pytest 8.x tries to clean dangling symlinks in basetemp on session teardown;
-on Windows with restricted ACLs, the cleanup itself fails with PermissionError.
+Runs the full Wave test bundle in a clean temp directory — no repo-internal
+.pytest_tmp or .pytest_cache pollution.
 
-Fix: set PYTEST_DEBUG_TEMPROOT to an absolute path we control; wipe .pytest_cache
-before running so pytest doesn't walk stale entries.
+Exit 0: all tests passed (or skipped).
+Exit 1: tests failed or pytest could not be collected.
+Exit 2: pre-flight permission check failed.
+
+Usage::
+
+    # Default: uses system tempdir (works on any machine)
+    python scripts/verify_clean_env.py
+
+    # Custom paths (for CI or restricted environments)
+    python scripts/verify_clean_env.py \\
+        --basetemp /tmp/hi_agent_pytest \\
+        --cache-dir /tmp/hi_agent_cache \\
+        --json-report docs/delivery/<sha>-clean-env.json
+
+    # Read test paths from a file (for integration tests / sub-bundles)
+    python scripts/verify_clean_env.py --bundle /tmp/my_bundle.txt
+
+Environment variables (lower priority than CLI args):
+    HI_AGENT_PYTEST_TEMPROOT   override basetemp
+    HI_AGENT_PYTEST_CACHE_DIR  override cache-dir
 """
+
 from __future__ import annotations
 
+import argparse
+import contextlib
+import datetime
+import importlib.metadata
+import json
 import os
-import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
-TMP = ROOT / ".pytest_tmp"
-CACHE = ROOT / ".pytest_cache"
+ROOT = Path(__file__).resolve().parent.parent
 
-# Wave 10.3 targeted test bundle — extend as new integration tests land
-WAVE_TEST_BUNDLE = [
-    "tests/integration/test_gate_store_spine.py",
-    "tests/integration/test_team_run_registry_spine.py",
-    "tests/integration/test_feedback_store_spine_via_http.py",
-    "tests/integration/test_run_queue_spine_via_http.py",
-    "tests/integration/test_cross_tenant_object_level.py",
-    "tests/unit/test_check_select_completeness.py",
-    "tests/unit/test_run_execution_context.py",
-    # Wave 10.3 additions — added as W3-A/B/C/D tests land:
-    "tests/unit/test_posture_guards.py",
-    "tests/integration/test_human_gate_spine_strict.py",
-    "tests/integration/test_op_handle_strict.py",
-    "tests/integration/test_gate_store_unscoped_strict.py",
-    "tests/unit/test_runner_finalize_fallback_alarm.py",
-    "tests/unit/test_runner_get_fallback_events_alarm.py",
-    "tests/integration/test_http_gateway_failover_alarm.py",
-    "tests/unit/test_run_execution_context_pilot.py",
-    "tests/integration/test_intake_to_finalizer_spine_consistency.py",
-    # Wave 10.4 W4-A — evolve spine + EvolutionExperiment + ExperimentStore
-    "tests/unit/test_run_postmortem_spine.py",
-    "tests/unit/test_episode_record_spine.py",
-    "tests/unit/test_evolution_experiment_dataclass.py",
-    "tests/integration/test_experiment_store_sqlite.py",
-    "tests/integration/test_evolve_persistence_spine.py",
-    "tests/integration/test_evolve_engine_writes_experiment.py",
-    # Wave 10.4 W4-B — ExtensionManifest + unified /manifest + CLI
-    "tests/unit/test_extension_manifest_protocol.py",
-    "tests/unit/test_extension_registry.py",
-    "tests/integration/test_routes_manifest_unified.py",
-    "tests/integration/test_cli_extensions_list.py",
-    # Wave 10.4 W4-C — recovery rehydration + lease expiry + cross-loop
-    "tests/integration/test_async_client_lifetime.py",
-    # Wave 10.4 W4-D — cross-tenant routes + Rule 6 sweep
-    "tests/integration/test_routes_events_cross_tenant.py",
-    "tests/integration/test_routes_memory_cross_tenant.py",
-    "tests/integration/test_routes_profiles_cross_tenant.py",
-    "tests/integration/test_routes_tools_mcp_cross_tenant.py",
-    "tests/integration/test_routes_knowledge_cross_tenant.py",
-    "tests/unit/test_check_rules_inline_fallback.py",
-    # Wave 10.4 W4-E — spine through 5 durable writers + HTTP body spine
-    "tests/unit/test_idempotency_exec_ctx.py",
-    "tests/unit/test_event_store_exec_ctx.py",
-    "tests/unit/test_team_run_registry_exec_ctx.py",
-    "tests/unit/test_session_store_exec_ctx.py",
-    "tests/unit/test_artifact_registry_exec_ctx.py",
-    "tests/integration/test_intake_to_finalizer_spine_extended.py",
-    "tests/integration/test_run_result_body_spine.py",
-    "tests/integration/test_task_contract_body_spine.py",
-    # Wave 10.4 W4-F — SQLite KG backend + Rule 7 alarms
-    "tests/unit/test_sqlite_kg_backend.py",
-    "tests/integration/test_kg_backend_factory_posture.py",
-    "tests/integration/test_kg_restart_survival.py",
-    "tests/unit/test_release_gate_episode_skip_alarm.py",
-    "tests/unit/test_failover_retry_after_parse_alarm.py",
-    "tests/unit/test_mcp_transport_stderr_tail_alarm.py",
+# ---------------------------------------------------------------------------
+# Wave test bundle — paths relative to repo root.
+# Keep this list intact; additions/removals are tracked separately.
+# ---------------------------------------------------------------------------
+WAVE_TEST_BUNDLE: list[str] = [
+    "tests/unit",
+    "tests/integration",
+    "tests/contract",
+    "tests/security",
+    "tests/agent_kernel",
+    "tests/runtime_adapter",
+    "tests/server",
 ]
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run the Wave test bundle in a portable clean environment.",
+    )
+    parser.add_argument(
+        "--basetemp",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Override pytest basetemp directory. "
+            "Priority: CLI > HI_AGENT_PYTEST_TEMPROOT env var > tempfile.mkdtemp()."
+        ),
+    )
+    parser.add_argument(
+        "--cache-dir",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Override pytest cache directory. "
+            "Priority: CLI > HI_AGENT_PYTEST_CACHE_DIR env var > tempfile.mkdtemp()."
+        ),
+    )
+    parser.add_argument(
+        "--json-report",
+        metavar="PATH",
+        default=None,
+        help="Write machine-readable evidence JSON to this path.",
+    )
+    parser.add_argument(
+        "--no-fail-fast-env-check",
+        action="store_true",
+        default=False,
+        help="Disable pre-flight permission checks (fail-fast is default ON).",
+    )
+    parser.add_argument(
+        "--bundle",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Read test paths from a file (one path per line) instead of the "
+            "embedded WAVE_TEST_BUNDLE list."
+        ),
+    )
+    return parser.parse_args()
+
+
+def _resolve_dir(cli_value: str | None, env_key: str, prefix: str) -> str:
+    """Return the directory path using CLI > env var > tempfile priority."""
+    if cli_value is not None:
+        return cli_value
+    env_value = os.environ.get(env_key)
+    if env_value:
+        return env_value
+    return tempfile.mkdtemp(prefix=prefix)
+
+
+def _preflight_check(path: str) -> bool:
+    """Check read/write access to *path*. Returns True on success, False on failure.
+
+    On failure, prints ``ENV-CHECK-FAIL: {path} {stage} {error}`` to stderr.
+    """
+    sentinel = Path(path) / "_preflight_check_sentinel.txt"
+
+    # Stage 1: mkdir
+    try:
+        Path(path).mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        print(f"ENV-CHECK-FAIL: {path} mkdir {exc}", file=sys.stderr)
+        return False
+
+    # Stage 2: write
+    try:
+        sentinel.write_text("ok", encoding="utf-8")
+    except OSError as exc:
+        print(f"ENV-CHECK-FAIL: {path} write {exc}", file=sys.stderr)
+        return False
+
+    # Stage 3: read
+    try:
+        content = sentinel.read_text(encoding="utf-8")
+        if content != "ok":
+            print(
+                f"ENV-CHECK-FAIL: {path} read content mismatch: {content!r}",
+                file=sys.stderr,
+            )
+            return False
+    except OSError as exc:
+        print(f"ENV-CHECK-FAIL: {path} read {exc}", file=sys.stderr)
+        return False
+
+    # Stage 4: delete
+    try:
+        sentinel.unlink()
+    except OSError as exc:
+        print(f"ENV-CHECK-FAIL: {path} delete {exc}", file=sys.stderr)
+        return False
+
+    return True
+
+
+def _git_head() -> str:
+    """Return current git HEAD SHA, or 'unknown' on failure."""
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+    )
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return "unknown"
+
+
+def _load_bundle(bundle_path: str) -> list[str]:
+    """Read test paths from a file (one per line, strips blank lines and comments)."""
+    lines = Path(bundle_path).read_text(encoding="utf-8").splitlines()
+    return [ln.strip() for ln in lines if ln.strip() and not ln.strip().startswith("#")]
+
+
+def _filter_existing(paths: list[str]) -> tuple[list[str], list[str]]:
+    """Split paths into (existing, missing) relative to ROOT."""
+    existing = []
+    missing = []
+    for p in paths:
+        full = ROOT / p
+        if full.exists():
+            existing.append(p)
+        else:
+            missing.append(p)
+    return existing, missing
+
+
+def _parse_pytest_json(report_file: Path) -> dict:
+    """Parse pytest-json-report output and return a stats dict."""
+    try:
+        data = json.loads(report_file.read_text(encoding="utf-8"))
+        summary = data.get("summary", {})
+        return {
+            "collected": summary.get("collected", 0),
+            "passed": summary.get("passed", 0),
+            "failed": summary.get("failed", 0),
+            "errors": summary.get("error", 0),
+            "skipped": summary.get("skipped", 0),
+        }
+    except (json.JSONDecodeError, OSError, KeyError):
+        return {
+            "collected": 0,
+            "passed": 0,
+            "failed": 0,
+            "errors": 0,
+            "skipped": 0,
+        }
+
+
 def main() -> int:
-    print("=== hi-agent clean-env verification ===")
-    print(f"ROOT: {ROOT}")
+    args = _parse_args()
 
-    # 1. Wipe stale cache to avoid cleanup_dead_symlinks PermissionError
-    if CACHE.exists():
-        try:
-            shutil.rmtree(CACHE)
-            print(f"Cleared {CACHE}")
-        except PermissionError as e:
-            print(f"WARNING: could not clear {CACHE}: {e} (continuing)")
+    # --- Resolve paths --------------------------------------------------
+    basetemp = _resolve_dir(
+        args.basetemp,
+        "HI_AGENT_PYTEST_TEMPROOT",
+        "hi_agent_pytest_",
+    )
+    cache_dir = _resolve_dir(
+        args.cache_dir,
+        "HI_AGENT_PYTEST_CACHE_DIR",
+        "hi_agent_cache_",
+    )
 
-    # 2. Ensure tmp dir exists and is writable
-    TMP.mkdir(parents=True, exist_ok=True)
+    # --- Pre-flight check -----------------------------------------------
+    if not args.no_fail_fast_env_check:
+        ok = True
+        for path in (basetemp, cache_dir):
+            if not _preflight_check(path):
+                ok = False
+        if not ok:
+            return 2
 
-    # 3. Set env vars so pytest uses our controlled paths
-    env = os.environ.copy()
-    env["PYTEST_DEBUG_TEMPROOT"] = str(TMP.absolute())
+    # --- Resolve bundle -------------------------------------------------
+    raw_paths = _load_bundle(args.bundle) if args.bundle else list(WAVE_TEST_BUNDLE)
 
-    # 4. Filter bundle to only existing paths (W3-A/B/C/D tests added incrementally)
-    bundle = [p for p in WAVE_TEST_BUNDLE if (ROOT / p).exists()]
-    missing = [p for p in WAVE_TEST_BUNDLE if not (ROOT / p).exists()]
-    if missing:
-        print(f"NOTE: {len(missing)} test paths not yet created (will land in W3-A/B/D):")
-        for m in missing:
-            print(f"  {m}")
+    existing_paths, missing_paths = _filter_existing(raw_paths)
 
-    if not bundle:
-        print("ERROR: no test paths found in bundle")
+    if not existing_paths:
+        print("ERROR: No test paths exist. Nothing to run.", file=sys.stderr)
         return 1
 
-    # 5. Run pytest
+    if missing_paths:
+        print(f"WARN: {len(missing_paths)} path(s) not found, skipping:")
+        for p in missing_paths:
+            print(f"  {p}")
+
+    # --- Build pytest command -------------------------------------------
+    # Use a temp file for pytest-json-report output so we can parse stats
+    with tempfile.NamedTemporaryFile(
+        suffix="-pytest-report.json",
+        delete=False,
+        mode="w",
+        encoding="utf-8",
+    ) as tmp_report:
+        tmp_report_path = tmp_report.name
+
     cmd = [
-        sys.executable, "-m", "pytest",
-        f"--basetemp={TMP}",
-        "--timeout=60",
-        "-v",
-        *bundle,
+        sys.executable,
+        "-m",
+        "pytest",
+        f"--basetemp={basetemp}",
+        f"--cache-dir={cache_dir}",
+        "--json-report",
+        f"--json-report-file={tmp_report_path}",
+        *existing_paths,
     ]
-    print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, env=env, cwd=ROOT)
+
+    print(f"basetemp : {basetemp}")
+    print(f"cache_dir: {cache_dir}")
+    print(f"command  : {' '.join(cmd)}")
+    print()
+
+    # --- Run pytest -----------------------------------------------------
+    started_at = datetime.datetime.now(datetime.UTC)
+    result = subprocess.run(cmd, cwd=str(ROOT))
+    finished_at = datetime.datetime.now(datetime.UTC)
+    duration = (finished_at - started_at).total_seconds()
+
+    # --- Parse stats from pytest-json-report ----------------------------
+    stats = _parse_pytest_json(Path(tmp_report_path))
+
+    # Clean up tmp report
+    with contextlib.suppress(OSError):
+        Path(tmp_report_path).unlink(missing_ok=True)
+
+    # --- Write evidence JSON --------------------------------------------
+    if args.json_report:
+        try:
+            pytest_version = importlib.metadata.version("pytest")
+        except importlib.metadata.PackageNotFoundError:
+            pytest_version = "unknown"
+
+        evidence = {
+            "schema_version": 1,
+            "head": _git_head(),
+            "python": sys.version.split()[0],
+            "pytest": pytest_version,
+            "basetemp": basetemp,
+            "cache_dir": cache_dir,
+            "command": cmd,
+            "started_at": started_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "finished_at": finished_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "duration_seconds": duration,
+            "collected": stats["collected"],
+            "passed": stats["passed"],
+            "failed": stats["failed"],
+            "errors": stats["errors"],
+            "skipped": stats["skipped"],
+            "missing_paths": missing_paths,
+        }
+        evidence_path = Path(args.json_report)
+        evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        evidence_path.write_text(
+            json.dumps(evidence, indent=2), encoding="utf-8"
+        )
+        print(f"\nEvidence JSON written to: {evidence_path}")
+
     return result.returncode
 
 

@@ -34,6 +34,7 @@ dev = [
   "openai>=1.50",
   "tiktoken>=0.7",
   "jsonschema>=4.0",
+  "pytest-json-report>=1.5",
 ]
 
 [tool.setuptools]
