@@ -117,12 +117,22 @@ CREATE TABLE IF NOT EXISTS team_runs (
             team_run.created_at,
             "created",
             0.0,
+            team_run.tenant_id,
+            team_run.user_id,
+            team_run.session_id,
         )
 
     def _from_row(self, row: tuple) -> TeamRun:
-        team_id, pi_run_id, project_id, member_json, created_at = (
-            row[0], row[1], row[2], row[3], row[4]
-        )
+        (
+            team_id,
+            pi_run_id,
+            project_id,
+            member_json,
+            created_at,
+            tenant_id,
+            user_id,
+            session_id,
+        ) = (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
         raw_members = json.loads(member_json) if member_json else []
         member_runs = tuple(tuple(pair) for pair in raw_members)
         return TeamRun(
@@ -131,6 +141,9 @@ CREATE TABLE IF NOT EXISTS team_runs (
             project_id=project_id,
             member_runs=member_runs,
             created_at=created_at,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            session_id=session_id,
         )
 
     # -- public API ----------------------------------------------------------
@@ -138,16 +151,33 @@ CREATE TABLE IF NOT EXISTS team_runs (
     def register(self, team_run: TeamRun) -> None:
         """Register or replace a TeamRun in the registry.
 
+        Rule 12 — Contract Spine: under research/prod posture, ``tenant_id`` is
+        required.  A TeamRun with empty ``tenant_id`` raises ``ValueError`` so
+        cross-tenant audit trails cannot silently lose attribution.  Under dev
+        posture an empty tenant_id is permitted for backward-compatible tests.
+
         Args:
             team_run: TeamRun to register. Replaces any existing entry for
                 the same team_id.
+
+        Raises:
+            ValueError: research/prod posture and ``team_run.tenant_id`` empty.
         """
+        from hi_agent.config.posture import Posture
+
+        posture = Posture.from_env()
+        if posture.is_strict and not team_run.tenant_id:
+            raise ValueError(
+                "TeamRun.tenant_id is required under research/prod posture "
+                "(Rule 12 — Contract Spine)"
+            )
         row = self._to_row(team_run)
         with self._lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO team_runs "
-                "(team_id, pi_run_id, project_id, member_runs, created_at, status, finished_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "(team_id, pi_run_id, project_id, member_runs, created_at, "
+                "status, finished_at, tenant_id, user_id, session_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 row,
             )
             self._conn.commit()
@@ -161,7 +191,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
         with self._lock:
             cur = self._conn.execute(
                 "SELECT team_id, pi_run_id, project_id, member_runs, "
-                "created_at, status, finished_at "
+                "created_at, tenant_id, user_id, session_id "
                 "FROM team_runs WHERE team_id = ?",
                 (team_id,),
             )

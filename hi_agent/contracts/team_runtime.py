@@ -45,6 +45,10 @@ class TeamRun:
     # (agent_role_id, run_id) pairs for each team member
     member_runs: tuple[tuple[str, str], ...] = ()
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    # Contract spine (Rule 12): persistent records must answer "which tenant".
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
 
 
 @dataclass(frozen=True)
