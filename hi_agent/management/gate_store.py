@@ -7,27 +7,47 @@ import sqlite3
 import threading
 from pathlib import Path
 from time import time
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from hi_agent.management.gate_api import GateRecord, GateStatus, InMemoryGateAPI
 from hi_agent.management.gate_context import GateContext
 from hi_agent.management.gate_timeout import GateTimeoutPolicy
 
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
+
 _logger = logging.getLogger(__name__)
 
 
-def _warn_unscoped_gate_read(method: str, gate_ref: str | None) -> None:
-    """Emit a WARNING when a gate read is made without tenant_id under strict posture."""
+def _warn_unscoped_gate_read(
+    method: str, gate_ref: str | None, *, internal_unscoped: bool = False
+) -> None:
+    """Emit a WARNING (dev) or raise ValueError (strict) for unscoped gate reads.
+
+    When ``internal_unscoped=True`` the call is from a process-internal caller
+    (e.g. resolve, apply_timeouts) that legitimately reads across tenants;
+    no warning or error is emitted.
+    """
+    if internal_unscoped:
+        return
     try:
         from hi_agent.config.posture import Posture
 
-        if Posture.from_env().is_strict:
-            _logger.warning(
-                "Gate read %s called without tenant_id under strict posture "
-                "(gate_ref=%s); cross-tenant gate pool is being read",
-                method,
-                gate_ref,
+        p = Posture.from_env()
+        if p.is_strict:
+            raise ValueError(
+                f"Gate read {method!r} called without tenant_id under strict posture "
+                f"(gate_ref={gate_ref!r}). Pass tenant_id= or use internal_unscoped=True "
+                "(only for process-internal callers)."
             )
+        _logger.warning(
+            "Gate read %s called without tenant_id under strict posture "
+            "(gate_ref=%s); cross-tenant gate pool is being read",
+            method,
+            gate_ref,
+        )
+    except ValueError:
+        raise
     except Exception:
         # Posture lookup must never break reads.
         return
@@ -165,10 +185,18 @@ class SQLiteGateStore:
         user_id: str = "",
         session_id: str = "",
         project_id: str = "",
+        exec_ctx: RunExecutionContext | None = None,  # W3-D: prefer over explicit kwargs
     ) -> GateRecord:
         """Create and persist a new pending gate."""
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
+        # W3-D: when exec_ctx is provided, use it as the authoritative spine source
+        if exec_ctx is not None:
+            _spine = exec_ctx.to_spine_kwargs()
+            tenant_id = _spine.get("tenant_id", tenant_id) or tenant_id
+            user_id = _spine.get("user_id", user_id) or user_id
+            session_id = _spine.get("session_id", session_id) or session_id
+            project_id = _spine.get("project_id", project_id) or project_id
         from dataclasses import replace as _replace
         ctx = _replace(
             context,
@@ -208,20 +236,23 @@ class SQLiteGateStore:
             self._con.commit()
         return record
 
-    def get_gate(self, gate_ref: str, tenant_id: str | None = None) -> GateRecord:
+    def get_gate(
+        self, gate_ref: str, tenant_id: str | None = None, *, internal_unscoped: bool = False
+    ) -> GateRecord:
         """Fetch a gate by reference. Raises ValueError if not found.
 
         When ``tenant_id`` is provided, a row whose ``tenant_id`` does not
         match raises ``ValueError(f"gate {gate_ref} not found")`` — same shape
         as a missing row, preserving object-level 404 semantics.  When
         ``tenant_id is None`` the lookup is unscoped (legacy / process-internal
-        callers); under strict posture this triggers a WARNING.
+        callers); under strict posture this raises ValueError unless
+        ``internal_unscoped=True``.
         """
         normalized = gate_ref.strip()
         if not normalized:
             raise ValueError("gate_ref must be a non-empty string")
         if tenant_id is None:
-            _warn_unscoped_gate_read("get_gate", normalized)
+            _warn_unscoped_gate_read("get_gate", normalized, internal_unscoped=internal_unscoped)
         row = self._con.execute(
             "SELECT gate_ref, run_id, project_id, stage_id, status, payload, "
             "tenant_id, user_id, session_id "
@@ -234,16 +265,18 @@ class SQLiteGateStore:
             raise ValueError(f"gate {normalized} not found")
         return self._row_to_record(row)
 
-    def list_pending(self, tenant_id: str | None = None) -> list[GateRecord]:
+    def list_pending(
+        self, tenant_id: str | None = None, *, internal_unscoped: bool = False
+    ) -> list[GateRecord]:
         """Return all gates currently in PENDING status.
 
         When ``tenant_id`` is provided, only gates owned by that tenant are
         returned.  When ``tenant_id is None`` the listing is unscoped (legacy
-        / process-internal callers); under strict posture this triggers a
-        WARNING.
+        / process-internal callers); under strict posture this raises ValueError
+        unless ``internal_unscoped=True``.
         """
         if tenant_id is None:
-            _warn_unscoped_gate_read("list_pending", None)
+            _warn_unscoped_gate_read("list_pending", None, internal_unscoped=internal_unscoped)
             rows = self._con.execute(
                 "SELECT gate_ref, run_id, project_id, stage_id, status, payload, "
                 "tenant_id, user_id, session_id "
@@ -269,7 +302,7 @@ class SQLiteGateStore:
         reason: str | None = None,
     ) -> GateRecord:
         """Resolve a pending gate. Delegates validation to InMemoryGateAPI, then persists."""
-        record = self.get_gate(gate_ref)
+        record = self.get_gate(gate_ref, internal_unscoped=True)
         # Use InMemoryGateAPI only for action validation and status transition logic.
         _mem = InMemoryGateAPI(enforce_separation_of_concerns=False)
         _mem._records[gate_ref] = record
@@ -291,7 +324,7 @@ class SQLiteGateStore:
     def apply_timeouts(self) -> list[GateRecord]:
         """Apply timeout policy to pending gates. Returns changed records."""
         # Delegate to InMemoryGateAPI logic over current pending set.
-        pending = self.list_pending()
+        pending = self.list_pending(internal_unscoped=True)
         if not pending:
             return []
         _mem = InMemoryGateAPI(enforce_separation_of_concerns=False)

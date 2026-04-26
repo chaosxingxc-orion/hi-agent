@@ -9,6 +9,10 @@ RunFeedback, SkillObservation, GateContext, RunQueue, etc.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hi_agent.server.run_manager import ManagedRun
 
 
 @dataclass(frozen=True)
@@ -55,3 +59,47 @@ class RunExecutionContext:
             "session_id": self.session_id,
             "project_id": self.project_id,
         }
+
+    def to_spine_kwargs_full(self) -> dict[str, str]:
+        """Return all 10 identity fields as strings.
+
+        Non-string fields are coerced to ``str``; unset fields remain ``""``.
+        Use when a writer needs the full identity bundle rather than the
+        four-field subset returned by ``to_spine_kwargs()``.
+        """
+        return {
+            "tenant_id": self.tenant_id,
+            "user_id": self.user_id,
+            "session_id": self.session_id,
+            "project_id": self.project_id,
+            "profile_id": self.profile_id,
+            "run_id": self.run_id,
+            "parent_run_id": self.parent_run_id,
+            "stage_id": self.stage_id,
+            "capability_name": self.capability_name,
+            "request_id": self.request_id,
+        }
+
+    @classmethod
+    def from_managed_run(cls, run: ManagedRun) -> RunExecutionContext:
+        """Build a RunExecutionContext from a ManagedRun instance.
+
+        Uses ``getattr`` with fallbacks so this works safely across
+        ManagedRun versions during the Wave 10.3 pilot rollout.
+        """
+        # Inline import avoids a circular-import at module load time;
+        # TYPE_CHECKING guard above keeps type checkers happy.
+        from hi_agent.server.run_manager import ManagedRun as _ManagedRun  # noqa: F401
+
+        return cls(
+            tenant_id=getattr(run, "tenant_id", "") or "",
+            user_id=getattr(run, "user_id", "") or "",
+            session_id=getattr(run, "session_id", "") or "",
+            project_id=getattr(run, "project_id", "") or "",
+            run_id=run.run_id,
+            profile_id="",
+            parent_run_id="",
+            stage_id="",
+            capability_name="",
+            request_id="",
+        )

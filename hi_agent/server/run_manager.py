@@ -7,6 +7,7 @@ Uses threading for concurrent run execution (stdlib only).
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 import logging
 import os
@@ -17,7 +18,10 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from hi_agent.context.run_execution_context import RunExecutionContext
 
 from hi_agent.contracts.run import RunState
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
@@ -68,6 +72,7 @@ class ManagedRun:
     idempotency_key: str | None = None
     outcome: str = "created"  # "created" | "replayed" | "conflict"
     response_snapshot: str = ""  # non-empty when replayed and original run is complete
+    exec_ctx: RunExecutionContext | None = None  # Wave 10.3 pilot — set at create_run
 
 
 class RunManager:
@@ -312,6 +317,11 @@ class RunManager:
             idempotency_key=idempotency_key,
             outcome="created",
         )
+        # W3-D: build RunExecutionContext as single spine source and attach to run
+        from hi_agent.context.run_execution_context import RunExecutionContext
+
+        exec_ctx = RunExecutionContext.from_managed_run(run)
+        run = dataclasses.replace(run, exec_ctx=exec_ctx)
         # --- duplicate task_id check and insertion under the same lock ------
         client_task_id = task_contract_dict.get("task_id", "")
         with self._lock:
@@ -372,14 +382,13 @@ class RunManager:
 
         # --- enqueue to durable run_queue if available ----------------------
         if self._run_queue is not None:
+            # W3-D: spine from RunExecutionContext
+            _spine = exec_ctx.to_spine_kwargs()
             self._run_queue.enqueue(
                 run_id=run_id,
                 priority=int(task_contract_dict.get("priority", 5)),
                 payload_json=json.dumps(task_contract_dict),
-                tenant_id=tenant_id,
-                user_id=workspace.user_id if workspace else "",
-                session_id=workspace.session_id if workspace else "",
-                project_id=task_contract_dict.get("project_id", ""),
+                **_spine,
             )
 
         return run
