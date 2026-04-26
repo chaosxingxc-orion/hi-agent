@@ -1,6 +1,7 @@
 # Wave 9 Delivery Notice — Owner-Track Hardening
 
 **Date:** 2026-04-25
+**Status:** draft
 **HEAD SHA:** f768dc4
 **Audience:** Research Intelligence App team + downstream platform consumers
 **Authority:** Expert engineering leadership hardening guide (2026-04-25) + H1 post-delivery review

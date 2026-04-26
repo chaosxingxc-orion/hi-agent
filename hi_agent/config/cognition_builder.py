@@ -207,16 +207,15 @@ class CognitionBuilder:
 
             from hi_agent.config.json_config_loader import (
                 _DEFAULT_CONFIG_PATH,
-                _resolve_provider_api_key,
                 build_gateway_from_config,
+                get_provider_api_key,
             )
 
             _cfg_path = _Path(_DEFAULT_CONFIG_PATH)
             if _cfg_path.exists():
                 _cfg_data = _json.loads(_cfg_path.read_text(encoding="utf-8"))
                 _dp = _cfg_data.get("default_provider", "")
-                _prov = _cfg_data.get("providers", {}).get(_dp, {})
-                _api_key, _ = _resolve_provider_api_key(_dp, _prov)
+                _api_key = get_provider_api_key(_dp, _cfg_path) if _dp else ""
                 if _dp and _api_key.strip():
                     gw = build_gateway_from_config(_cfg_path)
                     if gw is not None:

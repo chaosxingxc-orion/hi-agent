@@ -54,10 +54,13 @@ async def handle_diagnostics(request: Request) -> JSONResponse:
     env = os.environ.get("HI_AGENT_ENV", "dev").lower()
 
     # Credential presence (no values — just booleans).
+    # API keys are read from config/llm_config.json, not env vars.
+    from hi_agent.config.json_config_loader import get_provider_api_key
+
     creds = {
         "OPENAI_API_KEY": bool(os.environ.get("OPENAI_API_KEY")),
         "ANTHROPIC_API_KEY": bool(os.environ.get("ANTHROPIC_API_KEY")),
-        "VOLCE_API_KEY": bool(os.environ.get("VOLCE_API_KEY")),
+        "volces_api_key_configured": bool(get_provider_api_key("volces")),
     }
 
     # The single env surfaces that affect runtime_mode and kernel routing.

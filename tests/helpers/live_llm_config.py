@@ -106,7 +106,7 @@ def load_live_llm_config(config_path: str | Path | None = None) -> LiveLLMConfig
     if not isinstance(provider_cfg, dict):
         provider_cfg = {}
 
-    api_key = _env_value("VOLCE_API_KEY") or str(provider_cfg.get("api_key", "") or "")
+    api_key = str(provider_cfg.get("api_key", "") or "")
     base_url = _env_value("VOLCE_BASE_URL") or str(provider_cfg.get("base_url", "") or "")
 
     models_obj = provider_cfg.get("models", {})

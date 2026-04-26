@@ -31,9 +31,10 @@ def _write_config(tmp_path: Path, *, api_key: str = "cfg-key") -> Path:
 
 
 def test_live_llm_config_reads_json_and_env_overrides(tmp_path, monkeypatch):
-    """Env overrides should win over JSON values without exposing secrets."""
+    """api_key comes from config JSON only; other params still support env overrides."""
     path = _write_config(tmp_path)
-    monkeypatch.setenv("VOLCE_API_KEY", "env-key")
+    # W5-A: VOLCE_API_KEY env var no longer overrides api_key — config is authoritative.
+    monkeypatch.setenv("VOLCE_API_KEY", "env-key-ignored")
     monkeypatch.setenv("VOLCE_BASE_URL", "https://env.example/v1")
     monkeypatch.setenv("VOLCE_DEFAULT_MODEL", "env-model")
     monkeypatch.setenv("VOLCE_TIMEOUT_SECONDS", "17")
@@ -42,14 +43,15 @@ def test_live_llm_config_reads_json_and_env_overrides(tmp_path, monkeypatch):
     cfg = live_cfg.load_live_llm_config(config_path=path)
 
     assert cfg.provider == "volces"
-    assert cfg.api_key == "env-key"
+    # api_key comes from config JSON, not VOLCE_API_KEY env var.
+    assert cfg.api_key == "cfg-key"
     assert cfg.base_url == "https://env.example/v1"
     assert cfg.default_model == "env-model"
     assert cfg.timeout_seconds == 17.0
     assert cfg.max_retries == 4
     assert cfg.enabled is True
-    assert "env-key" not in repr(cfg)
-    assert "env-key" not in str(cfg)
+    assert "cfg-key" not in repr(cfg)
+    assert "cfg-key" not in str(cfg)
 
 
 def test_live_llm_config_forces_heuristic_mode(tmp_path, monkeypatch):

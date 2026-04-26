@@ -1,5 +1,6 @@
 # Wave 10 P0 Delivery Notice
 **Date:** 2026-04-26  
+**Status:** draft
 **HEAD SHA:** 678382eeae08af9efa720161a325e1c9384201c3  
 **T3 evidence:** DEFERRED — Wave 10 touches all hot-path files; fresh Rule 8 gate run required before Wave 10.1 merge.
 

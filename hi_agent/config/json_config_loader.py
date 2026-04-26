@@ -1,6 +1,6 @@
 """Load LLM configuration from config/llm_config.json into TraceConfig.
 
-Two public functions:
+Three public functions:
 
 - ``load_from_json_config``: returns (TraceConfig, SystemBuilder) with env vars
   injected from the JSON file; suitable for callers that rely on
@@ -9,6 +9,9 @@ Two public functions:
 - ``build_gateway_from_config``: builds a fully-wired TierAwareLLMGateway
   directly from the active provider entry in the JSON file, supporting
   arbitrary providers beyond the default anthropic/openai pair.
+
+- ``get_provider_api_key``: returns the api_key for a named provider read
+  exclusively from config/llm_config.json (no env-var fallback).
 
 Usage::
 
@@ -20,6 +23,10 @@ Usage::
     # Option B — direct gateway from any provider
     from hi_agent.config.json_config_loader import build_gateway_from_config
     gateway = build_gateway_from_config()
+
+    # Option C — check whether a provider has a key in config
+    from hi_agent.config.json_config_loader import get_provider_api_key
+    has_key = bool(get_provider_api_key("volces"))
 """
 
 from __future__ import annotations
@@ -39,25 +46,11 @@ _logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "llm_config.json"
 
-_PROVIDER_API_KEY_ENVS = {
-    "anthropic": ("ANTHROPIC_API_KEY",),
-    "openai": ("OPENAI_API_KEY",),
-    "volces": ("VOLCE_API_KEY",),
-}
-
 _PROVIDER_BASE_URL_ENVS = {
     "anthropic": ("ANTHROPIC_BASE_URL", "HI_AGENT_ANTHROPIC_BASE_URL"),
     "openai": ("OPENAI_BASE_URL", "HI_AGENT_OPENAI_BASE_URL"),
     "volces": ("VOLCE_BASE_URL",),
 }
-
-
-def _provider_api_key_envs(provider: str) -> tuple[str, ...]:
-    """Return provider-specific and generic API-key env names."""
-    normalized = provider.strip().lower()
-    generic = f"HI_AGENT_LLM_API_KEY_{normalized.upper()}"
-    names = [*_PROVIDER_API_KEY_ENVS.get(normalized, ()), generic]
-    return tuple(dict.fromkeys(names))
 
 
 def _provider_base_url_envs(provider: str) -> tuple[str, ...]:
@@ -69,14 +62,51 @@ def _provider_base_url_envs(provider: str) -> tuple[str, ...]:
 
 
 def _resolve_provider_api_key(provider: str, provider_cfg: dict) -> tuple[str, str]:
-    """Resolve provider credentials without requiring secrets in JSON."""
-    env_names = _provider_api_key_envs(provider)
-    for env_name in env_names:
-        value = os.environ.get(env_name, "")
-        if value:
-            return value, env_name
+    """Resolve provider API key exclusively from config JSON.
+
+    Returns ``(api_key, label)`` where ``label`` is a fixed string identifying
+    the source ("config/llm_config.json").  Under research/prod posture an
+    empty key raises ``ValueError``; under dev posture a warning is emitted.
+    """
+    from hi_agent.config.posture import Posture
+
     api_key = str(provider_cfg.get("api_key", "") or "")
-    return api_key, env_names[0]
+    label = "config/llm_config.json"
+    if not api_key:
+        posture = Posture.from_env()
+        if posture.is_strict:
+            raise ValueError(
+                f"api_key required for provider {provider!r} under posture {posture}; "
+                "populate config/llm_config.json"
+            )
+        _logger.warning(
+            "json_config_loader: provider %r has no api_key in config/llm_config.json "
+            "(posture=%s — continuing in dev mode)",
+            provider,
+            posture,
+        )
+    return api_key, label
+
+
+def get_provider_api_key(
+    provider: str,
+    config_path: str | Path = _DEFAULT_CONFIG_PATH,
+) -> str:
+    """Return the api_key for *provider* from config/llm_config.json only.
+
+    No environment-variable fallback.  Returns an empty string when the
+    config file does not exist or the provider has no ``api_key`` field.
+    """
+    path = Path(config_path)
+    if not path.exists():
+        return ""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return ""
+    providers = data.get("providers", {})
+    provider_cfg = providers.get(provider.strip().lower(), {})
+    return str(provider_cfg.get("api_key", "") or "")
 
 
 def _resolve_provider_base_url(provider: str, provider_cfg: dict) -> str:
@@ -198,10 +228,10 @@ def build_gateway_from_config(
     providers = data.get("providers", {})
     provider_cfg = providers.get(default_provider, {})
 
-    api_key, env_var = _resolve_provider_api_key(default_provider, provider_cfg)
+    api_key, _ = _resolve_provider_api_key(default_provider, provider_cfg)
     if not api_key:
         _logger.warning(
-            "build_gateway_from_config: provider %r has no api_key in config or environment",
+            "build_gateway_from_config: provider %r has no api_key in config/llm_config.json",
             default_provider,
         )
         return None
@@ -227,17 +257,17 @@ def build_gateway_from_config(
         models_cfg.get("strong") or models_cfg.get("medium") or models_cfg.get("light") or ""
     )
 
-    # Inject API key into the env var consumed by gateway constructors.
-    # We restore the prior env state after construction so this function does
-    # not permanently pollute os.environ — the gateways now cache the key at
+    # Inject API key into a temporary env var consumed by gateway constructors.
+    # We use a private env-var name to avoid polluting standard names.
+    # The env var is restored after construction so gateways cache the key at
     # construction time (AnthropicLLMGateway._api_key_resolved).
-    _prev_env_val = os.environ.get(env_var)
-    os.environ[env_var] = api_key
+    _tmp_env_var = f"_HI_AGENT_TMP_KEY_{default_provider.upper()}"
+    _prev_env_val = os.environ.get(_tmp_env_var)
+    os.environ[_tmp_env_var] = api_key
     _logger.info(
-        "build_gateway_from_config: provider=%r format=%r key_env=%s",
+        "build_gateway_from_config: provider=%r format=%r key_source=config/llm_config.json",
         default_provider,
         api_format,
-        env_var,
     )
 
     try:
@@ -277,7 +307,7 @@ def build_gateway_from_config(
             from hi_agent.llm.anthropic_gateway import AnthropicLLMGateway
 
             raw_gw: object = AnthropicLLMGateway(
-                api_key_env=env_var,
+                api_key_env=_tmp_env_var,
                 default_model=default_model or "claude-sonnet-4-6",
                 timeout_seconds=_timeout,
                 base_url=base_url or "https://api.anthropic.com",
@@ -288,7 +318,7 @@ def build_gateway_from_config(
 
             raw_gw = HttpLLMGateway(
                 base_url=base_url or "https://api.openai.com/v1",
-                api_key_env=env_var,
+                api_key_env=_tmp_env_var,
                 default_model=default_model or "gpt-4o",
                 timeout_seconds=_timeout,
             )
@@ -298,7 +328,7 @@ def build_gateway_from_config(
     finally:
         # Restore env var to its prior state after the gateway has cached the key.
         if _prev_env_val is None:
-            os.environ.pop(env_var, None)
+            os.environ.pop(_tmp_env_var, None)
         else:
-            os.environ[env_var] = _prev_env_val
+            os.environ[_tmp_env_var] = _prev_env_val
     return result

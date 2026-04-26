@@ -9,7 +9,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      VOLCE_API_KEY: ${{ secrets.VOLCE_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     strategy:
@@ -23,6 +22,11 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -e ".[dev]"
+      - name: Materialize llm_config.json from secret
+        if: ${{ secrets.VOLCE_API_KEY != '' }}
+        run: python scripts/inject_volces_key.py --from-secret VOLCE_API_KEY
+        env:
+          VOLCE_API_KEY: ${{ secrets.VOLCE_API_KEY }}
       - name: Lint (blocking — syntax + imports)
         run: ruff check hi_agent tests --select E9,F63,F7,F82
       - name: Lint (blocking — full ruleset, Rule 12 Lint Cleanliness)
@@ -41,8 +45,9 @@ jobs:
       - name: Live API tests (optional secrets)
         # Rule 10: live-LLM latency is flaky by nature. Treat as advisory
         # rather than blocking so external model jitter cannot block a merge.
+        # Key presence is detected from config/llm_config.json (injected above).
         continue-on-error: true
-        if: ${{ env.VOLCE_API_KEY != '' }}
+        if: ${{ secrets.VOLCE_API_KEY != '' }}
         run: python -m pytest tests/integration/test_live_llm_api.py -q -m live_api --tb=short --timeout=120
       - name: Production E2E tests (optional secrets)
         # Rule 9: gate only on secrets the fixture actually consumes.
