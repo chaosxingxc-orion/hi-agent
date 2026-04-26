@@ -539,6 +539,13 @@ def _cmd_artifacts(args) -> None:
         sys.exit(1)
 
 
+def _cmd_extensions(args) -> None:
+    """Manage registered extensions."""
+    from hi_agent.cli_commands.extensions import handle_extensions
+
+    handle_extensions(args)
+
+
 def _run_doctor(args) -> None:
     """Run hi-agent doctor diagnostic."""
     from hi_agent.config.builder import SystemBuilder
@@ -912,6 +919,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print affected rows without modifying the ledger",
     )
 
+    # extensions
+    from hi_agent.cli_commands.extensions import register_subparser as _ext_register
+    _ext_register(subparsers)
+
     # resume
     resume_parser = subparsers.add_parser("resume", help="Resume a run from checkpoint")
     resume_parser.add_argument("--checkpoint", required=False, help="Path to checkpoint file")
@@ -957,6 +968,7 @@ def main() -> None:
         "doctor": _run_doctor,
         "init": _cmd_init,
         "artifacts": _cmd_artifacts,
+        "extensions": _cmd_extensions,
     }
 
     handler = handlers.get(args.command)

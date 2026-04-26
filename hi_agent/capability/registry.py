@@ -140,6 +140,30 @@ class CapabilityRegistry:
 
         return True, ""
 
+    def to_extension_manifest_dict(self, name: str) -> dict:
+        """Return a dict conforming to the ExtensionManifest shape for *name*.
+
+        Converts the CapabilityDescriptor registered under *name* into the
+        unified extension-manifest dict shape without changing any existing
+        interface.  Returns an empty dict if *name* is not registered.
+        """
+        spec = self._capabilities.get(name)
+        if spec is None:
+            return {}
+        desc = spec.descriptor
+        return {
+            "name": name,
+            "version": "1.0",
+            "kind": "kernel",
+            "schema_version": "1.0",
+            "posture_support": {"dev": True, "research": True, "prod": True},
+            "effect_class": getattr(desc, "effect_class", "unknown_effect")
+            if desc
+            else "unknown_effect",
+            "risk_class": getattr(desc, "risk_class", "read_only") if desc else "read_only",
+            "description": getattr(desc, "description", "") if desc else "",
+        }
+
     def list_with_views(self) -> list[tuple]:
         """List capabilities with availability status for manifest rendering.
 

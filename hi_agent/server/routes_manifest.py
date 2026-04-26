@@ -21,6 +21,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from hi_agent.contracts.extension_manifest import get_extension_registry
 from hi_agent.server.tenant_context import require_tenant_context
 
 logger = logging.getLogger(__name__)
@@ -342,6 +343,19 @@ async def handle_manifest(request: Request) -> JSONResponse:
     except Exception as _ep_exc:
         logger.warning("manifest: runtime_mode/evolve_policy lookup failed: %s", _ep_exc)
 
+    # --- Extensions from global ExtensionRegistry (posture-filtered) ---
+    extensions: list[dict] = []
+    try:
+        import os as _os_ext
+
+        _posture_name = _os_ext.environ.get("HI_AGENT_POSTURE", "dev").strip().lower()
+        _ext_registry = get_extension_registry()
+        extensions = [
+            m.to_manifest_dict() for m in _ext_registry.list_for_posture(_posture_name)
+        ]
+    except Exception as _ext_exc:
+        logger.warning("manifest: extension registry enumeration failed: %s", _ext_exc)
+
     # Build capabilities list with parameters schema attached
     capabilities_with_params: list[dict] = [
         {
@@ -380,6 +394,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
             "kernel_mode": manifest_kernel_mode,
             "execution_mode": manifest_execution_mode,
             "provenance_contract_version": provenance_contract_version,
+            "extensions": extensions,
             "contract_field_status": {
                 "goal": "ACTIVE",
                 "task_family": "ACTIVE",
