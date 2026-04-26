@@ -6,10 +6,14 @@ Checks:
 2. Capability matrix: L-level claims don't cite xfail/skip tests.
 3. Test files: no 'has not (yet )?landed' stale comments (unless noqa: stale-claim).
 4. Source files: no '# TODO: wire real run_id' or similar TODO-spine violations.
+5. (E1a) Latest delivery notice HEAD SHA must match repo HEAD (unless pre-final-commit marker).
+6. (E1b) T3 DEFERRED contradicts readiness improvement above 72.
+7. (E1c) Claimed SHA must be reachable in git history.
 """
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -100,12 +104,135 @@ def check_todo_spine_violations() -> list[str]:
     return errors
 
 
+def _latest_delivery_notice() -> Path | None:
+    """Return the most-recently-modified delivery notice under docs/downstream-responses/."""
+    candidates = sorted(
+        DOCS.glob("downstream-responses/*delivery-notice*.md"),
+        key=lambda p: p.stat().st_mtime,
+    )
+    return candidates[-1] if candidates else None
+
+
+def _git_head() -> str | None:
+    """Return the current repo HEAD SHA, or None if git is unavailable."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(ROOT),
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        return None
+
+
+def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
+    """E1a: latest delivery notice HEAD SHA must match repo HEAD.
+
+    Skipped (non-fatal) when:
+    - no delivery notice exists yet (bootstrap scenario)
+    - the notice contains 'notice-pre-final-commit: true'
+    - git is unavailable
+    """
+    if notice is None:
+        return []
+    src = notice.read_text(encoding="utf-8", errors="replace")
+    # Allow opt-out for pre-final-doc commits
+    if "notice-pre-final-commit: true" in src:
+        return []
+    # Extract claimed HEAD SHA from lines like "**HEAD SHA:** <sha>" or "HEAD: <sha>"
+    sha_pattern = re.compile(
+        r"(?:HEAD SHA[:\s*]+|HEAD:\s*)([0-9a-f]{7,40})\b", re.IGNORECASE
+    )
+    claimed_sha: str | None = None
+    for line in src.splitlines():
+        m = sha_pattern.search(line)
+        if m:
+            claimed_sha = m.group(1)
+            break
+    if claimed_sha is None:
+        return []  # no HEAD claim in notice — nothing to check
+    actual_sha = _git_head()
+    if actual_sha is None:
+        return []  # git unavailable — skip
+    # Compare by common prefix length (handle short vs full SHA)
+    min_len = min(len(claimed_sha), len(actual_sha))
+    if claimed_sha[:min_len] != actual_sha[:min_len]:
+        return [
+            f"  {notice.relative_to(ROOT)}: Delivery notice HEAD {claimed_sha} does not "
+            f"match repo HEAD {actual_sha}. Update the notice or add "
+            "'notice-pre-final-commit: true' if this is a pre-final-doc commit."
+        ]
+    return []
+
+
+def check_notice_t3_deferred_vs_readiness(notice: Path | None) -> list[str]:
+    """E1b: T3 DEFERRED contradicts readiness improvement above 72."""
+    if notice is None:
+        return []
+    src = notice.read_text(encoding="utf-8", errors="replace")
+    has_t3_deferred = bool(re.search(r"T3 evidence[*:]+\s*DEFERRED", src, re.IGNORECASE))
+    if not has_t3_deferred:
+        return []
+    # Look for scorecard/readiness lines mentioning a score above 72
+    high_score = re.search(
+        r"(?:scorecard delta|readiness)[^\n]*\b(7[3-9]|[89][0-9]|100)\b",
+        src,
+        re.IGNORECASE,
+    )
+    if high_score:
+        return [
+            f"  {notice.relative_to(ROOT)}: Delivery notice claims readiness improvement "
+            "above 72 while T3 evidence is DEFERRED. Either complete the T3 gate or "
+            "remove/defer the readiness claim."
+        ]
+    return []
+
+
+def check_notice_sha_reachable(notice: Path | None) -> list[str]:
+    """E1c: claimed SHA must be reachable in git history."""
+    if notice is None:
+        return []
+    src = notice.read_text(encoding="utf-8", errors="replace")
+    sha_pattern = re.compile(
+        r"(?:HEAD SHA[:\s*]+|HEAD:\s*)([0-9a-f]{7,40})\b", re.IGNORECASE
+    )
+    claimed_sha: str | None = None
+    for line in src.splitlines():
+        m = sha_pattern.search(line)
+        if m:
+            claimed_sha = m.group(1)
+            break
+    if claimed_sha is None or claimed_sha.upper() == "DEFERRED":
+        return []
+    try:
+        log_output = subprocess.check_output(
+            ["git", "log", "--all", "--pretty=%H"],
+            cwd=str(ROOT),
+            stderr=subprocess.DEVNULL,
+        ).decode()
+    except Exception:
+        return []  # git unavailable — skip
+    min_len = len(claimed_sha)
+    reachable = any(line[:min_len] == claimed_sha[:min_len] for line in log_output.splitlines())
+    if not reachable:
+        return [
+            f"  {notice.relative_to(ROOT)}: Delivery notice HEAD {claimed_sha} is not "
+            "reachable in git history."
+        ]
+    return []
+
+
 def main() -> int:
     all_errors = []
     all_errors.extend(check_t3_inherited_claims())
     all_errors.extend(check_matrix_xfail_citations())
     all_errors.extend(check_stale_not_landed_comments())
     all_errors.extend(check_todo_spine_violations())
+    # E1a, E1b, E1c — delivery notice vs repo HEAD consistency
+    latest_notice = _latest_delivery_notice()
+    all_errors.extend(check_notice_head_matches_repo(latest_notice))
+    all_errors.extend(check_notice_t3_deferred_vs_readiness(latest_notice))
+    all_errors.extend(check_notice_sha_reachable(latest_notice))
     if all_errors:
         print("FAIL check_doc_consistency:")
         for e in all_errors:
