@@ -8,6 +8,10 @@ import threading
 from pathlib import Path
 
 from hi_agent.artifacts.contracts import Artifact
+from hi_agent.artifacts.metrics import (
+    legacy_tenantless_denied_total,
+    legacy_tenantless_visible_total,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -117,9 +121,18 @@ class ArtifactLedger:
         """Alias for register() — satisfies ArtifactRegistry interface."""
         self.register(artifact)
 
-    def get(self, artifact_id: str) -> Artifact | None:
-        """Retrieve an artifact by ID."""
-        return self._store.get(artifact_id)
+    def get(self, artifact_id: str, *, tenant_id: str | None = None) -> Artifact | None:
+        """Retrieve an artifact by ID, optionally filtered by tenant."""
+        artifact = self._store.get(artifact_id)
+        if artifact is None:
+            return None
+        if tenant_id is not None and tenant_id != "":
+            art_tenant = getattr(artifact, "tenant_id", "")
+            if art_tenant in (None, ""):
+                return self._allow_legacy(artifact, tenant_id)
+            if art_tenant != tenant_id:
+                return None
+        return artifact
 
     def list(self, artifact_type: str | None = None) -> list[Artifact]:
         """Return all artifacts, optionally filtered by type."""
@@ -128,23 +141,96 @@ class ArtifactLedger:
             items = [a for a in items if a.artifact_type == artifact_type]
         return items
 
-    def all(self) -> list[Artifact]:
-        """Return all stored artifacts."""
-        return list(self._store.values())
+    def all(self, *, tenant_id: str | None = None) -> list[Artifact]:
+        """Return all stored artifacts, optionally filtered by tenant."""
+        items = list(self._store.values())
+        if tenant_id is None or tenant_id == "":
+            return items
+        return [a for a in items if self._tenant_visible(a, tenant_id)]
 
     def query(
         self,
         *,
         artifact_type: str | None = None,
         producer_action_id: str | None = None,
+        tenant_id: str | None = None,
     ) -> list[Artifact]:
-        """Query artifacts with optional type and producer filters (ArtifactRegistry compat)."""
+        """Query artifacts with optional type, producer, and tenant filters."""
         results = list(self._store.values())
+        if tenant_id is not None and tenant_id != "":
+            results = [a for a in results if self._tenant_visible(a, tenant_id)]
         if artifact_type is not None:
             results = [a for a in results if a.artifact_type == artifact_type]
         if producer_action_id is not None:
             results = [a for a in results if a.producer_action_id == producer_action_id]
         return results
+
+    def query_by_source_ref(
+        self, source_ref: str, *, tenant_id: str | None = None
+    ) -> list[Artifact]:
+        """Return all artifacts referencing the given source ref, filtered by tenant."""
+        # TODO: implement full source_ref indexing in Wave 11
+        results = [a for a in self._store.values() if source_ref in a.source_refs]
+        if tenant_id is not None and tenant_id != "":
+            results = [a for a in results if self._tenant_visible(a, tenant_id)]
+        return results
+
+    def query_by_upstream(
+        self, upstream_id: str, *, tenant_id: str | None = None
+    ) -> list[Artifact]:
+        """Return all artifacts with upstream_id in upstream_artifact_ids, filtered by tenant."""
+        # TODO: implement full upstream index in Wave 11
+        results = [
+            a for a in self._store.values() if upstream_id in a.upstream_artifact_ids
+        ]
+        if tenant_id is not None and tenant_id != "":
+            results = [a for a in results if self._tenant_visible(a, tenant_id)]
+        return results
+
+    def _allow_legacy(self, artifact: Artifact, requested_tenant: str) -> Artifact | None:
+        """Apply posture-aware policy for legacy tenantless artifacts on get()."""
+        from hi_agent.config.posture import Posture
+
+        posture = Posture.from_env()
+        if posture.is_strict:
+            _logger.warning(
+                "legacy tenantless artifact denied in strict posture: "
+                "artifact_id=%s tenant_requested=%s",
+                artifact.artifact_id,
+                requested_tenant,
+            )
+            legacy_tenantless_denied_total.inc(posture=posture.value)
+            return None
+        _logger.debug(
+            "legacy tenantless artifact visible in dev posture: artifact_id=%s",
+            artifact.artifact_id,
+        )
+        legacy_tenantless_visible_total.inc(posture=posture.value)
+        return artifact
+
+    def _tenant_visible(self, artifact: Artifact, tenant_id: str) -> bool:
+        """Return True if artifact is visible to the requesting tenant."""
+        art_tenant = getattr(artifact, "tenant_id", "")
+        if art_tenant in (None, ""):
+            from hi_agent.config.posture import Posture
+
+            posture = Posture.from_env()
+            if posture.is_strict:
+                _logger.warning(
+                    "legacy tenantless artifact denied in strict posture: "
+                    "artifact_id=%s tenant_requested=%s",
+                    artifact.artifact_id,
+                    tenant_id,
+                )
+                legacy_tenantless_denied_total.inc(posture=posture.value)
+                return False
+            _logger.debug(
+                "legacy tenantless artifact visible in dev posture: artifact_id=%s",
+                artifact.artifact_id,
+            )
+            legacy_tenantless_visible_total.inc(posture=posture.value)
+            return True
+        return art_tenant == tenant_id
 
     def find_by_producer_run(self, run_id: str) -> list[Artifact]:
         """Return artifacts produced by a specific run."""

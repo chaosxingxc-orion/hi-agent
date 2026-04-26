@@ -15,9 +15,16 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from hi_agent.artifacts.protocol import ArtifactStore
 from hi_agent.server.tenant_context import require_tenant_context
 
 logger = logging.getLogger(__name__)
+
+
+def _get_artifact_store(request: Request) -> ArtifactStore | None:
+    """Return the artifact store from server state, or None if unavailable."""
+    server: Any = request.app.state.agent_server
+    return getattr(server, "artifact_registry", None)  # type: ignore[return-value]
 
 
 async def handle_list_artifacts(request: Request) -> JSONResponse:
@@ -26,8 +33,7 @@ async def handle_list_artifacts(request: Request) -> JSONResponse:
         ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    server: Any = request.app.state.agent_server
-    registry = getattr(server, "artifact_registry", None)
+    registry = _get_artifact_store(request)
     if registry is None:
         return JSONResponse({"artifacts": []})
     artifact_type = request.query_params.get("type")
@@ -47,8 +53,7 @@ async def handle_get_artifact(request: Request) -> JSONResponse:
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     artifact_id = request.path_params["artifact_id"]
-    server: Any = request.app.state.agent_server
-    registry = getattr(server, "artifact_registry", None)
+    registry = _get_artifact_store(request)
     if registry is None:
         return JSONResponse({"error": "artifact_registry_unavailable"}, status_code=503)
     artifact = registry.get(artifact_id, tenant_id=ctx.tenant_id)
@@ -70,8 +75,7 @@ async def handle_artifacts_by_project(request: Request) -> JSONResponse:
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     project_id = request.path_params["project_id"]
-    server: Any = request.app.state.agent_server
-    registry = getattr(server, "artifact_registry", None)
+    registry = _get_artifact_store(request)
     if registry is None:
         return JSONResponse({"artifacts": [], "project_id": project_id})
     find_fn = getattr(registry, "find_by_project", None)
@@ -85,9 +89,30 @@ async def handle_artifacts_by_project(request: Request) -> JSONResponse:
     tenant_id = ctx.tenant_id
 
     def _belongs_to_tenant(a: Any) -> bool:
+        from hi_agent.artifacts.metrics import (
+            legacy_tenantless_denied_total,
+            legacy_tenantless_visible_total,
+        )
+        from hi_agent.config.posture import Posture
+
         art_tenant = getattr(a, "tenant_id", None)
         if art_tenant is None or art_tenant == "":
-            return True  # legacy dev artifact without tenant_id — visible to all tenants
+            posture = Posture.from_env()
+            if posture.is_strict:
+                logger.warning(
+                    "legacy tenantless artifact denied in strict posture: "
+                    "artifact_id=%s tenant_requested=%s",
+                    getattr(a, "artifact_id", "unknown"),
+                    tenant_id,
+                )
+                legacy_tenantless_denied_total.inc(posture=posture.value)
+                return False
+            logger.debug(
+                "legacy tenantless artifact visible in dev posture: artifact_id=%s",
+                getattr(a, "artifact_id", "unknown"),
+            )
+            legacy_tenantless_visible_total.inc(posture=posture.value)
+            return True
         return art_tenant == tenant_id
 
     artifacts = [a for a in candidates if _belongs_to_tenant(a)]
@@ -112,8 +137,7 @@ async def handle_get_artifact_provenance(request: Request) -> JSONResponse:
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     artifact_id = request.path_params["artifact_id"]
-    server: Any = request.app.state.agent_server
-    registry = getattr(server, "artifact_registry", None)
+    registry = _get_artifact_store(request)
     if registry is None:
         return JSONResponse({"error": "artifact_registry_unavailable"}, status_code=503)
     artifact = registry.get(artifact_id, tenant_id=ctx.tenant_id)

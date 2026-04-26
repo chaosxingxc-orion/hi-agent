@@ -126,3 +126,52 @@ Additional steps beyond the research checklist:
 - [ ] Set `HI_AGENT_EVOLVE_MODE=off` (or leave unset — prod default is `off`)
 - [ ] Run the Rule 8 operator-shape gate and record evidence in `docs/delivery/`
 - [ ] Configure PM2/systemd for process supervision (do not use foreground `python -m hi_agent serve`)
+
+---
+
+## Legacy Tenantless Artifact Policy
+
+Artifacts written before tenant scoping was introduced (Wave 8 / CO-5) may have
+`tenant_id=""` or omit the field entirely. hi-agent applies a posture-aware
+policy when these artifacts are encountered during query or retrieval:
+
+| Posture | Legacy artifact visible? | Signal emitted |
+|---------|--------------------------|----------------|
+| `dev` | Yes — visible to any authenticating tenant | `DEBUG` log + `hi_agent_legacy_tenantless_artifact_visible_total` counter incremented |
+| `research` | No — denied | `WARNING` log with `artifact_id` + `tenant_requested`; `hi_agent_legacy_tenantless_artifact_denied_total` counter incremented |
+| `prod` | No — denied | Same as research |
+
+Under `research` and `prod` postures, a legacy tenantless artifact is
+**never returned** to any tenant and is excluded from all list/query results.
+This prevents accidental cross-tenant data leakage from pre-migration records.
+
+### Migrating legacy tenantless artifacts
+
+Use the built-in migration command to assign a tenant to all tenantless records
+in the durable ledger:
+
+```bash
+# Preview affected rows without modifying the file
+hi-agent artifacts migrate-tenant \
+    --tenant-id <your-tenant-id> \
+    --data-dir /var/hi_agent \
+    --dry-run
+
+# Apply the migration
+hi-agent artifacts migrate-tenant \
+    --tenant-id <your-tenant-id> \
+    --data-dir /var/hi_agent
+```
+
+Options:
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--tenant-id TEXT` | yes | Target tenant to assign to all tenantless rows |
+| `--project-id TEXT` | no | Also assign this project_id to rows that lack one |
+| `--data-dir PATH` | no (reads `HI_AGENT_DATA_DIR`) | Directory containing `artifacts.jsonl` |
+| `--dry-run` | no | Print count of affected rows without modifying the file |
+
+After migration, all previously tenantless artifacts carry `tenant_id=<your-tenant-id>`
+and will be visible to that tenant under all postures. No existing non-empty
+`tenant_id` values are overwritten.
