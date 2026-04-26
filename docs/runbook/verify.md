@@ -120,3 +120,61 @@ curl -s -X POST localhost:8080/skills/test/promote | jq .status_code
 ```
 
 Expected: `403` (Forbidden). A `200` response without auth means RBAC is not active.
+
+## Pytest verification on a clean Windows workspace
+
+The default pytest `basetemp` (`%LOCALAPPDATA%\Temp\pytest-of-USER`) and `cache_dir`
+can fail in restricted Windows environments where `%LOCALAPPDATA%` is not
+writable. The repository pins `cache_dir = .pytest_cache` (in-repo) so the
+cache always resolves; only `basetemp` may need an override. Use one of:
+
+PowerShell:
+
+```powershell
+$env:PYTEST_DEBUG_TEMPROOT = "$PWD\.pytest_tmp"
+mkdir -Force .pytest_tmp | Out-Null
+pytest tests/integration/test_gate_store_spine.py `
+       tests/integration/test_team_run_registry_spine.py `
+       tests/integration/test_feedback_store_spine_via_http.py `
+       tests/integration/test_run_queue_spine_via_http.py `
+       tests/integration/test_cross_tenant_object_level.py -v
+```
+
+Bash (Git Bash / MSYS):
+
+```bash
+mkdir -p .pytest_tmp
+PYTEST_DEBUG_TEMPROOT="$PWD/.pytest_tmp" pytest \
+  tests/integration/test_gate_store_spine.py \
+  tests/integration/test_team_run_registry_spine.py \
+  tests/integration/test_feedback_store_spine_via_http.py \
+  tests/integration/test_run_queue_spine_via_http.py \
+  tests/integration/test_cross_tenant_object_level.py -v
+```
+
+Equivalent inline form using `--basetemp`:
+
+```powershell
+pytest --basetemp=.pytest_tmp tests/...
+```
+
+If the suite still fails with `PermissionError` on `.pytest_cache`, delete the
+directory (`Remove-Item -Recurse -Force .pytest_cache`) and re-run; this
+clears any stale entries left from a previous user.
+
+## Wave 10.2 governance scripts
+
+All blocking governance gates run via:
+
+```bash
+ruff check .
+python scripts/check_rules.py
+python scripts/check_doc_consistency.py
+python scripts/check_select_completeness.py    # spine call sites now BLOCKING
+python scripts/check_durable_wiring.py
+python scripts/check_route_scope.py
+python scripts/check_validate_before_mutate.py
+python scripts/check_t3_freshness.py
+```
+
+Any non-zero exit blocks the next delivery notice from advancing.

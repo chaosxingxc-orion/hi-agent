@@ -46,6 +46,10 @@ include = ["hi_agent*", "agent_kernel*"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# cache_dir lives inside the repo so restricted Windows workspaces (where
+# %LOCALAPPDATA% may be locked) can still run the suite.  Override with
+# PYTEST_CACHE_DIR or --cache-dir if a different location is required.
+cache_dir = ".pytest_cache"
 addopts = ["--strict-markers", "--timeout=60"]
 markers = [
     "integration: integration tests using real components",
