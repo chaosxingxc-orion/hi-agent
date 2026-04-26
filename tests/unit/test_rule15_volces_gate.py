@@ -59,7 +59,7 @@ class FakeClient:
             return FakeResponse(201, {"run_id": run_id, "state": "created"}, method, url)
         if path.startswith("/runs/") and path.endswith("/cancel") and method == "POST":
             run_id = path.split("/runs/")[1].split("/")[0]
-            if run_id == "rule15-unknown-run":
+            if run_id in ("rule15-unknown-run", "t3-gate-unknown-run"):
                 return FakeResponse(404, {"error": "run_not_found"}, method, url)
             self.cancelled.append(run_id)
             return FakeResponse(200, {"run_id": run_id, "state": "cancelled"}, method, url)
@@ -99,7 +99,7 @@ class FakeProcess:
 
 
 def test_validate_readiness_requires_volces_fields():
-    _validate_readiness_snapshot({"llm_mode": "real", "llm_provider": "volces"})
+    _validate_readiness_snapshot({"llm_mode": "real", "llm_provider": "volces"}, "volces")
 
 
 def test_build_client_bypasses_environment_proxies():
@@ -110,9 +110,9 @@ def test_build_client_bypasses_environment_proxies():
         client.close()
 
 
-def test_build_parser_defaults_profile_id_to_rule15_volces():
+def test_build_parser_defaults_profile_id_to_t3_gate():
     args = _build_parser().parse_args(["--output", "evidence.json"])
-    assert args.profile_id == "rule15_volces"
+    assert args.profile_id == "t3_gate"
 
 
 def test_build_parser_accepts_custom_profile_id():
@@ -124,12 +124,12 @@ def test_build_parser_accepts_custom_profile_id():
 
 def test_validate_readiness_fails_when_fields_missing():
     with pytest.raises(RuntimeError, match="missing required field"):
-        _validate_readiness_snapshot({"ready": True})
+        _validate_readiness_snapshot({"ready": True}, "volces")
 
 
 def test_validate_readiness_fails_when_provider_or_mode_wrong():
-    with pytest.raises(RuntimeError, match="expected llm_mode='real'"):
-        _validate_readiness_snapshot({"llm_mode": "heuristic", "llm_provider": "openai"})
+    with pytest.raises(RuntimeError, match="expected 'real'"):
+        _validate_readiness_snapshot({"llm_mode": "heuristic", "llm_provider": "openai"}, "volces")
 
 
 def test_poll_run_to_terminal_returns_completed(monkeypatch):
@@ -165,6 +165,8 @@ def test_run_gate_with_fakes_creates_evidence_and_writes_file(tmp_path, monkeypa
         port=8089,
         output=output,
         profile_id="custom-profile",
+        provider="volces",
+        inject_key=False,
         ready_timeout_s=10,
         poll_timeout_s=10,
         poll_interval_s=0,
@@ -188,24 +190,24 @@ def test_run_gate_with_fakes_creates_evidence_and_writes_file(tmp_path, monkeypa
     assert client.cancelled == ["run-1"]
     assert client.run_bodies == [
         {
-            "goal": "Rule 15 Volces gate run 0",
+            "goal": "T3 gate run 0",
             "profile_id": "custom-profile",
-            "project_id": "rule15_gate_project",
+            "project_id": "t3_gate_project",
         },
         {
-            "goal": "Rule 15 Volces gate run 1",
+            "goal": "T3 gate run 1",
             "profile_id": "custom-profile",
-            "project_id": "rule15_gate_project",
+            "project_id": "t3_gate_project",
         },
         {
-            "goal": "Rule 15 Volces gate run 2",
+            "goal": "T3 gate run 2",
             "profile_id": "custom-profile",
-            "project_id": "rule15_gate_project",
+            "project_id": "t3_gate_project",
         },
         {
-            "goal": "Rule 15 Volces gate run 3",
+            "goal": "T3 gate run 3",
             "profile_id": "custom-profile",
-            "project_id": "rule15_gate_project",
+            "project_id": "t3_gate_project",
         },
     ]
     assert process.terminated is True
@@ -233,7 +235,9 @@ def test_run_gate_fails_cleanly_when_cancel_route_missing(tmp_path, monkeypatch)
         base_url=None,
         port=8090,
         output=output,
-        profile_id="rule15_volces",
+        profile_id="t3_gate",
+        provider="volces",
+        inject_key=False,
         ready_timeout_s=10,
         poll_timeout_s=10,
         poll_interval_s=0,
