@@ -386,6 +386,27 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             self._conn.execute("DELETE FROM run_records WHERE run_id = ?", (run_id,))
             self._conn.commit()
 
+    def list_pending(self) -> list[RunRecord]:
+        """Return all runs in non-terminal status (queued or running).
+
+        Used at startup to rehydrate runs that were in-flight when the
+        process was killed.
+
+        Returns:
+            List of RunRecord instances with status 'queued' or 'running',
+            ordered by created_at ascending.
+        """
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
+                "status, priority, attempt_count, cancellation_flag, result_summary, "
+                "error_summary, created_at, updated_at, project_id, finished_at "
+                "FROM run_records WHERE status IN ('queued', 'running') "
+                "ORDER BY created_at ASC",
+            )
+            rows = cur.fetchall()
+        return [self._row_to_record(r) for r in rows]
+
     def close(self) -> None:
         """Close the underlying database connection."""
         self._conn.close()

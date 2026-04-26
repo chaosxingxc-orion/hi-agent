@@ -17,6 +17,10 @@ import time
 from pathlib import Path
 from typing import ClassVar
 
+# Default lease duration in seconds before a run is marked lease_expired.
+# Overridden by HI_AGENT_RUN_LEASE_SECONDS environment variable.
+_DEFAULT_LEASE_SECONDS = 300
+
 
 def _resolve_db_path(db_path: str | None) -> str:
     """RO-3: resolve RunQueue db_path based on posture when caller passes None.
@@ -69,6 +73,7 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
         "ALTER TABLE run_queue ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE run_queue ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE run_queue ADD COLUMN project_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE run_queue ADD COLUMN lease_started_at REAL",
     ]
     _CREATE_SPINE_INDEX = """\
 CREATE INDEX IF NOT EXISTS idx_run_queue_spine
@@ -198,9 +203,9 @@ ON run_queue (tenant_id, user_id, session_id, status)
             result = self._conn.execute(
                 "UPDATE run_queue "
                 "SET status = 'leased', worker_id = ?, "
-                "    lease_expires_at = ?, updated_at = ? "
+                "    lease_expires_at = ?, lease_started_at = ?, updated_at = ? "
                 "WHERE run_id = ? AND status = 'queued'",
-                (worker_id, lease_expires_at, now, run_id),
+                (worker_id, lease_expires_at, now, now, run_id),
             )
             self._conn.commit()
 
@@ -364,6 +369,57 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 (run_id,),
             )
             self._conn.commit()
+
+    def expire_stale_leases(
+        self,
+        now_ts: float,
+        lease_seconds: int | None = None,
+    ) -> list[str]:
+        """Mark runs whose lease_started_at + lease_seconds < now_ts as lease_expired.
+
+        Returns list of expired run_ids. Atomic SQL UPDATE.
+
+        For in-memory (`:memory:`) databases this is a no-op returning [].
+
+        Args:
+            now_ts: Current timestamp (seconds since epoch).
+            lease_seconds: Maximum lease duration in seconds before a run is
+                considered stale. Defaults to HI_AGENT_RUN_LEASE_SECONDS
+                env var, or 300 if unset.
+
+        Returns:
+            List of run_ids that were transitioned to 'lease_expired' status.
+        """
+        if self.db_path == ":memory:":
+            return []
+
+        if lease_seconds is None:
+            lease_seconds = int(
+                os.environ.get("HI_AGENT_RUN_LEASE_SECONDS", str(_DEFAULT_LEASE_SECONDS))
+            )
+
+        cutoff = now_ts - lease_seconds
+        with self._lock:
+            # Ensure the lease_expired status is valid; mark leased rows whose
+            # lease_started_at predates the cutoff.
+            cur = self._conn.execute(
+                "SELECT run_id FROM run_queue "
+                "WHERE status = 'leased' "
+                "  AND lease_started_at IS NOT NULL "
+                "  AND lease_started_at < ?",
+                (cutoff,),
+            )
+            expired_ids = [row[0] for row in cur.fetchall()]
+            if not expired_ids:
+                return []
+            placeholders = ",".join("?" * len(expired_ids))
+            self._conn.execute(
+                f"UPDATE run_queue SET status = 'lease_expired', updated_at = ? "
+                f"WHERE run_id IN ({placeholders})",
+                [now_ts, *expired_ids],
+            )
+            self._conn.commit()
+        return expired_ids
 
     def close(self) -> None:
         """Close the underlying database connection."""

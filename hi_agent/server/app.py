@@ -1020,6 +1020,95 @@ async def handle_plugins_status(request: Request) -> JSONResponse:
 
 
 # ------------------------------------------------------------------
+# Startup rehydration helper (RO — W4-C)
+# ------------------------------------------------------------------
+
+
+async def _rehydrate_runs(
+    run_store: Any,
+    run_manager: Any,
+    posture: Any,
+) -> None:
+    """On startup: find non-terminal runs in run_store and rehydrate them.
+
+    Posture-gated:
+    - dev: no-op.
+    - research/prod: injects ManagedRun stubs into run_manager so
+      GET /runs/{id} returns data without a store fallback.  When
+      HI_AGENT_RECOVERY_REENQUEUE=1, also re-enqueues each run into
+      the durable RunQueue (requires run_manager._run_queue to be set).
+    """
+    import os as _os_reh
+
+    from hi_agent.observability.fallback import record_fallback as _rec_fb
+    from hi_agent.server.run_manager import ManagedRun as _ManagedRun
+
+    if run_store is None:
+        return
+    if not posture.is_strict:
+        return
+
+    try:
+        pending = run_store.list_pending()
+    except Exception as _exc:
+        logger.warning("_rehydrate_runs: list_pending() failed: %s", _exc)
+        return
+
+    reenqueue = _os_reh.environ.get("HI_AGENT_RECOVERY_REENQUEUE", "0") == "1"
+    rehydrated = 0
+
+    for record in pending:
+        run_id = record.run_id
+        # Build a minimal ManagedRun stub so route handlers can look it up.
+        stub = _ManagedRun(
+            run_id=run_id,
+            task_contract={},
+            state=record.status,
+            tenant_id=record.tenant_id,
+            user_id=record.user_id,
+            session_id=record.session_id,
+            created_at="",
+            updated_at="",
+        )
+        run_manager._inject_rehydrated_run(run_id, stub)
+
+        if reenqueue:
+            _rec_fb(
+                "heuristic",
+                reason="startup_rehydration",
+                run_id=run_id,
+                extra={"tenant_id": record.tenant_id, "status": record.status},
+            )
+            rq = getattr(run_manager, "_run_queue", None)
+            if rq is not None:
+                try:
+                    rq.enqueue(
+                        run_id=run_id,
+                        priority=record.priority,
+                        payload_json=record.task_contract_json,
+                        tenant_id=record.tenant_id,
+                        user_id=record.user_id,
+                        session_id=record.session_id,
+                        project_id=record.project_id,
+                    )
+                except Exception as _eq:
+                    logger.warning(
+                        "_rehydrate_runs: enqueue failed for run_id=%s: %s", run_id, _eq
+                    )
+            rehydrated += 1
+        else:
+            logger.warning(
+                "Startup: found non-terminal run %s (state=%s, lease may be stale). "
+                "Set HI_AGENT_RECOVERY_REENQUEUE=1 to re-enqueue.",
+                run_id,
+                record.status,
+            )
+
+    if rehydrated:
+        logger.info("Startup rehydration complete: %d runs re-enqueued.", rehydrated)
+
+
+# ------------------------------------------------------------------
 # build_app: construct Starlette application
 # ------------------------------------------------------------------
 
@@ -1162,6 +1251,18 @@ def build_app(agent_server: AgentServer) -> Starlette:
             logger.warning(
                 "lifespan: FeedbackStore is None; feedback endpoints will be unavailable."
             )
+
+        # W4-C: Rehydrate non-terminal runs from run_store into run_manager
+        # so GET /runs/{id} can serve them after a process restart.
+        try:
+            _reh_posture = Posture.from_env()
+            await _rehydrate_runs(
+                run_store=agent_server._run_store,
+                run_manager=agent_server.run_manager,
+                posture=_reh_posture,
+            )
+        except Exception as _reh_exc:
+            logger.warning("lifespan: _rehydrate_runs failed (non-fatal): %s", _reh_exc)
 
         # G-8: Long-running op coordinator + background poller
         from pathlib import Path as _Path

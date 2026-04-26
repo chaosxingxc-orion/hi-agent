@@ -896,6 +896,21 @@ class RunManager:
             "fallback_events": _top_fallback_events,
         }
 
+    def _inject_rehydrated_run(self, run_id: str, managed_run: ManagedRun) -> None:
+        """Thread-safe injection of a rehydrated ManagedRun on startup.
+
+        Called by _rehydrate_runs() in app.py lifespan to restore in-flight
+        runs from run_store into the in-memory registry so route handlers
+        can look them up without needing a store fallback.
+
+        Args:
+            run_id: Identifier of the run to inject.
+            managed_run: Pre-constructed ManagedRun instance from the store.
+        """
+        with self._lock:
+            if run_id not in self._runs:
+                self._runs[run_id] = managed_run
+
     def shutdown(self, timeout: float = 2.0) -> None:
         """Stop the background worker thread and prevent new queue loops.
 
