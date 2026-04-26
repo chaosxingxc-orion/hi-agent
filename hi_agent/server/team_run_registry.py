@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
         tenant_id = row[7]
         user_id = row[8]
         session_id = row[9]
-        lead_run_id = row[10] if len(row) > 10 else ""
+        lead_run_id = row[10]
         raw_members = json.loads(member_json) if member_json else []
         member_runs = tuple(tuple(pair) for pair in raw_members)
         # Prefer lead_run_id from DB; fall back to pi_run_id for legacy rows.
