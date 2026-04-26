@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import datetime
 import logging
+import uuid
 from typing import TYPE_CHECKING
 
 from hi_agent.evolve.champion_challenger import ChampionChallenger
 from hi_agent.evolve.contracts import (
+    EvolutionExperiment,
     EvolveChange,
     EvolveMetrics,
     EvolveResult,
     ProjectPostmortem,
     RunPostmortem,
 )
+from hi_agent.evolve.experiment_store import ExperimentStore, InMemoryExperimentStore
 from hi_agent.evolve.postmortem import PostmortemAnalyzer
 from hi_agent.evolve.regression_detector import RegressionDetector, RegressionReport
 from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
@@ -44,6 +47,7 @@ class EvolveEngine:
         skill_registry: SkillRegistry | None = None,
         version_manager: SkillVersionManager | None = None,
         comparison_interval: int = _DEFAULT_COMPARISON_INTERVAL,
+        experiment_store: ExperimentStore | None = None,
     ) -> None:
         """Initialize the evolve engine.
 
@@ -55,6 +59,8 @@ class EvolveEngine:
             skill_registry: Optional skill registry for auto-registering candidates.
             version_manager: Optional skill version manager for auto-promote.
             comparison_interval: Number of runs between champion/challenger comparisons.
+            experiment_store: Store for EvolutionExperiment records; defaults to
+                InMemoryExperimentStore for backwards-compat with existing callers.
         """
         self._llm = llm_gateway
         self._postmortem_analyzer = PostmortemAnalyzer(llm_gateway=llm_gateway)
@@ -83,6 +89,9 @@ class EvolveEngine:
         self._version_manager = version_manager
         self._comparison_interval = comparison_interval
         self._skill_candidates: list[SkillCandidate] = []
+        self._experiment_store: ExperimentStore = (
+            experiment_store if experiment_store is not None else InMemoryExperimentStore()
+        )
 
     def on_run_completed(self, postmortem: RunPostmortem) -> EvolveResult:
         """Trigger per-run postmortem evolve.
@@ -222,6 +231,27 @@ class EvolveEngine:
                         evidence_refs=[postmortem.run_id],
                     )
                 )
+                # Record the promotion as an EvolutionExperiment.
+                try:
+                    exp = EvolutionExperiment(
+                        experiment_id=str(uuid.uuid4()),
+                        capability_name=scope,
+                        baseline_version=comparison.champion_version,
+                        candidate_version=comparison.challenger_version,
+                        metric_name="champion_challenger_score",
+                        started_at=datetime.datetime.now(tz=datetime.UTC).isoformat(),
+                        status="active",
+                        tenant_id=getattr(postmortem, "tenant_id", ""),
+                        project_id=getattr(postmortem, "project_id", ""),
+                        run_id=postmortem.run_id,
+                    )
+                    self._experiment_store.start_experiment(exp)
+                except Exception:
+                    _logger.debug(
+                        "experiment_store.start_experiment failed for scope '%s'",
+                        scope,
+                        exc_info=True,
+                    )
                 # Auto-promote via version_manager if available.
                 if vm is not None:
                     try:

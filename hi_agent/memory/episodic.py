@@ -26,6 +26,10 @@ class EpisodeRecord:
     duration_seconds: float = 0.0
     timestamp: str = ""
     tags: list[str] = field(default_factory=list)
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
 
 
 class EpisodicMemoryStore:
@@ -154,4 +158,8 @@ def _dict_to_episode(data: dict) -> EpisodeRecord:
         duration_seconds=data.get("duration_seconds", 0.0),
         timestamp=data.get("timestamp", ""),
         tags=data.get("tags", []),
+        tenant_id=data.get("tenant_id", ""),
+        user_id=data.get("user_id", ""),
+        session_id=data.get("session_id", ""),
+        project_id=data.get("project_id", ""),
     )

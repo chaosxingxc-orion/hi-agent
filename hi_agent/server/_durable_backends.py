@@ -48,6 +48,8 @@ def build_durable_backends(
             return str(Path(data_dir) / filename)
         return None
 
+    # make_experiment_store returns SqliteExperimentStore under research/prod posture.
+    from hi_agent.evolve.experiment_store import make_experiment_store
     from hi_agent.evolve.feedback_store import FeedbackStore
     from hi_agent.management.gate_store import SQLiteGateStore
     from hi_agent.route_engine.decision_audit_store import SqliteDecisionAuditStore
@@ -93,4 +95,7 @@ def build_durable_backends(
         "decision_audit_store": decision_audit_store,
         "gate_store": gate_store,
         "feedback_store": FeedbackStore(storage_path=_path("feedback.json")),
+        "experiment_store": make_experiment_store(
+            posture=posture, data_dir=data_dir or ".hi_agent"
+        ),
     }

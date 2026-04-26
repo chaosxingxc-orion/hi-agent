@@ -19,6 +19,7 @@ class EvolveChange:
         evidence_refs: References to supporting evidence (run IDs, etc.).
     """
 
+    # scope: process-internal — transient transformation, not persisted
     change_type: str
     target_id: str
     description: str
@@ -43,6 +44,8 @@ class EvolveMetrics:
     tokens_used: int = 0
     skill_candidates_found: int = 0
     regressions_detected: int = 0
+    tenant_id: str = ""
+    project_id: str = ""
 
 
 @dataclass
@@ -64,6 +67,8 @@ class EvolveResult:
     metrics: EvolveMetrics
     run_ids_analyzed: list[str]
     timestamp: str
+    tenant_id: str = ""
+    project_id: str = ""
 
 
 @dataclass
@@ -106,6 +111,18 @@ class RunPostmortem:
     skills_used: list[str] = field(default_factory=list)
     policy_versions: dict[str, str] = field(default_factory=dict)
     project_id: str = ""
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        posture = Posture.from_env()
+        if posture.is_strict and not self.tenant_id:
+            raise ValueError(
+                "RunPostmortem.tenant_id required under research/prod posture"
+            )
 
 
 class PromotionBlockedError(Exception):
@@ -124,6 +141,18 @@ class CalibrationSignal:
     latency_ms: float = 0.0
     quality_score: float = 0.0
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        posture = Posture.from_env()
+        if posture.is_strict and not self.tenant_id:
+            raise ValueError(
+                "CalibrationSignal.tenant_id required under research/prod posture"
+            )
 
 
 @dataclass
@@ -146,3 +175,53 @@ class ProjectPostmortem:
     skill_deltas: list[str] = field(default_factory=list)
     routing_deltas: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        posture = Posture.from_env()
+        if posture.is_strict and not self.tenant_id:
+            raise ValueError(
+                "ProjectPostmortem.tenant_id required under research/prod posture"
+            )
+
+
+@dataclass
+class EvolutionExperiment:
+    """A single champion/challenger experiment tracked across runs.
+
+    Attributes:
+        experiment_id: Unique identifier for this experiment.
+        capability_name: Name of the capability under test.
+        baseline_version: Version of the baseline (champion).
+        candidate_version: Version of the candidate (challenger).
+        metric_name: Primary metric driving the comparison.
+        started_at: ISO 8601 timestamp when the experiment was started.
+        status: Current status — "active" | "completed" | "aborted".
+        tenant_id: Tenant scope; required under research/prod posture.
+        project_id: Project scope.
+        run_id: Run that initiated this experiment, if applicable.
+    """
+
+    experiment_id: str
+    capability_name: str
+    baseline_version: str
+    candidate_version: str
+    metric_name: str
+    started_at: str  # ISO 8601
+    status: str  # "active" | "completed" | "aborted"
+    tenant_id: str = ""
+    project_id: str = ""
+    run_id: str = ""
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        posture = Posture.from_env()
+        if posture.is_strict and not self.tenant_id:
+            raise ValueError(
+                "EvolutionExperiment.tenant_id required under research/prod posture"
+            )
