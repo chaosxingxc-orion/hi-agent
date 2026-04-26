@@ -22,7 +22,7 @@ from hi_agent.contracts import (
 from hi_agent.failures.taxonomy import FailureCode
 
 if TYPE_CHECKING:
-    from hi_agent.evolve.contracts import RunPostmortem
+    from hi_agent.evolve.contracts import RunRetrospective
     from hi_agent.evolve.engine import EvolveEngine
     from hi_agent.failures.collector import FailureCollector
     from hi_agent.memory.episode_builder import EpisodeBuilder
@@ -174,9 +174,9 @@ class RunLifecycle:
         policy_versions: PolicyVersionSet,
         kernel: Any,
         skill_ids_used: list[str] | None = None,
-    ) -> RunPostmortem:
-        """Build a RunPostmortem from current run state."""
-        from hi_agent.evolve.contracts import RunPostmortem
+    ) -> RunRetrospective:
+        """Build a RunRetrospective from current run state."""
+        from hi_agent.evolve.contracts import RunRetrospective
 
         stages_completed: list[str] = []
         stages_failed: list[str] = []
@@ -259,8 +259,8 @@ class RunLifecycle:
                     exc,
                 )
 
-        # spine-skip: tenant_id absent from RunPostmortem dataclass; scope carried by caller
-        return RunPostmortem(
+        # spine-skip: tenant_id absent from RunRetrospective dataclass; scope carried by caller
+        return RunRetrospective(
             run_id=run_id,
             task_id=contract.task_id,
             task_family=contract.task_family,

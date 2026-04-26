@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     import asyncio
 
     from hi_agent.contracts.directives import StageDirective
-    from hi_agent.evolve.contracts import RunPostmortem
+    from hi_agent.evolve.contracts import RunRetrospective
     from hi_agent.evolve.engine import EvolveEngine
     from hi_agent.evolve.feedback_store import FeedbackStore
     from hi_agent.failures.collector import FailureCollector
@@ -1372,14 +1372,14 @@ class RunExecutor:
         self._gate_seq += 1
         return ref
 
-    def _build_postmortem(self, outcome: str) -> RunPostmortem:
-        """Build a RunPostmortem from current run state.
+    def _build_postmortem(self, outcome: str) -> RunRetrospective:
+        """Build a RunRetrospective from current run state.
 
         Args:
             outcome: Final outcome string (``completed`` or ``failed``).
 
         Returns:
-            A populated RunPostmortem dataclass.
+            A populated RunRetrospective dataclass.
         """
         return self._lifecycle.build_postmortem(
             outcome,

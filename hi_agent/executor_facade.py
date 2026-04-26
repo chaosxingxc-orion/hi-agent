@@ -69,7 +69,7 @@ class RunExecutorFacade:
         facade = RunExecutorFacade()
         facade.start(
             run_id="r-001",
-            profile_id="research",
+            profile_id="default",
             model_tier="medium",
             skill_dir="./skills",
         )
