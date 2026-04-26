@@ -82,6 +82,10 @@ class SQLiteGateStore:
             "rationale": ctx.rationale,
             "opened_at": ctx.opened_at,
             "metadata": ctx.metadata,
+            "tenant_id": ctx.tenant_id,
+            "user_id": ctx.user_id,
+            "session_id": ctx.session_id,
+            "project_id": ctx.project_id,
         }
         payload = {
             "context": ctx_dict,
@@ -99,6 +103,10 @@ class SQLiteGateStore:
     def _row_to_record(self, row: tuple) -> GateRecord:
         payload = json.loads(row[5])
         ctx_data = payload["context"]
+        col_project_id = row[2]
+        col_tenant_id = row[6]
+        col_user_id = row[7]
+        col_session_id = row[8]
         ctx = GateContext(
             gate_ref=ctx_data["gate_ref"],
             run_id=ctx_data["run_id"],
@@ -109,6 +117,10 @@ class SQLiteGateStore:
             rationale=ctx_data.get("rationale"),
             opened_at=float(ctx_data.get("opened_at", 0.0)),
             metadata=dict(ctx_data.get("metadata") or {}),
+            tenant_id=col_tenant_id or ctx_data.get("tenant_id", ""),
+            user_id=col_user_id or ctx_data.get("user_id", ""),
+            session_id=col_session_id or ctx_data.get("session_id", ""),
+            project_id=col_project_id or ctx_data.get("project_id", ""),
         )
         return GateRecord(
             context=ctx,
@@ -137,8 +149,16 @@ class SQLiteGateStore:
         """Create and persist a new pending gate."""
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
+        from dataclasses import replace as _replace
+        ctx = _replace(
+            context,
+            tenant_id=context.tenant_id or tenant_id,
+            user_id=context.user_id or user_id,
+            session_id=context.session_id or session_id,
+            project_id=context.project_id or project_id,
+        )
         record = GateRecord(
-            context=context,
+            context=ctx,
             status=GateStatus.PENDING,
             timeout_seconds=timeout_seconds,
             timeout_policy=timeout_policy,
@@ -152,17 +172,17 @@ class SQLiteGateStore:
                 " tenant_id, user_id, session_id) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    context.gate_ref,
-                    context.run_id,
-                    project_id,
-                    context.stage_id,
+                    ctx.gate_ref,
+                    ctx.run_id,
+                    ctx.project_id,
+                    ctx.stage_id,
                     record.status.value,
                     self._record_to_payload(record),
                     now,
                     now,
-                    tenant_id,
-                    user_id,
-                    session_id,
+                    ctx.tenant_id,
+                    ctx.user_id,
+                    ctx.session_id,
                 ),
             )
             self._con.commit()
@@ -174,7 +194,8 @@ class SQLiteGateStore:
         if not normalized:
             raise ValueError("gate_ref must be a non-empty string")
         row = self._con.execute(
-            "SELECT gate_ref, run_id, project_id, stage_id, status, payload "
+            "SELECT gate_ref, run_id, project_id, stage_id, status, payload, "
+            "tenant_id, user_id, session_id "
             "FROM gates WHERE gate_ref = ?",
             (normalized,),
         ).fetchone()
@@ -185,7 +206,8 @@ class SQLiteGateStore:
     def list_pending(self) -> list[GateRecord]:
         """Return all gates currently in PENDING status."""
         rows = self._con.execute(
-            "SELECT gate_ref, run_id, project_id, stage_id, status, payload "
+            "SELECT gate_ref, run_id, project_id, stage_id, status, payload, "
+            "tenant_id, user_id, session_id "
             "FROM gates WHERE status = ?",
             (GateStatus.PENDING.value,),
         ).fetchall()

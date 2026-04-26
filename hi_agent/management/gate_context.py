@@ -25,6 +25,10 @@ class GateContext:
     rationale: str | None = None
     opened_at: float = field(default_factory=time)
     metadata: dict[str, Any] = field(default_factory=dict)
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
 
 
 def build_gate_context(

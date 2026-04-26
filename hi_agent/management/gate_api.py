@@ -73,6 +73,10 @@ class InMemoryGateAPI:
         timeout_seconds: float = 300.0,
         timeout_policy: GateTimeoutPolicy = GateTimeoutPolicy.REJECT,
         escalation_target: str | None = None,
+        tenant_id: str = "",
+        user_id: str = "",
+        session_id: str = "",
+        project_id: str = "",
     ) -> GateRecord:
         """Create a new pending gate."""
         if timeout_seconds <= 0:
@@ -80,14 +84,21 @@ class InMemoryGateAPI:
         if context.gate_ref in self._records:
             raise ValueError(f"gate {context.gate_ref} already exists")
 
+        ctx = replace(
+            context,
+            tenant_id=context.tenant_id or tenant_id,
+            user_id=context.user_id or user_id,
+            session_id=context.session_id or session_id,
+            project_id=context.project_id or project_id,
+        )
         record = GateRecord(
-            context=context,
+            context=ctx,
             status=GateStatus.PENDING,
             timeout_seconds=timeout_seconds,
             timeout_policy=timeout_policy,
             escalation_target=escalation_target.strip() if escalation_target else None,
         )
-        self._records[context.gate_ref] = record
+        self._records[ctx.gate_ref] = record
         return record
 
     def list_pending(self) -> list[GateRecord]:
