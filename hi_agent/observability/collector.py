@@ -120,6 +120,12 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "MCP transport get_stderr_tail() raised unexpectedly (Rule 7 alarm).",
     ),
+    # W6-C: Rule 7 alarm for recovery reenqueue disabled under strict posture.
+    "hi_agent_recovery_reenqueue_disabled_total": _MetricDef(
+        "hi_agent_recovery_reenqueue_disabled_total",
+        "counter",
+        "Recovery reenqueue suppressed by opt-out flag under research/prod (Rule 7 alarm).",
+    ),
     # TE-4: per-kind Prometheus counters required by Rule 7.
     # Incremented by record_fallback() in addition to the generic fallback_<kind>
     # counters so that /metrics exposes the canonical Rule-7 names.
@@ -168,6 +174,13 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "fallback_policy_bypass_dev",
         "counter",
         "Dev-mode policy bypass (must be zero in prod releases).",
+    ),
+    # W6-E: KG backend override alarm — incremented when HI_AGENT_KG_BACKEND=json
+    # is accepted under research posture (Rule 7 alarm; rejected under prod).
+    "hi_agent_kg_backend_override_total": _MetricDef(
+        "hi_agent_kg_backend_override_total",
+        "counter",
+        "KG backend overridden away from posture default (Rule 7 alarm).",
     ),
 }
 

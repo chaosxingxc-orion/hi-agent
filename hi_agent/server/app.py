@@ -1041,7 +1041,7 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
     import os
     import uuid
 
-    from hi_agent.server.recovery import RecoveryState, decide_recovery_action
+    from hi_agent.server.recovery import RecoveryAlarm, RecoveryState, decide_recovery_action
 
     run_queue = agent_server._run_queue
     if run_queue is None:
@@ -1119,6 +1119,8 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
                 lease_age_s,
                 reason,
             )
+            # Rule 7: fire alarm when reenqueue is disabled under strict posture.
+            RecoveryAlarm.fire_if_needed(run_id=run_id, tenant_id=tenant_id, posture=posture)
 
 
 # ------------------------------------------------------------------

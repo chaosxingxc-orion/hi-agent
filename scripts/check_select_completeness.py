@@ -99,11 +99,46 @@ def check_defensive_fallbacks(path: Path) -> list[str]:
     return errors
 
 
+def check_exec_ctx_precedence(root: Path) -> list[str]:
+    """Check that no production writer uses exec_ctx-wins precedence.
+
+    Scans hi_agent/ source only (excludes tests and scripts, which may contain
+    intentional bad-pattern examples as fixtures).
+
+    The forbidden pattern is ``exec_ctx.<field> or kwargs.get(...)`` which
+    gives exec_ctx priority over explicit kwargs.  The required pattern is
+    ``kwargs_value or exec_ctx.<field>`` (kwargs win; exec_ctx fills gaps).
+    """
+    issues = []
+    # Build the pattern string without embedding a literal match target in this file.
+    _forbidden = re.compile(
+        r"exec_ctx\." + r"\w+" + r"\s+or\s+" + r"(?:kwargs\.get|getattr\(kwargs)"
+    )
+    hi_agent_root = root / "hi_agent"
+    if not hi_agent_root.is_dir():
+        hi_agent_root = root  # fallback for tests that pass a tmp_path
+    for py_file in hi_agent_root.rglob("*.py"):
+        try:
+            content = py_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if "exec_ctx" not in content:
+            continue
+        for lineno, line in enumerate(content.splitlines(), 1):
+            if _forbidden.search(line):
+                issues.append(
+                    f"  {py_file}:{lineno}: exec_ctx-wins pattern detected"
+                    " (exec_ctx.<field> or kwargs.get) — use kwargs-wins instead"
+                )
+    return issues
+
+
 def main() -> int:
     errors = []
     for path in find_store_files():
         errors.extend(check_defensive_fallbacks(path))
     errors.extend(check_writer_exec_ctx())
+    errors.extend(check_exec_ctx_precedence(ROOT))
     if errors:
         print("FAIL check_select_completeness:")
         for e in errors:

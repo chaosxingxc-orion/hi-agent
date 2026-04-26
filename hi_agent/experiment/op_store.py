@@ -86,13 +86,13 @@ class LongRunningOpStore:
     ) -> OpHandle:
         """Create a new operation handle.
 
-        When exec_ctx is provided, its spine fields (tenant_id, run_id,
-        project_id) override the corresponding kwargs.
+        Spine fields: explicit kwargs win; exec_ctx fills only fields the
+        caller did not specify (or specified as empty string).
         """
         if exec_ctx is not None:
-            tenant_id = exec_ctx.tenant_id or tenant_id
-            run_id = exec_ctx.run_id or run_id
-            project_id = exec_ctx.project_id or project_id
+            tenant_id = tenant_id or exec_ctx.tenant_id
+            run_id = run_id or exec_ctx.run_id
+            project_id = project_id or exec_ctx.project_id
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO ops "

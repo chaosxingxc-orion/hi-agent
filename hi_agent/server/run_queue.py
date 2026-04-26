@@ -18,6 +18,14 @@ from pathlib import Path
 from typing import ClassVar
 
 
+class OptimisticLockFailed(Exception):
+    """Raised when a recovery lease claim fails due to concurrent adoption.
+
+    Thrown by callers that detect ``claim_with_adoption_token`` returned
+    ``False``, indicating another recovery pass already owns the run.
+    """
+
+
 def _resolve_db_path(db_path: str | None) -> str:
     """RO-3: resolve RunQueue db_path based on posture when caller passes None.
 
