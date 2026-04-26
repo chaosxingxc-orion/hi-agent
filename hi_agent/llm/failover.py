@@ -639,6 +639,10 @@ class FailoverChain:
         try:
             return float(header)
         except ValueError:
+            from hi_agent.observability.collector import get_metrics_collector
+            _mc = get_metrics_collector()
+            if _mc is not None:
+                _mc.increment("hi_agent_retry_after_parse_total", labels={"outcome": "invalid"})
             return None
 
 

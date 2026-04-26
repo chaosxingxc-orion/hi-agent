@@ -219,6 +219,10 @@ class StdioMCPTransport:
             lines = list(self._stderr_buf)
             return lines[-n:] if len(lines) > n else lines
         except Exception:
+            from hi_agent.observability.collector import get_metrics_collector
+            _mc = get_metrics_collector()
+            if _mc is not None:
+                _mc.increment("hi_agent_mcp_stderr_tail_failure_total")
             return []
 
     def close(self) -> None:

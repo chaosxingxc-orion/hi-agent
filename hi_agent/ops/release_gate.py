@@ -144,6 +144,12 @@ def check_prod_e2e_recent(
         try:
             data = json.loads(ep_file.read_text(encoding="utf-8"))
         except Exception:
+            from hi_agent.observability.fallback import record_fallback
+            record_fallback(
+                "heuristic",
+                reason="episode_json_corrupt",
+                run_id=ep_file.stem,
+            )
             continue
 
         mode = data.get("runtime_mode") or data.get("execution_provenance", {}).get(
@@ -159,6 +165,12 @@ def check_prod_e2e_recent(
         try:
             ts = _parse_utc_timestamp(ts_str)
         except ValueError:
+            from hi_agent.observability.fallback import record_fallback
+            record_fallback(
+                "heuristic",
+                reason="episode_timestamp_invalid",
+                run_id=ep_file.stem,
+            )
             continue
 
         prod_run_count += 1

@@ -108,6 +108,18 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Corrupt lines skipped while loading the artifact ledger JSONL file.",
     ),
+    # W4-F / Rule 7: Retry-After header parse failure in failover chain.
+    "hi_agent_retry_after_parse_total": _MetricDef(
+        "hi_agent_retry_after_parse_total",
+        "counter",
+        "Retry-After header present but not parseable as float (Rule 7 alarm).",
+    ),
+    # W4-F / Rule 7: MCP subprocess stderr tail read failure.
+    "hi_agent_mcp_stderr_tail_failure_total": _MetricDef(
+        "hi_agent_mcp_stderr_tail_failure_total",
+        "counter",
+        "MCP transport get_stderr_tail() raised unexpectedly (Rule 7 alarm).",
+    ),
     # TE-4: per-kind Prometheus counters required by Rule 7.
     # Incremented by record_fallback() in addition to the generic fallback_<kind>
     # counters so that /metrics exposes the canonical Rule-7 names.
