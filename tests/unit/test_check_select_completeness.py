@@ -77,3 +77,71 @@ def test_spine_call_site_check_respects_skip_comment(tmp_path):
         """,
     )
     assert failures == [], failures
+
+
+# ---------------------------------------------------------------------------
+# HumanGateRequest spine checks (W3-C)
+# ---------------------------------------------------------------------------
+
+
+def test_human_gate_request_missing_tenant_id_flagged(tmp_path):
+    """HumanGateRequest without tenant_id= must be flagged."""
+    failures = _run_checker_on(
+        tmp_path,
+        """
+        from hi_agent.server.gate_protocol import HumanGateRequest
+
+        def make():
+            return HumanGateRequest(run_id="r", gate_type="g", gate_ref="ref")
+        """,
+    )
+    assert any("HumanGateRequest" in f and "tenant_id=" in f for f in failures), failures
+
+
+def test_human_gate_request_with_tenant_id_passes(tmp_path):
+    """HumanGateRequest with tenant_id= must pass the check."""
+    failures = _run_checker_on(
+        tmp_path,
+        """
+        from hi_agent.server.gate_protocol import HumanGateRequest
+
+        def make():
+            return HumanGateRequest(
+                run_id="r", gate_type="g", gate_ref="ref", tenant_id="t"
+            )
+        """,
+    )
+    assert failures == [], failures
+
+
+# ---------------------------------------------------------------------------
+# RunPostmortem spine checks (W3-C)
+# ---------------------------------------------------------------------------
+
+
+def test_run_postmortem_missing_spine_fields_flagged(tmp_path):
+    """RunPostmortem without tenant_id= and project_id= must be flagged."""
+    failures = _run_checker_on(
+        tmp_path,
+        """
+        from hi_agent.evolve.contracts import RunPostmortem
+
+        def make():
+            return RunPostmortem(run_id="r")
+        """,
+    )
+    assert any("RunPostmortem" in f and "tenant_id=" in f for f in failures), failures
+
+
+def test_run_postmortem_with_both_spine_fields_passes(tmp_path):
+    """RunPostmortem with tenant_id= and project_id= must pass the check."""
+    failures = _run_checker_on(
+        tmp_path,
+        """
+        from hi_agent.evolve.contracts import RunPostmortem
+
+        def make():
+            return RunPostmortem(run_id="r", tenant_id="t", project_id="p")
+        """,
+    )
+    assert failures == [], failures

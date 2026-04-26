@@ -32,6 +32,10 @@ _SPINE_CALL_CHECKS: list[tuple[str, list[str]]] = [
     (r"StoredEvent\(", ["tenant_id="]),
     # SkillObservation must carry tenant_id
     (r"SkillObservation\(", ["tenant_id="]),
+    # HumanGateRequest must carry tenant_id — 5 call sites fixed by W3-A
+    (r"HumanGateRequest\(", ["tenant_id="]),
+    # RunPostmortem must carry tenant_id and project_id
+    (r"RunPostmortem\(", ["tenant_id=", "project_id="]),
 ]
 
 # Files to skip for advisory checks (test helpers, migrations, etc.)
@@ -99,7 +103,9 @@ def check_spine_call_sites(path: Path) -> list[str]:
         for i, line in enumerate(lines, 1):
             if not re.search(call_pattern, line):
                 continue
-            if _SPINE_SKIP_RE.search(line):
+            # Accept spine-skip on the call line or the immediately preceding line
+            prev_line = lines[i - 2] if i >= 2 else ""
+            if _SPINE_SKIP_RE.search(line) or _SPINE_SKIP_RE.search(prev_line):
                 continue
             call_body = "\n".join(lines[i - 1 : i + 20])
             if _SPLAT_RE.search(call_body):

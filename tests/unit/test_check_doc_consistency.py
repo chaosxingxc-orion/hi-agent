@@ -260,3 +260,82 @@ def test_e1c_no_error_when_sha_reachable(tmp_path):
     with patch("subprocess.check_output", return_value=fake_log.encode()):
         errors = cdc.check_notice_sha_reachable(notice)
     assert errors == []
+
+
+# ---------------------------------------------------------------------------
+# E1d — T3 DEFERRED + stale + release wording (W3-C)
+# ---------------------------------------------------------------------------
+
+
+def _load_cdc():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("cdc", SCRIPT)
+    cdc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cdc)
+    return cdc
+
+
+def test_e1d_fail_when_t3_deferred_stale_and_release_wording(tmp_path):
+    """E1d: notice with T3 DEFERRED + stale T3 + 'release-ready' wording → FAIL."""
+    cdc = _load_cdc()
+    content = textwrap.dedent("""\
+        **T3 evidence:** DEFERRED — gate run required.
+        This build is release-ready for downstream consumption.
+    """)
+    repo_root = SCRIPT.parent.parent
+    notice = repo_root / "docs" / "downstream-responses" / "_test-e1d-delivery-notice.md"
+    notice.write_text(content)
+    try:
+        with patch.object(cdc, "_is_t3_stale", return_value=True):
+            errors = cdc.check_t3_deferred_release_wording(notice)
+    finally:
+        notice.unlink(missing_ok=True)
+    assert len(errors) == 1
+    assert "release-ready" in errors[0]
+    assert "T3 is DEFERRED" in errors[0]
+
+
+def test_e1d_pass_when_gate_pending_present(tmp_path):
+    """E1d: notice with T3 DEFERRED + stale T3 + 'release-ready' + 'gate pending' → PASS."""
+    cdc = _load_cdc()
+    content = textwrap.dedent("""\
+        **T3 evidence:** DEFERRED — gate run required.
+        This build is release-ready for downstream — gate pending before final merge.
+    """)
+    repo_root = SCRIPT.parent.parent
+    notice = repo_root / "docs" / "downstream-responses" / "_test-e1d-gp-delivery-notice.md"
+    notice.write_text(content)
+    try:
+        with patch.object(cdc, "_is_t3_stale", return_value=True):
+            errors = cdc.check_t3_deferred_release_wording(notice)
+    finally:
+        notice.unlink(missing_ok=True)
+    assert errors == []
+
+
+def test_e1d_pass_when_no_release_wording(tmp_path):
+    """E1d: notice with T3 DEFERRED + stale T3 + no release wording → PASS."""
+    cdc = _load_cdc()
+    content = textwrap.dedent("""\
+        **T3 evidence:** DEFERRED — gate run required.
+        Changes are under review; functionality improvements only.
+    """)
+    notice = tmp_path / "2026-01-01-delivery-notice.md"
+    notice.write_text(content)
+    with patch.object(cdc, "_is_t3_stale", return_value=True):
+        errors = cdc.check_t3_deferred_release_wording(notice)
+    assert errors == []
+
+
+def test_e1d_pass_when_t3_not_deferred(tmp_path):
+    """E1d: notice without T3 DEFERRED marker → new rule does not fire."""
+    cdc = _load_cdc()
+    content = textwrap.dedent("""\
+        **T3 evidence:** docs/delivery/2026-01-01-abc1234-rule15-volces.json
+        This build is release-ready for downstream consumption.
+    """)
+    notice = tmp_path / "2026-01-01-delivery-notice.md"
+    notice.write_text(content)
+    with patch.object(cdc, "_is_t3_stale", return_value=True):
+        errors = cdc.check_t3_deferred_release_wording(notice)
+    assert errors == []

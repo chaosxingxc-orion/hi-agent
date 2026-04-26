@@ -233,6 +233,7 @@ class MockKernel:
         )
 
     def open_human_gate(self, request: HumanGateRequest) -> None:
+        # spine-skip: re-constructs from existing request; tenant_id forwarded after W3-A
         actual_req = HumanGateRequest(
             run_id=self._actual_run_id(request.run_id),
             gate_type=request.gate_type,

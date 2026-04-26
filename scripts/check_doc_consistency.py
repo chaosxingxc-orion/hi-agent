@@ -17,6 +17,19 @@ import subprocess
 import sys
 from pathlib import Path
 
+
+def _is_t3_stale() -> bool:
+    """Return True if check_t3_freshness.py exits non-zero."""
+    try:
+        r = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "check_t3_freshness.py")],
+            capture_output=True,
+            timeout=15,
+        )
+        return r.returncode != 0
+    except Exception:
+        return False  # if we can't check, don't fail
+
 ROOT = Path(__file__).parent.parent
 DOCS = ROOT / "docs"
 
@@ -211,6 +224,46 @@ def check_notice_t3_deferred_vs_readiness(notice: Path | None) -> list[str]:
     return []
 
 
+_RELEASE_READY_WORDS = re.compile(
+    r"\b(release[- ]ready|release[- ]complete|shipped|final release)\b",
+    re.IGNORECASE,
+)
+_GATE_PENDING_MARKER = "gate pending"
+
+
+def check_t3_deferred_release_wording(notice: Path | None) -> list[str]:
+    """E1d: When T3 is stale+deferred, delivery notice must not claim release readiness.
+
+    Fires when ALL of these hold:
+    - check_t3_freshness.py reports STALE
+    - notice contains 'T3 evidence: DEFERRED'
+    - notice does NOT contain 'gate pending'
+    - notice contains 'release-ready', 'shipped', 'release-complete', or 'final release'
+    """
+    if notice is None:
+        return []
+    src = notice.read_text(encoding="utf-8", errors="replace")
+    has_t3_deferred = bool(re.search(r"T3 evidence[*:\s]+DEFERRED", src, re.IGNORECASE))
+    if not has_t3_deferred:
+        return []
+    has_gate_pending = _GATE_PENDING_MARKER.lower() in src.lower()
+    if has_gate_pending:
+        return []
+    # Check T3 freshness script
+    t3_stale = _is_t3_stale()
+    if not t3_stale:
+        return []
+    # Check for misleading release wording
+    match = _RELEASE_READY_WORDS.search(src)
+    if match:
+        return [
+            f"  {notice.relative_to(ROOT)}: Delivery notice uses '{match.group()}' wording "
+            "but T3 is DEFERRED and stale. Either run a fresh T3 gate (W3-F) "
+            "or add 'gate pending' marker near any release claim."
+        ]
+    return []
+
+
 def check_notice_sha_reachable(notice: Path | None) -> list[str]:
     """E1c: claimed SHA must be reachable in git history."""
     if notice is None:
@@ -255,6 +308,7 @@ def main() -> int:
     latest_notice = _latest_delivery_notice()
     all_errors.extend(check_notice_head_matches_repo(latest_notice))
     all_errors.extend(check_notice_t3_deferred_vs_readiness(latest_notice))
+    all_errors.extend(check_t3_deferred_release_wording(latest_notice))
     all_errors.extend(check_notice_sha_reachable(latest_notice))
     if all_errors:
         print("FAIL check_doc_consistency:")

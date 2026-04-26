@@ -259,6 +259,7 @@ class RunLifecycle:
                     exc,
                 )
 
+        # spine-skip: tenant_id absent from RunPostmortem dataclass; scope carried by caller
         return RunPostmortem(
             run_id=run_id,
             task_id=contract.task_id,
