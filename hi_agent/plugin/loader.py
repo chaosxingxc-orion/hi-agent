@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from hi_agent.contracts.extension_manifest import ExtensionDisallowedError, ExtensionRegistry
 from hi_agent.plugin.manifest import PluginManifest
 
 logger = logging.getLogger(__name__)
@@ -21,18 +22,26 @@ class PluginLoader:
     — call ``activate()`` or ``activate_all()`` to run lifecycle hooks.
     """
 
-    def __init__(self, plugin_dirs: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        plugin_dirs: list[str] | None = None,
+        extension_registry: ExtensionRegistry | None = None,
+    ) -> None:
         """Initialize with optional list of directories to search.
 
         Args:
             plugin_dirs: Directories to search for plugins. Defaults to
                 [".hi_agent/plugins", "~/.hi_agent/plugins"].
+            extension_registry: Optional ExtensionRegistry for enforcement gate.
+                When provided, activate() calls registry.enable() before marking
+                a plugin active.
         """
         if plugin_dirs is None:
             home_dir = str(Path.home() / ".hi_agent" / "plugins")
             plugin_dirs = [".hi_agent/plugins", home_dir]
         self._plugin_dirs = plugin_dirs
         self._loaded: dict[str, PluginManifest] = {}
+        self._extension_registry: ExtensionRegistry | None = extension_registry
 
     def load_all(self) -> list[PluginManifest]:
         """Discover and load all plugins from configured directories.
@@ -81,6 +90,10 @@ class PluginLoader:
     ) -> bool:
         """Activate a single plugin by name, running its lifecycle hooks.
 
+        If an ExtensionRegistry was provided at construction, this method calls
+        registry.enable() before running lifecycle hooks.  If the extension is
+        blocked by the fail-closed gate, activation is refused and False is returned.
+
         Args:
             name: Name of the plugin to activate (must be loaded first).
             context: Optional platform context dict passed to plugin hooks
@@ -93,6 +106,38 @@ class PluginLoader:
         if manifest is None:
             logger.warning("PluginLoader.activate: plugin %r is not loaded.", name)
             return False
+
+        # Enforcement gate: check production_eligibility before activation.
+        if self._extension_registry is not None:
+            from hi_agent.config.posture import Posture
+
+            posture = Posture.from_env()
+            try:
+                self._extension_registry.enable(name, manifest.version, posture)
+            except ExtensionDisallowedError as exc:
+                logger.warning(
+                    "PluginLoader.activate: plugin %r blocked by ExtensionRegistry gate: %s",
+                    name,
+                    exc,
+                )
+                manifest.status = "error"
+                manifest.error = str(exc)
+                return False
+            except KeyError:
+                # Not registered yet — register then enable.
+                try:
+                    self._extension_registry.register(manifest, posture)
+                    self._extension_registry.enable(name, manifest.version, posture)
+                except (ValueError, ExtensionDisallowedError) as exc:
+                    logger.warning(
+                        "PluginLoader.activate: plugin %r failed registry gate: %s",
+                        name,
+                        exc,
+                    )
+                    manifest.status = "error"
+                    manifest.error = str(exc)
+                    return False
+
         from hi_agent.plugin.lifecycle import PluginLifecycle
 
         lifecycle = PluginLifecycle(context=context)

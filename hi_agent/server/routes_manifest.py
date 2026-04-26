@@ -21,7 +21,6 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from hi_agent.contracts.extension_manifest import get_extension_registry
 from hi_agent.server.tenant_context import require_tenant_context
 
 logger = logging.getLogger(__name__)
@@ -274,6 +273,9 @@ async def handle_manifest(request: Request) -> JSONResponse:
     # --- Plugins from live plugin loader singleton (with discovery) ---
     plugins: list[dict] = []
     try:
+        from hi_agent.config.posture import Posture as _Posture
+
+        _current_posture = _Posture.from_env()
         builder = getattr(server, "_builder", None)
         if builder is not None and hasattr(builder, "build_skill_loader"):
             plugin_loader = getattr(builder, "_plugin_loader", None)
@@ -284,7 +286,28 @@ async def handle_manifest(request: Request) -> JSONResponse:
                 plugin_loader.load_all()
                 builder._plugin_loader = plugin_loader
             if hasattr(plugin_loader, "list_loaded"):
-                plugins = plugin_loader.list_loaded()
+                raw_plugins = plugin_loader.list_loaded()
+                # Annotate each plugin dict with production_eligibility
+                for pd in raw_plugins:
+                    _pname = pd.get("name", "")
+                    _pver = pd.get("version", "")
+                    _pe_eligible = True
+                    _pe_reasons: list[str] = []
+                    try:
+                        _pm = plugin_loader.get(_pname) if hasattr(plugin_loader, "get") else None
+                        if _pm is not None and hasattr(_pm, "production_eligibility"):
+                            _pe_eligible, _pe_reasons = _pm.production_eligibility(_current_posture)
+                    except Exception as _pe_exc:
+                        logger.warning(
+                            "manifest: production_eligibility lookup failed for %r: %s",
+                            _pname,
+                            _pe_exc,
+                        )
+                    pd["production_eligibility"] = {
+                        "eligible": _pe_eligible,
+                        "blocked_reasons": _pe_reasons,
+                    }
+                    plugins.append(pd)
     except Exception as _plugin_exc:
         logger.warning("manifest: plugin enumeration failed: %s", _plugin_exc)
 
@@ -343,19 +366,6 @@ async def handle_manifest(request: Request) -> JSONResponse:
     except Exception as _ep_exc:
         logger.warning("manifest: runtime_mode/evolve_policy lookup failed: %s", _ep_exc)
 
-    # --- Extensions from global ExtensionRegistry (posture-filtered) ---
-    extensions: list[dict] = []
-    try:
-        import os as _os_ext
-
-        _posture_name = _os_ext.environ.get("HI_AGENT_POSTURE", "dev").strip().lower()
-        _ext_registry = get_extension_registry()
-        extensions = [
-            m.to_manifest_dict() for m in _ext_registry.list_for_posture(_posture_name)
-        ]
-    except Exception as _ext_exc:
-        logger.warning("manifest: extension registry enumeration failed: %s", _ext_exc)
-
     # Build capabilities list with parameters schema attached
     capabilities_with_params: list[dict] = [
         {
@@ -394,7 +404,6 @@ async def handle_manifest(request: Request) -> JSONResponse:
             "kernel_mode": manifest_kernel_mode,
             "execution_mode": manifest_execution_mode,
             "provenance_contract_version": provenance_contract_version,
-            "extensions": extensions,
             "contract_field_status": {
                 "goal": "ACTIVE",
                 "task_family": "ACTIVE",

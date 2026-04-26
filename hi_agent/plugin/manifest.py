@@ -7,9 +7,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from hi_agent.contracts.extension_manifest import ExtensionManifestMixin
+
 
 @dataclass
-class PluginManifest:
+class PluginManifest(ExtensionManifestMixin):
     """Descriptor for a plugin loaded into hi-agent.
 
     A plugin is a directory containing a ``plugin.json`` manifest and
@@ -40,6 +42,17 @@ class PluginManifest:
     plugin_dir: str | None = None
     status: str = "loaded"  # loaded | active | inactive | error
     error: str | None = None
+
+    # ExtensionManifest Protocol fields (Wave 10.5 W5-F)
+    manifest_kind: str = "plugin"
+    schema_version: int = 1
+    posture_support: dict[str, bool] = field(
+        default_factory=lambda: {"dev": True, "research": True, "prod": True}
+    )
+    required_posture: str = "any"
+    tenant_scope: str = "tenant"
+    dangerous_capabilities: list[str] = field(default_factory=list)
+    config_schema: dict | None = None
 
     @classmethod
     def from_json(cls, path: str | Path) -> PluginManifest:
@@ -74,6 +87,10 @@ class PluginManifest:
             mcp_servers=data.get("mcp_servers", []),
             entry_point=data.get("entry_point"),
             plugin_dir=str(p.parent),
+            required_posture=data.get("required_posture", "any"),
+            tenant_scope=data.get("tenant_scope", "tenant"),
+            dangerous_capabilities=data.get("dangerous_capabilities", []),
+            config_schema=data.get("config_schema", None),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -90,3 +107,19 @@ class PluginManifest:
             "plugin_dir": self.plugin_dir,
             "status": self.status,
         }
+
+    def to_manifest_dict(self) -> dict[str, Any]:
+        """Serialise to ExtensionManifest-compatible dict including enforcement fields."""
+        d = self.to_dict()
+        d.update(
+            {
+                "manifest_kind": self.manifest_kind,
+                "schema_version": self.schema_version,
+                "posture_support": self.posture_support,
+                "required_posture": self.required_posture,
+                "tenant_scope": self.tenant_scope,
+                "dangerous_capabilities": self.dangerous_capabilities,
+                "config_schema": self.config_schema,
+            }
+        )
+        return d

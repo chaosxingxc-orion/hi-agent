@@ -527,23 +527,11 @@ def _cmd_init(args) -> None:
     run_init(args)
 
 
-def _cmd_artifacts(args) -> None:
-    """Dispatch artifact subcommands."""
-    action = getattr(args, "artifacts_action", None)
-    if action == "migrate-tenant":
-        from hi_agent.cli_commands.artifacts_migrate import run_migrate_tenant
-
-        run_migrate_tenant(args)
-    else:
-        print("Usage: hi-agent artifacts [migrate-tenant]")
-        sys.exit(1)
-
-
 def _cmd_extensions(args) -> None:
-    """Manage registered extensions."""
-    from hi_agent.cli_commands.extensions import handle_extensions
+    """Manage and validate extension manifests."""
+    from hi_agent.cli_commands.extensions import run_extensions
 
-    handle_extensions(args)
+    run_extensions(args)
 
 
 def _run_doctor(args) -> None:
@@ -887,41 +875,10 @@ def build_parser() -> argparse.ArgumentParser:
     tools_call_parser.add_argument("--args", default="{}", help="JSON arguments")
     tools_call_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
-    # artifacts
-    artifacts_parser = subparsers.add_parser("artifacts", help="Manage artifacts")
-    artifacts_sub = artifacts_parser.add_subparsers(dest="artifacts_action")
-
-    migrate_parser = artifacts_sub.add_parser(
-        "migrate-tenant", help="Assign tenant_id to legacy tenantless artifacts"
-    )
-    migrate_parser.add_argument(
-        "--tenant-id", dest="tenant_id", required=True, help="Target tenant ID to assign"
-    )
-    migrate_parser.add_argument(
-        "--project-id",
-        dest="project_id",
-        required=False,
-        default=None,
-        help="Also assign this project_id to artifacts that lack one",
-    )
-    migrate_parser.add_argument(
-        "--data-dir",
-        dest="data_dir",
-        required=False,
-        default=None,
-        help="Path to the durable ledger directory (default: HI_AGENT_DATA_DIR)",
-    )
-    migrate_parser.add_argument(
-        "--dry-run",
-        dest="dry_run",
-        action="store_true",
-        default=False,
-        help="Print affected rows without modifying the ledger",
-    )
-
     # extensions
-    from hi_agent.cli_commands.extensions import register_subparser as _ext_register
-    _ext_register(subparsers)
+    from hi_agent.cli_commands.extensions import build_extensions_parser
+
+    build_extensions_parser(subparsers)
 
     # resume
     resume_parser = subparsers.add_parser("resume", help="Resume a run from checkpoint")
@@ -967,7 +924,6 @@ def main() -> None:
         "tools": _cmd_tools,
         "doctor": _run_doctor,
         "init": _cmd_init,
-        "artifacts": _cmd_artifacts,
         "extensions": _cmd_extensions,
     }
 
