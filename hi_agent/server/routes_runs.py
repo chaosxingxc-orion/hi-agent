@@ -357,7 +357,15 @@ async def handle_submit_feedback(request: Request) -> JSONResponse:
     notes = body.get("notes", "")
     from hi_agent.evolve.feedback_store import RunFeedback
 
-    feedback = RunFeedback(run_id=run_id, rating=float(rating), notes=str(notes))
+    feedback = RunFeedback(
+        run_id=run_id,
+        rating=float(rating),
+        notes=str(notes),
+        tenant_id=ctx.tenant_id,
+        user_id=ctx.user_id,
+        session_id=ctx.session_id,
+        project_id="",  # TODO: expose project_id in TenantContext when downstream wires it
+    )
     store = _get_feedback_store(server)
     store.submit(feedback)
     return JSONResponse(

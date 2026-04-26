@@ -339,6 +339,8 @@ class HarnessExecutor:
                         artifact.producer_stage_id = ctx["stage_id"]
                     if ctx.get("project_id") and not artifact.project_id:
                         artifact.project_id = ctx["project_id"]
+                    if ctx.get("tenant_id") and not artifact.tenant_id:
+                        artifact.tenant_id = ctx["tenant_id"]
                     if artifact.content and not artifact.content_hash:
                         artifact.content_hash = hashlib.sha256(
                             _json.dumps(artifact.content, sort_keys=True, default=str).encode()

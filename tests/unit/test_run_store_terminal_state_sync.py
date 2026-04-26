@@ -1,6 +1,7 @@
 """Track C: RunStore terminal state sync — mark_* methods set finished_at."""
 import time
-from hi_agent.server.run_store import SQLiteRunStore, RunRecord
+
+from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 
 
 def _make_store(tmp_path):

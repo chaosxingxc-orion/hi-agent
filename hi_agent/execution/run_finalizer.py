@@ -22,6 +22,10 @@ class RunFinalizerContext:
     contract: Any
     lifecycle: Any
     kernel: Any
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
     stage_summaries: dict[str, Any] = field(default_factory=dict)
     current_stage: Any = None
     dag: Any = None
@@ -392,7 +396,16 @@ class RunFinalizer:
             from hi_agent.evolve.feedback_store import RunFeedback
 
             try:
-                ctx.feedback_store.submit(RunFeedback(run_id=ctx.run_id, rating=0.5))
+                ctx.feedback_store.submit(
+                    RunFeedback(
+                        run_id=ctx.run_id,
+                        rating=0.5,
+                        tenant_id=ctx.tenant_id,
+                        user_id=ctx.user_id,
+                        session_id=ctx.session_id,
+                        project_id=ctx.project_id,
+                    )
+                )
                 _logger.debug("feedback_store: neutral record submitted for run %s", ctx.run_id)
             except Exception as _fb_exc:
                 _logger.warning("feedback_store: submit failed: %s", _fb_exc)
@@ -460,8 +473,8 @@ class RunFinalizer:
                     event_type="run_summary",
                     payload={"outcome": outcome},
                     source_run_id=ctx.run_id,
-                    source_user_id="",
-                    source_session_id="",
+                    source_user_id=ctx.user_id,
+                    source_session_id=ctx.session_id,
                     publish_reason="auto_sync",
                 )
             except Exception as _sync_exc:

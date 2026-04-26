@@ -252,6 +252,9 @@ class RunTelemetry:
                         quality_score = None
                 tokens_used = int(result.get("tokens_used", 0))
 
+            from hi_agent.server.tenant_context import get_tenant_context as _gtc
+
+            _tctx = _gtc()
             obs = SkillObservation(
                 observation_id=f"{run_id}:{stage_id}:{action_seq}",
                 skill_id=skill_id,
@@ -265,6 +268,9 @@ class RunTelemetry:
                 quality_score=quality_score,
                 tokens_used=tokens_used,
                 task_family=task_family,
+                tenant_id=_tctx.tenant_id if _tctx else "",
+                user_id=_tctx.user_id if _tctx else "",
+                session_id=_tctx.session_id if _tctx else "",
             )
             self.skill_observer.observe(obs)
         except Exception as exc:

@@ -30,6 +30,7 @@ import contextlib
 
 from hi_agent.runtime_adapter import RuntimeEvent
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
+from hi_agent.server.tenant_context import get_tenant_context
 
 
 class EventBus:
@@ -101,12 +102,22 @@ class EventBus:
                 payload_str = event.payload_json
             else:
                 payload_str = json.dumps(event.payload_json)
+            # Populate spine fields from the request-scoped TenantContext when
+            # available (set by AuthMiddleware).  Fall back to "" for background
+            # tasks and tests where no context is set — do NOT raise.
+            _ctx = get_tenant_context()
+            _tenant_id = _ctx.tenant_id if _ctx else ""
+            _user_id = _ctx.user_id if _ctx else ""
+            _session_id = _ctx.session_id if _ctx else ""
             stored = StoredEvent(
                 event_id=event.event_id or str(uuid.uuid4()),
                 run_id=event.run_id,
                 sequence=event.commit_offset or 0,
                 event_type=event.event_type,
                 payload_json=payload_str,
+                tenant_id=_tenant_id,
+                user_id=_user_id,
+                session_id=_session_id,
             )
             self._event_store.append(stored)
             logger.debug(
@@ -114,7 +125,7 @@ class EventBus:
                 event.run_id,
                 event.event_type,
                 event.commit_offset or 0,
-                "",
+                _tenant_id,
             )
 
         with self._lock:

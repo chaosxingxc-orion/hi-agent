@@ -351,6 +351,10 @@ class RunManager:
                 run_id=run_id,
                 priority=int(task_contract_dict.get("priority", 5)),
                 payload_json=json.dumps(task_contract_dict),
+                tenant_id=tenant_id,
+                user_id=workspace.user_id if workspace else "",
+                session_id=workspace.session_id if workspace else "",
+                project_id=task_contract_dict.get("project_id", ""),
             )
 
         return run

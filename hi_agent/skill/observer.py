@@ -36,6 +36,11 @@ class SkillObservation:
     # Context
     task_family: str = ""
     tags: list[str] = field(default_factory=list)
+    # Contract spine (Rule 12)
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
     # Summary truncation limit (configurable per-observation)
     max_summary_len: int = 500
 
