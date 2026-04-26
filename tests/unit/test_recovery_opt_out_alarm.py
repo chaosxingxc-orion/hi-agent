@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from unittest.mock import patch
 
+
 class TestNoAlarmUnderDevPosture:
     def test_no_alarm_when_dev_posture_and_reenqueue_disabled(self, monkeypatch):
         """Under dev posture, no alarm even when reenqueue is disabled."""

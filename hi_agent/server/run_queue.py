@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import ClassVar
 
 
-class OptimisticLockFailed(Exception):
+class OptimisticLockError(Exception):
     """Raised when a recovery lease claim fails due to concurrent adoption.
 
     Thrown by callers that detect ``claim_with_adoption_token`` returned

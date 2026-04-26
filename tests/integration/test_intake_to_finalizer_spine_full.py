@@ -12,9 +12,9 @@ import uuid
 
 from hi_agent.context.run_execution_context import RunExecutionContext
 from hi_agent.evolve.feedback_store import FeedbackStore, RunFeedback
-from hi_agent.operations.op_store import LongRunningOpStore
 from hi_agent.management.gate_api import InMemoryGateAPI
 from hi_agent.management.gate_context import GateContext
+from hi_agent.operations.op_store import LongRunningOpStore
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 from hi_agent.server.team_event_store import TeamEvent, TeamEventStore

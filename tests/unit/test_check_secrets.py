@@ -39,7 +39,9 @@ def test_nonempty_key_detected(tmp_path):
 
     # Synthetic non-real UUID used only as a test fixture
     config = tmp_path / "llm_config.json"
-    config.write_text(json.dumps({"api_key": "00000000-0000-0000-0000-000000000001"}), encoding="utf-8")
+    config.write_text(
+        json.dumps({"api_key": "00000000-0000-0000-0000-000000000001"}), encoding="utf-8"
+    )
 
     mod.findings.clear()
     mod.check_json_config(config)

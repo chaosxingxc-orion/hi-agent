@@ -1,12 +1,13 @@
 """Test check_no_research_vocab.py catches violations and allows clean code."""
 from __future__ import annotations
+
+import sys
 import textwrap
 from pathlib import Path
-import sys
 
 ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-import check_no_research_vocab as chk  # noqa: E402
+import check_no_research_vocab as chk
 
 
 def test_pi_run_id_attr_caught(tmp_path):

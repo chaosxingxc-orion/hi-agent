@@ -6,6 +6,9 @@ without a tenant_id, while global-scope extensions allow empty tenant_id.
 """
 from __future__ import annotations
 
+import contextlib
+from typing import ClassVar
+
 import pytest
 
 
@@ -28,10 +31,10 @@ def _make_manifest(tenant_scope: str, dangerous: bool = False):
             version = "1.0"
             manifest_kind = "plugin"
             schema_version = 1
-            posture_support = {"dev": True}
+            posture_support: ClassVar[dict] = {"dev": True}
             required_posture = "any"
-            config_schema = {"type": "object"}
-            dangerous_capabilities: list = []
+            config_schema: ClassVar[dict] = {"type": "object"}
+            dangerous_capabilities: ClassVar[list] = []
 
         obj = TestManifest()
         obj.tenant_scope = tenant_scope
@@ -51,10 +54,8 @@ def test_global_scope_no_tenant_id_ok(monkeypatch):
     registry = _make_registry()
     manifest = _make_manifest("global")
 
-    try:
+    with contextlib.suppress(Exception):
         registry.register(manifest)
-    except Exception:
-        pass
 
     # Should NOT raise ExtensionTenantScopeRequired for global scope
     try:
@@ -74,10 +75,8 @@ def test_tenant_scope_empty_tenant_raises(monkeypatch):
     registry = _make_registry()
     manifest = _make_manifest("tenant")
 
-    try:
+    with contextlib.suppress(Exception):
         registry.register(manifest)
-    except Exception:
-        pass
 
     with pytest.raises(ExtensionTenantScopeRequired):
         registry.enable("scope-test-ext", "1.0", tenant_id="")
@@ -92,10 +91,8 @@ def test_user_scope_empty_tenant_raises(monkeypatch):
     registry = _make_registry()
     manifest = _make_manifest("user")
 
-    try:
+    with contextlib.suppress(Exception):
         registry.register(manifest)
-    except Exception:
-        pass
 
     with pytest.raises(ExtensionTenantScopeRequired):
         registry.enable("scope-test-ext", "1.0", tenant_id="")
@@ -110,10 +107,8 @@ def test_session_scope_empty_tenant_raises(monkeypatch):
     registry = _make_registry()
     manifest = _make_manifest("session")
 
-    try:
+    with contextlib.suppress(Exception):
         registry.register(manifest)
-    except Exception:
-        pass
 
     with pytest.raises(ExtensionTenantScopeRequired):
         registry.enable("scope-test-ext", "1.0", tenant_id="")
@@ -128,10 +123,8 @@ def test_tenant_scope_with_tenant_id_does_not_raise_scope_error(monkeypatch):
     registry = _make_registry()
     manifest = _make_manifest("tenant")
 
-    try:
+    with contextlib.suppress(Exception):
         registry.register(manifest)
-    except Exception:
-        pass
 
     try:
         registry.enable("scope-test-ext", "1.0", tenant_id="tenant-abc")

@@ -1,5 +1,6 @@
 """Test that platform config does not hardcode 'research' as a profile default."""
 from __future__ import annotations
+
 import re
 from pathlib import Path
 

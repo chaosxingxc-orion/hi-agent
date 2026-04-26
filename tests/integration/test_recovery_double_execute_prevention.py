@@ -9,14 +9,13 @@ import threading
 import time
 
 import pytest
+from hi_agent.server.run_queue import OptimisticLockError, RunQueue
 
-from hi_agent.server.run_queue import OptimisticLockFailed, RunQueue
 
-
-class TestOptimisticLockFailedImport:
+class TestOptimisticLockErrorImport:
     def test_exception_importable(self):
-        """OptimisticLockFailed must be importable from hi_agent.server.run_queue."""
-        assert issubclass(OptimisticLockFailed, Exception)
+        """OptimisticLockError must be importable from hi_agent.server.run_queue."""
+        assert issubclass(OptimisticLockError, Exception)
 
 
 class TestAdoptionTokenColumn:
@@ -142,9 +141,9 @@ class TestConcurrentClaimPrevention:
             queue.close()
 
 
-class TestOptimisticLockFailedCallerPattern:
+class TestOptimisticLockErrorCallerPattern:
     def test_caller_can_raise_on_false_return(self, tmp_path):
-        """Callers that raise OptimisticLockFailed on False return are supported."""
+        """Callers that raise OptimisticLockError on False return are supported."""
         db_path = str(tmp_path / "test_caller_pattern.db")
         queue = RunQueue(db_path=db_path)
         try:
@@ -162,11 +161,11 @@ class TestOptimisticLockFailedCallerPattern:
             def second_recovery_pass() -> None:
                 claimed = queue.claim_with_adoption_token("run-olck", "token-second")
                 if not claimed:
-                    raise OptimisticLockFailed(
+                    raise OptimisticLockError(
                         "run-olck already adopted by another recovery pass"
                     )
 
-            with pytest.raises(OptimisticLockFailed):
+            with pytest.raises(OptimisticLockError):
                 second_recovery_pass()
         finally:
             queue.close()

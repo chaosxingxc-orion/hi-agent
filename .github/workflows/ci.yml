@@ -22,11 +22,13 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -e ".[dev]"
-      - name: Materialize llm_config.json from secret
+      - name: Materialize llm_config.local.json from secret (optional override)
+        # config/llm_config.json is tracked and contains the default provider config.
+        # This step optionally overrides the API key via CI secret.
         if: ${{ secrets.VOLCE_API_KEY != '' }}
-        run: python scripts/inject_volces_key.py --from-secret VOLCE_API_KEY
+        run: python scripts/inject_provider_key.py --provider volces
         env:
-          VOLCE_API_KEY: ${{ secrets.VOLCE_API_KEY }}
+          VOLCES_API_KEY: ${{ secrets.VOLCE_API_KEY }}
       - name: Lint (blocking — syntax + imports)
         run: ruff check hi_agent tests --select E9,F63,F7,F82
       - name: Lint (blocking — full ruleset, Rule 12 Lint Cleanliness)

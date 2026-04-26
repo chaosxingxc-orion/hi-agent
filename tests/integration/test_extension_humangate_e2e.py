@@ -6,6 +6,9 @@ tenant_scope enforcement works correctly.
 """
 from __future__ import annotations
 
+import contextlib
+from typing import ClassVar
+
 import pytest
 
 
@@ -32,11 +35,11 @@ def _make_dangerous_manifest(name="test-ext", version="1.0"):
         class DangerousExt(ExtensionManifestMixin):
             manifest_kind = "plugin"
             schema_version = 1
-            posture_support = {"research": True}
+            posture_support: ClassVar[dict] = {"research": True}
             required_posture = "research"
             tenant_scope = "tenant"
-            dangerous_capabilities = ["filesystem_write"]
-            config_schema = {"type": "object"}
+            dangerous_capabilities: ClassVar[list] = ["filesystem_write"]
+            config_schema: ClassVar[dict] = {"type": "object"}
 
         obj = DangerousExt()
         obj.name = name
@@ -55,10 +58,8 @@ def test_dangerous_extension_requires_approval():
     registry = _get_registry()
     manifest = _make_dangerous_manifest()
 
-    try:
+    with contextlib.suppress(Exception):
         registry.register(manifest)
-    except Exception:
-        pass  # register may not exist or may raise for other reasons
 
     with pytest.raises(ExtensionRequiresHumanApproval):
         registry.enable("test-ext", "1.0", tenant_id="tenant-001")
@@ -73,10 +74,8 @@ def test_approval_allows_enable():
     registry = _get_registry()
     manifest = _make_dangerous_manifest()
 
-    try:
+    with contextlib.suppress(Exception):
         registry.register(manifest)
-    except Exception:
-        pass
 
     # Approve for tenant-001
     try:
@@ -125,7 +124,10 @@ def test_approval_is_per_tenant():
 
 
 def test_empty_tenant_with_tenant_scope_raises():
-    """enable() with empty tenant_id for tenant-scoped extension raises ExtensionTenantScopeRequired."""
+    """enable() with empty tenant_id raises ExtensionTenantScopeRequired.
+
+    Verifies that missing tenant_id is rejected when tenant_scope="tenant".
+    """
     from hi_agent.contracts.extension_manifest import (
         ExtensionTenantScopeRequired,
     )
@@ -133,10 +135,8 @@ def test_empty_tenant_with_tenant_scope_raises():
     registry = _get_registry()
     manifest = _make_dangerous_manifest()
 
-    try:
+    with contextlib.suppress(Exception):
         registry.register(manifest)
-    except Exception:
-        pass
 
     with pytest.raises(ExtensionTenantScopeRequired):
         # Should raise because tenant_id is empty and tenant_scope="tenant"
@@ -144,7 +144,10 @@ def test_empty_tenant_with_tenant_scope_raises():
 
 
 def test_approval_key_is_tenant_scoped_not_global():
-    """Approval is (name, version, tenant_id) keyed — an approval for "" does not help tenant-xyz."""
+    """Approval is (name, version, tenant_id) keyed.
+
+    An approval for tenant_id="" does not help tenant-xyz.
+    """
     from hi_agent.contracts.extension_manifest import (
         ExtensionRequiresHumanApproval,
     )
@@ -159,11 +162,11 @@ def test_approval_key_is_tenant_scoped_not_global():
             version = "2.0"
             manifest_kind = "plugin"
             schema_version = 1
-            posture_support = {"research": True}
+            posture_support: ClassVar[dict] = {"research": True}
             required_posture = "research"
             tenant_scope = "global"
-            dangerous_capabilities = ["network_egress"]
-            config_schema = {"type": "object"}
+            dangerous_capabilities: ClassVar[list] = ["network_egress"]
+            config_schema: ClassVar[dict] = {"type": "object"}
 
         registry.register(GlobalDangerous())
     except Exception as exc:

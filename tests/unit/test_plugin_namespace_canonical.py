@@ -5,7 +5,6 @@ hi_agent.plugin (singular) must emit a DeprecationWarning but still work.
 from __future__ import annotations
 
 import warnings
-import pytest
 
 
 def test_canonical_import_works():

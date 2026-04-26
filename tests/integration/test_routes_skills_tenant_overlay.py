@@ -6,8 +6,8 @@ import pytest
 def test_global_skills_visible_to_all_tenants():
     """Global skills should be accessible to any tenant (baseline behavior)."""
     try:
-        from hi_agent.server.app import app
         from fastapi.testclient import TestClient
+        from hi_agent.server.app import app
     except ImportError:
         pytest.skip("App not importable")
 

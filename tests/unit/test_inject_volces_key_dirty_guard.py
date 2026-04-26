@@ -45,7 +45,9 @@ def test_missing_key_exits_nonzero():
         text=True,
         env={},  # no environment — no API keys
     )
-    assert result.returncode != 0, f"Expected nonzero exit when key missing; got {result.returncode}"
+    assert result.returncode != 0, (
+        f"Expected nonzero exit when key missing; got {result.returncode}"
+    )
     assert "ERROR" in result.stderr or "no key" in result.stderr.lower(), (
         f"Expected error message about missing key, got: {result.stderr}"
     )

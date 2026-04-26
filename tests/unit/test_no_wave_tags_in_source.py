@@ -4,6 +4,7 @@ Wave-tagged identifiers (Wave 10.x, W5-F, W4-E, etc.) belong in git commit
 messages and docs, not in production source code.
 """
 from __future__ import annotations
+
 import re
 from pathlib import Path
 

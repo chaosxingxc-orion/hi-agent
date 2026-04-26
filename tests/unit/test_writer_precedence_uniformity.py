@@ -16,18 +16,18 @@ def _dev_posture(monkeypatch):
 def _make_ctx(**overrides):
     from hi_agent.context.run_execution_context import RunExecutionContext
 
-    defaults = dict(
-        tenant_id="ctx-tenant",
-        user_id="ctx-user",
-        session_id="ctx-session",
-        project_id="ctx-project",
-        profile_id="ctx-profile",
-        run_id="ctx-run",
-        parent_run_id="",
-        stage_id="",
-        capability_name="",
-        request_id="",
-    )
+    defaults = {
+        "tenant_id": "ctx-tenant",
+        "user_id": "ctx-user",
+        "session_id": "ctx-session",
+        "project_id": "ctx-project",
+        "profile_id": "ctx-profile",
+        "run_id": "ctx-run",
+        "parent_run_id": "",
+        "stage_id": "",
+        "capability_name": "",
+        "request_id": "",
+    }
     defaults.update(overrides)
     return RunExecutionContext(**defaults)
 

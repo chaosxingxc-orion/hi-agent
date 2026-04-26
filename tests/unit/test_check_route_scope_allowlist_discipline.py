@@ -1,7 +1,8 @@
 """Tests for AllowlistEntry validation in check_route_scope.py."""
 import importlib.util
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 def _import_module():
@@ -55,9 +56,9 @@ def test_entry_missing_owner_fails_validation():
     if mod is None or not hasattr(mod, "_validate_allowlist"):
         pytest.skip("Module or _validate_allowlist not available")
 
-    AllowlistEntry = mod.AllowlistEntry
+    allowlist_entry_cls = mod.AllowlistEntry
     original = dict(mod.NO_SCOPE_ALLOWLIST)
-    mod.NO_SCOPE_ALLOWLIST["__test_bad__"] = AllowlistEntry(
+    mod.NO_SCOPE_ALLOWLIST["__test_bad__"] = allowlist_entry_cls(
         reason="test", risk="", owner="", expiry_wave="Wave 11", replacement_test="test.py"
     )
     try:
@@ -76,9 +77,9 @@ def test_entry_missing_reason_fails_validation():
     if mod is None or not hasattr(mod, "_validate_allowlist"):
         pytest.skip("Module or _validate_allowlist not available")
 
-    AllowlistEntry = mod.AllowlistEntry
+    allowlist_entry_cls = mod.AllowlistEntry
     original = dict(mod.NO_SCOPE_ALLOWLIST)
-    mod.NO_SCOPE_ALLOWLIST["__test_no_reason__"] = AllowlistEntry(
+    mod.NO_SCOPE_ALLOWLIST["__test_no_reason__"] = allowlist_entry_cls(
         reason="", risk="", owner="GOV", expiry_wave="permanent", replacement_test="test.py"
     )
     try:

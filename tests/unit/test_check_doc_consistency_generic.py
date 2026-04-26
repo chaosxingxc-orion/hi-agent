@@ -3,8 +3,7 @@
 It must NOT require 'Validated by:' or any downstream-specific scorecard header.
 """
 from __future__ import annotations
-import subprocess
-import sys
+
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent.parent

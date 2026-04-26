@@ -11,7 +11,10 @@ import pytest
 
 @pytest.mark.integration
 def test_manifest_plugin_production_eligibility_shape():
-    """GET /manifest plugins entries should include production_eligibility with requires_human_gate."""
+    """GET /manifest plugins entries must include production_eligibility.
+
+    Each plugin entry must carry requires_human_gate in production_eligibility.
+    """
     try:
         from hi_agent.server.app import app
         from starlette.testclient import TestClient

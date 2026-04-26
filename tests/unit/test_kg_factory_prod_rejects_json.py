@@ -16,24 +16,26 @@ from hi_agent.memory.kg_factory import make_knowledge_graph_backend
 
 def test_prod_rejects_json_backend(tmp_path: Path) -> None:
     """Under prod posture, HI_AGENT_KG_BACKEND=json must raise ValueError."""
-    with patch.dict(os.environ, {"HI_AGENT_KG_BACKEND": "json"}, clear=False):
-        with pytest.raises(ValueError, match="prod posture"):
-            make_knowledge_graph_backend(
-                posture=Posture.PROD,
-                data_dir=tmp_path,
-                profile_id="prof-prod-test",
-            )
+    with patch.dict(os.environ, {"HI_AGENT_KG_BACKEND": "json"}, clear=False), pytest.raises(
+        ValueError, match="prod posture"
+    ):
+        make_knowledge_graph_backend(
+            posture=Posture.PROD,
+            data_dir=tmp_path,
+            profile_id="prof-prod-test",
+        )
 
 
 def test_prod_rejects_json_backend_message_content(tmp_path: Path) -> None:
     """Error message names the fix: remove override or use sqlite."""
-    with patch.dict(os.environ, {"HI_AGENT_KG_BACKEND": "json"}, clear=False):
-        with pytest.raises(ValueError) as exc_info:
-            make_knowledge_graph_backend(
-                posture=Posture.PROD,
-                data_dir=tmp_path,
-                profile_id="prof-prod-msg-test",
-            )
+    with patch.dict(os.environ, {"HI_AGENT_KG_BACKEND": "json"}, clear=False), pytest.raises(
+        ValueError
+    ) as exc_info:
+        make_knowledge_graph_backend(
+            posture=Posture.PROD,
+            data_dir=tmp_path,
+            profile_id="prof-prod-msg-test",
+        )
     msg = str(exc_info.value).lower()
     assert "prod" in msg
     assert "json" in msg

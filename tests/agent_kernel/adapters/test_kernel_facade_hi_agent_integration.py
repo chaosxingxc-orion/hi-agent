@@ -21,8 +21,8 @@ from agent_kernel.kernel.contracts import (
     ChildRunSummary,
     HumanGateResolution,
     RunPolicyVersions,
-    RunRetrospectiveView,
     RunProjection,
+    RunRetrospectiveView,
     SpawnChildRunRequest,
     TraceStageView,
 )
