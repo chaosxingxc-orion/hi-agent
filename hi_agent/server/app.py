@@ -421,6 +421,7 @@ from hi_agent.server.routes_memory import (
 
 async def handle_skills_list(request: Request) -> JSONResponse:
     """List all discovered skills with eligibility status."""
+    # TODO W5-G: per-tenant skill overlay needed — currently returns global registry to all tenants.
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_sl
 
     try:
@@ -460,6 +461,7 @@ async def handle_skills_list(request: Request) -> JSONResponse:
 
 async def handle_skills_status(request: Request) -> JSONResponse:
     """Overall skill system status (counts, top performers)."""
+    # TODO W5-G: per-tenant skill overlay needed — currently returns global stats to all tenants.
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_ss
 
     try:
@@ -980,6 +982,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
 
 async def handle_plugins_list(request: Request) -> JSONResponse:
     """Return list of loaded plugins."""
+    # TODO W5-G: per-tenant plugin overlay needed — global plugin list returned to all callers.
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
@@ -995,6 +998,7 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
 
 async def handle_plugins_status(request: Request) -> JSONResponse:
     """Return plugin system status summary."""
+    # TODO W5-G: per-tenant plugin overlay needed — global plugin status returned to all callers.
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader

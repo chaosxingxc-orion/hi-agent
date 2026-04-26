@@ -29,32 +29,20 @@ SCOPE_INDICATORS = frozenset({
     "validate_resource_ownership",
     "get_or_404_owned",
     "get_run",
+    "list_runs",
     "_belongs_to_tenant",
     "_resolve_profile_id",
     "admin_required",
+    "require_tenant_owns",
 })
 
 NO_SCOPE_ALLOWLIST = frozenset({
-    # System/health endpoints — no per-resource data
-    "handle_health",
-    "handle_ready",
-    "handle_metrics",
-    "handle_manifest",
-    "handle_cost",
-    "handle_capacity_advice",
-    # Run list/lifecycle — workspace scoping is done inside run_manager
-    "handle_list_runs",
-    "handle_runs_active",
-    "handle_get_run",
-    "handle_signal_run",
-    "handle_cancel_run",
-    "handle_submit_feedback",
-    "handle_get_feedback",
-    "handle_resume_run",
-    "handle_run_artifacts",
-    # Memory status — profile derived from ctx (handled by _resolve_profile_id)
-    "handle_memory_status",
+    # System/info endpoints — authenticated but no per-resource data returned
+    "handle_manifest",    # system capabilities manifest — same for all tenants
+    "handle_cost",        # LLM cost summary — aggregate, not per-tenant resource
+    "handle_capacity_advice",  # advisory capacity tuning — no per-tenant resource
     # Knowledge routes — system-wide knowledge, no per-tenant resource isolation (Wave 10.1)
+    # W5-G: per-tenant knowledge scoping deferred; system-wide graph serves all tenants.
     "handle_knowledge_ingest",
     "handle_knowledge_ingest_structured",
     "handle_knowledge_query",
@@ -62,6 +50,7 @@ NO_SCOPE_ALLOWLIST = frozenset({
     "handle_knowledge_lint",
     "handle_knowledge_sync",
     # Skills routes — global skill registry, no per-tenant resource isolation (Wave 10.1)
+    # W5-G: TODO per-tenant skill overlay; global registry serves all tenants for now.
     "handle_skills_list",
     "handle_skills_status",
     "handle_skills_evolve",
@@ -71,10 +60,6 @@ NO_SCOPE_ALLOWLIST = frozenset({
     "handle_skill_promote",
     # Tools/MCP — invocation routes, tenant injected via ctx downstream (Wave 10.1)
     "handle_tools_call",
-    "handle_tools_list",
-    "handle_mcp_tools",
-    "handle_mcp_tools_list",
-    "handle_mcp_tools_call",
 })
 
 
