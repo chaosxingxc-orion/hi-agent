@@ -1487,6 +1487,10 @@ class RunExecutor:
                             "reason": trigger.message,
                             "failure_code": "no_progress",
                         },
+                        tenant_id=getattr(self, "tenant_id", ""),
+                        user_id=getattr(self, "user_id", ""),
+                        session_id=getattr(self, "session_id", ""),
+                        project_id=getattr(self.contract, "project_id", ""),
                     )
                 )
         except Exception as exc:
@@ -2423,6 +2427,17 @@ async def execute_async(
     try:
         _run_result = executor._finalize_run(outcome)
     except Exception as _fin_exc:
+        try:
+            from hi_agent.observability.fallback import record_fallback
+
+            record_fallback(
+                "llm",
+                reason="finalize_failed",
+                run_id=run_id,
+                extra={"exc": str(_fin_exc)},
+            )
+        except Exception:
+            pass
         _logger.warning("execute_async: _finalize_run failed: %s", _fin_exc)
 
     if _run_result is not None:
@@ -2430,11 +2445,20 @@ async def execute_async(
 
     # Fallback: _finalize_run failed or returned None — construct minimal RunResult.
     try:
-        from hi_agent.observability.fallback import get_fallback_events
+        from hi_agent.observability.fallback import get_fallback_events, record_fallback
 
         _fb_events = get_fallback_events(run_id)
-    except Exception:
-        _fb_events = []
+    except Exception as _fe_exc:
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            record_fallback(
+                "llm",
+                reason="fallback_events_lookup_failed",
+                run_id=run_id,
+                extra={"exc": str(_fe_exc)},
+            )
+        _fb_events = []  # still fall back to empty after recording the alarm
     return RunResult(
         run_id=run_id,
         status=outcome,

@@ -175,11 +175,35 @@ class HttpLLMGateway:
                     else:
                         return loop.run_until_complete(self._failover_chain.complete(request))
                 except Exception as exc:
+                    try:
+                        from hi_agent.observability.fallback import record_fallback
+
+                        _run_id_for_fallback = (request.metadata or {}).get("run_id") or "unknown"
+                        record_fallback(
+                            "llm",
+                            reason="failover_chain_failed",
+                            run_id=_run_id_for_fallback,
+                            extra={"exc": str(exc)},
+                        )
+                    except Exception:
+                        pass
                     logger.warning(
                         "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
                     )
 
         except Exception as exc:  # pragma: no cover
+            try:
+                from hi_agent.observability.fallback import record_fallback
+
+                _run_id_for_fallback = (request.metadata or {}).get("run_id") or "unknown"
+                record_fallback(
+                    "llm",
+                    reason="failover_chain_failed",
+                    run_id=_run_id_for_fallback,
+                    extra={"exc": str(exc)},
+                )
+            except Exception:
+                pass
             logger.warning("http_gateway integration error (%s), using direct path.", exc)
 
         # 3. Fallback: original direct HTTP logic.
@@ -484,11 +508,35 @@ class HTTPGateway:
                 try:
                     return await self._failover_chain.complete(request)
                 except Exception as exc:
+                    try:
+                        from hi_agent.observability.fallback import record_fallback
+
+                        _run_id_for_fallback = (request.metadata or {}).get("run_id") or "unknown"
+                        record_fallback(
+                            "llm",
+                            reason="failover_chain_failed",
+                            run_id=_run_id_for_fallback,
+                            extra={"exc": str(exc)},
+                        )
+                    except Exception:
+                        pass
                     logger.warning(
                         "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
                     )
 
         except Exception as exc:  # pragma: no cover
+            try:
+                from hi_agent.observability.fallback import record_fallback
+
+                _run_id_for_fallback = (request.metadata or {}).get("run_id") or "unknown"
+                record_fallback(
+                    "llm",
+                    reason="failover_chain_failed",
+                    run_id=_run_id_for_fallback,
+                    extra={"exc": str(exc)},
+                )
+            except Exception:
+                pass
             logger.warning("HTTPGateway integration error (%s), using direct path.", exc)
 
         # 3. Fallback: original direct HTTP logic.
