@@ -51,6 +51,8 @@ testpaths = ["tests"]
 # PYTEST_CACHE_DIR or --cache-dir if a different location is required.
 cache_dir = ".pytest_cache"
 addopts = ["--strict-markers", "--timeout=60"]
+cache_dir = ".pytest_cache"
+tmp_path_retention_policy = "failed"
 markers = [
     "integration: integration tests using real components",
     "live_api: live API tests that call real external model endpoints (require VOLCE_API_KEY)",

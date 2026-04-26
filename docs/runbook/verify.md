@@ -2,6 +2,41 @@
 
 This runbook covers how to verify a running hi-agent instance is healthy and operating correctly in prod-real mode.
 
+## Canonical verification command (Wave 10.3+)
+
+Use the wrapper script, which handles Windows-compatible temp dir management:
+
+```powershell
+python scripts/verify_clean_env.py
+```
+
+The script:
+- Clears `.pytest_cache` before running (prevents `cleanup_dead_symlinks` PermissionError)
+- Sets `PYTEST_DEBUG_TEMPROOT` to `.pytest_tmp` (controlled by-project dir)
+- Runs only the Wave 10.2/10.3 targeted test bundle
+- Skips test files that haven't landed yet with a note
+
+For ad-hoc individual test runs, the equivalent manual command:
+
+```powershell
+$env:PYTEST_DEBUG_TEMPROOT = "$PWD\.pytest_tmp"
+Remove-Item -Recurse -Force .pytest_cache -ErrorAction SilentlyContinue
+pytest --basetemp=.pytest_tmp --timeout=60 <test-files>
+```
+
+### Legacy basetemp recipe (pre-Wave 10.3, kept for reference)
+
+If running pytest directly without the wrapper (not recommended on Windows):
+
+```bash
+pytest --basetemp=.pytest_tmp --timeout=60 <test-files>
+```
+
+Note: On Windows with pytest 8.x under restricted ACL paths, this may hit
+`PermissionError` in `cleanup_dead_symlinks(basetemp)`. Use the wrapper above.
+
+---
+
 ## Quick health check
 
 ```bash

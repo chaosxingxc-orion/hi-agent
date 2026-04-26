@@ -115,3 +115,26 @@ Legacy labels still shown for backward reference: `experimental`≈L1, `implemen
 | Self-evolution gated update + rollback | Needs human-approval design; TE-5 is schema only | Wave 10 |
 | Process-kill restart full boot integration | RO-5 xfail — durable queue not yet wired through server boot | Wave 10 pre-work |
 | Temporal as production main path | Not prioritized | Deferred |
+
+---
+
+## Wave 10.2 / Wave 10.3 Additions
+
+| Capability | Level | Owner | Evidence | Rule incidents |
+|---|---|---|---|---|
+| GateStore contract spine (tenant/user/session/resolved_at) | L3 | CO+RO | `tests/integration/test_gate_store_spine.py` (W3-A) | R12 — no explicit spine fields until Wave 10.2 |
+| TeamRunRegistry contract spine (status/finished_at) | L3 | CO+RO | `tests/integration/test_team_run_registry_spine.py` (W3-A) | R12 — status column absent until Wave 10.2 |
+| FeedbackStore contract spine (tenant/user/session/project) | L3 | CO+RO | `tests/integration/test_feedback_store_spine_via_http.py` (W3-A) | R12 — spine fields absent until Wave 10.2 |
+| RunQueue contract spine (tenant/user/session/project) | L3 | CO+RO | `tests/integration/test_run_queue_spine_via_http.py` (W3-A) | R12 — spine columns absent until Wave 10.2 |
+| Cross-tenant object-level isolation | L3 | RO | `tests/integration/test_cross_tenant_object_level.py` (W3-A) | R12 — object-level scope not enforced until Wave 10.2 |
+| HumanGate contract spine | L3 (post W3-A) | CO+RO | `tests/integration/test_human_gate_spine_strict.py` | R12, R6 — no explicit spine fields until Wave 10.3 |
+| OpHandle strict-deny empty tenant | L3 (post W3-A) | RO | `tests/integration/test_op_handle_strict.py` | R11 — posture not wired until Wave 10.3 |
+| GateStore unscoped read strict raise | L3 (post W3-A) | RO | `tests/integration/test_gate_store_unscoped_strict.py` | R11 — warn-only until Wave 10.3 |
+| runner.py finalize alarm | L3 (post W3-B) | RO | `tests/unit/test_runner_finalize_fallback_alarm.py` | R7 — silent fallback until Wave 10.3 |
+| runner.py get_fallback_events alarm | L3 (post W3-B) | RO | `tests/unit/test_runner_get_fallback_events_alarm.py` | R7 — silent fallback until Wave 10.3 |
+| http_gateway FailoverChain alarm | L3 (post W3-B) | RO | `tests/integration/test_http_gateway_failover_alarm.py` | R7 — silent failover until Wave 10.3 |
+| RunExecutionContext plumbing (3-writer pilot) | L2 | CO+RO | `tests/unit/test_run_execution_context_pilot.py`, `tests/integration/test_intake_to_finalizer_spine_consistency.py` | R12 — seed only until Wave 10.3 |
+| Posture guard helpers (require_tenant) | L3 (post W3-A) | CO | `tests/unit/test_posture_guards.py` | R11 — inline guard logic duplicated until Wave 10.3 |
+| select_completeness CI gate | L2 | RO | `tests/unit/test_check_select_completeness.py` | R12 — defensive len() fallbacks until Wave 10.2 |
+| RunExecutionContext dataclass | L2 | CO+RO | `tests/unit/test_run_execution_context.py` | R12 — seed-level carrier until Wave 10.3 |
+| Wave 10.3 clean-env verification | L2 | DX | `scripts/verify_clean_env.py` | R8 — Windows basetemp PermissionError until Wave 10.3 |
