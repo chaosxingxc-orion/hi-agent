@@ -1,7 +1,7 @@
 """ExtensionManifest Protocol and ExtensionRegistry.
 
-Wave 10.5 W5-F: Adds 4 enforcement fields, validated register(), fail-closed
-enable() gate, and ExtensionDisallowedError exception.
+Provides full validation on register() and a fail-closed enable() gate.
+ExtensionDisallowedError is raised when an extension is blocked.
 
 # scope: process-internal for ExtensionRegistry state (_manifests, _enabled)
 """
@@ -29,7 +29,7 @@ class ExtensionDisallowedError(Exception):
         self.reasons: list[str] = reasons if reasons is not None else []
 
 
-class ExtensionRequiresHumanApproval(ExtensionDisallowedError):
+class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818
     """Raised when a dangerous extension requires human gate approval to enable."""
 
     def __init__(self, name: str, version: str, dangerous_capabilities: list[str]) -> None:
@@ -46,7 +46,7 @@ class ExtensionRequiresHumanApproval(ExtensionDisallowedError):
         )
 
 
-class ExtensionTenantScopeRequired(ExtensionDisallowedError):
+class ExtensionTenantScopeRequired(ExtensionDisallowedError):  # noqa: N818
     """Raised when enabling an extension with tenant_scope requires a non-empty tenant_id."""
 
     def __init__(self, name: str, version: str, tenant_scope: str) -> None:
@@ -66,14 +66,14 @@ class ExtensionTenantScopeRequired(ExtensionDisallowedError):
 class ExtensionManifest(Protocol):
     """Descriptor Protocol for a hi-agent extension (plugin, kernel, mcp_tool, knowledge).
 
-    Existing fields (Wave 10.4):
+    Core fields:
         name: Unique extension name.
         version: Semantic version string.
         manifest_kind: "plugin" | "kernel" | "mcp_tool" | "knowledge"
         schema_version: Integer schema version (bump when fields change).
         posture_support: Map of posture name to supported flag.
 
-    Enforcement fields (Wave 10.5 W5-F):
+    Enforcement fields:
         required_posture: Minimum posture required to enable this extension.
             "any" | "dev" | "research" | "prod"
         tenant_scope: Isolation scope of this extension.
@@ -84,14 +84,14 @@ class ExtensionManifest(Protocol):
             extension requires no config.
     """
 
-    # -- Existing fields (Wave 10.4, keep as-is) --
+    # -- Core fields --
     name: str
     version: str
     manifest_kind: str
     schema_version: int
     posture_support: dict[str, bool]
 
-    # -- Enforcement fields (Wave 10.5 W5-F) --
+    # -- Enforcement fields --
     required_posture: str  # "any" | "dev" | "research" | "prod"
     tenant_scope: str  # "global" | "tenant" | "user" | "session"
     dangerous_capabilities: list[str]  # e.g. ["filesystem_write", "network_egress"]
@@ -109,7 +109,7 @@ class ExtensionManifestMixin:
 
     Concrete manifests should inherit from this mixin to avoid duplicating
     the eligibility logic.  The mixin reads the four enforcement fields that
-    every ExtensionManifest is required to carry (Wave 10.5 W5-F).
+    every ExtensionManifest is required to carry.
     """
 
     # These attributes must be declared on the concrete class.
@@ -169,8 +169,8 @@ _VALID_TENANT_SCOPES = frozenset({"global", "tenant", "user", "session"})
 class ExtensionRegistry:
     """Validated registry for ExtensionManifest instances.
 
-    Wave 10.5 W5-F: replaces the bare dict from Wave 10.4 with full validation
-    on register() and a fail-closed enable() gate.
+    Replaces the bare dict with full validation on register() and a
+    fail-closed enable() gate.
 
     # scope: process-internal
     """
@@ -336,7 +336,7 @@ class ExtensionRegistry:
     # Enable gate
     # ------------------------------------------------------------------
 
-    def enable(self, name: str, version: str, posture: Posture | None = None, *, tenant_id: str = "") -> None:
+    def enable(self, name: str, version: str, posture: Posture | None = None, *, tenant_id: str = "") -> None:  # noqa: E501
         """Fail-closed gate: check production_eligibility before enabling.
 
         Args:

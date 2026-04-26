@@ -252,7 +252,7 @@ def check_t3_deferred_release_wording(notice: Path | None) -> list[str]:
     if match:
         return [
             f"  {notice.relative_to(ROOT)}: Delivery notice uses '{match.group()}' wording "
-            "but T3 is DEFERRED and stale. Either run a fresh T3 gate (W3-F) "
+            "but T3 is DEFERRED and stale. Either run a fresh T3 gate "
             "or add 'gate pending' marker near any release claim."
         ]
     return []
@@ -292,7 +292,7 @@ def check_notice_sha_reachable(notice: Path | None) -> list[str]:
     return []
 
 
-# --- W5-A: wave notice HEAD alignment ---
+# --- Wave notice HEAD alignment ---
 
 def check_notice_head_alignment() -> list[str]:
     """Wave notice files must declare the current HEAD SHA unless marked 'Status: draft'.
@@ -372,7 +372,7 @@ def main() -> int:
     all_errors.extend(check_notice_t3_deferred_vs_readiness(latest_notice))
     all_errors.extend(check_t3_deferred_release_wording(latest_notice))
     all_errors.extend(check_notice_sha_reachable(latest_notice))
-    # W5-A: wave-specific HEAD alignment
+    # Wave notice HEAD alignment
     all_errors.extend(check_notice_head_alignment())
     if all_errors:
         print("FAIL check_doc_consistency:")

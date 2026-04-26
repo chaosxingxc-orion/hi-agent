@@ -108,19 +108,19 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Corrupt lines skipped while loading the artifact ledger JSONL file.",
     ),
-    # W4-F / Rule 7: Retry-After header parse failure in failover chain.
+    # Rule 7: Retry-After header parse failure in failover chain.
     "hi_agent_retry_after_parse_total": _MetricDef(
         "hi_agent_retry_after_parse_total",
         "counter",
         "Retry-After header present but not parseable as float (Rule 7 alarm).",
     ),
-    # W4-F / Rule 7: MCP subprocess stderr tail read failure.
+    # Rule 7: MCP subprocess stderr tail read failure.
     "hi_agent_mcp_stderr_tail_failure_total": _MetricDef(
         "hi_agent_mcp_stderr_tail_failure_total",
         "counter",
         "MCP transport get_stderr_tail() raised unexpectedly (Rule 7 alarm).",
     ),
-    # W6-C: Rule 7 alarm for recovery reenqueue disabled under strict posture.
+    # Rule 7 alarm for recovery reenqueue disabled under strict posture.
     "hi_agent_recovery_reenqueue_disabled_total": _MetricDef(
         "hi_agent_recovery_reenqueue_disabled_total",
         "counter",
@@ -175,7 +175,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Dev-mode policy bypass (must be zero in prod releases).",
     ),
-    # W6-E: KG backend override alarm — incremented when HI_AGENT_KG_BACKEND=json
+    # KG backend override alarm — incremented when HI_AGENT_KG_BACKEND=json
     # is accepted under research posture (Rule 7 alarm; rejected under prod).
     "hi_agent_kg_backend_override_total": _MetricDef(
         "hi_agent_kg_backend_override_total",

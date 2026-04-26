@@ -147,7 +147,7 @@ class RunResult:
     """Count of LLM/heuristic fallback events (gate-assertable scalar)."""
     finished_at: str | None = None
     """ISO-8601 UTC timestamp when the run reached a terminal state."""
-    # Wave 10.4 W4-E: optional spine fields for HTTP body enrichment (Rule 12).
+    # Optional spine fields for HTTP body enrichment (Rule 12).
     # Default "" — backwards-compatible; included in to_dict() only when non-empty.
     tenant_id: str = ""
     user_id: str = ""

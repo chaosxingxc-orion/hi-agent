@@ -1,4 +1,4 @@
-"""Recovery state machine for lease-expired runs (Wave 10.5 W5-C).
+"""Recovery state machine for lease-expired runs.
 
 Under research/prod posture, lease-expired runs are re-enqueued by default.
 Under dev posture, only a warning is emitted (warn-only).

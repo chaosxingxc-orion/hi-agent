@@ -116,7 +116,7 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
     - T3 fresh but no clean-env evidence JSON for current HEAD: max 78.0
     - T3 fresh + clean-env evidence present + HEAD aligned: no cap
 
-    Extended (W6-A): if score > 76.5 and no 'Validated by:' field present,
+    Extended check: if score > 76.5 and no 'Validated by:' field present,
     emit a WARNING (not hard FAIL) about missing validation record.
     """
     errors: list[str] = []
@@ -170,7 +170,7 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
             f"{score}, max allowed {cap} (T3: {status})"
         )
 
-    # W6-A extension: warn when score > 76.5 but Validated by: is absent
+    # Warn when score > 76.5 but Validated by: is absent
     if score > 76.5:
         has_validated_by = bool(re.search(r"Validated by:\s*\S", src, re.IGNORECASE))
         if not has_validated_by:
@@ -188,13 +188,12 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
 
 
 def check_validated_by_header() -> list[str]:
-    """W6-A: Wave notices with score > 76.5 must carry a 'Validated by:' field.
+    """Wave notices with score > 76.5 must carry a 'Validated by:' field.
 
     Scans all wave notices in docs/downstream-responses/ for a ``Validated by:``
     field inside the code block at the top of the notice.  If the notice's
     declared ``Current verified readiness:`` exceeds 76.5 but ``Validated by:``
-    is missing or empty, emits a WARNING (not a hard FAIL — this is a new field
-    introduced in Wave 10.6).
+    is missing or empty, emits a WARNING (not a hard FAIL).
 
     Draft notices (``Status: draft``) are exempt.
     """

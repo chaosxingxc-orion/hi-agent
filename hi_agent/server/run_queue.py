@@ -77,7 +77,7 @@ ON run_queue (status, priority ASC, enqueued_at ASC)
         "ALTER TABLE run_queue ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE run_queue ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE run_queue ADD COLUMN project_id TEXT NOT NULL DEFAULT ''",
-        # W5-C: adoption_token for double-execute prevention during recovery.
+        # adoption_token for double-execute prevention during recovery.
         # NULL = unclaimed by recovery; non-NULL = a recovery pass already owns it.
         "ALTER TABLE run_queue ADD COLUMN adoption_token TEXT",
     ]

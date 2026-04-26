@@ -185,12 +185,12 @@ class SQLiteGateStore:
         user_id: str = "",
         session_id: str = "",
         project_id: str = "",
-        exec_ctx: RunExecutionContext | None = None,  # W3-D: prefer over explicit kwargs
+        exec_ctx: RunExecutionContext | None = None,  # prefer over explicit kwargs when available
     ) -> GateRecord:
         """Create and persist a new pending gate."""
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
-        # W3-D: when exec_ctx is provided, use it as the authoritative spine source
+        # When exec_ctx is provided, use it as the authoritative spine source
         if exec_ctx is not None:
             _spine = exec_ctx.to_spine_kwargs()
             tenant_id = _spine.get("tenant_id", tenant_id) or tenant_id

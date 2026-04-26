@@ -245,7 +245,7 @@ class RunManager:
         """
         idempotency_key: str | None = task_contract_dict.get("idempotency_key")
 
-        # --- body spine precedence under research/prod (W5-D) ----------------
+        # --- body spine precedence under research/prod ----------------
         # Under dev: middleware (workspace) wins for backwards compatibility.
         # Under research/prod: explicit body spine wins; emit DeprecationWarning
         # when body omits tenant_id and we fall back to auth middleware.
@@ -325,7 +325,7 @@ class RunManager:
             outcome="created",
         )
 
-        # --- build exec_ctx from resolved spine fields (W5-D) ----------------
+        # --- build exec_ctx from resolved spine fields ----------------
         _exec_ctx = RunExecutionContext(
             tenant_id=tenant_id,
             user_id=workspace.user_id if workspace else "",

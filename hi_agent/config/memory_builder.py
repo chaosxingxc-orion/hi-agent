@@ -151,7 +151,7 @@ class MemoryBuilder:
         every subsystem (retrieval, knowledge_manager, lifecycle_manager)
         built its own LongTermMemoryGraph — the recurring J7-1 / R7 I-7 defect.
 
-        Posture-aware dispatch (Rule 11 / W5-E):
+        Posture-aware dispatch (Rule 11):
           - workspace_key path: always uses JsonGraphBackend (workspace-scoped path).
           - profile_id path: delegates to ``make_knowledge_graph_backend``; returns
             JsonGraphBackend under dev and SqliteKnowledgeGraphBackend under

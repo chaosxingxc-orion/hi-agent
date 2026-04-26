@@ -14,9 +14,9 @@ kg_edges(src, dst, relation, tenant_id, project_id, payload, created_at)
 
 # scope: process-internal
 # Reason: SqliteKnowledgeGraphBackend is not yet wired into server/app.py.
-# Wave 10.5 will call make_knowledge_graph_backend() inside the builder and
-# inject the result via DI.  Until then, the factory is ready but server
-# wiring is intentionally deferred.
+# make_knowledge_graph_backend() will be called inside the builder and injected
+# via DI.  Until then, the factory is ready but server wiring is intentionally
+# deferred.
 """
 
 from __future__ import annotations

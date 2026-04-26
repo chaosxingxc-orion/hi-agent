@@ -255,7 +255,7 @@ class RunTelemetry:
             from hi_agent.server.tenant_context import get_tenant_context as _gtc
 
             _tctx = _gtc()
-            # W2-E.2 (Spine): project_id is owned by the run (RunSession holds
+            # project_id is owned by the run (RunSession holds
             # it for the run's lifetime).  Without this, SkillObservation rows
             # persist with empty project_id and cross-project skill metrics
             # collide.  Read from the bound RunSession; fall back to "" only

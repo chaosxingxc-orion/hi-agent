@@ -178,7 +178,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         replacement_test="test_routes_memory_tenant_isolation.py",
         contract="",
     ),
-    # Knowledge routes — system-wide knowledge, no per-tenant resource isolation (Wave 10.1)
+    # Knowledge routes — system-wide knowledge, no per-tenant resource isolation
     "handle_knowledge_ingest": AllowlistEntry(
         reason="Knowledge ingest — global knowledge graph, per-tenant isolation planned Wave 11",
         risk="High — ingest without tenant scope could pollute shared graph across tenants",
@@ -227,7 +227,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         replacement_test="test_routes_knowledge_tenant_isolation.py",
         contract="",
     ),
-    # Skills routes — global skill registry, no per-tenant resource isolation (Wave 10.1)
+    # Skills routes — global skill registry, no per-tenant resource isolation
     "handle_skills_list": AllowlistEntry(
         reason="Skills listing — global registry, per-tenant overlay planned Wave 11",
         risk="Low — all tenants see all skills; no secret per-tenant skills exposed",
@@ -284,7 +284,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         replacement_test="test_routes_skills_tenant_overlay.py",
         contract="",
     ),
-    # Tools/MCP — invocation routes, tenant injected via ctx downstream (Wave 10.1)
+    # Tools/MCP — invocation routes, tenant injected via ctx downstream
     "handle_tools_call": AllowlistEntry(
         reason="Tool invocation — tenant_id injected into tool call context downstream via ctx",
         risk="Medium — must verify tool call context carries tenant_id before execution",

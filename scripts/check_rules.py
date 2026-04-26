@@ -227,7 +227,7 @@ def check_rule_6(files: list[Path], repo: Path) -> RuleResult:
 
     Warning-mode: flags sites for manual review.  Fixed sites in hi_agent/
     should not appear here; remaining agent_kernel/ sites are tracked as
-    pre-existing debt (W4-D closure).
+    pre-existing debt tracked separately.
     """
     result = RuleResult(
         "Rule 6",

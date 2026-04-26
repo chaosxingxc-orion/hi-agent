@@ -11,8 +11,8 @@ Rule 11 — Posture-Aware Defaults:
 Override via environment variable ``HI_AGENT_KG_BACKEND={json,sqlite}``.
 
 Note: The research/prod → Sqlite flip is available but NOT yet the default
-for live server wiring (Wave 10.5 will wire this into the builder).  The
-factory is correct and tested; calling code is not yet wired to use it.
+for live server wiring; the factory is correct and tested but calling code
+is not yet wired to use it.
 """
 
 from __future__ import annotations

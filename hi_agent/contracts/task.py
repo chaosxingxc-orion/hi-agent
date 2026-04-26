@@ -128,7 +128,7 @@ class TaskContract:
     # Wave 8 / Phase A: project_id is a first-class scope field.
     # Empty string is allowed for transition; WARNING emitted by __post_init__.
     project_id: str = ""
-    # Wave 10.4 W4-E: optional spine fields for HTTP body enrichment (back-compat).
+    # Optional spine fields for HTTP body enrichment (back-compat).
     # These allow callers to supply explicit identity context in the request body.
     # When non-empty, these take precedence over middleware-derived values during
     # run manager derivation. Default "" so existing requests continue to work.
