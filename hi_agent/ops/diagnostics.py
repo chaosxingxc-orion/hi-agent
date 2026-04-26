@@ -5,10 +5,15 @@ import os
 from hi_agent.ops.doctor_report import DoctorIssue, DoctorReport
 
 
-def build_doctor_report(builder) -> DoctorReport:
+def build_doctor_report(builder, server=None) -> DoctorReport:
     """Build a diagnostic report from the current system state.
 
     Pure function: reads builder state + env vars. Real network probes only in prod.
+
+    Args:
+        builder: SystemBuilder instance (or minimal stub for tests).
+        server: Optional AgentServer instance. When provided, posture checks
+            can inspect live durable-backend state (Fix 7).
     """
     issues_blocking: list[DoctorIssue] = []
     issues_warnings: list[DoctorIssue] = []
@@ -41,8 +46,8 @@ def build_doctor_report(builder) -> DoctorReport:
     # 8. Evolve policy effective value
     _check_evolve_policy(builder, issues_info)
 
-    # 9. Posture-aware checks
-    _check_posture(issues_blocking, issues_warnings, issues_info)
+    # 9. Posture-aware checks (including durable backend state when server is known)
+    _check_posture(issues_blocking, issues_warnings, issues_info, server=server)
 
     # Determine status
     if issues_blocking:
@@ -267,7 +272,7 @@ def _check_evolve_policy(builder, info: list) -> None:
         pass
 
 
-def _check_posture(blocking: list, warnings: list, info: list) -> None:
+def _check_posture(blocking: list, warnings: list, info: list, server=None) -> None:
     """Posture-aware checks (DX-3).
 
     Checks:
@@ -276,6 +281,13 @@ def _check_posture(blocking: list, warnings: list, info: list) -> None:
     3. Under research/prod: project_id enforcement is active.
     4. Under research/prod: profile_id enforcement is active.
     5. T3 gate freshness: docs/delivery/ newest JSON < 7 days old.
+    6. Under research/prod: durable backends (run_store) must be constructed (Fix 7).
+
+    Args:
+        blocking: Accumulator for blocking DoctorIssue entries.
+        warnings: Accumulator for warning DoctorIssue entries.
+        info: Accumulator for info DoctorIssue entries.
+        server: Optional AgentServer instance for live backend introspection.
     """
     from hi_agent.config.posture import Posture
 
@@ -394,6 +406,38 @@ def _check_posture(blocking: list, warnings: list, info: list) -> None:
 
     # --- 5. T3 gate freshness ---
     _check_t3_gate_freshness(warnings, info)
+
+    # --- 6. Durable backend state (Fix 7) ---
+    # When a live server is available, verify that critical durable stores were
+    # actually constructed. Under strict posture a None run_store means the
+    # server silently degraded — surface this as a blocking issue.
+    if server is not None:
+        run_store = getattr(server, "_run_store", None)
+        if run_store is None:
+            blocking.append(
+                DoctorIssue(
+                    subsystem="posture",
+                    code="posture.durable_backend_missing",
+                    severity="blocking",
+                    message=(
+                        f"Under {posture.value!r} posture the run_store durable backend "
+                        "is None. The server silently degraded at startup."
+                    ),
+                    fix="Set HI_AGENT_DATA_DIR to a writable directory and restart.",
+                    verify="echo $HI_AGENT_DATA_DIR",
+                )
+            )
+        else:
+            info.append(
+                DoctorIssue(
+                    subsystem="posture",
+                    code="posture.durable_backend_ok",
+                    severity="info",
+                    message="Durable run_store backend is constructed and wired.",
+                    fix="",
+                    verify="",
+                )
+            )
 
 
 def _check_t3_gate_freshness(warnings: list, info: list) -> None:

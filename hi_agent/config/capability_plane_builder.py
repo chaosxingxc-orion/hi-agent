@@ -76,6 +76,10 @@ class CapabilityPlaneBuilder:
                 self._artifact_registry = ArtifactRegistry()
                 logger.info("build_artifact_registry: ArtifactRegistry created.")
             except Exception as exc:
+                from hi_agent.config.posture import Posture
+
+                if Posture.from_env().is_strict:
+                    raise
                 logger.warning("build_artifact_registry: failed: %s", exc)
                 self._artifact_registry = None
         return self._artifact_registry

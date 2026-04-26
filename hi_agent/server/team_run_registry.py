@@ -30,7 +30,7 @@ def _resolve_team_registry_path(db_path: str | None) -> str:
         posture = Posture.from_env()
         if not posture.requires_durable_registry:
             return ":memory:"
-    except Exception:
+    except (ValueError, OSError):
         return ":memory:"
 
     import os
@@ -57,13 +57,19 @@ CREATE TABLE IF NOT EXISTS team_runs (
     member_runs TEXT    NOT NULL DEFAULT '[]',
     created_at  TEXT    NOT NULL DEFAULT '',
     status      TEXT    NOT NULL DEFAULT 'created',
-    finished_at REAL    NOT NULL DEFAULT 0
+    finished_at REAL    NOT NULL DEFAULT 0,
+    tenant_id   TEXT    NOT NULL DEFAULT '',
+    user_id     TEXT    NOT NULL DEFAULT '',
+    session_id  TEXT    NOT NULL DEFAULT ''
 )
 """
 
     _MIGRATE_COLS: ClassVar[list[str]] = [
         "ALTER TABLE team_runs ADD COLUMN status TEXT NOT NULL DEFAULT 'created'",
         "ALTER TABLE team_runs ADD COLUMN finished_at REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE team_runs ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE team_runs ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE team_runs ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
     ]
 
     def __init__(self, db_path: str | None = None) -> None:

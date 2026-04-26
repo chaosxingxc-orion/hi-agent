@@ -34,7 +34,7 @@ def _resolve_db_path(db_path: str | None) -> str:
         posture = Posture.from_env()
         if not posture.requires_durable_queue:
             return ":memory:"
-    except Exception:
+    except (ValueError, OSError):
         return ":memory:"
 
     data_dir = os.environ.get("HI_AGENT_DATA_DIR", "./hi_agent_data")

@@ -14,8 +14,11 @@ from hi_agent.server.app import AgentServer, build_app
 from starlette.testclient import TestClient
 
 
-def _make_minimal_client() -> TestClient:
+def _make_minimal_client(monkeypatch=None, data_dir: str | None = None) -> TestClient:
     """Minimal server with no executor_factory — enough to test HTTP contract."""
+    # Research/prod posture requires HI_AGENT_DATA_DIR for durable backends.
+    if data_dir is not None and monkeypatch is not None:
+        monkeypatch.setenv("HI_AGENT_DATA_DIR", data_dir)
     server = AgentServer()
     app = build_app(server)
     return TestClient(app, raise_server_exceptions=False)
@@ -30,10 +33,12 @@ def _post_run(client: TestClient, body: dict) -> Any:
 
 
 @pytest.mark.integration
-def test_scope_required_envelope_has_all_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_scope_required_envelope_has_all_fields(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     """POST /runs without project_id under research posture → 400 with full envelope."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_minimal_client()
+    client = _make_minimal_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test"})
     assert resp.status_code == 400
@@ -49,10 +54,12 @@ def test_scope_required_envelope_has_all_fields(monkeypatch: pytest.MonkeyPatch)
 
 
 @pytest.mark.integration
-def test_scope_required_profile_id_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_scope_required_profile_id_envelope(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     """POST /runs without profile_id under research posture → 400 with full envelope."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_minimal_client()
+    client = _make_minimal_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test", "project_id": "proj-abc"})
     assert resp.status_code == 400
@@ -65,10 +72,12 @@ def test_scope_required_profile_id_envelope(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 @pytest.mark.integration
-def test_error_category_values_are_strings(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_error_category_values_are_strings(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     """error_category field must be a string value (not an enum object)."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_minimal_client()
+    client = _make_minimal_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test"})
     body = resp.json()

@@ -19,7 +19,7 @@ async def handle_doctor(request: Request) -> JSONResponse:
         from hi_agent.config.builder import SystemBuilder
 
         builder = SystemBuilder(config=getattr(server, "_config", None))
-    report = build_doctor_report(builder)
+    report = build_doctor_report(builder, server=server)
     status_code = 200 if report.status == "ready" else 503
     return JSONResponse(report.to_dict(), status_code=status_code)
 

@@ -85,8 +85,13 @@ class ReadinessProbe:
     Never writes to builder or holds mutable builder state.
     """
 
-    def __init__(self, builder: SystemBuilder) -> None:
+    def __init__(
+        self,
+        builder: SystemBuilder,
+        durable_backends_ok: bool | None = None,
+    ) -> None:
         self._builder = builder
+        self._durable_backends_ok = durable_backends_ok
 
     def snapshot(self) -> dict[str, Any]:
         """Return a live readiness snapshot of all platform subsystems.
@@ -256,6 +261,26 @@ class ReadinessProbe:
         except Exception as exc:
             result["subsystems"]["plugins"] = {"status": "error", "error": str(exc)}
 
+        # --- durable backends (strict posture only) ---
+        from hi_agent.config.posture import Posture as _Posture
+
+        _posture_db = _Posture.from_env()
+        if _posture_db.is_strict and self._durable_backends_ok is not None:
+            if self._durable_backends_ok:
+                result["subsystems"]["durable_backends"] = {"status": "ok"}
+            else:
+                result["subsystems"]["durable_backends"] = {
+                    "status": "error",
+                    "error": "durable backends not constructed under strict posture",
+                }
+                result["health"] = "degraded"
+                issues.append("durable_backends: required under strict posture but not constructed")
+        elif _posture_db.is_strict and self._durable_backends_ok is None:
+            # Probe constructed without backend state — cannot verify; mark unknown
+            result["subsystems"]["durable_backends"] = {"status": "unknown"}
+        else:
+            result["subsystems"]["durable_backends"] = {"status": "not_required"}
+
         # --- readiness decision ---
         kernel_ok = result["subsystems"].get("kernel", {}).get("status") == "ok"
         cap_ok = result["subsystems"].get("capabilities", {}).get("status") == "ok"
@@ -263,7 +288,8 @@ class ReadinessProbe:
         # "not_configured" (dev fallback) is acceptable; "error" (missing prod creds) blocks.
         llm_status = result["subsystems"].get("llm", {}).get("status", "not_configured")
         llm_ok = llm_status != "error"
-        result["ready"] = kernel_ok and cap_ok and llm_ok
+        durable_ok = result["subsystems"].get("durable_backends", {}).get("status") != "error"
+        result["ready"] = kernel_ok and cap_ok and llm_ok and durable_ok
         if not llm_ok:
             result["health"] = "degraded"
             issues.append("llm: credentials required for prod mode")

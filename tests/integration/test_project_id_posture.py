@@ -49,7 +49,11 @@ def _make_factory():
     return factory
 
 
-def _make_client() -> TestClient:
+def _make_client(monkeypatch=None, data_dir: str | None = None) -> TestClient:
+    # Research/prod posture requires HI_AGENT_DATA_DIR for durable backends.
+    # When data_dir is provided, set it before constructing AgentServer.
+    if data_dir is not None and monkeypatch is not None:
+        monkeypatch.setenv("HI_AGENT_DATA_DIR", data_dir)
     server = AgentServer()
     server.executor_factory = _make_factory()
     app = build_app(server)
@@ -85,10 +89,12 @@ def test_dev_posture_allows_missing_project_id(monkeypatch: pytest.MonkeyPatch) 
 
 
 @pytest.mark.integration
-def test_research_posture_blocks_missing_project_id(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_research_posture_blocks_missing_project_id(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     """Research posture: missing project_id → 400 with scope_required error_category."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test goal"})
     assert resp.status_code == 400, (
@@ -104,10 +110,12 @@ def test_research_posture_blocks_missing_project_id(monkeypatch: pytest.MonkeyPa
 
 
 @pytest.mark.integration
-def test_prod_posture_blocks_missing_project_id(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_prod_posture_blocks_missing_project_id(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     """Prod posture: missing project_id → 400."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "prod")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test goal"})
     assert resp.status_code == 400, (
@@ -119,11 +127,11 @@ def test_prod_posture_blocks_missing_project_id(monkeypatch: pytest.MonkeyPatch)
 
 @pytest.mark.integration
 def test_research_posture_passes_when_project_id_provided(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """Research posture: project_id present → not blocked."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(
         client, {"goal": "test goal", "project_id": "proj-abc", "profile_id": "default"}
@@ -151,10 +159,12 @@ def test_dev_posture_allows_missing_profile_id(monkeypatch: pytest.MonkeyPatch) 
 
 
 @pytest.mark.integration
-def test_research_posture_blocks_missing_profile_id(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_research_posture_blocks_missing_profile_id(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     """Research posture: missing profile_id → 400 with scope_required error_category."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test goal", "project_id": "proj-123"})
     assert resp.status_code == 400, (
@@ -169,11 +179,11 @@ def test_research_posture_blocks_missing_profile_id(monkeypatch: pytest.MonkeyPa
 
 @pytest.mark.integration
 def test_research_posture_passes_when_profile_id_provided(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """Research posture: both IDs present → not blocked."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(
         client,
@@ -190,10 +200,12 @@ def test_research_posture_passes_when_profile_id_provided(
 
 
 @pytest.mark.integration
-def test_error_envelope_has_required_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_error_envelope_has_required_fields(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     """400 from /runs must have all error_response() envelope fields."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test goal"})
     assert resp.status_code == 400

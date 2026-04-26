@@ -82,7 +82,10 @@ def _make_factory():
     return factory
 
 
-def _make_client() -> TestClient:
+def _make_client(monkeypatch=None, data_dir: str | None = None) -> TestClient:
+    # Research/prod posture requires HI_AGENT_DATA_DIR for durable backends.
+    if data_dir is not None and monkeypatch is not None:
+        monkeypatch.setenv("HI_AGENT_DATA_DIR", data_dir)
     server = AgentServer()
     server.executor_factory = _make_factory()
     app = build_app(server)
@@ -143,10 +146,12 @@ def test_env_var_config_dir_loads_tools(tmp_path: Path, monkeypatch: pytest.Monk
 
 
 @pytest.mark.integration
-def test_project_id_required_strict_mode_returns_400(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_project_id_required_strict_mode_returns_400(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """HI_AGENT_POSTURE=research + no project_id in body -> 400 scope_required."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test goal"})
     assert resp.status_code == 400, (
@@ -158,11 +163,11 @@ def test_project_id_required_strict_mode_returns_400(monkeypatch: pytest.MonkeyP
 
 @pytest.mark.integration
 def test_project_id_required_strict_mode_passes_when_provided(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """HI_AGENT_POSTURE=research + project_id and profile_id provided -> not 400."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(
         client, {"goal": "test goal", "project_id": "proj-123", "profile_id": "default"}
@@ -178,10 +183,12 @@ def test_project_id_required_strict_mode_passes_when_provided(
 
 
 @pytest.mark.integration
-def test_profile_id_required_strict_mode_returns_400(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_profile_id_required_strict_mode_returns_400(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """HI_AGENT_POSTURE=research + no profile_id in body -> 400 scope_required."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test goal", "project_id": "proj-123"})
     assert resp.status_code == 400, (
@@ -193,11 +200,11 @@ def test_profile_id_required_strict_mode_returns_400(monkeypatch: pytest.MonkeyP
 
 @pytest.mark.integration
 def test_profile_id_required_strict_mode_passes_when_provided(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """HI_AGENT_POSTURE=research + profile_id provided -> not 400."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    client = _make_client()
+    client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(
         client,

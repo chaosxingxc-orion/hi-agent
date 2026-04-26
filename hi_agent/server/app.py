@@ -275,7 +275,12 @@ async def handle_ready(request: Request) -> JSONResponse:
             from hi_agent.config.builder import SystemBuilder
 
             builder = SystemBuilder(config=getattr(server, "_config", None))
-        snapshot = builder.readiness()
+        # Plumb durable-backend state into ReadinessProbe so /ready reflects
+        # whether the critical run_store is actually constructed (Fix 6).
+        _run_store_ok = getattr(server, "_run_store", None) is not None
+        from hi_agent.config.readiness import ReadinessProbe as _ReadinessProbe
+
+        snapshot = _ReadinessProbe(builder, durable_backends_ok=_run_store_ok).snapshot()
     except Exception as exc:
         snapshot = {
             "ready": False,
@@ -1148,6 +1153,12 @@ def build_app(agent_server: AgentServer) -> Starlette:
         if agent_server._feedback_store is not None:
             logger.info("lifespan: FeedbackStore already wired (Rule 6).")
         else:
+            _lifespan_posture = Posture.from_env()
+            if _lifespan_posture.is_strict:
+                raise RuntimeError(
+                    "lifespan: FeedbackStore is None under strict posture; "
+                    "set HI_AGENT_DATA_DIR to enable durable storage."
+                )
             logger.warning(
                 "lifespan: FeedbackStore is None; feedback endpoints will be unavailable."
             )
@@ -1358,6 +1369,8 @@ class AgentServer:
         try:
             _backends = build_durable_backends(_data_dir, _posture)
         except RuntimeError as _be:
+            if _posture.is_strict:
+                raise
             logger.warning(
                 "build_durable_backends failed (%s); durable stores unavailable.",
                 _be,
