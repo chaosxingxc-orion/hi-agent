@@ -280,7 +280,7 @@ def test_tc05_missing_goal_returns_400(client: TestClient) -> None:
 
     assert resp.status_code == 400
     body = resp.json()
-    assert "error" in body
+    assert "message" in body or "error" in body  # structured or legacy error format
 
     # Service must still be healthy after the bad request.
     health = client.get("/health")
