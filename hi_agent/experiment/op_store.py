@@ -88,6 +88,9 @@ class LongRunningOpStore:
         session_id: str = "",
         project_id: str = "",
     ) -> OpHandle:
+        from hi_agent.config.posture_guards import require_tenant
+
+        tenant_id = require_tenant(tenant_id or None, where="LongRunningOpStore.create")
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO ops (op_id, backend, external_id, submitted_at,"

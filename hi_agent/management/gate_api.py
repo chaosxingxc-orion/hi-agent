@@ -14,18 +14,34 @@ from hi_agent.management.gate_timeout import GateTimeoutPolicy, resolve_gate_tim
 _logger = logging.getLogger(__name__)
 
 
-def _warn_unscoped_gate_read(method: str, gate_ref: str | None) -> None:
-    """Emit a WARNING when an in-memory gate read is made without tenant_id under strict posture."""
+def _warn_unscoped_gate_read(
+    method: str, gate_ref: str | None, *, internal_unscoped: bool = False
+) -> None:
+    """Emit a WARNING (dev) or raise ValueError (strict) for unscoped gate reads.
+
+    When ``internal_unscoped=True`` the call is from a process-internal caller
+    that legitimately reads across tenants; no warning or error is emitted.
+    """
+    if internal_unscoped:
+        return
     try:
         from hi_agent.config.posture import Posture
 
-        if Posture.from_env().is_strict:
-            _logger.warning(
-                "InMemoryGateAPI.%s called without tenant_id under strict posture "
-                "(gate_ref=%s); cross-tenant gate pool is being read",
-                method,
-                gate_ref,
+        p = Posture.from_env()
+        if p.is_strict:
+            raise ValueError(
+                f"InMemoryGateAPI.{method!r} called without tenant_id under strict posture "
+                f"(gate_ref={gate_ref!r}). Pass tenant_id= or use internal_unscoped=True "
+                "(only for process-internal callers)."
             )
+        _logger.warning(
+            "InMemoryGateAPI.%s called without tenant_id under strict posture "
+            "(gate_ref=%s); cross-tenant gate pool is being read",
+            method,
+            gate_ref,
+        )
+    except ValueError:
+        raise
     except Exception:
         # Posture lookup must never break reads.
         return
@@ -121,33 +137,41 @@ class InMemoryGateAPI:
         self._records[ctx.gate_ref] = record
         return record
 
-    def list_pending(self, tenant_id: str | None = None) -> list[GateRecord]:
+    def list_pending(
+        self, tenant_id: str | None = None, *, internal_unscoped: bool = False
+    ) -> list[GateRecord]:
         """List pending gates sorted by open time then gate ref.
 
         When ``tenant_id`` is provided, only gates owned by that tenant are
         returned.  When ``tenant_id is None`` the listing is unscoped (legacy
-        / process-internal callers); under strict posture this triggers a
-        WARNING.
+        / process-internal callers); under strict posture this raises ValueError
+        unless ``internal_unscoped=True``.
         """
         if tenant_id is None:
-            _warn_unscoped_gate_read("list_pending", None)
+            _warn_unscoped_gate_read("list_pending", None, internal_unscoped=internal_unscoped)
         rows = [record for record in self._records.values() if record.status is GateStatus.PENDING]
         if tenant_id is not None:
             rows = [r for r in rows if r.context.tenant_id == tenant_id]
         return sorted(rows, key=lambda record: (record.context.opened_at, record.context.gate_ref))
 
-    def get_gate(self, gate_ref: str, tenant_id: str | None = None) -> GateRecord:
+    def get_gate(
+        self, gate_ref: str, tenant_id: str | None = None, *, internal_unscoped: bool = False
+    ) -> GateRecord:
         """Fetch a gate by reference.
 
         When ``tenant_id`` is provided, a record whose ``tenant_id`` does not
         match raises ``ValueError(f"gate {gate_ref} not found")`` — same
         shape as a missing record, preserving object-level 404 semantics.
+        When ``tenant_id is None`` under strict posture this raises ValueError
+        unless ``internal_unscoped=True``.
         """
         normalized_gate_ref = gate_ref.strip()
         if not normalized_gate_ref:
             raise ValueError("gate_ref must be a non-empty string")
         if tenant_id is None:
-            _warn_unscoped_gate_read("get_gate", normalized_gate_ref)
+            _warn_unscoped_gate_read(
+                "get_gate", normalized_gate_ref, internal_unscoped=internal_unscoped
+            )
         record = self._records.get(normalized_gate_ref)
         if record is None:
             raise ValueError(f"gate {normalized_gate_ref} not found")
@@ -178,7 +202,7 @@ class InMemoryGateAPI:
         if normalized_action not in _valid_actions:
             raise ValueError(f"action must be one of {sorted(_valid_actions)}")
 
-        record = self.get_gate(gate_ref)
+        record = self.get_gate(gate_ref, internal_unscoped=True)
         if record.status is not GateStatus.PENDING:
             msg = f"gate {record.context.gate_ref} already resolved as {record.status.value}"
             raise ValueError(msg)
@@ -210,7 +234,8 @@ class InMemoryGateAPI:
     def apply_timeouts(self) -> list[GateRecord]:
         """Apply timeout policy to pending gates and return changed records."""
         changed: list[GateRecord] = []
-        for gate_ref in [record.context.gate_ref for record in self.list_pending()]:
+        _pending = self.list_pending(internal_unscoped=True)
+        for gate_ref in [record.context.gate_ref for record in _pending]:
             record = self._records[gate_ref]
             timeout_result = resolve_gate_timeout(
                 opened_at=record.context.opened_at,

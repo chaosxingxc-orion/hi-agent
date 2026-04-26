@@ -87,6 +87,11 @@ class HumanGateRequest:
     gate_ref: str
     context: dict[str, Any] = field(default_factory=dict)
     timeout_s: int = 3600
+    # Explicit spine — preferred over context dict. Defaults "" for back-compat.
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
 
 
 @dataclass(frozen=True)

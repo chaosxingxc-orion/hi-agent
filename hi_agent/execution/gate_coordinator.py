@@ -351,6 +351,18 @@ class GateCoordinator:
     ) -> None:
         """Check if any Human Gate should be auto-triggered."""
         executor = self._executor
+        # Derive spine from executor — project_id from contract; tenant/user/session
+        # via getattr fallbacks (may be empty on unscoped dev runs).
+        _exec_spine = {
+            "tenant_id": getattr(executor, "tenant_id", "")
+            or getattr(getattr(executor, "workspace", None), "tenant_id", ""),
+            "user_id": getattr(executor, "user_id", "")
+            or getattr(getattr(executor, "workspace", None), "user_id", ""),
+            "session_id": getattr(executor, "session_id", "")
+            or getattr(getattr(executor, "workspace", None), "session_id", ""),
+            "project_id": getattr(executor, "project_id", "")
+            or getattr(getattr(executor, "contract", None), "project_id", ""),
+        }
         if failure_code == "contradictory_evidence":
             executor.kernel.open_human_gate(
                 HumanGateRequest(
@@ -362,6 +374,7 @@ class GateCoordinator:
                         "reason": "Contradictory evidence detected",
                         "failure_code": failure_code,
                     },
+                    **_exec_spine,
                 )
             )
 
@@ -385,6 +398,7 @@ class GateCoordinator:
                                 "reason": "Budget nearly exhausted with no viable branch",
                                 "budget_usage_ratio": usage_ratio,
                             },
+                            **_exec_spine,
                         )
                     )
 
@@ -401,6 +415,7 @@ class GateCoordinator:
                         "quality_score": quality_score,
                         "threshold": executor.human_gate_quality_threshold,
                     },
+                    **_exec_spine,
                 )
             )
 
@@ -416,5 +431,6 @@ class GateCoordinator:
                         "reason": "Irreversible action requires approval",
                         "side_effect_class": side_effect_class,
                     },
+                    **_exec_spine,
                 )
             )

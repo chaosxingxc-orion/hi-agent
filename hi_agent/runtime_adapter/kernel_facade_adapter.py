@@ -360,7 +360,15 @@ class KernelFacadeAdapter:
             HumanGateRequest as KernelHumanGateRequest,
         )
 
+        from hi_agent.config.posture_guards import require_tenant
+
         context = dict(getattr(request, "context", {}) or {})
+        # Priority: explicit field > context dict > posture guard
+        _tenant = request.tenant_id or str(context.get("tenant_id") or "")
+        _user = request.user_id or str(context.get("user_id") or "")
+        _session = request.session_id or str(context.get("session_id") or "")
+        _project = request.project_id or str(context.get("project_id") or "")
+        _tenant = require_tenant(_tenant or None, where="open_human_gate")
         self._call(
             "open_human_gate",
             KernelHumanGateRequest(
@@ -375,13 +383,10 @@ class KernelFacadeAdapter:
                 branch_id=context.get("branch_id"),
                 artifact_ref=context.get("artifact_ref"),
                 caused_by=context.get("caused_by"),
-                # Spine — read from context if caller propagated it; defaults to ""
-                # to preserve back-compat.  Tenant-aware callers should populate
-                # these from the authenticated workspace.
-                tenant_id=str(context.get("tenant_id") or ""),
-                user_id=str(context.get("user_id") or ""),
-                session_id=str(context.get("session_id") or ""),
-                project_id=str(context.get("project_id") or ""),
+                tenant_id=_tenant,
+                user_id=_user,
+                session_id=_session,
+                project_id=_project,
             ),
         )
 

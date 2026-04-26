@@ -10,7 +10,8 @@ from hi_agent.management.gate_api import GateRecord, InMemoryGateAPI, resolve_ga
 def cmd_gate_list(api: InMemoryGateAPI) -> dict[str, object]:
     """Return pending gate rows in command response shape."""
     pending_rows: list[dict[str, object]] = []
-    for record in api.list_pending():
+    # CLI gate management reads across tenants
+    for record in api.list_pending(internal_unscoped=True):
         pending_rows.append(
             {
                 "gate_ref": record.context.gate_ref,
@@ -29,7 +30,8 @@ def cmd_gate_status(api: InMemoryGateAPI, *, gate_ref: str) -> dict[str, object]
     normalized_gate_ref = gate_ref.strip()
     if not normalized_gate_ref:
         raise ValueError("gate_ref must be a non-empty string")
-    record = api.get_gate(normalized_gate_ref)
+    # CLI gate management reads across tenants
+    record = api.get_gate(normalized_gate_ref, internal_unscoped=True)
     return {
         "command": "gate_status",
         "gate_ref": record.context.gate_ref,
@@ -60,7 +62,8 @@ def cmd_gate_resolve(
             operation="management.gate.resolve",
         )
     if action.strip().lower() == "approve" and soc_enabled:
-        record = api.get_gate(gate_ref)
+        # CLI gate management reads across tenants
+        record = api.get_gate(gate_ref, internal_unscoped=True)
         enforce_submitter_approver_separation(
             submitter=record.context.submitter,
             approver=approver,
@@ -84,7 +87,8 @@ def cmd_gate_operational_signal(
     stale_gate_threshold_seconds: float,
 ) -> dict[str, object]:
     """Build gate operational readiness signal."""
-    pending = api.list_pending()
+    # CLI gate management reads across tenants
+    pending = api.list_pending(internal_unscoped=True)
     oldest_age: float | None = None
     for record in pending:
         age = max(0.0, now_seconds - float(record.context.opened_at))

@@ -10,6 +10,7 @@ from __future__ import annotations
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from hi_agent.config.posture import Posture
 from hi_agent.server.tenant_context import require_tenant_context
 
 
@@ -27,13 +28,21 @@ async def handle_get_long_op(request: Request) -> JSONResponse:
     handle = coord.get(op_id)
     if handle is None:
         return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
-    # Tenant scope filter: OpHandle.tenant_id is populated when the op is
-    # submitted under an authenticated context.  Empty tenant_id is allowed
-    # for back-compat with already-running ops; Wave 10.3 will tighten this
-    # under Posture.is_strict.
     handle_tenant = getattr(handle, "tenant_id", "")
-    if handle_tenant and handle_tenant != ctx.tenant_id:
-        return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
+    if Posture.from_env().is_strict:
+        if not handle_tenant or handle_tenant != ctx.tenant_id:
+            return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
+    else:
+        # dev: back-compat — empty-tenant op visible; log + count for observability
+        if handle_tenant and handle_tenant != ctx.tenant_id:
+            return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
+        if not handle_tenant:
+            try:
+                from hi_agent.observability.fallback import record_fallback
+
+                record_fallback("op", reason="empty_tenant_back_compat_visible", run_id=op_id)
+            except Exception:
+                pass
     return JSONResponse(
         {
             "op_id": handle.op_id,
@@ -63,8 +72,20 @@ async def handle_cancel_long_op(request: Request) -> JSONResponse:
     handle = coord.get(op_id)
     if handle is not None:
         handle_tenant = getattr(handle, "tenant_id", "")
-        if handle_tenant and handle_tenant != ctx.tenant_id:
-            return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
+        if Posture.from_env().is_strict:
+            if not handle_tenant or handle_tenant != ctx.tenant_id:
+                return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
+        else:
+            # dev: back-compat — empty-tenant op visible; log + count for observability
+            if handle_tenant and handle_tenant != ctx.tenant_id:
+                return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
+            if not handle_tenant:
+                try:
+                    from hi_agent.observability.fallback import record_fallback
+
+                    record_fallback("op", reason="empty_tenant_back_compat_visible", run_id=op_id)
+                except Exception:
+                    pass
     ok = coord.cancel(op_id)
     if not ok:
         return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)

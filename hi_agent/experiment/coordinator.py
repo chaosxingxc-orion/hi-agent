@@ -30,6 +30,9 @@ class LongRunningOpCoordinator:
         session_id: str = "",
         project_id: str = "",
     ) -> OpHandle:
+        from hi_agent.config.posture_guards import require_tenant
+
+        tenant_id = require_tenant(tenant_id or None, where="LongRunningOpCoordinator.submit")
         backend = self._backends[backend_name]
         external_id = backend.submit(op_spec)
         op_id = str(uuid.uuid4())
