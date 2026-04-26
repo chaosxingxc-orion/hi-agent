@@ -125,8 +125,29 @@ def _git_head() -> str | None:
         return None
 
 
+def _git_parent(ref: str) -> str | None:
+    """Return SHA of the parent commit of ref, or None."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", f"{ref}~1"],
+            cwd=str(ROOT),
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        return None
+
+
+def _sha_matches(claimed: str, actual: str) -> bool:
+    min_len = min(len(claimed), len(actual))
+    return claimed[:min_len] == actual[:min_len]
+
+
 def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
-    """E1a: latest delivery notice HEAD SHA must match repo HEAD.
+    """E1a: latest delivery notice HEAD SHA must match repo HEAD or its direct parent.
+
+    Allowing HEAD~1 handles the natural one-commit circularity: the delivery notice
+    document itself is committed as the final step, so the SHA it can record is
+    necessarily one commit before the commit that contains it.
 
     Skipped (non-fatal) when:
     - no delivery notice exists yet (bootstrap scenario)
@@ -154,15 +175,17 @@ def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
     actual_sha = _git_head()
     if actual_sha is None:
         return []  # git unavailable — skip
-    # Compare by common prefix length (handle short vs full SHA)
-    min_len = min(len(claimed_sha), len(actual_sha))
-    if claimed_sha[:min_len] != actual_sha[:min_len]:
-        return [
-            f"  {notice.relative_to(ROOT)}: Delivery notice HEAD {claimed_sha} does not "
-            f"match repo HEAD {actual_sha}. Update the notice or add "
-            "'notice-pre-final-commit: true' if this is a pre-final-doc commit."
-        ]
-    return []
+    # Accept exact match or one-commit-back (delivery notice commit circularity)
+    if _sha_matches(claimed_sha, actual_sha):
+        return []
+    parent_sha = _git_parent("HEAD")
+    if parent_sha and _sha_matches(claimed_sha, parent_sha):
+        return []
+    return [
+        f"  {notice.relative_to(ROOT)}: Delivery notice HEAD {claimed_sha} does not "
+        f"match repo HEAD {actual_sha} or its parent. Update the notice or add "
+        "'notice-pre-final-commit: true' if this is a pre-final-doc commit."
+    ]
 
 
 def check_notice_t3_deferred_vs_readiness(notice: Path | None) -> list[str]:

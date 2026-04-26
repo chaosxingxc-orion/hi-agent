@@ -101,6 +101,46 @@ def test_e1a_skipped_when_pre_final_marker_present(tmp_path):
     assert errors == []
 
 
+def test_e1a_passes_when_claimed_sha_matches_head_parent(tmp_path):
+    """E1a passes when claimed SHA matches HEAD~1 (delivery-notice commit circularity)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("cdc", SCRIPT)
+    cdc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cdc)
+
+    parent_sha = "aaaaaaa1234567890abcdef1234567890abcdef1"
+    head_sha = "bbbbbbb1234567890abcdef1234567890abcdef1"
+    notice = tmp_path / "2026-01-01-delivery-notice.md"
+    notice.write_text(f"**HEAD SHA:** {parent_sha}\n")
+
+    with patch.object(cdc, "_git_head", return_value=head_sha), \
+         patch.object(cdc, "_git_parent", return_value=parent_sha):
+        errors = cdc.check_notice_head_matches_repo(notice)
+    assert errors == []
+
+
+def test_e1a_error_when_notice_sha_two_commits_behind():
+    """E1a fails when claimed SHA is more than one commit behind HEAD."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("cdc", SCRIPT)
+    cdc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cdc)
+
+    stale_sha = "aaaaaaa1234567890abcdef1234567890abcdef1"
+    parent_sha = "ccccccc1234567890abcdef1234567890abcdef1"
+    head_sha = "bbbbbbb1234567890abcdef1234567890abcdef1"
+    repo_root = SCRIPT.parent.parent
+    notice = repo_root / "docs" / "downstream-responses" / "_test2-delivery-notice.md"
+    notice.write_text(f"**HEAD SHA:** {stale_sha}\n")
+    try:
+        with patch.object(cdc, "_git_head", return_value=head_sha), \
+             patch.object(cdc, "_git_parent", return_value=parent_sha):
+            errors = cdc.check_notice_head_matches_repo(notice)
+    finally:
+        notice.unlink(missing_ok=True)
+    assert len(errors) == 1
+
+
 def test_e1a_no_error_when_no_notice(tmp_path):
     """E1a is non-fatal when no delivery notice exists."""
     import importlib.util
