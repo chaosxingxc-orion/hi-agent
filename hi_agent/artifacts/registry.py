@@ -33,6 +33,26 @@ class ArtifactRegistry:
             )
         self._store: dict[str, Artifact] = {}
 
+    def create(
+        self,
+        *,
+        exec_ctx: RunExecutionContext | None = None,
+        artifact_type: str = "base",
+        **kwargs: object,
+    ) -> Artifact:
+        """Create, register, and return a new Artifact.
+
+        Spine fields from exec_ctx are applied only when the caller has not
+        already supplied the same key in kwargs (explicit kwargs win per Rule 12).
+        """
+        if exec_ctx is not None:
+            for field in ("tenant_id", "user_id", "session_id", "project_id", "run_id"):
+                if field not in kwargs and getattr(exec_ctx, field, ""):
+                    kwargs[field] = getattr(exec_ctx, field)
+        artifact = Artifact(artifact_type=artifact_type, **kwargs)  # type: ignore[arg-type]
+        self.store(artifact)
+        return artifact
+
     def store(self, artifact: Artifact, *, exec_ctx: RunExecutionContext | None = None) -> None:
         """Store an artifact (overwrites if same ID exists).
 

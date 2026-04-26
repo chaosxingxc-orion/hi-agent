@@ -42,8 +42,6 @@ class LongRunningOpCoordinator:
             external_id=external_id,
             submitted_at=time.time(),
             tenant_id=tenant_id,
-            user_id=user_id,
-            session_id=session_id,
             project_id=project_id,
         )
         _logger.info(
