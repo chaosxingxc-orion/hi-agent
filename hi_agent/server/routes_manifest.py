@@ -293,6 +293,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
                     _pver = pd.get("version", "")
                     _pe_eligible = True
                     _pe_reasons: list[str] = []
+                    _pm = None
                     try:
                         _pm = plugin_loader.get(_pname) if hasattr(plugin_loader, "get") else None
                         if _pm is not None and hasattr(_pm, "production_eligibility"):
@@ -303,9 +304,14 @@ async def handle_manifest(request: Request) -> JSONResponse:
                             _pname,
                             _pe_exc,
                         )
+                    _requires_human_gate = bool(
+                        _pm is not None
+                        and getattr(_pm, "dangerous_capabilities", [])
+                    )
                     pd["production_eligibility"] = {
                         "eligible": _pe_eligible,
                         "blocked_reasons": _pe_reasons,
+                        "requires_human_gate": _requires_human_gate,
                     }
                     plugins.append(pd)
     except Exception as _plugin_exc:

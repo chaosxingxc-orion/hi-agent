@@ -24,9 +24,42 @@ class ExtensionDisallowedError(Exception):
         reasons: Human-readable list of reasons the extension was blocked.
     """
 
-    def __init__(self, message: str, reasons: list[str]) -> None:
+    def __init__(self, message: str, reasons: list[str] | None = None) -> None:
         super().__init__(message)
-        self.reasons: list[str] = reasons
+        self.reasons: list[str] = reasons if reasons is not None else []
+
+
+class ExtensionRequiresHumanApproval(ExtensionDisallowedError):
+    """Raised when a dangerous extension requires human gate approval to enable."""
+
+    def __init__(self, name: str, version: str, dangerous_capabilities: list[str]) -> None:
+        self.extension_name = name
+        self.extension_version = version
+        self.dangerous_capabilities = dangerous_capabilities
+        super().__init__(
+            f"Extension '{name}' v{version} requires human gate approval "
+            f"(dangerous_capabilities: {dangerous_capabilities})",
+            reasons=[
+                f"dangerous_capabilities={dangerous_capabilities!r}; "
+                "human gate approval required under strict posture"
+            ],
+        )
+
+
+class ExtensionTenantScopeRequired(ExtensionDisallowedError):
+    """Raised when enabling an extension with tenant_scope requires a non-empty tenant_id."""
+
+    def __init__(self, name: str, version: str, tenant_scope: str) -> None:
+        self.extension_name = name
+        self.extension_version = version
+        self.tenant_scope = tenant_scope
+        super().__init__(
+            f"Extension '{name}' v{version} has tenant_scope='{tenant_scope}' "
+            f"but was enabled without a tenant_id",
+            reasons=[
+                f"tenant_scope={tenant_scope!r} requires a non-empty tenant_id at enable() time"
+            ],
+        )
 
 
 @runtime_checkable
@@ -145,6 +178,8 @@ class ExtensionRegistry:
     def __init__(self) -> None:
         self._manifests: dict[str, ExtensionManifest] = {}
         self._enabled: set[str] = set()
+        # key: (name, version, tenant_id) -> gate_decision_id
+        self._human_gate_approvals: dict[tuple[str, str, str], str] = {}
 
     # ------------------------------------------------------------------
     # Registration
@@ -265,32 +300,86 @@ class ExtensionRegistry:
             )
 
     # ------------------------------------------------------------------
+    # Human gate approvals
+    # ------------------------------------------------------------------
+
+    def approve_via_human_gate(
+        self,
+        name: str,
+        version: str,
+        *,
+        tenant_id: str,
+        approver_user_id: str,
+        gate_decision_id: str,
+    ) -> None:
+        """Record human gate approval for this (extension, version, tenant) triple.
+
+        Args:
+            name: Extension name.
+            version: Extension version.
+            tenant_id: Tenant for which approval is granted.
+            approver_user_id: User ID of the approver.
+            gate_decision_id: Opaque ID of the gate decision record.
+        """
+        self._human_gate_approvals[(name, version, tenant_id)] = gate_decision_id
+        logger.info(
+            "ExtensionRegistry.approve_via_human_gate: approved %r v%s for tenant=%r "
+            "(approver=%r, gate_decision_id=%r)",
+            name,
+            version,
+            tenant_id,
+            approver_user_id,
+            gate_decision_id,
+        )
+
+    # ------------------------------------------------------------------
     # Enable gate
     # ------------------------------------------------------------------
 
-    def enable(self, name: str, version: str, posture: Posture) -> None:
+    def enable(self, name: str, version: str, posture: Posture | None = None, *, tenant_id: str = "") -> None:
         """Fail-closed gate: check production_eligibility before enabling.
 
         Args:
             name: Extension name.
             version: Extension version.
-            posture: Current deployment posture.
+            posture: Current deployment posture.  None defaults to Posture.from_env().
+            tenant_id: Tenant context for scoped extensions.  Required for
+                extensions with tenant_scope in ("tenant", "user", "session").
 
         Raises:
             KeyError: If the extension is not registered.
             ExtensionDisallowedError: If production_eligibility returns not-eligible.
+            ExtensionTenantScopeRequired: If tenant_scope requires a non-empty tenant_id.
+            ExtensionRequiresHumanApproval: If dangerous_capabilities present under strict
+                posture and no human gate approval has been recorded.
         """
+        from hi_agent.config.posture import Posture as _Posture
+
+        effective_posture = posture if posture is not None else _Posture.from_env()
+
         key = f"{name}:{version}"
         manifest = self._manifests.get(key)
         if manifest is None:
             raise KeyError(f"ExtensionRegistry.enable: extension {key!r} is not registered")
 
+        # --- tenant_scope check ---
+        tenant_scope = getattr(manifest, "tenant_scope", "global")
+        if tenant_scope in ("tenant", "user", "session") and not tenant_id:
+            raise ExtensionTenantScopeRequired(name, version, tenant_scope)
+
+        # --- dangerous_capabilities human gate check (strict posture only) ---
+        dangerous = getattr(manifest, "dangerous_capabilities", [])
+        if dangerous and effective_posture.is_strict:
+            approval_key = (name, version, tenant_id)
+            if approval_key not in self._human_gate_approvals:
+                raise ExtensionRequiresHumanApproval(name, version, dangerous)
+
         if not hasattr(manifest, "production_eligibility"):
             # Fallback for old manifests missing the method — allow under dev, block under strict.
-            if posture.is_strict:
+            if effective_posture.is_strict:
                 raise ExtensionDisallowedError(
                     f"Extension {key!r} does not implement production_eligibility(); "
-                    f"blocked under strict posture={posture.value!r}",
+                    f"blocked under strict posture={effective_posture.value!r}",
                     reasons=["missing production_eligibility() method on manifest"],
                 )
             logger.warning(
@@ -301,7 +390,7 @@ class ExtensionRegistry:
             self._enabled.add(key)
             return
 
-        eligible, reasons = manifest.production_eligibility(posture)
+        eligible, reasons = manifest.production_eligibility(effective_posture)
         if not eligible:
             raise ExtensionDisallowedError(
                 f"Extension {key!r} blocked by production_eligibility gate: {reasons}",
@@ -310,9 +399,10 @@ class ExtensionRegistry:
 
         self._enabled.add(key)
         logger.info(
-            "ExtensionRegistry.enable: extension %r enabled under posture=%r",
+            "ExtensionRegistry.enable: extension %r enabled under posture=%r tenant_id=%r",
             key,
-            posture.value,
+            effective_posture.value,
+            tenant_id,
         )
 
     # ------------------------------------------------------------------

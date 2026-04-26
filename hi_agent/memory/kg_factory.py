@@ -14,12 +14,27 @@ Precedence: env var > posture default.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 from hi_agent.config.posture import Posture
 from hi_agent.memory.long_term import JsonGraphBackend
 from hi_agent.memory.sqlite_kg_backend import SqliteKnowledgeGraphBackend
+
+_logger = logging.getLogger(__name__)
+
+
+def _inc_kg_override_counter() -> None:
+    """Increment hi_agent_kg_backend_override_total (best-effort; never raises)."""
+    try:
+        from hi_agent.observability.collector import get_metrics_collector
+
+        collector = get_metrics_collector()
+        if collector is not None:
+            collector.increment("hi_agent_kg_backend_override_total")
+    except Exception:  # pragma: no cover — metrics must never crash callers
+        pass
 
 
 def make_knowledge_graph_backend(
@@ -43,6 +58,11 @@ def make_knowledge_graph_backend(
         A :class:`~hi_agent.memory.long_term.JsonGraphBackend` (dev default) or
         a :class:`~hi_agent.memory.sqlite_kg_backend.SqliteKnowledgeGraphBackend`
         (research/prod default or explicit override).
+
+    Raises:
+        ValueError: when ``HI_AGENT_KG_BACKEND=json`` is set under prod posture
+            (prod requires durable SQLite backend per Rule 11).
+        ValueError: when ``profile_id`` is empty (Rule 6 / Rule 12).
     """
     if not profile_id:
         raise ValueError(
@@ -54,6 +74,21 @@ def make_knowledge_graph_backend(
 
     use_sqlite: bool
     if override == "json":
+        # Prod posture: hard reject — JSON backend is not durable enough (Rule 11).
+        if posture == Posture.PROD:
+            raise ValueError(
+                "HI_AGENT_KG_BACKEND=json is not allowed under prod posture. "
+                "Remove the override or set HI_AGENT_KG_BACKEND=sqlite. "
+                "(Rule 11 — prod requires durable SQLite backend)"
+            )
+        # Research posture: warn + emit counter (Rule 7).
+        if posture == Posture.RESEARCH:
+            _logger.warning(
+                "hi_agent.kg_factory: HI_AGENT_KG_BACKEND=json override accepted "
+                "under research posture. This will be rejected under prod posture. "
+                "Migrate to SQLite backend. (Rule 7 alarm)"
+            )
+            _inc_kg_override_counter()
         use_sqlite = False
     elif override == "sqlite":
         use_sqlite = True

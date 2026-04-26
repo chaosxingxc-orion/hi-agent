@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -10,13 +11,16 @@ from starlette.routing import Route
 
 from hi_agent.server.tenant_context import require_tenant_context
 
+_logger = logging.getLogger(__name__)
+
 
 async def handle_knowledge_ingest(request: Request) -> JSONResponse:
     """Ingest text knowledge as a wiki page."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    tenant_id = ctx.tenant_id
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -36,6 +40,9 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
             status_code=400,
         )
     tags = body.get("tags", [])
+    _logger.debug(
+        "hi_agent.routes_knowledge: ingest tenant_id=%r title=%r", tenant_id, title
+    )
     page_id = km.ingest_text(title, content, tags)
     try:
         re = server.retrieval_engine
@@ -49,9 +56,10 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
 async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
     """Ingest structured facts into the knowledge graph."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    tenant_id = ctx.tenant_id
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -64,6 +72,11 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
     except (ValueError, json.JSONDecodeError):
         return JSONResponse({"error": "invalid_json"}, status_code=400)
     facts = body.get("facts", [])
+    _logger.debug(
+        "hi_agent.routes_knowledge: ingest_structured tenant_id=%r facts=%d",
+        tenant_id,
+        len(facts),
+    )
     count = km.ingest_structured(facts)
     try:
         re = server.retrieval_engine
@@ -80,9 +93,10 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
 async def handle_knowledge_query(request: Request) -> JSONResponse:
     """Query knowledge across all sources."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    tenant_id = ctx.tenant_id
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -98,6 +112,9 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
             {"error": "missing_query_param_q"},
             status_code=400,
         )
+    _logger.debug(
+        "hi_agent.routes_knowledge: query tenant_id=%r q=%r", tenant_id, q
+    )
     context = km.query_for_context(q, budget_tokens=budget)
     result = km.query(q, limit=limit)
     return JSONResponse(
@@ -112,9 +129,11 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
 async def handle_knowledge_status(request: Request) -> JSONResponse:
     """Return knowledge system stats."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    tenant_id = ctx.tenant_id  # captured for audit/future per-tenant routing
+    _logger.debug("hi_agent.routes_knowledge: status tenant_id=%r", tenant_id)
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -129,9 +148,11 @@ async def handle_knowledge_status(request: Request) -> JSONResponse:
 async def handle_knowledge_lint(request: Request) -> JSONResponse:
     """Run knowledge health check."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    tenant_id = ctx.tenant_id  # captured for audit/future per-tenant routing
+    _logger.debug("hi_agent.routes_knowledge: lint tenant_id=%r", tenant_id)
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -146,9 +167,11 @@ async def handle_knowledge_lint(request: Request) -> JSONResponse:
 async def handle_knowledge_sync(request: Request) -> JSONResponse:
     """Sync graph nodes to wiki pages."""
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    tenant_id = ctx.tenant_id  # captured for audit/future per-tenant routing
+    _logger.debug("hi_agent.routes_knowledge: sync tenant_id=%r", tenant_id)
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
