@@ -39,6 +39,43 @@ WAVE_TEST_BUNDLE = [
     "tests/integration/test_http_gateway_failover_alarm.py",
     "tests/unit/test_run_execution_context_pilot.py",
     "tests/integration/test_intake_to_finalizer_spine_consistency.py",
+    # Wave 10.4 W4-A — evolve spine + EvolutionExperiment + ExperimentStore
+    "tests/unit/test_run_postmortem_spine.py",
+    "tests/unit/test_episode_record_spine.py",
+    "tests/unit/test_evolution_experiment_dataclass.py",
+    "tests/integration/test_experiment_store_sqlite.py",
+    "tests/integration/test_evolve_persistence_spine.py",
+    "tests/integration/test_evolve_engine_writes_experiment.py",
+    # Wave 10.4 W4-B — ExtensionManifest + unified /manifest + CLI
+    "tests/unit/test_extension_manifest_protocol.py",
+    "tests/unit/test_extension_registry.py",
+    "tests/integration/test_routes_manifest_unified.py",
+    "tests/integration/test_cli_extensions_list.py",
+    # Wave 10.4 W4-C — recovery rehydration + lease expiry + cross-loop
+    "tests/integration/test_async_client_lifetime.py",
+    # Wave 10.4 W4-D — cross-tenant routes + Rule 6 sweep
+    "tests/integration/test_routes_events_cross_tenant.py",
+    "tests/integration/test_routes_memory_cross_tenant.py",
+    "tests/integration/test_routes_profiles_cross_tenant.py",
+    "tests/integration/test_routes_tools_mcp_cross_tenant.py",
+    "tests/integration/test_routes_knowledge_cross_tenant.py",
+    "tests/unit/test_check_rules_inline_fallback.py",
+    # Wave 10.4 W4-E — spine through 5 durable writers + HTTP body spine
+    "tests/unit/test_idempotency_exec_ctx.py",
+    "tests/unit/test_event_store_exec_ctx.py",
+    "tests/unit/test_team_run_registry_exec_ctx.py",
+    "tests/unit/test_session_store_exec_ctx.py",
+    "tests/unit/test_artifact_registry_exec_ctx.py",
+    "tests/integration/test_intake_to_finalizer_spine_extended.py",
+    "tests/integration/test_run_result_body_spine.py",
+    "tests/integration/test_task_contract_body_spine.py",
+    # Wave 10.4 W4-F — SQLite KG backend + Rule 7 alarms
+    "tests/unit/test_sqlite_kg_backend.py",
+    "tests/integration/test_kg_backend_factory_posture.py",
+    "tests/integration/test_kg_restart_survival.py",
+    "tests/unit/test_release_gate_episode_skip_alarm.py",
+    "tests/unit/test_failover_retry_after_parse_alarm.py",
+    "tests/unit/test_mcp_transport_stderr_tail_alarm.py",
 ]
 
 

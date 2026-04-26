@@ -138,3 +138,40 @@ Legacy labels still shown for backward reference: `experimental`≈L1, `implemen
 | select_completeness CI gate | L2 | RO | `tests/unit/test_check_select_completeness.py` | R12 — defensive len() fallbacks until Wave 10.2 |
 | RunExecutionContext dataclass | L2 | CO+RO | `tests/unit/test_run_execution_context.py` | R12 — seed-level carrier until Wave 10.3 |
 | Wave 10.3 clean-env verification | L2 | DX | `scripts/verify_clean_env.py` | R8 — Windows basetemp PermissionError until Wave 10.3 |
+
+---
+
+## Wave 10.4 Additions — Platform Maturation Sprint (2026-04-26, HEAD f5e3cff)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| Evolve dataclass spine (RunPostmortem/CalibrationSignal/ProjectPostmortem/EvolveResult/EvolveMetrics) | L3 | CO+RO | `tests/unit/test_run_postmortem_spine.py` | R12 — Class F spine gap until Wave 10.4 |
+| EpisodeRecord contract spine (5-field) | L3 | CO | `tests/unit/test_episode_record_spine.py` | R12 — no spine until Wave 10.4 |
+| EvolutionExperiment dataclass (posture-aware) | L2 | CO | `tests/unit/test_evolution_experiment_dataclass.py` | Class Q — in-memory only until Wave 10.4 |
+| ExperimentStore Protocol + Sqlite/InMemory implementations | L2 | CO+RO | `tests/integration/test_experiment_store_sqlite.py` | Class Q — research/prod durable proposals |
+| EvolveEngine writes EvolutionExperiment on proposals | L2 | RO+TE | `tests/integration/test_evolve_engine_writes_experiment.py` | Class Q — engine wired to ExperimentStore |
+| ExtensionManifest Protocol + ExtensionRegistry | L2 | CO | `tests/unit/test_extension_manifest_protocol.py`, `tests/unit/test_extension_registry.py` | Class P — 4 manifest kinds unified under Protocol |
+| Unified /manifest extensions array (posture-filtered) | L3 | DX | `tests/integration/test_routes_manifest_unified.py` | Class P — /manifest additive extension surface |
+| hi-agent extensions list/inspect CLI | L2 | DX | `tests/integration/test_cli_extensions_list.py` | Class P — extension discovery from CLI |
+| Process recovery rehydration on startup | L2 | RO | `tests/integration/test_async_client_lifetime.py`, `test_lease_expired_reenqueue_under_prod` (unit) | Class L — lifespan _rehydrate_runs wired; subprocess E2E skipped (Windows sandbox) |
+| RunQueue stale-lease expiry + HI_AGENT_RUN_LEASE_SECONDS | L2 | RO | `test_lease_expired_warned_under_research` (unit) | Class L — expire_stale_leases() method |
+| Async client cross-loop lifetime stress | L2 | RO | `tests/integration/test_async_client_lifetime.py` | R5 — 5x asyncio.run() no loop errors |
+| Cross-tenant denial: routes_events, routes_memory, routes_profiles | L3 | TE | `tests/integration/test_routes_{events,memory,profiles}_cross_tenant.py` | Class H — tenant denial tests |
+| Cross-tenant denial: routes_tools_mcp (4 handlers fixed) | L3 | TE+RO | `tests/integration/test_routes_tools_mcp_cross_tenant.py` | Class H — handler scoping gap fixed |
+| Cross-tenant denial: routes_knowledge | L3 | TE | `tests/integration/test_routes_knowledge_cross_tenant.py` | Class H — audit confirmed scoped |
+| Rule 6 inline-fallback sweep (8 sites) | L3 | CO+RO | `tests/unit/test_check_rules_inline_fallback.py` | R6 + Class G — constructor-call form |
+| check_rules.py Rule 6 constructor-call regex | L3 | GOV | `tests/unit/test_check_rules_inline_fallback.py` | R6 — check extended to catch x or ClassName() |
+| IdempotencyStore exec_ctx spine | L3 | RO | `tests/unit/test_idempotency_exec_ctx.py` | Class K — writer 1 of 5 |
+| EventStore.append exec_ctx spine | L3 | RO | `tests/unit/test_event_store_exec_ctx.py` | Class K — writer 2 of 5 |
+| TeamRunRegistry.register exec_ctx spine | L3 | CO+RO | `tests/unit/test_team_run_registry_exec_ctx.py` | Class K — writer 3 of 5 |
+| SessionStore.create exec_ctx spine | L3 | RO | `tests/unit/test_session_store_exec_ctx.py` | Class K — writer 4 of 5 |
+| ArtifactRegistry.create exec_ctx spine | L3 | CO+TE | `tests/unit/test_artifact_registry_exec_ctx.py` | Class K — writer 5 of 5 |
+| 8-writer spine consistency (intake→finalizer) | L3 | CO+RO+TE | `tests/integration/test_intake_to_finalizer_spine_extended.py` | Class K — all 8 writers proven consistent |
+| RunResult.to_dict() optional spine keys (back-compat) | L2 | CO | `tests/integration/test_run_result_body_spine.py` | Class J — additive HTTP body enrichment |
+| TaskContract optional body spine (precedence over middleware) | L2 | CO | `tests/integration/test_task_contract_body_spine.py` | Class J — explicit body field wins |
+| SqliteKnowledgeGraphBackend (tenant-scoped, Protocol-compliant) | L2 | RO | `tests/unit/test_sqlite_kg_backend.py`, `tests/integration/test_kg_restart_survival.py` | Class R — KG SQLite backend |
+| Knowledge graph posture-aware factory | L2 | RO | `tests/integration/test_kg_backend_factory_posture.py` | Class R — factory ready; default JSON until Wave 10.5 |
+| release_gate episode skip Rule 7 alarms (2 sites) | L3 | TE | `tests/unit/test_release_gate_episode_skip_alarm.py` | R7 + Class I — corrupt+timestamp sites |
+| failover Retry-After parse Rule 7 counter | L3 | RO | `tests/unit/test_failover_retry_after_parse_alarm.py` | R7 + Class I — counter-only |
+| mcp/transport stderr tail Rule 7 counter | L3 | TE | `tests/unit/test_mcp_transport_stderr_tail_alarm.py` | R7 + Class I — counter-only |
+| Wave 10.4 clean-env verification bundle (254 tests) | L3 | DX | `scripts/verify_clean_env.py` | R8 — expanded bundle passes in clean-env |
