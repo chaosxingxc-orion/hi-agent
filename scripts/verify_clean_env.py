@@ -10,17 +10,23 @@ Exit 2: pre-flight permission check failed.
 
 Usage::
 
-    # Default: uses system tempdir (works on any machine)
+    # Default: offline-safe bundle (excludes live_api, external_llm, network, requires_secret)
     python scripts/verify_clean_env.py
+
+    # Smoke profile: small W5 subset, fast
+    python scripts/verify_clean_env.py --profile smoke-w5
+
+    # Full release bundle (includes live API tests)
+    python scripts/verify_clean_env.py --profile release
+
+    # Custom bundle from a file
+    python scripts/verify_clean_env.py --profile custom --bundle /tmp/my_bundle.txt
 
     # Custom paths (for CI or restricted environments)
     python scripts/verify_clean_env.py \\
         --basetemp /tmp/hi_agent_pytest \\
         --cache-dir /tmp/hi_agent_cache \\
         --json-report docs/delivery/<sha>-clean-env.json
-
-    # Read test paths from a file (for integration tests / sub-bundles)
-    python scripts/verify_clean_env.py --bundle /tmp/my_bundle.txt
 
 Environment variables (lower priority than CLI args):
     HI_AGENT_PYTEST_TEMPROOT   override basetemp
@@ -56,10 +62,46 @@ WAVE_TEST_BUNDLE: list[str] = [
     "tests/server",
 ]
 
+# ---------------------------------------------------------------------------
+# Smoke-W5 bundle — small subset for fast pre-flight checks.
+# ---------------------------------------------------------------------------
+SMOKE_W5_BUNDLE: list[str] = [
+    "tests/unit/test_misc_defects.py",
+    "tests/unit/test_json_config_loader_base_url.py",
+    "tests/unit/test_contracts.py",
+    "tests/unit/test_posture.py",
+    "tests/unit/test_rule6_sweep.py",
+    "tests/unit/test_gate_protocol.py",
+    "tests/unit/test_run_store.py",
+    "tests/unit/test_idempotency.py",
+    "tests/unit/test_context_manager.py",
+    "tests/unit/test_memory_lifecycle.py",
+]
+
+# Markers excluded from the default-offline profile
+_OFFLINE_EXCLUDED_MARKERS: list[str] = [
+    "live_api",
+    "external_llm",
+    "network",
+    "requires_secret",
+]
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run the Wave test bundle in a portable clean environment.",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=["smoke-w5", "default-offline", "release", "custom"],
+        default="default-offline",
+        help=(
+            "Bundle profile to use. "
+            "'default-offline' excludes live_api/external_llm/network/requires_secret markers. "
+            "'release' runs the full bundle with no marker exclusions. "
+            "'smoke-w5' runs a small W5 subset for fast pre-flight. "
+            "'custom' reads test list from --bundle PATH."
+        ),
     )
     parser.add_argument(
         "--basetemp",
@@ -97,7 +139,7 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Read test paths from a file (one path per line) instead of the "
-            "embedded WAVE_TEST_BUNDLE list."
+            "embedded WAVE_TEST_BUNDLE list. Only used with --profile custom."
         ),
     )
     return parser.parse_args()
@@ -189,30 +231,90 @@ def _filter_existing(paths: list[str]) -> tuple[list[str], list[str]]:
     return existing, missing
 
 
-def _parse_pytest_json(report_file: Path) -> dict:
-    """Parse pytest-json-report output and return a stats dict."""
+def _resolve_bundle_and_marker_args(args: argparse.Namespace) -> tuple[list[str], list[str]]:
+    """Return (raw_paths, extra_pytest_args) based on the selected profile.
+
+    extra_pytest_args may include a ``-m`` marker expression for default-offline.
+    """
+    profile = args.profile
+
+    if profile == "smoke-w5":
+        raw_paths = list(SMOKE_W5_BUNDLE)
+        extra_args: list[str] = []
+    elif profile == "default-offline":
+        raw_paths = list(WAVE_TEST_BUNDLE)
+        marker_expr = " and ".join(f"not {m}" for m in _OFFLINE_EXCLUDED_MARKERS)
+        extra_args = ["-m", marker_expr]
+    elif profile == "release":
+        raw_paths = list(WAVE_TEST_BUNDLE)
+        extra_args = []
+    elif profile == "custom":
+        if not args.bundle:
+            print(
+                "ERROR: --profile custom requires --bundle PATH to be specified.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        raw_paths = _load_bundle(args.bundle)
+        extra_args = []
+    else:
+        # Should never happen given argparse choices, but be safe
+        raw_paths = list(WAVE_TEST_BUNDLE)
+        extra_args = []
+
+    return raw_paths, extra_args
+
+
+def _parse_pytest_json(report_file: Path, exit_code: int) -> dict:
+    """Parse pytest-json-report output and return a stats dict.
+
+    IMPORTANT: On any failure (missing file, parse error, unreadable), this
+    function NEVER returns zero-stats that could be mistaken for "all passed".
+    It always sets ``status="failed"`` and ``summary_available=False`` so
+    downstream callers can detect the failure unambiguously.
+    """
     try:
         data = json.loads(report_file.read_text(encoding="utf-8"))
         summary = data.get("summary", {})
+        passed = summary.get("passed", 0)
+        failed = summary.get("failed", 0)
+        errors = summary.get("error", 0)
+        skipped = summary.get("skipped", 0)
+        collected = summary.get("collected", 0)
+
+        # Determine status from content + exit code
+        if exit_code != 0 or failed > 0 or errors > 0:
+            status = "failed"
+        else:
+            status = "passed"
+
         return {
-            "collected": summary.get("collected", 0),
-            "passed": summary.get("passed", 0),
-            "failed": summary.get("failed", 0),
-            "errors": summary.get("error", 0),
-            "skipped": summary.get("skipped", 0),
+            "status": status,
+            "summary_available": True,
+            "failure_reason": None if status == "passed" else f"pytest exit_code={exit_code} failed={failed} errors={errors}",
+            "collected": collected,
+            "passed": passed,
+            "failed": failed,
+            "errors": errors,
+            "skipped": skipped,
         }
-    except (json.JSONDecodeError, OSError, KeyError):
+    except (json.JSONDecodeError, OSError, KeyError) as exc:
+        # NEVER return zero-stats: a missing/unreadable report is always a failure.
         return {
-            "collected": 0,
-            "passed": 0,
-            "failed": 0,
-            "errors": 0,
-            "skipped": 0,
+            "status": "failed",
+            "summary_available": False,
+            "failure_reason": f"report file missing or unreadable: {exc}",
+            "collected": None,
+            "passed": None,
+            "failed": None,
+            "errors": None,
+            "skipped": None,
         }
 
 
 def main() -> int:
     args = _parse_args()
+    profile = args.profile
 
     # --- Resolve paths --------------------------------------------------
     basetemp = _resolve_dir(
@@ -235,8 +337,8 @@ def main() -> int:
         if not ok:
             return 2
 
-    # --- Resolve bundle -------------------------------------------------
-    raw_paths = _load_bundle(args.bundle) if args.bundle else list(WAVE_TEST_BUNDLE)
+    # --- Resolve bundle and extra args ----------------------------------
+    raw_paths, extra_pytest_args = _resolve_bundle_and_marker_args(args)
 
     existing_paths, missing_paths = _filter_existing(raw_paths)
 
@@ -268,21 +370,61 @@ def main() -> int:
         "--json-report",
         f"--json-report-file={tmp_report_path}",
         *existing_paths,
+        *extra_pytest_args,
     ]
 
+    print(f"profile  : {profile}")
     print(f"basetemp : {basetemp}")
     print(f"cache_dir: {cache_dir}")
+    if extra_pytest_args:
+        print(f"markers  : {' '.join(extra_pytest_args)}")
     print(f"command  : {' '.join(cmd)}")
     print()
 
     # --- Run pytest -----------------------------------------------------
     started_at = datetime.datetime.now(datetime.UTC)
-    result = subprocess.run(cmd, cwd=str(ROOT))
-    finished_at = datetime.datetime.now(datetime.UTC)
-    duration = (finished_at - started_at).total_seconds()
+    status = "error"
+    failure_reason: str | None = None
+    pytest_exit_code: int = -1
+    stats: dict = {
+        "status": "error",
+        "summary_available": False,
+        "failure_reason": "pytest did not complete",
+        "collected": None,
+        "passed": None,
+        "failed": None,
+        "errors": None,
+        "skipped": None,
+    }
 
-    # --- Parse stats from pytest-json-report ----------------------------
-    stats = _parse_pytest_json(Path(tmp_report_path))
+    try:
+        result = subprocess.run(cmd, cwd=str(ROOT), timeout=600)
+        pytest_exit_code = result.returncode
+        finished_at = datetime.datetime.now(datetime.UTC)
+
+        # --- Parse stats from pytest-json-report --------------------------
+        stats = _parse_pytest_json(Path(tmp_report_path), pytest_exit_code)
+        status = stats["status"]
+        failure_reason = stats.get("failure_reason")
+
+    except subprocess.TimeoutExpired:
+        finished_at = datetime.datetime.now(datetime.UTC)
+        status = "timeout"
+        failure_reason = "pytest timed out after 600 seconds"
+        stats = {
+            "status": "timeout",
+            "summary_available": False,
+            "failure_reason": failure_reason,
+            "collected": None,
+            "passed": None,
+            "failed": None,
+            "errors": None,
+            "skipped": None,
+        }
+        print(f"\nERROR: {failure_reason}", file=sys.stderr)
+        pytest_exit_code = -1
+
+    duration = (finished_at - started_at).total_seconds()
 
     # Clean up tmp report
     with contextlib.suppress(OSError):
@@ -296,7 +438,12 @@ def main() -> int:
             pytest_version = "unknown"
 
         evidence = {
-            "schema_version": 1,
+            "schema_version": 2,
+            "bundle_profile": profile,
+            "status": status,
+            "summary_available": stats.get("summary_available", False),
+            "failure_reason": failure_reason,
+            "pytest_exit_code": pytest_exit_code,
             "head": _git_head(),
             "python": sys.version.split()[0],
             "pytest": pytest_version,
@@ -306,11 +453,11 @@ def main() -> int:
             "started_at": started_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "finished_at": finished_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "duration_seconds": duration,
-            "collected": stats["collected"],
-            "passed": stats["passed"],
-            "failed": stats["failed"],
-            "errors": stats["errors"],
-            "skipped": stats["skipped"],
+            "collected": stats.get("collected"),
+            "passed": stats.get("passed"),
+            "failed": stats.get("failed"),
+            "errors": stats.get("errors"),
+            "skipped": stats.get("skipped"),
             "missing_paths": missing_paths,
         }
         evidence_path = Path(args.json_report)
@@ -320,7 +467,7 @@ def main() -> int:
         )
         print(f"\nEvidence JSON written to: {evidence_path}")
 
-    return result.returncode
+    return pytest_exit_code if status not in ("timeout", "error") else 1
 
 
 if __name__ == "__main__":

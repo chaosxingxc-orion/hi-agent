@@ -108,26 +108,46 @@ def _git(args: list[str], *, repo_root: Path) -> str:
 
 
 def _check_clean_env_evidence(repo_root: Path, head_sha: str) -> None:
-    """Print T3-FRESH-AND-CLEAN-ENV-VERIFIED or T3-FRESH-CLEAN-ENV-MISSING.
+    """Print STATUS: T3-FRESH-AND-CLEAN-ENV-VERIFIED or STATUS: T3-FRESH (...).
 
-    Looks for docs/delivery/*-<head_sha>-clean-env.json (short or full SHA).
+    Looks for docs/delivery/*<head_sha>*clean-env*.json (short or full SHA)
+    with bundle_profile in {"default-offline", "release"} and status == "passed".
     Called only after T3 is confirmed fresh.
     """
+    import json as _json
+
     delivery_dir = repo_root / "docs" / "delivery"
     if not delivery_dir.is_dir():
-        print("T3-FRESH-CLEAN-ENV-MISSING")
+        print("STATUS: T3-FRESH (clean-env not verified at current HEAD)")
         return
 
     short_sha = head_sha[:7]
-    candidates = list(delivery_dir.glob(f"*-{short_sha}-clean-env.json"))
-    if not candidates:
-        # Also try full SHA
-        candidates = list(delivery_dir.glob(f"*-{head_sha}-clean-env.json"))
+    # Collect candidate files matching short or full SHA
+    candidates: list[Path] = []
+    for pattern in (
+        f"*{short_sha}*clean-env*.json",
+        f"*{head_sha}*clean-env*.json",
+    ):
+        candidates.extend(delivery_dir.glob(pattern))
 
-    if candidates:
-        print(f"T3-FRESH-AND-CLEAN-ENV-VERIFIED ({candidates[0].name})")
+    clean_env_verified = False
+    verified_file: str = ""
+    for ce_path in candidates:
+        try:
+            ce_data = _json.loads(ce_path.read_text(encoding="utf-8"))
+            profile = ce_data.get("bundle_profile", "")
+            ce_status = ce_data.get("status", "")
+            if profile in {"default-offline", "release"} and ce_status == "passed":
+                clean_env_verified = True
+                verified_file = ce_path.name
+                break
+        except (_json.JSONDecodeError, OSError):
+            pass
+
+    if clean_env_verified:
+        print(f"STATUS: T3-FRESH-AND-CLEAN-ENV-VERIFIED ({verified_file})")
     else:
-        print("T3-FRESH-CLEAN-ENV-MISSING")
+        print("STATUS: T3-FRESH (clean-env not verified at current HEAD)")
 
 
 def main() -> int:
@@ -216,6 +236,8 @@ def main() -> int:
         "Or tag this PR: T3 evidence: DEFERRED — <reason>",
         file=sys.stderr,
     )
+    print("STATUS: STALE")
+    print("CLEAN-ENV: NOT VERIFIED AT CURRENT HEAD")
     return 1
 
 

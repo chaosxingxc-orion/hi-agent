@@ -55,10 +55,13 @@ addopts = ["--strict-markers", "--timeout=60"]
 tmp_path_retention_policy = "failed"
 markers = [
     "integration: integration tests using real components",
-    "live_api: live API tests that call real external model endpoints (require VOLCE_API_KEY)",
+    "live_api: live API tests that call real external model endpoints (require VOLCE_API_KEY); excluded from default-offline bundle",
     "prod_e2e: production end-to-end tests that require real model credentials",
     "smoke: import and minimal instantiation tests — no external dependencies required",
     "serial: must not run in parallel (SQLite, file locks, port binding)",
+    "external_llm: requires real LLM provider endpoint; excluded from default-offline bundle",
+    "network: makes real network calls to external services; excluded from default-offline bundle",
+    "requires_secret: requires populated API secret; excluded from default-offline bundle",
 ]
 
 [tool.ruff]

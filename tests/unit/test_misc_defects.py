@@ -141,6 +141,7 @@ def test_memory_dream_handler_builds_scoped_manager_for_profile():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.external_llm
 def test_checkpoint_builder_uses_profile_id():
     """build_executor_from_checkpoint must pass profile_id to store builders."""
     import contextlib
