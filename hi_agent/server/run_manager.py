@@ -62,6 +62,7 @@ class ManagedRun:
     tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
+    project_id: str = ""
     current_stage: str | None = None
     stage_updated_at: str | None = None
     idempotency_key: str | None = None
@@ -286,6 +287,9 @@ class RunManager:
                     idempotency_key=idempotency_key,
                     response_snapshot=record.response_snapshot,
                     tenant_id=tenant_id,
+                    user_id=workspace.user_id if workspace else "",
+                    session_id=workspace.session_id if workspace else "",
+                    project_id=task_contract_dict.get("project_id", ""),
                 )
 
             # outcome == "created" — continue with candidate_run_id below.
@@ -304,6 +308,7 @@ class RunManager:
             tenant_id=workspace.tenant_id if workspace else "",
             user_id=workspace.user_id if workspace else "",
             session_id=workspace.session_id if workspace else "",
+            project_id=task_contract_dict.get("project_id", ""),
             idempotency_key=idempotency_key,
             outcome="created",
         )
@@ -325,6 +330,26 @@ class RunManager:
         if self._run_store is not None:
             import time as _time
 
+            # W2-E.3 (Spine trip-wire): under research/prod posture, refuse
+            # to persist a RunRecord with the "__legacy__" sentinel — the
+            # store is a default-on durable record and a legacy sentinel
+            # would corrupt cross-run attribution.  Mirrors the
+            # TeamRunRegistry.register pattern (Rule 12).
+            if workspace is None:
+                from hi_agent.config.posture import Posture
+
+                _posture = Posture.from_env()
+                if _posture.is_strict:
+                    raise ValueError(
+                        "RunRecord upsert requires authenticated workspace "
+                        "under research/prod posture (Rule 12 — Contract Spine)"
+                    )
+                logging.getLogger(__name__).debug(
+                    "run_manager.upsert_legacy_sentinel run_id=%s posture=%s "
+                    "user_id=__legacy__ session_id=__legacy__",
+                    run_id,
+                    _posture.value,
+                )
             now_ts = _time.time()
             self._run_store.upsert(
                 RunRecord(
@@ -617,6 +642,10 @@ class RunManager:
                 content=f"run terminal state={run.state}",
                 metadata={"state": run.state, "error": run.error or ""},
                 created_at=datetime.now(UTC).isoformat(),
+                tenant_id=run.tenant_id,
+                user_id=run.user_id,
+                session_id=run.session_id,
+                project_id=run.project_id,
             )
             with trace_file.open("a", encoding="utf-8") as f:
                 import json as _json
@@ -631,6 +660,10 @@ class RunManager:
                             "content": entry.content,
                             "metadata": entry.metadata,
                             "created_at": entry.created_at,
+                            "tenant_id": entry.tenant_id,
+                            "user_id": entry.user_id,
+                            "session_id": entry.session_id,
+                            "project_id": entry.project_id,
                         }
                     )
                     + "\n"

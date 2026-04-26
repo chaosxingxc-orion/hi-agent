@@ -375,6 +375,13 @@ class KernelFacadeAdapter:
                 branch_id=context.get("branch_id"),
                 artifact_ref=context.get("artifact_ref"),
                 caused_by=context.get("caused_by"),
+                # Spine — read from context if caller propagated it; defaults to ""
+                # to preserve back-compat.  Tenant-aware callers should populate
+                # these from the authenticated workspace.
+                tenant_id=str(context.get("tenant_id") or ""),
+                user_id=str(context.get("user_id") or ""),
+                session_id=str(context.get("session_id") or ""),
+                project_id=str(context.get("project_id") or ""),
             ),
         )
 

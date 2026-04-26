@@ -25,6 +25,13 @@ class ReasoningTraceEntry:
                  large tool outputs).
         metadata: Arbitrary structured metadata (model name, token counts, etc.).
         created_at: ISO-8601 UTC timestamp of entry creation.
+        tenant_id: Spine — the tenant this entry was produced under.
+        user_id: Spine — the user this entry was produced for.
+        session_id: Spine — the session this entry belongs to.
+        project_id: Spine — the project this entry was produced for.
+
+    Spine fields default to empty strings so JSONL files written before
+    the spine was added remain round-trippable through ``asdict``.
     """
 
     run_id: str
@@ -34,6 +41,10 @@ class ReasoningTraceEntry:
     content: str
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: str = ""  # ISO8601
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
 
 
 @dataclass
@@ -43,7 +54,18 @@ class ReasoningTrace:
     Attributes:
         run_id: The run these entries belong to.
         entries: Ordered list of ReasoningTraceEntry instances.
+        tenant_id: Spine — the tenant this trace was produced under.
+        user_id: Spine — the user this trace was produced for.
+        session_id: Spine — the session this trace belongs to.
+        project_id: Spine — the project this trace was produced for.
+
+    Spine fields default to empty strings to preserve back-compat with
+    legacy traces persisted before the spine was added.
     """
 
     run_id: str
     entries: list[ReasoningTraceEntry] = field(default_factory=list)
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""

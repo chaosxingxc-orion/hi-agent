@@ -213,6 +213,10 @@ class KernelFacade:
         self._gate_resolutions: dict[
             str, dict[str, str]
         ] = {}  # run_id -> gate_ref -> "approved"|"rejected"
+        # Spine carried forward from open_human_gate to HumanGateResolution so
+        # postmortem records remain tenant-attributable.
+        # Layout: run_id -> gate_ref -> {"tenant_id", "user_id", "session_id", "project_id"}.
+        self._gate_spines: dict[str, dict[str, dict[str, str]]] = {}
         self._human_gate_lock = threading.Lock()
         # Bounded run tracking for memory-leak prevention.
         self._max_tracked_runs = max_tracked_runs
@@ -423,6 +427,7 @@ class KernelFacade:
             self._resolved_human_gates.pop(run_id, None)
             self._gate_types.pop(run_id, None)
             self._gate_resolutions.pop(run_id, None)
+            self._gate_spines.pop(run_id, None)
         self._rebuild_offsets.pop(run_id, None)
 
     def cleanup_completed_run(self, run_id: str) -> None:
@@ -1264,12 +1269,18 @@ class KernelFacade:
             resolved = self._resolved_human_gates.get(run_id, set())
             run_gate_types = self._gate_types.get(run_id, {})
             run_gate_resolutions = self._gate_resolutions.get(run_id, {})
+            run_gate_spines = self._gate_spines.get(run_id, {})
             for gate_ref in resolved:
+                spine = run_gate_spines.get(gate_ref, {})
                 gate_resolutions.append(
                     HumanGateResolution(
                         gate_ref=gate_ref,
                         gate_type=run_gate_types.get(gate_ref, "final_approval"),
                         resolution=run_gate_resolutions.get(gate_ref, "approved"),
+                        tenant_id=spine.get("tenant_id", ""),
+                        user_id=spine.get("user_id", ""),
+                        session_id=spine.get("session_id", ""),
+                        project_id=spine.get("project_id", ""),
                     )
                 )
 
@@ -1724,6 +1735,14 @@ class KernelFacade:
         with self._human_gate_lock:
             self._open_human_gates.setdefault(request.run_id, set()).add(request.gate_ref)
             self._gate_types.setdefault(request.run_id, {})[request.gate_ref] = request.gate_type
+            # Persist spine so the matching HumanGateResolution stays
+            # tenant-attributable in query_run_postmortem.
+            self._gate_spines.setdefault(request.run_id, {})[request.gate_ref] = {
+                "tenant_id": request.tenant_id,
+                "user_id": request.user_id,
+                "session_id": request.session_id,
+                "project_id": request.project_id,
+            }
         await self._workflow_gateway.signal_workflow(
             request.run_id,
             SignalRunRequest(

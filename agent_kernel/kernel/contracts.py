@@ -2520,6 +2520,11 @@ class HumanGateRequest:
     Human gates are first-class lifecycle events, not just approval signals.
     The system may trigger them proactively (system-triggered) or they may
     originate from user requests.
+
+    Spine fields (``tenant_id``/``user_id``/``session_id``/``project_id``)
+    default to empty strings so already-stored requests round-trip cleanly.
+    Callers in research/prod posture should populate them from the
+    authenticated workspace to prevent cross-tenant gate spoofing.
     """
 
     gate_ref: str
@@ -2531,11 +2536,20 @@ class HumanGateRequest:
     branch_id: str | None = None
     artifact_ref: str | None = None
     caused_by: str | None = None
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
 class HumanGateResolution:
-    """Snapshot of one human gate resolution for postmortem aggregation."""
+    """Snapshot of one human gate resolution for postmortem aggregation.
+
+    Spine fields default to empty strings so already-stored resolutions
+    deserialize without breakage.  Callers should populate them from the
+    originating ``HumanGateRequest`` so the audit trail is tenant-attributable.
+    """
 
     gate_ref: str
     gate_type: HumanGateType
@@ -2544,6 +2558,10 @@ class HumanGateResolution:
     resolved_at: str | None = None
     stage_id: str | None = None
     branch_id: str | None = None
+    tenant_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    project_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)

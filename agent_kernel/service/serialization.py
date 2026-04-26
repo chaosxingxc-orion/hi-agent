@@ -166,7 +166,12 @@ def deserialize_branch_state_update(
 
 
 def deserialize_human_gate(run_id: str, data: dict[str, Any]) -> HumanGateRequest:
-    """Build HumanGateRequest from JSON body."""
+    """Build HumanGateRequest from JSON body.
+
+    Spine fields (``tenant_id``/``user_id``/``session_id``/``project_id``)
+    are read from the JSON body when present; absent keys default to empty
+    strings to preserve back-compat with existing clients.
+    """
     return HumanGateRequest(
         gate_ref=data["gate_ref"],
         gate_type=data["gate_type"],
@@ -177,6 +182,10 @@ def deserialize_human_gate(run_id: str, data: dict[str, Any]) -> HumanGateReques
         branch_id=data.get("branch_id"),
         artifact_ref=data.get("artifact_ref"),
         caused_by=data.get("caused_by"),
+        tenant_id=data.get("tenant_id", ""),
+        user_id=data.get("user_id", ""),
+        session_id=data.get("session_id", ""),
+        project_id=data.get("project_id", ""),
     )
 
 
