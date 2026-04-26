@@ -20,7 +20,16 @@ class LongRunningOpCoordinator:
     def register_backend(self, name: str, backend: Any) -> None:
         self._backends[name] = backend
 
-    def submit(self, *, op_spec: dict, backend_name: str) -> OpHandle:
+    def submit(
+        self,
+        *,
+        op_spec: dict,
+        backend_name: str,
+        tenant_id: str = "",
+        user_id: str = "",
+        session_id: str = "",
+        project_id: str = "",
+    ) -> OpHandle:
         backend = self._backends[backend_name]
         external_id = backend.submit(op_spec)
         op_id = str(uuid.uuid4())
@@ -29,6 +38,10 @@ class LongRunningOpCoordinator:
             backend=backend_name,
             external_id=external_id,
             submitted_at=time.time(),
+            tenant_id=tenant_id,
+            user_id=user_id,
+            session_id=session_id,
+            project_id=project_id,
         )
         _logger.info(
             "LongRunningOp submitted op_id=%s backend=%s ext=%s",

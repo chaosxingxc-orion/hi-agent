@@ -27,8 +27,10 @@ async def handle_get_long_op(request: Request) -> JSONResponse:
     handle = coord.get(op_id)
     if handle is None:
         return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
-    # Tenant scope filter: Wave 10 — OpHandle.tenant_id added in Wave 10.1.
-    # Until then, filter by tenant_id field if present on the handle.
+    # Tenant scope filter: OpHandle.tenant_id is populated when the op is
+    # submitted under an authenticated context.  Empty tenant_id is allowed
+    # for back-compat with already-running ops; Wave 10.3 will tighten this
+    # under Posture.is_strict.
     handle_tenant = getattr(handle, "tenant_id", "")
     if handle_tenant and handle_tenant != ctx.tenant_id:
         return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
