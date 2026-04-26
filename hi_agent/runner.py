@@ -1,4 +1,4 @@
-"""Run executor for TRACE S1->S5 flow.
+﻿"""Run executor for TRACE S1->S5 flow.
 
 This runner now performs real action dispatch through the capability subsystem
 and records event/memory artifacts. It is still intentionally compact but no

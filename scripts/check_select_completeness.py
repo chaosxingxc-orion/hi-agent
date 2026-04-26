@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: every SQLite SELECT must include all dataclass fields.
 
 Scans Store/Registry/Ledger classes. For each class that has a

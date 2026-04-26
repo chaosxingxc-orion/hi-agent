@@ -1,17 +1,17 @@
-"""Unit: ProjectPostmortem and CalibrationSignal dataclasses."""
+﻿"""Unit: ProjectRetrospective and CalibrationSignal dataclasses."""
 
 from __future__ import annotations
 
-from hi_agent.evolve.contracts import CalibrationSignal, ProjectPostmortem
+from hi_agent.evolve.contracts import CalibrationSignal, ProjectRetrospective
 
 
 def test_project_postmortem_defaults():
-    pm = ProjectPostmortem(project_id="proj-1", run_ids=["run-1", "run-2"])
+    pm = ProjectRetrospective(project_id="proj-1", run_ids=["run-1", "run-2"])
     assert pm.project_id == "proj-1"
     assert pm.run_ids == ["run-1", "run-2"]
     assert pm.backtrack_count == 0
-    assert pm.hypothesis_outcomes == []
-    assert pm.failed_assumptions == []
+    assert pm.outcome_assessments == []
+    assert pm.invalidated_assumptions == []
     assert pm.cost_by_phase == {}
     assert pm.accepted_artifact_ids == []
     assert pm.rejected_artifact_ids == []
@@ -21,16 +21,16 @@ def test_project_postmortem_defaults():
 
 
 def test_project_postmortem_custom_fields():
-    pm = ProjectPostmortem(
+    pm = ProjectRetrospective(
         project_id="proj-2",
         run_ids=["r1"],
         backtrack_count=3,
-        hypothesis_outcomes=["confirmed"],
-        failed_assumptions=["assumption-X"],
+        outcome_assessments=["confirmed"],
+        invalidated_assumptions=["assumption-X"],
     )
     assert pm.backtrack_count == 3
-    assert pm.hypothesis_outcomes == ["confirmed"]
-    assert pm.failed_assumptions == ["assumption-X"]
+    assert pm.outcome_assessments == ["confirmed"]
+    assert pm.invalidated_assumptions == ["assumption-X"]
 
 
 def test_calibration_signal_fields():

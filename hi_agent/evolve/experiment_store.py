@@ -10,27 +10,27 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from hi_agent.evolve.contracts import EvolutionExperiment
+from hi_agent.evolve.contracts import EvolutionTrial
 
 
 @runtime_checkable
 class ExperimentStore(Protocol):
-    """Persistence contract for EvolutionExperiment records."""
+    """Persistence contract for EvolutionTrial records."""
 
-    def start_experiment(self, exp: EvolutionExperiment) -> None:
-        """Persist a new experiment record."""
+    def start_experiment(self, exp: EvolutionTrial) -> None:
+        """Persist a new trial record."""
         ...
 
-    def list_active(self, tenant_id: str) -> list[EvolutionExperiment]:
-        """Return all active experiments for the given tenant."""
+    def list_active(self, tenant_id: str) -> list[EvolutionTrial]:
+        """Return all active trials for the given tenant."""
         ...
 
     def complete_experiment(self, experiment_id: str, status: str) -> None:
-        """Update the status of an experiment to completed or aborted."""
+        """Update the status of a trial to completed or aborted."""
         ...
 
-    def get_experiment(self, experiment_id: str) -> EvolutionExperiment | None:
-        """Return experiment by ID, or None if not found."""
+    def get_experiment(self, experiment_id: str) -> EvolutionTrial | None:
+        """Return trial by ID, or None if not found."""
         ...
 
 
@@ -41,12 +41,12 @@ class InMemoryExperimentStore:
     """
 
     def __init__(self) -> None:
-        self._records: dict[str, EvolutionExperiment] = {}
+        self._records: dict[str, EvolutionTrial] = {}
 
-    def start_experiment(self, exp: EvolutionExperiment) -> None:
+    def start_experiment(self, exp: EvolutionTrial) -> None:
         self._records[exp.experiment_id] = exp
 
-    def list_active(self, tenant_id: str) -> list[EvolutionExperiment]:
+    def list_active(self, tenant_id: str) -> list[EvolutionTrial]:
         return [
             r
             for r in self._records.values()
@@ -56,7 +56,7 @@ class InMemoryExperimentStore:
     def complete_experiment(self, experiment_id: str, status: str) -> None:
         record = self._records.get(experiment_id)
         if record is not None:
-            self._records[experiment_id] = EvolutionExperiment(
+            self._records[experiment_id] = EvolutionTrial(
                 experiment_id=record.experiment_id,
                 capability_name=record.capability_name,
                 baseline_version=record.baseline_version,
@@ -69,7 +69,7 @@ class InMemoryExperimentStore:
                 run_id=record.run_id,
             )
 
-    def get_experiment(self, experiment_id: str) -> EvolutionExperiment | None:
+    def get_experiment(self, experiment_id: str) -> EvolutionTrial | None:
         return self._records.get(experiment_id)
 
 
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS evolution_experiments (
 """
 
 
-def _row_to_experiment(row: tuple) -> EvolutionExperiment:
+def _row_to_experiment(row: tuple) -> EvolutionTrial:
     (
         experiment_id,
         capability_name,
@@ -104,7 +104,7 @@ def _row_to_experiment(row: tuple) -> EvolutionExperiment:
         run_id,
         _updated_at,
     ) = row
-    return EvolutionExperiment(
+    return EvolutionTrial(
         experiment_id=experiment_id,
         capability_name=capability_name,
         baseline_version=baseline_version,
@@ -140,7 +140,7 @@ class SqliteExperimentStore:
             conn.execute(_CREATE_TABLE)
             conn.commit()
 
-    def start_experiment(self, exp: EvolutionExperiment) -> None:
+    def start_experiment(self, exp: EvolutionTrial) -> None:
         now = datetime.now(UTC).isoformat()
         with self._connect() as conn:
             conn.execute(
@@ -167,7 +167,7 @@ class SqliteExperimentStore:
             )
             conn.commit()
 
-    def list_active(self, tenant_id: str) -> list[EvolutionExperiment]:
+    def list_active(self, tenant_id: str) -> list[EvolutionTrial]:
         with self._connect() as conn:
             rows = conn.execute(
                 """
@@ -191,7 +191,7 @@ class SqliteExperimentStore:
             )
             conn.commit()
 
-    def get_experiment(self, experiment_id: str) -> EvolutionExperiment | None:
+    def get_experiment(self, experiment_id: str) -> EvolutionTrial | None:
         with self._connect() as conn:
             row = conn.execute(
                 """

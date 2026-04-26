@@ -1,4 +1,4 @@
-"""Main Evolve engine orchestrator."""
+﻿"""Main Evolve engine orchestrator."""
 
 from __future__ import annotations
 
@@ -9,16 +9,16 @@ from typing import TYPE_CHECKING
 
 from hi_agent.evolve.champion_challenger import ChampionChallenger
 from hi_agent.evolve.contracts import (
-    EvolutionExperiment,
+    EvolutionTrial,
     EvolveChange,
     EvolveMetrics,
     EvolveResult,
-    ProjectPostmortem,
-    RunPostmortem,
+    ProjectRetrospective,
+    RunRetrospective,
 )
 from hi_agent.evolve.experiment_store import ExperimentStore, InMemoryExperimentStore
-from hi_agent.evolve.postmortem import PostmortemAnalyzer
 from hi_agent.evolve.regression_detector import RegressionDetector, RegressionReport
+from hi_agent.evolve.retrospective import PostmortemAnalyzer
 from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
 
 if TYPE_CHECKING:
@@ -59,28 +59,29 @@ class EvolveEngine:
             skill_registry: Optional skill registry for auto-registering candidates.
             version_manager: Optional skill version manager for auto-promote.
             comparison_interval: Number of runs between champion/challenger comparisons.
-            experiment_store: Store for EvolutionExperiment records; defaults to
+<<<<<<< HEAD
+            experiment_store: Store for EvolutionTrial records; defaults to
                 InMemoryExperimentStore for backwards-compat with existing callers.
         """
         self._llm = llm_gateway
         self._postmortem_analyzer = PostmortemAnalyzer(llm_gateway=llm_gateway)
         if skill_extractor is None:
             raise ValueError(
-                "EvolveEngine.skill_extractor must be injected by the builder — "
+                "EvolveEngine.skill_extractor must be injected by the builder 鈥?"
                 "unscoped SkillExtractor is not permitted (Rule 6). "
                 "Pass skill_extractor=SkillExtractor() explicitly."
             )
         self._skill_extractor = skill_extractor
         if regression_detector is None:
             raise ValueError(
-                "EvolveEngine.regression_detector must be injected by the builder — "
+                "EvolveEngine.regression_detector must be injected by the builder 鈥?"
                 "unscoped RegressionDetector is not permitted (Rule 6). "
                 "Pass regression_detector=RegressionDetector() explicitly."
             )
         self._regression_detector = regression_detector
         if champion_challenger is None:
             raise ValueError(
-                "EvolveEngine.champion_challenger must be injected by the builder — "
+                "EvolveEngine.champion_challenger must be injected by the builder 鈥?"
                 "unscoped ChampionChallenger is not permitted (Rule 6). "
                 "Pass champion_challenger=ChampionChallenger() explicitly."
             )
@@ -93,7 +94,7 @@ class EvolveEngine:
             experiment_store if experiment_store is not None else InMemoryExperimentStore()
         )
 
-    def on_run_completed(self, postmortem: RunPostmortem) -> EvolveResult:
+    def on_run_completed(self, postmortem: RunRetrospective) -> EvolveResult:
         """Trigger per-run postmortem evolve.
 
         This is the main entry point, called after every task completion.
@@ -165,7 +166,7 @@ class EvolveEngine:
     # Champion/Challenger helpers
     # ------------------------------------------------------------------
 
-    def _record_skill_metrics(self, postmortem: RunPostmortem, result: EvolveResult) -> None:
+    def _record_skill_metrics(self, postmortem: RunRetrospective, result: EvolveResult) -> None:
         """Record skill metrics and trigger comparisons when due."""
         cc = self._champion_challenger
         vm = self._version_manager
@@ -231,9 +232,9 @@ class EvolveEngine:
                         evidence_refs=[postmortem.run_id],
                     )
                 )
-                # Record the promotion as an EvolutionExperiment.
+                # Record the promotion as an EvolutionTrial.
                 try:
-                    exp = EvolutionExperiment(
+                    exp = EvolutionTrial(
                         experiment_id=str(uuid.uuid4()),
                         capability_name=scope,
                         baseline_version=comparison.champion_version,
@@ -272,15 +273,15 @@ class EvolveEngine:
                             exc_info=True,
                         )
 
-    def on_project_completed(self, project_id: str, run_ids: list[str]) -> ProjectPostmortem:
-        """Aggregate postmortems for all runs of a project into one ProjectPostmortem.
+    def on_project_completed(self, project_id: str, run_ids: list[str]) -> ProjectRetrospective:
+        """Aggregate postmortems for all runs of a project into one ProjectRetrospective.
 
         Args:
             project_id: The project identifier.
             run_ids: All run IDs that belong to this project.
 
         Returns:
-            A ProjectPostmortem with the given project_id and run_ids.
+            A ProjectRetrospective with the given project_id and run_ids.
             Aggregation is record-only in Wave 8; richer cross-run analysis
             is deferred to Wave 9 (Phase B).
         """
@@ -302,7 +303,7 @@ class EvolveEngine:
                     run_id,
                 )
 
-        return ProjectPostmortem(
+        return ProjectRetrospective(
             project_id=project_id,
             run_ids=list(run_ids),
             backtrack_count=backtrack_count,
@@ -313,7 +314,7 @@ class EvolveEngine:
 
     def batch_evolve(
         self,
-        postmortems: list[RunPostmortem],
+        postmortems: list[RunRetrospective],
         change_scope: str,
         route_engine: object | None = None,
     ) -> EvolveResult:
@@ -412,3 +413,4 @@ class EvolveEngine:
             A RegressionReport with findings.
         """
         return self._regression_detector.check(task_family)
+

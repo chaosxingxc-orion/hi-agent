@@ -1,6 +1,6 @@
-"""Dataset evaluation pipeline for skill promotion decisions.
+﻿"""Dataset evaluation pipeline for skill promotion decisions.
 
-The ``DatasetEvaluator`` runs a batch of ``RunPostmortem`` records through
+The ``DatasetEvaluator`` runs a batch of ``RunRetrospective`` records through
 champion/challenger comparison and returns aggregate quality and efficiency
 metrics.  ``SkillPromotionPipeline`` wraps it with automatic promotion logic.
 
@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from hi_agent.evolve.contracts import PromotionBlockedError, RunPostmortem
+from hi_agent.evolve.contracts import PromotionBlockedError, RunRetrospective
 
 if TYPE_CHECKING:
     from hi_agent.evolve.champion_challenger import ChampionChallenger
@@ -65,7 +65,7 @@ class DatasetEvalResult:
 class DatasetEvaluator:
     """Batch dataset evaluation for champion/challenger skill comparison.
 
-    Processes a list of ``RunPostmortem`` records, aggregates per-skill
+    Processes a list of ``RunRetrospective`` records, aggregates per-skill
     quality and efficiency metrics, and surfaces promotion recommendations.
     """
 
@@ -88,7 +88,7 @@ class DatasetEvaluator:
         self._cc = champion_challenger
         self._vm = version_manager
 
-    def evaluate(self, postmortems: list[RunPostmortem]) -> DatasetEvalResult:
+    def evaluate(self, postmortems: list[RunRetrospective]) -> DatasetEvalResult:
         """Run evaluation over a dataset of postmortems.
 
         Args:
@@ -236,7 +236,7 @@ class SkillPromotionPipeline:
 
     def run(
         self,
-        postmortems: list[RunPostmortem],
+        postmortems: list[RunRetrospective],
         approval_context: object | None = None,
     ) -> DatasetEvalResult:
         """Evaluate dataset and optionally auto-promote skills.

@@ -1,9 +1,9 @@
-"""Tests for EvolveEngine champion/challenger wiring."""
+﻿"""Tests for EvolveEngine champion/challenger wiring."""
 
 from __future__ import annotations
 
 from hi_agent.evolve.champion_challenger import ChampionChallenger
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import RunRetrospective
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillExtractor
@@ -15,8 +15,8 @@ def _make_postmortem(
     quality: float | None = 0.8,
     efficiency: float | None = 0.7,
     skills_used: list[str] | None = None,
-) -> RunPostmortem:
-    return RunPostmortem(
+) -> RunRetrospective:
+    return RunRetrospective(
         run_id=run_id,
         task_id="task-1",
         task_family="general",

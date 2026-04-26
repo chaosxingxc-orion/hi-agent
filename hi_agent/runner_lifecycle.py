@@ -1,4 +1,4 @@
-"""Run lifecycle delegation extracted from RunExecutor.
+﻿"""Run lifecycle delegation extracted from RunExecutor.
 
 This module contains the RunLifecycle helper class which encapsulates
 run finalization (STM save, knowledge ingest, evolve, memory lifecycle),
@@ -259,7 +259,6 @@ class RunLifecycle:
                     exc,
                 )
 
-        # spine-skip: tenant_id absent from RunRetrospective dataclass; scope carried by caller
         return RunRetrospective(
             run_id=run_id,
             task_id=contract.task_id,

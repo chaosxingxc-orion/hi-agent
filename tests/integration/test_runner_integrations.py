@@ -1,4 +1,4 @@
-"""Tests for runner integrations: Evolve, Harness, and Human Gate auto-triggers.
+﻿"""Tests for runner integrations: Evolve, Harness, and Human Gate auto-triggers.
 
 Validates that RunExecutor correctly wires:
 - EvolveEngine postmortem after run completion (success and failure)
@@ -19,7 +19,7 @@ from hi_agent.contracts import (
 )
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
-from hi_agent.evolve.contracts import EvolveResult, RunPostmortem
+from hi_agent.evolve.contracts import EvolveResult, RunRetrospective
 from hi_agent.harness.contracts import ActionResult, ActionSpec, ActionState
 from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
@@ -47,9 +47,9 @@ class FakeEvolveEngine:
     """Minimal fake that records on_run_completed calls."""
 
     def __init__(self) -> None:
-        self.postmortems: list[RunPostmortem] = []
+        self.postmortems: list[RunRetrospective] = []
 
-    def on_run_completed(self, postmortem: RunPostmortem) -> EvolveResult:
+    def on_run_completed(self, postmortem: RunRetrospective) -> EvolveResult:
         self.postmortems.append(postmortem)
         from hi_agent.evolve.contracts import EvolveMetrics
 

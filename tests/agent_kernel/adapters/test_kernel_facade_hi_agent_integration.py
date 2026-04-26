@@ -1,8 +1,8 @@
-"""Tests for hi-agent integration proposal modifications.
+﻿"""Tests for hi-agent integration proposal modifications.
 
 Covers:
   - PolicyVersionSet alignment (acceptance_policy_version, memory_policy_version)
-  - RunPostmortemView and query_run_postmortem
+  - RunRetrospectiveView and query_run_postmortem
   - ChildRunSummary and query_child_runs
   - SpawnChildRunRequest extended fields
   - KernelManifest trace_protocol_version bump to 2.8
@@ -21,7 +21,7 @@ from agent_kernel.kernel.contracts import (
     ChildRunSummary,
     HumanGateResolution,
     RunPolicyVersions,
-    RunPostmortemView,
+    RunRetrospectiveView,
     RunProjection,
     SpawnChildRunRequest,
     TraceStageView,
@@ -146,16 +146,16 @@ class TestSpawnChildRunRequestExtensions:
 
 
 # ---------------------------------------------------------------------------
-# RunPostmortemView DTO
+# RunRetrospectiveView DTO
 # ---------------------------------------------------------------------------
 
 
-class TestRunPostmortemViewDTO:
-    """Verify RunPostmortemView dataclass structure."""
+class TestRunRetrospectiveViewDTO:
+    """Verify RunRetrospectiveView dataclass structure."""
 
     def test_create_postmortem_view(self) -> None:
         """Verifies create postmortem view."""
-        pm = RunPostmortemView(
+        pm = RunRetrospectiveView(
             run_id="run-1",
             task_id="task-1",
             run_kind="default",
@@ -178,7 +178,7 @@ class TestRunPostmortemViewDTO:
 
     def test_postmortem_is_frozen(self) -> None:
         """Verifies postmortem is frozen."""
-        pm = RunPostmortemView(
+        pm = RunRetrospectiveView(
             run_id="run-1",
             task_id=None,
             run_kind="default",
@@ -279,8 +279,8 @@ class TestKernelManifestTraceFeatures:
 # ---------------------------------------------------------------------------
 
 
-class TestQueryRunPostmortem:
-    """Verify query_run_postmortem returns RunPostmortemView."""
+class TestQueryRunRetrospective:
+    """Verify query_run_postmortem returns RunRetrospectiveView."""
 
     def test_returns_postmortem_view(self) -> None:
         """Verifies returns postmortem view."""
@@ -288,7 +288,7 @@ class TestQueryRunPostmortem:
         result = asyncio.run(
             facade.query_run_postmortem("run-1"),
         )
-        assert isinstance(result, RunPostmortemView)
+        assert isinstance(result, RunRetrospectiveView)
         assert result.run_id == "run-1"
 
     def test_aggregates_failure_codes_from_stages(self) -> None:

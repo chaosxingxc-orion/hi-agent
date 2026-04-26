@@ -19,7 +19,7 @@ class EvolveChange:
         evidence_refs: References to supporting evidence (run IDs, etc.).
     """
 
-    # scope: process-internal — transient transformation, not persisted
+    # scope: process-internal -- transient transformation, not persisted
     change_type: str
     target_id: str
     description: str
@@ -72,8 +72,8 @@ class EvolveResult:
 
 
 @dataclass
-class RunPostmortem:
-    """Structured postmortem data for a completed run.
+class RunRetrospective:
+    """Structured retrospective data for a completed run.
 
     Attributes:
         run_id: Unique identifier for the run.
@@ -121,7 +121,7 @@ class RunPostmortem:
         posture = Posture.from_env()
         if posture.is_strict and not self.tenant_id:
             raise ValueError(
-                "RunPostmortem.tenant_id required under research/prod posture"
+                "RunRetrospective.tenant_id required under research/prod posture"
             )
 
 
@@ -156,19 +156,19 @@ class CalibrationSignal:
 
 
 @dataclass
-class ProjectPostmortem:
-    """Aggregated postmortem for a completed research project.
+class ProjectRetrospective:
+    """Aggregated retrospective for a completed project.
 
     Produced by EvolveEngine.on_project_completed() after all runs finish.
     This is a platform-level record; downstream populates domain fields
-    (hypothesis_outcomes, failed_assumptions) via the postmortem API.
+    (outcome_assessments, invalidated_assumptions) via the retrospective API.
     """
 
     project_id: str
     run_ids: list[str]
     backtrack_count: int = 0
-    hypothesis_outcomes: list[str] = field(default_factory=list)
-    failed_assumptions: list[str] = field(default_factory=list)
+    outcome_assessments: list[str] = field(default_factory=list)
+    invalidated_assumptions: list[str] = field(default_factory=list)
     cost_by_phase: dict[str, float] = field(default_factory=dict)
     accepted_artifact_ids: list[str] = field(default_factory=list)
     rejected_artifact_ids: list[str] = field(default_factory=list)
@@ -185,25 +185,25 @@ class ProjectPostmortem:
         posture = Posture.from_env()
         if posture.is_strict and not self.tenant_id:
             raise ValueError(
-                "ProjectPostmortem.tenant_id required under research/prod posture"
+                "ProjectRetrospective.tenant_id required under research/prod posture"
             )
 
 
 @dataclass
-class EvolutionExperiment:
-    """A single champion/challenger experiment tracked across runs.
+class EvolutionTrial:
+    """A single champion/challenger trial tracked across runs.
 
     Attributes:
-        experiment_id: Unique identifier for this experiment.
+        experiment_id: Unique identifier for this trial.
         capability_name: Name of the capability under test.
         baseline_version: Version of the baseline (champion).
         candidate_version: Version of the candidate (challenger).
         metric_name: Primary metric driving the comparison.
-        started_at: ISO 8601 timestamp when the experiment was started.
-        status: Current status — "active" | "completed" | "aborted".
+        started_at: ISO 8601 timestamp when the trial was started.
+        status: Current status -- "active" | "completed" | "aborted".
         tenant_id: Tenant scope; required under research/prod posture.
         project_id: Project scope.
-        run_id: Run that initiated this experiment, if applicable.
+        run_id: Run that initiated this trial, if applicable.
     """
 
     experiment_id: str
@@ -223,5 +223,25 @@ class EvolutionExperiment:
         posture = Posture.from_env()
         if posture.is_strict and not self.tenant_id:
             raise ValueError(
-                "EvolutionExperiment.tenant_id required under research/prod posture"
+                "EvolutionTrial.tenant_id required under research/prod posture"
             )
+
+
+def __getattr__(name: str) -> object:
+    _deprecated = {
+        "RunPostmortem": ("RunRetrospective", RunRetrospective),
+        "ProjectPostmortem": ("ProjectRetrospective", ProjectRetrospective),
+        "EvolutionExperiment": ("EvolutionTrial", EvolutionTrial),
+    }
+    if name in _deprecated:
+        replacement_name, replacement_cls = _deprecated[name]
+        import warnings
+
+        warnings.warn(
+            f"{name} is deprecated; use {replacement_name} instead. "
+            f"{name} will be removed in Wave 12.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return replacement_cls
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

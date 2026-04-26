@@ -1,4 +1,4 @@
-"""Integration test: project_id round-trips correctly across Artifact, GateRecord, RunPostmortem.
+﻿"""Integration test: project_id round-trips correctly across Artifact, GateRecord, RunRetrospective.
 
 Uses real objects (no mocks on SUT).
 """
@@ -6,7 +6,7 @@ Uses real objects (no mocks on SUT).
 from __future__ import annotations
 
 from hi_agent.artifacts.contracts import Artifact
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import RunRetrospective
 from hi_agent.management.gate_api import GateRecord, GateStatus
 from hi_agent.management.gate_context import GateContext
 from hi_agent.management.gate_timeout import GateTimeoutPolicy
@@ -26,7 +26,7 @@ def test_artifact_project_id_default_empty() -> None:
 
 
 def test_run_postmortem_project_id_round_trip() -> None:
-    pm = RunPostmortem(
+    pm = RunRetrospective(
         run_id="r1",
         task_id="t1",
         task_family="quick_task",

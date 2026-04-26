@@ -1,11 +1,11 @@
-"""Tests for LLM-based skill extraction and Evolve->SkillRegistry wiring."""
+﻿"""Tests for LLM-based skill extraction and Evolve->SkillRegistry wiring."""
 
 from __future__ import annotations
 
 import json
 
 from hi_agent.evolve.champion_challenger import ChampionChallenger
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import RunRetrospective
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillExtractor
@@ -17,7 +17,7 @@ from hi_agent.skill.registry import SkillRegistry
 # ---------------------------------------------------------------------------
 
 
-def _make_postmortem(**overrides) -> RunPostmortem:
+def _make_postmortem(**overrides) -> RunRetrospective:
     defaults = {
         "run_id": "run-001",
         "task_id": "task-001",
@@ -35,7 +35,7 @@ def _make_postmortem(**overrides) -> RunPostmortem:
         "trajectory_summary": "Reviewed code and produced summary",
     }
     defaults.update(overrides)
-    return RunPostmortem(**defaults)
+    return RunRetrospective(**defaults)
 
 
 class MockLLMGateway:

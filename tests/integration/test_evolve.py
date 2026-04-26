@@ -1,12 +1,12 @@
-"""Tests for the Evolve subsystem."""
+﻿"""Tests for the Evolve subsystem."""
 
 from __future__ import annotations
 
 import pytest
 from hi_agent.evolve.champion_challenger import ChampionChallenger
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import RunRetrospective
 from hi_agent.evolve.engine import EvolveEngine
-from hi_agent.evolve.postmortem import PostmortemAnalyzer
+from hi_agent.evolve.retrospective import PostmortemAnalyzer
 from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
 from hi_agent.skill.evolver import SkillEvolver
@@ -31,9 +31,9 @@ def _make_postmortem(
     duration_seconds: float = 120.0,
     quality_score: float | None = 0.8,
     efficiency_score: float | None = 0.7,
-) -> RunPostmortem:
-    """Create a RunPostmortem with sensible defaults."""
-    return RunPostmortem(
+) -> RunRetrospective:
+    """Create a RunRetrospective with sensible defaults."""
+    return RunRetrospective(
         run_id=run_id,
         task_id="task-001",
         task_family=task_family,

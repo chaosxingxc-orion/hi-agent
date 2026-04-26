@@ -1,4 +1,4 @@
-"""Extract reusable skill candidates from successful run trajectories."""
+﻿"""Extract reusable skill candidates from successful run trajectories."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
 
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import RunRetrospective
 
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
@@ -64,7 +64,7 @@ class SkillExtractor:
         self._min_confidence = min_confidence
         self._gateway = gateway
 
-    def extract(self, postmortem: RunPostmortem) -> list[SkillCandidate]:
+    def extract(self, postmortem: RunRetrospective) -> list[SkillCandidate]:
         """Extract skill candidates from a successful run.
 
         If an LLM gateway is available, attempts LLM-based extraction first.
@@ -110,7 +110,7 @@ class SkillExtractor:
     # LLM-based extraction
     # ------------------------------------------------------------------
 
-    def _llm_extract(self, postmortem: RunPostmortem) -> list[SkillCandidate]:
+    def _llm_extract(self, postmortem: RunRetrospective) -> list[SkillCandidate]:
         """Use LLM to analyze trajectory and extract reusable patterns."""
         from hi_agent.llm.protocol import LLMRequest
 
@@ -151,7 +151,7 @@ class SkillExtractor:
         response = self._gateway.complete(request)
         return self._parse_llm_skills(response.content, postmortem)
 
-    def _parse_llm_skills(self, content: str, postmortem: RunPostmortem) -> list[SkillCandidate]:
+    def _parse_llm_skills(self, content: str, postmortem: RunRetrospective) -> list[SkillCandidate]:
         """Parse JSON response from LLM into SkillCandidate objects."""
         try:
             items = _json.loads(content)
@@ -204,7 +204,7 @@ class SkillExtractor:
     # Heuristic-based extraction
     # ------------------------------------------------------------------
 
-    def _heuristic_extract(self, postmortem: RunPostmortem) -> list[SkillCandidate]:
+    def _heuristic_extract(self, postmortem: RunRetrospective) -> list[SkillCandidate]:
         """Extract skill candidates using rule-based heuristics."""
         candidates: list[SkillCandidate] = []
 

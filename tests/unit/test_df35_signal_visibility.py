@@ -1,11 +1,11 @@
-"""DF-35 regression: silent LLM compression fallbacks emit Rule-14 signals."""
+﻿"""DF-35 regression: silent LLM compression fallbacks emit Rule-14 signals."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
 import pytest
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import RunRetrospective
 from hi_agent.evolve.skill_extractor import SkillExtractor
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord
@@ -53,7 +53,7 @@ def test_skill_extractor_llm_json_parse_records_fallback() -> None:
     gateway.complete.return_value = response
 
     extractor = SkillExtractor(gateway=gateway)
-    postmortem = RunPostmortem(
+    postmortem = RunRetrospective(
         run_id=run_id,
         task_id="task-001",
         task_family="quick_task",

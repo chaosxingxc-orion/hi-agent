@@ -1,4 +1,4 @@
-"""End-to-end system integration tests proving the FULL TRACE pipeline works.
+﻿"""End-to-end system integration tests proving the FULL TRACE pipeline works.
 
 These tests exercise the complete pipeline from task submission through
 completion, verifying that kernel, evolve, harness, memory, skill,
@@ -23,7 +23,7 @@ from hi_agent.contracts import (
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
 from hi_agent.evolve.champion_challenger import ChampionChallenger
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import RunRetrospective
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
@@ -122,7 +122,7 @@ class TestFullTracePipelineAllSubsystems:
         # 4. Evolve postmortem was triggered (we verify by running it again
         #    -- the engine itself was called internally by the runner).
         #    Build a postmortem manually and verify the engine can process it.
-        postmortem = RunPostmortem(
+        postmortem = RunRetrospective(
             run_id=executor.run_id,
             task_id="e2e-full-001",
             task_family="research",
@@ -420,7 +420,7 @@ class TestSkillLifecycleEndToEnd:
         )
 
         # Simulate a successful run postmortem
-        postmortem = RunPostmortem(
+        postmortem = RunRetrospective(
             run_id="skill-run-001",
             task_id="skill-task-001",
             task_family="research",
@@ -460,7 +460,7 @@ class TestSkillLifecycleEndToEnd:
         skill_id = candidates[0].skill_id
 
         # Accumulate evidence for promotion (register again from second run)
-        postmortem2 = RunPostmortem(
+        postmortem2 = RunRetrospective(
             run_id="skill-run-002",
             task_id="skill-task-002",
             task_family="research",
