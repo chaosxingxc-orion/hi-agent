@@ -211,3 +211,7 @@ def run_extensions(args) -> None:
     else:
         print("Usage: hi-agent extensions [inspect|validate]", file=sys.stderr)
         sys.exit(1)
+
+
+# Backwards-compatible alias used by Wave 10.4 tests.
+handle_extensions = run_extensions

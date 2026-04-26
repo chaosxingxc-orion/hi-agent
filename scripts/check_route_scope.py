@@ -60,6 +60,11 @@ NO_SCOPE_ALLOWLIST = frozenset({
     "handle_skill_promote",
     # Tools/MCP — invocation routes, tenant injected via ctx downstream (Wave 10.1)
     "handle_tools_call",
+    # MCP listing routes — global MCP tool registry; per-tenant overlay deferred Wave 11
+    "handle_tools_list",
+    "handle_mcp_tools",
+    "handle_mcp_tools_list",
+    "handle_mcp_tools_call",
 })
 
 

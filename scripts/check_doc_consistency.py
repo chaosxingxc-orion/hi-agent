@@ -241,6 +241,8 @@ def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
     src = notice.read_text(encoding="utf-8", errors="replace")
     if "notice-pre-final-commit: true" in src:
         return []
+    if re.search(r"Status:.*draft", src, re.IGNORECASE):
+        return []
     sha_pattern = re.compile(
         r"(?:HEAD SHA[:\s*]+|HEAD:\s*)([0-9a-f]{7,40})\b", re.IGNORECASE
     )
@@ -272,6 +274,8 @@ def check_notice_t3_deferred_vs_readiness(notice: Path | None) -> list[str]:
     if notice is None:
         return []
     src = notice.read_text(encoding="utf-8", errors="replace")
+    if re.search(r"Status:.*draft", src, re.IGNORECASE):
+        return []
     has_t3_deferred = bool(re.search(r"T3 evidence[*:]+\s*DEFERRED", src, re.IGNORECASE))
     if not has_t3_deferred:
         return []

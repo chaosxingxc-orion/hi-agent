@@ -333,3 +333,14 @@ class ExtensionRegistry:
 
     def __len__(self) -> int:
         return len(self._manifests)
+
+
+_GLOBAL_REGISTRY: ExtensionRegistry | None = None
+
+
+def get_extension_registry() -> ExtensionRegistry:
+    """Return the process-global ExtensionRegistry singleton."""
+    global _GLOBAL_REGISTRY
+    if _GLOBAL_REGISTRY is None:
+        _GLOBAL_REGISTRY = ExtensionRegistry()
+    return _GLOBAL_REGISTRY

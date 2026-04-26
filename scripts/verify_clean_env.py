@@ -264,7 +264,7 @@ def main() -> int:
         "-m",
         "pytest",
         f"--basetemp={basetemp}",
-        f"--cache-dir={cache_dir}",
+        f"--override-ini=cache_dir={cache_dir}",
         "--json-report",
         f"--json-report-file={tmp_report_path}",
         *existing_paths,
