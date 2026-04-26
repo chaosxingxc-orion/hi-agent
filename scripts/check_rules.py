@@ -11,6 +11,7 @@ Hard rules (exit non-zero on violation):
 
 Soft rules (WARN only, exit stays 0):
   * Rule 7     — suspicious ``assert status in (..., "failed", ...)`` in tests
+  * Rule 6     — constructor-call inline fallback (x or ClassName())
 
 Runs with no external dependencies (pure stdlib ``re``/``ast``/``pathlib``),
 so CI can invoke it on a fresh Python 3.12 without apt or pip installs.
@@ -20,7 +21,9 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -65,11 +68,20 @@ _PROMPT_RETURNING_FUNCS = frozenset(
     {"format_results_for_context", "to_context_block", "_build_compression_prompt", "build_prompt"}
 )
 
-# Rule 13 — inline fallback to a shared-state resource constructor (suffix-class form).
-_RULE13_RE = re.compile(r" or [A-Z][A-Za-z]+(Store|Graph|Gateway|Manager|Engine|Registry)\(")
+# Rule 13 — inline fallback suffixes for shared-state resources (used by AST check).
+_RULE13_SHARED_SUFFIXES = frozenset({
+    "Store", "Graph", "Gateway", "Manager", "Engine", "Registry",
+    "Pool", "Bridge", "Adapter", "Client", "Session",
+})
 
-# Rule 6 — constructor-call inline fallback: ``x or SomeClass()`` (any PascalCase class).
-_RULE6_CONSTRUCTOR_RE = re.compile(r"\bor\s+[A-Z][A-Za-z0-9_]*\(")
+# Rule 6 — stdlib/primitive type names that are NOT shared-state resources.
+_RULE6_STDLIB_SAFE = frozenset({
+    "Path", "RuntimeError", "ValueError", "TypeError", "KeyError",
+    "AttributeError", "IndexError", "OSError", "IOError", "Exception",
+    "BaseException", "NotImplementedError", "StopIteration",
+    "str", "int", "float", "bool", "list", "dict", "set", "tuple",
+    "True", "False", "None",
+})
 
 # Rule 13 scope — builder defaulting profile_id="".
 _RULE13_SCOPE_RE = re.compile(r'def build_[a-z_]+\([^)]*profile_id[^)]*=\s*[\'\"][\'\"]')
@@ -205,29 +217,135 @@ def check_rule_12(files: list[Path], repo: Path) -> RuleResult:
 
 
 # --------------------------------------------------------------------------- #
-# Rule 6 — constructor-call inline fallback: ``x or SomeClass()``
+# AST helpers — docstring line-set and shared BoolOp/Or visitor
 # --------------------------------------------------------------------------- #
 
-# False-positive exclusions: boolean identity patterns that legitimately use
-# ``or`` followed by a capitalized name that is NOT a constructor call.
-_RULE6_ALLOWLIST_RE = re.compile(
-    r"""
-    # allow: ``or True``, ``or False``, ``or None``  (builtins, not constructors)
-    \bor\s+(True|False|None)\b
-    """,
-    re.VERBOSE,
-)
 
-# Patterns that look like constructor calls but are common false positives.
-_RULE6_FP_WORDS = frozenset({"True", "False", "None", "NotImplemented", "Ellipsis"})
+def _docstring_linenos(tree: ast.AST) -> frozenset[int]:
+    """Return the set of line numbers that belong to a docstring constant."""
+    linenos: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not node.body:
+            continue
+        first = node.body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            end = getattr(first, "end_lineno", first.lineno)
+            for ln in range(first.lineno, end + 1):
+                linenos.add(ln)
+    return frozenset(linenos)
+
+
+def _find_rule6_violations_ast(source: str, path: str) -> list[tuple[int, str]]:
+    """Find ``x or SomeClass(...)`` patterns that may be Rule 6 inline fallbacks.
+
+    Skips:
+    - docstrings (Expr(Constant(str)) at body position 0)
+    - ExceptHandler bodies (exception construction is not a shared-state fallback)
+    - stdlib / primitive type names listed in _RULE6_STDLIB_SAFE
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+
+    docstring_lines = _docstring_linenos(tree)
+    violations: list[tuple[int, str]] = []
+    src_lines = source.splitlines()
+
+    class _Visitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self._in_except = False
+
+        def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+            old = self._in_except
+            self._in_except = True
+            self.generic_visit(node)
+            self._in_except = old
+
+        def visit_BoolOp(self, node: ast.BoolOp) -> None:
+            if isinstance(node.op, ast.Or) and not self._in_except:
+                for value in node.values:
+                    if isinstance(value, ast.Call):
+                        func = value.func
+                        name: str | None = None
+                        if isinstance(func, ast.Name):
+                            name = func.id
+                        elif isinstance(func, ast.Attribute):
+                            name = func.attr
+                        if name and name[0].isupper() and name not in _RULE6_STDLIB_SAFE:
+                            ln = getattr(node, "lineno", 0)
+                            if ln not in docstring_lines:
+                                src_line = src_lines[ln - 1] if ln else ""
+                                violations.append((ln, src_line.strip()))
+            self.generic_visit(node)
+
+    _Visitor().visit(tree)
+    return violations
+
+
+def _find_rule13_violations_ast(source: str, path: str) -> list[tuple[int, str]]:
+    """Find ``x or SomeClass(...)`` where SomeClass ends with a shared-state suffix.
+
+    Same suppression rules as Rule 6: skips docstrings and ExceptHandler bodies.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+
+    docstring_lines = _docstring_linenos(tree)
+    violations: list[tuple[int, str]] = []
+    src_lines = source.splitlines()
+
+    class _Visitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self._in_except = False
+
+        def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+            old = self._in_except
+            self._in_except = True
+            self.generic_visit(node)
+            self._in_except = old
+
+        def visit_BoolOp(self, node: ast.BoolOp) -> None:
+            if isinstance(node.op, ast.Or) and not self._in_except:
+                for value in node.values:
+                    if isinstance(value, ast.Call):
+                        func = value.func
+                        name: str | None = None
+                        if isinstance(func, ast.Name):
+                            name = func.id
+                        elif isinstance(func, ast.Attribute):
+                            name = func.attr
+                        if name and any(name.endswith(s) for s in _RULE13_SHARED_SUFFIXES):
+                            ln = getattr(node, "lineno", 0)
+                            if ln not in docstring_lines:
+                                src_line = src_lines[ln - 1] if ln else ""
+                                violations.append((ln, src_line.strip()))
+            self.generic_visit(node)
+
+    _Visitor().visit(tree)
+    return violations
+
+
+# --------------------------------------------------------------------------- #
+# Rule 6 — constructor-call inline fallback: ``x or SomeClass()``
+# --------------------------------------------------------------------------- #
 
 
 def check_rule_6(files: list[Path], repo: Path) -> RuleResult:
     """Check for constructor-call inline fallbacks: ``x or SomeClass(...)``.
 
-    Warning-mode: flags sites for manual review.  Fixed sites in hi_agent/
-    should not appear here; remaining agent_kernel/ sites are tracked as
-    pre-existing debt tracked separately.
+    Uses AST-based detection to skip docstrings, ExceptHandler bodies, and
+    stdlib/primitive type names.  Warning-mode: flags sites for manual review.
+    Fixed sites in hi_agent/ should not appear here; remaining agent_kernel/
+    sites are tracked as pre-existing debt.
     """
     result = RuleResult(
         "Rule 6",
@@ -239,21 +357,8 @@ def check_rule_6(files: list[Path], repo: Path) -> RuleResult:
             src = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        for lineno, line in enumerate(src.splitlines(), start=1):
-            stripped = line.lstrip()
-            if stripped.startswith("#"):
-                continue
-            m = _RULE6_CONSTRUCTOR_RE.search(line)
-            if not m:
-                continue
-            # Extract the class name from the match to filter false positives.
-            after_or = line[m.start():].split("or", 1)[1].lstrip()
-            class_name = after_or.split("(")[0].rstrip()
-            if class_name in _RULE6_FP_WORDS:
-                continue
-            result.violations.append(
-                f"{_rel(path, repo)}:{lineno}: {line.strip()}"
-            )
+        for lineno, text in _find_rule6_violations_ast(src, str(path)):
+            result.violations.append(f"{_rel(path, repo)}:{lineno}: {text}")
     return result
 
 
@@ -263,20 +368,19 @@ def check_rule_6(files: list[Path], repo: Path) -> RuleResult:
 
 
 def check_rule_13(files: list[Path], repo: Path) -> RuleResult:
+    """Check for inline fallbacks to shared-state resource constructors.
+
+    Uses AST-based detection to skip docstrings and ExceptHandler bodies.
+    Flags class names whose suffix matches _RULE13_SHARED_SUFFIXES.
+    """
     result = RuleResult("Rule 13", "inline fallback")
     for path in files:
         try:
             src = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        for lineno, line in enumerate(src.splitlines(), start=1):
-            stripped = line.lstrip()
-            if stripped.startswith("#"):
-                continue
-            if _RULE13_RE.search(line):
-                result.violations.append(
-                    f"{_rel(path, repo)}:{lineno}: {line.strip()}"
-                )
+        for lineno, text in _find_rule13_violations_ast(src, str(path)):
+            result.violations.append(f"{_rel(path, repo)}:{lineno}: {text}")
     return result
 
 
@@ -447,9 +551,26 @@ def run_checks(repo: Path) -> list[RuleResult]:
     ]
 
 
+def _git_head_sha(repo: Path) -> str:
+    """Return the current HEAD SHA (short), or 'unknown' if git is unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return "unknown"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="CLAUDE.md rule enforcement (DF-42)")
     parser.add_argument("--verbose", action="store_true", help="show every violation line")
+    parser.add_argument("--json", action="store_true", help="emit JSON output to stdout after checks")
     parser.add_argument(
         "--repo-root",
         type=Path,
@@ -461,17 +582,57 @@ def main(argv: list[str] | None = None) -> int:
     repo = args.repo_root.resolve()
     results = run_checks(repo)
 
-    for r in results:
-        print(r.render(args.verbose))
-
     hard_fails = [r for r in results if not r.passed and not r.is_warning]
     total_hard = sum(1 for r in results if not r.is_warning)
-    print()
-    if hard_fails:
-        print(f"OVERALL: FAIL ({len(hard_fails)} of {total_hard} hard rules failed)")
-        return 1
-    print(f"OVERALL: PASS ({total_hard} of {total_hard} hard rules passed)")
-    return 0
+
+    if not args.json:
+        for r in results:
+            print(r.render(args.verbose))
+        print()
+        if hard_fails:
+            print(f"OVERALL: FAIL ({len(hard_fails)} of {total_hard} hard rules failed)")
+        else:
+            print(f"OVERALL: PASS ({total_hard} of {total_hard} hard rules passed)")
+    else:
+        # Collect Rule 6 and Rule 13 warning sites for JSON output.
+        rule6_result = next((r for r in results if r.rule_id == "Rule 6"), None)
+        rule13_result = next((r for r in results if r.rule_id == "Rule 13"), None)
+
+        def _parse_sites(violations: list[str]) -> list[dict]:
+            sites = []
+            for v in violations:
+                # Format: "path/to/file.py:42: source text"
+                parts = v.split(":", 2)
+                if len(parts) >= 2:
+                    file_part = parts[0]
+                    try:
+                        line_num = int(parts[1])
+                    except ValueError:
+                        line_num = 0
+                    text_part = parts[2].strip() if len(parts) > 2 else ""
+                    sites.append({"file": file_part, "line": line_num, "text": text_part})
+            return sites
+
+        r6_violations = rule6_result.violations if rule6_result else []
+        r13_violations = rule13_result.violations if rule13_result else []
+
+        payload = {
+            "check": "rules",
+            "status": "fail" if hard_fails else "pass",
+            "hard_pass": not bool(hard_fails),
+            "rule6_warnings": {
+                "count": len(r6_violations),
+                "sites": _parse_sites(r6_violations),
+            },
+            "rule13_warnings": {
+                "count": len(r13_violations),
+                "sites": _parse_sites(r13_violations),
+            },
+            "head": _git_head_sha(repo),
+        }
+        print(json.dumps(payload, indent=2))
+
+    return 1 if hard_fails else 0
 
 
 if __name__ == "__main__":

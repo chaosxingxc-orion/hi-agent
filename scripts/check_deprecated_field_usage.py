@@ -6,9 +6,14 @@ compatibility allowlist). Fails if found.
 """
 from __future__ import annotations
 
+import argparse
 import ast
 import sys
+import pathlib
 from pathlib import Path
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from _governance_json import emit_result
 
 ROOT = Path(__file__).parent.parent
 ALLOWLIST = {
@@ -38,10 +43,38 @@ def check_pi_run_id_usage(path: Path) -> list[str]:
     return issues
 
 
+def _parse_deprecated_error(text: str) -> dict:
+    """Parse error string into structured dict."""
+    import re
+    # Format: "  file:line: message"
+    m = re.match(r"\s+([^:]+):(\d+): (.*)", text)
+    if m:
+        return {"file": m.group(1), "line": int(m.group(2)), "text": m.group(3)}
+    return {"text": text.strip()}
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Check deprecated field usage")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON output instead of human-readable text.",
+    )
+    args = parser.parse_args()
+
     errors = []
     for py_file in (ROOT / "hi_agent").rglob("*.py"):
         errors.extend(check_pi_run_id_usage(py_file))
+
+    if args.json:
+        structured = [_parse_deprecated_error(e) for e in errors]
+        emit_result(
+            "deprecated_field_usage",
+            "pass" if not errors else "fail",
+            violations=structured,
+            counts={"total": len(errors)},
+        )
+
     if errors:
         print("FAIL check_deprecated_field_usage:")
         for e in errors:

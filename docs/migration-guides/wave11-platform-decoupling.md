@@ -98,15 +98,17 @@ Old names are accessible via module-level `__getattr__` and emit `DeprecationWar
 
 ## 5. Research Artifact Types
 
-| Before (deprecated import path) | After (canonical import path) |
+| Before (deprecated import path) | After (canonical path for production consumers) |
 |---|---|
-| `from hi_agent.artifacts.contracts import CitationArtifact` | `from examples.research_overlay.artifacts import CitationArtifact` |
-| `from hi_agent.artifacts.contracts import PaperArtifact` | `from examples.research_overlay.artifacts import PaperArtifact` |
-| `from hi_agent.artifacts.contracts import LeanProofArtifact` | `from examples.research_overlay.artifacts import LeanProofArtifact` |
+| `from hi_agent.artifacts.contracts import CitationArtifact` | Define your own artifact extending `hi_agent.artifacts.Artifact` in your own package |
+| `from hi_agent.artifacts.contracts import PaperArtifact` | Same — define in your own package |
+| `from hi_agent.artifacts.contracts import LeanProofArtifact` | Same — define in your own package |
 
-The old import paths return the same classes via a shim with `DeprecationWarning`.
+The old import paths still work via a lazy-import shim in `hi_agent/artifacts/contracts.py` that emits `DeprecationWarning` on access. **Production consumers must migrate off this shim before Wave 12, when it will be removed.**
 
-The `examples/research_overlay/` package is a reference implementation showing how to extend the platform artifact system for a research domain. Copy and adapt it to your own package if needed — the `examples/` directory is not guaranteed stable across waves.
+The `examples/research_overlay/` package is a reference implementation showing how to extend the platform artifact system for a research domain. It is provided as a copy-and-adapt template only — the `examples/` directory is not a stable public API and must not be used as an import source in production code.
+
+> **Note:** The `hi_agent.artifacts.contracts` lazy-import shim is available as a temporary migration aid. Import from it using `from hi_agent.artifacts import contracts; contracts.CitationArtifact` only during the migration period. This shim will be removed in Wave 12.
 
 ---
 
@@ -176,8 +178,9 @@ EvolutionTrial  # was EvolutionExperiment
 proj.outcome_assessments  # was hypothesis_outcomes
 proj.invalidated_assumptions  # was failed_assumptions
 
-# Artifacts
-from examples.research_overlay.artifacts import CitationArtifact  # was hi_agent.artifacts.contracts
+# Artifacts — define your own artifact class in your package (do NOT import from examples/)
+# Temporary migration shim (Wave 12 removal):
+#   from hi_agent.artifacts import contracts; contracts.CitationArtifact
 
 # LLM preset
 apply_strict_defaults(builder)  # was apply_research_defaults

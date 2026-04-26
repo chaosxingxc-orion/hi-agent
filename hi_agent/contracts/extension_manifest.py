@@ -75,7 +75,7 @@ class ExtensionManifest(Protocol):
 
     Enforcement fields:
         required_posture: Minimum posture required to enable this extension.
-            "any" | "dev" | "research" | "prod"
+            "any" | "dev" | "strict" | "prod"  ("research" is deprecated; Wave 12 removal)
         tenant_scope: Isolation scope of this extension.
             "global" | "tenant" | "user" | "session"
         dangerous_capabilities: List of dangerous capability tags, e.g.
@@ -92,7 +92,7 @@ class ExtensionManifest(Protocol):
     posture_support: dict[str, bool]
 
     # -- Enforcement fields --
-    required_posture: str  # "any" | "dev" | "research" | "prod"
+    required_posture: str  # "any" | "dev" | "strict" | "prod"  ("research" deprecated Wave 12)
     tenant_scope: str  # "global" | "tenant" | "user" | "session"
     dangerous_capabilities: list[str]  # e.g. ["filesystem_write", "network_egress"]
     config_schema: dict | None  # JSON Schema for config; None = no config required
@@ -132,6 +132,8 @@ class ExtensionManifestMixin:
             (True, []) when eligible.
             (False, [reason1, ...]) when blocked.
         """
+        import warnings
+
         from hi_agent.config.posture import Posture as _Posture
 
         blocked: list[str] = []
@@ -140,15 +142,25 @@ class ExtensionManifestMixin:
         dc = getattr(self, "dangerous_capabilities", [])
         cs = getattr(self, "config_schema", None)
 
+        # Deprecation: "research" is a legacy alias for "strict"; map it and warn.
+        if rp == "research":
+            warnings.warn(
+                "required_posture='research' is deprecated and will be removed in Wave 12. "
+                "Use 'strict' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            rp = "strict"
+
         if rp == "prod" and posture == _Posture.DEV:
             blocked.append(
                 f"required_posture={rp!r} but current posture is 'dev'; "
                 "this extension requires prod deployment"
             )
-        elif rp == "research" and posture == _Posture.DEV:
+        elif rp == "strict" and posture == _Posture.DEV:
             blocked.append(
                 f"required_posture={rp!r} but current posture is 'dev'; "
-                "this extension requires research or prod deployment"
+                "this extension requires strict or prod deployment"
             )
 
         if posture.is_strict and cs is None and dc:
@@ -162,7 +174,7 @@ class ExtensionManifestMixin:
 
 
 _VALID_MANIFEST_KINDS = frozenset({"plugin", "kernel", "mcp_tool", "knowledge"})
-_VALID_REQUIRED_POSTURES = frozenset({"any", "dev", "research", "prod"})
+_VALID_REQUIRED_POSTURES = frozenset({"any", "dev", "research", "strict", "prod"})
 _VALID_TENANT_SCOPES = frozenset({"global", "tenant", "user", "session"})
 
 

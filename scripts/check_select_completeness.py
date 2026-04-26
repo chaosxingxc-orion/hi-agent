@@ -11,10 +11,15 @@ on their primary write method.
 """
 from __future__ import annotations
 
+import argparse
 import ast
 import re
 import sys
+import pathlib
 from pathlib import Path
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from _governance_json import emit_result
 
 ROOT = Path(__file__).parent.parent
 
@@ -193,12 +198,44 @@ def check_exec_ctx_precedence(root: Path) -> list[str]:
     return issues
 
 
+def _parse_select_error(text: str) -> dict:
+    """Parse an error string into a structured dict."""
+    import re
+    # Format: "  file:line: message" or "  WRITER-MISSING-EXEC-CTX: ClassName.method (file)"
+    m = re.match(r"\s+([^:]+):(\d+): (.*)", text)
+    if m:
+        return {"file": m.group(1), "line": int(m.group(2)), "text": m.group(3)}
+    m2 = re.match(r"\s+(\S+):\s+(.*)", text)
+    if m2:
+        return {"category": m2.group(1), "text": m2.group(2)}
+    return {"text": text.strip()}
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Check SELECT completeness")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON output instead of human-readable text.",
+    )
+    args = parser.parse_args()
+
+    store_files = find_store_files()
     errors = []
-    for path in find_store_files():
+    for path in store_files:
         errors.extend(check_defensive_fallbacks(path))
     errors.extend(check_writer_exec_ctx())
     errors.extend(check_exec_ctx_precedence(ROOT))
+
+    if args.json:
+        structured = [_parse_select_error(e) for e in errors]
+        emit_result(
+            "select_completeness",
+            "pass" if not errors else "fail",
+            violations=structured,
+            counts={"fields_checked": len(store_files)},
+        )
+
     if errors:
         print("FAIL check_select_completeness:")
         for e in errors:

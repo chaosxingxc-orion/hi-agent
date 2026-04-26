@@ -58,6 +58,13 @@ from collections.abc import Iterator
 
 import pytest
 
+
+def pytest_collection_modifyitems(items):
+    """Auto-apply @pytest.mark.e2e to all tests in the e2e directory."""
+    for item in items:
+        if "tests/e2e" in str(item.fspath).replace("\\", "/"):
+            item.add_marker(pytest.mark.e2e)
+
 from tests.helpers.live_llm_config import LiveLLMConfig, load_live_llm_config
 
 # Allow heuristic-only capability execution when no LLM is wired.  This must

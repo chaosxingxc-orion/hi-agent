@@ -12,13 +12,19 @@ Checks:
 6. (E1b) T3 DEFERRED contradicts readiness improvement above 72.
 7. (E1c) Claimed SHA must be reachable in git history.
 8. Wave notice HEAD alignment: non-draft notices must declare current HEAD SHA.
+9. Downstream-response files newer than the latest manifest must cite Manifest: <id>.
 """
 from __future__ import annotations
 
+import argparse
+import pathlib
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from _governance_json import emit_result
 
 ROOT = Path(__file__).parent.parent
 DOCS = ROOT / "docs"
@@ -360,7 +366,91 @@ def check_notice_head_alignment() -> list[str]:
     return errors
 
 
+def _latest_manifest_mtime() -> float | None:
+    """Return mtime of the most-recent release manifest, or None if none exist."""
+    releases = DOCS / "releases"
+    manifests = list(releases.glob("platform-release-manifest-*.json"))
+    if not manifests:
+        return None
+    return max(p.stat().st_mtime for p in manifests)
+
+
+def _latest_manifest_id() -> str | None:
+    """Return the manifest_id from the most-recent release manifest."""
+    import json as _json
+    releases = DOCS / "releases"
+    manifests = sorted(
+        releases.glob("platform-release-manifest-*.json"),
+        key=lambda p: p.stat().st_mtime,
+    )
+    if not manifests:
+        return None
+    try:
+        data = _json.loads(manifests[-1].read_text(encoding="utf-8"))
+        return str(data.get("manifest_id", ""))
+    except Exception:
+        return None
+
+
+_MANIFEST_CITE_RE = re.compile(r"Manifest:\s*\S+")
+
+
+def check_downstream_notices_cite_manifest() -> list[str]:
+    """Check 9: downstream-response files newer than the latest manifest must cite Manifest: <id>.
+
+    If no manifest exists yet, skip (manifest infrastructure is new; bootstrap exemption).
+    """
+    manifest_mtime = _latest_manifest_mtime()
+    if manifest_mtime is None:
+        return []  # no manifest yet; bootstrap exemption
+
+    errors = []
+    responses_dir = DOCS / "downstream-responses"
+    if not responses_dir.exists():
+        return []
+
+    for notice in responses_dir.glob("*.md"):
+        if notice.stat().st_mtime <= manifest_mtime:
+            continue  # older than manifest; exempt
+        src = notice.read_text(encoding="utf-8", errors="replace")
+        # Draft/superseded notices are exempt
+        if re.search(r"Status:.*(?:draft|superseded)", src, re.IGNORECASE):
+            continue
+        if not _MANIFEST_CITE_RE.search(src):
+            errors.append(
+                f"  {notice.relative_to(ROOT)}: downstream-response newer than latest manifest "
+                "must contain 'Manifest: <manifest_id>' line"
+            )
+    return errors
+
+
+def _count_notices_checked() -> int:
+    """Count delivery notice files inspected."""
+    return len(list(DOCS.glob("downstream-responses/*delivery-notice*.md")))
+
+
+def _parse_doc_error(text: str) -> dict:
+    """Parse an error string into a structured dict."""
+    import re
+    # Format: "  file:line: message" or "  file: message"
+    m = re.match(r"\s+([^:]+):(\d+): (.*)", text)
+    if m:
+        return {"file": m.group(1), "line": int(m.group(2)), "text": m.group(3)}
+    m2 = re.match(r"\s+([^:]+):\s+(.*)", text)
+    if m2:
+        return {"file": m2.group(1), "text": m2.group(2)}
+    return {"text": text.strip()}
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Check doc consistency")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON output instead of human-readable text.",
+    )
+    args = parser.parse_args()
+
     all_errors = []
     all_errors.extend(check_t3_inherited_claims())
     all_errors.extend(check_matrix_xfail_citations())
@@ -374,6 +464,18 @@ def main() -> int:
     all_errors.extend(check_notice_sha_reachable(latest_notice))
     # Wave notice HEAD alignment
     all_errors.extend(check_notice_head_alignment())
+    # Check 9: downstream-response notices newer than manifest must cite Manifest: <id>
+    all_errors.extend(check_downstream_notices_cite_manifest())
+
+    if args.json:
+        structured = [_parse_doc_error(e) for e in all_errors]
+        emit_result(
+            "doc_consistency",
+            "pass" if not all_errors else "fail",
+            violations=structured,
+            counts={"notices_checked": _count_notices_checked()},
+        )
+
     if all_errors:
         print("FAIL check_doc_consistency:")
         for e in all_errors:

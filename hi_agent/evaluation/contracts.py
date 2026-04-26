@@ -88,8 +88,19 @@ class DefaultEvaluator:
         )
 
         # C3: output includes evidence or source references
+        # "citations" is deprecated (Wave 12 removal); callers should use "evidence_refs".
+        if "citations" in output and "evidence_refs" not in output:
+            import warnings
+
+            warnings.warn(
+                "Output key 'citations' is deprecated and will stop being recognised in Wave 12. "
+                "Use 'evidence_refs' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         criteria["has_evidence"] = any(
-            k in output for k in ("evidence", "source_refs", "sources", "citations")
+            k in output
+            for k in ("evidence", "source_refs", "sources", "evidence_refs", "citations")
         )
 
         # C4: output has a meaningful score (>0.4) if one is present

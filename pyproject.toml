@@ -62,6 +62,8 @@ markers = [
     "external_llm: requires real LLM provider endpoint; excluded from default-offline bundle",
     "network: makes real network calls to external services; excluded from default-offline bundle",
     "requires_secret: requires populated API secret; excluded from default-offline bundle",
+    "e2e: tests that exercise the full system end-to-end",
+    "perf: performance and load tests",
 ]
 
 [tool.ruff]

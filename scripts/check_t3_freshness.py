@@ -9,9 +9,11 @@ Usage::
     python scripts/check_t3_freshness.py
 
 The script:
-1. Finds the most recent ``docs/delivery/*-rule15-*.json`` file.
-2. Extracts the gate SHA from the JSON ``sha`` field, or falls back to parsing
-   the filename (e.g. ``2026-04-24-8c5395b-rule15-volces.json`` → ``8c5395b``).
+1. Finds the most recent ``docs/delivery/*-rule15-*.json`` or
+   ``docs/delivery/*-t3-*.json`` file.
+2. Extracts the gate SHA from the JSON ``verified_head`` field (preferred), or
+   the legacy ``sha`` field, or falls back to parsing the filename
+   (e.g. ``2026-04-24-8c5395b-rule15-volces.json`` → ``8c5395b``).
 3. Lists files changed between <gate_sha>..HEAD via ``git diff --name-only``.
 4. Checks those paths against the hot-path glob list from CLAUDE.md Rule 8.
 5. Exits 1 if any hot-path file changed; exits 0 otherwise.
@@ -57,16 +59,21 @@ def _is_hot_path(file_path: str) -> bool:
 
 
 def _find_latest_delivery_file(repo_root: Path) -> Path | None:
-    """Return the most recently modified rule15 delivery JSON file."""
+    """Return the most recently modified T3 delivery JSON file.
+
+    Accepts both the legacy ``*-rule15-*.json`` pattern and the modern
+    ``*-t3-*.json`` pattern introduced alongside the ``verified_head`` field.
+    """
     delivery_dir = repo_root / "docs" / "delivery"
     if not delivery_dir.is_dir():
         return None
-    candidates = sorted(
-        delivery_dir.glob("*-rule15-*.json"),
+    evidence_files = sorted(
+        list(delivery_dir.glob("*-rule15-*.json")) +
+        list(delivery_dir.glob("*-t3-*.json")),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
-    return candidates[0] if candidates else None
+    return evidence_files[0] if evidence_files else None
 
 
 def _extract_sha_from_json(delivery_file: Path) -> str | None:
@@ -84,12 +91,34 @@ def _extract_sha_from_json(delivery_file: Path) -> str | None:
 def _extract_sha_from_filename(delivery_file: Path) -> str | None:
     """Fall back: parse a 7-char hex SHA from the filename stem.
 
-    Filename convention: ``YYYY-MM-DD-<sha7>-rule15-<tag>.json``
+    Filename conventions supported:
+    - Legacy: ``YYYY-MM-DD-<sha7>-rule15-<tag>.json``
+    - Modern: ``YYYY-MM-DD-<sha7>-t3-<provider>.json``
     """
-    match = re.search(r"-([0-9a-f]{7,40})-rule15", delivery_file.name)
+    match = re.search(r"-([0-9a-f]{7,40})-(?:rule15|t3)-", delivery_file.name)
     if match:
         return match.group(1)
     return None
+
+
+def _extract_sha_from_evidence(evidence_path: Path, evidence_data: dict) -> str:
+    """Extract gate SHA: prefer ``verified_head`` field, then legacy ``sha`` field,
+    then fall back to filename parsing.
+
+    Returns an empty string when no SHA can be determined.
+    """
+    # 1. Prefer the canonical verified_head field (modern files).
+    verified_head = evidence_data.get("verified_head")
+    if verified_head and isinstance(verified_head, str) and len(verified_head) >= 7:
+        return verified_head
+
+    # 2. Legacy: sha field written by older gate scripts.
+    sha = evidence_data.get("sha")
+    if sha and isinstance(sha, str) and len(sha) >= 7:
+        return sha
+
+    # 3. Final fallback: parse from filename.
+    return _extract_sha_from_filename(evidence_path) or ""
 
 
 def _git(args: list[str], *, repo_root: Path) -> str:
@@ -157,7 +186,7 @@ def main() -> int:
     delivery_file = _find_latest_delivery_file(repo_root)
     if delivery_file is None:
         print(
-            "T3-WARN: No docs/delivery/*-rule15-*.json found. "
+            "T3-WARN: No docs/delivery/*-rule15-*.json or *-t3-*.json found. "
             "T3 gate has never been recorded — treating as stale.",
             file=sys.stderr,
         )
@@ -165,15 +194,18 @@ def main() -> int:
 
     print(f"T3: Using delivery file: {delivery_file.name}")
 
-    # 2. Extract gate SHA.
-    gate_sha = _extract_sha_from_json(delivery_file) or _extract_sha_from_filename(
-        delivery_file
-    )
+    # 2. Extract gate SHA — load file data so _extract_sha_from_evidence can
+    #    inspect both fields and filename in one call.
+    try:
+        delivery_data: dict = json.loads(delivery_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        delivery_data = {}
+    gate_sha = _extract_sha_from_evidence(delivery_file, delivery_data)
     if not gate_sha:
         print(
             f"T3-ERROR: Cannot determine gate SHA from {delivery_file.name}. "
-            "Add a 'sha' field to the delivery JSON or use the naming convention "
-            "YYYY-MM-DD-<sha>-rule15-<tag>.json.",
+            "Add a 'verified_head' field to the delivery JSON or use the naming convention "
+            "YYYY-MM-DD-<sha7>-t3-<provider>.json (or legacy YYYY-MM-DD-<sha7>-rule15-<tag>.json).",
             file=sys.stderr,
         )
         return 1
@@ -231,8 +263,8 @@ def main() -> int:
         print(f"  {f}", file=sys.stderr)
     print(
         "\nRule 8 T3 Invariance violated. Record a fresh gate run before release:\n"
-        "  python scripts/rule15_volces_gate.py \\\n"
-        "      --output docs/delivery/<date>-<sha>-rule15-volces.json\n"
+        "  python scripts/run_t3_gate.py --provider volces \\\n"
+        "      --output docs/delivery/<date>-<sha7>-t3-volces.json\n"
         "Or tag this PR: T3 evidence: DEFERRED — <reason>",
         file=sys.stderr,
     )

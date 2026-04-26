@@ -6,9 +6,12 @@ It never reads or prints API keys. Credentials are supplied by the caller via
 the runtime environment or pre-existing server config (or via inject_provider_key.py).
 
 Usage:
-    python scripts/run_t3_gate.py --output docs/delivery/<sha>-t3-gate-<provider>.json
+    python scripts/run_t3_gate.py --output docs/delivery/<date>-<sha7>-t3-<provider>.json
     python scripts/run_t3_gate.py --provider volces --output ...
     python scripts/run_t3_gate.py --provider auto --inject-key --output ...
+
+Output filename convention: ``YYYY-MM-DD-<sha7>-t3-<provider>.json``
+  where <sha7> is the first 7 characters of verified_head (from git rev-parse HEAD).
 
 When --inject-key is passed, inject_provider_key.py is called first to write
 config/llm_config.local.json, and --restore-key is called on exit.
@@ -18,17 +21,44 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import pathlib
 import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
 import httpx
 
 ROOT = Path(__file__).parent.parent
+
+
+def _capture_head_state() -> tuple[str, str, bool]:
+    """Return (head_sha, iso_timestamp, is_dirty).
+
+    Captures the git HEAD SHA and worktree cleanliness at the moment the gate
+    starts, before any server spawn or HTTP requests.
+    """
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=pathlib.Path(__file__).parent.parent,
+    ).stdout.strip()
+
+    dirty = bool(
+        subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            cwd=pathlib.Path(__file__).parent.parent,
+        ).stdout.strip()
+    )
+
+    ts = datetime.now(timezone.utc).isoformat()
+    return head, ts, dirty
 
 
 @dataclass(frozen=True)
@@ -74,6 +104,9 @@ class GateEvidence:
     server_pid: int | None = None
     status: str = "passed"
     error: str | None = None
+    verified_head: str = ""       # git SHA at gate start (from git rev-parse HEAD)
+    verified_at: str = ""         # ISO-8601 UTC timestamp when gate started
+    dirty_during_run: bool = False  # True if git status was dirty at start
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -103,6 +136,9 @@ class GateEvidence:
             "server_pid": self.server_pid,
             "status": self.status,
             "error": self.error,
+            "verified_head": self.verified_head,
+            "verified_at": self.verified_at,
+            "dirty_during_run": self.dirty_during_run,
         }
 
 
@@ -437,7 +473,11 @@ def run_gate(
     *,
     client_factory: Any = _build_client,
     popen_factory: Any = subprocess.Popen,
+    head_state_factory: Any = _capture_head_state,
 ) -> GateEvidence:
+    # Capture HEAD state at the very start, before any server spawn or HTTP requests.
+    verified_head, verified_at, dirty_during_run = head_state_factory()
+
     base_url = _normalize_base_url(config.base_url or f"http://127.0.0.1:{config.port}")
     command = [
         sys.executable,
@@ -478,9 +518,20 @@ def run_gate(
         started_at=datetime.now(UTC).isoformat(),
         server_command=server_command,
         server_pid=getattr(server_process, "pid", None),
+        verified_head=verified_head,
+        verified_at=verified_at,
+        dirty_during_run=dirty_during_run,
     )
-
     try:
+        if dirty_during_run:
+            evidence.status = "failed"
+            evidence.error = (
+                "Gate started with a dirty worktree (uncommitted changes). "
+                "The evidence does not prove the committed code. "
+                "Commit or stash all changes before running the T3 gate."
+            )
+            raise RuntimeError(evidence.error)
+
         gate_result = _run_gate_with_client(
             client,
             base_url=base_url,
@@ -494,6 +545,9 @@ def run_gate(
         )
         gate_result.server_command = server_command
         gate_result.server_pid = getattr(server_process, "pid", None)
+        gate_result.verified_head = verified_head
+        gate_result.verified_at = verified_at
+        gate_result.dirty_during_run = dirty_during_run
         evidence = gate_result
         return evidence
     except Exception as exc:

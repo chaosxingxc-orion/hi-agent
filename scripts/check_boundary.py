@@ -24,8 +24,12 @@ import argparse
 import ast
 import io
 import sys
+import pathlib
 import tokenize
 from pathlib import Path
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from _governance_json import emit_result
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -223,6 +227,21 @@ def check_b3(agent_kernel_dir: Path) -> list[str]:
     return violations
 
 
+def _parse_violation_text(text: str) -> dict:
+    """Parse a human-readable violation string into a structured dict."""
+    # Format: "VIOLATION [B-N] file:line: description"
+    import re
+    m = re.match(r"VIOLATION \[(\S+)\] ([^:]+):(\d+): (.*)", text)
+    if m:
+        return {
+            "rule": m.group(1),
+            "file": m.group(2),
+            "line": int(m.group(3)),
+            "text": m.group(4),
+        }
+    return {"text": text}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check hi_agent <-> agent_kernel boundary")
     parser.add_argument(
@@ -230,7 +249,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Alias for default behavior (exit 1 on violations); kept for future use.",
     )
-    parser.parse_args(argv)
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON output instead of human-readable text.",
+    )
+    args = parser.parse_args(argv)
 
     agent_kernel_dir = REPO_ROOT / "agent_kernel"
     hi_agent_dir = REPO_ROOT / "hi_agent"
@@ -240,10 +264,20 @@ def main(argv: list[str] | None = None) -> int:
     all_violations.extend(check_b2(hi_agent_dir))
     all_violations.extend(check_b3(agent_kernel_dir))
 
+    count = len(all_violations)
+
+    if args.json:
+        structured = [_parse_violation_text(v) for v in all_violations]
+        emit_result(
+            "boundary",
+            "pass" if count == 0 else "fail",
+            violations=structured,
+            counts={"total": count},
+        )
+
     for v in all_violations:
         print(v)
 
-    count = len(all_violations)
     print(f"{count} violation(s) found.")
 
     return 0 if count == 0 else 1

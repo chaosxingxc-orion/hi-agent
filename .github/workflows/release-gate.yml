@@ -1,0 +1,95 @@
+name: Release Gate (W11-G)
+
+# Consolidated non-skippable release gate — enforces all governance checks and
+# produces a versioned manifest artifact.  No step uses continue-on-error.
+#
+# Runs after every push to main/fix/feat/claude branches and on every PR to main.
+# T3 invariance (t3_freshness) checks the docs/delivery/ evidence committed in the
+# repo; it will fail if hot-path files changed since the last recorded gate run.
+# Clean-env and real-LLM gate runs are operator-performed and committed to docs/delivery/
+# before release; see docs/clean-env-verification.md and CLAUDE.md Rule 8.
+
+on:
+  push:
+    branches: [main, "fix/**", "feat/**", "claude/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  release-gate:
+    name: Release Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      # --- Static analysis ---
+
+      - name: Lint (ruff full)
+        run: ruff check hi_agent tests
+
+      - name: Check CLAUDE.md rules (Rule 6 / 13 AST)
+        run: python scripts/check_rules.py --json
+
+      # --- Governance gate checks ---
+
+      - name: Check platform layering (Class L)
+        run: python scripts/check_layering.py --json
+
+      - name: Check research vocabulary (Class V)
+        run: python scripts/check_no_research_vocab.py --json
+
+      - name: Check route tenant scope
+        run: python scripts/check_route_scope.py --json
+
+      - name: Check expired waivers (Class W)
+        run: python scripts/check_expired_waivers.py --json
+
+      - name: Check wave tags in source (Class W)
+        run: python scripts/check_no_wave_tags.py --json
+
+      - name: Check doc canonical symbols (Class D)
+        run: python scripts/check_doc_canonical_symbols.py --json
+
+      - name: Check doc consistency (Class C / Check 9)
+        run: python scripts/check_doc_consistency.py --json
+
+      - name: Check boundary (platform / kernel)
+        run: python scripts/check_boundary.py --json
+
+      - name: Check deprecated field usage
+        run: python scripts/check_deprecated_field_usage.py --json
+
+      - name: Check durable backend wiring
+        run: python scripts/check_durable_wiring.py --json
+
+      # --- T3 invariance (Rule 8) ---
+      # Fails if hot-path files changed since the last recorded gate run in docs/delivery/.
+      # To clear: run scripts/run_t3_gate.py --provider volces locally and commit evidence.
+
+      - name: Check T3 evidence freshness (Rule 8)
+        run: python scripts/check_t3_freshness.py
+
+      # --- Release manifest ---
+
+      - name: Build release manifest
+        run: python scripts/build_release_manifest.py --output manifest.json
+
+      - name: Upload release manifest artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-manifest-${{ github.sha }}
+          path: manifest.json
+          retention-days: 90

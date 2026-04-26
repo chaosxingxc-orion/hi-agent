@@ -156,6 +156,11 @@ def test_assert_no_fallback_events_rejects_nested_events():
         _assert_no_fallback_events({"fallback_events": [{"kind": "route"}]}, label="run-1")
 
 
+def _clean_head_state():
+    """Stub for head_state_factory that simulates a clean git worktree."""
+    return ("abc1234def567890abc1234def567890abc12345", "2026-04-27T00:00:00+00:00", False)
+
+
 def test_run_gate_with_fakes_creates_evidence_and_writes_file(tmp_path, monkeypatch):
     client = FakeClient()
     process = FakeProcess(["python", "-m", "hi_agent", "serve", "--port", "8089"])
@@ -181,6 +186,7 @@ def test_run_gate_with_fakes_creates_evidence_and_writes_file(tmp_path, monkeypa
         config,
         client_factory=lambda base_url, timeout: client,
         popen_factory=lambda cmd: process,
+        head_state_factory=_clean_head_state,
     )
 
     assert evidence.mode == "spawned"
@@ -217,6 +223,11 @@ def test_run_gate_with_fakes_creates_evidence_and_writes_file(tmp_path, monkeypa
     assert "volces" in payload
     assert '"profile_id": "custom-profile"' in payload
     assert "fallback_events" in payload
+    # Verify new verified_head fields are present in output.
+    data = __import__("json").loads(payload)
+    assert data["verified_head"] == "abc1234def567890abc1234def567890abc12345"
+    assert data["verified_at"] == "2026-04-27T00:00:00+00:00"
+    assert data["dirty_during_run"] is False
 
 
 def test_run_gate_fails_cleanly_when_cancel_route_missing(tmp_path, monkeypatch):
@@ -253,6 +264,47 @@ def test_run_gate_fails_cleanly_when_cancel_route_missing(tmp_path, monkeypatch)
             config,
             client_factory=lambda base_url, timeout: client,
             popen_factory=lambda cmd: process,
+            head_state_factory=_clean_head_state,
         )
 
     assert output.exists()
+
+
+def test_run_gate_fails_when_worktree_is_dirty(tmp_path, monkeypatch):
+    """run_gate must raise and write fail evidence when the worktree is dirty."""
+    client = FakeClient()
+    process = FakeProcess(["python", "-m", "hi_agent", "serve", "--port", "8091"])
+    output = tmp_path / "dirty.json"
+    config = GateConfig(
+        base_url=None,
+        port=8091,
+        output=output,
+        profile_id="t3_gate",
+        provider="volces",
+        inject_key=False,
+        ready_timeout_s=10,
+        poll_timeout_s=10,
+        poll_interval_s=0,
+        request_timeout_s=2,
+        startup_timeout_s=2,
+    )
+    monkeypatch.setattr("scripts.run_t3_gate.time.sleep", lambda *_: None)
+    ticks = iter(range(1000))
+    monkeypatch.setattr("scripts.run_t3_gate.time.monotonic", lambda: next(ticks))
+
+    def dirty_head_state():
+        return ("deadbeef1234567890deadbeef1234567890dead", "2026-04-27T00:00:00+00:00", True)
+
+    with pytest.raises(RuntimeError, match="dirty worktree"):
+        run_gate(
+            config,
+            client_factory=lambda base_url, timeout: client,
+            popen_factory=lambda cmd: process,
+            head_state_factory=dirty_head_state,
+        )
+
+    # Evidence file must be written even when gate fails.
+    assert output.exists()
+    data = __import__("json").loads(output.read_text(encoding="utf-8"))
+    assert data["dirty_during_run"] is True
+    assert data["status"] == "failed"

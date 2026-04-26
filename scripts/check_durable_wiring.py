@@ -10,10 +10,15 @@ Also verifies all requires_durable_* posture knobs are referenced in app.py/_dur
 """
 from __future__ import annotations
 
+import argparse
 import ast
 import re
 import sys
+import pathlib
 from pathlib import Path
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from _governance_json import emit_result
 
 ROOT = Path(__file__).parent.parent
 
@@ -62,7 +67,25 @@ def check_posture_knobs_referenced() -> list[str]:
     return dead
 
 
+def _parse_wiring_error(text: str) -> dict:
+    """Parse an error string into a structured dict."""
+    import re
+    # Format: "  file::ClassName — message"
+    m = re.match(r"\s+([^:]+)::(\w+)\s+—\s+(.*)", text)
+    if m:
+        return {"file": m.group(1), "class": m.group(2), "text": m.group(3)}
+    return {"text": text.strip()}
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Check durable wiring")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON output instead of human-readable text.",
+    )
+    args = parser.parse_args()
+
     errors = []
     sqlite_classes = find_sqlite_classes()
     for path, cls_name in sqlite_classes:
@@ -77,6 +100,16 @@ def main() -> int:
             f"  posture.py::{knob} — knob never referenced in"
             " app.py or _durable_backends.py (dead code)"
         )
+
+    if args.json:
+        structured = [_parse_wiring_error(e) for e in errors]
+        emit_result(
+            "durable_wiring",
+            "pass" if not errors else "fail",
+            violations=structured,
+            counts={"classes_checked": len(sqlite_classes)},
+        )
+
     if errors:
         print("FAIL check_durable_wiring:")
         for e in errors:

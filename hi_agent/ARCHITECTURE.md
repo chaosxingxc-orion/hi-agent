@@ -989,7 +989,7 @@ Top-level symbols exported from `hi_agent` for external callers:
 | `hi_agent.GateEvent` | Human gate lifecycle event dataclass |
 | `hi_agent.GatePendingError` | Raised when stage execution hits a pending gate |
 | `hi_agent.SubRunHandle` / `SubRunResult` | Nested sub-run dispatch / collection |
-| `hi_agent.llm.tier_presets.apply_research_defaults(router)` | Research tier preset — configures TierRouter with research-optimized defaults |
+| `hi_agent.llm.tier_presets.apply_strict_defaults(router)` | Strict platform tier preset — configures TierRouter with strict-posture defaults (`apply_research_defaults` is deprecated; Wave 12 removal) |
 
 ---
 

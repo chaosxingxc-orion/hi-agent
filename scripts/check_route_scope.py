@@ -19,10 +19,16 @@ Exceptions (decorated with # noqa: no-tenant-scope or in NO_SCOPE_ALLOWLIST):
 """
 from __future__ import annotations
 
+import argparse
 import ast
+import json
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _current_wave import is_expired  # noqa: E402
 
 ROOT = Path(__file__).parent.parent
 
@@ -180,148 +186,148 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
     ),
     # Knowledge routes — system-wide knowledge, no per-tenant resource isolation
     "handle_knowledge_ingest": AllowlistEntry(
-        reason="Knowledge ingest — global knowledge graph, per-tenant isolation planned Wave 11",
+        reason="Knowledge ingest — global KG, per-tenant isolation not yet implemented; deferred to Wave 12 (owner: RO)",
         risk="High — ingest without tenant scope could pollute shared graph across tenants",
         owner="RO",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_knowledge_tenant_isolation.py",
         contract="",
     ),
     "handle_knowledge_ingest_structured": AllowlistEntry(
-        reason="Structured knowledge ingest — same scope gap as handle_knowledge_ingest",
+        reason="Structured knowledge ingest — same scope gap as handle_knowledge_ingest; deferred to Wave 12 (owner: RO)",
         risk="High — same risk as handle_knowledge_ingest",
         owner="RO",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_knowledge_tenant_isolation.py",
         contract="",
     ),
     "handle_knowledge_query": AllowlistEntry(
-        reason="Knowledge query — global graph query, per-tenant filtering planned Wave 11",
+        reason="Knowledge query — global graph query, per-tenant filtering not yet implemented; deferred to Wave 12 (owner: RO)",
         risk="High — query without tenant scope returns cross-tenant knowledge nodes",
         owner="RO",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_knowledge_tenant_isolation.py",
         contract="",
     ),
     "handle_knowledge_status": AllowlistEntry(
-        reason="Knowledge status — system-wide KG statistics, not per-tenant",
+        reason="Knowledge status — system-wide KG statistics; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: RO)",
         risk="Low — reveals aggregate KG size; no per-tenant node data",
         owner="RO",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_knowledge_tenant_isolation.py",
         contract="system-info",
     ),
     "handle_knowledge_lint": AllowlistEntry(
-        reason="Knowledge lint — validates knowledge format; no per-tenant data returned",
+        reason="Knowledge lint — stateless format validation; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: RO)",
         risk="Low — lint result is stateless; no stored per-tenant data access",
         owner="RO",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_knowledge_tenant_isolation.py",
         contract="",
     ),
     "handle_knowledge_sync": AllowlistEntry(
-        reason="Knowledge sync — system-wide sync operation, per-tenant scope planned Wave 11",
+        reason="Knowledge sync — system-wide sync, per-tenant scope not yet implemented; deferred to Wave 12 (owner: RO)",
         risk="High — sync without tenant scope could overwrite cross-tenant knowledge",
         owner="RO",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_knowledge_tenant_isolation.py",
         contract="",
     ),
     # Skills routes — global skill registry, no per-tenant resource isolation
     "handle_skills_list": AllowlistEntry(
-        reason="Skills listing — global registry, per-tenant overlay planned Wave 11",
+        reason="Skills listing — global registry, per-tenant overlay not yet implemented; deferred to Wave 12 (owner: TE)",
         risk="Low — all tenants see all skills; no secret per-tenant skills exposed",
         owner="TE",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_skills_tenant_overlay.py",
         contract="global-readonly",
     ),
     "handle_skills_status": AllowlistEntry(
-        reason="Skills status — system-wide skill health, not per-tenant",
+        reason="Skills status — system-wide skill health; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: TE)",
         risk="Low — reveals aggregate skill availability; no per-tenant data",
         owner="TE",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_skills_tenant_overlay.py",
         contract="system-info",
     ),
     "handle_skills_evolve": AllowlistEntry(
-        reason="Skill evolution — global evolution trigger, per-tenant scope planned Wave 11",
+        reason="Skill evolution — global trigger, per-tenant scope not yet implemented; deferred to Wave 12 (owner: TE)",
         risk="High — evolution without tenant scope could modify skills used by other tenants",
         owner="TE",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_skills_tenant_overlay.py",
         contract="",
     ),
     "handle_skill_metrics": AllowlistEntry(
-        reason="Skill metrics — aggregate performance counters, not per-tenant usage",
+        reason="Skill metrics — aggregate counters; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: TE)",
         risk="Low — reveals skill usage patterns; no per-tenant data in current implementation",
         owner="TE",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_skills_tenant_overlay.py",
         contract="system-info",
     ),
     "handle_skill_versions": AllowlistEntry(
-        reason="Skill versions — global version history, not per-tenant",
+        reason="Skill versions — global version history; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: TE)",
         risk="Low — version list is global; no per-tenant version isolation",
         owner="TE",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_skills_tenant_overlay.py",
         contract="global-readonly",
     ),
     "handle_skill_optimize": AllowlistEntry(
-        reason="Skill optimization — global optimization trigger, per-tenant scope planned Wave 11",
+        reason="Skill optimization — global trigger, per-tenant scope not yet implemented; deferred to Wave 12 (owner: TE)",
         risk="High — optimization without tenant scope could degrade shared skill quality",
         owner="TE",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_skills_tenant_overlay.py",
         contract="",
     ),
     "handle_skill_promote": AllowlistEntry(
-        reason="Skill promotion — global promotion, per-tenant approval planned Wave 11",
+        reason="Skill promotion — global promotion, per-tenant approval not yet implemented; deferred to Wave 12 (owner: TE)",
         risk="High — promotion without tenant scope could affect all tenant skill availability",
         owner="TE",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_skills_tenant_overlay.py",
         contract="",
     ),
     # Tools/MCP — invocation routes, tenant injected via ctx downstream
     "handle_tools_call": AllowlistEntry(
-        reason="Tool invocation — tenant_id injected into tool call context downstream via ctx",
+        reason="Tool invocation — tenant_id injected downstream; per-tenant filter not yet implemented; deferred to Wave 12 (owner: DX)",
         risk="Medium — must verify tool call context carries tenant_id before execution",
         owner="DX",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_tools_tenant_injection.py",
         contract="",
     ),
     "handle_tools_list": AllowlistEntry(
-        reason="Tool listing — global tool registry, per-tenant filtering planned Wave 11",
+        reason="Tool listing — global registry, per-tenant filtering not yet implemented; deferred to Wave 12 (owner: DX)",
         risk="Low — all tenants see all tools; no secret per-tenant tools in current impl",
         owner="DX",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_tools_tenant_injection.py",
         contract="global-readonly",
     ),
     "handle_mcp_tools": AllowlistEntry(
-        reason="MCP tools root handler — lists registered MCP tool servers; global registry, per-tenant overlay Wave 11",
+        reason="MCP tools root handler — global registry, per-tenant overlay not yet implemented; deferred to Wave 12 (owner: DX)",
         risk="Low — no per-tenant data exposed in tool server listing",
         owner="DX",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_tools_tenant_injection.py",
         contract="global-readonly",
     ),
     "handle_mcp_tools_list": AllowlistEntry(
-        reason="MCP tool listing — global MCP tool registry, per-tenant filtering planned Wave 11",
+        reason="MCP tool listing — global registry, per-tenant filtering not yet implemented; deferred to Wave 12 (owner: DX)",
         risk="Low — same risk as handle_tools_list",
         owner="DX",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_tools_tenant_injection.py",
         contract="global-readonly",
     ),
     "handle_mcp_tools_call": AllowlistEntry(
-        reason="MCP tool invocation — tenant_id injected into MCP call context downstream via ctx",
+        reason="MCP tool invocation — tenant_id injected downstream; per-tenant filter not yet implemented; deferred to Wave 12 (owner: DX)",
         risk="Medium — same risk as handle_tools_call",
         owner="DX",
-        expiry_wave="Wave 11",
+        expiry_wave="Wave 12",
         replacement_test="test_routes_tools_tenant_injection.py",
         contract="",
     ),
@@ -341,6 +347,19 @@ def _validate_allowlist() -> list[str]:
         if not entry.replacement_test:
             issues.append(f"Allowlist entry '{handler_name}' has empty replacement_test")
     return issues
+
+
+def _check_expiry(entries: dict) -> list[str]:
+    """Return list of error strings for entries whose expiry_wave has passed."""
+    errors = []
+    for route_name, entry in entries.items():
+        expiry = entry.expiry_wave if entry.expiry_wave else None
+        if expiry and expiry != "permanent" and is_expired(expiry):
+            errors.append(
+                f"Allowlist entry {route_name!r} expired (expiry_wave={expiry!r}). "
+                f"Replace with real per-tenant filter or bump expiry_wave with documented reason."
+            )
+    return errors
 
 
 def check_file(path: Path) -> list[str]:
@@ -379,46 +398,102 @@ def check_file(path: Path) -> list[str]:
     return errors
 
 
+def _get_head_sha() -> str:
+    """Return short git HEAD SHA, or empty string on failure."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    return result.stdout.strip()
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
+    args = parser.parse_args()
+
     # Validate allowlist entries first
     allowlist_issues = _validate_allowlist()
     if allowlist_issues:
-        print("FAIL check_route_scope (allowlist validation):")
-        for issue in allowlist_issues:
-            print(f"  {issue}")
+        if args.json:
+            print(json.dumps({
+                "check": "route_scope",
+                "status": "fail",
+                "allowlist_total": len(NO_SCOPE_ALLOWLIST),
+                "allowlist_expired": 0,
+                "expiring_this_wave": 0,
+                "violations": allowlist_issues,
+                "head": _get_head_sha(),
+            }))
+        else:
+            print("FAIL check_route_scope (allowlist validation):")
+            for issue in allowlist_issues:
+                print(f"  {issue}")
         return 1
 
-    errors = []
+    # Check for expired allowlist entries
+    expiry_errors = _check_expiry(NO_SCOPE_ALLOWLIST)
+
+    # Scan route handlers for missing tenant scope
+    scope_errors = []
     for path in ROOT.glob("hi_agent/server/routes_*.py"):
-        errors.extend(check_file(path))
-    # Also check app.py for inline handlers
+        scope_errors.extend(check_file(path))
     app_path = ROOT / "hi_agent" / "server" / "app.py"
     if app_path.exists():
-        errors.extend(check_file(app_path))
-    if errors:
+        scope_errors.extend(check_file(app_path))
+
+    all_violations = expiry_errors + scope_errors
+
+    # Count expired and expiring entries
+    allowlist_total = len(NO_SCOPE_ALLOWLIST)
+    allowlist_expired = len(expiry_errors)
+
+    if args.json:
+        sha = _get_head_sha()
+        status = "fail" if all_violations else "pass"
+        print(json.dumps({
+            "check": "route_scope",
+            "status": status,
+            "allowlist_total": allowlist_total,
+            "allowlist_expired": allowlist_expired,
+            "expiring_this_wave": allowlist_expired,
+            "violations": all_violations,
+            "head": sha,
+        }))
+        return 1 if all_violations else 0
+
+    if expiry_errors:
+        print("FAIL check_route_scope (expired allowlist entries):")
+        for e in expiry_errors:
+            print(f"  {e}")
+        return 1
+
+    if scope_errors:
         print("FAIL check_route_scope:")
-        for e in errors:
+        for e in scope_errors:
             print(e)
         return 1
+
     print("OK check_route_scope")
 
     # Allowlist count tracking
-    allowlist_count = len(NO_SCOPE_ALLOWLIST)
-    print(f"ALLOWLIST: {allowlist_count} entries")
+    print(f"ALLOWLIST: {allowlist_total} entries")
 
     baseline_file = ROOT / "docs" / "allowlist-baseline.txt"
     if baseline_file.exists():
         try:
             baseline = int(baseline_file.read_text().strip())
-            if allowlist_count > baseline:
-                print(f"FAIL: Allowlist grew from {baseline} to {allowlist_count} entries")
+            if allowlist_total > baseline:
+                print(f"FAIL: Allowlist grew from {baseline} to {allowlist_total} entries")
                 print(
                     "Remove stale allowlist entries or update docs/allowlist-baseline.txt"
                     " if growth is justified"
                 )
                 return 1
-            elif allowlist_count < baseline:
-                print(f"NOTE: Allowlist reduced from {baseline} to {allowlist_count} (good)")
+            elif allowlist_total < baseline:
+                print(f"NOTE: Allowlist reduced from {baseline} to {allowlist_total} (good)")
         except ValueError:
             pass
 

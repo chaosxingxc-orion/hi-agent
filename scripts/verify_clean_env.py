@@ -41,9 +41,11 @@ import datetime
 import importlib.metadata
 import json
 import os
+import queue
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -78,6 +80,33 @@ SMOKE_W5_BUNDLE: list[str] = [
     "tests/unit/test_memory_lifecycle.py",
 ]
 
+# ---------------------------------------------------------------------------
+# default-offline profile — unit + contract + security + agent_kernel only.
+# Excludes tests/integration (slow, 419 files), tests/runtime_adapter,
+# tests/server.  Target runtime: <= 10 min.  Use case: developer health check
+# before push.
+# ---------------------------------------------------------------------------
+_DEFAULT_OFFLINE_PATHS: list[str] = [
+    "tests/unit",
+    "tests/contract",
+    "tests/security",
+    "tests/agent_kernel",
+]
+
+# ---------------------------------------------------------------------------
+# nightly profile — full WAVE_TEST_BUNDLE + e2e + perf + characterization +
+# golden.  Paths that do not exist on disk are silently skipped by
+# _filter_existing().  Target runtime: unlimited.  Use case: scheduled nightly
+# full coverage.
+# ---------------------------------------------------------------------------
+_NIGHTLY_PATHS: list[str] = [
+    *WAVE_TEST_BUNDLE,
+    "tests/e2e",
+    "tests/perf",
+    "tests/characterization",
+    "tests/golden",
+]
+
 # Markers excluded from the default-offline profile
 _OFFLINE_EXCLUDED_MARKERS: list[str] = [
     "live_api",
@@ -93,12 +122,16 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--profile",
-        choices=["smoke-w5", "default-offline", "release", "custom"],
+        choices=["smoke-w5", "default-offline", "release", "nightly", "custom"],
         default="default-offline",
         help=(
             "Bundle profile to use. "
-            "'default-offline' excludes live_api/external_llm/network/requires_secret markers. "
-            "'release' runs the full bundle with no marker exclusions. "
+            "'default-offline' runs unit/contract/security/agent_kernel only "
+            "(<=10 min, developer health check). "
+            "'release' runs the full WAVE_TEST_BUNDLE with no marker exclusions "
+            "(<=30 min, pre-release regression). "
+            "'nightly' runs release paths plus e2e/perf/characterization/golden "
+            "(unlimited, scheduled nightly). "
             "'smoke-w5' runs a small W5 subset for fast pre-flight. "
             "'custom' reads test list from --bundle PATH."
         ),
@@ -234,6 +267,16 @@ def _filter_existing(paths: list[str]) -> tuple[list[str], list[str]]:
 def _resolve_bundle_and_marker_args(args: argparse.Namespace) -> tuple[list[str], list[str]]:
     """Return (raw_paths, extra_pytest_args) based on the selected profile.
 
+    Profile summary:
+    - default-offline: unit/contract/security/agent_kernel only (<=10 min).
+      Applies marker exclusions as a secondary filter.  Developer health check.
+    - release: full WAVE_TEST_BUNDLE, no marker exclusions (<=30 min).
+      Pre-release regression gate.
+    - nightly: release paths + e2e/perf/characterization/golden (unlimited).
+      Scheduled nightly full coverage run.
+    - smoke-w5: small W5 subset for fast pre-flight checks.
+    - custom: paths loaded from --bundle file.
+
     extra_pytest_args may include a ``-m`` marker expression for default-offline.
     """
     profile = args.profile
@@ -242,11 +285,19 @@ def _resolve_bundle_and_marker_args(args: argparse.Namespace) -> tuple[list[str]
         raw_paths = list(SMOKE_W5_BUNDLE)
         extra_args: list[str] = []
     elif profile == "default-offline":
-        raw_paths = list(WAVE_TEST_BUNDLE)
+        # Narrow path list excludes tests/integration, tests/runtime_adapter,
+        # tests/server — these 419+ files cause the 600s timeout.
+        raw_paths = list(_DEFAULT_OFFLINE_PATHS)
         marker_expr = " and ".join(f"not {m}" for m in _OFFLINE_EXCLUDED_MARKERS)
         extra_args = ["-m", marker_expr]
     elif profile == "release":
+        # Full regression suite — no marker restrictions.
         raw_paths = list(WAVE_TEST_BUNDLE)
+        extra_args = []
+    elif profile == "nightly":
+        # Full regression + e2e + perf + characterization + golden.
+        # Non-existent paths are silently dropped by _filter_existing().
+        raw_paths = list(_NIGHTLY_PATHS)
         extra_args = []
     elif profile == "custom":
         if not args.bundle:
@@ -283,15 +334,19 @@ def _parse_pytest_json(report_file: Path, exit_code: int) -> dict:
         collected = summary.get("collected", 0)
 
         # Determine status from content + exit code
-        if exit_code != 0 or failed > 0 or errors > 0:
-            status = "failed"
+        status = "failed" if exit_code != 0 or failed > 0 or errors > 0 else "passed"
+
+        if status == "passed":
+            failure_reason_str = None
         else:
-            status = "passed"
+            failure_reason_str = (
+                f"pytest exit_code={exit_code} failed={failed} errors={errors}"
+            )
 
         return {
             "status": status,
             "summary_available": True,
-            "failure_reason": None if status == "passed" else f"pytest exit_code={exit_code} failed={failed} errors={errors}",
+            "failure_reason": failure_reason_str,
             "collected": collected,
             "passed": passed,
             "failed": failed,
@@ -310,6 +365,79 @@ def _parse_pytest_json(report_file: Path, exit_code: int) -> dict:
             "errors": None,
             "skipped": None,
         }
+
+
+def _run_pytest_with_triage(
+    cmd: list[str],
+    cwd: str,
+    timeout_s: int,
+    env: dict | None = None,
+) -> tuple[int, str, dict | None]:
+    """Run pytest, capturing output for triage on timeout.
+
+    Returns (returncode, full_output, triage_dict_or_None).
+    triage_dict is populated only when the process was killed due to timeout.
+    """
+    stdout_lines: list[str] = []
+    stdout_q: queue.Queue[str] = queue.Queue()
+
+    proc = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    def _reader() -> None:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            stdout_q.put(line)
+
+    reader_thread = threading.Thread(target=_reader, daemon=True)
+    reader_thread.start()
+
+    timed_out = False
+    try:
+        proc.wait(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        timed_out = True
+
+    reader_thread.join(timeout=5)
+
+    # Drain queue
+    while not stdout_q.empty():
+        try:
+            stdout_lines.append(stdout_q.get_nowait())
+        except queue.Empty:
+            break
+
+    returncode = proc.returncode if proc.returncode is not None else -1
+
+    # Print captured output so the caller sees it live (via the joined thread)
+    output = "".join(stdout_lines)
+    print(output, end="")
+
+    # Extract last RUNNING/PASSED/FAILED line for triage
+    currently_running: str | None = None
+    for line in reversed(stdout_lines):
+        if "RUNNING" in line or "PASSED" in line or "FAILED" in line:
+            currently_running = line.strip()[:200]
+            break
+
+    triage: dict | None = None
+    if timed_out:
+        triage = {
+            "tail": "".join(stdout_lines[-200:]),
+            "currently_running_nodeid": currently_running,
+            "total_output_lines": len(stdout_lines),
+        }
+
+    return returncode, output, triage
 
 
 def main() -> int:
@@ -386,6 +514,7 @@ def main() -> int:
     status = "error"
     failure_reason: str | None = None
     pytest_exit_code: int = -1
+    triage: dict | None = None
     stats: dict = {
         "status": "error",
         "summary_available": False,
@@ -397,18 +526,13 @@ def main() -> int:
         "skipped": None,
     }
 
-    try:
-        result = subprocess.run(cmd, cwd=str(ROOT), timeout=600)
-        pytest_exit_code = result.returncode
-        finished_at = datetime.datetime.now(datetime.UTC)
+    pytest_exit_code, _output, triage = _run_pytest_with_triage(
+        cmd, cwd=str(ROOT), timeout_s=600
+    )
+    finished_at = datetime.datetime.now(datetime.UTC)
 
-        # --- Parse stats from pytest-json-report --------------------------
-        stats = _parse_pytest_json(Path(tmp_report_path), pytest_exit_code)
-        status = stats["status"]
-        failure_reason = stats.get("failure_reason")
-
-    except subprocess.TimeoutExpired:
-        finished_at = datetime.datetime.now(datetime.UTC)
+    if triage is not None:
+        # Process was killed due to timeout
         status = "timeout"
         failure_reason = "pytest timed out after 600 seconds"
         stats = {
@@ -422,7 +546,11 @@ def main() -> int:
             "skipped": None,
         }
         print(f"\nERROR: {failure_reason}", file=sys.stderr)
-        pytest_exit_code = -1
+    else:
+        # --- Parse stats from pytest-json-report --------------------------
+        stats = _parse_pytest_json(Path(tmp_report_path), pytest_exit_code)
+        status = stats["status"]
+        failure_reason = stats.get("failure_reason")
 
     duration = (finished_at - started_at).total_seconds()
 
@@ -459,6 +587,7 @@ def main() -> int:
             "errors": stats.get("errors"),
             "skipped": stats.get("skipped"),
             "missing_paths": missing_paths,
+            "timeout_triage": triage,
         }
         evidence_path = Path(args.json_report)
         evidence_path.parent.mkdir(parents=True, exist_ok=True)

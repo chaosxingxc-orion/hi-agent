@@ -13,8 +13,12 @@ import argparse
 import re
 import subprocess
 import sys
+import pathlib
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from _governance_json import emit_result
 
 try:
     import tomllib
@@ -121,6 +125,11 @@ def main() -> int:
         action="store_true",
         help="Only verify pin is resolvable; skip latest-main-head check.",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON output instead of human-readable text.",
+    )
     args = parser.parse_args()
 
     pyproject = Path(args.pyproject)
@@ -137,12 +146,31 @@ def main() -> int:
     main_head = head_line.split()[0].lower()
 
     if not args.allow_non_head and pinned_commit != main_head:
+        if args.json:
+            emit_result(
+                "agent_kernel_pin",
+                "fail",
+                violations=[{
+                    "message": f"{args.package} pin is not latest main",
+                    "pinned": pinned_commit,
+                    "main_ref": args.main_ref,
+                    "main_head": main_head,
+                }],
+                counts={"pin_version": revision},
+            )
         raise RuntimeError(
             f"{args.package} pin is not latest main.\n"
             f"  pinned: {pinned_commit}\n"
             f"  {args.main_ref}: {main_head}"
         )
 
+    if args.json:
+        emit_result(
+            "agent_kernel_pin",
+            "pass",
+            violations=[],
+            counts={"pin_version": revision},
+        )
     print(
         f"{args.package} pin OK: {pinned_commit}"
         + ("" if not args.allow_non_head else " (non-head allowed)")
@@ -153,6 +181,16 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except SystemExit:
+        raise
     except Exception as exc:
+        # Check if --json was requested; emit structured error if so
+        if "--json" in sys.argv:
+            emit_result(
+                "agent_kernel_pin",
+                "fail",
+                violations=[{"message": str(exc)}],
+                counts={},
+            )
         print(f"ERROR: {exc}", file=sys.stderr)
         raise SystemExit(1) from None

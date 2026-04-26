@@ -37,7 +37,7 @@ from hi_agent.llm.streaming import (
     StreamDelta,
     StreamDeltaType,
 )
-from hi_agent.llm.tier_presets import apply_research_defaults
+from hi_agent.llm.tier_presets import apply_research_defaults, apply_strict_defaults
 from hi_agent.llm.tier_router import TierAwareLLMGateway, TierMapping, TierRouter
 
 __all__ = [
@@ -82,6 +82,7 @@ __all__ = [
     "TierRouter",
     "TokenUsage",
     "apply_research_defaults",
+    "apply_strict_defaults",
     "classify_http_error",
     "make_credential_pool_from_env",
     "parse_cache_usage",

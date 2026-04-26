@@ -8,11 +8,11 @@ if TYPE_CHECKING:
     from hi_agent.llm.tier_router import TierRouter
 
 
-def apply_research_defaults(tier_router: TierRouter) -> None:
-    """Apply research pipeline tier defaults to a TierRouter instance.
+def apply_strict_defaults(tier_router: TierRouter) -> None:
+    """Apply strict platform tier defaults to a TierRouter instance.
 
     Call this once after constructing TierRouter to configure
-    research-specific purpose → tier mappings:
+    purpose → tier mappings optimized for strict/research posture:
 
         pi_agent           → strong  (planning, judgment, cross-project reasoning)
         lean_proof         → strong  (formal verification, no downgrade)
@@ -31,3 +31,16 @@ def apply_research_defaults(tier_router: TierRouter) -> None:
     tier_router.set_tier("experiment_design", "medium", allow_upgrade=True, allow_downgrade=True)
     tier_router.set_tier("experiment_eval", "medium", allow_upgrade=True, allow_downgrade=True)
     tier_router.set_tier("survey_fetch", "light", allow_upgrade=True, allow_downgrade=False)
+
+
+def apply_research_defaults(tier_router: TierRouter) -> None:
+    """Deprecated. Use apply_strict_defaults. Removed in Wave 12."""
+    import warnings
+
+    warnings.warn(
+        "apply_research_defaults is deprecated and will be removed in Wave 12. "
+        "Use apply_strict_defaults instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return apply_strict_defaults(tier_router)

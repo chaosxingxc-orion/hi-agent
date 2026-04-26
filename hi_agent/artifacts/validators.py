@@ -5,10 +5,14 @@ import hashlib
 import json as _json
 from dataclasses import dataclass
 from pathlib import Path
-
-from examples.research_overlay.artifacts import CitationArtifact
+from typing import Protocol, runtime_checkable
 
 from hi_agent.artifacts.contracts import DatasetArtifact
+
+
+@runtime_checkable
+class _HasPaperId(Protocol):
+    paper_id: str
 
 
 @dataclass
@@ -27,7 +31,7 @@ class CitationValidator:
     that citations must refer to locally registered papers.
     """
 
-    def validate(self, citation: CitationArtifact, workspace_root: Path) -> ValidationResult:
+    def validate(self, citation: _HasPaperId, workspace_root: Path) -> ValidationResult:
         """Validate a citation against the local paper meta registry.
 
         Args:

@@ -169,7 +169,7 @@ class ArtifactLedger:
         self, source_ref: str, *, tenant_id: str | None = None
     ) -> list[Artifact]:
         """Return all artifacts referencing the given source ref, filtered by tenant."""
-        # TODO: implement full source_ref indexing in Wave 11
+        # TODO: implement full source_ref indexing in Wave 12 (full index deferred; wave 11 deadline missed)
         results = [a for a in self._store.values() if source_ref in a.source_refs]
         if tenant_id is not None and tenant_id != "":
             results = [a for a in results if self._tenant_visible(a, tenant_id)]
@@ -179,7 +179,7 @@ class ArtifactLedger:
         self, upstream_id: str, *, tenant_id: str | None = None
     ) -> list[Artifact]:
         """Return all artifacts with upstream_id in upstream_artifact_ids, filtered by tenant."""
-        # TODO: implement full upstream index in Wave 11
+        # TODO: implement full upstream index in Wave 12 (full index deferred; wave 11 deadline missed)
         results = [
             a for a in self._store.values() if upstream_id in a.upstream_artifact_ids
         ]
