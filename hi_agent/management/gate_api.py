@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from enum import StrEnum
@@ -9,6 +10,25 @@ from time import time
 
 from hi_agent.management.gate_context import GateContext
 from hi_agent.management.gate_timeout import GateTimeoutPolicy, resolve_gate_timeout
+
+_logger = logging.getLogger(__name__)
+
+
+def _warn_unscoped_gate_read(method: str, gate_ref: str | None) -> None:
+    """Emit a WARNING when an in-memory gate read is made without tenant_id under strict posture."""
+    try:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict:
+            _logger.warning(
+                "InMemoryGateAPI.%s called without tenant_id under strict posture "
+                "(gate_ref=%s); cross-tenant gate pool is being read",
+                method,
+                gate_ref,
+            )
+    except Exception:
+        # Posture lookup must never break reads.
+        return
 
 
 class GateAction(StrEnum):
@@ -101,18 +121,37 @@ class InMemoryGateAPI:
         self._records[ctx.gate_ref] = record
         return record
 
-    def list_pending(self) -> list[GateRecord]:
-        """List pending gates sorted by open time then gate ref."""
+    def list_pending(self, tenant_id: str | None = None) -> list[GateRecord]:
+        """List pending gates sorted by open time then gate ref.
+
+        When ``tenant_id`` is provided, only gates owned by that tenant are
+        returned.  When ``tenant_id is None`` the listing is unscoped (legacy
+        / process-internal callers); under strict posture this triggers a
+        WARNING.
+        """
+        if tenant_id is None:
+            _warn_unscoped_gate_read("list_pending", None)
         rows = [record for record in self._records.values() if record.status is GateStatus.PENDING]
+        if tenant_id is not None:
+            rows = [r for r in rows if r.context.tenant_id == tenant_id]
         return sorted(rows, key=lambda record: (record.context.opened_at, record.context.gate_ref))
 
-    def get_gate(self, gate_ref: str) -> GateRecord:
-        """Fetch a gate by reference."""
+    def get_gate(self, gate_ref: str, tenant_id: str | None = None) -> GateRecord:
+        """Fetch a gate by reference.
+
+        When ``tenant_id`` is provided, a record whose ``tenant_id`` does not
+        match raises ``ValueError(f"gate {gate_ref} not found")`` — same
+        shape as a missing record, preserving object-level 404 semantics.
+        """
         normalized_gate_ref = gate_ref.strip()
         if not normalized_gate_ref:
             raise ValueError("gate_ref must be a non-empty string")
+        if tenant_id is None:
+            _warn_unscoped_gate_read("get_gate", normalized_gate_ref)
         record = self._records.get(normalized_gate_ref)
         if record is None:
+            raise ValueError(f"gate {normalized_gate_ref} not found")
+        if tenant_id is not None and record.context.tenant_id != tenant_id:
             raise ValueError(f"gate {normalized_gate_ref} not found")
         return record
 

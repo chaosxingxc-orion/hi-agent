@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 from pathlib import Path
@@ -11,6 +12,25 @@ from typing import ClassVar
 from hi_agent.management.gate_api import GateRecord, GateStatus, InMemoryGateAPI
 from hi_agent.management.gate_context import GateContext
 from hi_agent.management.gate_timeout import GateTimeoutPolicy
+
+_logger = logging.getLogger(__name__)
+
+
+def _warn_unscoped_gate_read(method: str, gate_ref: str | None) -> None:
+    """Emit a WARNING when a gate read is made without tenant_id under strict posture."""
+    try:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict:
+            _logger.warning(
+                "Gate read %s called without tenant_id under strict posture "
+                "(gate_ref=%s); cross-tenant gate pool is being read",
+                method,
+                gate_ref,
+            )
+    except Exception:
+        # Posture lookup must never break reads.
+        return
 
 
 class SQLiteGateStore:
@@ -188,11 +208,20 @@ class SQLiteGateStore:
             self._con.commit()
         return record
 
-    def get_gate(self, gate_ref: str) -> GateRecord:
-        """Fetch a gate by reference. Raises ValueError if not found."""
+    def get_gate(self, gate_ref: str, tenant_id: str | None = None) -> GateRecord:
+        """Fetch a gate by reference. Raises ValueError if not found.
+
+        When ``tenant_id`` is provided, a row whose ``tenant_id`` does not
+        match raises ``ValueError(f"gate {gate_ref} not found")`` — same shape
+        as a missing row, preserving object-level 404 semantics.  When
+        ``tenant_id is None`` the lookup is unscoped (legacy / process-internal
+        callers); under strict posture this triggers a WARNING.
+        """
         normalized = gate_ref.strip()
         if not normalized:
             raise ValueError("gate_ref must be a non-empty string")
+        if tenant_id is None:
+            _warn_unscoped_gate_read("get_gate", normalized)
         row = self._con.execute(
             "SELECT gate_ref, run_id, project_id, stage_id, status, payload, "
             "tenant_id, user_id, session_id "
@@ -201,16 +230,33 @@ class SQLiteGateStore:
         ).fetchone()
         if row is None:
             raise ValueError(f"gate {normalized} not found")
+        if tenant_id is not None and (row[6] or "") != tenant_id:
+            raise ValueError(f"gate {normalized} not found")
         return self._row_to_record(row)
 
-    def list_pending(self) -> list[GateRecord]:
-        """Return all gates currently in PENDING status."""
-        rows = self._con.execute(
-            "SELECT gate_ref, run_id, project_id, stage_id, status, payload, "
-            "tenant_id, user_id, session_id "
-            "FROM gates WHERE status = ?",
-            (GateStatus.PENDING.value,),
-        ).fetchall()
+    def list_pending(self, tenant_id: str | None = None) -> list[GateRecord]:
+        """Return all gates currently in PENDING status.
+
+        When ``tenant_id`` is provided, only gates owned by that tenant are
+        returned.  When ``tenant_id is None`` the listing is unscoped (legacy
+        / process-internal callers); under strict posture this triggers a
+        WARNING.
+        """
+        if tenant_id is None:
+            _warn_unscoped_gate_read("list_pending", None)
+            rows = self._con.execute(
+                "SELECT gate_ref, run_id, project_id, stage_id, status, payload, "
+                "tenant_id, user_id, session_id "
+                "FROM gates WHERE status = ?",
+                (GateStatus.PENDING.value,),
+            ).fetchall()
+        else:
+            rows = self._con.execute(
+                "SELECT gate_ref, run_id, project_id, stage_id, status, payload, "
+                "tenant_id, user_id, session_id "
+                "FROM gates WHERE status = ? AND tenant_id = ?",
+                (GateStatus.PENDING.value, tenant_id),
+            ).fetchall()
         return [self._row_to_record(r) for r in rows]
 
     def resolve(

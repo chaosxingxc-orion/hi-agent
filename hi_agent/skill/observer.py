@@ -9,10 +9,13 @@ Observations are appended to a JSONL file (like ECC's observations.jsonl).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -94,8 +97,22 @@ class SkillObserver:
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(asdict(obs), default=str) + "\n")
 
-    def get_observations(self, skill_id: str, limit: int = 100) -> list[SkillObservation]:
-        """Load observations for a skill from disk."""
+    def get_observations(
+        self,
+        skill_id: str,
+        limit: int = 100,
+        tenant_id: str | None = None,
+    ) -> list[SkillObservation]:
+        """Load observations for a skill from disk.
+
+        When ``tenant_id`` is provided, observations are filtered to those
+        whose ``tenant_id`` field matches.  When ``tenant_id is None`` the
+        full unfiltered stream is returned (legacy / process-internal call
+        path); under strict posture this triggers a WARNING because every
+        request-scoped caller is required to pass an authenticated tenant.
+        """
+        if tenant_id is None:
+            self._warn_unscoped_read("get_observations", skill_id)
         path = os.path.join(self._storage_dir, f"{skill_id}.jsonl")
         if not os.path.exists(path):
             return []
@@ -107,18 +124,39 @@ class SkillObserver:
                 if not line:
                     continue
                 data = json.loads(line)
-                observations.append(SkillObservation(**data))
+                obs = SkillObservation(**data)
+                if tenant_id is not None and obs.tenant_id != tenant_id:
+                    continue
+                observations.append(obs)
 
         # Return most recent observations up to limit
         return observations[-limit:]
 
-    def get_metrics(self, skill_id: str) -> SkillMetrics:
-        """Aggregate metrics for a skill from observations."""
-        observations = self.get_observations(skill_id, limit=10000)
+    def get_metrics(
+        self, skill_id: str, tenant_id: str | None = None
+    ) -> SkillMetrics:
+        """Aggregate metrics for a skill from observations.
+
+        When ``tenant_id`` is provided, only that tenant's observations are
+        aggregated.  See :meth:`get_observations` for the unscoped-read trip.
+        """
+        if tenant_id is None:
+            self._warn_unscoped_read("get_metrics", skill_id)
+        observations = self.get_observations(
+            skill_id, limit=10000, tenant_id=tenant_id
+        )
         return _aggregate_metrics(skill_id, observations)
 
-    def get_all_metrics(self) -> dict[str, SkillMetrics]:
-        """Aggregate metrics for all observed skills."""
+    def get_all_metrics(
+        self, tenant_id: str | None = None
+    ) -> dict[str, SkillMetrics]:
+        """Aggregate metrics for all observed skills.
+
+        When ``tenant_id`` is provided, each skill's metrics are aggregated
+        only over that tenant's observations.
+        """
+        if tenant_id is None:
+            self._warn_unscoped_read("get_all_metrics", skill_id=None)
         result: dict[str, SkillMetrics] = {}
         if not os.path.exists(self._storage_dir):
             return result
@@ -126,9 +164,33 @@ class SkillObserver:
         for filename in os.listdir(self._storage_dir):
             if filename.endswith(".jsonl"):
                 skill_id = filename[:-6]  # strip .jsonl
-                result[skill_id] = self.get_metrics(skill_id)
+                result[skill_id] = self.get_metrics(skill_id, tenant_id=tenant_id)
 
         return result
+
+    def _warn_unscoped_read(self, method: str, skill_id: str | None) -> None:
+        """Emit a WARNING when a strict-posture read is made without tenant_id.
+
+        Rule 11 — research/prod default-on: every request-scoped read of a
+        shared observation pool must carry an authenticated ``tenant_id``.
+        Process-internal callers (e.g. ``SkillEvolver.evolve_cycle``) operate
+        on the cross-tenant pool by design and may pass ``tenant_id=None``;
+        the warning surfaces accidental cross-tenant reads from route
+        handlers.
+        """
+        try:
+            from hi_agent.config.posture import Posture
+
+            if Posture.from_env().is_strict:
+                _logger.warning(
+                    "SkillObserver.%s called without tenant_id under strict "
+                    "posture (skill_id=%s); cross-tenant pool is being read",
+                    method,
+                    skill_id,
+                )
+        except Exception:
+            # Posture lookup must never break reads.
+            return
 
 
 def _aggregate_metrics(skill_id: str, observations: list[SkillObservation]) -> SkillMetrics:

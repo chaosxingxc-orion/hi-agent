@@ -468,7 +468,7 @@ async def handle_skills_status(request: Request) -> JSONResponse:
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_ss
 
     try:
-        _rtc_ss()
+        ctx = _rtc_ss()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     server: AgentServer = request.app.state.agent_server
@@ -483,7 +483,7 @@ async def handle_skills_status(request: Request) -> JSONResponse:
         loader.discover()
         all_skills = loader.list_skills(eligible_only=False)
         eligible = [s for s in all_skills if s.check_eligibility()[0]]
-        all_metrics = evolver._observer.get_all_metrics()
+        all_metrics = evolver._observer.get_all_metrics(tenant_id=ctx.tenant_id)
 
         top = sorted(
             all_metrics.items(),
@@ -541,7 +541,7 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_sm
 
     try:
-        _rtc_sm()
+        ctx = _rtc_sm()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     skill_id = request.path_params["skill_id"]
@@ -555,7 +555,7 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
     try:
         from dataclasses import asdict
 
-        metrics = evolver._observer.get_metrics(skill_id)
+        metrics = evolver._observer.get_metrics(skill_id, tenant_id=ctx.tenant_id)
         return JSONResponse(asdict(metrics))
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
