@@ -283,6 +283,11 @@ class RunLifecycle:
                 "task_view_policy": policy_versions.task_view_policy,
                 "skill_policy": policy_versions.skill_policy,
             },
+            # W2-E.1 (Spine): project_id is the run's authoritative scope
+            # (TaskContract owns it).  Without this, RunPostmortem rows persist
+            # with empty project_id and Evolve cross-run analysis loses
+            # project attribution.
+            project_id=contract.project_id,
         )
 
     # ------------------------------------------------------------------

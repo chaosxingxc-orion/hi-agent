@@ -255,6 +255,14 @@ class RunTelemetry:
             from hi_agent.server.tenant_context import get_tenant_context as _gtc
 
             _tctx = _gtc()
+            # W2-E.2 (Spine): project_id is owned by the run (RunSession holds
+            # it for the run's lifetime).  Without this, SkillObservation rows
+            # persist with empty project_id and cross-project skill metrics
+            # collide.  Read from the bound RunSession; fall back to "" only
+            # when no session is wired (legacy/unit-test paths).
+            _project_id = ""
+            if self.session is not None:
+                _project_id = getattr(self.session, "project_id", "") or ""
             obs = SkillObservation(
                 observation_id=f"{run_id}:{stage_id}:{action_seq}",
                 skill_id=skill_id,
@@ -271,6 +279,7 @@ class RunTelemetry:
                 tenant_id=_tctx.tenant_id if _tctx else "",
                 user_id=_tctx.user_id if _tctx else "",
                 session_id=_tctx.session_id if _tctx else "",
+                project_id=_project_id,
             )
             self.skill_observer.observe(obs)
         except Exception as exc:
