@@ -6,9 +6,12 @@ _row_to_record method, checks that the dataclass fields all appear
 in at least one SELECT in that same file.
 Also flags 'len(row) >' defensive fallbacks (schema drift masking).
 
-Also checks (advisory WARNING, not FAIL) INSERT/enqueue call sites that
-target known spine tables but omit spine kwargs.  This is advisory only
-during the Wave 10.1 transition period so that CI is not blocked.
+Also checks (BLOCKING since Wave 10.2) INSERT/enqueue call sites that
+target known spine tables but omit spine kwargs.  Lines that use
+``**kwargs``-splat or carry an explicit ``# spine-skip: <reason>``
+trailing comment are exempt — splat expansion is opaque to static
+analysis and is allowed at deserialization sites where the written
+dict already carries the spine.
 """
 from __future__ import annotations
 
@@ -68,13 +71,20 @@ def check_defensive_fallbacks(path: Path) -> list[str]:
     return errors
 
 
-def check_spine_call_sites(path: Path) -> list[str]:
-    """Advisory: warn when a spine-table call site omits required spine kwargs.
+_SPLAT_RE = re.compile(r"\*\*\w+")
+_SPINE_SKIP_RE = re.compile(r"#\s*spine-skip\s*:\s*\S+")
 
-    Uses a simple heuristic: finds the call opener, then reads the next
-    N lines (up to the matching close paren) and checks that each required
-    kwarg appears in that range.  Emits WARNING — does not contribute to
-    the FAIL exit code.
+
+def check_spine_call_sites(path: Path) -> list[str]:
+    """Blocking: fail when a spine-table call site omits required spine kwargs.
+
+    Uses a simple heuristic: finds the call opener, reads up to 20 lines of
+    the call body, then checks that each required kwarg appears.  Two exits:
+    - the body contains ``**word`` splat expansion → skip (e.g. dict-rehydrate
+      from JSON; the persisted dict carries spine because the write-side
+      check enforces that).
+    - the opener line carries ``# spine-skip: <reason>`` trailing comment →
+      skip with reviewer-attested allowlist.
     """
     rel = str(path.relative_to(ROOT))
     # Skip test helpers and this script itself
@@ -82,23 +92,25 @@ def check_spine_call_sites(path: Path) -> list[str]:
         return []
 
     src = path.read_text(encoding="utf-8")
-    warnings = []
+    failures = []
     lines = src.splitlines()
 
     for call_pattern, required_kwargs in _SPINE_CALL_CHECKS:
         for i, line in enumerate(lines, 1):
             if not re.search(call_pattern, line):
                 continue
-            # Gather the call body: from this line until we find the closing ')'.
-            # Limit lookahead to 20 lines to avoid false negatives on large calls.
+            if _SPINE_SKIP_RE.search(line):
+                continue
             call_body = "\n".join(lines[i - 1 : i + 20])
+            if _SPLAT_RE.search(call_body):
+                continue
             missing = [kw for kw in required_kwargs if kw not in call_body]
             if missing:
-                warnings.append(
-                    f"  WARNING {rel}:{i}: {call_pattern!r} call missing spine kwargs:"
+                failures.append(
+                    f"  {rel}:{i}: {call_pattern!r} call missing spine kwargs:"
                     f" {', '.join(missing)}"
                 )
-    return warnings
+    return failures
 
 
 def main() -> int:
@@ -114,16 +126,15 @@ def main() -> int:
 
     print("OK check_select_completeness")
 
-    # Advisory spine-call checks (WARNING only, no FAIL)
-    advisory = []
+    spine_failures = []
     for path in find_all_python_files():
-        advisory.extend(check_spine_call_sites(path))
-    if advisory:
-        print("\nADVISORY check_spine_call_sites (non-blocking):")
-        for w in advisory:
+        spine_failures.extend(check_spine_call_sites(path))
+    if spine_failures:
+        print("\nFAIL check_spine_call_sites:")
+        for w in spine_failures:
             print(w)
-    else:
-        print("OK check_spine_call_sites (no missing spine kwargs found)")
+        return 1
+    print("OK check_spine_call_sites (all spine call sites carry required kwargs)")
 
     return 0
 

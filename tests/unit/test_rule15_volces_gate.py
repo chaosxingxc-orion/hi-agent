@@ -187,10 +187,26 @@ def test_run_gate_with_fakes_creates_evidence_and_writes_file(tmp_path, monkeypa
     assert [run.final_state for run in evidence.runs] == ["completed", "completed", "completed"]
     assert client.cancelled == ["run-1"]
     assert client.run_bodies == [
-        {"goal": "Rule 15 Volces gate run 0", "profile_id": "custom-profile"},
-        {"goal": "Rule 15 Volces gate run 1", "profile_id": "custom-profile"},
-        {"goal": "Rule 15 Volces gate run 2", "profile_id": "custom-profile"},
-        {"goal": "Rule 15 Volces gate run 3", "profile_id": "custom-profile"},
+        {
+            "goal": "Rule 15 Volces gate run 0",
+            "profile_id": "custom-profile",
+            "project_id": "rule15_gate_project",
+        },
+        {
+            "goal": "Rule 15 Volces gate run 1",
+            "profile_id": "custom-profile",
+            "project_id": "rule15_gate_project",
+        },
+        {
+            "goal": "Rule 15 Volces gate run 2",
+            "profile_id": "custom-profile",
+            "project_id": "rule15_gate_project",
+        },
+        {
+            "goal": "Rule 15 Volces gate run 3",
+            "profile_id": "custom-profile",
+            "project_id": "rule15_gate_project",
+        },
     ]
     assert process.terminated is True
     assert process.waited is True
