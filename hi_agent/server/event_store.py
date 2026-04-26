@@ -106,13 +106,13 @@ class SQLiteEventStore:
                 exec_ctx when the event's own fields are empty or legacy values.
         """
         if exec_ctx is not None:
-            if not event.tenant_id:
+            if exec_ctx.tenant_id:
                 event.tenant_id = exec_ctx.tenant_id
-            if event.user_id in ("", "__legacy__"):
-                event.user_id = exec_ctx.user_id or event.user_id
-            if event.session_id in ("", "__legacy__"):
-                event.session_id = exec_ctx.session_id or event.session_id
-            if not event.run_id:
+            if exec_ctx.user_id:
+                event.user_id = exec_ctx.user_id
+            if exec_ctx.session_id:
+                event.session_id = exec_ctx.session_id
+            if exec_ctx.run_id:
                 event.run_id = exec_ctx.run_id
         with self._lock:
             self._conn.execute(

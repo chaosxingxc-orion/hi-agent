@@ -60,13 +60,19 @@ CREATE TABLE IF NOT EXISTS team_runs (
     member_runs TEXT    NOT NULL DEFAULT '[]',
     created_at  TEXT    NOT NULL DEFAULT '',
     status      TEXT    NOT NULL DEFAULT 'created',
-    finished_at REAL    NOT NULL DEFAULT 0
+    finished_at REAL    NOT NULL DEFAULT 0,
+    tenant_id   TEXT    NOT NULL DEFAULT '',
+    user_id     TEXT    NOT NULL DEFAULT '',
+    session_id  TEXT    NOT NULL DEFAULT ''
 )
 """
 
     _MIGRATE_COLS: ClassVar[list[str]] = [
         "ALTER TABLE team_runs ADD COLUMN status TEXT NOT NULL DEFAULT 'created'",
         "ALTER TABLE team_runs ADD COLUMN finished_at REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE team_runs ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE team_runs ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE team_runs ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
     ]
 
     def __init__(self, db_path: str | None = None) -> None:
@@ -114,12 +120,18 @@ CREATE TABLE IF NOT EXISTS team_runs (
             team_run.created_at,
             "created",
             0.0,
+            getattr(team_run, "tenant_id", ""),
+            getattr(team_run, "user_id", ""),
+            getattr(team_run, "session_id", ""),
         )
 
     def _from_row(self, row: tuple) -> TeamRun:
         team_id, pi_run_id, project_id, member_json, created_at = (
             row[0], row[1], row[2], row[3], row[4]
         )
+        tenant_id = row[7]
+        user_id = row[8]
+        session_id = row[9]
         raw_members = json.loads(member_json) if member_json else []
         member_runs = tuple(tuple(pair) for pair in raw_members)
         return TeamRun(
@@ -128,6 +140,9 @@ CREATE TABLE IF NOT EXISTS team_runs (
             project_id=project_id,
             member_runs=member_runs,
             created_at=created_at,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            session_id=session_id,
         )
 
     # -- public API ----------------------------------------------------------
@@ -138,19 +153,31 @@ CREATE TABLE IF NOT EXISTS team_runs (
         Args:
             team_run: TeamRun to register. Replaces any existing entry for
                 the same team_id.
-            exec_ctx: Optional RunExecutionContext; when provided, project_id
-                is derived from exec_ctx when not set on the team_run.
+            exec_ctx: Optional RunExecutionContext; when provided, non-empty spine
+                fields (tenant_id, user_id, session_id, project_id) override the
+                corresponding team_run fields.
         """
-        if exec_ctx is not None and not team_run.project_id and exec_ctx.project_id:
+        if exec_ctx is not None:
             from dataclasses import replace as _replace
 
-            team_run = _replace(team_run, project_id=exec_ctx.project_id)
+            updates = {}
+            if exec_ctx.tenant_id:
+                updates["tenant_id"] = exec_ctx.tenant_id
+            if exec_ctx.user_id:
+                updates["user_id"] = exec_ctx.user_id
+            if exec_ctx.session_id:
+                updates["session_id"] = exec_ctx.session_id
+            if exec_ctx.project_id and not team_run.project_id:
+                updates["project_id"] = exec_ctx.project_id
+            if updates:
+                team_run = _replace(team_run, **updates)
         row = self._to_row(team_run)
         with self._lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO team_runs "
-                "(team_id, pi_run_id, project_id, member_runs, created_at, status, finished_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "(team_id, pi_run_id, project_id, member_runs, created_at, status, finished_at, "
+                "tenant_id, user_id, session_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 row,
             )
             self._conn.commit()
@@ -164,7 +191,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
         with self._lock:
             cur = self._conn.execute(
                 "SELECT team_id, pi_run_id, project_id, member_runs, "
-                "created_at, status, finished_at "
+                "created_at, status, finished_at, tenant_id, user_id, session_id "
                 "FROM team_runs WHERE team_id = ?",
                 (team_id,),
             )

@@ -17,11 +17,10 @@ from hi_agent.server.run_manager import ManagedRun
 def _make_managed_run(**overrides) -> ManagedRun:
     defaults = {
         "run_id": "run-test-001",
-        "task_contract": {"task_id": "t1"},
+        "task_contract": {"task_id": "t1", "project_id": "proj-alpha"},
         "tenant_id": "tenant-acme",
         "user_id": "user-bob",
         "session_id": "sess-xyz",
-        "project_id": "proj-alpha",
     }
     defaults.update(overrides)
     return ManagedRun(**defaults)

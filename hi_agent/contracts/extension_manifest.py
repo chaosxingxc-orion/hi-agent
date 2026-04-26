@@ -421,6 +421,30 @@ class ExtensionRegistry:
         """Return the manifest for the given name:version, or None."""
         return self._manifests.get(f"{name}:{version}")
 
+    def lookup(self, name: str) -> ExtensionManifest | None:
+        """Return the first registered manifest with the given name, or None."""
+        for key, manifest in self._manifests.items():
+            if key.startswith(f"{name}:"):
+                return manifest
+        return None
+
+    def list_all(self) -> list[ExtensionManifest]:
+        """Return all registered manifests (alias for list_manifests)."""
+        return list(self._manifests.values())
+
+    def list_by_kind(self, kind: str) -> list[ExtensionManifest]:
+        """Return manifests whose manifest_kind matches kind."""
+        return [m for m in self._manifests.values() if getattr(m, "manifest_kind", "") == kind]
+
+    def list_for_posture(self, posture: str) -> list[ExtensionManifest]:
+        """Return manifests that support the given posture."""
+        result = []
+        for m in self._manifests.values():
+            support = getattr(m, "posture_support", {})
+            if support.get(posture, True):
+                result.append(m)
+        return result
+
     def __len__(self) -> int:
         return len(self._manifests)
 

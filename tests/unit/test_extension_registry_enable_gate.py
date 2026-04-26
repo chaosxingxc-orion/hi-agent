@@ -19,7 +19,7 @@ from hi_agent.plugin.manifest import PluginManifest
 
 
 def _make_manifest(**overrides) -> PluginManifest:
-    defaults = {"name": "gate-ext", "version": "1.0.0"}
+    defaults = {"name": "gate-ext", "version": "1.0.0", "tenant_scope": "global"}
     defaults.update(overrides)
     return PluginManifest(**defaults)
 
@@ -154,14 +154,21 @@ def test_enable_dangerous_no_schema_research_blocked():
         reg.enable(pm.name, pm.version, Posture.RESEARCH)
 
 
-def test_enable_dangerous_with_schema_research_allowed():
-    """Dangerous extension WITH config_schema is allowed under research posture."""
+def test_enable_dangerous_with_schema_and_human_gate_research_allowed():
+    """Dangerous extension with config_schema + HumanGate approval is allowed under research."""
     reg = ExtensionRegistry()
     pm = _make_manifest(
         dangerous_capabilities=["filesystem_write"],
         config_schema={"type": "object"},
     )
-    _register_and_enable(reg, pm, Posture.RESEARCH)
+    reg.register(pm, Posture.DEV)
+    reg.approve_via_human_gate(
+        pm.name, pm.version,
+        tenant_id="",
+        approver_user_id="test-user",
+        gate_decision_id="gate-test-001",
+    )
+    reg.enable(pm.name, pm.version, Posture.RESEARCH)
     assert reg.is_enabled(pm.name, pm.version) is True
 
 

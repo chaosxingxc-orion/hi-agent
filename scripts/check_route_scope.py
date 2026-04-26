@@ -301,6 +301,14 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         replacement_test="test_routes_tools_tenant_injection.py",
         contract="global-readonly",
     ),
+    "handle_mcp_tools": AllowlistEntry(
+        reason="MCP tools root handler — lists registered MCP tool servers; global registry, per-tenant overlay Wave 11",
+        risk="Low — no per-tenant data exposed in tool server listing",
+        owner="DX",
+        expiry_wave="Wave 11",
+        replacement_test="test_routes_tools_tenant_injection.py",
+        contract="global-readonly",
+    ),
     "handle_mcp_tools_list": AllowlistEntry(
         reason="MCP tool listing — global MCP tool registry, per-tenant filtering planned Wave 11",
         risk="Low — same risk as handle_tools_list",

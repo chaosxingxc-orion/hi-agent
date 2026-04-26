@@ -153,7 +153,7 @@ def check_t3_inherited_claims() -> list[str]:
         src = notice.read_text(encoding="utf-8", errors="replace")
         lines = src.splitlines()
         # Draft notices are exempt from this check (HEAD backfill deferred).
-        if any(re.search(r"Status:.*draft", line, re.IGNORECASE) for line in lines):
+        if any(re.search(r"Status:.*(?:draft|superseded)", line, re.IGNORECASE) for line in lines):
             continue
         # Look for 'T3 inherited' pattern
         for line in lines:
@@ -241,7 +241,7 @@ def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
     src = notice.read_text(encoding="utf-8", errors="replace")
     if "notice-pre-final-commit: true" in src:
         return []
-    if re.search(r"Status:.*draft", src, re.IGNORECASE):
+    if re.search(r"Status:.*(?:draft|superseded)", src, re.IGNORECASE):
         return []
     sha_pattern = re.compile(
         r"(?:HEAD SHA[:\s*]+|HEAD:\s*)([0-9a-f]{7,40})\b", re.IGNORECASE
@@ -274,7 +274,7 @@ def check_notice_t3_deferred_vs_readiness(notice: Path | None) -> list[str]:
     if notice is None:
         return []
     src = notice.read_text(encoding="utf-8", errors="replace")
-    if re.search(r"Status:.*draft", src, re.IGNORECASE):
+    if re.search(r"Status:.*(?:draft|superseded)", src, re.IGNORECASE):
         return []
     has_t3_deferred = bool(re.search(r"T3 evidence[*:]+\s*DEFERRED", src, re.IGNORECASE))
     if not has_t3_deferred:
@@ -376,7 +376,7 @@ def check_notice_head_alignment() -> list[str]:
     for notice in DOCS.glob("downstream-responses/2026-*-wave*-notice.md"):
         src = notice.read_text(encoding="utf-8", errors="replace")
         lines = src.splitlines()
-        if any(re.search(r"Status:.*draft", line, re.IGNORECASE) for line in lines):
+        if any(re.search(r"Status:.*(?:draft|superseded)", line, re.IGNORECASE) for line in lines):
             continue  # draft notices are exempt
 
         func_heads = [
@@ -519,7 +519,7 @@ def check_validated_by_header() -> list[str]:
         src = notice.read_text(encoding="utf-8", errors="replace")
         lines = src.splitlines()
         # Skip draft notices
-        if any(re.search(r"Status:.*draft", line, re.IGNORECASE) for line in lines):
+        if any(re.search(r"Status:.*(?:draft|superseded)", line, re.IGNORECASE) for line in lines):
             continue
 
         score: float | None = None

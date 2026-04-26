@@ -27,8 +27,8 @@ def test_create_derives_tenant_from_exec_ctx(tmp_path):
     assert handle.project_id == "p1"
 
 
-def test_create_exec_ctx_wins_over_kwargs_for_spine(tmp_path):
-    """exec_ctx spine fields override explicit kwargs for tenant/run/project."""
+def test_create_kwargs_win_over_exec_ctx_for_spine(tmp_path):
+    """Explicit kwargs win over exec_ctx for tenant/run/project (W6-D: kwargs-wins rule)."""
     store = _make_store(tmp_path)
     ctx = RunExecutionContext(tenant_id="ctx-t", run_id="ctx-r", project_id="ctx-p")
 
@@ -43,9 +43,9 @@ def test_create_exec_ctx_wins_over_kwargs_for_spine(tmp_path):
         exec_ctx=ctx,
     )
 
-    assert handle.tenant_id == "ctx-t"
-    assert handle.run_id == "ctx-r"
-    assert handle.project_id == "ctx-p"
+    assert handle.tenant_id == "kwarg-t"
+    assert handle.run_id == "kwarg-r"
+    assert handle.project_id == "kwarg-p"
 
 
 def test_create_without_exec_ctx_uses_kwargs(tmp_path):

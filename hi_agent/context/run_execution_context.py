@@ -73,11 +73,16 @@ class RunExecutionContext:
         """Build a RunExecutionContext from a ManagedRun instance."""
         from hi_agent.server.run_manager import ManagedRun as _ManagedRun  # noqa: F401
 
+        project_id = (
+            getattr(run, "project_id", "") or
+            (getattr(run, "task_contract", {}) or {}).get("project_id", "") or
+            ""
+        )
         return cls(
             tenant_id=getattr(run, "tenant_id", "") or "",
             user_id=getattr(run, "user_id", "") or "",
             session_id=getattr(run, "session_id", "") or "",
-            project_id=getattr(run, "task_contract", {}).get("project_id", "") or "",
+            project_id=project_id,
             run_id=run.run_id,
             profile_id="",
             parent_run_id="",

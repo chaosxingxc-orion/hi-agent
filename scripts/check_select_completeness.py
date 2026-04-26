@@ -99,6 +99,65 @@ def check_defensive_fallbacks(path: Path) -> list[str]:
     return errors
 
 
+_SPINE_CLASSES = {
+    "RunFeedback": ["tenant_id"],
+    "HumanGateRequest": ["tenant_id"],
+    "RunPostmortem": ["tenant_id"],
+}
+
+
+def check_spine_call_sites(path: Path) -> list[str]:
+    """Scan a Python file for spine dataclass constructors missing required kwargs.
+
+    Flags call sites like RunFeedback(run_id="r1") that omit tenant_id=.
+    Skips splat patterns (**fields) and lines with # spine-skip: marker.
+    """
+    try:
+        src = path.read_text(encoding="utf-8")
+        tree = ast.parse(src)
+    except (OSError, SyntaxError):
+        return []
+
+    lines = src.splitlines()
+    failures = []
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Name):
+            cls_name = func.id
+        elif isinstance(func, ast.Attribute):
+            cls_name = func.attr
+        else:
+            continue
+        if cls_name not in _SPINE_CLASSES:
+            continue
+
+        # Skip splat expansions — deserialization sites, not construction
+        if any(isinstance(a, ast.Starred) for a in node.args):
+            continue
+        if any(isinstance(kw.arg, type(None)) for kw in node.keywords):
+            # **kwargs present
+            continue
+
+        # Check spine-skip comment on this line
+        lineno = node.lineno - 1
+        if 0 <= lineno < len(lines) and "# spine-skip:" in lines[lineno]:
+            continue
+
+        required = _SPINE_CLASSES[cls_name]
+        provided = {kw.arg for kw in node.keywords if kw.arg is not None}
+        missing = [f for f in required if f not in provided]
+        if missing:
+            failures.append(
+                f"  {path}:{node.lineno}: {cls_name}() missing required spine kwargs: "
+                + ", ".join(f"{f}=" for f in missing)
+            )
+
+    return failures
+
+
 def check_exec_ctx_precedence(root: Path) -> list[str]:
     """Check that no production writer uses exec_ctx-wins precedence.
 

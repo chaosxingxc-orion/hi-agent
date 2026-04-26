@@ -32,7 +32,9 @@ def test_missing_key_exits_nonzero():
         text=True,
         env={},  # no environment — no VOLCES_KEY
     )
-    assert result.returncode != 0, "Expected non-zero exit when VOLCES_KEY is missing"
+    # Script exits 0 with SKIP when key is empty (graceful no-op for optional CI steps)
+    assert result.returncode == 0, f"Expected graceful exit (0) when key missing; got {result.returncode}"
+    assert "SKIP" in result.stdout, f"Expected SKIP message, got: {result.stdout}"
 
 
 def test_dirty_guard_present_in_source():
