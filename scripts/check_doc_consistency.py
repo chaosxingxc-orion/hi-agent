@@ -27,9 +27,9 @@ def check_t3_inherited_claims() -> list[str]:
     delivery_dir = DOCS / "delivery"
     for notice in DOCS.glob("downstream-responses/*delivery-notice*.md"):
         src = notice.read_text(encoding="utf-8", errors="replace")
-        # Look for 'T3 inherited' pattern
+        # Look for T3 evidence: inherited claims (not descriptive mentions of the concept)
         for line in src.splitlines():
-            if re.search(r"T3.*inherited", line, re.IGNORECASE):
+            if re.search(r"T3\s+evidence[^:]*:\s*inherited", line, re.IGNORECASE):
                 # Extract SHA if present
                 sha_match = re.search(r"\b([0-9a-f]{7,40})\b", line)
                 if sha_match:
