@@ -2565,7 +2565,7 @@ class HumanGateResolution:
 
 
 @dataclass(frozen=True, slots=True)
-class RunPostmortemView:
+class RunRetrospectiveView:
     """Aggregated run data for post-run analysis by hi-agent evolve.
 
     This is a projection that scans the run's event log to aggregate action
@@ -2603,6 +2603,10 @@ class ChildRunSummary:
     completed_at: str | None
     query_error: str | None = None
     """Set to the exception string when the child run query failed; None on success."""
+
+
+# Backward-compat alias — RunPostmortemView renamed to RunRetrospectiveView (Wave 11).
+RunPostmortemView = RunRetrospectiveView
 
 
 # ---------------------------------------------------------------------------

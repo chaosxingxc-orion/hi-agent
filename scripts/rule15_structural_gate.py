@@ -29,7 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.rule15_volces_gate import (
+from scripts.run_t3_gate import (
     _assert_no_fallback_events,
     _build_client,
     _build_server_command,

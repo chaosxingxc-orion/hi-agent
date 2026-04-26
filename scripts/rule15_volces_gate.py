@@ -7,17 +7,17 @@ import subprocess
 import sys
 import warnings
 
-warnings.warn(
-    "rule15_volces_gate.py is deprecated; use run_t3_gate.py --provider volces instead. "
-    "This shim will be removed in Wave 12.",
-    DeprecationWarning,
-    stacklevel=1,
-)
+if __name__ == "__main__":
+    warnings.warn(
+        "rule15_volces_gate.py is deprecated; use run_t3_gate.py --provider volces instead. "
+        "This shim will be removed in Wave 12.",
+        DeprecationWarning,
+        stacklevel=1,
+    )
 
-# Forward all arguments to the new provider-neutral gate with --provider volces.
-# Translate legacy --profile-id rule15_volces default if not explicitly overridden.
-result = subprocess.run(
-    [sys.executable, "scripts/run_t3_gate.py", "--provider", "volces", *sys.argv[1:]],
-    cwd=None,
-)
-sys.exit(result.returncode)
+    # Forward all arguments to the new provider-neutral gate with --provider volces.
+    result = subprocess.run(
+        [sys.executable, "scripts/run_t3_gate.py", "--provider", "volces", *sys.argv[1:]],
+        cwd=None,
+    )
+    sys.exit(result.returncode)

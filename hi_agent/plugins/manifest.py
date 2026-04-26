@@ -119,6 +119,7 @@ class PluginManifest(ExtensionManifestMixin):
         d = self.to_dict()
         d.update(
             {
+                "kind": self.manifest_kind,
                 "manifest_kind": self.manifest_kind,
                 "schema_version": self.schema_version,
                 "posture_support": self.posture_support,

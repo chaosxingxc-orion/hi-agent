@@ -5,7 +5,7 @@ from collections import deque
 from types import SimpleNamespace
 
 import pytest
-from scripts.rule15_volces_gate import (
+from scripts.run_t3_gate import (
     GateConfig,
     _assert_no_fallback_events,
     _build_client,
@@ -140,9 +140,9 @@ def test_poll_run_to_terminal_returns_completed(monkeypatch):
             {"run_id": "run-1", "state": "completed", "fallback_events": []},
         ]
     )
-    monkeypatch.setattr("scripts.rule15_volces_gate.time.sleep", lambda *_: None)
+    monkeypatch.setattr("scripts.run_t3_gate.time.sleep", lambda *_: None)
     ticks = iter([0, 0, 1, 1, 2, 2])
-    monkeypatch.setattr("scripts.rule15_volces_gate.time.monotonic", ticks.__next__)
+    monkeypatch.setattr("scripts.run_t3_gate.time.monotonic", ticks.__next__)
     payload, polls, duration = _poll_run_to_terminal(
         client, "run-1", timeout_s=10, poll_interval_s=0
     )
@@ -171,9 +171,9 @@ def test_run_gate_with_fakes_creates_evidence_and_writes_file(tmp_path, monkeypa
         request_timeout_s=2,
         startup_timeout_s=2,
     )
-    monkeypatch.setattr("scripts.rule15_volces_gate.time.sleep", lambda *_: None)
+    monkeypatch.setattr("scripts.run_t3_gate.time.sleep", lambda *_: None)
     ticks = iter(range(1000))
-    monkeypatch.setattr("scripts.rule15_volces_gate.time.monotonic", lambda: next(ticks))
+    monkeypatch.setattr("scripts.run_t3_gate.time.monotonic", lambda: next(ticks))
 
     evidence = run_gate(
         config,
@@ -240,9 +240,9 @@ def test_run_gate_fails_cleanly_when_cancel_route_missing(tmp_path, monkeypatch)
         request_timeout_s=2,
         startup_timeout_s=2,
     )
-    monkeypatch.setattr("scripts.rule15_volces_gate.time.sleep", lambda *_: None)
+    monkeypatch.setattr("scripts.run_t3_gate.time.sleep", lambda *_: None)
     ticks = iter(range(1000))
-    monkeypatch.setattr("scripts.rule15_volces_gate.time.monotonic", lambda: next(ticks))
+    monkeypatch.setattr("scripts.run_t3_gate.time.monotonic", lambda: next(ticks))
 
     with pytest.raises(RuntimeError, match="compatibility route is missing or miswired"):
         run_gate(

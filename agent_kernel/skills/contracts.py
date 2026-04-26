@@ -12,7 +12,7 @@ SkillRuntime, factory protocols) live in hi_agent.skills.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from agent_kernel.kernel.contracts import (
@@ -210,7 +210,43 @@ class SkillActionResolveInput:
     preferred_version: str | None = None
 
 
+@runtime_checkable
+class ManagedSkillRuntime(Protocol):
+    """Protocol for skill runtimes that expose full lifecycle hooks."""
+
+    def execute(self, input: SkillExecutionInput) -> SkillExecutionResult: ...
+
+    def validate(self) -> None: ...
+
+    def warmup(self) -> None: ...
+
+    def shutdown(self) -> None: ...
+
+
+class SkillRuntimeHostFactory(Protocol):
+    """Protocol for factories that produce skill runtime hosts."""
+
+    def create_for_host(self, host_kind: SkillRuntimeHost, **kwargs: Any) -> Any: ...
+
+
+class LocalSkillRuntimeFactory(Protocol):
+    """Protocol for factories that produce local-execution skill runtimes."""
+
+    def create_cli_process(self, **kwargs: Any) -> Any: ...
+
+    def create_in_process_python(self, **kwargs: Any) -> Any: ...
+
+
+class RemoteSkillGatewayFactory(Protocol):
+    """Protocol for factories that produce remote-gateway skill runtimes."""
+
+    def create_remote_service(self, **kwargs: Any) -> Any: ...
+
+
 __all__ = [
+    "LocalSkillRuntimeFactory",
+    "ManagedSkillRuntime",
+    "RemoteSkillGatewayFactory",
     "ResolvedSkillPlan",
     "SkillActionResolveInput",
     "SkillDefinition",
@@ -221,4 +257,5 @@ __all__ = [
     "SkillRequest",
     "SkillResult",
     "SkillRuntimeHost",
+    "SkillRuntimeHostFactory",
 ]

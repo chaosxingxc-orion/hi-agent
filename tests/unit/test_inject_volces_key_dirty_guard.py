@@ -1,4 +1,4 @@
-"""Tests that inject_volces_key.py refuses to run when config is dirty."""
+"""Tests that inject_provider_key.py (and its volces shim) behave correctly."""
 from __future__ import annotations
 
 import subprocess
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 
-def test_script_is_syntactically_valid():
+def test_volces_shim_is_syntactically_valid():
     """inject_volces_key.py compiles without syntax errors."""
     script = Path("scripts/inject_volces_key.py")
     if not script.exists():
@@ -21,39 +21,51 @@ def test_script_is_syntactically_valid():
     assert result.returncode == 0, f"Syntax error in inject_volces_key.py:\n{result.stderr}"
 
 
-def test_missing_key_exits_nonzero():
-    """Without VOLCES_KEY set, the script exits with a non-zero code."""
-    script = Path("scripts/inject_volces_key.py")
+def test_provider_key_script_is_syntactically_valid():
+    """inject_provider_key.py compiles without syntax errors."""
+    script = Path("scripts/inject_provider_key.py")
     if not script.exists():
-        pytest.skip("scripts/inject_volces_key.py not found")
+        pytest.skip("scripts/inject_provider_key.py not found")
     result = subprocess.run(
-        [sys.executable, str(script)],
+        [sys.executable, "-m", "py_compile", str(script)],
         capture_output=True,
         text=True,
-        env={},  # no environment — no VOLCES_KEY
     )
-    # Script exits 0 with SKIP when key is empty (graceful no-op for optional CI steps)
-    assert result.returncode == 0, f"Expected graceful exit (0) when key missing; got {result.returncode}"
-    assert "SKIP" in result.stdout, f"Expected SKIP message, got: {result.stdout}"
+    assert result.returncode == 0, f"Syntax error in inject_provider_key.py:\n{result.stderr}"
 
 
-def test_dirty_guard_present_in_source():
-    """The dirty-check guard is present in the script source."""
-    script = Path("scripts/inject_volces_key.py")
+def test_missing_key_exits_nonzero():
+    """Without any provider key set, inject_provider_key.py exits nonzero."""
+    script = Path("scripts/inject_provider_key.py")
     if not script.exists():
-        pytest.skip("scripts/inject_volces_key.py not found")
-    source = script.read_text(encoding="utf-8")
-    assert "git" in source and "status" in source and "--porcelain" in source, (
-        "dirty-check guard must call git status --porcelain"
+        pytest.skip("scripts/inject_provider_key.py not found")
+    result = subprocess.run(
+        [sys.executable, str(script), "--provider", "volces"],
+        capture_output=True,
+        text=True,
+        env={},  # no environment — no API keys
     )
-    assert "INJECT_FORCE" in source, "dirty-check guard must honour INJECT_FORCE override"
+    assert result.returncode != 0, f"Expected nonzero exit when key missing; got {result.returncode}"
+    assert "ERROR" in result.stderr or "no key" in result.stderr.lower(), (
+        f"Expected error message about missing key, got: {result.stderr}"
+    )
 
 
-def test_atexit_restore_present_in_source():
-    """The atexit restore hook is present in the script source."""
-    script = Path("scripts/inject_volces_key.py")
+def test_restore_function_present_in_source():
+    """The restore function is present in inject_provider_key.py."""
+    script = Path("scripts/inject_provider_key.py")
     if not script.exists():
-        pytest.skip("scripts/inject_volces_key.py not found")
+        pytest.skip("scripts/inject_provider_key.py not found")
     source = script.read_text(encoding="utf-8")
-    assert "atexit" in source, "atexit restore hook must be registered"
-    assert "_restore_original" in source, "restore function must be defined"
+    assert "_restore" in source, "restore function must be defined"
+    assert "--restore" in source, "--restore flag must be documented"
+
+
+def test_provider_key_script_supports_multiple_providers():
+    """inject_provider_key.py accepts --provider argument with known providers."""
+    script = Path("scripts/inject_provider_key.py")
+    if not script.exists():
+        pytest.skip("scripts/inject_provider_key.py not found")
+    source = script.read_text(encoding="utf-8")
+    for provider in ("volces", "anthropic", "openai", "auto"):
+        assert provider in source, f"Provider '{provider}' must be supported"

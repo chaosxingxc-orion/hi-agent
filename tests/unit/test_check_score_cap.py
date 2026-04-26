@@ -1,4 +1,4 @@
-"""Tests for check_score_cap() in scripts/check_doc_consistency.py."""
+"""Tests for check_score_cap() in scripts/check_downstream_response_format.py."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ _SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from check_doc_consistency import check_score_cap
+from check_downstream_response_format import check_score_cap
 
 _HEAD = "abcdef1234567890abcdef1234567890abcdef12"
 
@@ -43,15 +43,15 @@ def _write_delivery_json(delivery_dir: Path, sha7: str) -> Path:
 
 
 def _patch_docs(tmp_path: Path):
-    return patch("check_doc_consistency.DOCS", tmp_path)
+    return patch("check_downstream_response_format.DOCS", tmp_path)
 
 
 def _patch_t3(fresh: bool):
-    return patch("check_doc_consistency._t3_is_fresh", return_value=fresh)
+    return patch("check_downstream_response_format._t3_is_fresh", return_value=fresh)
 
 
 def _patch_git_head(sha: str):
-    return patch("check_doc_consistency._git_head", return_value=sha)
+    return patch("check_downstream_response_format._git_head", return_value=sha)
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ def test_t3_stale_score_above_cap_emits_violation(tmp_path: Path) -> None:
 
 def test_t3_fresh_with_evidence_score_78_passes(tmp_path: Path) -> None:
     """T3 fresh + clean-env evidence + score 78 must pass (no cap)."""
-    _write_notice(tmp_path, score=78.0, validated_by="scripts/check_doc_consistency.py")
+    _write_notice(tmp_path, score=78.0, validated_by="scripts/check_downstream_response_format.py")
     delivery_dir = tmp_path / "delivery"
     _write_delivery_json(delivery_dir, _HEAD[:7])
 
@@ -126,7 +126,7 @@ def test_t3_fresh_no_evidence_score_above_cap_emits_violation(tmp_path: Path) ->
 
 def test_t3_fresh_no_evidence_score_within_cap_passes(tmp_path: Path) -> None:
     """T3 fresh but no clean-env evidence + score 77.5 must pass (cap 78.0)."""
-    _write_notice(tmp_path, score=77.5, validated_by="scripts/check_doc_consistency.py")
+    _write_notice(tmp_path, score=77.5, validated_by="scripts/check_downstream_response_format.py")
 
     with _patch_docs(tmp_path), _patch_t3(True), _patch_git_head(_HEAD):
         errors = check_score_cap()
