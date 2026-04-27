@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _current_wave import is_expired  # noqa: E402
+from _current_wave import is_expired
 
 ROOT = Path(__file__).parent.parent
 
@@ -144,7 +144,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="",
     ),
     "handle_submit_feedback": AllowlistEntry(
-        reason="Feedback submission — run_id scoped; feedback tied to run which is workspace-scoped",
+        reason="Feedback submission — run_id scoped; feedback tied to run (workspace-scoped)",
         risk="Medium — must verify run ownership before accepting feedback",
         owner="RO",
         expiry_wave="permanent",
@@ -177,7 +177,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
     ),
     # Memory status — profile derived from ctx (handled by _resolve_profile_id)
     "handle_memory_status": AllowlistEntry(
-        reason="Memory status — profile_id derived from ctx via _resolve_profile_id; tenant implicit",
+        reason="Memory status — profile_id from ctx via _resolve_profile_id; tenant implicit",
         risk="Low — _resolve_profile_id enforces ctx-to-profile binding; no cross-tenant access",
         owner="RO",
         expiry_wave="permanent",
@@ -186,7 +186,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
     ),
     # Knowledge routes — system-wide knowledge, no per-tenant resource isolation
     "handle_knowledge_ingest": AllowlistEntry(
-        reason="Knowledge ingest — global KG, per-tenant isolation not yet implemented; deferred to Wave 12 (owner: RO)",
+        reason="Knowledge ingest — global KG, per-tenant isolation not yet implemented; Wave 12",
         risk="High — ingest without tenant scope could pollute shared graph across tenants",
         owner="RO",
         expiry_wave="Wave 12",
@@ -194,7 +194,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="",
     ),
     "handle_knowledge_ingest_structured": AllowlistEntry(
-        reason="Structured knowledge ingest — same scope gap as handle_knowledge_ingest; deferred to Wave 12 (owner: RO)",
+        reason="Structured knowledge ingest — same scope gap as handle_knowledge_ingest; Wave 12",
         risk="High — same risk as handle_knowledge_ingest",
         owner="RO",
         expiry_wave="Wave 12",
@@ -202,7 +202,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="",
     ),
     "handle_knowledge_query": AllowlistEntry(
-        reason="Knowledge query — global graph query, per-tenant filtering not yet implemented; deferred to Wave 12 (owner: RO)",
+        reason="Knowledge query — global graph, per-tenant filtering not yet implemented; Wave 12",
         risk="High — query without tenant scope returns cross-tenant knowledge nodes",
         owner="RO",
         expiry_wave="Wave 12",
@@ -210,7 +210,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="",
     ),
     "handle_knowledge_status": AllowlistEntry(
-        reason="Knowledge status — system-wide KG statistics; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: RO)",
+        reason="Knowledge status — system-wide KG stats; tenant-isolation not yet impl; Wave 12",
         risk="Low — reveals aggregate KG size; no per-tenant node data",
         owner="RO",
         expiry_wave="Wave 12",
@@ -218,7 +218,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="system-info",
     ),
     "handle_knowledge_lint": AllowlistEntry(
-        reason="Knowledge lint — stateless format validation; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: RO)",
+        reason="Knowledge lint — stateless validation; tenant-isolation not yet impl; Wave 12",
         risk="Low — lint result is stateless; no stored per-tenant data access",
         owner="RO",
         expiry_wave="Wave 12",
@@ -226,7 +226,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="",
     ),
     "handle_knowledge_sync": AllowlistEntry(
-        reason="Knowledge sync — system-wide sync, per-tenant scope not yet implemented; deferred to Wave 12 (owner: RO)",
+        reason="Knowledge sync — system-wide sync, per-tenant scope not yet implemented; Wave 12",
         risk="High — sync without tenant scope could overwrite cross-tenant knowledge",
         owner="RO",
         expiry_wave="Wave 12",
@@ -235,7 +235,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
     ),
     # Skills routes — global skill registry, no per-tenant resource isolation
     "handle_skills_list": AllowlistEntry(
-        reason="Skills listing — global registry, per-tenant overlay not yet implemented; deferred to Wave 12 (owner: TE)",
+        reason="Skills listing — global registry, per-tenant overlay not yet implemented; Wave 12",
         risk="Low — all tenants see all skills; no secret per-tenant skills exposed",
         owner="TE",
         expiry_wave="Wave 12",
@@ -243,7 +243,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="global-readonly",
     ),
     "handle_skills_status": AllowlistEntry(
-        reason="Skills status — system-wide skill health; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: TE)",
+        reason="Skills status — system-wide skill health; tenant-isolation not yet impl; Wave 12",
         risk="Low — reveals aggregate skill availability; no per-tenant data",
         owner="TE",
         expiry_wave="Wave 12",
@@ -251,7 +251,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="system-info",
     ),
     "handle_skills_evolve": AllowlistEntry(
-        reason="Skill evolution — global trigger, per-tenant scope not yet implemented; deferred to Wave 12 (owner: TE)",
+        reason="Skill evolution — global trigger, per-tenant scope not yet implemented; Wave 12",
         risk="High — evolution without tenant scope could modify skills used by other tenants",
         owner="TE",
         expiry_wave="Wave 12",
@@ -259,7 +259,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="",
     ),
     "handle_skill_metrics": AllowlistEntry(
-        reason="Skill metrics — aggregate counters; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: TE)",
+        reason="Skill metrics — aggregate counters; tenant-isolation not yet implemented; Wave 12",
         risk="Low — reveals skill usage patterns; no per-tenant data in current implementation",
         owner="TE",
         expiry_wave="Wave 12",
@@ -267,7 +267,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="system-info",
     ),
     "handle_skill_versions": AllowlistEntry(
-        reason="Skill versions — global version history; tenant-isolation filter not yet implemented; deferred to Wave 12 (owner: TE)",
+        reason="Skill versions — global version history; tenant-isolation not yet impl; Wave 12",
         risk="Low — version list is global; no per-tenant version isolation",
         owner="TE",
         expiry_wave="Wave 12",
@@ -275,7 +275,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="global-readonly",
     ),
     "handle_skill_optimize": AllowlistEntry(
-        reason="Skill optimization — global trigger, per-tenant scope not yet implemented; deferred to Wave 12 (owner: TE)",
+        reason="Skill optimization — global trigger, per-tenant scope not yet implemented; Wave 12",
         risk="High — optimization without tenant scope could degrade shared skill quality",
         owner="TE",
         expiry_wave="Wave 12",
@@ -283,7 +283,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="",
     ),
     "handle_skill_promote": AllowlistEntry(
-        reason="Skill promotion — global promotion, per-tenant approval not yet implemented; deferred to Wave 12 (owner: TE)",
+        reason="Skill promotion — global promotion, per-tenant approval not yet impl; Wave 12",
         risk="High — promotion without tenant scope could affect all tenant skill availability",
         owner="TE",
         expiry_wave="Wave 12",
@@ -292,7 +292,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
     ),
     # Tools/MCP — invocation routes, tenant injected via ctx downstream
     "handle_tools_call": AllowlistEntry(
-        reason="Tool invocation — tenant_id injected downstream; per-tenant filter not yet implemented; deferred to Wave 12 (owner: DX)",
+        reason="Tool invocation — tenant_id injected downstream; per-tenant filter absent; Wave 12",
         risk="Medium — must verify tool call context carries tenant_id before execution",
         owner="DX",
         expiry_wave="Wave 12",
@@ -300,7 +300,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="",
     ),
     "handle_tools_list": AllowlistEntry(
-        reason="Tool listing — global registry, per-tenant filtering not yet implemented; deferred to Wave 12 (owner: DX)",
+        reason="Tool listing — global registry, per-tenant filtering not yet implemented; Wave 12",
         risk="Low — all tenants see all tools; no secret per-tenant tools in current impl",
         owner="DX",
         expiry_wave="Wave 12",
@@ -308,7 +308,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="global-readonly",
     ),
     "handle_mcp_tools": AllowlistEntry(
-        reason="MCP tools root handler — global registry, per-tenant overlay not yet implemented; deferred to Wave 12 (owner: DX)",
+        reason="MCP tools root handler — global registry, per-tenant overlay not yet impl; Wave 12",
         risk="Low — no per-tenant data exposed in tool server listing",
         owner="DX",
         expiry_wave="Wave 12",
@@ -316,7 +316,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="global-readonly",
     ),
     "handle_mcp_tools_list": AllowlistEntry(
-        reason="MCP tool listing — global registry, per-tenant filtering not yet implemented; deferred to Wave 12 (owner: DX)",
+        reason="MCP tool listing — global registry, per-tenant filtering not yet impl; Wave 12",
         risk="Low — same risk as handle_tools_list",
         owner="DX",
         expiry_wave="Wave 12",
@@ -324,7 +324,7 @@ NO_SCOPE_ALLOWLIST: dict[str, AllowlistEntry] = {
         contract="global-readonly",
     ),
     "handle_mcp_tools_call": AllowlistEntry(
-        reason="MCP tool invocation — tenant_id injected downstream; per-tenant filter not yet implemented; deferred to Wave 12 (owner: DX)",
+        reason="MCP tool invocation — tenant_id injected downstream; per-tenant filter absent; W12",
         risk="Medium — same risk as handle_tools_call",
         owner="DX",
         expiry_wave="Wave 12",

@@ -570,7 +570,9 @@ def _git_head_sha(repo: Path) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="CLAUDE.md rule enforcement (DF-42)")
     parser.add_argument("--verbose", action="store_true", help="show every violation line")
-    parser.add_argument("--json", action="store_true", help="emit JSON output to stdout after checks")
+    parser.add_argument(
+        "--json", action="store_true", help="emit JSON output to stdout after checks"
+    )
     parser.add_argument(
         "--repo-root",
         type=Path,

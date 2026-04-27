@@ -37,7 +37,7 @@ _DEFAULT_SCORE_CAP = "76.5 (T3 pending; score cap applies until T3 gate passes)"
 def _git_run(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
     """Run a git command and return the result."""
     return subprocess.run(
-        ["git"] + args,
+        ["git", *args],
         capture_output=True,
         text=True,
         cwd=str(ROOT),

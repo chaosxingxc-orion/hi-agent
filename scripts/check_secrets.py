@@ -16,7 +16,9 @@ import sys
 from pathlib import Path
 
 # Patterns that suggest a real API key (not a placeholder)
-_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
+_UUID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE
+)
 _KEY_FIELD_RE = re.compile(r'"(?:api_key|apiKey|key|token|secret|password)"\s*:\s*"([^"]{8,})"')
 
 SUSPICIOUS_CONTEXT_WORDS = {"api_key", "apikey", "key", "token", "secret", "password", "access_key"}
@@ -59,7 +61,8 @@ def check_md_file(path: Path) -> None:
         has_key_word = any(w in line_lower for w in SUSPICIOUS_CONTEXT_WORDS)
         if has_key_word and _UUID_RE.search(line):
             # Exclude obvious placeholders
-            if any(placeholder in line.lower() for placeholder in ["<sha>", "{{", "example", "placeholder", "xxx"]):
+            placeholders = ["<sha>", "{{", "example", "placeholder", "xxx"]
+            if any(placeholder in line.lower() for placeholder in placeholders):
                 continue
             findings.append(f"{path}:{lineno} — UUID-like value in secret context")
 
@@ -73,7 +76,8 @@ def check_delivery_json(path: Path) -> None:
 
     for m in _KEY_FIELD_RE.finditer(text):
         value = m.group(1)
-        if _UUID_RE.match(value) or (len(value) > 20 and value.replace("-", "").replace("_", "").isalnum()):
+        alphanum = value.replace("-", "").replace("_", "").isalnum()
+        if _UUID_RE.match(value) or (len(value) > 20 and alphanum):
             findings.append(f"{path}: secret-like value in key field: {value[:8]}...")
 
 
@@ -102,7 +106,10 @@ def main() -> int:
         for finding in findings:
             print(f"  {finding}")
         print("\nTo fix: ensure api_key fields in config/llm_config.json are empty (\"\").")
-        print("Use 'git update-index --skip-worktree config/llm_config.json' to protect your local copy.")
+        print(
+            "Use 'git update-index --skip-worktree config/llm_config.json'"
+            " to protect your local copy."
+        )
         return 1
 
     print("SECRETS CHECK OK — no secrets found in tracked files")
