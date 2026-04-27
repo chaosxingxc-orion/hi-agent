@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "real",
+  "manifest_id": "2026-04-27-d7e949e",
+  "verified_head": "d7e949eef20703a173f627e5a2c199da5ba8866f",
+  "generated_at": "2026-04-27T12:30:32.825832+00:00",
+  "current_verified_readiness": 70.0,
+  "cap": 70.0,
+  "cap_reason": "dirty_worktree; gate_fail: verification_artifacts, manifest_freshness; t3_deferred; gate_warn/deferred: vocab, t3_freshness, noqa_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "dirty_worktree",
+    "gate_fail: verification_artifacts, manifest_freshness",
+    "t3_deferred",
+    "gate_warn/deferred: vocab, t3_freshness, noqa_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}
