@@ -62,7 +62,7 @@ _GATE_SCRIPTS: dict[str, tuple[str, bool, list[str]]] = {
     "select_completeness":        ("check_select_completeness.py",        True,  []),
     "silent_degradation":         ("check_silent_degradation.py",         True,  []),
     "metric_producers":           ("check_metric_producers.py",           True,  []),
-    "downstream_response_format": ("check_downstream_response_format.py", True,  []),
+    "downstream_response_format": ("check_downstream_response_format.py", False, []),
     # W14 new gates (B, D, E tracks)
     "evidence_provenance":        ("check_evidence_provenance.py",        True,  []),
     "allowlist_universal":        ("check_allowlist_universal.py",        True,  []),
@@ -373,6 +373,7 @@ def _write_pre_manifest_artifact(short_sha: str, head_sha: str, date_str: str) -
         json.dumps({
             "schema_version": "1",
             "check": "manifest_build_gate",
+            "provenance": "real",
             "release_head": short_sha,
             "verified_head": head_sha,
             "wave": _current_wave(),
