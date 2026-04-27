@@ -417,6 +417,62 @@ def _compute_cap(
                 if expired_allowlist > 0
                 else None
             )
+        if condition == "notice_inconsistency":
+            # Fails when check_doc_consistency or check_release_identity reports fail
+            doc_gate = gates.get("doc_consistency", {})
+            doc_status = doc_gate.get("status", "unknown") if isinstance(doc_gate, dict) else "unknown"
+            id_gate = gates.get("release_identity", {})
+            id_status = id_gate.get("status", "unknown") if isinstance(id_gate, dict) else "unknown"
+            if doc_status == "fail":
+                return f"notice_inconsistency: doc_consistency={doc_status}"
+            if id_status == "fail":
+                violations = id_gate.get("violations", []) if isinstance(id_gate, dict) else []
+                return f"notice_inconsistency: release_identity={id_status} {violations[:1]}"
+            return None
+        if condition == "clean_env_not_final_head":
+            # Fails when the latest clean-env artifact's head != release HEAD
+            ce_files = sorted(
+                (ROOT / "docs" / "verification").glob("*clean-env*.json"),
+                key=lambda p: p.stat().st_mtime,
+            )
+            if not ce_files:
+                return None  # No clean-env artifact — covered by clean_env_unverified
+            try:
+                ce_data = json.loads(ce_files[-1].read_text(encoding="utf-8"))
+                ce_head = str(ce_data.get("head", "")).strip()
+            except Exception:
+                return None
+            if not ce_head:
+                return None
+            head_proc = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, cwd=str(ROOT),
+            )
+            current_head = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
+            if not current_head:
+                return None
+            # SHA prefix match (short vs full)
+            min_len = min(len(ce_head), len(current_head), 12)
+            if ce_head[:min_len] != current_head[:min_len]:
+                return f"clean_env_not_final_head: evidence={ce_head[:12]} HEAD={current_head[:12]}"
+            return None
+        if condition == "operator_drill_missing":
+            # Fails when no operator-drill evidence exists for the current HEAD
+            drill_files = sorted(
+                (ROOT / "docs" / "verification").glob("*operator-drill*.json"),
+                key=lambda p: p.stat().st_mtime,
+            )
+            if not drill_files:
+                return "operator_drill_missing: no evidence found"
+            try:
+                drill_data = json.loads(drill_files[-1].read_text(encoding="utf-8"))
+                drill_passed = drill_data.get("all_passed", False)
+                drill_prov = drill_data.get("provenance", "unknown")
+            except Exception:
+                return "operator_drill_missing: evidence unreadable"
+            if drill_prov != "real" or not drill_passed:
+                return f"operator_drill_missing: provenance={drill_prov} all_passed={drill_passed}"
+            return None
         return None
 
     matched_factors: list[str] = []

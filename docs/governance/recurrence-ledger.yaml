@@ -1,0 +1,146 @@
+# docs/governance/recurrence-ledger.yaml
+# Recurrence-prevention ledger per §7 of hi-agent-upstream-engineering-corrective-directive-2026-04-27.md
+# Each entry tracks a downstream-identified defect class through to full systemic closure.
+# All 13 fields are required. Closure level uses docs/governance/closure-taxonomy.md enum.
+
+schema_version: "1"
+current_wave: 16
+
+entries:
+  - issue_id: P0-1
+    defect_class: release_identity_inconsistency
+    named_instance: "Wave 15 notice declares Functional HEAD 8fc0f80 while manifest HEAD is dd0aad2 and repo HEAD is fef2d4e"
+    peer_instances_audited:
+      - "Wave 14 notice HEAD mismatch vs manifest"
+      - "Wave 13 notice HEAD mismatch vs functional HEAD"
+    root_cause: >
+      Delivery notices were authored manually and contained hardcoded SHAs that drifted
+      after subsequent commits. check_doc_consistency.py check E1a was wired into CI but
+      check_manifest_freshness.py was NOT wired into any CI workflow, allowing stale manifests
+      and notices to coexist at current HEAD.
+    code_fix: "Wave16-Track-A: scripts/check_release_identity.py created; check_manifest_freshness.py wired into release-gate.yml"
+    regression_test: "scripts/check_release_identity.py --json (gate fails if any of 3 SHAs mismatch)"
+    release_gate: "release-gate.yml step: Release identity (W16-A8)"
+    process_change: "CLAUDE.md Rule 14: manifest is single release fact source; delivery notices derived from manifest only"
+    owner: GOV
+    expiry_or_followup: "2026-05-12"
+    evidence_artifact: "docs/verification/<sha>-release-identity.json"
+    current_closure_level: wired_into_default_path
+
+  - issue_id: P0-2
+    defect_class: clean_env_not_final_head
+    named_instance: "Wave 15 cites clean-env at 1a53b26 while final HEAD is dd0aad2; no final-HEAD clean-env artifact"
+    peer_instances_audited:
+      - "Wave 14 clean-env evidence tied to older HEAD"
+      - "Wave 13 clean-env summary incomplete (missing Python/pytest version fields)"
+    root_cause: >
+      verify_clean_env.py was run during development at an intermediate commit but not re-run
+      at the final release HEAD after late documentation commits advanced HEAD. No CI gate
+      enforced that the clean-env artifact's head field matches git rev-parse HEAD.
+    code_fix: "Wave16-Track-A: new cap condition clean_env_not_final_head=60 in score_caps.yaml; check_score_cap reads it"
+    regression_test: "scripts/check_score_cap.py --json (clean_env_not_final_head cap applied when artifact head != release head)"
+    release_gate: "release-gate.yml step: Check score cap (W14-A7)"
+    process_change: "CLAUDE.md Rule 16: wrapper must emit truthful evidence JSON tied to final HEAD; Rule 14: manifest is single fact source"
+    owner: DX
+    expiry_or_followup: "2026-05-12"
+    evidence_artifact: "docs/verification/<sha>-default-offline-clean-env.json"
+    current_closure_level: wired_into_default_path
+
+  - issue_id: P0-3
+    defect_class: observability_spine_structural
+    named_instance: "build_observability_spine_evidence.py uses in-process in-memory SQLite and hard-codes provenance:structural; emits only 2 synthetic events"
+    peer_instances_audited:
+      - "Wave 14 observability spine: no trace_id propagation from HTTP boundary"
+      - "Wave 13 observability spine: structural provenance with empty event list"
+    root_cause: >
+      The spine builder script was designed as a structural scaffold, not a real E2E runner.
+      No ASGI middleware existed to inject trace_id from W3C traceparent headers, so
+      trace_id was always empty in event_store rows. The script ran in-process rather than
+      via subprocess HTTP calls, skipping the entire HTTP → auth → queue → store pipeline.
+    code_fix: "Wave16-Track-C: hi_agent/observability/http_middleware.py created; TraceIdMiddleware mounted in app.py; event_store pulls trace_id from context; build_observability_spine_e2e_real.py drives real subprocess server"
+    regression_test: "scripts/check_observability_spine_completeness.py --json (defers unless provenance=real and all 14 layers present)"
+    release_gate: "release-gate.yml step: Check observability spine completeness (W14-B8)"
+    process_change: "CLAUDE.md Rule 7: every silent-degradation path must be inspectable; Rule 8: operator-shape readiness gate"
+    owner: TE
+    expiry_or_followup: "2026-05-12"
+    evidence_artifact: "docs/verification/<sha>-observability-spine.json"
+    current_closure_level: wired_into_default_path
+
+  - issue_id: P0-4
+    defect_class: soak_not_24h
+    named_instance: "soak_24h.py ran 69.7 minutes with provenance:shape_verified; samples own PID not server PID"
+    peer_instances_audited:
+      - "Wave 14 soak: 5-minute dry run"
+      - "Wave 13 soak: shape_verified only"
+    root_cause: >
+      soak_24h.py sampled its own process PID for resource metrics rather than the server PID,
+      producing always-zero memory/CPU readings. The 7x24 readiness claim was treated as an
+      engineering target rather than an architectural posture. Per user decision 2026-04-28:
+      7x24 is an architectural posture; soak pilot at 4-6h with honest cap_7x24=65 is acceptable.
+    code_fix: "Wave16-Track-D: soak harness updated to sample server PID; pilot run at 360m with provenance:pilot_run"
+    regression_test: "scripts/check_soak_evidence.py --json (status=pilot acceptable; cap_7x24=65 enforced by score_caps.yaml)"
+    release_gate: "release-gate.yml step: Check soak evidence (W14-C2)"
+    process_change: "CLAUDE.md Rule 8: operator-shape gate; 7x24 declared as architectural posture not engineering requirement"
+    owner: TE
+    expiry_or_followup: "2026-07-01"
+    evidence_artifact: "docs/verification/<sha>-soak-pilot-360m.json"
+    current_closure_level: wired_into_default_path
+
+  - issue_id: P0-5
+    defect_class: chaos_no_runtime_coupling
+    named_instance: "tests/integration/test_chaos_matrix.py uses subprocess stunts with provenance:structural and no runtime_coupled field; scenarios skipped on win32"
+    peer_instances_audited:
+      - "Wave 14 chaos: structural provenance, 0 scenarios with runtime_coupled:true"
+      - "Wave 13 chaos: no chaos evidence at all"
+    root_cause: >
+      The existing chaos test file used in-memory objects and subprocess-level mocks that
+      did not exercise the real HTTP → queue → worker → state-machine path. The runtime_coupled
+      field was missing. check_chaos_runtime_coupling.py correctly deferred because no evidence
+      file satisfied provenance not in (synthetic, structural, unknown).
+    code_fix: "Wave16-Track-E: scripts/run_chaos_matrix.py + tests/chaos/scenarios/01_-10_.py created; each scenario uses real server subprocess + real HTTP calls; provenance:real runtime_coupled:true"
+    regression_test: "scripts/check_chaos_runtime_coupling.py --json (fails if runtime_coupled:false or provenance:structural)"
+    release_gate: "release-gate.yml step: Check chaos runtime coupling (W14-C4)"
+    process_change: "CLAUDE.md Rule 8: all chaos evidence must be runtime-coupled; Rule 4: integration tests use real components"
+    owner: TE
+    expiry_or_followup: "2026-05-12"
+    evidence_artifact: "docs/verification/<sha>-runtime-chaos.json"
+    current_closure_level: wired_into_default_path
+
+  - issue_id: P0-6
+    defect_class: score_cap_overstates_readiness
+    named_instance: "Manifest reports current_verified_readiness=77.62 despite notice inconsistency, non-final-head clean-env, and structural observability/chaos"
+    peer_instances_audited:
+      - "Wave 14 manifest: t3_deferred cap applied but notice inconsistency not capped"
+      - "Wave 13 manifest: head_mismatch cap at 70 while directive requires 55"
+    root_cause: >
+      score_caps.yaml lacked cap conditions for notice_inconsistency, clean_env_not_final_head,
+      and operator_drill_missing. head_mismatch cap was 60 (should be 55 per directive §4.1).
+      build_release_manifest.py had no _condition_matches handler for these new conditions,
+      so they silently never triggered.
+    code_fix: "Wave16-Track-A+F: score_caps.yaml adds 4 new cap rules; head_mismatch lowered 60->55; build_release_manifest.py adds condition handlers for notice_inconsistency, clean_env_not_final_head, operator_drill_missing"
+    regression_test: "scripts/check_score_cap.py --json (new caps enforced from score_caps.yaml)"
+    release_gate: "release-gate.yml step: Check score cap (W14-A7)"
+    process_change: "CLAUDE.md Rule 14: score caps automated; no manual score increase path"
+    owner: GOV
+    expiry_or_followup: "2026-05-12"
+    evidence_artifact: "docs/verification/<sha>-score-cap.json"
+    current_closure_level: wired_into_default_path
+
+  - issue_id: S4-10
+    defect_class: ownership_accountability_weak
+    named_instance: "Multiple waves patch symptoms without named release captain; downstream discovers stale evidence before upstream does"
+    peer_instances_audited:
+      - "Wave 14: no named captain in manifest"
+      - "Wave 15: manifest has captains field but it points to a SHA not a person/role"
+    root_cause: >
+      No per-delivery release captain role was defined. The manifest captains field was added
+      in Wave 14 but pointed to a file SHA rather than a named owner accountable for release
+      truth. No checklist existed to enforce captain sign-off before publication.
+    code_fix: "Wave16-Track-A: docs/governance/release-captain-checklist.md created; docs/governance/delivery-protocol.md documents 13-step protocol; check_recurrence_ledger.py validates all 13 ledger fields"
+    regression_test: "scripts/check_recurrence_ledger.py --json (fails if any entry missing required fields)"
+    release_gate: "release-gate.yml step: Recurrence ledger (W16-G3)"
+    process_change: "Each delivery assigns a named release captain who signs off on all 13 steps in delivery-protocol.md"
+    owner: GOV
+    expiry_or_followup: "2026-05-12"
+    evidence_artifact: "docs/governance/recurrence-ledger.yaml"
+    current_closure_level: wired_into_default_path

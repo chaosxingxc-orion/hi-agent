@@ -14,10 +14,25 @@ schema_version: "2"
 
 cap_rules:
   - condition: head_mismatch
-    cap: 60
+    cap: 55
     factor: head_mismatch
     scope: [current_verified_readiness, architecture_readiness]
     description: "Manifest release_head does not match current HEAD"
+  - condition: notice_inconsistency
+    cap: 55
+    factor: notice_inconsistency
+    scope: [current_verified_readiness, architecture_readiness]
+    description: "Delivery notice Functional HEAD does not match current HEAD or manifest head"
+  - condition: clean_env_not_final_head
+    cap: 60
+    factor: clean_env_not_final_head
+    scope: [current_verified_readiness]
+    description: "Latest clean-env evidence artifact is not tied to the final release HEAD"
+  - condition: operator_drill_missing
+    cap: 75
+    factor: operator_drill_missing
+    scope: [current_verified_readiness]
+    description: "No real operator drill evidence found for the current HEAD"
   - condition: dirty_worktree
     cap: 70
     factor: dirty_worktree

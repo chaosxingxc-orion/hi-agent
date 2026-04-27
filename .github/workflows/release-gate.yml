@@ -1,6 +1,6 @@
 name: Release Gate (W14-G)
 
-# Consolidated non-skippable release gate â€?enforces all governance checks and
+# Consolidated non-skippable release gate ï¿½?enforces all governance checks and
 # produces a versioned manifest artifact.  No step uses continue-on-error.
 #
 # Runs after every push to main/fix/feat/claude branches and on every PR to main.
@@ -33,6 +33,11 @@ jobs:
 
       - name: Install dependencies
         run: pip install -e ".[dev]"
+
+      # --- Security scan (blocking â€” must run before anything else) ---
+
+      - name: Secret scan (W16-Q)
+        run: python scripts/check_secrets.py --json
 
       # --- Static analysis ---
 
@@ -144,6 +149,23 @@ jobs:
 
       - name: Check score cap (W14-A7)
         run: python scripts/check_score_cap.py --json
+
+      # --- W16 new gates ---
+
+      - name: Manifest freshness (W16-A8)
+        run: python scripts/check_manifest_freshness.py --json --allow-docs-only-gap
+
+      - name: Release identity (W16-A8)
+        run: python scripts/check_release_identity.py --json
+
+      - name: Recurrence ledger (W16-G3)
+        run: python scripts/check_recurrence_ledger.py --json
+
+      - name: Operator drill evidence (W16-H4)
+        run: python scripts/check_operator_drill.py --json
+
+      - name: Test honesty audit (W16-K)
+        run: python scripts/check_test_honesty.py --json
 
       # --- Release manifest ---
 
