@@ -320,8 +320,10 @@ def _compute_cap(
                     return None
                 if current_head.startswith(mhead) or mhead.startswith(current_head[:len(mhead)]):
                     return None
-            # No manifest covers current HEAD — use the latest manifest for cap reason
-            manifests_by_mtime = sorted(all_manifests, key=lambda p: p.stat().st_mtime)
+            # No manifest covers current HEAD — use the latest manifest for cap reason.
+            # Use (mtime, name) tiebreaker so the most-recently-dated file wins in CI
+            # where all files share the same checkout mtime.
+            manifests_by_mtime = sorted(all_manifests, key=lambda p: (p.stat().st_mtime, p.name))
             if not manifests_by_mtime:
                 return None
             try:

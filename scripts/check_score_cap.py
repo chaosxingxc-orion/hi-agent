@@ -27,7 +27,9 @@ NOTICES_DIR = ROOT / "docs" / "downstream-responses"
 
 
 def _latest_manifest() -> pathlib.Path | None:
-    manifests = sorted(RELEASES_DIR.glob("platform-release-manifest-*.json"), key=lambda p: p.stat().st_mtime)
+    # (mtime, name) tiebreaker so the most-recently-dated file wins in CI
+    # where all files share the same checkout mtime.
+    manifests = sorted(RELEASES_DIR.glob("platform-release-manifest-*.json"), key=lambda p: (p.stat().st_mtime, p.name))
     return manifests[-1] if manifests else None
 
 

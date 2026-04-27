@@ -37,9 +37,11 @@ def _git_head() -> str:
 
 
 def _latest_manifest() -> dict | None:
+    # Sort by (mtime, name) so that in CI — where all files share the same
+    # checkout mtime — the most recently dated filename wins.
     manifests = sorted(
         RELEASES_DIR.glob("platform-release-manifest-*.json"),
-        key=lambda p: p.stat().st_mtime,
+        key=lambda p: (p.stat().st_mtime, p.name),
     )
     if not manifests:
         return None
