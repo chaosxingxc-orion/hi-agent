@@ -1,4 +1,4 @@
-"""Unit tests for CitationValidator and DatasetArtifactValidator.
+"""Unit tests for PaperReferenceValidator and DatasetArtifactValidator.
 
 Wave 8 / P2.7
 """
@@ -10,16 +10,16 @@ import json
 from pathlib import Path
 
 from hi_agent.artifacts.contracts import CitationArtifact, DatasetArtifact
-from hi_agent.artifacts.validators import CitationValidator, DatasetArtifactValidator
+from hi_agent.artifacts.validators import PaperReferenceValidator, DatasetArtifactValidator
 
 # ---------------------------------------------------------------------------
-# CitationValidator
+# PaperReferenceValidator
 # ---------------------------------------------------------------------------
 
 
 def test_missing_paper_meta(tmp_path: Path) -> None:
     """Citation with paper_id that has no meta.json on disk is invalid."""
-    validator = CitationValidator()
+    validator = PaperReferenceValidator()
     citation = CitationArtifact(paper_id="paper-123")
     result = validator.validate(citation, workspace_root=tmp_path)
     assert not result.valid
@@ -30,7 +30,7 @@ def test_existing_paper_meta(tmp_path: Path) -> None:
     """Citation with existing meta.json on disk is valid."""
     (tmp_path / "papers" / "paper-123").mkdir(parents=True)
     (tmp_path / "papers" / "paper-123" / "meta.json").write_text('{"title": "Test"}')
-    validator = CitationValidator()
+    validator = PaperReferenceValidator()
     citation = CitationArtifact(paper_id="paper-123")
     result = validator.validate(citation, workspace_root=tmp_path)
     assert result.valid
@@ -39,7 +39,7 @@ def test_existing_paper_meta(tmp_path: Path) -> None:
 
 def test_empty_paper_id_invalid(tmp_path: Path) -> None:
     """Citation with empty paper_id is invalid regardless of filesystem."""
-    validator = CitationValidator()
+    validator = PaperReferenceValidator()
     citation = CitationArtifact(paper_id="")
     result = validator.validate(citation, workspace_root=tmp_path)
     assert not result.valid

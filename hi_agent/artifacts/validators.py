@@ -23,7 +23,7 @@ class ValidationResult:
     errors: list[str]
 
 
-class CitationValidator:
+class PaperReferenceValidator:
     """Validates citations against local paper meta registry.
 
     A citation is valid when a corresponding papers/{paper_id}/meta.json file
