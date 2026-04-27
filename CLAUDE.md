@@ -259,6 +259,21 @@ Binding constraints (from upstream-engineering-conduct-spec-2026-04-27.md §4.2,
 
 ---
 
+### Rule 17 — Allowlist Discipline
+
+**An allowlist entry is tracked technical debt, not a closure. Every allowlist entry MUST carry: owner, risk (low|medium|high), reason, expiry_wave, replacement_test, and added_at.**
+
+All allowlist entries live in `docs/governance/allowlists.yaml`. Individual governance scripts load from this file.
+
+**Enforcement:**
+- `scripts/check_allowlist_discipline.py` — CI gate; fails closed on expired entries; fails on missing required fields.
+- Allowlist count and expired count are part of the manifest scorecard.
+- `build_release_manifest.py` auto-caps `current_verified_readiness` when `expired_allowlist_total > 0`.
+- Increasing allowlist count reduces the `allowlist_discipline` scorecard dimension's `base_score`.
+- An allowlist entry for a high-risk issue MUST NOT be used to claim closure for that issue.
+
+---
+
 ## Ownership Tracks
 
 Every PR identifies its primary owner track in the commit body (`Owner: CO|RO|DX|TE|GOV`). A PR touching files outside its owner track requires co-owner approval or a GOV-track exception note.
@@ -297,4 +312,4 @@ Before accepting any new capability request into hi-agent:
 
 **G4 — Posture & Spine gate**: declare (a) default behaviour under `dev`/`research`/`prod` postures and (b) which contract-spine fields it carries; otherwise stays at L0–L1 and cannot enter research/prod default path.
 
-Rule origin history (R1–R14) → `docs/rules-incident-log.md`.
+Rule origin history (R1–R17) → `docs/rules-incident-log.md`.

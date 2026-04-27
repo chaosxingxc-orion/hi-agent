@@ -1,0 +1,74 @@
+# docs/governance/allowlists.yaml
+# Single source of truth for all governance script allowlists.
+# Each entry MUST have: allowlist, entry, owner, risk, reason, expiry_wave, replacement_test, added_at
+# expired = expiry_wave < current_wave => fails closed in check_allowlist_discipline.py
+# risk: low | medium | high
+
+schema_version: "1"
+current_wave: 12
+
+entries:
+  # --- check_no_research_vocab: path allowlist ---
+  - allowlist: vocab_path_allowlist
+    entry: hi_agent/contracts/team_runtime.py
+    owner: CO
+    risk: medium
+    reason: Shim/compat layer for research-vocab renamed identifiers; still exports old names for backward compatibility.
+    expiry_wave: 13
+    replacement_test: tests/unit/scripts/test_check_no_research_vocab_ast.py
+    added_at: "2026-04-01"
+
+  - allowlist: vocab_path_allowlist
+    entry: hi_agent/server/team_run_registry.py
+    owner: RO
+    risk: medium
+    reason: Shim layer; references old team_runtime names for registry compatibility.
+    expiry_wave: 13
+    replacement_test: tests/unit/scripts/test_check_no_research_vocab_ast.py
+    added_at: "2026-04-01"
+
+  - allowlist: vocab_path_allowlist
+    entry: hi_agent/evolve/contracts.py
+    owner: TE
+    risk: low
+    reason: Shim layer; EvolutionTrial alias for EvolutionExperiment.
+    expiry_wave: 13
+    replacement_test: tests/unit/scripts/test_check_no_research_vocab_ast.py
+    added_at: "2026-04-01"
+
+  - allowlist: vocab_path_allowlist
+    entry: hi_agent/evolve/postmortem.py
+    owner: TE
+    risk: low
+    reason: Shim layer; RunRetrospective alias for RunPostmortem.
+    expiry_wave: 13
+    replacement_test: tests/unit/scripts/test_check_no_research_vocab_ast.py
+    added_at: "2026-04-01"
+
+  - allowlist: vocab_path_allowlist
+    entry: hi_agent/artifacts/contracts.py
+    owner: CO
+    risk: low
+    reason: Shim layer; artifact contract aliases for research-vocab names.
+    expiry_wave: 13
+    replacement_test: tests/unit/scripts/test_check_no_research_vocab_ast.py
+    added_at: "2026-04-01"
+
+  # --- check_no_research_vocab: soft-ban path allowlist ---
+  - allowlist: vocab_soft_ban_path_allowlist
+    entry: hi_agent/llm/tier_presets.py
+    owner: CO
+    risk: low
+    reason: Wave 12 target -- apply_strict_defaults replaces research presets; soft-ban expiry Wave 12.
+    expiry_wave: 12
+    replacement_test: tests/unit/test_llm_tier_presets.py
+    added_at: "2026-04-01"
+
+  - allowlist: vocab_soft_ban_path_allowlist
+    entry: hi_agent/llm/__init__.py
+    owner: CO
+    risk: low
+    reason: Re-exports deprecated apply_research_defaults shim; Wave 12 removal target.
+    expiry_wave: 12
+    replacement_test: tests/unit/test_llm_tier_presets.py
+    added_at: "2026-04-01"

@@ -86,6 +86,12 @@ dimensions:
     base_score: 65
     gate_check: ci_gate
 
+  - name: allowlist_discipline
+    description: "All allowlist entries have owner/risk/reason/expiry/replacement-test; none expired"
+    weight: 4
+    base_score: 80
+    gate_check: allowlist_discipline
+
 # Three-tier score structure (per upstream conduct spec §6)
 # raw_implementation_maturity:  sum(weight * base_score / 100)
 # current_verified_readiness:   min(raw, gate_cap)
