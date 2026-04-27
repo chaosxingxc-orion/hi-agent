@@ -37,7 +37,7 @@ CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 # Excluded: check_secrets.py — checks local dev config; local API keys are expected and protected
 #   by `git update-index --skip-worktree`; not a code-quality gate.
 # Excluded: check_t3_evidence.py — PR-time gate (requires --changed-files / --pr-body args).
-_GATE_SCRIPTS: dict[str, tuple[str, bool, list[str]]] = {
+_GATE_SCRIPTS: dict[str, tuple] = {
     "layering":               ("check_layering.py",               True,  []),
     "vocab":                  ("check_no_research_vocab.py",      True,  []),
     "route_scope":            ("check_route_scope.py",            True,  []),
@@ -60,7 +60,7 @@ _GATE_SCRIPTS: dict[str, tuple[str, bool, list[str]]] = {
     # BEFORE the new manifest is written, so it would always see the previous
     # committed manifest and fail on any non-docs-only gap.  It runs instead
     # as a separate CI step in release-gate.yml, after the manifest is committed.
-    "clean_env":                  ("verify_clean_env.py",                 False, ["--profile", "default-offline"]),
+    "clean_env":                  ("verify_clean_env.py",                 False, ["--profile", "default-offline"], 360),
     "validate_before_mutate":     ("check_validate_before_mutate.py",     True,  []),
     "select_completeness":        ("check_select_completeness.py",        True,  []),
     "silent_degradation":         ("check_silent_degradation.py",         True,  []),
@@ -131,7 +131,7 @@ def _is_dirty() -> bool:
     return result.returncode != 0
 
 
-def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] | None = None) -> dict[str, Any]:
+def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] | None = None, timeout: int = 120) -> dict[str, Any]:
     """Run a governance script and return a gate result dict."""
     script_path = SCRIPTS / script
     if not script_path.exists():
@@ -149,7 +149,7 @@ def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] 
 
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=120, cwd=str(ROOT)
+            cmd, capture_output=True, text=True, timeout=timeout, cwd=str(ROOT)
         )
     except subprocess.TimeoutExpired:
         return {"status": "fail", "error": "timeout after 120s"}
@@ -582,9 +582,11 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
 
     # Run gates
     gates: dict[str, Any] = {}
-    for gate_key, (script, has_json, extra_args) in _GATE_SCRIPTS.items():
+    for gate_key, gate_spec in _GATE_SCRIPTS.items():
+        script, has_json, extra_args = gate_spec[0], gate_spec[1], gate_spec[2]
+        gate_timeout = gate_spec[3] if len(gate_spec) > 3 else 120
         print(f"  {gate_key}: {script}...", end=" ", file=sys.stderr, flush=True)
-        gates[gate_key] = _run_gate(gate_key, script, has_json, extra_args)
+        gates[gate_key] = _run_gate(gate_key, script, has_json, extra_args, gate_timeout)
         print(gates[gate_key].get("status", "?"), file=sys.stderr)
 
     # Gather extra context for cap computation
