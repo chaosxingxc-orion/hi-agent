@@ -6,8 +6,10 @@ Three rules are enforced:
 B-1 (reverse import): No agent_kernel/**/*.py may import from hi_agent.
 B-2 (adapter bypass): No hi_agent/**/*.py outside hi_agent/runtime_adapter/**
     may import from agent_kernel, except hi_agent/testing/** may import from
-    agent_kernel.testing, and hi_agent/skills/** may import agent_kernel DTOs
-    (kernel public surface).
+    agent_kernel.testing, hi_agent/skills/** may import agent_kernel DTOs
+    (kernel public surface), and hi_agent/task_mgmt/** may import from
+    agent_kernel.kernel.task_manager.contracts (task management DTOs; direct
+    import avoids circular import through runtime_adapter during executor build).
 B-3 (hardcoded model): No agent_kernel/**/*.py may contain model/provider
     strings (gpt-, claude-, volces, doubao) in non-comment, non-docstring code.
 
@@ -162,6 +164,8 @@ def check_b2(hi_agent_dir: Path) -> list[str]:
     except:
     - hi_agent/testing may import agent_kernel.testing
     - hi_agent/skills may import agent_kernel DTOs (public kernel surface)
+    - hi_agent/task_mgmt may import agent_kernel.kernel.task_manager.contracts
+      (task management DTOs; avoids circular import through runtime_adapter)
     """
     violations: list[str] = []
     if not hi_agent_dir.exists():
@@ -170,6 +174,7 @@ def check_b2(hi_agent_dir: Path) -> list[str]:
     runtime_adapter_dir = hi_agent_dir / "runtime_adapter"
     testing_dir = hi_agent_dir / "testing"
     skills_dir = hi_agent_dir / "skills"
+    task_mgmt_dir = hi_agent_dir / "task_mgmt"
 
     for path in _iter_python_files(hi_agent_dir):
         # Files inside runtime_adapter are allowed
@@ -197,9 +202,19 @@ def check_b2(hi_agent_dir: Path) -> list[str]:
         except ValueError:
             pass
 
+        in_task_mgmt = False
+        try:
+            path.relative_to(task_mgmt_dir)
+            in_task_mgmt = True
+        except ValueError:
+            pass
+
         for lineno, text in _imports_agent_kernel(source, path):
             # Testing files may import agent_kernel.testing only
             if in_testing and "agent_kernel.testing" in text:
+                continue
+            # task_mgmt files may import task manager contracts (DTOs only)
+            if in_task_mgmt and "agent_kernel.kernel.task_manager.contracts" in text:
                 continue
             rel = _relative(path)
             violations.append(
