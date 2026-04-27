@@ -84,16 +84,19 @@ def _git_head_short() -> str:
 
 
 def _git_status_porcelain() -> str:
-    """Return raw output of git status --porcelain."""
+    """Return non-empty string when tracked files have uncommitted changes.
+
+    Uses 'git diff --quiet HEAD' (ignores untracked files) so that manifest
+    artifacts written to docs/releases/ and docs/verification/ do not block
+    notice generation.
+    """
     result = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "diff", "--quiet", "HEAD"],
         capture_output=True,
-        text=True,
         cwd=str(ROOT),
     )
-    if result.returncode != 0:
-        raise RuntimeError(f"git status failed: {result.stderr.strip()}")
-    return result.stdout.strip()
+    # returncode 1 = dirty tracked files; 0 = clean
+    return "tracked-files-dirty" if result.returncode != 0 else ""
 
 
 def _load_latest_manifest() -> dict | None:
