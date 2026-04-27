@@ -191,8 +191,6 @@ class TestRealExecutorE2E:
         # ------------------------------------------------------------------
         # Assertion 4: the run reached a terminal state, not a capability error
         # ------------------------------------------------------------------
-        # Valid terminal outcomes from RunExecutor.execute()
-        valid_outcomes = {"completed", "failed", "aborted", "escalated", "timeout"}
         assert result == "completed", (
             f"Unexpected result from executor.execute(): {result!r}"
         )

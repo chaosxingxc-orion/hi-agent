@@ -20,7 +20,9 @@ def test_absolute_path_blocked(tmp_path):
         safe_resolve(tmp_path, "/etc/passwd")
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Windows-only: UNC paths", expiry_wave="Wave 16")
+@pytest.mark.skipif(
+    sys.platform != "win32", reason="Windows-only: UNC paths", expiry_wave="Wave 16"
+)
 def test_windows_unc_blocked(tmp_path):
     """Windows UNC paths (\\\\server\\share) must be rejected."""
     with pytest.raises(PathPolicyViolation):

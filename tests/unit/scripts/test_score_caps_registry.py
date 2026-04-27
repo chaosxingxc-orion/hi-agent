@@ -110,4 +110,6 @@ def test_no_hardcoded_78_0_in_check_downstream():
 def test_release_notice_no_hardcoded_score():
     src = (ROOT / "scripts" / "release_notice.py").read_text(encoding="utf-8")
     assert "76.5" not in src, "release_notice.py still contains hardcoded 76.5"
-    assert "_DEFAULT_SCORE_CAP" not in src, "release_notice.py should not have hardcoded _DEFAULT_SCORE_CAP"
+    assert "_DEFAULT_SCORE_CAP" not in src, (
+        "release_notice.py should not have hardcoded _DEFAULT_SCORE_CAP"
+    )

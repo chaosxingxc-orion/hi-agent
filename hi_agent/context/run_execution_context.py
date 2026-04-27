@@ -71,7 +71,9 @@ class RunExecutionContext:
     @classmethod
     def from_managed_run(cls, run: ManagedRun) -> RunExecutionContext:
         """Build a RunExecutionContext from a ManagedRun instance."""
-        from hi_agent.server.run_manager import ManagedRun as _ManagedRun  # noqa: F401  expiry_wave: Wave 17
+        from hi_agent.server.run_manager import (
+            ManagedRun as _ManagedRun,  # noqa: F401  expiry_wave: Wave 17
+        )
 
         project_id = (
             getattr(run, "project_id", "") or

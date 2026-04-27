@@ -117,7 +117,11 @@ def test_active_run_ids_cleared_after_completion() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM raise_signal not available on Windows", expiry_wave="Wave 16")
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="SIGTERM raise_signal not available on Windows",
+    expiry_wave="Wave 16",
+)
 def test_sigterm_handler_installed() -> None:
     """On POSIX, signal.raise_signal(SIGTERM) must not crash the process.
 

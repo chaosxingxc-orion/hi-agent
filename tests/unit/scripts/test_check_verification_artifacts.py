@@ -96,7 +96,7 @@ class TestMismatchingHead:
         result = main(["--json"])
         assert result == 1
 
-    def test_stale_artifact_fails(self, tmp_path, monkeypatch, capsys):
+    def test_stale_delivery_artifact_fails(self, tmp_path, monkeypatch, capsys):
         """JSON output must show fail status when no current artifact exists."""
         monkeypatch.setattr(cva, "ROOT", tmp_path)
         monkeypatch.setattr(cva, "_git_head", lambda: "aaaa1111bbbb2222cccc3333dddd4444eeee5555")
@@ -133,7 +133,8 @@ class TestMismatchingHead:
 
 class TestJsonOutputFormat:
     def test_json_output_has_required_keys(self, tmp_path, monkeypatch, capsys):
-        """JSON output must always contain check, status, has_current_head, current_files, checked_count."""
+        """JSON output must always contain check, status, has_current_head, current_files,
+        checked_count."""
         monkeypatch.setattr(cva, "ROOT", tmp_path)
         main(["--json"])
         data = json.loads(capsys.readouterr().out)

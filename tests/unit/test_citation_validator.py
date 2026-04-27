@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 from hi_agent.artifacts.contracts import CitationArtifact, DatasetArtifact
-from hi_agent.artifacts.validators import PaperReferenceValidator, DatasetArtifactValidator
+from hi_agent.artifacts.validators import DatasetArtifactValidator, PaperReferenceValidator
 
 # ---------------------------------------------------------------------------
 # PaperReferenceValidator
