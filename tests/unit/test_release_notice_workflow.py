@@ -48,10 +48,10 @@ def _make_cp(returncode: int = 0, stdout: str = "", stderr: str = "") -> MagicMo
 
 
 def test_dirty_tree_refused():
-    """Dirty working tree must cause run() to return non-zero without committing."""
+    """Dirty working tree (tracked modifications) must cause run() to return non-zero."""
+    # _git_status_porcelain now uses 'git diff --quiet HEAD'; returncode 1 = dirty.
     with patch("subprocess.run") as mock_run:
-        # git status --porcelain returns dirty output
-        mock_run.return_value = _make_cp(stdout="M scripts/foo.py")
+        mock_run.return_value = _make_cp(returncode=1, stdout="")
         result = rn.run(wave="10.6", allow_dirty=False, dry_run=False)
 
     assert result != 0, "Expected non-zero exit when tree is dirty"
