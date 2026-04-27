@@ -56,8 +56,11 @@ _GATE_SCRIPTS: dict[str, tuple[str, bool, list[str]]] = {
     "verification_artifacts": ("check_verification_artifacts.py", True,  []),
     "targeted_default_path":  ("check_targeted_default_path.py",  True,  []),
     # W14-A1: 7 previously absent gates added to registry
+    # manifest_freshness is intentionally NOT in _GATE_SCRIPTS: it runs
+    # BEFORE the new manifest is written, so it would always see the previous
+    # committed manifest and fail on any non-docs-only gap.  It runs instead
+    # as a separate CI step in release-gate.yml, after the manifest is committed.
     "clean_env":                  ("verify_clean_env.py",                 False, ["--profile", "default-offline"]),
-    "manifest_freshness":         ("check_manifest_freshness.py",         True,  []),
     "validate_before_mutate":     ("check_validate_before_mutate.py",     True,  []),
     "select_completeness":        ("check_select_completeness.py",        True,  []),
     "silent_degradation":         ("check_silent_degradation.py",         True,  []),
@@ -119,7 +122,7 @@ def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] 
         cmd.append("--json")
     # Allow a docs-only gap for both notice and verification-artifact gates so
     # the manifest/notice/artifact commit itself does not cause false violations.
-    if gate_key in ("doc_consistency", "verification_artifacts", "manifest_freshness"):
+    if gate_key in ("doc_consistency", "verification_artifacts"):
         cmd.append("--allow-docs-only-gap")
 
     try:
