@@ -34,11 +34,11 @@ def apply_strict_defaults(tier_router: TierRouter) -> None:
 
 
 def apply_research_defaults(tier_router: TierRouter) -> None:
-    """Deprecated. Use apply_strict_defaults. Removed in Wave 12."""
+    """Deprecated. Use apply_strict_defaults. Removed in Wave 14."""
     import warnings
 
     warnings.warn(
-        "apply_research_defaults is deprecated and will be removed in Wave 12. "
+        "apply_research_defaults is deprecated and will be removed in Wave 14. "
         "Use apply_strict_defaults instead.",
         DeprecationWarning,
         stacklevel=2,

@@ -178,7 +178,7 @@ def __getattr__(name: str) -> object:
         warnings.warn(
             f"{name} has moved to examples.research_overlay.artifacts. "
             "Import it from there instead. This compatibility shim will be "
-            "removed in Wave 12.",
+            "removed in Wave 14.",
             DeprecationWarning,
             stacklevel=2,
         )

@@ -2,6 +2,8 @@
 
 ```
 Date:             2026-04-27
+Status:           superseded
+Superseded by:    docs/downstream-responses/2026-04-27-wave13-systemic-hardening-notice.md
 Functional HEAD:  06318dd05334
 Notice HEAD:      06318dd05334
 Manifest:         2026-04-27-ab3d5cc

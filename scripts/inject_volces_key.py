@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deprecated shim: use inject_provider_key.py --provider volces instead.
 
-This script will be removed in Wave 12.
+This script will be removed in Wave 14.
 """
 import subprocess
 import sys
@@ -9,7 +9,7 @@ import warnings
 
 warnings.warn(
     "inject_volces_key.py is deprecated; use inject_provider_key.py --provider volces instead. "
-    "This shim will be removed in Wave 12.",
+    "This shim will be removed in Wave 14.",
     DeprecationWarning,
     stacklevel=1,
 )
