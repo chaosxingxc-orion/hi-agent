@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W16-Q: Secret scan gate.
+"""Secret scan gate.
 
 Scans tracked repository files for accidentally committed API secrets.
 
@@ -21,6 +21,14 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _rel(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
 
 _UUID_RE = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE
@@ -65,7 +73,7 @@ def check_json_config(path: Path) -> None:
                     and v.strip().lower() not in _PLACEHOLDERS
                 ):
                     findings.append({
-                        "file": str(path.relative_to(ROOT)),
+                        "file": _rel(path),
                         "line": 0,
                         "kind": "api_key_in_config",
                         "redacted_match": f"{k}={_redact(v)}",
@@ -98,7 +106,7 @@ def check_text_file(path: Path) -> None:
                     m.group(0).split("=")[0].split(":")[0].strip()
                 )
                 findings.append({
-                    "file": str(path.relative_to(ROOT)),
+                    "file": _rel(path),
                     "line": lineno,
                     "kind": "secret_in_source",
                     "redacted_match": f"{key_name}={_redact(value)}",
@@ -118,7 +126,7 @@ def check_md_file(path: Path) -> None:
         is_placeholder = any(p in line.lower() for p in placeholders)
         if has_key_word and has_uuid and not is_placeholder:
             findings.append({
-                "file": str(path.relative_to(ROOT)),
+                "file": _rel(path),
                 "line": lineno,
                 "kind": "uuid_in_secret_context",
                 "redacted_match": f"UUID-like value at line {lineno}",

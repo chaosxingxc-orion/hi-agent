@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W16-O: Posture coverage audit (CLAUDE.md Rule 11).
+"""Posture coverage audit (CLAUDE.md Rule 11).
 
 Scans hi_agent/ for callsites of posture-sensitive branches:
   posture.is_strict, posture.is_dev, Posture.from_env()

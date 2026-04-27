@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W16-E: Runtime-coupled chaos matrix driver.
+"""Runtime-coupled chaos matrix driver.
 
 Starts a live hi_agent server for each scenario, injects the specified
 failure, and records whether the platform recovers with zero lost runs

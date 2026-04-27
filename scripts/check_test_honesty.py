@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W16-K: Test honesty audit gate (CLAUDE.md Rule 3 + Rule 7 enforcement).
+"""Test honesty audit gate (CLAUDE.md Rule 3 + Rule 7 enforcement).
 
 Scans tests/integration/ and tests/e2e/ for two anti-patterns:
 

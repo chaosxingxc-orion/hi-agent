@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W16-C: Build real observability spine evidence (provenance: real).
+"""Build real observability spine evidence (provenance: real).
 
 Starts a live hi_agent server subprocess, submits a real HTTP run,
 polls to completion, then records which of the 14 expected spine
