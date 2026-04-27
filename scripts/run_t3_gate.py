@@ -272,7 +272,7 @@ def _post_json(
     return _request_json(client, "POST", path, body)
 
 
-def _validate_readiness_snapshot(snapshot: dict[str, Any], expected_provider: str) -> None:
+def _validate_readiness_snapshot(snapshot: dict[str, Any], expected_provider: str = "auto") -> None:
     missing = [key for key in ("llm_mode", "llm_provider") if key not in snapshot]
     if missing:
         raise RuntimeError(
