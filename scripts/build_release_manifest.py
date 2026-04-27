@@ -85,9 +85,9 @@ def _run_gate(gate_key: str, script: str, has_json: bool) -> dict[str, Any]:
     cmd = [sys.executable, str(script_path)]
     if has_json:
         cmd.append("--json")
-    # doc_consistency: allow a docs-only gap so the manifest/notice commit itself
-    # does not cause a false stale-notice violation.
-    if gate_key == "doc_consistency":
+    # Allow a docs-only gap for both notice and verification-artifact gates so
+    # the manifest/notice/artifact commit itself does not cause false violations.
+    if gate_key in ("doc_consistency", "verification_artifacts"):
         cmd.append("--allow-docs-only-gap")
 
     try:
