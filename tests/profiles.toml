@@ -1,0 +1,58 @@
+# Wave test profile taxonomy -- single source of truth.
+# profiles MUST be machine-readable and never contain real-network/LLM targets.
+
+[profiles.smoke]
+targets = ["tests/unit/test_misc_defects.py", "tests/unit/test_json_config_loader_base_url.py", "tests/unit/test_contracts.py", "tests/unit/test_posture.py", "tests/unit/test_rule6_sweep.py", "tests/unit/test_gate_protocol.py", "tests/unit/test_run_store.py", "tests/unit/test_idempotency.py", "tests/unit/test_context_manager.py", "tests/unit/test_memory_lifecycle.py"]
+excluded_markers = ["live_api", "external_llm", "network", "requires_secret"]
+timeout_seconds = 120
+allows_real_network = false
+allows_real_llm = false
+allows_secrets = false
+
+[profiles.default-offline]
+targets = ["tests/unit", "tests/contract", "tests/security", "tests/agent_kernel"]
+excluded_markers = ["live_api", "external_llm", "network", "requires_secret"]
+timeout_seconds = 600
+allows_real_network = false
+allows_real_llm = false
+allows_secrets = false
+
+[profiles.release]
+targets = ["tests/unit", "tests/integration", "tests/contract", "tests/security", "tests/agent_kernel", "tests/runtime_adapter", "tests/server"]
+excluded_markers = ["live_api", "external_llm", "soak", "chaos"]
+timeout_seconds = 1800
+allows_real_network = false
+allows_real_llm = false
+allows_secrets = false
+
+[profiles.live_api]
+targets = ["tests/unit", "tests/integration", "tests/contract", "tests/security"]
+excluded_markers = ["soak", "chaos"]
+timeout_seconds = 1800
+allows_real_network = true
+allows_real_llm = true
+allows_secrets = true
+
+[profiles.prod_e2e]
+targets = ["tests/unit", "tests/integration"]
+excluded_markers = ["soak", "chaos"]
+timeout_seconds = 3600
+allows_real_network = true
+allows_real_llm = true
+allows_secrets = true
+
+[profiles.soak]
+targets = ["tests/perf"]
+excluded_markers = []
+timeout_seconds = 90000
+allows_real_network = true
+allows_real_llm = true
+allows_secrets = true
+
+[profiles.chaos]
+targets = ["tests/integration/test_chaos_matrix.py"]
+excluded_markers = []
+timeout_seconds = 3600
+allows_real_network = false
+allows_real_llm = false
+allows_secrets = false

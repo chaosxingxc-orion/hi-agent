@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Portable clean-environment verification wrapper.
 
-Runs the full Wave test bundle in a clean temp directory — no repo-internal
+Runs the full Wave test bundle in a clean temp directory -- no repo-internal
 .pytest_tmp or .pytest_cache pollution.
 
 Exit 0: all tests passed (or skipped).
@@ -39,6 +39,7 @@ import argparse
 import contextlib
 import datetime
 import importlib.metadata
+import io
 import json
 import os
 import queue
@@ -48,10 +49,32 @@ import tempfile
 import threading
 from pathlib import Path
 
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ImportError:
+        tomllib = None  # type: ignore[assignment]
+
 ROOT = Path(__file__).resolve().parent.parent
 
+_PROFILES_PATH = ROOT / "tests" / "profiles.toml"
+
+
+def _load_profiles() -> dict:
+    """Load test profiles from tests/profiles.toml if tomllib is available."""
+    if tomllib is None or not _PROFILES_PATH.exists():
+        return {}
+    try:
+        with open(_PROFILES_PATH, "rb") as f:
+            data = tomllib.load(f)
+        return data.get("profiles", {})
+    except Exception:
+        return {}
+
 # ---------------------------------------------------------------------------
-# Wave test bundle — paths relative to repo root.
+# Wave test bundle -- paths relative to repo root.
 # Keep this list intact; additions/removals are tracked separately.
 # ---------------------------------------------------------------------------
 WAVE_TEST_BUNDLE: list[str] = [
@@ -65,7 +88,7 @@ WAVE_TEST_BUNDLE: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Smoke-W5 bundle — small subset for fast pre-flight checks.
+# Smoke-W5 bundle -- small subset for fast pre-flight checks.
 # ---------------------------------------------------------------------------
 SMOKE_W5_BUNDLE: list[str] = [
     "tests/unit/test_misc_defects.py",
@@ -81,7 +104,7 @@ SMOKE_W5_BUNDLE: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
-# default-offline profile — unit + contract + security + agent_kernel only.
+# default-offline profile -- unit + contract + security + agent_kernel only.
 # Excludes tests/integration (slow, 419 files), tests/runtime_adapter,
 # tests/server.  Target runtime: <= 10 min.  Use case: developer health check
 # before push.
@@ -94,7 +117,7 @@ _DEFAULT_OFFLINE_PATHS: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
-# nightly profile — full WAVE_TEST_BUNDLE + e2e + perf + characterization +
+# nightly profile -- full WAVE_TEST_BUNDLE + e2e + perf + characterization +
 # golden.  Paths that do not exist on disk are silently skipped by
 # _filter_existing().  Target runtime: unlimited.  Use case: scheduled nightly
 # full coverage.
@@ -122,7 +145,18 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--profile",
-        choices=["smoke-w5", "default-offline", "release", "nightly", "custom"],
+        choices=[
+            "smoke-w5",
+            "smoke",
+            "default-offline",
+            "release",
+            "nightly",
+            "live_api",
+            "prod_e2e",
+            "soak",
+            "chaos",
+            "custom",
+        ],
         default="default-offline",
         help=(
             "Bundle profile to use. "
@@ -132,7 +166,11 @@ def _parse_args() -> argparse.Namespace:
             "(<=30 min, pre-release regression). "
             "'nightly' runs release paths plus e2e/perf/characterization/golden "
             "(unlimited, scheduled nightly). "
-            "'smoke-w5' runs a small W5 subset for fast pre-flight. "
+            "'smoke' / 'smoke-w5' runs a small subset for fast pre-flight. "
+            "'live_api' includes real-network/LLM tests. "
+            "'prod_e2e' is the full production E2E gate. "
+            "'soak' runs perf tests. "
+            "'chaos' runs chaos-matrix tests. "
             "'custom' reads test list from --bundle PATH."
         ),
     )
@@ -274,24 +312,67 @@ def _resolve_bundle_and_marker_args(args: argparse.Namespace) -> tuple[list[str]
       Pre-release regression gate.
     - nightly: release paths + e2e/perf/characterization/golden (unlimited).
       Scheduled nightly full coverage run.
-    - smoke-w5: small W5 subset for fast pre-flight checks.
+    - smoke / smoke-w5: small subset for fast pre-flight checks.
+    - live_api / prod_e2e / soak / chaos: loaded from tests/profiles.toml.
     - custom: paths loaded from --bundle file.
 
     extra_pytest_args may include a ``-m`` marker expression for default-offline.
+
+    Soft integration: if tests/profiles.toml cannot be loaded, falls back to
+    hardcoded behavior for known profiles.
     """
     profile = args.profile
 
-    if profile == "smoke-w5":
+    # --- profiles.toml soft integration ------------------------------------
+    # Profiles exclusively defined in profiles.toml (no hardcoded fallback).
+    toml_only_profiles = {"live_api", "prod_e2e", "soak", "chaos"}
+    # Profiles that have both a toml definition and a hardcoded fallback.
+    toml_overlay_profiles = {"smoke", "default-offline", "release"}
+
+    toml_profiles = _load_profiles()
+
+    if profile in toml_only_profiles:
+        if toml_profiles and profile in toml_profiles:
+            p_def = toml_profiles[profile]
+            raw_paths = list(p_def.get("targets", []))
+            excluded = p_def.get("excluded_markers", [])
+            if excluded:
+                marker_expr = " and ".join(f"not {m}" for m in excluded)
+                extra_args: list[str] = ["-m", marker_expr]
+            else:
+                extra_args = []
+        else:
+            print(
+                f"ERROR: profile '{profile}' requires tests/profiles.toml "
+                "but it could not be loaded.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return raw_paths, extra_args
+
+    if profile in toml_overlay_profiles and toml_profiles and profile in toml_profiles:
+        p_def = toml_profiles[profile]
+        raw_paths = list(p_def.get("targets", []))
+        excluded = p_def.get("excluded_markers", [])
+        if excluded:
+            marker_expr = " and ".join(f"not {m}" for m in excluded)
+            extra_args = ["-m", marker_expr]
+        else:
+            extra_args = []
+        return raw_paths, extra_args
+
+    # --- Hardcoded fallbacks (used when profiles.toml absent/unreadable) ---
+    if profile in ("smoke-w5", "smoke"):
         raw_paths = list(SMOKE_W5_BUNDLE)
-        extra_args: list[str] = []
+        extra_args = []
     elif profile == "default-offline":
         # Narrow path list excludes tests/integration, tests/runtime_adapter,
-        # tests/server — these 419+ files cause the 600s timeout.
+        # tests/server -- these 419+ files cause the 600s timeout.
         raw_paths = list(_DEFAULT_OFFLINE_PATHS)
         marker_expr = " and ".join(f"not {m}" for m in _OFFLINE_EXCLUDED_MARKERS)
         extra_args = ["-m", marker_expr]
     elif profile == "release":
-        # Full regression suite — no marker restrictions.
+        # Full regression suite -- no marker restrictions.
         raw_paths = list(WAVE_TEST_BUNDLE)
         extra_args = []
     elif profile == "nightly":
@@ -440,7 +521,71 @@ def _run_pytest_with_triage(
     return returncode, output, triage
 
 
+def _build_evidence_json(
+    *,
+    profile: str,
+    cmd: list[str],
+    duration: float,
+    timed_out: bool,
+    returncode: int,
+    stdout: str,
+    summary: dict | None,
+    release_head: str,
+) -> dict:
+    """Build the evidence dict that is written to --json-report.
+
+    When *summary* is None (timeout, crash, or no JSON report from pytest),
+    all count fields are set to ``None`` -- never to ``0`` -- so callers can
+    distinguish "zero failures" from "counts unavailable".
+    """
+    if summary is not None and summary.get("summary_available"):
+        return {
+            "profile": profile,
+            "command": " ".join(cmd),
+            "release_head": release_head,
+            "duration_seconds": duration,
+            "summary_available": True,
+            "status": summary.get("status", "failed"),
+            "failure_reason": summary.get("failure_reason"),
+            "collected": summary.get("collected"),
+            "passed": summary.get("passed"),
+            "failed": summary.get("failed"),
+            "errors": summary.get("errors"),
+            "skipped": summary.get("skipped"),
+            "timeout": timed_out,
+        }
+    # Summary unavailable -- use null counts, NOT zero
+    return {
+        "profile": profile,
+        "command": " ".join(cmd),
+        "release_head": release_head,
+        "duration_seconds": duration,
+        "summary_available": False,
+        "status": "failed",
+        "failure_reason": "timeout" if timed_out else "no_summary",
+        "collected": None,
+        "passed": None,
+        "failed": None,
+        "errors": None,
+        "skipped": None,
+        "timeout": timed_out,
+    }
+
+
+def _git_short_head() -> str:
+    """Return first 8 chars of HEAD SHA, or 'unknown'."""
+    sha = _git_head()
+    return sha[:8] if sha != "unknown" else sha
+
+
 def main() -> int:
+    # Guard Windows console encoding to avoid UnicodeEncodeError on non-ASCII output
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, io.UnsupportedOperation):
+        pass
+
     args = _parse_args()
     profile = args.profile
 
