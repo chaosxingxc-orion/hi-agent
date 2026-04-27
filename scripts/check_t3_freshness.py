@@ -64,17 +64,22 @@ def _find_latest_delivery_file(repo_root: Path) -> Path | None:
 
     Accepts both the legacy ``*-rule15-*.json`` pattern and the modern
     ``*-t3-*.json`` pattern introduced alongside the ``verified_head`` field.
+
+    In CI all files share the same checkout mtime, so filename is used as a
+    secondary sort key (descending) — YYYY-MM-DD prefixes ensure the most
+    recently dated file wins among equal-mtime candidates.
     """
     delivery_dir = repo_root / "docs" / "delivery"
     if not delivery_dir.is_dir():
         return None
-    evidence_files = sorted(
+    candidates = (
         list(delivery_dir.glob("*-rule15-*.json")) +
-        list(delivery_dir.glob("*-t3-*.json")),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
+        list(delivery_dir.glob("*-t3-*.json"))
     )
-    return evidence_files[0] if evidence_files else None
+    if not candidates:
+        return None
+    candidates.sort(key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
+    return candidates[0]
 
 
 def _extract_sha_from_json(delivery_file: Path) -> str | None:

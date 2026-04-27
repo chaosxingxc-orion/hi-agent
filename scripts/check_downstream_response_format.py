@@ -81,11 +81,13 @@ def _t3_is_fresh(repo_root: Path = ROOT) -> bool:
         if not delivery_dir.is_dir():
             return False
         # Include both legacy *-rule15-*.json and modern *-t3-*.json (excluding deferred).
+        # Use (mtime, name) as sort key so that in CI — where all files share the
+        # same checkout mtime — the most recently dated filename wins.
         candidates = sorted(
             list(delivery_dir.glob("*-rule15-*.json")) + [
                 p for p in delivery_dir.glob("*-t3-*.json") if "deferred" not in p.name
             ],
-            key=lambda p: p.stat().st_mtime,
+            key=lambda p: (p.stat().st_mtime, p.name),
             reverse=True,
         )
         if not candidates:
@@ -160,7 +162,7 @@ def _t3_is_deferred(repo_root: Path = ROOT) -> bool:
         candidates = sorted(
             list(delivery_dir.glob("*-rule15-*.json")) +
             list(delivery_dir.glob("*-t3-*-deferred.json")),
-            key=lambda p: p.stat().st_mtime,
+            key=lambda p: (p.stat().st_mtime, p.name),
             reverse=True,
         )
         if not candidates:

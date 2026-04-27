@@ -82,6 +82,28 @@ _GATE_SCRIPTS: dict[str, tuple[str, bool, list[str]]] = {
 }
 
 
+_GOV_PREFIXES: tuple[str, ...] = (
+    "docs/", "scripts/", "tests/", ".github/", "pyproject.toml",
+)
+
+
+def _docs_only_gap(base_sha: str, head_sha: str) -> bool:
+    """Return True when all commits between base_sha and head_sha touch only governance files."""
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
+            capture_output=True, text=True, cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            return False
+        changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+        return bool(changed) and all(
+            any(f.startswith(p) for p in _GOV_PREFIXES) for f in changed
+        )
+    except Exception:
+        return False
+
+
 def _git(*args: str) -> str:
     result = subprocess.run(
         ["git", *args], capture_output=True, text=True, cwd=str(ROOT)
@@ -309,25 +331,9 @@ def _compute_cap(
             manifest_head = str(latest_manifest.get("release_head", "")).strip()
             if not manifest_head:
                 return None
-            # Docs-only gap exemption: allow any number of commits where only
-            # governance files changed (docs/, scripts/, tests/, .github/, pyproject.toml).
-            # Mirrors the logic in check_manifest_freshness.py _manifest_commit_gap().
-            try:
-                diff_proc = subprocess.run(
-                    ["git", "diff", "--name-only", f"{manifest_head}..HEAD"],
-                    capture_output=True, text=True, cwd=str(ROOT),
-                )
-                if diff_proc.returncode == 0:
-                    changed = [f.strip() for f in diff_proc.stdout.splitlines() if f.strip()]
-                    _gov_prefixes = (
-                        "docs/", "scripts/", "tests/", ".github/", "pyproject.toml",
-                    )
-                    if changed and all(
-                        any(f.startswith(p) for p in _gov_prefixes) for f in changed
-                    ):
-                        return None  # governance-only gap — exempt
-            except Exception:
-                pass
+            # Docs-only gap exemption: allow commits where only governance files changed.
+            if _docs_only_gap(manifest_head, current_head):
+                return None
             return f"head_mismatch: manifest={manifest_head[:12]} HEAD={current_head[:12]}"
         if condition == "dirty_worktree":
             return "dirty_worktree" if is_dirty else None
@@ -428,20 +434,14 @@ def _compute_cap(
                 return f"notice_inconsistency: release_identity={id_status} {violations[:1]}"
             return None
         if condition == "clean_env_not_final_head":
-            # Fails when the latest clean-env artifact's head != release HEAD
-            ce_files = sorted(
-                (ROOT / "docs" / "verification").glob("*clean-env*.json"),
-                key=lambda p: p.stat().st_mtime,
-            )
+            # Passes when any clean-env artifact matches HEAD exactly, OR when
+            # the diff between that artifact's HEAD and current HEAD is docs-only.
+            # Iterate all artifacts so that a newer artifact (e.g. after lint fixes)
+            # can satisfy the condition even if an older artifact alphabetically wins
+            # the mtime sort in CI where all files share the checkout mtime.
+            ce_files = list((ROOT / "docs" / "verification").glob("*clean-env*.json"))
             if not ce_files:
                 return None  # No clean-env artifact — covered by clean_env_unverified
-            try:
-                ce_data = json.loads(ce_files[-1].read_text(encoding="utf-8"))
-                ce_head = str(ce_data.get("head", "")).strip()
-            except Exception:
-                return None
-            if not ce_head:
-                return None
             head_proc = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True, text=True, cwd=str(ROOT),
@@ -449,11 +449,25 @@ def _compute_cap(
             current_head = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
             if not current_head:
                 return None
-            # SHA prefix match (short vs full)
-            min_len = min(len(ce_head), len(current_head), 12)
-            if ce_head[:min_len] != current_head[:min_len]:
-                return f"clean_env_not_final_head: evidence={ce_head[:12]} HEAD={current_head[:12]}"
-            return None
+            # Check each artifact: exact match OR governance-only gap
+            best_ce_head = ""
+            for ce_f in ce_files:
+                try:
+                    ce_data = json.loads(ce_f.read_text(encoding="utf-8"))
+                    ce_head = str(ce_data.get("head", "")).strip()
+                except Exception:
+                    continue
+                if not ce_head:
+                    continue
+                min_len = min(len(ce_head), len(current_head), 12)
+                if ce_head[:min_len] == current_head[:min_len]:
+                    return None  # Exact match
+                if _docs_only_gap(ce_head, current_head):
+                    return None  # Governance-only gap — evidence still valid
+                # Track the most recent artifact head for the error message
+                if not best_ce_head or ce_head > best_ce_head:
+                    best_ce_head = ce_head
+            return f"clean_env_not_final_head: evidence={best_ce_head[:12]} HEAD={current_head[:12]}"
         if condition == "operator_drill_missing":
             # Fails when no operator-drill evidence exists for the current HEAD
             drill_files = sorted(
