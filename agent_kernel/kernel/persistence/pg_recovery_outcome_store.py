@@ -21,8 +21,10 @@ class PostgresRecoveryOutcomeStore(RecoveryOutcomeStore):
         bridge: AsyncPGBridge | None = None,
     ) -> None:
         """Initialize PostgreSQL recovery-outcome store."""
-        self._bridge = bridge or AsyncPGBridge(dsn=dsn, pool_min=pool_min, pool_max=pool_max)
         self._own_bridge = bridge is None
+        if bridge is None:
+            bridge = AsyncPGBridge(dsn=dsn, pool_min=pool_min, pool_max=pool_max)
+        self._bridge = bridge
         self._bridge.run_sync(self._ensure_schema())
 
     def close(self) -> None:
