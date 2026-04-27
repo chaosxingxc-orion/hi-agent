@@ -251,7 +251,7 @@ def test_soft_ban_identifiers_exists():
     assert "survey_fetch" in sb
     assert "pi_agent" in sb
     assert "literature" in sb
-    assert "PaperReferenceValidator" in sb
+    assert "CitationValidator" in sb
     assert "CitationArtifact" in sb
     assert "PaperArtifact" in sb
     assert "LeanProofArtifact" in sb
