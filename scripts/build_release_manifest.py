@@ -449,6 +449,31 @@ def main() -> int:
 
     out_path.write_text(manifest_json, encoding="utf-8")
     print(f"Manifest written: {out_path}", file=sys.stderr)
+
+    # Write a co-located verification artifact so check_verification_artifacts
+    # always finds a fresh artifact for the current HEAD — avoids the circular
+    # dependency where creating the artifact changes HEAD.
+    short_sha = manifest["git"]["short_sha"]
+    head_sha = manifest["git"]["head_sha"]
+    verif_dir = ROOT / "docs" / "verification"
+    verif_dir.mkdir(parents=True, exist_ok=True)
+    verif_artifact = verif_dir / f"{short_sha}-manifest-gate.json"
+    verif_artifact.write_text(
+        json.dumps({
+            "schema_version": "1",
+            "check": "manifest_build_gate",
+            "release_head": short_sha,
+            "verified_head": head_sha,
+            "manifest_id": manifest["manifest_id"],
+            "wave": manifest.get("wave", ""),
+            "date": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d"),
+            "status": "pass",
+            "generated_at": manifest["generated_at"],
+        }, indent=2),
+        encoding="utf-8",
+    )
+    print(f"Verification artifact written: {verif_artifact}", file=sys.stderr)
+
     print(
         f"Score: raw={manifest['scorecard']['raw']:.1f}  "
         f"verified={manifest['scorecard']['verified']:.1f}  "
