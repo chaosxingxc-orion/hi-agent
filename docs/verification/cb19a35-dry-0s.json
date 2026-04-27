@@ -1,0 +1,38 @@
+{
+  "release_head": "cb19a35",
+  "start_time": "2026-04-27T02:50:48.439581+00:00",
+  "end_time": "2026-04-27T02:50:48.439663+00:00",
+  "duration_seconds": 0.0,
+  "status": "dry_run",
+  "runs_submitted": 3,
+  "runs_completed": 3,
+  "runs_failed": 0,
+  "runs_recovered": 0,
+  "duplicate_executions": 0,
+  "cost_usage": "N/A",
+  "alert_events": [],
+  "operator_actions": [],
+  "results": [
+    {
+      "run_index": 0,
+      "run_id": "dry-run-0000",
+      "state": "dry_run",
+      "duration_seconds": 0.0,
+      "error": null
+    },
+    {
+      "run_index": 1,
+      "run_id": "dry-run-0001",
+      "state": "dry_run",
+      "duration_seconds": 0.0,
+      "error": null
+    },
+    {
+      "run_index": 2,
+      "run_id": "dry-run-0002",
+      "state": "dry_run",
+      "duration_seconds": 0.0,
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "release_head": "cb19a35",
+  "generated_at": "2026-04-27T02:51:46.015943+00:00",
+  "spine_fields_checked": [
+    "run_id",
+    "tenant_id",
+    "user_id",
+    "session_id"
+  ],
+  "spine_coverage": {
+    "RunExecutionContext": [
+      "tenant_id",
+      "user_id",
+      "session_id",
+      "project_id",
+      "profile_id",
+      "run_id",
+      "parent_run_id",
+      "stage_id",
+      "capability_name",
+      "request_id"
+    ],
+    "ManagedRun": [
+      "run_id",
+      "task_contract",
+      "state",
+      "result",
+      "error",
+      "thread",
+      "created_at",
+      "updated_at",
+      "finished_at",
+      "tenant_id",
+      "user_id",
+      "session_id",
+      "current_stage",
+      "stage_updated_at",
+      "idempotency_key",
+      "outcome",
+      "response_snapshot"
+    ]
+  },
+  "missing_fields": {},
+  "status": "pass"
+}

@@ -1,0 +1,62 @@
+{
+  "release_head": "cb19a35",
+  "generated_at": "2026-04-27T02:51:56.183717+00:00",
+  "scenarios_total": 5,
+  "scenarios_passed": 3,
+  "scenarios_skipped": 2,
+  "results": [
+    {
+      "scenario": "worker_kill_9",
+      "injection_method": "kill -9",
+      "expected_state": "terminated",
+      "actual_state": "skipped",
+      "recovery_result": "N/A",
+      "residual_risk": "not tested on win32",
+      "passed": false,
+      "skipped": true
+    },
+    {
+      "scenario": "sigterm_drain",
+      "injection_method": "SIGTERM",
+      "expected_state": "terminated",
+      "actual_state": "skipped",
+      "recovery_result": "N/A",
+      "residual_risk": "not tested on win32",
+      "passed": false,
+      "skipped": true
+    },
+    {
+      "scenario": "db_locked_busy",
+      "injection_method": "concurrent_write",
+      "expected_state": "OperationalError",
+      "actual_state": "OperationalError",
+      "recovery_result": "transaction_aborted",
+      "residual_risk": "none",
+      "error_type": "OperationalError",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "scenario": "llm_timeout",
+      "injection_method": "httpx_timeout_0.001s",
+      "expected_state": "TimeoutException",
+      "actual_state": "ReadTimeout",
+      "recovery_result": "exception_propagated",
+      "residual_risk": "none",
+      "elapsed_seconds": 0.5059,
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "scenario": "mcp_crash",
+      "injection_method": "exit_1",
+      "expected_state": "nonzero_exit",
+      "actual_state": "nonzero_exit",
+      "recovery_result": "returncode_detectable",
+      "residual_risk": "none",
+      "returncode": 1,
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}
