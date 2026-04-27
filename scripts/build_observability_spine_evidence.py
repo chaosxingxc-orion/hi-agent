@@ -234,6 +234,7 @@ def main(argv: list[str] | None = None) -> int:
     # ------------------------------------------------------------------
     status = "pass" if not failures else "fail"
     evidence = {
+        "provenance": "structural",
         "release_head": sha,
         "verified_head": sha,
         "generated_at": generated_at,
