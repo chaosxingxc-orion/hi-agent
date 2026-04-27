@@ -274,7 +274,7 @@ def _compute_cap(
         """Return a human-readable factor string if the condition is true, else None."""
         if condition == "head_mismatch":
             manifests = sorted(
-                RELEASES_DIR.glob("platform-release-manifest-*.json"),
+                RELEASES_DIR.glob("*.json"),
                 key=lambda p: p.stat().st_mtime,
             )
             if not manifests:
