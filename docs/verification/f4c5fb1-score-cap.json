@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-27-d899f2b",
+  "verified_head": "d899f2bbecef39b788ae0e8c121b5add8fa0ad13",
+  "generated_at": "2026-04-27T16:25:05.524810+00:00",
+  "current_verified_readiness": 72.0,
+  "cap": 72.0,
+  "cap_reason": "t3_deferred; t3_shape_verified: structural; gate_warn/deferred: vocab, t3_freshness, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "t3_deferred",
+    "t3_shape_verified: structural",
+    "gate_warn/deferred: vocab, t3_freshness, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}

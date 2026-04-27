@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-27-b5f8272",
+  "verified_head": "b5f827283f92da9fd70cef4af77f353399fdc9a7",
+  "generated_at": "2026-04-27T16:35:49.850016+00:00",
+  "current_verified_readiness": 60.0,
+  "cap": 60.0,
+  "cap_reason": "head_mismatch: manifest=d899f2bbecef HEAD=b5f827283f92; gate_warn/deferred: vocab, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "head_mismatch: manifest=d899f2bbecef HEAD=b5f827283f92",
+    "gate_warn/deferred: vocab, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}

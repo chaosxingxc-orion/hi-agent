@@ -1,0 +1,1137 @@
+{
+  "manifest_id": "2026-04-27-8fc0f80",
+  "schema_version": "1",
+  "generated_at": "2026-04-27T17:27:10.184026+00:00",
+  "release_head": "8fc0f809ab8b805c1b0d561f2cb2973ad68adf85",
+  "git": {
+    "head_sha": "8fc0f809ab8b805c1b0d561f2cb2973ad68adf85",
+    "short_sha": "8fc0f80",
+    "is_dirty": false
+  },
+  "wave": "Wave 14",
+  "gates": {
+    "layering": {
+      "check": "layering",
+      "status": "pass",
+      "violations": [],
+      "allowlisted": [
+        {
+          "file": "hi_agent/artifacts/contracts.py",
+          "line": 185,
+          "module": "examples",
+          "reason": "lazy DeprecationWarning shim",
+          "expiry_wave": "Wave 12"
+        },
+        {
+          "file": "hi_agent/capability/bundles/__init__.py",
+          "line": 32,
+          "module": "examples",
+          "reason": "lazy DeprecationWarning shim for ResearchBundle (examples layer)",
+          "expiry_wave": "Wave 12"
+        }
+      ],
+      "head": "8fc0f80"
+    },
+    "vocab": {
+      "check": "no_research_vocab",
+      "status": "pass",
+      "violations": [],
+      "hard_violations": [],
+      "soft_violations": [],
+      "migration_guide_violations": [],
+      "head": "8fc0f80"
+    },
+    "route_scope": {
+      "check": "route_scope",
+      "status": "pass",
+      "allowlist_total": 34,
+      "allowlist_expired": 0,
+      "expiring_this_wave": 0,
+      "violations": [],
+      "head": "8fc0f80"
+    },
+    "expired_waivers": {
+      "check": "expired_waivers",
+      "status": "pass",
+      "current_wave": "Wave 14",
+      "violations": [],
+      "head": "8fc0f80"
+    },
+    "doc_canonical": {
+      "check": "doc_canonical",
+      "status": "pass",
+      "phantoms": [],
+      "stale": []
+    },
+    "doc_consistency": {
+      "check": "doc_consistency",
+      "status": "fail",
+      "violations": [
+        {
+          "file": "STALE-NOTICE-HEAD",
+          "text": "docs\\downstream-responses\\2026-04-27-wave15-release-readiness-notice.md declares Functional HEAD c02e40d3024de4dac7018ed6ecf9166d6e43eb3f, current is 8fc0f809ab8b"
+        }
+      ],
+      "counts": {
+        "notices_checked": 6
+      },
+      "head": "8fc0f80"
+    },
+    "wave_tags": {
+      "check": "no_wave_tags",
+      "status": "pass",
+      "violations": [],
+      "head": "8fc0f80"
+    },
+    "rule6_warnings": {
+      "check": "rules",
+      "status": "pass",
+      "violations": [],
+      "hard_pass": true,
+      "rule6_warnings": {
+        "count": 24,
+        "sites": [
+          {
+            "file": "hi_agent/task_mgmt/reflection_bridge.py",
+            "line": 78,
+            "text": "restart_policy or TaskRestartPolicy(max_attempts=3),"
+          },
+          {
+            "file": "agent_kernel/kernel/minimal_runtime.py",
+            "line": 429,
+            "text": "self._policy = policy or StaticRecoveryPolicy()"
+          },
+          {
+            "file": "agent_kernel/kernel/turn_engine.py",
+            "line": 460,
+            "text": "self._defaults = defaults or TurnEngineDefaults("
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 324,
+            "text": "resolved_event_log_config = event_log_config or RuntimeEventLogConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 325,
+            "text": "resolved_dedupe_config = dedupe_config or RuntimeDedupeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 326,
+            "text": "resolved_decision_deduper_config = decision_deduper_config or RuntimeDecisionDedupeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 327,
+            "text": "resolved_recovery_config = recovery_outcome_config or RuntimeRecoveryOutcomeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 328,
+            "text": "resolved_turn_intent_config = turn_intent_log_config or RuntimeTurnIntentLogConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 329,
+            "text": "resolved_production_safety = production_safety_config or RuntimeProductionSafetyConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 374,
+            "text": "strict_mode_config=(strict_mode_config or RuntimeStrictModeConfig()),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 534,
+            "text": "event_log_config or RuntimeEventLogConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 537,
+            "text": "dedupe_config or RuntimeDedupeConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 540,
+            "text": "recovery_outcome_config or RuntimeRecoveryOutcomeConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 543,
+            "text": "turn_intent_log_config or RuntimeTurnIntentLogConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 564,
+            "text": "resolved_deduper_config = decision_deduper_config or RuntimeDecisionDedupeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/heartbeat.py",
+            "line": 187,
+            "text": "self._policy = policy or HeartbeatPolicy()"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/client.py",
+            "line": 48,
+            "text": "active_config = config or TemporalClientConfig()"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/gateway.py",
+            "line": 100,
+            "text": "self._config = config or TemporalGatewayConfig()"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/run_actor_workflow.py",
+            "line": 1359,
+            "text": "strict_mode=strict_mode or RunActorStrictModeConfig(),"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/run_actor_workflow.py",
+            "line": 1442,
+            "text": "strict_mode=strict_mode or RunActorStrictModeConfig(),"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/worker.py",
+            "line": 58,
+            "text": "self._config = config or TemporalWorkerConfig()"
+          },
+          {
+            "file": "agent_kernel/kernel/cognitive/script_runtime_subprocess.py",
+            "line": 55,
+            "text": "self._config = config or SubprocessScriptConfig()"
+          },
+          {
+            "file": "agent_kernel/kernel/recovery/gate.py",
+            "line": 120,
+            "text": "self._planner = planner or RecoveryPlanner()"
+          },
+          {
+            "file": "agent_kernel/kernel/recovery/planner.py",
+            "line": 156,
+            "text": "self._policy = policy or PlannerHeuristicPolicy()"
+          }
+        ]
+      },
+      "rule13_warnings": {
+        "count": 0,
+        "sites": []
+      },
+      "head": "8fc0f80"
+    },
+    "t3_freshness": {
+      "check": "t3_freshness",
+      "status": "pass",
+      "verified_head": "fd6386ef5b591d31f815c3954fadc5eb242805ba",
+      "reason": "27 file(s) changed, none on hot path"
+    },
+    "boundary": {
+      "check": "boundary",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "total": 0
+      },
+      "head": "8fc0f80"
+    },
+    "deprecated_api": {
+      "check": "deprecated_field_usage",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "total": 0
+      },
+      "head": "8fc0f80"
+    },
+    "durable_wiring": {
+      "check": "durable_wiring",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "classes_checked": 13
+      },
+      "head": "8fc0f80",
+      "runtime_probe": {
+        "SQLiteEventStore": "pass",
+        "SQLiteRunStore": "pass",
+        "IdempotencyStore": "pass"
+      },
+      "probe_failures": []
+    },
+    "metrics_cardinality": {
+      "check": "metrics_cardinality",
+      "status": "pass",
+      "violations": [],
+      "metrics_checked": 66
+    },
+    "slo_health": {
+      "status": "pass"
+    },
+    "allowlist_discipline": {
+      "check": "allowlist_discipline",
+      "status": "pass",
+      "total": 7,
+      "expired_total": 0,
+      "missing_fields_total": 0,
+      "invalid_risk_total": 0,
+      "failures": []
+    },
+    "verification_artifacts": {
+      "check": "verification_artifacts",
+      "status": "pass",
+      "has_current_head": true,
+      "current_files": [
+        "docs\\verification\\8fc0f80-manifest-gate.json",
+        "docs\\verification\\8fc0f80-observability-spine.json"
+      ],
+      "checked_count": 103
+    },
+    "targeted_default_path": {
+      "status": "pass",
+      "raw_stdout": "........................s..........                                      [100%]\n34 passed, 1 skipped in 8.71s\n{\"check\": \"targeted_default_path\", \"status\": \"pass\", \"returncode\": 0, \"test_files\": [\"tests/integration/test_run_lease_heartbeat.py\", \"tests/integration/test_run_progress_events.py\", \"tests/integration/test_run_liveness_fields.py\", \"tests/integration/test_dlq_surface.py\", \"tests/integration/test_backpressure.py\", \"tests/integration/test_graceful_drain.py\", \"tests/unit/test_metrics_catalo"
+    },
+    "clean_env": {
+      "status": "pass",
+      "summary": "profile  : default-offline\nbasetemp : C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_i5qv8fgb\ncache_dir: C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_t0hozkhm\nmarkers  : -m not live_api and not external_llm and not network and not requires_secret and not windows_unsafe\ncommand  : C:\\Python314\\python.exe -m pytest --basetemp=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_i5qv8fgb --override-ini=cache_dir=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_t0hozkhm --json-report --json-repo"
+    },
+    "validate_before_mutate": {
+      "check": "validate_before_mutate",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "sites_checked": 12
+      },
+      "head": "8fc0f80"
+    },
+    "select_completeness": {
+      "check": "select_completeness",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "fields_checked": 24
+      },
+      "head": "8fc0f80"
+    },
+    "silent_degradation": {
+      "check": "silent_degradation",
+      "status": "pass",
+      "violation_count": 0,
+      "violations": []
+    },
+    "metric_producers": {
+      "check": "metric_producers",
+      "status": "pass",
+      "total_metrics": 66,
+      "orphan_count": 0,
+      "orphans": []
+    },
+    "downstream_response_format": {
+      "status": "pass",
+      "summary": "OK check_downstream_response_format"
+    },
+    "evidence_provenance": {
+      "status": "pass",
+      "check": "evidence_provenance",
+      "provenance": "real",
+      "generated_at": "2026-04-27T17:27:08.618548+00:00",
+      "artifacts_checked": 128,
+      "issues_found": 0,
+      "issues": [],
+      "summary": [
+        {
+          "path": "docs\\verification\\0276580-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0276580-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\08048ed-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\08048ed-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\08048ed-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0ab8b26-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0ab8b26-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\178cabc-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-0m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-60m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-62m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-63m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-69m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-70m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-9m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2d57a2b-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\3a69b06-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\4590857-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\57cbc5e-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\691a974-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\6ac41b4-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ac41b4-soak-dry-1m.json",
+          "check": "",
+          "provenance": "dry_run"
+        },
+        {
+          "path": "docs\\verification\\6e11eea-chaos-matrix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\6ea1204-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\73867a4-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\73867a4-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\73867a4-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\8384de8-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\88960cc-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\88960cc-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8ee9690-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\94bcc2c-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\94bcc2c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\a8fffaf-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\a8fffaf-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\bbc0c47-default-offline-clean-env.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bbc0c47-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-chaos-matrix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-dry-0s.json",
+          "check": "",
+          "provenance": "dry_run"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\d899f2b-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d899f2b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\e59a883-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\e59a883-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e59a883-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\e5b5183-chaos-matrix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-soak-61m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\fd6386e-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fd6386e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-extended-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-post-df38-revert.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df35-compressor.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df35-skill-extractor.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df371.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df39-postmortem.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df39-signal-sweep.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-final.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-volces-post-wave5.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-23-rule15-structural-post-fix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-23-rule15-structural.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-5ac208e-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-5dceabf-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-8c5395b-rule15-volces-v2.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-8c5395b-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-25-5f57ff3-rule15-volces-v3.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-25-fa98c7b-rule15-volces-v4.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-234e9fbf7ddd5e5fccef02ba6180b82ecc9ce296-clean-env.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-3b9980594e887a6ce4a733f93b27724f58c00708-clean-env.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-a3e7bed-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-4590857-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-9968603-t3-volces-deferred.json",
+          "check": "t3_freshness",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-bbc0c47-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-fd6386e-t3-volces.json",
+          "check": "t3_gate",
+          "provenance": "real"
+        }
+      ]
+    },
+    "allowlist_universal": {
+      "status": "pass",
+      "check": "allowlist_universal",
+      "current_wave": "Wave 14",
+      "entries_checked": 0,
+      "missing_field_issues": [],
+      "expired_issues": [],
+      "total_issues": 0
+    },
+    "noqa_discipline": {
+      "status": "pass",
+      "check": "noqa_discipline",
+      "suppressions_without_expiry": 0,
+      "issues": [],
+      "reason": ""
+    },
+    "pytest_skip_discipline": {
+      "status": "pass",
+      "check": "pytest_skip_discipline",
+      "skips_without_expiry": 0,
+      "issues": [],
+      "reason": ""
+    },
+    "closure_taxonomy": {
+      "status": "pass",
+      "check": "closure_taxonomy",
+      "notices_checked": 21,
+      "issues": []
+    },
+    "multistatus_gates": {
+      "status": "pass",
+      "check": "multistatus_gates",
+      "multi_status_gates": 37,
+      "single_path_gates": 0,
+      "single_path_gate_list": [],
+      "multi_status_gate_list": [
+        "check_agent_kernel_pin.py",
+        "check_allowlist_discipline.py",
+        "check_allowlist_universal.py",
+        "check_boundary.py",
+        "check_chaos_runtime_coupling.py",
+        "check_closure_taxonomy.py",
+        "check_deprecated_field_usage.py",
+        "check_doc_canonical_symbols.py",
+        "check_doc_consistency.py",
+        "check_downstream_response_format.py",
+        "check_durable_wiring.py",
+        "check_evidence_provenance.py",
+        "check_expired_waivers.py",
+        "check_layering.py",
+        "check_manifest_freshness.py",
+        "check_metric_producers.py",
+        "check_metrics_cardinality.py",
+        "check_multistatus_gates.py",
+        "check_no_hardcoded_wave.py",
+        "check_no_research_vocab.py",
+        "check_no_wave_tags.py",
+        "check_noqa_discipline.py",
+        "check_observability_spine_completeness.py",
+        "check_pytest_skip_discipline.py",
+        "check_route_scope.py",
+        "check_rules.py",
+        "check_score_cap.py",
+        "check_secrets.py",
+        "check_select_completeness.py",
+        "check_silent_degradation.py",
+        "check_slo_health.py",
+        "check_soak_evidence.py",
+        "check_t3_evidence.py",
+        "check_t3_freshness.py",
+        "check_targeted_default_path.py",
+        "check_validate_before_mutate.py",
+        "check_verification_artifacts.py"
+      ],
+      "reason": ""
+    },
+    "score_cap": {
+      "status": "pass",
+      "check": "score_cap",
+      "schema_version": "1",
+      "provenance": "derived",
+      "manifest_id": "2026-04-27-8fc0f80",
+      "verified_head": "8fc0f809ab8b805c1b0d561f2cb2973ad68adf85",
+      "generated_at": "2026-04-27T17:27:09.359219+00:00",
+      "current_verified_readiness": 70.0,
+      "cap": 70.0,
+      "cap_reason": "gate_fail: doc_consistency; gate_warn/deferred: observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+      "cap_factors": [
+        "gate_fail: doc_consistency",
+        "gate_warn/deferred: observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+      ],
+      "score_claim_issues": []
+    },
+    "observability_spine_completeness": {
+      "status": "deferred",
+      "check": "observability_spine_completeness",
+      "provenance": "structural",
+      "spine_file": "8fc0f80-observability-spine.json",
+      "reason": "provenance='structural'; real spine run required for pass"
+    },
+    "soak_evidence": {
+      "status": "deferred",
+      "check": "soak_evidence",
+      "reason": "real soak duration 4184.298s < 86400s (24h)",
+      "provenance": "shape_verified",
+      "duration_seconds": 4184.298
+    },
+    "chaos_runtime_coupling": {
+      "status": "deferred",
+      "check": "chaos_runtime_coupling",
+      "reason": "chaos evidence has no scenarios"
+    },
+    "no_hardcoded_wave": {
+      "status": "pass",
+      "check": "no_hardcoded_wave",
+      "issues_found": 0,
+      "issues": []
+    }
+  },
+  "scorecard": {
+    "raw": 77.62,
+    "verified": 70.0,
+    "raw_implementation_maturity": 77.62,
+    "current_verified_readiness": 70.0,
+    "seven_by_twenty_four_operational_readiness": 65.0,
+    "conditional_readiness_after_blockers": 70.0,
+    "cap": 70.0,
+    "cap_reason": "gate_fail: doc_consistency; gate_warn/deferred: observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+    "cap_factors": [
+      "gate_fail: doc_consistency",
+      "gate_warn/deferred: observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+    ],
+    "cap_7x24": 65.0,
+    "cap_factors_7x24": [
+      "soak_24h_missing: deferred",
+      "observability_spine_incomplete: deferred",
+      "chaos_non_runtime_coupled: deferred"
+    ],
+    "weights_version": "2"
+  },
+  "t3": {
+    "status": "pass",
+    "verified_head": "fd6386ef5b591d31f815c3954fadc5eb242805ba"
+  },
+  "clean_env": {
+    "profile": "default-offline",
+    "status": "pass",
+    "summary_available": null
+  },
+  "route_scope": {
+    "allowlist_total": 34,
+    "expired_allowlist_total": 0
+  },
+  "captains": "270cf97705346507"
+}

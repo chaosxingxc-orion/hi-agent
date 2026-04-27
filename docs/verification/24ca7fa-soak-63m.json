@@ -1,0 +1,1289 @@
+{
+  "release_head": "24ca7fa",
+  "verified_head": "24ca7fae15e3933dc0a5b794d23d6e857ae4abf9",
+  "check": "soak_evidence",
+  "provenance": "shape_verified",
+  "start_time": "2026-04-27T16:06:55.773408+00:00",
+  "end_time": "2026-04-27T17:09:44.553194+00:00",
+  "duration_seconds": 3768.78,
+  "status": "completed",
+  "runs_submitted": 57,
+  "runs_completed": 1,
+  "runs_failed": 56,
+  "runs_with_exceptions": 0,
+  "duplicate_executions": 0,
+  "sigterm_injections": 0,
+  "health_samples": [
+    {
+      "ts": "2026-04-27T16:07:25.774390+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:07:56.165212+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:08:26.513165+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:08:56.970313+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:09:27.374197+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:09:57.764141+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:10:28.193620+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:10:58.576818+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:11:28.996478+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:11:59.334213+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:12:29.692269+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:13:00.052859+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:13:30.405776+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:14:00.774027+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:14:31.142105+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:15:01.506585+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:15:31.889533+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:16:02.250301+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:16:32.625913+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:17:02.973214+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:17:33.346203+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:18:03.703898+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:18:34.058014+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:19:04.432218+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:19:34.770536+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:20:05.156815+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:20:35.509687+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:21:05.887201+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:21:36.269339+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:22:06.616928+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:22:36.990055+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:23:07.450080+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:23:37.810197+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:24:08.271547+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:24:38.661418+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:25:09.009917+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:25:39.365712+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:26:09.724175+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:26:40.080892+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:27:10.424126+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:27:40.770409+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:28:11.162337+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:28:41.702244+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:29:12.060073+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:29:42.454079+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:30:12.785171+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:30:43.164329+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:31:13.536293+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:31:43.904320+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:32:14.264460+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:32:44.614618+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:33:14.980035+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:33:45.332301+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:34:15.704771+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:34:46.070370+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:35:16.433655+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:35:46.782600+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:36:17.142323+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:36:47.477588+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:37:17.833245+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:37:48.211360+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:38:18.582010+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:38:48.924226+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:39:19.288418+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:39:49.658268+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:40:20.009151+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:40:50.373816+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:41:20.719671+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:41:51.079961+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:42:21.439443+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:42:51.826361+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:43:22.180793+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:43:52.538918+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:44:22.905030+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:44:53.266934+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:45:23.631372+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:45:53.994424+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:46:24.387950+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:46:54.754280+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:47:25.124238+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:47:55.499992+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:48:25.865882+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:48:56.403237+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:49:26.750230+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:49:57.116921+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:50:27.505022+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:50:57.866709+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:51:28.224915+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:51:58.568804+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:52:29.084479+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:52:59.487885+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:53:29.890602+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:54:00.286552+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:54:30.684127+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:55:01.076784+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:55:31.465240+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:56:01.853709+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:56:32.238386+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:57:02.678236+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:57:33.101010+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:58:03.498536+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:58:33.850179+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:59:04.261949+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:59:34.753665+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:00:05.140604+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:00:35.559313+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:01:05.891260+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:01:36.231042+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:02:06.603391+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:02:36.957772+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:03:07.314773+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:03:37.680311+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:04:08.046263+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:04:38.392801+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:05:08.748902+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:05:39.340618+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:06:09.703276+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:06:40.063249+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:07:10.454348+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:07:40.827365+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:08:11.185977+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:08:41.564843+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:09:11.961582+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T17:09:42.316438+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    }
+  ],
+  "alert_events": [],
+  "operator_actions": [],
+  "results": [
+    {
+      "run_index": 0,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.203,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"8a6f9a"
+    },
+    {
+      "run_index": 1,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.181,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"27826a"
+    },
+    {
+      "run_index": 2,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.182,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"dab1f3"
+    },
+    {
+      "run_index": 3,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.196,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"9604f7"
+    },
+    {
+      "run_index": 4,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.17,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"4c31f4"
+    },
+    {
+      "run_index": 5,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.193,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"906c98"
+    },
+    {
+      "run_index": 6,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.19,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"33e574"
+    },
+    {
+      "run_index": 7,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.194,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"1c5543"
+    },
+    {
+      "run_index": 8,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.173,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"51eac3"
+    },
+    {
+      "run_index": 9,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.167,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"c6b801"
+    },
+    {
+      "run_index": 10,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.192,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"2e4ab3"
+    },
+    {
+      "run_index": 11,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.183,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"c4d2de"
+    },
+    {
+      "run_index": 12,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.185,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"90b670"
+    },
+    {
+      "run_index": 13,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.186,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"ea71af"
+    },
+    {
+      "run_index": 14,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.237,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"a8c32f"
+    },
+    {
+      "run_index": 15,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.187,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"40b693"
+    },
+    {
+      "run_index": 16,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.181,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"5684d1"
+    },
+    {
+      "run_index": 17,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.17,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"e3aee8"
+    },
+    {
+      "run_index": 18,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.262,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"15b76d"
+    },
+    {
+      "run_index": 19,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.175,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"1241a9"
+    },
+    {
+      "run_index": 20,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.2,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"8b7b85"
+    },
+    {
+      "run_index": 21,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.187,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"f115f6"
+    },
+    {
+      "run_index": 22,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.203,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"3bb583"
+    },
+    {
+      "run_index": 23,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.188,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"d87ed1"
+    },
+    {
+      "run_index": 24,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.17,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"79df1a"
+    },
+    {
+      "run_index": 25,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.223,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"f76fb8"
+    },
+    {
+      "run_index": 26,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.189,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"9be7b1"
+    },
+    {
+      "run_index": 27,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.194,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"e1fd6c"
+    },
+    {
+      "run_index": 28,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.19,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"06cbb6"
+    },
+    {
+      "run_index": 29,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.189,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"40e848"
+    },
+    {
+      "run_index": 30,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.18,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"bf16b7"
+    },
+    {
+      "run_index": 31,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.186,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"90f49f"
+    },
+    {
+      "run_index": 32,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.195,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"533d65"
+    },
+    {
+      "run_index": 33,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.187,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"0d63a3"
+    },
+    {
+      "run_index": 34,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.196,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"c83640"
+    },
+    {
+      "run_index": 35,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.273,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"58da19"
+    },
+    {
+      "run_index": 36,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.193,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"cc65a1"
+    },
+    {
+      "run_index": 37,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.184,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"cf56e8"
+    },
+    {
+      "run_index": 38,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.195,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"1dbbff"
+    },
+    {
+      "run_index": 39,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.201,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"57151b"
+    },
+    {
+      "run_index": 40,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.189,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"c0e35a"
+    },
+    {
+      "run_index": 41,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.208,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"65e3b4"
+    },
+    {
+      "run_index": 42,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.178,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"28d821"
+    },
+    {
+      "run_index": 43,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.186,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"f3c3e3"
+    },
+    {
+      "run_index": 44,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.192,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"afde58"
+    },
+    {
+      "run_index": 45,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.181,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"69493c"
+    },
+    {
+      "run_index": 46,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.187,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"5303b7"
+    },
+    {
+      "run_index": 47,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.166,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"2062ba"
+    },
+    {
+      "run_index": 48,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.197,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"3c93b3"
+    },
+    {
+      "run_index": 49,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.168,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"268a52"
+    },
+    {
+      "run_index": 50,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.187,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"90743e"
+    },
+    {
+      "run_index": 51,
+      "run_id": "269ecaae-17f7-4007-99cf-be010c266e72",
+      "state": "completed",
+      "duration_seconds": 474.648,
+      "error": null
+    },
+    {
+      "run_index": 52,
+      "run_id": "6b94f6ff-d65e-4a39-a1bc-2848a41984de",
+      "state": "timeout",
+      "duration_seconds": 600.671,
+      "error": null
+    },
+    {
+      "run_index": 53,
+      "run_id": "652a73a8-d100-437f-8c39-5bfb4f0c3ff8",
+      "state": "timeout",
+      "duration_seconds": 600.691,
+      "error": null
+    },
+    {
+      "run_index": 54,
+      "run_id": "9ee738cd-27e0-400f-8f7d-f1c4ec0a9535",
+      "state": "timeout",
+      "duration_seconds": 600.629,
+      "error": null
+    },
+    {
+      "run_index": 55,
+      "run_id": "34bd9cde-d235-4e95-b264-cacba6e2c1a4",
+      "state": "timeout",
+      "duration_seconds": 600.693,
+      "error": null
+    },
+    {
+      "run_index": 56,
+      "run_id": "22dca2a6-4b4c-4af6-a4f6-37d05a9406ce",
+      "state": "timeout",
+      "duration_seconds": 600.678,
+      "error": null
+    }
+  ]
+}

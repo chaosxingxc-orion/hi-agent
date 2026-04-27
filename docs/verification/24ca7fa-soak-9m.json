@@ -1,0 +1,148 @@
+{
+  "release_head": "24ca7fa",
+  "verified_head": "24ca7fae15e3933dc0a5b794d23d6e857ae4abf9",
+  "check": "soak_evidence",
+  "provenance": "shape_verified",
+  "start_time": "2026-04-27T16:13:41.717960+00:00",
+  "end_time": "2026-04-27T16:22:20.619210+00:00",
+  "duration_seconds": 518.901,
+  "status": "completed",
+  "runs_submitted": 1,
+  "runs_completed": 1,
+  "runs_failed": 0,
+  "runs_with_exceptions": 0,
+  "duplicate_executions": 0,
+  "sigterm_injections": 0,
+  "health_samples": [
+    {
+      "ts": "2026-04-27T16:14:11.731208+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:14:42.122208+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:15:12.501894+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:15:42.866659+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:16:13.234383+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:16:43.605039+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:17:13.966215+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:17:44.336320+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:18:14.705725+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:18:45.069926+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:19:15.472652+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:19:45.845987+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:20:16.236570+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:20:46.588029+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:21:16.943025+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:21:47.293269+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    },
+    {
+      "ts": "2026-04-27T16:22:17.663138+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0,
+      "dlq_depth": 0,
+      "queue_depth": 0
+    }
+  ],
+  "alert_events": [],
+  "operator_actions": [],
+  "results": [
+    {
+      "run_index": 0,
+      "run_id": "3214a3e6-80c3-42f6-b3a8-843e8796e551",
+      "state": "completed",
+      "duration_seconds": 518.589,
+      "error": null
+    }
+  ]
+}

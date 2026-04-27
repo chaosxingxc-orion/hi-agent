@@ -1,0 +1,35 @@
+{
+  "release_head": "24ca7fa",
+  "verified_head": "24ca7fae15e3933dc0a5b794d23d6e857ae4abf9",
+  "check": "soak_evidence",
+  "provenance": "shape_verified",
+  "start_time": "2026-04-27T16:07:47.341619+00:00",
+  "end_time": "2026-04-27T16:07:57.342174+00:00",
+  "duration_seconds": 10.001,
+  "status": "completed",
+  "runs_submitted": 2,
+  "runs_completed": 0,
+  "runs_failed": 2,
+  "runs_with_exceptions": 0,
+  "duplicate_executions": 0,
+  "sigterm_injections": 0,
+  "health_samples": [],
+  "alert_events": [],
+  "operator_actions": [],
+  "results": [
+    {
+      "run_index": 0,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.193,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"e8163e"
+    },
+    {
+      "run_index": 1,
+      "run_id": null,
+      "state": "http_error",
+      "duration_seconds": 0.169,
+      "error": "HTTP 500: {\"error\":\"executor_build_failed\",\"detail\":\"cannot import name 'ExhaustedPolicy' from 'hi_agent.runtime_adapter' (D:\\\\chao_workspace\\\\hi-agent\\\\hi_agent\\\\runtime_adapter\\\\__init__.py)\",\"run_id\":\"4d7f90"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-27-5794a0e",
+  "verified_head": "5794a0efceb9dd181f4868649c6c512d0063b307",
+  "generated_at": "2026-04-27T16:45:39.039029+00:00",
+  "current_verified_readiness": 63.0,
+  "cap": 63.0,
+  "cap_reason": "gate_fail: clean_env; clean_env_unverified: fail; gate_warn/deferred: observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "gate_fail: clean_env",
+    "clean_env_unverified: fail",
+    "gate_warn/deferred: observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}
