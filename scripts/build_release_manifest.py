@@ -273,19 +273,6 @@ def _compute_cap(
     def _condition_matches(condition: str) -> str | None:
         """Return a human-readable factor string if the condition is true, else None."""
         if condition == "head_mismatch":
-            manifests = sorted(
-                RELEASES_DIR.glob("*.json"),
-                key=lambda p: p.stat().st_mtime,
-            )
-            if not manifests:
-                return None
-            try:
-                latest_manifest = json.loads(manifests[-1].read_text(encoding="utf-8"))
-            except Exception:
-                return None
-            manifest_head = str(latest_manifest.get("release_head", "")).strip()
-            if not manifest_head:
-                return None
             head_proc = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True,
@@ -293,10 +280,34 @@ def _compute_cap(
                 cwd=str(ROOT),
             )
             current_head = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
-            if not current_head or manifest_head == current_head:
+            if not current_head:
                 return None
-            # Short-SHA prefix match (7-char vs full SHA)
-            if current_head.startswith(manifest_head) or manifest_head.startswith(current_head[:len(manifest_head)]):
+            # Check if ANY manifest already covers the current HEAD.
+            # Using mtime-latest is wrong during fresh manifest generation because
+            # the new file doesn't exist yet when caps are computed.
+            all_manifests = list(RELEASES_DIR.glob("*.json"))
+            for mp in all_manifests:
+                try:
+                    mdata = json.loads(mp.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                mhead = str(mdata.get("release_head", "")).strip()
+                if not mhead:
+                    continue
+                if mhead == current_head:
+                    return None
+                if current_head.startswith(mhead) or mhead.startswith(current_head[:len(mhead)]):
+                    return None
+            # No manifest covers current HEAD — use the latest manifest for cap reason
+            manifests_by_mtime = sorted(all_manifests, key=lambda p: p.stat().st_mtime)
+            if not manifests_by_mtime:
+                return None
+            try:
+                latest_manifest = json.loads(manifests_by_mtime[-1].read_text(encoding="utf-8"))
+            except Exception:
+                return None
+            manifest_head = str(latest_manifest.get("release_head", "")).strip()
+            if not manifest_head:
                 return None
             # Docs-only gap exemption: allow ≤3 commits where no Python/TOML/YAML changed
             try:
