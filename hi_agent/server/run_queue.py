@@ -106,6 +106,7 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 and the run is eligible for re-claiming.
         """
         self._lease_timeout = lease_timeout_seconds
+        self.lease_heartbeat_interval_seconds: float = max(1.0, lease_timeout_seconds / 3)
         self._lock = threading.Lock()
 
         resolved = _resolve_db_path(db_path)

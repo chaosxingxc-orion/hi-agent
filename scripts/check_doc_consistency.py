@@ -424,6 +424,68 @@ def check_downstream_notices_cite_manifest() -> list[str]:
     return errors
 
 
+def _check_closure_notice_levels(docs_dir: Path) -> list[str]:
+    """Check 11: every defect row in closure notices must have a level: <enum> field.
+
+    A 'closure notice' is any file matching docs/downstream-responses/*notice*.md.
+    A defect row is a markdown table row containing a '|' separator.
+    If the table has a 'Level' column, every data row must have a valid level value.
+    """
+    valid_levels = {
+        "component_exists",
+        "wired_into_default_path",
+        "covered_by_default_path_e2e",
+        "verified_at_release_head",
+        "operationally_observable",
+        "in_progress",
+        "deferred",
+    }
+    violations: list[str] = []
+    notice_pattern = docs_dir / "downstream-responses"
+    if not notice_pattern.exists():
+        return []
+
+    for notice_file in notice_pattern.glob("*notice*.md"):
+        content = notice_file.read_text(encoding="utf-8")
+        lines = content.splitlines()
+
+        in_table = False
+        has_level_column = False
+        level_col = -1
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped.startswith("|"):
+                in_table = False
+                has_level_column = False
+                level_col = -1
+                continue
+
+            cells = [c.strip() for c in stripped.split("|") if c.strip()]
+
+            if any(c.lower() in ("level", "closure level") for c in cells):
+                in_table = True
+                has_level_column = True
+                level_col = next(
+                    j
+                    for j, c in enumerate(cells)
+                    if c.lower() in ("level", "closure level")
+                )
+                continue
+
+            if all(c.replace("-", "").replace(":", "") == "" for c in cells):
+                continue
+
+            if in_table and has_level_column and level_col < len(cells):
+                val = cells[level_col].lower().strip("`")
+                if val not in valid_levels:
+                    violations.append(
+                        f"  {notice_file.relative_to(docs_dir.parent)}:{i + 1}: "
+                        f"invalid closure level '{val}' (valid: {sorted(valid_levels)})"
+                    )
+    return violations
+
+
 def _count_notices_checked() -> int:
     """Count delivery notice files inspected."""
     return len(list(DOCS.glob("downstream-responses/*delivery-notice*.md")))
@@ -466,6 +528,8 @@ def main() -> int:
     all_errors.extend(check_notice_head_alignment())
     # Check 9: downstream-response notices newer than manifest must cite Manifest: <id>
     all_errors.extend(check_downstream_notices_cite_manifest())
+    # Check 11: closure notices must have a valid level enum in every defect row
+    all_errors.extend(_check_closure_notice_levels(DOCS))
 
     if args.json:
         structured = [_parse_doc_error(e) for e in all_errors]

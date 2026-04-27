@@ -16,7 +16,7 @@ Architecture reference → `docs/architecture-reference.md`
 
 ## AI Engineering Rules
 
-**Thirteen rules.** Rules 1–4 are daily-use engineering principles. Rules 5–7 are class-level patterns triggered by resource type. Rules 8–10 are delivery gates. Rules 11–13 are platform-contract standards. All rules override default habits; CLAUDE.md overrides everything except explicit user instructions.
+**Seventeen rules.** Rules 1–4 are daily-use engineering principles. Rules 5–7 are class-level patterns triggered by resource type. Rules 8–10 are delivery gates. Rules 11–13 are platform-contract standards. Rules 14–17 are governance-process standards. All rules override default habits; CLAUDE.md overrides everything except explicit user instructions.
 
 Automated checks: `scripts/check_rules.py` enforces the Language Rule, Rule 4 (three-layer testing, advisory), Rule 5 (asyncio.run sites), Rule 6 (inline fallback pattern) via `.github/workflows/claude-rules.yml`. Hot-path T3 gate enforcement tracked as DF-46.
 
@@ -256,6 +256,55 @@ Binding constraints (from upstream-engineering-conduct-spec-2026-04-27.md §4.2,
 - Forbidden phrases (prohibited unless current-HEAD evidence in the manifest supports them): "closed", "fully closed", "complete", "all green", "release-ready", "verified 80+", "production-ready", "7×24 ready", "L3 unchanged", "default path closed".
 
 **Enforcement:** `scripts/check_manifest_freshness.py` fails CI when manifest is stale. `scripts/check_doc_consistency.py` validates that closure notices cite the manifest_id and match Functional HEAD to manifest release_head.
+
+---
+
+### Rule 15 — Closure-Claim Taxonomy and Three-Part Defect Closure
+
+**Every closure claim must declare its maturity level. "Closed" without a level is not a valid closure.**
+
+**Five levels (enum, in ascending order):**
+- `component_exists` — code written, no wiring, no tests
+- `wired_into_default_path` — code wired into the default server/runtime path
+- `covered_by_default_path_e2e` — E2E test drives the default path and asserts the behavior
+- `verified_at_release_head` — above + confirmed at the current release HEAD with manifest evidence
+- `operationally_observable` — above + metric/alert/runbook surfaces it to operators
+
+**Minimum level for `CLOSED` claim:** `verified_at_release_head`. A defect at lower levels must be reported as `IN PROGRESS (level: <enum>)`.
+
+**Three-part defect closure (all three required; missing any = defect remains OPEN):**
+1. **Code fix**: commit SHA or PR reference pointing to the change.
+2. **Regression test or hard gate**: test file + test name, OR CI gate script + what it asserts.
+3. **Delivery-process change**: what prevents the same defect from re-entering a future release (CLAUDE.md rule, CI gate, scorecard row, etc.).
+
+**Enforcement:**
+- Every defect-closure row in delivery notices and waiver entries carries `level: <enum>`.
+- Delivery notices carry a 3-row sub-table per defect (code-fix-evidence, gate-evidence, process-change-evidence).
+- `scripts/check_doc_consistency.py` Check 11 parses closure notices and fails on missing level fields.
+- Full taxonomy: `docs/governance/closure-taxonomy.md`.
+
+---
+
+### Rule 16 — Test Profile Taxonomy and Wrapper Truthfulness
+
+**Test profiles are machine-defined in `tests/profiles.toml`. Every PR description must declare which profile validated the change. Wrapper evidence must be truthful even on failure.**
+
+**Seven profiles (enum, in order of scope):**
+- `smoke` — quick local sanity (<=2 min); no network, no real LLM, no secrets
+- `default-offline` — current `verify_clean_env` target; NO network, NO real LLM, NO secrets
+- `release` — adds T3 freshness + manifest consistency + route-scope + doc consistency + lint + rule-checks
+- `live_api` — real LLM path; manual or scheduled, not on every PR
+- `prod_e2e` — operator-shape gate (Rule 8); long-lived process; real LLM
+- `soak` — 1h, 24h, 72h drivers
+- `chaos` — injection matrix
+
+**Binding constraints:**
+- `default-offline` MUST NOT perform real network calls, real LLM calls, or require external secrets.
+- The clean-env wrapper MUST emit truthful evidence JSON even when pytest fails, times out, or crashes; `summary_available=false` and `status=failed` with non-null `failure_reason` when summary is unavailable. Wrapper MUST NOT write zero counts when the actual test summary is unavailable.
+- Wrapper MUST be portable across Windows and Linux without requiring callers to set encoding environment variables.
+- PR descriptions MUST include a "Profile validated:" line naming the profile.
+
+**Enforcement:** `tests/profiles.toml` is the single source of truth; `scripts/verify_clean_env.py` reads profiles from this file.
 
 ---
 
