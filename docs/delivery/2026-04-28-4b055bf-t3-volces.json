@@ -188,5 +188,6 @@
   "status": "passed",
   "total_duration_s": 457.92947750003077,
   "verified_at": "2026-04-27T18:56:28.622400+00:00",
-  "verified_head": "4b055bf8bd4862002b2c680ca80bd40e219dc4ba"
+  "verified_head": "4b055bf8bd4862002b2c680ca80bd40e219dc4ba",
+  "provenance": "real"
 }

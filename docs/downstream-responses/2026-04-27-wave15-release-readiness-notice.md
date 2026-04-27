@@ -1,5 +1,7 @@
 # Wave 15 — Operational Truth Hardening (Systematic Class Closure)
 
+Status: superseded — see Wave 16 delivery notice
+
 ## Delivery Notice
 
 ```
