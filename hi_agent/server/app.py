@@ -292,6 +292,26 @@ async def handle_ready(request: Request) -> JSONResponse:
     except Exception:
         snapshot = dict(snapshot, auth_posture="unknown")
 
+    # Augment snapshot with fine-grained readiness flags.
+    try:
+        _subsystem_ready = bool(snapshot.get("ready", False))
+        _draining = getattr(server, "_draining", False)
+        _run_mgr = getattr(server, "run_manager", None)
+        if _run_mgr is not None:
+            _queue_saturated = _run_mgr.queue_depth() >= _run_mgr.max_queue_depth
+        else:
+            _queue_saturated = False
+        _ready_to_accept = _subsystem_ready and not _draining and not _queue_saturated
+        snapshot = dict(
+            snapshot,
+            flags={
+                "ready_to_serve": _subsystem_ready,
+                "ready_to_accept_new_runs": _ready_to_accept,
+            },
+        )
+    except Exception:
+        pass
+
     status_code = 200 if snapshot.get("ready") else 503
     return JSONResponse(snapshot, status_code=status_code)
 

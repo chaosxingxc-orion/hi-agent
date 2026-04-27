@@ -32,6 +32,15 @@ from hi_agent.server.tenant_context import TenantContext
 _VALID_RESULT_STATES: frozenset[str] = frozenset(s.value for s in RunState)
 
 
+class QueueSaturatedError(Exception):
+    """Raised when the in-memory run queue is full and cannot accept new runs."""
+
+    def __init__(self, queue_depth: int, max_depth: int) -> None:
+        self.queue_depth = queue_depth
+        self.max_depth = max_depth
+        super().__init__(f"Queue saturated: {queue_depth}/{max_depth}")
+
+
 def _run_state_to_terminal(state: str) -> str:
     """Map a ManagedRun.state to an idempotency terminal code (RO-7).
 
@@ -557,6 +566,40 @@ class RunManager:
             run.updated_at = datetime.now(UTC).isoformat()
         if self._run_store is not None:
             self._run_store.mark_running(run.run_id)
+
+        # Start lease renewal daemon thread (W12-A).
+        _heartbeat_stop = threading.Event()
+
+        def _heartbeat_loop() -> None:
+            _hb_log = logging.getLogger(__name__)
+            interval = (
+                self._run_queue.lease_heartbeat_interval_seconds
+                if self._run_queue is not None
+                else 60.0
+            )
+            while not _heartbeat_stop.wait(interval):
+                try:
+                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]
+                    if not renewed:
+                        _hb_log.warning(
+                            "Lease renewal failed for run_id=%s; run may be expired",
+                            run_id,
+                        )
+                except Exception as _hb_exc:
+                    _hb_log.warning(
+                        "Lease heartbeat error for run_id=%s: %s",
+                        run_id,
+                        _hb_exc,
+                    )
+
+        _heartbeat_thread = threading.Thread(
+            target=_heartbeat_loop,
+            daemon=True,
+            name=f"lease-heartbeat-{run_id[:8]}",
+        )
+        if self._run_queue is not None:
+            _heartbeat_thread.start()
+
         try:
             result = executor_fn(run)
             with self._lock:
@@ -584,6 +627,10 @@ class RunManager:
             if self._run_queue is not None:
                 self._run_queue.fail(run_id, "run_manager", str(exc))
         finally:
+            # W12-A: stop the heartbeat thread before releasing resources.
+            _heartbeat_stop.set()
+            if self._run_queue is not None:
+                _heartbeat_thread.join(timeout=2.0)
             # RO-8: set finished_at on every terminal path (durable path).
             _now_iso_d = datetime.now(UTC).isoformat()
             with self._lock:
@@ -701,10 +748,10 @@ class RunManager:
         try:
             self._queue.put_nowait((priority, seq, run, executor_fn))
         except queue.Full:
-            with self._lock:
-                run.state = "failed"
-                run.error = "queue_full"
-                run.updated_at = datetime.now(UTC).isoformat()
+            raise QueueSaturatedError(
+                queue_depth=self._queue_size,
+                max_depth=self._queue_size,
+            ) from None
 
     def register_cancellation_token(self, run_id: str, token: Any) -> None:
         """Register a CancellationToken for a running executor.
@@ -732,6 +779,15 @@ class RunManager:
     def pending_count(self) -> int:
         """Return the number of runs currently waiting in the queue."""
         return self._queue.qsize()
+
+    def queue_depth(self) -> int:
+        """Return current number of runs waiting in the in-memory queue."""
+        return self._queue.qsize()
+
+    @property
+    def max_queue_depth(self) -> int:
+        """Return the configured maximum queue depth."""
+        return self._queue_size
 
     def get_status(self) -> dict[str, Any]:
         """Return a snapshot of manager capacity and utilisation.

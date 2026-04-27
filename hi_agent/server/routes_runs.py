@@ -32,6 +32,7 @@ from starlette.responses import JSONResponse
 
 from hi_agent.config.posture import Posture
 from hi_agent.server.error_categories import error_response
+from hi_agent.server.run_manager import QueueSaturatedError
 from hi_agent.server.tenant_context import require_tenant_context
 from hi_agent.server.workspace_path import WorkspaceKey
 
@@ -231,7 +232,20 @@ async def handle_create_run(request: Request) -> JSONResponse:
                     with contextlib.suppress(Exception):
                         rcm.remove(run_id)
 
-        manager.start_run(run_id, _executor_fn)
+        try:
+            manager.start_run(run_id, _executor_fn)
+        except QueueSaturatedError as exc:
+            retry_after = 30  # seconds
+            return JSONResponse(
+                status_code=429,
+                headers={"Retry-After": str(retry_after)},
+                content={
+                    "error": "queue_saturated",
+                    "queue_depth": exc.queue_depth,
+                    "max_depth": exc.max_depth,
+                    "retry_after_seconds": retry_after,
+                },
+            )
 
     run = manager.get_run(run_id, workspace=ctx)
     extra_headers: dict[str, str] = {}
