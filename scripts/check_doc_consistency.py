@@ -300,6 +300,27 @@ def check_notice_sha_reachable(notice: Path | None) -> list[str]:
 
 # --- Wave notice HEAD alignment ---
 
+def _docs_only_gap(base_sha: str, current_sha: str) -> bool:
+    """Return True if commits between base_sha..current_sha only touch docs/ files.
+
+    Allows manifest and closure-notice commits to follow the functional HEAD
+    without triggering a stale-notice false alarm.
+    """
+    if base_sha == current_sha:
+        return True
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base_sha}..{current_sha}"],
+            capture_output=True, text=True, cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            return False
+        changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+        return all(f.startswith("docs/") for f in changed) and bool(changed)
+    except Exception:
+        return False
+
+
 def check_notice_head_alignment() -> list[str]:
     """Wave notice files must declare the current HEAD SHA unless marked 'Status: draft'.
 
@@ -338,16 +359,18 @@ def check_notice_head_alignment() -> list[str]:
             rel = notice
         for sha in func_heads:
             if not head.startswith(sha) and not sha.startswith(head[:len(sha)]):
-                errors.append(
-                    f"  STALE-NOTICE-HEAD: {rel} declares Functional HEAD {sha}, "
-                    f"current is {head[:12]}"
-                )
+                if not _docs_only_gap(sha, head):
+                    errors.append(
+                        f"  STALE-NOTICE-HEAD: {rel} declares Functional HEAD {sha}, "
+                        f"current is {head[:12]}"
+                    )
         for sha in notice_heads:
             if not head.startswith(sha) and not sha.startswith(head[:len(sha)]):
-                errors.append(
-                    f"  STALE-NOTICE-HEAD: {rel} declares Notice HEAD {sha}, "
-                    f"current is {head[:12]}"
-                )
+                if not _docs_only_gap(sha, head):
+                    errors.append(
+                        f"  STALE-NOTICE-HEAD: {rel} declares Notice HEAD {sha}, "
+                        f"current is {head[:12]}"
+                    )
         if not func_heads and not notice_heads:
             # No HEAD fields at all — check for legacy HEAD SHA line
             legacy = [
