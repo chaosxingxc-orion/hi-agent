@@ -81,13 +81,13 @@ class JsonFileTraceExporter:
         # Name the file by creation time so multiple exporters don't collide.
         ts = str(int(time() * 1000))
         self._file_path = self._trace_dir / f"traces_{ts}.jsonl"
-        self._fh = open(self._file_path, "a", encoding="utf-8")  # noqa: SIM115
+        self._fh = open(self._file_path, "a", encoding="utf-8")  # noqa: SIM115  expiry_wave: Wave 17
 
     def export(self, record: SpanRecord) -> None:
         """Append one span as a JSON line."""
         self._ensure_open()
         line = json.dumps(asdict(record), ensure_ascii=False)
-        self._fh.write(line + "\n")  # type: ignore[union-attr]
+        self._fh.write(line + "\n")  # type: ignore[union-attr]  expiry_wave: Wave 17
 
     def flush(self) -> None:
         """Flush the underlying file buffer."""

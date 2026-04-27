@@ -53,9 +53,9 @@ try:
     import tomllib  # Python 3.11+
 except ImportError:
     try:
-        import tomli as tomllib  # type: ignore[no-redef]
+        import tomli as tomllib  # type: ignore[no-redef]  expiry_wave: Wave 17
     except ImportError:
-        tomllib = None  # type: ignore[assignment]
+        tomllib = None  # type: ignore[assignment]  expiry_wave: Wave 17
 
 ROOT = Path(__file__).resolve().parent.parent
 

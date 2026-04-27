@@ -10,7 +10,7 @@ from typing import Literal
 try:
     from hi_agent.mcp.health import MCPHealth
 except Exception:
-    MCPHealth = None  # type: ignore[assignment,misc]
+    MCPHealth = None  # type: ignore[assignment,misc]  expiry_wave: Wave 17
 
 
 @dataclass

@@ -1,5 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Check for expired time-bounded waivers (comments, shims, TODOs)."""
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -82,3 +83,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

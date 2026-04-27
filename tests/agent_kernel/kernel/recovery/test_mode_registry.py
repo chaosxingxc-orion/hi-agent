@@ -90,7 +90,7 @@ class TestGateUsesRegistry:
 
                 return _FakePlan()
 
-        gate = PlannedRecoveryGateService(planner=_BrokenPlanner())  # type: ignore[arg-type]
+        gate = PlannedRecoveryGateService(planner=_BrokenPlanner())  # type: ignore[arg-type]  expiry_wave: Wave 17
 
         from agent_kernel.kernel.contracts import RecoveryInput, RunProjection
 

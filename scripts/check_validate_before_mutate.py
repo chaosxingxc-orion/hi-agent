@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: in route handlers, validators must precede mutators.
 
 AST-scans routes_*.py for async handle_* functions. Each function
@@ -9,6 +9,7 @@ Known validators: validate_run_request_or_raise, require_tenant_context,
 Known mutators: reserve_or_replay, upsert, enqueue, register, submit,
                ingest_, apply_decision, optimize_prompt
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -129,3 +130,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

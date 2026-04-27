@@ -116,7 +116,7 @@ def test_context_manager_records_fallback_on_compression_failure():
     cm = ContextManager(budget=ContextBudget(), compressor=compressor, max_compression_failures=5)
 
     # Force utilization above orange threshold so auto-compress fires.
-    cm._budget._replace = None  # type: ignore[attr-defined]
+    cm._budget._replace = None  # type: ignore[attr-defined]  expiry_wave: Wave 17
 
     history_section = ContextSection(
         name="history",

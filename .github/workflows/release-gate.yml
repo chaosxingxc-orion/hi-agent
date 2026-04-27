@@ -1,6 +1,6 @@
 name: Release Gate (W14-G)
 
-# Consolidated non-skippable release gate â€” enforces all governance checks and
+# Consolidated non-skippable release gate â€?enforces all governance checks and
 # produces a versioned manifest artifact.  No step uses continue-on-error.
 #
 # Runs after every push to main/fix/feat/claude branches and on every PR to main.
@@ -113,33 +113,27 @@ jobs:
 
       - name: Check noqa discipline (W14-D4)
         run: python scripts/check_noqa_discipline.py --json
-        continue-on-error: true  # informational: existing debt being migrated
 
       - name: Check pytest skip discipline (W14-D5)
         run: python scripts/check_pytest_skip_discipline.py --json
-        continue-on-error: true  # informational: 9 remaining skips being migrated
 
       - name: Check closure taxonomy (W14-D8)
         run: python scripts/check_closure_taxonomy.py --json
 
       - name: Check multi-status gates (W14-D9)
         run: python scripts/check_multistatus_gates.py --json
-        continue-on-error: true  # informational: tracks multi-status adoption progress
 
       - name: Check no hardcoded wave strings (W14-A4)
         run: python scripts/check_no_hardcoded_wave.py --json
 
       - name: Check observability spine completeness (W14-B8)
         run: python scripts/check_observability_spine_completeness.py --json
-        continue-on-error: true  # deferred until real spine evidence generated
 
       - name: Check soak evidence (W14-C2)
         run: python scripts/check_soak_evidence.py --json
-        continue-on-error: true  # deferred until 24h soak evidence generated
 
       - name: Check chaos runtime coupling (W14-C4)
         run: python scripts/check_chaos_runtime_coupling.py --json
-        continue-on-error: true  # deferred until chaos rewrite committed
 
       # --- T3 invariance (Rule 8) ---
       # Fails if hot-path files changed since the last recorded gate run in docs/delivery/.
@@ -150,7 +144,6 @@ jobs:
 
       - name: Check score cap (W14-A7)
         run: python scripts/check_score_cap.py --json
-        continue-on-error: true  # informational gate; manifests may not exist in CI
 
       # --- Release manifest ---
 

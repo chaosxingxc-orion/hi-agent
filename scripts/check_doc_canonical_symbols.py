@@ -13,6 +13,7 @@ Usage:
     python scripts/check_doc_canonical_symbols.py
     python scripts/check_doc_canonical_symbols.py --json
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -234,3 +235,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

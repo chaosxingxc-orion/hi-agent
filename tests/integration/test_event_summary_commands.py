@@ -64,4 +64,4 @@ def test_cmd_event_summary_rejects_invalid_store_and_events() -> None:
     with pytest.raises(TypeError):
         cmd_event_summary_list_runs(object())
     with pytest.raises(TypeError):
-        cmd_event_summary_ingest(store, "run-1", 123)  # type: ignore[arg-type]
+        cmd_event_summary_ingest(store, "run-1", 123)  # type: ignore[arg-type]  expiry_wave: Wave 17

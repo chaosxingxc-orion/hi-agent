@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: assert no metric in _METRIC_DEFS uses a forbidden high-cardinality label.
 
 Forbidden labels: run_id, task_id, goal, prompt, content, raw_user_input
@@ -9,6 +9,7 @@ Exit 1: fail (high-cardinality label found)
 Flags:
   --json  Emit structured JSON report.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -72,3 +73,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

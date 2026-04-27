@@ -64,7 +64,7 @@ class TestScriptRuntimeDescriptor:
         """Verifies is frozen."""
         desc = ScriptRuntimeDescriptor(host_kind="echo", description="test")
         with pytest.raises((AttributeError, TypeError)):
-            desc.host_kind = "other"  # type: ignore[misc]
+            desc.host_kind = "other"  # type: ignore[misc]  expiry_wave: Wave 17
 
     def test_default_not_production_safe(self) -> None:
         """Verifies default not production safe."""

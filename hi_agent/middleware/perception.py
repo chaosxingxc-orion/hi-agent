@@ -281,7 +281,7 @@ class PerceptionMiddleware:
             metadata={"purpose": self._model_tier, "run_id": run_id},
         )
         try:
-            response = self._llm_gateway.complete(request)  # type: ignore[union-attr]
+            response = self._llm_gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 17
             return response.content
         except Exception as exc:
             logger.warning("LLM summarization failed, falling back to extractive", exc_info=True)

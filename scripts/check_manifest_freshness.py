@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: fail if latest release manifest is stale vs current HEAD.
 
 Fails when:
@@ -12,6 +12,7 @@ Exit 1: manifest is stale, dirty, or missing.
 Flags:
   --json  Emit structured JSON report.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -159,3 +160,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

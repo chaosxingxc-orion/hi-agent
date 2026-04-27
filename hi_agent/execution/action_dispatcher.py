@@ -60,10 +60,10 @@ class ActionDispatcher:
             def _call_fn(_ctx: ToolCallContext) -> str:
                 result = self._invoke_capability(proposal, payload)
                 # Store result so we can return it after hook chain completes
-                _call_fn._last_result = result  # type: ignore[attr-defined]
+                _call_fn._last_result = result  # type: ignore[attr-defined]  expiry_wave: Wave 17
                 return str(result.get("success", False))
 
-            _call_fn._last_result = {}  # type: ignore[attr-defined]
+            _call_fn._last_result = {}  # type: ignore[attr-defined]  expiry_wave: Wave 17
 
             # Run async hook chain via the process-wide SyncBridge (Rule 12) —
             # all hook invocations share one durable event loop so async
@@ -73,13 +73,13 @@ class ActionDispatcher:
 
             # SA-7 (self-audit 2026-04-21): bound the wait so a hung hook
             # surfaces as TimeoutError instead of a silent wedge.
-            _HOOK_TIMEOUT = 120.0  # noqa: N806 — module-level constant semantics
+            _HOOK_TIMEOUT = 120.0  # noqa: N806 — module-level constant semantics  expiry_wave: Wave 17
             get_bridge().call_sync(
                 self._ctx.hook_manager.wrap_tool_call(tool_ctx, _call_fn),
                 timeout=_HOOK_TIMEOUT,
             )
 
-            return _call_fn._last_result  # type: ignore[attr-defined]
+            return _call_fn._last_result  # type: ignore[attr-defined]  expiry_wave: Wave 17
         except GatePendingError:
             # Flow-control: a tool raised a gate request. Must propagate so
             # the runner can suspend the run; never swallow into fallback.

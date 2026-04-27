@@ -7,4 +7,4 @@ warnings.warn(
     DeprecationWarning,
     stacklevel=2,
 )
-from hi_agent.operations.backend.local import *  # noqa: F403
+from hi_agent.operations.backend.local import *  # noqa: F403  expiry_wave: Wave 17

@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""W14-A7: Score-cap gate — surfaces cap_factors from the latest manifest.
+﻿#!/usr/bin/env python3
+"""W14-A7: Score-cap gate 鈥?surfaces cap_factors from the latest manifest.
 
 Reads the most-recent manifest from docs/releases/ and fails when:
   - manifest is missing
@@ -88,7 +88,7 @@ def main() -> int:
     evidence = {
         "schema_version": "1",
         "check": "score_cap",
-        "provenance": "real",
+        "provenance": "derived",
         "manifest_id": manifest.get("manifest_id", ""),
         "verified_head": manifest.get("release_head", ""),
         "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
@@ -128,3 +128,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

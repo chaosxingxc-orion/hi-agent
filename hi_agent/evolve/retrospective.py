@@ -123,7 +123,7 @@ class PostmortemAnalyzer:
             max_tokens=1024,
             metadata={"purpose": "evaluation", "run_id": postmortem.run_id},
         )
-        response = self._llm.complete(request)  # type: ignore[union-attr]
+        response = self._llm.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 17
         changes = _parse_llm_changes(response.content, postmortem.run_id)
         return changes, 1
 

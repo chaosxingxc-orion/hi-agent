@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: every metric in _METRIC_DEFS must have at least one producer callsite.
 
 For each metric name defined in hi_agent.observability.collector._METRIC_DEFS,
@@ -11,6 +11,7 @@ Fails closed on orphan metrics (defined but never called).
 Exit 0: all metrics have producers.
 Exit 1: orphan metrics found.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -111,3 +112,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

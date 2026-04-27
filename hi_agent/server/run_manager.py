@@ -134,7 +134,7 @@ class RunManager:
         self._idempotency_store = idempotency_store
         self._run_store = run_store
         self._run_queue = run_queue
-        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]
+        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: Wave 17
         # Per-run sequence counters; seeded from storage on first use (restart-safe).
         self._event_seqs: dict[str, int] = {}
         self._event_seq_lock = threading.Lock()
@@ -688,7 +688,7 @@ class RunManager:
             )
             while not _heartbeat_stop.wait(interval):
                 try:
-                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]
+                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 17
                     if not renewed:
                         _hb_log.warning(
                             "Lease renewal failed for run_id=%s; transitioning to lease_lost state",
@@ -1119,7 +1119,7 @@ class RunManager:
         _no_progress_seconds: float | None = None
         _candidates: list[float] = []
         if run.last_heartbeat_at is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: ISO timestamp parse for heartbeat age  # noqa: E501
+            with contextlib.suppress(Exception):  # rule7-exempt: ISO timestamp parse for heartbeat age  # noqa: E501  expiry_wave: Wave 17
                 _candidates.append(
                     datetime.fromisoformat(run.last_heartbeat_at).timestamp()
                 )

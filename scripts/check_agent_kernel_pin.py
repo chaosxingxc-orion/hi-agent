@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Validate the agent-kernel dependency pin in pyproject.toml.
 
 Checks:
@@ -7,6 +7,7 @@ Checks:
 3) (Default) The pinned revision equals remote main HEAD.
 """
 
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -194,3 +195,4 @@ if __name__ == "__main__":
             )
         print(f"ERROR: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
+

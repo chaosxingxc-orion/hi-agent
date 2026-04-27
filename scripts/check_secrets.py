@@ -1,4 +1,4 @@
-"""Check repository for accidentally committed API secrets.
+﻿"""Check repository for accidentally committed API secrets.
 
 Scans:
 - config/llm_config.json: any non-empty api_key fields
@@ -8,6 +8,7 @@ Scans:
 Usage: python scripts/check_secrets.py [--strict]
 Exits 0 if clean, 1 if findings.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import json
@@ -39,7 +40,7 @@ def check_json_config(path: Path) -> None:
             for k, v in obj.items():
                 key_lower = k.lower()
                 if key_lower in SUSPICIOUS_CONTEXT_WORDS and isinstance(v, str) and v.strip():
-                    findings.append(f"{path}:{path_prefix}.{k} — non-empty secret field")
+                    findings.append(f"{path}:{path_prefix}.{k} 鈥?non-empty secret field")
                 _scan(v, f"{path_prefix}.{k}")
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
@@ -64,7 +65,7 @@ def check_md_file(path: Path) -> None:
             placeholders = ["<sha>", "{{", "example", "placeholder", "xxx"]
             if any(placeholder in line.lower() for placeholder in placeholders):
                 continue
-            findings.append(f"{path}:{lineno} — UUID-like value in secret context")
+            findings.append(f"{path}:{lineno} 鈥?UUID-like value in secret context")
 
 
 def check_delivery_json(path: Path) -> None:
@@ -102,7 +103,7 @@ def main() -> int:
             check_md_file(md_file)
 
     if findings:
-        print("SECRETS CHECK FAIL — potential secrets found:")
+        print("SECRETS CHECK FAIL 鈥?potential secrets found:")
         for finding in findings:
             print(f"  {finding}")
         print("\nTo fix: ensure api_key fields in config/llm_config.json are empty (\"\").")
@@ -112,9 +113,10 @@ def main() -> int:
         )
         return 1
 
-    print("SECRETS CHECK OK — no secrets found in tracked files")
+    print("SECRETS CHECK OK 鈥?no secrets found in tracked files")
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
+

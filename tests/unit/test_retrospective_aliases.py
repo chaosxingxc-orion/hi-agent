@@ -6,7 +6,7 @@ import warnings
 
 def test_run_retrospective_is_canonical():
     """RunRetrospective imports cleanly."""
-    from hi_agent.evolve.contracts import RunRetrospective  # noqa: F401
+    from hi_agent.evolve.contracts import RunRetrospective  # noqa: F401  expiry_wave: Wave 17
 
 
 def test_run_postmortem_deprecated():

@@ -59,7 +59,7 @@ def _make_executor(
     kwargs.setdefault("policy_versions", PolicyVersionSet())
     executor = RunExecutor(contract=contract, kernel=mock_kernel, **kwargs)
     # execute_async reads executor.kernel �?replace with the async facade.
-    executor.kernel = facade  # type: ignore[assignment]
+    executor.kernel = facade  # type: ignore[assignment]  expiry_wave: Wave 17
     return executor, facade
 
 

@@ -273,8 +273,28 @@ def _compute_cap(
     def _condition_matches(condition: str) -> str | None:
         """Return a human-readable factor string if the condition is true, else None."""
         if condition == "head_mismatch":
-            # head_mismatch is not directly computable here (caller does not pass head info);
-            # leave for manifest-level checks.
+            manifests = sorted(
+                RELEASES_DIR.glob("platform-release-manifest-*.json"),
+                key=lambda p: p.stat().st_mtime,
+            )
+            if not manifests:
+                return None
+            try:
+                latest_manifest = json.loads(manifests[-1].read_text(encoding="utf-8"))
+            except Exception:
+                return None
+            manifest_head = str(latest_manifest.get("release_head", "")).strip()
+            if not manifest_head:
+                return None
+            head_proc = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                cwd=str(ROOT),
+            )
+            current_head = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
+            if current_head and manifest_head != current_head:
+                return f"head_mismatch: manifest={manifest_head} HEAD={current_head}"
             return None
         if condition == "dirty_worktree":
             return "dirty_worktree" if is_dirty else None
@@ -306,6 +326,62 @@ def _compute_cap(
         if condition == "gate_warn":
             degraded = [k for k, s in statuses.items() if s in ("warn", "deferred")]
             return f"gate_warn/deferred: {', '.join(degraded)}" if degraded else None
+        if condition == "provenance_unknown_or_synthetic":
+            for evidence_dir in (ROOT / "docs" / "verification", ROOT / "docs" / "delivery"):
+                if not evidence_dir.exists():
+                    continue
+                for json_file in evidence_dir.rglob("*.json"):
+                    try:
+                        payload = json.loads(json_file.read_text(encoding="utf-8"))
+                    except Exception:
+                        continue
+
+                    def _scan_provenance(node: Any) -> str | None:
+                        if isinstance(node, dict):
+                            prov = node.get("provenance")
+                            if isinstance(prov, str) and prov in ("synthetic", "unknown"):
+                                return prov
+                            for child in node.values():
+                                found = _scan_provenance(child)
+                                if found:
+                                    return found
+                        elif isinstance(node, list):
+                            for child in node:
+                                found = _scan_provenance(child)
+                                if found:
+                                    return found
+                        return None
+
+                    matched = _scan_provenance(payload)
+                    if matched:
+                        return f"provenance_unknown_or_synthetic: {json_file.name}={matched}"
+            return None
+        if condition == "soak_24h_missing":
+            soak_gate = gates.get("soak_evidence")
+            soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"
+            return f"soak_24h_missing: {soak_status}" if soak_status != "pass" else None
+        if condition == "observability_spine_incomplete":
+            spine_gate = gates.get("observability_spine_completeness")
+            spine_status = spine_gate.get("status", "unknown") if isinstance(spine_gate, dict) else "unknown"
+            return f"observability_spine_incomplete: {spine_status}" if spine_status != "pass" else None
+        if condition == "chaos_non_runtime_coupled":
+            chaos_gate = gates.get("chaos_runtime_coupling")
+            chaos_status = chaos_gate.get("status", "unknown") if isinstance(chaos_gate, dict) else "unknown"
+            return f"chaos_non_runtime_coupled: {chaos_status}" if chaos_status != "pass" else None
+        if condition == "t3_shape_verified":
+            t3_gate = gates.get("t3_freshness")
+            t3_provenance = t3_gate.get("provenance", "") if isinstance(t3_gate, dict) else ""
+            return (
+                f"t3_shape_verified: {t3_provenance}"
+                if t3_provenance in ("structural", "shape_verified")
+                else None
+            )
+        if condition == "expired_allowlist_accepted_as_pass":
+            return (
+                f"expired_allowlist_accepted_as_pass: {expired_allowlist}"
+                if expired_allowlist > 0
+                else None
+            )
         return None
 
     matched_factors: list[str] = []
@@ -376,7 +452,7 @@ def _write_pre_manifest_artifact(short_sha: str, head_sha: str, date_str: str) -
         json.dumps({
             "schema_version": "1",
             "check": "manifest_build_gate",
-            "provenance": "real",
+            "provenance": "structural",
             "release_head": short_sha,
             "verified_head": head_sha,
             "wave": _current_wave(),

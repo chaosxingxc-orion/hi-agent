@@ -1,22 +1,23 @@
-"""CLAUDE.md Rule Enforcement (DF-42).
+﻿"""CLAUDE.md Rule Enforcement (DF-42).
 
 Mechanically enforces the grep-based rules from CLAUDE.md that previously
 relied on author discipline. Exits non-zero if any hard rule is violated.
 
 Hard rules (exit non-zero on violation):
-  * Rule 12    — no ``asyncio.run(...)`` outside entry points
-  * Rule 13    — no inline ``or X(...)`` fallback for shared-state resources
-  * Rule 13    — (scope) builders must not default ``profile_id=""``
-  * Language   — no CJK in LLM-prompt-facing string literals
+  * Rule 12    鈥?no ``asyncio.run(...)`` outside entry points
+  * Rule 13    鈥?no inline ``or X(...)`` fallback for shared-state resources
+  * Rule 13    鈥?(scope) builders must not default ``profile_id=""``
+  * Language   鈥?no CJK in LLM-prompt-facing string literals
 
 Soft rules (WARN only, exit stays 0):
-  * Rule 7     — suspicious ``assert status in (..., "failed", ...)`` in tests
-  * Rule 6     — constructor-call inline fallback (x or ClassName())
+  * Rule 7     鈥?suspicious ``assert status in (..., "failed", ...)`` in tests
+  * Rule 6     鈥?constructor-call inline fallback (x or ClassName())
 
 Runs with no external dependencies (pure stdlib ``re``/``ast``/``pathlib``),
 so CI can invoke it on a fresh Python 3.12 without apt or pip installs.
 """
 
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -46,7 +47,7 @@ ENTRYPOINT_FUNC_NAMES = frozenset(
     {"main", "_main", "cli", "_cli", "main_sync", "_main_sync", "run_sync"}
 )
 
-# Language Rule — replicated from tests/test_language_rule_enforcement.py.
+# Language Rule 鈥?replicated from tests/test_language_rule_enforcement.py.
 _CJK_RE = re.compile(r"[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7a3]")
 _LLM_CALL_NAMES = frozenset(
     {"complete", "acompletion", "generate", "agenerate", "invoke", "ainvoke", "query", "chat"}
@@ -68,13 +69,13 @@ _PROMPT_RETURNING_FUNCS = frozenset(
     {"format_results_for_context", "to_context_block", "_build_compression_prompt", "build_prompt"}
 )
 
-# Rule 13 — inline fallback suffixes for shared-state resources (used by AST check).
+# Rule 13 鈥?inline fallback suffixes for shared-state resources (used by AST check).
 _RULE13_SHARED_SUFFIXES = frozenset({
     "Store", "Graph", "Gateway", "Manager", "Engine", "Registry",
     "Pool", "Bridge", "Adapter", "Client", "Session",
 })
 
-# Rule 6 — stdlib/primitive type names that are NOT shared-state resources.
+# Rule 6 鈥?stdlib/primitive type names that are NOT shared-state resources.
 _RULE6_STDLIB_SAFE = frozenset({
     "Path", "RuntimeError", "ValueError", "TypeError", "KeyError",
     "AttributeError", "IndexError", "OSError", "IOError", "Exception",
@@ -83,10 +84,10 @@ _RULE6_STDLIB_SAFE = frozenset({
     "True", "False", "None",
 })
 
-# Rule 13 scope — builder defaulting profile_id="".
+# Rule 13 scope 鈥?builder defaulting profile_id="".
 _RULE13_SCOPE_RE = re.compile(r'def build_[a-z_]+\([^)]*profile_id[^)]*=\s*[\'\"][\'\"]')
 
-# Rule 7 — test honesty heuristic (WARN).
+# Rule 7 鈥?test honesty heuristic (WARN).
 _RULE7_RE = re.compile(
     r'''assert [^\n]+\.(status|state|result)\s+in\s+\([^)]*["']failed["'][^)]*\)'''
 )
@@ -159,7 +160,7 @@ def _rel(path: Path, repo: Path) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Rule 12 — asyncio.run outside entry points
+# Rule 12 鈥?asyncio.run outside entry points
 # --------------------------------------------------------------------------- #
 
 
@@ -217,7 +218,7 @@ def check_rule_12(files: list[Path], repo: Path) -> RuleResult:
 
 
 # --------------------------------------------------------------------------- #
-# AST helpers — docstring line-set and shared BoolOp/Or visitor
+# AST helpers 鈥?docstring line-set and shared BoolOp/Or visitor
 # --------------------------------------------------------------------------- #
 
 
@@ -335,7 +336,7 @@ def _find_rule13_violations_ast(source: str, path: str) -> list[tuple[int, str]]
 
 
 # --------------------------------------------------------------------------- #
-# Rule 6 — constructor-call inline fallback: ``x or SomeClass()``
+# Rule 6 鈥?constructor-call inline fallback: ``x or SomeClass()``
 # --------------------------------------------------------------------------- #
 
 
@@ -363,7 +364,7 @@ def check_rule_6(files: list[Path], repo: Path) -> RuleResult:
 
 
 # --------------------------------------------------------------------------- #
-# Rule 13 — inline fallback construction
+# Rule 13 鈥?inline fallback construction
 # --------------------------------------------------------------------------- #
 
 
@@ -385,7 +386,7 @@ def check_rule_13(files: list[Path], repo: Path) -> RuleResult:
 
 
 # --------------------------------------------------------------------------- #
-# Rule 13 scope — builders must not default profile_id=""
+# Rule 13 scope 鈥?builders must not default profile_id=""
 # --------------------------------------------------------------------------- #
 
 
@@ -406,7 +407,7 @@ def check_rule_13_scope(repo: Path) -> RuleResult:
 
 
 # --------------------------------------------------------------------------- #
-# Language Rule — CJK in LLM-prompt paths
+# Language Rule 鈥?CJK in LLM-prompt paths
 # --------------------------------------------------------------------------- #
 
 
@@ -506,7 +507,7 @@ def check_language_rule(files: list[Path], repo: Path) -> RuleResult:
 
 
 # --------------------------------------------------------------------------- #
-# Rule 7 — test honesty heuristic (WARN only)
+# Rule 7 鈥?test honesty heuristic (WARN only)
 # --------------------------------------------------------------------------- #
 
 
@@ -526,7 +527,7 @@ def check_rule_7(repo: Path) -> RuleResult:
             if not _RULE7_RE.search(line):
                 continue
             # Skip if the containing block (look upward 5 lines) is a
-            # while/if guard loop — those legitimately poll for terminal state.
+            # while/if guard loop 鈥?those legitimately poll for terminal state.
             lookback = "\n".join(lines[max(0, lineno - 6):lineno - 1])
             if re.search(r"\b(while|if)\b", lookback):
                 continue
@@ -643,3 +644,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

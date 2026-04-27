@@ -50,7 +50,7 @@ def _install_gate_on_stage_a(executor: RunExecutor, gate_id: str, gate_type: str
             raise GatePendingError(gate_id=gate_id)
         return original(stage_id)
 
-    executor._execute_stage = patched  # type: ignore[method-assign]
+    executor._execute_stage = patched  # type: ignore[method-assign]  expiry_wave: Wave 17
 
 
 @pytest.mark.integration

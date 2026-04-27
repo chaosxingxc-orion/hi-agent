@@ -637,9 +637,9 @@ class TestCLIResume:
             # Also patch resume_from_checkpoint to inject raw_memory (Rule 6).
             from hi_agent.runner import RunExecutor as _RunExecutor
 
-            _orig_resume = _RunExecutor.resume_from_checkpoint.__func__  # type: ignore[attr-defined]
+            _orig_resume = _RunExecutor.resume_from_checkpoint.__func__  # type: ignore[attr-defined]  expiry_wave: Wave 17
 
-            def _patched_resume(cls, cp_path, kernel, **kwargs):  # type: ignore[no-untyped-def]
+            def _patched_resume(cls, cp_path, kernel, **kwargs):  # type: ignore[no-untyped-def]  expiry_wave: Wave 17
                 kwargs.setdefault("raw_memory", RawMemoryStore())
                 kwargs.setdefault("event_emitter", EventEmitter())
                 kwargs.setdefault("compressor", MemoryCompressor())

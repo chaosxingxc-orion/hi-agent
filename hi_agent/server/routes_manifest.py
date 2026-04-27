@@ -357,7 +357,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
         manifest_env = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
         _readiness_snap: dict = {}
         if _builder is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: readiness probe must not block manifest  # noqa: E501
+            with contextlib.suppress(Exception):  # rule7-exempt: readiness probe must not block manifest  # noqa: E501  expiry_wave: Wave 17
                 _readiness_snap = _builder.readiness()
         runtime_mode = _rrm(manifest_env, _readiness_snap)
         manifest_llm_mode = _readiness_snap.get("llm_mode", "unknown")

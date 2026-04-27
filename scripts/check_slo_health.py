@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: verify that all four /ops/ management routes are registered in app.py.
 
 Checks for presence of:
@@ -9,6 +9,7 @@ Checks for presence of:
 
 Exits 0 when all four are present; exits 1 with details otherwise.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -66,3 +67,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

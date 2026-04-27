@@ -326,7 +326,7 @@ class DelegationManager:
                     )
                 )
             else:
-                results.append(outcome)  # type: ignore[arg-type]
+                results.append(outcome)  # type: ignore[arg-type]  expiry_wave: Wave 17
         return results
 
     def format_results_for_context(self, results: list[DelegationResult]) -> str:
@@ -396,7 +396,7 @@ class DelegationManager:
                 return DelegationResult(
                     request=req,
                     child_run_id=child_run_id,
-                    status=status,  # type: ignore[arg-type]
+                    status=status,  # type: ignore[arg-type]  expiry_wave: Wave 17
                     summary=summary,
                     raw_output=raw_output,
                     duration_seconds=duration,

@@ -198,7 +198,7 @@ class _FakeLLMHandler(BaseHTTPRequestHandler):
             if isinstance(parsed, dict):
                 request_json = parsed
 
-        state: FakeLLMState = self.server.state  # type: ignore[attr-defined]
+        state: FakeLLMState = self.server.state  # type: ignore[attr-defined]  expiry_wave: Wave 17
         with state.lock:
             state.request_count += 1
             request_number = state.request_count
@@ -224,7 +224,7 @@ class _FakeLLMHandler(BaseHTTPRequestHandler):
 def _run_fake_llm_server(port: int) -> Iterator[tuple[FakeLLMState, str]]:
     state = FakeLLMState()
     server = _ThreadingHTTPServer(("127.0.0.1", port), _FakeLLMHandler)
-    server.state = state  # type: ignore[attr-defined]
+    server.state = state  # type: ignore[attr-defined]  expiry_wave: Wave 17
     actual_port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

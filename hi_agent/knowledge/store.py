@@ -210,7 +210,7 @@ class InMemoryKnowledgeStore:
             Dictionary with ``total``, ``by_source``, and ``tag_distribution`` keys.
         """
         records = self.all_records()
-        by_source: dict[str, int] = Counter()  # type: ignore[assignment]
+        by_source: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: Wave 17
         tag_dist: dict[str, int] = Counter()  # type: ignore[assignment]
         for rec in records:
             by_source[rec.source] += 1

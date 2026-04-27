@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """W14-A4: No hardcoded Wave N strings outside _current_wave.py and docs/.
 
 Scans scripts/*.py for patterns like "Wave 14", "Wave 13", "Wave N" that
@@ -12,6 +12,7 @@ Allowed exceptions:
 Exit 0: pass (no hardcoded wave strings found in scripts/).
 Exit 1: fail (hardcoded wave strings found).
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -65,7 +66,7 @@ def main() -> int:
         print(json.dumps(result, indent=2))
     else:
         for issue in issues:
-            print(f"FAIL {issue['file']}:{issue['line']}: hardcoded wave string — use current_wave() from _current_wave.py", file=sys.stderr)
+            print(f"FAIL {issue['file']}:{issue['line']}: hardcoded wave string 鈥?use current_wave() from _current_wave.py", file=sys.stderr)
         if not issues:
             print("PASS: no hardcoded Wave N strings in scripts/")
 
@@ -74,3 +75,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

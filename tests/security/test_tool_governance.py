@@ -49,7 +49,7 @@ def _make_spec(
 ) -> CapabilitySpec:
     descriptor = CapabilityDescriptor(
         name=name,
-        risk_class=risk_class,  # type: ignore[arg-type]
+        risk_class=risk_class,  # type: ignore[arg-type]  expiry_wave: Wave 17
         prod_enabled_default=prod_enabled_default,
         requires_auth=requires_auth,
         requires_approval=requires_approval,

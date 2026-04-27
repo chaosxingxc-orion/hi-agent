@@ -265,9 +265,9 @@ def build_task_view(
     # ---- legacy path -------------------------------------------------------
     if stage_summaries is not None:
         return _legacy_build(
-            run_index=run_index,  # type: ignore[arg-type]
+            run_index=run_index,  # type: ignore[arg-type]  expiry_wave: Wave 17
             stage_summaries=stage_summaries,
-            episodes=episodes or [],  # type: ignore[arg-type]
+            episodes=episodes or [],  # type: ignore[arg-type]  expiry_wave: Wave 17
             knowledge=knowledge or [],
             budget=budget,
         )
@@ -318,7 +318,7 @@ def build_task_view(
     # 4) L3 episodic
     if episodes and remaining > 0:
         layer_max = min(LAYER_BUDGETS["l3_episodic"], remaining)
-        raw = format_episodes(episodes, layer_max)  # type: ignore[arg-type]
+        raw = format_episodes(episodes, layer_max)  # type: ignore[arg-type]  expiry_wave: Wave 17
         if raw:
             content = enforce_layer_budget(raw, layer_max)
             tokens = count_tokens(content)

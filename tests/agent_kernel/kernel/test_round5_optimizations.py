@@ -262,7 +262,7 @@ class TestNewObservabilityHooks:
                 """On dedupe hit."""
                 calls.append(outcome)
 
-        composite = CompositeObservabilityHook(hooks=[_StubHook()])  # type: ignore[arg-type]
+        composite = CompositeObservabilityHook(hooks=[_StubHook()])  # type: ignore[arg-type]  expiry_wave: Wave 17
         composite.on_dedupe_hit(run_id="r", action_id="a", outcome="duplicate")
         assert calls == ["duplicate"]
 
@@ -326,7 +326,7 @@ class TestGateDedupeStoreAutoInject:
 
         store = InMemoryDedupeStore()
         gate = PlannedRecoveryGateService(
-            compensation_registry=_StubRegistry(),  # type: ignore[arg-type]
+            compensation_registry=_StubRegistry(),  # type: ignore[arg-type]  expiry_wave: Wave 17
             dedupe_store=store,
         )
 
@@ -350,7 +350,7 @@ class TestGateDedupeStoreAutoInject:
                     reason="test",
                 )
 
-        gate._planner = _StaticPlanner()  # type: ignore[assignment]
+        gate._planner = _StaticPlanner()  # type: ignore[assignment]  expiry_wave: Wave 17
 
         projection = RunProjection(
             run_id="run-1",
@@ -475,7 +475,7 @@ class TestCircuitBreakerTripHook:
                     reason="test",
                 )
 
-        gate._planner = _AbortPlanner()  # type: ignore[assignment]
+        gate._planner = _AbortPlanner()  # type: ignore[assignment]  expiry_wave: Wave 17
 
         projection = RunProjection(
             run_id="run-1",

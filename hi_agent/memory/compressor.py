@@ -389,7 +389,7 @@ class MemoryCompressor:
         response = await loop.run_in_executor(
             None,
             self._gateway.complete,
-            request,  # type: ignore[union-attr]
+            request,  # type: ignore[union-attr]  expiry_wave: Wave 17
         )
         parsed = json.loads(response.content)
 
@@ -442,7 +442,7 @@ class MemoryCompressor:
             },
         )
 
-        response = self._gateway.complete(request)  # type: ignore[union-attr]
+        response = self._gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 17
         parsed = json.loads(response.content)
 
         return CompressedStageMemory(
@@ -473,7 +473,7 @@ class MemoryCompressor:
             evidence_text=evidence_text,
         )
 
-        raw_response = await self.llm_fn(prompt)  # type: ignore[misc]
+        raw_response = await self.llm_fn(prompt)  # type: ignore[misc]  expiry_wave: Wave 17
         parsed = json.loads(raw_response)
 
         return CompressedStageMemory(

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: validate docs/governance/allowlists.yaml entry discipline.
 
 Checks:
@@ -13,6 +13,7 @@ Exit 1: validation failures
 Flags:
   --json  Emit structured JSON report.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -172,3 +173,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

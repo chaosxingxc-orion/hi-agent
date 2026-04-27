@@ -9,6 +9,7 @@ Also flags 'len(row) >' defensive fallbacks (schema drift masking).
 Also enforces that all 11 durable writers accept an exec_ctx parameter
 on their primary write method.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -247,3 +248,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

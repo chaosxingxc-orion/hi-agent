@@ -63,7 +63,7 @@ class _DelayedFirstGetProjectionService(InMemoryDecisionProjectionService):
         super().__init__(event_log)
         self._delay_consumed = False
 
-    async def get(self, run_id: str):  # type: ignore[override]
+    async def get(self, run_id: str):  # type: ignore[override]  expiry_wave: Wave 17
         """Gets test data."""
         if not self._delay_consumed and _in_temporal_workflow_context():
             self._delay_consumed = True
@@ -89,7 +89,7 @@ class _PerRunDelayedFirstGetProjectionService(InMemoryDecisionProjectionService)
         self._remaining_delayed_run_ids = set(delayed_run_ids)
         self._delay_seconds = delay_seconds
 
-    async def get(self, run_id: str):  # type: ignore[override]
+    async def get(self, run_id: str):  # type: ignore[override]  expiry_wave: Wave 17
         """Gets test data."""
         if run_id in self._remaining_delayed_run_ids and _in_temporal_workflow_context():
             self._remaining_delayed_run_ids.remove(run_id)

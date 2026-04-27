@@ -26,7 +26,7 @@ def _git_short_sha() -> str:
 def _run_library_drill() -> list[dict[str, str]]:
     scenarios: list[dict[str, str]] = []
     try:
-        from hi_agent.server import incident_runbook_commands  # type: ignore
+        from hi_agent.server import incident_runbook_commands  # type: ignore  expiry_wave: Wave 17
     except ModuleNotFoundError:
         docs = sorted(Path("docs/runbook").glob("*.md"))
         status = "pass" if docs else "fail"
@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     finished_at = datetime.now(UTC).isoformat()
 
     evidence = {
-        "provenance": "real",
+        "provenance": "structural",
         "started_at": started_at,
         "finished_at": finished_at,
         "scenarios": scenarios,
@@ -103,3 +103,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

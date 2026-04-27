@@ -28,8 +28,8 @@ def test_ops_snapshot_commands_roundtrip() -> None:
 def test_ops_snapshot_commands_validate_store_type() -> None:
     """All snapshot commands should reject invalid store objects."""
     with pytest.raises(TypeError, match="store must be an OpsSnapshotStore"):
-        cmd_ops_snapshot_put(object(), {"run_id": "run-1", "timestamp": 1.0})  # type: ignore[arg-type]
+        cmd_ops_snapshot_put(object(), {"run_id": "run-1", "timestamp": 1.0})  # type: ignore[arg-type]  expiry_wave: Wave 17
     with pytest.raises(TypeError, match="store must be an OpsSnapshotStore"):
-        cmd_ops_snapshot_latest(object(), "run-1")  # type: ignore[arg-type]
+        cmd_ops_snapshot_latest(object(), "run-1")  # type: ignore[arg-type]  expiry_wave: Wave 17
     with pytest.raises(TypeError, match="store must be an OpsSnapshotStore"):
-        cmd_ops_snapshot_list(object(), "run-1")  # type: ignore[arg-type]
+        cmd_ops_snapshot_list(object(), "run-1")  # type: ignore[arg-type]  expiry_wave: Wave 17

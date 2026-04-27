@@ -8,7 +8,7 @@ warnings.warn(
     DeprecationWarning,
     stacklevel=2,
 )
-from hi_agent.evolve.retrospective import *  # noqa: F403
+from hi_agent.evolve.retrospective import *  # noqa: F403  expiry_wave: Wave 17
 from hi_agent.evolve.retrospective import (  # noqa: F401
     PostmortemAnalyzer,
     _build_retrospective_prompt,

@@ -96,7 +96,7 @@ class TestReconciliationAction:
             detail="details here",
         )
         with pytest.raises((FrozenInstanceError, AttributeError)):
-            action.action_taken = "skipped"  # type: ignore[misc]
+            action.action_taken = "skipped"  # type: ignore[misc]  expiry_wave: Wave 17
 
     def test_fields_stored_correctly(self) -> None:
         """Verifies fields stored correctly."""
@@ -239,7 +239,7 @@ class TestDispatchOutboxReconcilerSync:
         action = result.actions[0]
         assert action.action_taken == "skipped"
         # State must not change.
-        assert store.get(env.dispatch_idempotency_key).state == "unknown_effect"  # type: ignore[union-attr]
+        assert store.get(env.dispatch_idempotency_key).state == "unknown_effect"  # type: ignore[union-attr]  expiry_wave: Wave 17
 
     def test_orphaned_acknowledged_key_skipped(self) -> None:
         """Verifies orphaned acknowledged key skipped."""
@@ -257,7 +257,7 @@ class TestDispatchOutboxReconcilerSync:
         assert result.violations_repaired == 0
         action = result.actions[0]
         assert action.action_taken == "skipped"
-        assert store.get(env.dispatch_idempotency_key).state == "acknowledged"  # type: ignore[union-attr]
+        assert store.get(env.dispatch_idempotency_key).state == "acknowledged"  # type: ignore[union-attr]  expiry_wave: Wave 17
 
     def test_unknown_effect_no_log_evidence_logged_for_review(self) -> None:
         """DedupeStore has unknown_effect but event log has no dispatch events."""
@@ -299,7 +299,7 @@ class TestDispatchOutboxReconcilerSync:
         assert result.violations_found == 2
         assert result.violations_repaired == 2
         assert all(a.action_taken == "marked_unknown_effect" for a in result.actions)
-        assert store.get(env_a.dispatch_idempotency_key).state == "unknown_effect"  # type: ignore[union-attr]
+        assert store.get(env_a.dispatch_idempotency_key).state == "unknown_effect"  # type: ignore[union-attr]  expiry_wave: Wave 17
         assert store.get(env_b.dispatch_idempotency_key).state == "unknown_effect"  # type: ignore[union-attr]
 
     def test_dedupe_state_error_during_repair_skipped(self) -> None:
@@ -317,7 +317,7 @@ class TestDispatchOutboxReconcilerSync:
             """Failing mark dispatched."""
             raise DedupeStoreStateError("simulated race condition")
 
-        store.mark_dispatched = _failing_mark_dispatched  # type: ignore[method-assign]
+        store.mark_dispatched = _failing_mark_dispatched  # type: ignore[method-assign]  expiry_wave: Wave 17
 
         result = self._reconciler().reconcile_sync(log, store, RUN_ID)
 
@@ -328,7 +328,7 @@ class TestDispatchOutboxReconcilerSync:
         assert "DedupeStoreStateError" in action.detail
 
         # Restore so we don't leak into other tests.
-        store.mark_dispatched = original_mark_dispatched  # type: ignore[method-assign]
+        store.mark_dispatched = original_mark_dispatched  # type: ignore[method-assign]  expiry_wave: Wave 17
 
     def test_violations_repaired_counts_non_skipped(self) -> None:
         """Verifies violations repaired counts non skipped."""
@@ -416,7 +416,7 @@ class TestDispatchOutboxReconcilerAsync:
         assert result.violations_repaired == 1
         action = result.actions[0]
         assert action.action_taken == "marked_unknown_effect"
-        assert store.get(key).state == "unknown_effect"  # type: ignore[union-attr]
+        assert store.get(key).state == "unknown_effect"  # type: ignore[union-attr]  expiry_wave: Wave 17
 
     @pytest.mark.asyncio
     async def test_orphaned_dispatched_key_async(self) -> None:
@@ -432,7 +432,7 @@ class TestDispatchOutboxReconcilerAsync:
 
         assert result.violations_found == 1
         assert result.violations_repaired == 1
-        assert store.get(key).state == "unknown_effect"  # type: ignore[union-attr]
+        assert store.get(key).state == "unknown_effect"  # type: ignore[union-attr]  expiry_wave: Wave 17
 
     @pytest.mark.asyncio
     async def test_unknown_effect_no_log_evidence_async(self) -> None:
@@ -484,7 +484,7 @@ class TestDispatchOutboxReconcilerAsync:
             """Fails intentionally for test coverage."""
             raise DedupeStoreStateError("simulated")
 
-        store.mark_dispatched = _fail  # type: ignore[method-assign]
+        store.mark_dispatched = _fail  # type: ignore[method-assign]  expiry_wave: Wave 17
 
         result = await self._reconciler().reconcile(log, store, RUN_ID)
 

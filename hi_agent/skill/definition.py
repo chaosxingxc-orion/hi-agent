@@ -282,14 +282,14 @@ class SkillDefinition:
         def _float(key: str, default: float) -> float:
             v = meta.get(key, default)
             try:
-                return float(v)  # type: ignore[arg-type]
+                return float(v)  # type: ignore[arg-type]  expiry_wave: Wave 17
             except (ValueError, TypeError):
                 return default
 
         def _int(key: str, default: int) -> int:
             v = meta.get(key, default)
             try:
-                return int(v)  # type: ignore[arg-type]
+                return int(v)  # type: ignore[arg-type]  expiry_wave: Wave 17
             except (ValueError, TypeError):
                 return default
 

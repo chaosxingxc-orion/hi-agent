@@ -43,7 +43,7 @@ def _make_gateway(
     gw.query_projection = AsyncMock(
         return_value=RunProjection(
             run_id="run-1",
-            lifecycle_state=lifecycle_state,  # type: ignore[arg-type]
+            lifecycle_state=lifecycle_state,  # type: ignore[arg-type]  expiry_wave: Wave 17
             projected_offset=5,
             waiting_external=waiting_external,
             ready_for_dispatch=True,
@@ -195,7 +195,7 @@ class TestRunRetrospectiveViewDTO:
             completed_at=None,
         )
         with pytest.raises(AttributeError):
-            pm.run_id = "changed"  # type: ignore[misc]
+            pm.run_id = "changed"  # type: ignore[misc]  expiry_wave: Wave 17
 
 
 # ---------------------------------------------------------------------------

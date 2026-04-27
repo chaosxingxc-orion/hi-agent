@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: run critical Wave-12 default-path integration tests.
 
 Runs a targeted subset of integration tests that validate the core default
@@ -8,6 +8,7 @@ any release.
 Exit 0: all tests pass.
 Exit 1: one or more tests fail or do not exist.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -84,3 +85,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

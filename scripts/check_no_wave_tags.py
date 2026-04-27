@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: hi_agent/**/*.py and scripts/**/*.py must not contain sprint wave labels.
 
 Sprint-label identifiers (e.g. "Wave N.M", "Wave N", or "WN-X") belong in git commit
@@ -7,6 +7,7 @@ messages and docs, not in production source code.
 Allowlist: lines with '# legacy:' annotation are skipped.
 Allowed paths: docs/, docs/downstream-responses/, docs/delivery/ (dated artifacts).
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -85,3 +86,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

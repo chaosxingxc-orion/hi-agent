@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: every SQLite-backed class must be wired in app.py (or explicitly exempted).
 
 Scans hi_agent/**/*.py for classes with _CREATE_TABLE or sqlite3.connect at class level.
@@ -11,6 +11,7 @@ Also verifies all requires_durable_* posture knobs are referenced in app.py/_dur
 The --json flag additionally runs an in-process runtime probe that instantiates
 each durable-store class and verifies basic protocol compliance.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -128,7 +129,7 @@ def _runtime_probe() -> dict[str, Any]:
 
 def _parse_wiring_error(text: str) -> dict:
     """Parse an error string into a structured dict."""
-    # Format: "  file::ClassName — message"
+    # Format: "  file::ClassName 鈥?message"
     m = re.match(r"\s+([^:]+)::(\w+)\s+\xe2\x80\x94\s+(.*)", text)
     if m is None:
         m = re.match(r"\s+([^:]+)::(\w+)\s+--\s+(.*)", text)
@@ -151,13 +152,13 @@ def main() -> int:
     for path, cls_name in sqlite_classes:
         if not check_wired_in_app(cls_name):
             errors.append(
-                f"  {path.relative_to(ROOT)}::{cls_name} — not wired in app.py/_durable_backends.py"
+                f"  {path.relative_to(ROOT)}::{cls_name} 鈥?not wired in app.py/_durable_backends.py"
                 " (add construction or '# scope: process-internal')"
             )
     dead_knobs = check_posture_knobs_referenced()
     for knob in dead_knobs:
         errors.append(
-            f"  posture.py::{knob} — knob never referenced in"
+            f"  posture.py::{knob} 鈥?knob never referenced in"
             " app.py or _durable_backends.py (dead code)"
         )
 
@@ -189,3 +190,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

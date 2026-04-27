@@ -16,7 +16,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from hi_agent.runtime_adapter import (  # noqa: F401
+from hi_agent.runtime_adapter import (  # noqa: F401  expiry_wave: Wave 17
     ExhaustedPolicy,
     TaskAttempt,
     TaskRestartPolicy,
@@ -29,7 +29,7 @@ __all__ = [
     "RestartDecision",
     "RestartPolicyEngine",
     "TaskAttempt",
-    "TaskAttemptRecord",  # noqa: F822 — provided via module __getattr__
+    "TaskAttemptRecord",  # noqa: F822 — provided via module __getattr__  expiry_wave: Wave 17
     "TaskRestartPolicy",
 ]
 
@@ -172,7 +172,7 @@ class RestartPolicyEngine:
         """Pure decision logic -- no side effects."""
         retryability = getattr(failure, "retryability", "unknown") if failure else "unknown"
         if retryability == "non_retryable":
-            action: RestartAction = policy.on_exhausted  # type: ignore[assignment]
+            action: RestartAction = policy.on_exhausted  # type: ignore[assignment]  expiry_wave: Wave 17
             return RestartDecision(
                 task_id=task_id,
                 action=action,
@@ -223,7 +223,7 @@ class RestartPolicyEngine:
             )
         return RestartDecision(
             task_id=task_id,
-            action=on_exhausted,  # type: ignore[arg-type]
+            action=on_exhausted,  # type: ignore[arg-type]  expiry_wave: Wave 17
             next_attempt_seq=None,
             reason=(
                 f"retry budget exhausted ({attempt_seq}/{policy.max_attempts}); "

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: hi_agent/ source must not contain research-domain vocabulary in identifiers.
 
 Checks identifier names (not string values) that embed research-domain terms.
@@ -6,12 +6,13 @@ Allowlist entries carry # legacy: annotations in source.
 Shim files are allowlisted by path.
 
 Exit codes:
-  0 — pass (or warn-only soft-ban hits)
-  1 — fail (hard-ban hits, or migration-guide violations)
+  0 鈥?pass (or warn-only soft-ban hits)
+  1 鈥?fail (hard-ban hits, or migration-guide violations)
 
 Flags:
   --json  Emit structured JSON report instead of human-readable output.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -25,7 +26,7 @@ ROOT = Path(__file__).parent.parent
 HI_AGENT = ROOT / "hi_agent"
 MIGRATION_GUIDES = ROOT / "docs" / "migration-guides"
 
-# Files that are the shim/compat layer — allowed to reference old names
+# Files that are the shim/compat layer 鈥?allowed to reference old names
 _PATH_ALLOWLIST = {
     "hi_agent/contracts/team_runtime.py",
     "hi_agent/server/team_run_registry.py",
@@ -37,7 +38,7 @@ _PATH_ALLOWLIST = {
 # Hard-ban: any match in non-allowlisted hi_agent/ code fails immediately.
 # These are deprecated / removed names; a shim exists for each.
 _HARD_BAN_IDENTIFIERS = frozenset({
-    "pi_run_id",                  # legacy field — use lead_run_id
+    "pi_run_id",                  # legacy field 鈥?use lead_run_id
     "RunPostmortem",              # use RunRetrospective
     "ProjectPostmortem",          # use ProjectRetrospective
     "EvolutionExperiment",        # use EvolutionTrial
@@ -138,12 +139,12 @@ def check_file_split(
         return lines[lineno - 1] if 0 < lineno <= len(lines) else ""
 
     def _report_hard(lineno: int, identifier: str, reason: str) -> None:
-        hard.append(f"  {label}:{lineno}: {identifier} — {reason}")
+        hard.append(f"  {label}:{lineno}: {identifier} 鈥?{reason}")
 
     def _report_soft(lineno: int, identifier: str) -> None:
         if not soft_allowed:
             soft.append(
-                f"  {label}:{lineno}: {identifier} — soft-ban (expiry Wave 12)"
+                f"  {label}:{lineno}: {identifier} 鈥?soft-ban (expiry Wave 12)"
             )
 
     for node in ast.walk(tree):
@@ -152,7 +153,7 @@ def check_file_split(
         if _LEGACY_ANNOTATION in line_text:
             continue
 
-        # ── existing checks ────────────────────────────────────────────────
+        # 鈹€鈹€ existing checks 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         if isinstance(node, ast.Attribute):
             if node.attr in _HARD_BAN_IDENTIFIERS:
                 _report_hard(lineno, f".{node.attr}", "research vocab (hard-ban)")
@@ -161,7 +162,7 @@ def check_file_split(
 
         if isinstance(node, ast.keyword):
             if node.arg in _HARD_BAN_IDENTIFIERS:
-                _report_hard(lineno, f"{node.arg}=", "kwarg — research vocab (hard-ban)")
+                _report_hard(lineno, f"{node.arg}=", "kwarg 鈥?research vocab (hard-ban)")
             elif node.arg in _SOFT_BAN_IDENTIFIERS:
                 _report_soft(lineno, f"{node.arg}=")
 
@@ -177,23 +178,23 @@ def check_file_split(
             elif cls_name in _SOFT_BAN_IDENTIFIERS:
                 _report_soft(lineno, f"{cls_name}()")
 
-        # ── new checks ─────────────────────────────────────────────────────
+        # 鈹€鈹€ new checks 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
         # FunctionDef.name / AsyncFunctionDef.name
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if node.name in _HARD_BAN_IDENTIFIERS:
-                _report_hard(lineno, f"def {node.name}", "function name — research vocab")
+                _report_hard(lineno, f"def {node.name}", "function name 鈥?research vocab")
             elif node.name in _SOFT_BAN_IDENTIFIERS:
                 _report_soft(lineno, f"def {node.name}")
 
         # ClassDef.name
         if isinstance(node, ast.ClassDef):
             if node.name in _HARD_BAN_IDENTIFIERS:
-                _report_hard(lineno, f"class {node.name}", "class name — research vocab (hard-ban)")
+                _report_hard(lineno, f"class {node.name}", "class name 鈥?research vocab (hard-ban)")
             elif node.name in _SOFT_BAN_IDENTIFIERS:
                 _report_soft(lineno, f"class {node.name}")
 
-        # ImportFrom.names — each alias
+        # ImportFrom.names 鈥?each alias
         if isinstance(node, ast.ImportFrom):
             for alias in node.names:
                 # check both the imported name and the local alias
@@ -201,7 +202,7 @@ def check_file_split(
                     if candidate is None:
                         continue
                     if candidate in _HARD_BAN_IDENTIFIERS:
-                        _report_hard(lineno, candidate, "import name — research vocab (hard-ban)")
+                        _report_hard(lineno, candidate, "import name 鈥?research vocab (hard-ban)")
                     elif candidate in _SOFT_BAN_IDENTIFIERS:
                         _report_soft(lineno, candidate)
 
@@ -213,7 +214,7 @@ def check_file_split(
         ):
             name = node.targets[0].id
             if name in _HARD_BAN_IDENTIFIERS:
-                _report_hard(lineno, name, "assignment target — research vocab (hard-ban)")
+                _report_hard(lineno, name, "assignment target 鈥?research vocab (hard-ban)")
             elif name in _SOFT_BAN_IDENTIFIERS:
                 _report_soft(lineno, name)
 
@@ -253,13 +254,13 @@ def _build_structured_violations(
     """Convert human-readable messages to structured dicts for --json output."""
 
     def _parse_message(msg: str) -> dict:
-        # Format: "  label:lineno: identifier — reason"
+        # Format: "  label:lineno: identifier 鈥?reason"
         msg = msg.strip()
         parts = msg.split(":", 2)
         file_part = parts[0].strip() if len(parts) > 0 else ""
         line_part = parts[1].strip() if len(parts) > 1 else "0"
         rest = parts[2].strip() if len(parts) > 2 else msg
-        identifier, _, reason = rest.partition(" — ")
+        identifier, _, reason = rest.partition(" 鈥?")
         return {
             "file": file_part,
             "line": int(line_part) if line_part.isdigit() else 0,
@@ -354,3 +355,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

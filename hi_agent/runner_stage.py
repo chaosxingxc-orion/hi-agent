@@ -257,7 +257,7 @@ class StageExecutor:
             # Propagate budget fraction into LLM metadata so that
             # TierAwareLLMGateway can apply budget-driven tier downgrade.
             if not hasattr(executor, "_llm_metadata"):
-                executor._llm_metadata = {}  # type: ignore[attr-defined]
+                executor._llm_metadata = {}  # type: ignore[attr-defined]  expiry_wave: Wave 17
             executor._llm_metadata["budget_remaining"] = self.budget_guard.remaining_fraction  # type: ignore[attr-defined]
 
         # --- Auto-compress before routing (lazy compaction) ---

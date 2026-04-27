@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 """Boundary checker for hi_agent <-> agent_kernel separation.
 
 Three rules are enforced:
@@ -18,6 +18,7 @@ Exit code 0 if zero violations, exit code 1 if any violations found.
 --strict is an alias for the default behavior (kept for future use).
 """
 
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -202,7 +203,7 @@ def check_b2(hi_agent_dir: Path) -> list[str]:
                 continue
             rel = _relative(path)
             violations.append(
-                f"VIOLATION [B-2] {rel}:{lineno}: adapter bypass — "
+                f"VIOLATION [B-2] {rel}:{lineno}: adapter bypass 鈥?"
                 f"hi_agent file outside runtime_adapter imports agent_kernel: {text}"
             )
     return violations
@@ -222,7 +223,7 @@ def check_b3(agent_kernel_dir: Path) -> list[str]:
             rel = _relative(path)
             violations.append(
                 f"VIOLATION [B-3] {rel}:{lineno}: "
-                f"hardcoded model/provider string — {description}"
+                f"hardcoded model/provider string 鈥?{description}"
             )
     return violations
 
@@ -285,3 +286,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

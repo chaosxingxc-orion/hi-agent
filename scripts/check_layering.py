@@ -1,4 +1,4 @@
-"""Layer violation checker — platform code must not import lower-stability layers.
+﻿"""Layer violation checker 鈥?platform code must not import lower-stability layers.
 
 Walks every .py file under hi_agent/ and agent_kernel/ and flags any import
 whose module starts with ``examples``, ``tests``, ``scripts``, or ``docs``.
@@ -11,6 +11,7 @@ Usage::
     python scripts/check_layering.py --json    # machine-readable JSON report
 """
 
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -200,17 +201,17 @@ def run_check() -> LayeringReport:
 
 def print_human(report: LayeringReport) -> None:
     if report.violations:
-        print(f"FAIL — {len(report.violations)} layering violation(s) found:\n")
+        print(f"FAIL 鈥?{len(report.violations)} layering violation(s) found:\n")
         for v in report.violations:
             print(f"  {v.file}:{v.line}  imports '{v.module}' (forbidden layer)")
         print()
     else:
-        print("PASS — no layering violations found.")
+        print("PASS 鈥?no layering violations found.")
 
     if report.allowlisted:
         print(f"Allowlisted ({len(report.allowlisted)}):")
         for a in report.allowlisted:
-            print(f"  {a.file}:{a.line}  '{a.module}' — {a.reason} (expires {a.expiry_wave})")
+            print(f"  {a.file}:{a.line}  '{a.module}' 鈥?{a.reason} (expires {a.expiry_wave})")
 
     print(f"\nHEAD: {report.head}")
 
@@ -264,3 +265,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

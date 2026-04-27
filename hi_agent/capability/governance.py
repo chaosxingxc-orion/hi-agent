@@ -381,12 +381,12 @@ class GovernedToolExecutor:
             json.dumps(redacted, sort_keys=True, default=str).encode()
         ).hexdigest()[:16]
         risk_class = (
-            descriptor.risk_class  # type: ignore[union-attr]
+            descriptor.risk_class  # type: ignore[union-attr]  expiry_wave: Wave 17
             if descriptor is not None and hasattr(descriptor, "risk_class")
             else "unknown"
         )
         # Audit must never block execution.
-        with contextlib.suppress(Exception):  # rule7-exempt: audit store must not block execution  # noqa: E501
+        with contextlib.suppress(Exception):  # rule7-exempt: audit store must not block execution  # noqa: E501  expiry_wave: Wave 17
             self._audit_store.record_tool_call(
                 capability_name=capability_name,
                 principal=principal,

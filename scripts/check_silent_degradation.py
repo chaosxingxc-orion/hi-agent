@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """CI gate: detect silent-degradation patterns that violate Rule 7.
 
 Forbidden patterns:
@@ -13,6 +13,7 @@ Exceptions:
 Exit 0: no violations.
 Exit 1: violations found.
 """
+# Status values: pass | fail | not_applicable | deferred
 from __future__ import annotations
 
 import argparse
@@ -49,7 +50,7 @@ def _scan_file(path: Path) -> list[dict]:
                 "text": stripped,
             })
 
-        # Pattern 2: contextlib.suppress(Exception) — broad suppression
+        # Pattern 2: contextlib.suppress(Exception) 鈥?broad suppression
         if "contextlib.suppress(Exception)" in line:
             violations.append({
                 "file": str(path.relative_to(ROOT)),
@@ -98,3 +99,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

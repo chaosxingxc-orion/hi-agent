@@ -30,7 +30,7 @@ def _make_action(effect_class: str = EffectClass.COMPENSATABLE_WRITE) -> Action:
         action_id="act-1",
         run_id="run-1",
         action_type="tool_call",
-        effect_class=effect_class,  # type: ignore[arg-type]
+        effect_class=effect_class,  # type: ignore[arg-type]  expiry_wave: Wave 17
     )
 
 
@@ -47,7 +47,7 @@ def _make_recovery_input(
         waiting_external=False,
         ready_for_dispatch=False,
         current_action_id="act-1",
-        recovery_mode=recovery_mode,  # type: ignore[arg-type]
+        recovery_mode=recovery_mode,  # type: ignore[arg-type]  expiry_wave: Wave 17
     )
     return RecoveryInput(
         run_id=run_id,
