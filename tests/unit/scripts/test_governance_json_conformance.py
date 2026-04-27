@@ -1,8 +1,9 @@
 """Conformance test: every governance check_*.py script supports --json and emits valid JSON."""
 import json
+import pathlib
 import subprocess
 import sys
-import pathlib
+
 import pytest
 
 SCRIPTS_DIR = pathlib.Path(__file__).parent.parent.parent.parent / "scripts"

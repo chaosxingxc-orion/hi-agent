@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import sys
-import textwrap
 from pathlib import Path
 
 # Insert scripts/ onto sys.path so check_no_research_vocab is importable
@@ -24,7 +23,6 @@ _SCRIPTS = Path(__file__).parent.parent.parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 
 import check_no_research_vocab as checker
-
 
 # ---------------------------------------------------------------------------
 # Hard-ban: FunctionDef.name
@@ -310,7 +308,6 @@ def test_migration_guide_clean_passes(tmp_path):
 
 def test_json_output_pass(tmp_path, monkeypatch):
     """--json with no violations must emit status=pass JSON."""
-    import io
     captured = []
 
     def fake_print(*args, **kwargs):
