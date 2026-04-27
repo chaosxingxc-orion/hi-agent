@@ -21,6 +21,7 @@ The script:
 
 from __future__ import annotations
 
+import argparse
 import fnmatch
 import json
 import re
@@ -179,7 +180,11 @@ def _check_clean_env_evidence(repo_root: Path, head_sha: str) -> None:
         print("STATUS: T3-FRESH (clean-env not verified at current HEAD)")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json", action="store_true", dest="json_output")
+    args = parser.parse_args(argv)
+
     repo_root = Path(__file__).resolve().parent.parent
 
     # 1. Find latest delivery file.
@@ -190,9 +195,13 @@ def main() -> int:
             "T3 gate has never been recorded — treating as stale.",
             file=sys.stderr,
         )
+        if args.json_output:
+            print(json.dumps({"check": "t3_freshness", "status": "fail",
+                              "reason": "no delivery file found"}))
         return 1
 
-    print(f"T3: Using delivery file: {delivery_file.name}")
+    if not args.json_output:
+        print(f"T3: Using delivery file: {delivery_file.name}")
 
     # 2. Extract gate SHA — load file data so _extract_sha_from_evidence can
     #    inspect both fields and filename in one call.
@@ -200,6 +209,28 @@ def main() -> int:
         delivery_data: dict = json.loads(delivery_file.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         delivery_data = {}
+
+    # If the delivery record explicitly marks this T3 as deferred, propagate that
+    # status so the manifest builder can apply the t3_deferred cap (cap=72).
+    delivery_status = delivery_data.get("status", "")
+    if delivery_status == "deferred":
+        gate_sha_for_deferred = _extract_sha_from_evidence(delivery_file, delivery_data)
+        if args.json_output:
+            print(json.dumps({
+                "check": "t3_freshness",
+                "status": "deferred",
+                "delivery_file": delivery_file.name,
+                "verified_head": gate_sha_for_deferred,
+                "reason": delivery_data.get("reason", "T3 deferred per delivery record"),
+                "deferred_to": delivery_data.get("deferred_to", ""),
+            }))
+        else:
+            print(
+                f"T3-DEFERRED: delivery record {delivery_file.name} declares "
+                f"status=deferred. Cap factor t3_deferred will be applied."
+            )
+        return 0
+
     gate_sha = _extract_sha_from_evidence(delivery_file, delivery_data)
     if not gate_sha:
         print(
@@ -208,22 +239,34 @@ def main() -> int:
             "YYYY-MM-DD-<sha7>-t3-<provider>.json (or legacy YYYY-MM-DD-<sha7>-rule15-<tag>.json).",
             file=sys.stderr,
         )
+        if args.json_output:
+            print(json.dumps({"check": "t3_freshness", "status": "fail",
+                              "reason": "cannot determine gate SHA"}))
         return 1
 
-    print(f"T3: Gate SHA = {gate_sha}")
+    if not args.json_output:
+        print(f"T3: Gate SHA = {gate_sha}")
 
     # 3. Get HEAD SHA.
     try:
         head_sha = _git(["rev-parse", "HEAD"], repo_root=repo_root)
     except RuntimeError as exc:
         print(f"T3-ERROR: {exc}", file=sys.stderr)
+        if args.json_output:
+            print(json.dumps({"check": "t3_freshness", "status": "fail",
+                              "reason": str(exc)}))
         return 1
 
-    print(f"T3: HEAD SHA  = {head_sha}")
+    if not args.json_output:
+        print(f"T3: HEAD SHA  = {head_sha}")
 
     if head_sha.startswith(gate_sha) or gate_sha.startswith(head_sha[:len(gate_sha)]):
-        print("T3: HEAD matches gate SHA — T3 is fresh.")
-        _check_clean_env_evidence(repo_root, head_sha)
+        if not args.json_output:
+            print("T3: HEAD matches gate SHA — T3 is fresh.")
+            _check_clean_env_evidence(repo_root, head_sha)
+        else:
+            print(json.dumps({"check": "t3_freshness", "status": "pass",
+                              "verified_head": gate_sha, "reason": "HEAD matches gate SHA"}))
         return 0
 
     # 4. Get changed files between gate and HEAD.
@@ -238,6 +281,9 @@ def main() -> int:
             "Treating T3 as stale (gate SHA may not be reachable in this repo).",
             file=sys.stderr,
         )
+        if args.json_output:
+            print(json.dumps({"check": "t3_freshness", "status": "fail",
+                              "reason": f"diff failed: {exc}"}))
         return 1
 
     changed_files = [f for f in diff_output.splitlines() if f.strip()]
@@ -246,11 +292,18 @@ def main() -> int:
     hot_path_changes = [f for f in changed_files if _is_hot_path(f)]
 
     if not hot_path_changes:
-        print(
-            f"T3: {len(changed_files)} file(s) changed since gate; "
-            "none are on the hot path. T3 is fresh."
-        )
-        _check_clean_env_evidence(repo_root, head_sha)
+        if not args.json_output:
+            print(
+                f"T3: {len(changed_files)} file(s) changed since gate; "
+                "none are on the hot path. T3 is fresh."
+            )
+            _check_clean_env_evidence(repo_root, head_sha)
+        else:
+            print(json.dumps({
+                "check": "t3_freshness", "status": "pass",
+                "verified_head": gate_sha,
+                "reason": f"{len(changed_files)} file(s) changed, none on hot path",
+            }))
         return 0
 
     # 6. Exit 1 with structured output.
@@ -268,8 +321,16 @@ def main() -> int:
         "Or tag this PR: T3 evidence: DEFERRED — <reason>",
         file=sys.stderr,
     )
-    print("STATUS: STALE")
-    print("CLEAN-ENV: NOT VERIFIED AT CURRENT HEAD")
+    if args.json_output:
+        print(json.dumps({
+            "check": "t3_freshness", "status": "fail",
+            "verified_head": gate_sha,
+            "hot_path_changes": hot_path_changes,
+            "reason": "hot-path files changed since gate",
+        }))
+    else:
+        print("STATUS: STALE")
+        print("CLEAN-ENV: NOT VERIFIED AT CURRENT HEAD")
     return 1
 
 

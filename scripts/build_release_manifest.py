@@ -45,7 +45,7 @@ _GATE_SCRIPTS: dict[str, tuple[str, bool]] = {
     "doc_consistency":        ("check_doc_consistency.py",        True),
     "wave_tags":              ("check_no_wave_tags.py",           True),
     "rule6_warnings":         ("check_rules.py",                  True),
-    "t3_freshness":           ("check_t3_freshness.py",           False),
+    "t3_freshness":           ("check_t3_freshness.py",           True),
     "boundary":               ("check_boundary.py",               True),
     "deprecated_api":         ("check_deprecated_field_usage.py", True),
     "durable_wiring":         ("check_durable_wiring.py",         True),
