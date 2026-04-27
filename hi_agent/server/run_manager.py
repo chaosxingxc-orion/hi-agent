@@ -23,11 +23,14 @@ from typing import Any
 from hi_agent.config.posture import Posture
 from hi_agent.context.run_execution_context import RunExecutionContext
 from hi_agent.contracts.run import RunState
+from hi_agent.observability.trace_context import TraceContextManager as _TraceCtxMgr
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
 from hi_agent.server.run_queue import RunQueue
 from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 from hi_agent.server.tenant_context import TenantContext
+
+_TRACE_CTX = _TraceCtxMgr()
 
 # Valid terminal/operational states that result_status may be mapped to.
 _VALID_RESULT_STATES: frozenset[str] = frozenset(s.value for s in RunState)
@@ -84,6 +87,7 @@ class ManagedRun:
     started_at: str | None = None
     last_heartbeat_at: str | None = None
     current_action_id: str | None = None
+    trace_id: str = ""
 
 
 class RunManager:
@@ -397,6 +401,7 @@ class RunManager:
 
         # --- normal run creation -------------------------------------------
         now = datetime.now(UTC).isoformat()
+        _tc = _TRACE_CTX.current()
         run = ManagedRun(
             run_id=run_id,
             task_contract=task_contract_dict,
@@ -407,6 +412,7 @@ class RunManager:
             session_id=workspace.session_id if workspace else "",
             idempotency_key=idempotency_key,
             outcome="created",
+            trace_id=_tc.trace_id if _tc is not None else "",
         )
 
         # --- build exec_ctx from resolved spine fields ----------------

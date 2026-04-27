@@ -1416,6 +1416,11 @@ def build_app(agent_server: AgentServer) -> Starlette:
         burst=max(20, agent_server._rate_limit_rps // 5),
     )
 
+    # W3C trace-id injection — outermost middleware so trace_id is available
+    # to all downstream handlers including AuthMiddleware and route handlers.
+    from hi_agent.observability.http_middleware import TraceIdMiddleware as _TraceIdMW
+    app.add_middleware(_TraceIdMW)
+
     # Attach agent server reference so handlers can access it.
     app.state.agent_server = agent_server
 

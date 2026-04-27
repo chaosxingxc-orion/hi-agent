@@ -8,6 +8,10 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from hi_agent.observability.trace_context import TraceContextManager as _TraceCtxMgr
+
+_TRACE_MGR = _TraceCtxMgr()
+
 if TYPE_CHECKING:
     from hi_agent.context.run_execution_context import RunExecutionContext
 
@@ -114,6 +118,10 @@ class SQLiteEventStore:
                 event.session_id = exec_ctx.session_id
             if exec_ctx.run_id:
                 event.run_id = exec_ctx.run_id
+        if not event.trace_id:
+            _ctx = _TRACE_MGR.current()
+            if _ctx is not None:
+                event.trace_id = _ctx.trace_id
         with self._lock:
             self._conn.execute(
                 """
