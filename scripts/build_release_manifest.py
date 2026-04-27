@@ -119,7 +119,7 @@ def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] 
         cmd.append("--json")
     # Allow a docs-only gap for both notice and verification-artifact gates so
     # the manifest/notice/artifact commit itself does not cause false violations.
-    if gate_key in ("doc_consistency", "verification_artifacts"):
+    if gate_key in ("doc_consistency", "verification_artifacts", "manifest_freshness"):
         cmd.append("--allow-docs-only-gap")
 
     try:
