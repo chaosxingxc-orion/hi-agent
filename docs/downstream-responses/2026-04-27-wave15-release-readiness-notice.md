@@ -3,7 +3,7 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    252b7a25692c
+Functional HEAD:    0de89b357f49be2e2e12c5fd12355cd4206c2144
 Manifest:           2026-04-27-a1bfa88
 Manifest ID:        2026-04-27-a1bfa88
 T3 evidence:        REAL — docs/delivery/2026-04-27-fd6386e-t3-volces.json

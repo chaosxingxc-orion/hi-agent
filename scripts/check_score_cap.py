@@ -31,10 +31,37 @@ def _latest_manifest() -> pathlib.Path | None:
     return manifests[-1] if manifests else None
 
 
+def _manifest_verified_for_notice(text: str, default_verified: float) -> float:
+    """Extract the verified score from the manifest cited in the notice, if any.
+
+    A notice may cite a specific manifest via 'Manifest: <manifest_id>' line.
+    If the cited manifest exists and has a valid score, use that score as the
+    comparison baseline. This allows a notice to correctly describe a higher
+    score than an older latest manifest without tripping a false positive.
+    """
+    cite_m = re.search(r"Manifest:\s*([\w-]+)", text)
+    if not cite_m:
+        return default_verified
+    manifest_id = cite_m.group(1).strip()
+    # Manifest ID may be just the short SHA or the full ID like '2026-04-27-a1bfa88'
+    for p in RELEASES_DIR.glob(f"*{manifest_id}*.json"):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            sc = data.get("scorecard", {})
+            v = float(sc.get("current_verified_readiness", sc.get("verified", 0)))
+            if v > 0:
+                return v
+        except Exception:
+            pass
+    return default_verified
+
+
 def _check_notice_score_claims(verified: float) -> list[str]:
     """Return list of notices that claim a verified score higher than current_verified_readiness.
 
     Skips notices marked as 'Status: superseded' or 'Status: draft'.
+    Each notice is compared against the manifest it cites (via 'Manifest: <id>'),
+    falling back to the provided verified score if no specific manifest is cited.
     """
     issues: list[str] = []
     if not NOTICES_DIR.exists():
@@ -48,10 +75,12 @@ def _check_notice_score_claims(verified: float) -> list[str]:
         text = f.read_text(encoding="utf-8", errors="replace")
         if status_pattern.search(text):
             continue  # superseded/draft notices are exempt
+        # Use the manifest cited in this notice for comparison (or fall back to latest)
+        notice_verified = _manifest_verified_for_notice(text, verified)
         for m in score_pattern.finditer(text):
             claimed = float(m.group(1))
-            if claimed > verified + 0.5:  # allow 0.5 rounding tolerance
-                issues.append(f"{f.name}: claims {claimed:.1f} > manifest verified {verified:.1f}")
+            if claimed > notice_verified + 0.5:  # allow 0.5 rounding tolerance
+                issues.append(f"{f.name}: claims {claimed:.1f} > manifest verified {notice_verified:.1f}")
     return issues
 
 
