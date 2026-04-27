@@ -258,6 +258,13 @@ ON run_queue (tenant_id, user_id, session_id, status)
 
             if result.rowcount == 0:
                 # Another worker raced us to this run; give up for this call.
+                try:
+                    from hi_agent.observability.collector import get_metrics_collector
+                    _col = get_metrics_collector()
+                    if _col is not None:
+                        _col.increment("hi_agent_queue_duplicate_claim_blocked_total")
+                except Exception:  # rule7-exempt: metric must not block claim path
+                    pass
                 return None
 
         return {"run_id": run_id, "payload_json": payload_json}
@@ -510,6 +517,14 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 (now_ts, run_id),
             )
             self._conn.commit()
+        # Rule 7: count dead-lettered runs
+        try:
+            from hi_agent.observability.collector import get_metrics_collector
+            _col = get_metrics_collector()
+            if _col is not None:
+                _col.increment("hi_agent_runs_dead_lettered_total")
+        except Exception:  # rule7-exempt: metric must not block DLQ insert
+            pass
 
     def list_dlq(self, tenant_id: str | None = None) -> list[dict]:
         """Return all dead-lettered run records, optionally filtered by tenant.

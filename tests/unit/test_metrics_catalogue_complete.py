@@ -130,6 +130,40 @@ class TestW12GMetricNamesRegistered:
         assert len(_W12G_EXPECTED_NAMES) == 29
 
 
+_WAVE13_I3_I7_EXPECTED_NAMES: frozenset[str] = frozenset({
+    # I-3: EventBus sync observer drop counter (Rule 7 alarm)
+    "hi_agent_event_bus_observer_drop_total",
+    # I-7a: DLQ dead-letter counter (Rule 7 alarm)
+    "hi_agent_runs_dead_lettered_total",
+    # I-7b: duplicate claim blocked counter (Rule 7 alarm)
+    "hi_agent_queue_duplicate_claim_blocked_total",
+})
+
+
+class TestWave13I3I7MetricNamesRegistered:
+    """Wave 13 I-3 / I-7 Rule 7 alarm counters must be present in _METRIC_DEFS."""
+
+    def test_all_expected_names_present(self) -> None:
+        """Every Wave 13 I-3/I-7 metric name appears as a key in _METRIC_DEFS."""
+        registered = set(_METRIC_DEFS.keys())
+        missing = _WAVE13_I3_I7_EXPECTED_NAMES - registered
+        assert not missing, f"Missing Wave 13 I-3/I-7 metrics: {sorted(missing)}"
+
+    def test_all_are_counters(self) -> None:
+        """All Wave 13 I-3/I-7 metrics have kind='counter'."""
+        for name in _WAVE13_I3_I7_EXPECTED_NAMES:
+            defn = _METRIC_DEFS[name]
+            assert defn.kind == "counter", (
+                f"{name}: expected kind='counter', got {defn.kind!r}"
+            )
+
+    def test_help_text_non_empty(self) -> None:
+        """Every Wave 13 I-3/I-7 metric has a non-empty help_text."""
+        for name in _WAVE13_I3_I7_EXPECTED_NAMES:
+            defn = _METRIC_DEFS[name]
+            assert defn.help_text, f"{name}: help_text must not be empty"
+
+
 class TestMetricsCardinalityNoBannedSegments:
     """No registered metric name may embed a forbidden high-cardinality token
     as a name segment (e.g. 'metric_run_id_total' would be a violation).

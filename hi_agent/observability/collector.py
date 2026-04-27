@@ -182,7 +182,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "KG backend overridden away from posture default (Rule 7 alarm).",
     ),
-    # W12-G: run lifecycle counters (labels: tenant_id, outcome, reason).
+    # Run lifecycle counters (labels: tenant_id, outcome, reason).
     "hi_agent_runs_started_total": _MetricDef(
         "hi_agent_runs_started_total",
         "counter",
@@ -208,7 +208,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Total run timeouts.",
     ),
-    # W12-G: queue operation counters (labels: outcome).
+    # Queue operation counters (labels: outcome).
     "hi_agent_queue_lease_renew_total": _MetricDef(
         "hi_agent_queue_lease_renew_total",
         "counter",
@@ -224,7 +224,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Duplicate claim attempts blocked.",
     ),
-    # W12-G: admission and recovery counters (labels: reason).
+    # Admission and recovery counters (labels: reason).
     "hi_agent_admission_rejected_total": _MetricDef(
         "hi_agent_admission_rejected_total",
         "counter",
@@ -245,7 +245,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Recovery failures.",
     ),
-    # W12-G: MCP and tool counters (labels: server, tool, outcome).
+    # MCP and tool counters (labels: server, tool, outcome).
     "hi_agent_mcp_crash_total": _MetricDef(
         "hi_agent_mcp_crash_total",
         "counter",
@@ -271,7 +271,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Runs moved to DLQ.",
     ),
-    # W12-G: run and queue gauges.
+    # Run and queue gauges.
     "hi_agent_runs_stalled": _MetricDef(
         "hi_agent_runs_stalled",
         "gauge",
@@ -302,7 +302,13 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "gauge",
         "Active runs when drain initiated.",
     ),
-    # W12-G: run and tool histograms (labels: tenant_id, outcome, tool).
+    # I-3 / Rule 7: sync observer drops in EventBus.
+    "hi_agent_event_bus_observer_drop_total": _MetricDef(
+        "hi_agent_event_bus_observer_drop_total",
+        "counter",
+        "Sync observer calls that raised an exception (Rule 7 alarm).",
+    ),
+    # Run and tool histograms (labels: tenant_id, outcome, tool).
     "hi_agent_run_duration_seconds": _MetricDef(
         "hi_agent_run_duration_seconds",
         "histogram",

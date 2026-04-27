@@ -130,6 +130,27 @@ class EventBus:
 
         with self._lock:
             queues = list(self._queues.get(event.run_id, []))
+            observers = list(self._sync_observers)
+
+        # Notify sync observers (e.g. RunManager) — best-effort, never raises.
+        # Done before the async queue early-return so observers always fire.
+        for obs in observers:
+            try:
+                obs(event)
+            except Exception as exc:
+                self._total_dropped += 1
+                logger.warning(
+                    "event_bus sync observer raised (Rule 7); dropping. observer=%r exc=%r",
+                    obs,
+                    exc,
+                )
+                try:
+                    from hi_agent.observability.collector import get_metrics_collector
+                    _col = get_metrics_collector()
+                    if _col is not None:
+                        _col.increment("hi_agent_event_bus_observer_drop_total")
+                except Exception:  # rule7-exempt: alarm bell must not propagate
+                    pass
 
         if not queues:
             return
@@ -154,13 +175,6 @@ class EventBus:
             # or in a pure-sync environment without asyncio.
             for q in queues:
                 self._put_nowait_in_loop(q, event)
-
-        # Notify sync observers (e.g. RunManager) — best-effort, never raises.
-        with self._lock:
-            observers = list(self._sync_observers)
-        for obs in observers:
-            with contextlib.suppress(Exception):
-                obs(event)
 
     def add_sync_observer(self, callback) -> None:
         """Register a thread-safe sync callback invoked on every publish().
