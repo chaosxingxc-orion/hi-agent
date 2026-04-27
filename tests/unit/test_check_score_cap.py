@@ -50,6 +50,10 @@ def _patch_t3(fresh: bool):
     return patch("check_downstream_response_format._t3_is_fresh", return_value=fresh)
 
 
+def _patch_t3_deferred(deferred: bool):
+    return patch("check_downstream_response_format._t3_is_deferred", return_value=deferred)
+
+
 def _patch_git_head(sha: str):
     return patch("check_downstream_response_format._git_head", return_value=sha)
 
@@ -60,10 +64,10 @@ def _patch_git_head(sha: str):
 
 
 def test_t3_stale_score_above_cap_emits_violation(tmp_path: Path) -> None:
-    """T3 stale + score 70 must emit SCORE-CAP-VIOLATION (cap is 63.0 per score_caps.yaml)."""
+    """T3 stale (not deferred) + score 70 must emit SCORE-CAP-VIOLATION (cap is 63.0)."""
     _write_notice(tmp_path, score=70.0)
 
-    with _patch_docs(tmp_path), _patch_t3(False), _patch_git_head(_HEAD):
+    with _patch_docs(tmp_path), _patch_t3(False), _patch_t3_deferred(False), _patch_git_head(_HEAD):
         errors = check_score_cap()
 
     assert any("SCORE-CAP-VIOLATION" in e for e in errors)
@@ -93,10 +97,10 @@ def test_t3_fresh_with_evidence_score_78_passes(tmp_path: Path) -> None:
 
 
 def test_t3_stale_score_within_cap_passes(tmp_path: Path) -> None:
-    """T3 stale + score 60.0 must pass (cap is 63.0 per score_caps.yaml)."""
+    """T3 stale (not deferred) + score 60.0 must pass (cap is 63.0 per score_caps.yaml)."""
     _write_notice(tmp_path, score=60.0)
 
-    with _patch_docs(tmp_path), _patch_t3(False), _patch_git_head(_HEAD):
+    with _patch_docs(tmp_path), _patch_t3(False), _patch_t3_deferred(False), _patch_git_head(_HEAD):
         errors = check_score_cap()
 
     assert errors == []

@@ -138,6 +138,33 @@ def _t3_is_fresh(repo_root: Path = ROOT) -> bool:
         return False
 
 
+def _t3_is_deferred(repo_root: Path = ROOT) -> bool:
+    """Return True when the most-recent T3 evidence is structural/shape-verified.
+
+    Checks both *-rule15-*.json and *-t3-*-deferred.json naming conventions.
+    A structural provenance means T3 was shape-verified, not run with a live key —
+    the t3_deferred cap applies rather than the t3_stale cap.
+    """
+    try:
+        delivery_dir = repo_root / "docs" / "delivery"
+        if not delivery_dir.is_dir():
+            return False
+        candidates = sorted(
+            list(delivery_dir.glob("*-rule15-*.json")) +
+            list(delivery_dir.glob("*-t3-*-deferred.json")),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if not candidates:
+            return False
+        data = json.loads(candidates[0].read_text(encoding="utf-8"))
+        prov = data.get("provenance", "")
+        mode = data.get("mode", "")
+        return prov in ("structural", "dry_run") or mode == "deferred"
+    except Exception:
+        return False
+
+
 def check_score_cap(notice: Path | None = None) -> list[str]:
     """Declared readiness score must not exceed the cap for the T3 status.
 
@@ -184,8 +211,16 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
     _gate_warn_cap = _load_score_cap("gate_warn")
 
     if not t3_fresh:
-        cap: float | None = _t3_stale_cap
-        status = "stale"
+        # If there's structural T3 evidence (shape-verified, provenance=structural),
+        # the t3_deferred cap applies rather than the t3_stale cap.
+        t3_deferred = _t3_is_deferred(ROOT)
+        _t3_deferred_cap = _load_score_cap("t3_deferred")
+        if t3_deferred:
+            cap: float | None = _t3_deferred_cap
+            status = "deferred"
+        else:
+            cap = _t3_stale_cap
+            status = "stale"
     elif not has_clean_env_evidence:
         cap = _gate_warn_cap
         status = "fresh-no-clean-env"

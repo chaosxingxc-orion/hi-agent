@@ -29,11 +29,18 @@ _VALID_LEVELS = frozenset({
 })
 
 # Match closure rows like: | P0-1 | ... | CLOSED | level: verified_at_release_head |
+# Named group 'row_id' captures the first cell so header rows can be filtered out.
 _CLOSURE_PATTERN = re.compile(
-    r"\|\s*(?:P\d+-\d+|DF-\d+|[A-Z0-9-]+)\s*\|[^|]*\|[^|]*(?:CLOSED|IN PROGRESS|OPEN)[^|]*\|([^|]*)\|",
+    r"\|\s*(?P<row_id>(?:P\d+-\d+|DF-\d+|[A-Z0-9-]+))\s*\|[^|]*\|[^|]*(?:CLOSED|IN PROGRESS|OPEN)[^|]*\|([^|]*)\|",
     re.IGNORECASE,
 )
 _LEVEL_PATTERN = re.compile(r"level:\s*(\S+)", re.IGNORECASE)
+
+# Common English table-header words that should not be treated as defect IDs.
+_HEADER_IDS = frozenset({
+    "class", "defect", "issue", "item", "problem", "id", "finding",
+    "gap", "requirement", "behavior", "component", "pattern", "track",
+})
 
 
 _CLOSURE_LEVEL_ENUM = re.compile(
@@ -64,6 +71,9 @@ def _check_notice(path: pathlib.Path) -> list[str]:
         return []
     issues: list[str] = []
     for row_match in _CLOSURE_PATTERN.finditer(text):
+        # Skip table header rows whose first cell is a plain English word.
+        if row_match.group("row_id").lower() in _HEADER_IDS:
+            continue
         row_content = row_match.group(1)
         level_match = _LEVEL_PATTERN.search(row_content)
         if not level_match:
