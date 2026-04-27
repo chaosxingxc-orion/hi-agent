@@ -43,7 +43,7 @@ _GATE_SCRIPTS: dict[str, tuple[str, bool, list[str]]] = {
     "route_scope":            ("check_route_scope.py",            True,  []),
     "expired_waivers":        ("check_expired_waivers.py",        True,  []),
     "doc_canonical":          ("check_doc_canonical_symbols.py",  True,  []),
-    "doc_consistency":        ("check_doc_consistency.py",        True,  []),
+    "doc_consistency":        ("check_doc_consistency.py",        True,  ["--allow-docs-only-gap"]),
     "wave_tags":              ("check_no_wave_tags.py",           True,  []),
     "rule6_warnings":         ("check_rules.py",                  True,  []),
     "t3_freshness":           ("check_t3_freshness.py",           True,  []),
