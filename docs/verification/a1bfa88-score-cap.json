@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-27-6ea0c50",
+  "verified_head": "6ea0c503f8fd40f7d24622a48e0816e5adfacd1e",
+  "generated_at": "2026-04-27T17:00:23.802744+00:00",
+  "current_verified_readiness": 77.62,
+  "cap": 80.0,
+  "cap_reason": "gate_warn/deferred: observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "gate_warn/deferred: observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}
