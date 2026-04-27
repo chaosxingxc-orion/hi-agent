@@ -135,7 +135,8 @@ class RunManager:
         self._run_store = run_store
         self._run_queue = run_queue
         self._event_store: SQLiteEventStore | None = None
-        self._event_seqs: dict[str, int] = {}  # per-run sequence counters (seeded from storage on first use)
+        # Per-run sequence counters; seeded from storage on first use (restart-safe).
+        self._event_seqs: dict[str, int] = {}
         self._event_seq_lock = threading.Lock()
         # Maps run_id -> executor_fn when run_queue is used; populated by start_run.
         self._pending_executors: dict[str, Callable[[ManagedRun], Any]] = {}
@@ -149,7 +150,8 @@ class RunManager:
         self._queue: queue.PriorityQueue[
             tuple[int, int, ManagedRun, Callable[[ManagedRun], Any]]
         ] = queue.PriorityQueue(maxsize=queue_size)
-        self._queue_seq: int = 0  # monotonic counter for tie-breaking; RUNTIME-ONLY: in-memory queue resets on restart
+        # RUNTIME-ONLY: in-memory queue resets on restart; tie-breaking only.
+        self._queue_seq: int = 0
         self._queue_size = queue_size
         self._queue_timeout_s = queue_timeout_s
         self._active_count = 0  # guarded by _lock

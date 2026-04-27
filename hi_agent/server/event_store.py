@@ -199,6 +199,28 @@ class SQLiteEventStore:
             rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_event(r) for r in rows]
 
+    def max_sequence(self, run_id: str) -> int:
+        """Return the highest stored sequence for run_id, or -1 if none.
+
+        Callers use ``max_sequence(run_id) + 1`` as the seed for the next
+        sequence number.  Returning -1 when no events exist means the first
+        event will receive sequence 0.
+
+        Args:
+            run_id: Run identifier to query.
+
+        Returns:
+            Highest sequence number stored for this run, or -1 if no events
+            exist for this run_id.
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT MAX(sequence) FROM run_events WHERE run_id = ?", (run_id,)
+            ).fetchone()
+        if row is None or row[0] is None:
+            return -1
+        return int(row[0])
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------

@@ -209,6 +209,7 @@ class ContextManager:
 
         # History buffer (what has been sent to LLM)
         self._history_entries: list[dict[str, Any]] = []
+        # RUNTIME-ONLY: per-run counter, valid for instance lifetime.
         self._compact_offset: int = 0  # entries before this index are compressed
         self._compact_summary: str = ""  # summary of compressed entries
 

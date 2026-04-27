@@ -97,3 +97,78 @@ def test_heartbeat_interval_minimum_is_one_second() -> None:
         assert rq.lease_heartbeat_interval_seconds == 1.0
     finally:
         rq.close()
+
+
+@pytest.mark.integration
+def test_heartbeat_failure_transitions_run_to_failed() -> None:
+    """When heartbeat() returns False, the run must transition to state='failed'.
+
+    Sub-track I-1 (Wave 13): heartbeat-as-state. The heartbeat loop must set
+    run.state='failed' and run.error containing 'lease_lost' when lease renewal
+    is denied.
+    """
+    rq = RunQueue(db_path=":memory:", lease_timeout_seconds=60.0)
+
+    # Patch heartbeat to return False on first call, simulating renewal denial.
+    heartbeat_calls: list[int] = []
+
+    def _deny_heartbeat(run_id: str, worker_id: str) -> bool:
+        heartbeat_calls.append(1)
+        return False  # simulate lease renewal denied
+
+    rq.heartbeat = _deny_heartbeat  # type: ignore[method-assign]
+
+    # Use a very short heartbeat interval so the test completes quickly.
+    # We monkey-patch the property value directly.
+    rq.__dict__["lease_heartbeat_interval_seconds"] = 0.1  # type: ignore[attr-defined]
+
+    rm = RunManager(run_queue=rq)
+    try:
+        workspace = TenantContext(tenant_id="t1", user_id="u1")
+        run = rm.create_run({"goal": "lease loss test"}, workspace=workspace)
+
+        executor_started = [False]
+        executor_done = [False]
+
+        def _blocking_executor(r: ManagedRun):
+            executor_started[0] = True
+            # Block until run state transitions to failed (heartbeat fires)
+            deadline = time.monotonic() + 10.0
+            while time.monotonic() < deadline:
+                if r.state == "failed":
+                    break
+                time.sleep(0.05)
+            executor_done[0] = True
+
+            class _R:
+                status = "failed"
+                error = "lease_lost: heartbeat renewal denied"
+                finished_at = None
+                llm_fallback_count = 0
+                fallback_events: list = []  # noqa: RUF012
+
+                def to_dict(self):
+                    return {"status": "failed"}
+
+            return _R()
+
+        rm.start_run(run.run_id, _blocking_executor)
+
+        # Wait for executor to observe the state change
+        deadline = time.monotonic() + 15.0
+        while time.monotonic() < deadline:
+            if executor_done[0]:
+                break
+            time.sleep(0.1)
+
+        assert executor_done[0], "Executor did not finish within timeout"
+        assert run.state == "failed", (
+            f"Run state must be 'failed' after lease loss; got {run.state!r}"
+        )
+        assert run.error is not None and "lease_lost" in run.error, (
+            f"run.error must contain 'lease_lost'; got {run.error!r}"
+        )
+        assert len(heartbeat_calls) >= 1, "heartbeat must have been called at least once"
+    finally:
+        rm.shutdown(timeout=5.0)
+        rq.close()

@@ -91,6 +91,7 @@ class RunSession:
         self.current_stage: str = ""
         self.stage_states: dict[str, str] = {}
         self.stage_attempt: dict[str, int] = {}
+        # RUNTIME-ONLY: per-run counters, valid for instance lifetime.
         self.action_seq: int = 0
         self.branch_seq: int = 0
 
