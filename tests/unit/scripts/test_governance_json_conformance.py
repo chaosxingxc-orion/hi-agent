@@ -27,7 +27,8 @@ REQUIRED_FIELDS = {"check", "status", "violations", "head"}
 
 @pytest.mark.parametrize("script", GOVERNANCE_SCRIPTS)
 def test_script_emits_valid_json(script):
-    """Each governance script must emit parseable JSON with required fields when --json is passed."""
+    """Each governance script must emit parseable JSON with required fields when --json is
+    passed."""
     script_path = SCRIPTS_DIR / script
     assert script_path.exists(), f"Script not found: {script_path}"
 

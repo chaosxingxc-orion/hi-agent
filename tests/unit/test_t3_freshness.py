@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from scripts.check_t3_freshness import _extract_sha_from_evidence
 
 

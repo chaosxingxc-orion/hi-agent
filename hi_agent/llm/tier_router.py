@@ -382,7 +382,8 @@ class TierRouter:
         """Record a calibration signal for future TierRouter auto-tuning.
 
         Currently record-only: signals are stored but do not modify tier routing.
-        Auto-calibration requires stable usage data; wave 10 deadline missed, retargeted Wave 12 (owner: CO).
+        Auto-calibration requires stable usage data; wave 10 deadline missed,
+        retargeted Wave 12 (owner: CO).
 
         Args:
             signal: A CalibrationSignal instance from hi_agent.evolve.contracts.

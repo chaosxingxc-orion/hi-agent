@@ -32,23 +32,23 @@ import check_no_research_vocab as checker
 
 def test_detects_function_def_with_forbidden_name(tmp_path):
     """FunctionDef.name containing a hard-ban identifier must be reported."""
-    source = "def apply_research_defaults(builder): pass\n"
+    source = "def pi_run_id(builder): pass\n"
     f = tmp_path / "bad.py"
     f.write_text(source)
-    hard, soft = checker.check_file_split(f)
-    assert any("apply_research_defaults" in h for h in hard), (
-        f"Expected hard-ban hit for 'apply_research_defaults' in FunctionDef; got: {hard}"
+    hard, _soft = checker.check_file_split(f)
+    assert any("pi_run_id" in h for h in hard), (
+        f"Expected hard-ban hit for 'pi_run_id' in FunctionDef; got: {hard}"
     )
 
 
 def test_detects_async_function_def_with_forbidden_name(tmp_path):
     """AsyncFunctionDef.name containing a hard-ban identifier must be reported."""
-    source = "async def apply_research_defaults(builder): ...\n"
+    source = "async def pi_run_id(builder): ...\n"
     f = tmp_path / "bad_async.py"
     f.write_text(source)
     hard, _soft = checker.check_file_split(f)
-    assert any("apply_research_defaults" in h for h in hard), (
-        f"Expected hard-ban hit for 'apply_research_defaults' in AsyncFunctionDef; got: {hard}"
+    assert any("pi_run_id" in h for h in hard), (
+        f"Expected hard-ban hit for 'pi_run_id' in AsyncFunctionDef; got: {hard}"
     )
 
 
@@ -189,7 +189,7 @@ def test_skips_legacy_annotated_line(tmp_path):
 
 def test_skips_legacy_annotated_function_def(tmp_path):
     """A FunctionDef line with '# legacy:' must be suppressed."""
-    source = "def apply_research_defaults(x): pass  # legacy: deprecated shim\n"
+    source = "def pi_run_id(x): pass  # legacy: deprecated shim\n"
     f = tmp_path / "ok2.py"
     f.write_text(source)
     hard, _soft = checker.check_file_split(f)
@@ -234,10 +234,11 @@ def test_hard_ban_identifiers_exists():
     assert hasattr(checker, "_HARD_BAN_IDENTIFIERS"), "_HARD_BAN_IDENTIFIERS must exist"
     hb = checker._HARD_BAN_IDENTIFIERS
     assert "pi_run_id" in hb
-    assert "apply_research_defaults" in hb
     assert "RunPostmortem" in hb
     assert "ProjectPostmortem" in hb
     assert "EvolutionExperiment" in hb
+    # apply_research_defaults moved to _SOFT_BAN_IDENTIFIERS in Wave 12
+    assert "apply_research_defaults" not in hb
 
 
 def test_soft_ban_identifiers_exists():
@@ -256,6 +257,8 @@ def test_soft_ban_identifiers_exists():
     assert "CitationArtifact" in sb
     assert "PaperArtifact" in sb
     assert "LeanProofArtifact" in sb
+    # apply_research_defaults moved from hard-ban to soft-ban in Wave 12
+    assert "apply_research_defaults" in sb
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +281,9 @@ def test_migration_guide_import_detected(tmp_path):
     finally:
         checker.MIGRATION_GUIDES = original
 
-    assert len(violations) >= 1, f"Expected at least one migration-guide violation; got: {violations}"
+    assert len(violations) >= 1, (
+        f"Expected at least one migration-guide violation; got: {violations}"
+    )
     assert any("from examples.research_overlay" in v["text"] for v in violations)
 
 
@@ -331,7 +336,7 @@ def test_json_output_pass(tmp_path, monkeypatch):
 def test_json_output_fail(tmp_path, monkeypatch):
     """--json with hard-ban violations must emit status=fail and exit 1."""
     bad_py = tmp_path / "bad.py"
-    bad_py.write_text("def apply_research_defaults(x): pass\n")
+    bad_py.write_text("pi_run_id = 'some_value'\n")
 
     captured = []
 
@@ -349,7 +354,7 @@ def test_json_output_fail(tmp_path, monkeypatch):
     assert rc == 1
     assert data["status"] == "fail"
     assert len(data["hard_violations"]) >= 1
-    assert any("apply_research_defaults" in v["identifier"] for v in data["hard_violations"])
+    assert any("pi_run_id" in v["identifier"] for v in data["hard_violations"])
 
 
 def test_json_output_warn(tmp_path, monkeypatch):

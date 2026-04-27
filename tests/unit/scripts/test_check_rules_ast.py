@@ -1,7 +1,7 @@
 """Tests for check_rules.py AST-based Rule 6/13 detection."""
-import textwrap
-import sys
 import pathlib
+import sys
+import textwrap
 
 # Make the detection function importable
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent.parent.parent / "scripts"))
