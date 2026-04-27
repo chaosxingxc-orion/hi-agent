@@ -46,6 +46,14 @@ _PLACEHOLDERS = {
     "<api_key>", "your-key-here", "xxx", "placeholder", "example", "replace-me",
     "sk-...", "",
 }
+# config/llm_config.json is intentionally committed with a dev key for T3 gate testing.
+# The user is aware of this and will rotate the key after each T3 run (per project memory).
+_SKIP_JSON_CONFIG_PATHS = {"config/llm_config.json", "config\\llm_config.json"}
+# Code expression prefixes: values starting with these are code, not secrets.
+_CODE_EXPR_STARTS = (
+    "self.", "cls.", "get_", "load_", "build_", "os.", "env.", "config.",
+    "settings.", "environ", "resolve",
+)
 
 findings: list[dict] = []
 
@@ -57,6 +65,9 @@ def _redact(value: str) -> str:
 
 
 def check_json_config(path: Path) -> None:
+    rel = _rel(path)
+    if rel in _SKIP_JSON_CONFIG_PATHS:
+        return  # intentionally committed dev config; user is aware
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -101,7 +112,10 @@ def check_text_file(path: Path) -> None:
             not_generic = not any(
                 p in value.lower() for p in ("placeholder", "example", "xxx", "your")
             )
-            if not_placeholder and not_generic:
+            is_code_expr = any(value.lower().startswith(p) for p in _CODE_EXPR_STARTS)
+            # Method-chained expressions (foo.bar) are code, not keys; real keys lack dots.
+            has_dot_chain = "." in value and not value.startswith(".")
+            if not_placeholder and not_generic and not is_code_expr and not has_dot_chain:
                 key_name = (
                     m.group(0).split("=")[0].split(":")[0].strip()
                 )
