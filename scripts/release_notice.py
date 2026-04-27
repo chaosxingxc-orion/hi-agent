@@ -96,13 +96,31 @@ def _git_status_porcelain() -> str:
     return result.stdout.strip()
 
 
+def _load_latest_manifest() -> dict | None:
+    """Load the most recent manifest from docs/releases/."""
+    import json
+    releases_dir = ROOT / "docs" / "releases"
+    manifests = sorted(releases_dir.glob("platform-release-manifest-*.json"), key=lambda p: p.stat().st_mtime)
+    if not manifests:
+        return None
+    try:
+        return json.loads(manifests[-1].read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
 def _render_template(template_text: str, wave: str, head: str, date: str) -> str:
     """Substitute all placeholders in the template."""
+    manifest = _load_latest_manifest()
+    manifest_id = manifest.get("manifest_id", "UNKNOWN") if manifest else "UNKNOWN"
+
     text = template_text
     text = text.replace("{{HEAD}}", head)
+    text = text.replace("{{HEAD_SHORT}}", head)
     text = text.replace("{{DATE}}", date)
     text = text.replace("{{WAVE}}", wave)
-    text = text.replace("{{SCORE_CAP}}", _format_score_cap())
+    text = text.replace("{{MANIFEST_ID}}", manifest_id)
+    text = text.replace("{{SCORE_CAP}}", _format_score_cap(manifest))
     text = text.replace("{{T3_EVIDENCE}}", _DEFAULT_T3_EVIDENCE)
     text = text.replace("{{CLEAN_ENV_EVIDENCE}}", _DEFAULT_CLEAN_ENV_EVIDENCE)
     return text
