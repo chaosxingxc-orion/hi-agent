@@ -3,9 +3,9 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    e935089
-Notice HEAD:        e935089
-Manifest ID:        2026-04-27-8fbfd27
+Functional HEAD:    36d7b2d
+Notice HEAD:        36d7b2d
+Manifest: 2026-04-27-8fbfd27
 T3 evidence:        PENDING — run scripts/run_t3_gate.py
 Clean-env evidence: PENDING — run verify_clean_env.py --profile default-offline
 Current verified readiness: 72.0 (t3_deferred; gate_warn/deferred: vocab, t3_freshness, noqa_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling)
