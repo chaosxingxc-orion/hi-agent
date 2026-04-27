@@ -64,6 +64,8 @@ markers = [
     "requires_secret: requires populated API secret; excluded from default-offline bundle",
     "e2e: tests that exercise the full system end-to-end",
     "perf: performance and load tests",
+    "slow: marks tests as slow (>30s)",
+    "anyio: marks tests as anyio async tests",
 ]
 
 [tool.ruff]

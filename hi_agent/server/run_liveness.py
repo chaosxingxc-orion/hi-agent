@@ -1,4 +1,4 @@
-"""Run liveness state enum for W12-D stuck-run detection."""
+"""Run liveness state enum for stuck-run detection."""
 
 from __future__ import annotations
 

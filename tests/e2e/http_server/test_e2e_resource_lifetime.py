@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
+pytestmark = [pytest.mark.e2e, pytest.mark.network]
+
 _TERMINAL_STATES = frozenset({"done", "failed", "cancelled"})
 _POLL_INTERVAL_S = 2
 _POLL_MAX_ROUNDS = 10

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import pytest
 
+pytestmark = [pytest.mark.external_llm, pytest.mark.network]
+
 openai = pytest.importorskip("openai", reason="openai SDK not installed")
 
 from unittest.mock import AsyncMock, MagicMock, patch

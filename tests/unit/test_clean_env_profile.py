@@ -71,13 +71,27 @@ def test_nightly_is_superset_of_wave_bundle():
 
 
 def test_release_uses_wave_bundle():
-    """release profile resolves to WAVE_TEST_BUNDLE (verified via argparse simulation)."""
+    """release profile resolves to WAVE_TEST_BUNDLE (verified via argparse simulation).
+
+    The release profile excludes live_api, external_llm, soak, and chaos markers
+    per tests/profiles.toml, so extra_args carries a -m marker expression.
+    """
     import argparse
 
     ns = argparse.Namespace(profile="release", bundle=None)
     raw_paths, extra_args = vce._resolve_bundle_and_marker_args(ns)
     assert raw_paths == list(vce.WAVE_TEST_BUNDLE)
-    assert extra_args == []
+    # profiles.toml defines excluded_markers for release; extra_args carries -m expression.
+    if extra_args:
+        assert extra_args[0] == "-m"
+        marker_expr = extra_args[1]
+        for excluded in ("live_api", "external_llm", "soak", "chaos"):
+            assert f"not {excluded}" in marker_expr, (
+                f"release profile must exclude '{excluded}' marker, got: {marker_expr}"
+            )
+    else:
+        # Fallback path (profiles.toml absent): no marker exclusions
+        assert extra_args == []
 
 
 def test_default_offline_applies_marker_exclusions():

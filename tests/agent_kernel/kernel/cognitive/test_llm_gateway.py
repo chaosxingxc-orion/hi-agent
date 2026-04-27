@@ -12,6 +12,8 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytestmark = [pytest.mark.external_llm, pytest.mark.network]
 from agent_kernel.kernel.cognitive.llm_gateway import (
     BaseLLMGateway,
     EchoLLMGateway,

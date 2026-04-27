@@ -5,7 +5,7 @@
 # risk: low | medium | high
 
 schema_version: "1"
-current_wave: 12
+current_wave: 13
 
 entries:
   # --- check_no_research_vocab: path allowlist ---
@@ -59,16 +59,16 @@ entries:
     entry: hi_agent/llm/tier_presets.py
     owner: CO
     risk: low
-    reason: Wave 12 target -- apply_strict_defaults replaces research presets; soft-ban expiry Wave 12.
-    expiry_wave: 12
-    replacement_test: tests/unit/test_llm_tier_presets.py
+    reason: apply_research_defaults shim retained for test compatibility (tests/unit/llm/test_tier_presets.py, test_apply_strict_defaults.py); remove shim and update tests in Wave 14.
+    expiry_wave: 14
+    replacement_test: tests/unit/llm/test_tier_presets.py
     added_at: "2026-04-01"
 
   - allowlist: vocab_soft_ban_path_allowlist
     entry: hi_agent/llm/__init__.py
     owner: CO
     risk: low
-    reason: Re-exports deprecated apply_research_defaults shim; Wave 12 removal target.
-    expiry_wave: 12
-    replacement_test: tests/unit/test_llm_tier_presets.py
+    reason: Re-exports apply_research_defaults for backward compatibility; remove export after test migration in Wave 14.
+    expiry_wave: 14
+    replacement_test: tests/unit/llm/test_tier_presets.py
     added_at: "2026-04-01"

@@ -80,7 +80,7 @@ class ManagedRun:
     idempotency_key: str | None = None
     outcome: str = "created"  # "created" | "replayed" | "conflict"
     response_snapshot: str = ""  # non-empty when replayed and original run is complete
-    # W12-C liveness fields
+    # Liveness fields
     started_at: str | None = None
     last_heartbeat_at: str | None = None
     current_action_id: str | None = None
@@ -125,7 +125,7 @@ class RunManager:
                 path is used unchanged.
             event_store: Optional SQLiteEventStore.  When provided,
                 ``to_dict`` reads the most recent event offset and timestamp
-                for liveness reporting (W12-C).
+                for liveness reporting.
         """
         self._runs: dict[str, ManagedRun] = {}
         self._lock = threading.Lock()
@@ -668,7 +668,7 @@ class RunManager:
         if self._run_store is not None:
             self._run_store.mark_running(run.run_id)
 
-        # Start lease renewal daemon thread (W12-A).
+        # Start lease renewal daemon thread.
         _heartbeat_stop = threading.Event()
 
         def _heartbeat_loop() -> None:
@@ -734,7 +734,7 @@ class RunManager:
             if self._run_queue is not None:
                 self._run_queue.fail(run_id, "run_manager", str(exc))
         finally:
-            # W12-A: stop the heartbeat thread before releasing resources.
+            # Stop the heartbeat thread before releasing resources.
             _heartbeat_stop.set()
             if self._run_queue is not None:
                 _heartbeat_thread.join(timeout=2.0)
@@ -1041,7 +1041,7 @@ class RunManager:
 
         _top_fallback_events: list[dict] = list(_gfe(run.run_id))
 
-        # W12-C: liveness fields from event store
+        # Liveness fields from event store
         _last_event_offset: int | None = None
         _last_event_at_ts: float | None = None
         if self._event_store is not None:
@@ -1086,7 +1086,7 @@ class RunManager:
             "llm_fallback_count": _llm_fallback_count,
             "finished_at": _finished_at,
             "fallback_events": _top_fallback_events,
-            # W12-C liveness fields
+            # Liveness fields
             "started_at": run.started_at,
             "last_heartbeat_at": run.last_heartbeat_at,
             "last_event_offset": _last_event_offset,

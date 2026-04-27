@@ -11,6 +11,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
+
+pytestmark = [pytest.mark.network, pytest.mark.integration]
 from agent_kernel.adapters.facade.kernel_facade import KernelFacade
 from agent_kernel.kernel.contracts import (
     KernelManifest,

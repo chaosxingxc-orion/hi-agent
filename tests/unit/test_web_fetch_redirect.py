@@ -6,7 +6,10 @@ import urllib.error
 import urllib.response
 from unittest.mock import MagicMock, patch
 
+import pytest
 from hi_agent.capability.tools.builtin import web_fetch_handler
+
+pytestmark = [pytest.mark.network]
 
 
 class _FakeResponse:

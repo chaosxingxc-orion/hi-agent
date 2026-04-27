@@ -11,6 +11,8 @@ import httpx
 import pytest
 from hi_agent.observability.collector import MetricsCollector, set_metrics_collector
 
+pytestmark = [pytest.mark.integration]
+
 
 @pytest.fixture(autouse=True)
 def clean_metrics_singleton():

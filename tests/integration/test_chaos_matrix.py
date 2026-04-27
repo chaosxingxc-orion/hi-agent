@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = [pytest.mark.chaos, pytest.mark.integration, pytest.mark.serial]
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -26,6 +26,8 @@ import uuid
 
 import pytest
 
+pytestmark = [pytest.mark.integration, pytest.mark.chaos, pytest.mark.serial]
+
 # Guard: httpx is optional in some CI environments; skip gracefully.
 httpx = pytest.importorskip("httpx", reason="httpx required for subprocess E2E test")
 

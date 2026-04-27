@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pytest
+
+pytestmark = [pytest.mark.network]
 from hi_agent.runtime_adapter.kernel_facade_client import KernelFacadeClient
 
 

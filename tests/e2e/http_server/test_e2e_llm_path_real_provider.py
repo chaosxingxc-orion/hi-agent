@@ -15,10 +15,15 @@ import time
 
 import pytest
 
-pytestmark = pytest.mark.skipif(
-    os.environ.get("HI_AGENT_LLM_MODE") != "real",
-    reason="Set HI_AGENT_LLM_MODE=real to run real-provider E2E tests",
-)
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.external_llm,
+    pytest.mark.network,
+    pytest.mark.skipif(
+        os.environ.get("HI_AGENT_LLM_MODE") != "real",
+        reason="Set HI_AGENT_LLM_MODE=real to run real-provider E2E tests",
+    ),
+]
 
 _TERMINAL_STATES = frozenset({"done", "failed", "cancelled"})
 _POLL_INTERVAL_S = 5
