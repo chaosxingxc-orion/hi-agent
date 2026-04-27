@@ -58,7 +58,7 @@ def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
     return False
 
 
-def _run_with_server(scenario_mod) -> dict:  # type: ignore[type-arg]
+def _run_with_server(scenario_mod) -> dict:  # type: ignore[type-arg]  expiry_wave: Wave 17
     """Start server, run scenario, stop server."""
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
@@ -123,7 +123,7 @@ def main() -> int:
             print(f"WARN: could not load {sf}", file=sys.stderr)
             continue
         mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]  expiry_wave: Wave 17
         print(f"Running scenario: {mod.SCENARIO_NAME} ...", file=sys.stderr)
         result = _run_with_server(mod)
         results.append(result)
