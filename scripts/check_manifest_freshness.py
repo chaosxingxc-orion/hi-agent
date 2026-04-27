@@ -51,6 +51,23 @@ def _latest_manifest() -> dict | None:
         return None
 
 
+def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
+    """Return True if commits between manifest_head..current_head only touch docs/releases/."""
+    if manifest_head == current_head:
+        return True
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{manifest_head}..{current_head}"],
+            capture_output=True, text=True, cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            return False
+        changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+        return all(f.startswith("docs/releases/") for f in changed) and bool(changed)
+    except Exception:
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check release manifest freshness.")
     parser.add_argument("--json", action="store_true", dest="json_output")
@@ -79,7 +96,12 @@ def main(argv: list[str] | None = None) -> int:
         and not head.startswith(manifest_head[:len(head)])
     )
     if head_mismatch:
-        reasons.append(f"head_mismatch: manifest={manifest_head[:12]}, current={head[:12]}")
+        # Allow a single manifest-commit gap: if the only diff between manifest_head
+        # and current HEAD touches only docs/releases/ (the manifest file itself),
+        # the manifest is still considered current for the release gate.
+        gap_is_manifest_only = _manifest_commit_gap(manifest_head, head)
+        if not gap_is_manifest_only:
+            reasons.append(f"head_mismatch: manifest={manifest_head[:12]}, current={head[:12]}")
     if is_dirty:
         reasons.append("manifest_was_dirty")
 
