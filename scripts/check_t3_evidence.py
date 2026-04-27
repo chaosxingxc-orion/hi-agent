@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import json
 import sys
 from pathlib import Path
 
@@ -58,6 +59,8 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="PR body text",
     )
+    parser.add_argument("--json", action="store_true", dest="json_output",
+                        help="Emit JSON to stdout")
     args = parser.parse_args(argv)
 
     changed_files_path = Path(args.changed_files)
@@ -74,32 +77,54 @@ def main(argv: list[str] | None = None) -> int:
     hot_path_hits = [f for f in changed_files if _matches_hot_path(f)]
 
     if not hot_path_hits:
-        print("No hot-path files changed. T3 evidence not required.")
+        result = {
+            "check": "t3_evidence",
+            "status": "not_applicable",
+            "reason": "no hot-path files changed",
+        }
+        if args.json_output:
+            print(json.dumps(result, indent=2))
+        else:
+            print("No hot-path files changed. T3 evidence not required.")
         return 0
 
     pr_body = args.pr_body or ""
     if T3_EVIDENCE_MARKER in pr_body:
-        print(
-            f"Hot-path files changed ({len(hot_path_hits)} file(s)) and "
-            f"T3 evidence marker found. OK."
-        )
+        result = {
+            "check": "t3_evidence",
+            "status": "pass",
+            "hot_path_hits": len(hot_path_hits),
+            "reason": "T3 evidence marker present in PR body",
+        }
+        if args.json_output:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"Hot-path files changed ({len(hot_path_hits)} file(s)) and T3 evidence marker found. OK.")
         return 0
 
-    print(
-        "ERROR: Hot-path files changed but PR body does not contain 'T3 evidence:'",
-        file=sys.stderr,
-    )
-    print("", file=sys.stderr)
-    print("Hot-path files touched:", file=sys.stderr)
-    for f in hot_path_hits:
-        print(f"  {f}", file=sys.stderr)
-    print("", file=sys.stderr)
-    print(
-        "Per Rule 8 (T3 Invariance), the PR description must include one of:\n"
-        "  T3 evidence: docs/delivery/<YYYY-MM-DD>-<sha>-rule15-volces.json\n"
-        "  T3 evidence: DEFERRED — <reason>",
-        file=sys.stderr,
-    )
+    result = {
+        "check": "t3_evidence",
+        "status": "fail",
+        "hot_path_hits": len(hot_path_hits),
+        "hot_path_files": hot_path_hits,
+        "reason": "hot-path files changed but no T3 evidence marker in PR body",
+    }
+    if args.json_output:
+        print(json.dumps(result, indent=2))
+    else:
+        print(
+            "ERROR: Hot-path files changed but PR body does not contain 'T3 evidence:'",
+            file=sys.stderr,
+        )
+        print("\nHot-path files touched:", file=sys.stderr)
+        for f in hot_path_hits:
+            print(f"  {f}", file=sys.stderr)
+        print(
+            "\nPer Rule 8 (T3 Invariance), the PR description must include one of:\n"
+            "  T3 evidence: docs/delivery/<YYYY-MM-DD>-<sha>-rule15-volces.json\n"
+            "  T3 evidence: DEFERRED — <reason>",
+            file=sys.stderr,
+        )
     return 1
 
 

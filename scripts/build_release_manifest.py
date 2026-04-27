@@ -30,30 +30,47 @@ RELEASES_DIR = ROOT / "docs" / "releases"
 WEIGHTS_FILE = ROOT / "docs" / "scorecard_weights.yaml"
 CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 
-# (script_name, supports_json_flag)
+# (script_name, supports_json_flag, extra_args)
 # Scripts without --json are run normally; gate status = pass/fail from exit code.
+# extra_args: additional CLI args passed to the script (before --json).
 # Excluded: check_agent_kernel_pin.py — always fails (agent_kernel is inlined, not a pip dep).
 # Excluded: check_secrets.py — checks local dev config; local API keys are expected and protected
 #   by `git update-index --skip-worktree`; not a code-quality gate.
 # Excluded: check_t3_evidence.py — PR-time gate (requires --changed-files / --pr-body args).
-_GATE_SCRIPTS: dict[str, tuple[str, bool]] = {
-    "layering":               ("check_layering.py",               True),
-    "vocab":                  ("check_no_research_vocab.py",      True),
-    "route_scope":            ("check_route_scope.py",            True),
-    "expired_waivers":        ("check_expired_waivers.py",        True),
-    "doc_canonical":          ("check_doc_canonical_symbols.py",  True),
-    "doc_consistency":        ("check_doc_consistency.py",        True),
-    "wave_tags":              ("check_no_wave_tags.py",           True),
-    "rule6_warnings":         ("check_rules.py",                  True),
-    "t3_freshness":           ("check_t3_freshness.py",           True),
-    "boundary":               ("check_boundary.py",               True),
-    "deprecated_api":         ("check_deprecated_field_usage.py", True),
-    "durable_wiring":         ("check_durable_wiring.py",         True),
-    "metrics_cardinality":    ("check_metrics_cardinality.py",    True),
-    "slo_health":             ("check_slo_health.py",             True),
-    "allowlist_discipline":   ("check_allowlist_discipline.py",   True),
-    "verification_artifacts": ("check_verification_artifacts.py", True),
-    "targeted_default_path":  ("check_targeted_default_path.py",  True),
+_GATE_SCRIPTS: dict[str, tuple[str, bool, list[str]]] = {
+    "layering":               ("check_layering.py",               True,  []),
+    "vocab":                  ("check_no_research_vocab.py",      True,  []),
+    "route_scope":            ("check_route_scope.py",            True,  []),
+    "expired_waivers":        ("check_expired_waivers.py",        True,  []),
+    "doc_canonical":          ("check_doc_canonical_symbols.py",  True,  []),
+    "doc_consistency":        ("check_doc_consistency.py",        True,  []),
+    "wave_tags":              ("check_no_wave_tags.py",           True,  []),
+    "rule6_warnings":         ("check_rules.py",                  True,  []),
+    "t3_freshness":           ("check_t3_freshness.py",           True,  []),
+    "boundary":               ("check_boundary.py",               True,  []),
+    "deprecated_api":         ("check_deprecated_field_usage.py", True,  []),
+    "durable_wiring":         ("check_durable_wiring.py",         True,  []),
+    "metrics_cardinality":    ("check_metrics_cardinality.py",    True,  []),
+    "slo_health":             ("check_slo_health.py",             True,  []),
+    "allowlist_discipline":   ("check_allowlist_discipline.py",   True,  []),
+    "verification_artifacts": ("check_verification_artifacts.py", True,  []),
+    "targeted_default_path":  ("check_targeted_default_path.py",  True,  []),
+    # W14-A1: 7 previously absent gates added to registry
+    "clean_env":                  ("verify_clean_env.py",                 False, ["--profile", "default-offline"]),
+    "manifest_freshness":         ("check_manifest_freshness.py",         True,  []),
+    "validate_before_mutate":     ("check_validate_before_mutate.py",     True,  []),
+    "select_completeness":        ("check_select_completeness.py",        True,  []),
+    "silent_degradation":         ("check_silent_degradation.py",         True,  []),
+    "metric_producers":           ("check_metric_producers.py",           True,  []),
+    "downstream_response_format": ("check_downstream_response_format.py", True,  []),
+    # W14 new gates (B, D, E tracks)
+    "evidence_provenance":        ("check_evidence_provenance.py",        True,  []),
+    "allowlist_universal":        ("check_allowlist_universal.py",        True,  []),
+    "noqa_discipline":            ("check_noqa_discipline.py",            True,  []),
+    "pytest_skip_discipline":     ("check_pytest_skip_discipline.py",     True,  []),
+    "closure_taxonomy":           ("check_closure_taxonomy.py",           True,  []),
+    "multistatus_gates":          ("check_multistatus_gates.py",          True,  []),
+    "score_cap":                  ("check_score_cap.py",                  True,  []),
 }
 
 
@@ -84,13 +101,15 @@ def _is_dirty() -> bool:
     return result.returncode != 0
 
 
-def _run_gate(gate_key: str, script: str, has_json: bool) -> dict[str, Any]:
+def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] | None = None) -> dict[str, Any]:
     """Run a governance script and return a gate result dict."""
     script_path = SCRIPTS / script
     if not script_path.exists():
         return {"status": "missing", "error": f"{script} not found"}
 
     cmd = [sys.executable, str(script_path)]
+    if extra_args:
+        cmd.extend(extra_args)
     if has_json:
         cmd.append("--json")
     # Allow a docs-only gap for both notice and verification-artifact gates so
@@ -174,7 +193,8 @@ def _compute_raw(dimensions: list[dict[str, Any]]) -> float:
 def _load_score_caps() -> list[dict[str, Any]]:
     """Load cap rules from docs/governance/score_caps.yaml.
 
-    Returns list of rule dicts with keys: condition, cap, factor, description.
+    Returns list of rule dicts with keys: condition, cap, factor, description, scope.
+    scope is a list of tier names this cap applies to; absent means all tiers.
     Returns empty list on any error (caller falls back to hardcoded behaviour).
     """
     caps_file = ROOT / "docs" / "governance" / "score_caps.yaml"
@@ -199,6 +219,10 @@ def _load_score_caps() -> list[dict[str, Any]]:
                 m = _re.match(r"^\s+cap:\s*(\d+(?:\.\d+)?)\s*$", line)
                 if m:
                     current["cap"] = float(m.group(1))
+                # Parse scope: [tier1, tier2, ...] inline list
+                ms = _re.match(r"^\s+scope:\s*\[(.+)\]\s*$", line)
+                if ms:
+                    current["scope"] = [s.strip() for s in ms.group(1).split(",")]
         if current:
             rules.append(current)
         return rules
@@ -212,43 +236,23 @@ def _compute_cap(
     is_dirty: bool = False,
     t3_stale: bool = False,
     expired_allowlist: int = 0,
+    tier: str = "current_verified_readiness",
 ) -> tuple[float | None, str, list[str]]:
     """Return (cap_value, cap_reason, cap_factors) based on gate statuses and registry rules.
 
     Loads cap rules from docs/governance/score_caps.yaml.  Falls back to hardcoded
     70.0 / 80.0 thresholds when the registry cannot be loaded.
     The lowest matching cap wins.
+
+    tier: only rules whose scope includes this tier (or rules with no scope) are applied.
     """
     cap_rules = _load_score_caps()
     if not cap_rules:
-        # Fallback: original hardcoded behaviour
-        cap_factors_fb: list[str] = []
-        statuses_fb = [v.get("status", "unknown") for v in gates.values() if isinstance(v, dict)]
-        if "fail" in statuses_fb:
-            failing_fb = [
-                k for k, v in gates.items()
-                if isinstance(v, dict) and v.get("status") == "fail"
-            ]
-            cap_factors_fb.append(f"gate_fail: {', '.join(failing_fb)}")
-        if "warn" in statuses_fb or "deferred" in statuses_fb:
-            degraded_fb = [
-                k for k, v in gates.items()
-                if isinstance(v, dict) and v.get("status") in ("warn", "deferred")
-            ]
-            cap_factors_fb.append(f"gate_warn/deferred: {', '.join(degraded_fb)}")
-        if "missing" in statuses_fb:
-            cap_factors_fb.append("one or more scripts missing")
-        if is_dirty:
-            cap_factors_fb.append("dirty_worktree")
-        if t3_stale:
-            cap_factors_fb.append("t3_stale")
-        if expired_allowlist > 0:
-            cap_factors_fb.append(f"expired_allowlist_count={expired_allowlist}")
-        if not cap_factors_fb:
-            return None, "all gates pass", []
-        if any("gate_fail" in f for f in cap_factors_fb) or is_dirty:
-            return 70.0, "; ".join(cap_factors_fb), cap_factors_fb
-        return 80.0, "; ".join(cap_factors_fb), cap_factors_fb
+        caps_file = ROOT / "docs" / "governance" / "score_caps.yaml"
+        raise RuntimeError(
+            f"score_caps.yaml missing or unparseable at {caps_file} — "
+            "cannot compute verified score. Create the file before running manifest."
+        )
 
     # Collect gate statuses once
     statuses = {k: v.get("status", "unknown") for k, v in gates.items() if isinstance(v, dict)}
@@ -301,9 +305,15 @@ def _compute_cap(
 
     for rule in cap_rules:
         condition = rule.get("condition", "")
+        # Only apply rules whose scope includes this tier (absent scope = all tiers)
+        rule_scope = rule.get("scope")
+        if rule_scope and tier not in rule_scope:
+            continue
         factor_val = _condition_matches(condition)
         if factor_val is not None:
-            matched_factors.append(factor_val)
+            # Deduplicate factor names
+            if factor_val not in matched_factors:
+                matched_factors.append(factor_val)
             matched_caps.append(float(rule.get("cap", 70.0)))
 
     if not matched_factors:
@@ -313,9 +323,26 @@ def _compute_cap(
     return lowest_cap, "; ".join(matched_factors), matched_factors
 
 
-def _compute_conditional(raw: float, dimensions: list[dict[str, Any]]) -> float:
-    """Score if all blockers were resolved: raw score uncapped."""
-    return raw
+def _compute_conditional(raw: float, gates: dict[str, Any], *, is_dirty: bool = False) -> float:
+    """Score if blocker-class caps (head_mismatch, expired_allowlist) were cleared."""
+    # Only remove blocker-class caps, not informational ones like t3_deferred
+    _, _, factors = _compute_cap(gates, is_dirty=is_dirty)
+    blocker_factors = {"head_mismatch", "dirty_worktree", "expired_allowlist"}
+    non_blocker = [f for f in factors if not any(b in f for b in blocker_factors)]
+    if not non_blocker:
+        return raw
+    # Still capped by non-blocker factors
+    _, _, factors_all = _compute_cap(gates, is_dirty=False)
+    cap_val = 100.0
+    cap_rules = _load_score_caps()
+    for rule in cap_rules:
+        cond = rule.get("condition", "")
+        if cond in ("head_mismatch", "dirty_worktree", "expired_allowlist"):
+            continue
+        for f in factors_all:
+            if cond in f or rule.get("factor", "") in f:
+                cap_val = min(cap_val, float(rule.get("cap", 100.0)))
+    return round(min(raw, cap_val), 2) if cap_val < 100.0 else raw
 
 
 def _load_captains_sha() -> str:
@@ -362,15 +389,11 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
 
     print(f"Building release manifest {manifest_id}...", file=sys.stderr)
 
-    # Write a verification artifact before gates so check_verification_artifacts
-    # finds a fresh artifact for the current HEAD.
-    _write_pre_manifest_artifact(short_sha, head_sha, date_str)
-
     # Run gates
     gates: dict[str, Any] = {}
-    for gate_key, (script, has_json) in _GATE_SCRIPTS.items():
+    for gate_key, (script, has_json, extra_args) in _GATE_SCRIPTS.items():
         print(f"  {gate_key}: {script}...", end=" ", file=sys.stderr, flush=True)
-        gates[gate_key] = _run_gate(gate_key, script, has_json)
+        gates[gate_key] = _run_gate(gate_key, script, has_json, extra_args)
         print(gates[gate_key].get("status", "?"), file=sys.stderr)
 
     # Gather extra context for cap computation
@@ -389,16 +412,29 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
     clean_env_status = clean_env_gate.get("status", "unknown")
     clean_env_summary_available = clean_env_gate.get("summary_available", None)
 
-    # Score computation
+    # Score computation — per-tier caps
     dimensions = _load_weights()
     raw = _compute_raw(dimensions) if dimensions else 0.0
+
+    # current_verified_readiness tier cap
     cap, cap_reason, cap_factors = _compute_cap(
         gates,
         is_dirty=dirty,
         t3_stale=t3_stale,
         expired_allowlist=expired_allowlist_total,
+        tier="current_verified_readiness",
     )
     verified = round(min(raw, cap), 2) if cap is not None else raw
+
+    # seven_by_twenty_four_operational_readiness tier cap
+    cap_7x24, cap_reason_7x24, cap_factors_7x24 = _compute_cap(
+        gates,
+        is_dirty=dirty,
+        t3_stale=t3_stale,
+        expired_allowlist=expired_allowlist_total,
+        tier="seven_by_twenty_four_operational_readiness",
+    )
+    seven_by_twenty_four = round(min(raw, cap_7x24), 2) if cap_7x24 is not None else raw
 
     manifest: dict[str, Any] = {
         "manifest_id": manifest_id,
@@ -417,11 +453,16 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
             "verified": verified,
             "raw_implementation_maturity": raw,
             "current_verified_readiness": verified,
-            "conditional_readiness_after_blockers": _compute_conditional(raw, dimensions),
+            "seven_by_twenty_four_operational_readiness": seven_by_twenty_four,
+            "conditional_readiness_after_blockers": _compute_conditional(
+                raw, gates, is_dirty=dirty
+            ),
             "cap": cap,
             "cap_reason": cap_reason,
             "cap_factors": cap_factors,
-            "weights_version": "1",
+            "cap_7x24": cap_7x24,
+            "cap_factors_7x24": cap_factors_7x24,
+            "weights_version": "2",
         },
         "t3": {
             "status": t3_status,
@@ -444,6 +485,10 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
         for v in gates.values()
         if isinstance(v, dict)
     )
+
+    # Write verification artifact AFTER gates run (not before — avoids circular dep)
+    _write_pre_manifest_artifact(short_sha, head_sha, date_str)
+
     return manifest, all_passed
 
 
@@ -478,12 +523,13 @@ def main() -> int:
     verif_artifact = ROOT / "docs" / "verification" / f"{sha}-manifest-gate.json"
     print(f"Verification artifact written: {verif_artifact}", file=sys.stderr)
 
+    sc = manifest["scorecard"]
     print(
-        f"Score: raw={manifest['scorecard']['raw']:.1f}  "
-        f"verified={manifest['scorecard']['verified']:.1f}  "
-        f"conditional={manifest['scorecard']['conditional_readiness_after_blockers']:.1f}  "
-        f"cap={manifest['scorecard']['cap']}  "
-        f"({manifest['scorecard']['cap_reason']})",
+        f"Score: raw={sc['raw']:.1f}  "
+        f"verified={sc['verified']:.1f}  "
+        f"7x24={sc['seven_by_twenty_four_operational_readiness']:.1f}  "
+        f"conditional={sc['conditional_readiness_after_blockers']:.1f}  "
+        f"cap={sc['cap']}  ({sc['cap_reason']})",
         file=sys.stderr,
     )
 

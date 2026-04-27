@@ -29,9 +29,34 @@ ROOT = Path(__file__).parent.parent
 TEMPLATES_DIR = ROOT / "docs" / "downstream-responses" / "_templates"
 NOTICES_DIR = ROOT / "docs" / "downstream-responses"
 
-_DEFAULT_T3_EVIDENCE = "PENDING — run scripts/run_t3_gate.sh"
+_DEFAULT_T3_EVIDENCE = "PENDING — run scripts/run_t3_gate.py"
 _DEFAULT_CLEAN_ENV_EVIDENCE = "PENDING — run verify_clean_env.py --profile default-offline"
-_DEFAULT_SCORE_CAP = "63.0 (T3 deferred; score cap applies until T3 gate passes)"
+
+
+def _format_score_cap(manifest_dict: dict | None = None) -> str:
+    """Derive score cap description from manifest or score_caps.yaml.
+
+    Never returns a hardcoded literal — always reads from the registry.
+    """
+    if manifest_dict:
+        sc = manifest_dict.get("scorecard", {})
+        cap = sc.get("cap")
+        reason = sc.get("cap_reason", "")
+        if cap is not None:
+            return f"{cap:.1f} ({reason})"
+    # Fall back to reading score_caps.yaml directly
+    caps_file = ROOT / "docs" / "governance" / "score_caps.yaml"
+    if caps_file.exists():
+        import re as _re
+        text = caps_file.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            if line.strip().startswith("- condition: t3_deferred"):
+                # Find next cap: line
+                pass
+            m = _re.match(r"^\s+cap:\s*(\d+(?:\.\d+)?)", line)
+            if m:
+                return f"{float(m.group(1)):.1f} (see docs/governance/score_caps.yaml for cap rules)"
+    return "see docs/governance/score_caps.yaml"
 
 
 def _git_run(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
@@ -77,7 +102,7 @@ def _render_template(template_text: str, wave: str, head: str, date: str) -> str
     text = text.replace("{{HEAD}}", head)
     text = text.replace("{{DATE}}", date)
     text = text.replace("{{WAVE}}", wave)
-    text = text.replace("{{SCORE_CAP}}", _DEFAULT_SCORE_CAP)
+    text = text.replace("{{SCORE_CAP}}", _format_score_cap())
     text = text.replace("{{T3_EVIDENCE}}", _DEFAULT_T3_EVIDENCE)
     text = text.replace("{{CLEAN_ENV_EVIDENCE}}", _DEFAULT_CLEAN_ENV_EVIDENCE)
     return text

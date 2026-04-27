@@ -1,0 +1,44 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff lint
+        language: python
+        entry: ruff check --fix
+        types: [python]
+        pass_filenames: true
+
+      - id: ruff-format
+        name: ruff format check
+        language: python
+        entry: ruff format --check
+        types: [python]
+        pass_filenames: true
+
+      - id: check-rules
+        name: governance rules check
+        language: python
+        entry: python scripts/check_rules.py --json
+        pass_filenames: false
+        always_run: true
+
+      - id: check-noqa-discipline
+        name: noqa/type:ignore discipline
+        language: python
+        entry: python scripts/check_noqa_discipline.py --json
+        pass_filenames: false
+        always_run: true
+
+      - id: check-allowlist-universal
+        name: universal allowlist expiry
+        language: python
+        entry: python scripts/check_allowlist_universal.py --json
+        pass_filenames: false
+        always_run: true
+
+      - id: check-no-wave-tags
+        name: no bare wave tags in code
+        language: python
+        entry: python scripts/check_no_wave_tags.py --json
+        pass_filenames: false
+        always_run: true

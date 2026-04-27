@@ -207,8 +207,37 @@ def main(argv: list[str] | None = None) -> int:
     #    inspect both fields and filename in one call.
     try:
         delivery_data: dict = json.loads(delivery_file.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        delivery_data = {}
+    except (json.JSONDecodeError, OSError) as exc:
+        # Corrupted artifact is explicitly flagged — not silently skipped
+        reason = f"corrupted delivery artifact {delivery_file.name}: {exc}"
+        if args.json_output:
+            print(json.dumps({
+                "check": "t3_freshness",
+                "status": "deferred",
+                "delivery_file": delivery_file.name,
+                "reason": reason,
+                "provenance": "unknown",
+            }))
+        else:
+            print(f"T3-WARN: {reason} — treating as provenance_unknown deferred", file=sys.stderr)
+        return 0  # deferred, not fail — allows cap to apply
+
+    # Reject structural provenance unless explicitly shape-verified
+    provenance = delivery_data.get("provenance", "")
+    if provenance in ("synthetic", "structural") and delivery_data.get("mode") != "shape_verified":
+        gate_sha_prov = _extract_sha_from_evidence(delivery_file, delivery_data)
+        if args.json_output:
+            print(json.dumps({
+                "check": "t3_freshness",
+                "status": "deferred",
+                "delivery_file": delivery_file.name,
+                "verified_head": gate_sha_prov,
+                "provenance": provenance,
+                "reason": f"provenance:{provenance} rejected for T3 freshness — requires real or shape_verified",
+            }))
+        else:
+            print(f"T3-WARN: {delivery_file.name} has provenance:{provenance} — not accepted as T3 evidence")
+        return 0  # deferred with cap, not hard fail
 
     # If the delivery record explicitly marks this T3 as deferred, propagate that
     # status so the manifest builder can apply the t3_deferred cap (cap=72).

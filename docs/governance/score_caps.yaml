@@ -3,46 +3,92 @@
 # Priority: lowest cap wins when multiple conditions apply.
 # Conditions are evaluated in the order listed; first match sets the cap.
 # Factor names appear in manifest cap_factors list.
-schema_version: "1"
+#
+# scope: which tiers this cap applies to.
+#   current_verified_readiness — the primary release-readiness tier
+#   seven_by_twenty_four_operational_readiness — 7×24 production tier
+#   architecture_readiness — code/architecture maturity
+#   (all: applies to all tiers)
+schema_version: "2"
 
 cap_rules:
   - condition: head_mismatch
     cap: 60
     factor: head_mismatch
+    scope: [current_verified_readiness, architecture_readiness]
     description: "Manifest release_head does not match current HEAD"
   - condition: dirty_worktree
     cap: 70
     factor: dirty_worktree
+    scope: [current_verified_readiness, architecture_readiness]
     description: "Working tree has uncommitted changes"
   - condition: gate_fail
     cap: 70
     factor: gate_fail
+    scope: [current_verified_readiness, architecture_readiness]
     description: "One or more gates failed"
   - condition: expired_allowlist
     cap: 63
     factor: expired_allowlist
+    scope: [current_verified_readiness, architecture_readiness]
     description: "Expired allowlist entries present"
   - condition: clean_env_unverified
     cap: 63
     factor: clean_env_unverified
+    scope: [current_verified_readiness]
     description: "clean_env gate missing or failed"
   - condition: t3_stale
     cap: 63
     factor: t3_stale
+    scope: [current_verified_readiness]
     description: "T3 evidence is stale or missing"
   - condition: t3_deferred
     cap: 72
     factor: t3_deferred
+    scope: [current_verified_readiness]
     description: "T3 gate deferred (real LLM key not available)"
+  - condition: t3_shape_verified
+    cap: 72
+    factor: t3_shape_verified
+    scope: [current_verified_readiness]
+    description: "T3 gate passed only in mock-shape mode (provenance:structural)"
   - condition: verification_stale
     cap: 68
     factor: verification_stale
+    scope: [current_verified_readiness]
     description: "Verification artifacts are stale vs current HEAD"
   - condition: gate_missing
     cap: 70
     factor: gate_missing
+    scope: [current_verified_readiness, architecture_readiness]
     description: "One or more gate scripts not found"
   - condition: gate_warn
     cap: 80
     factor: gate_warn
+    scope: [current_verified_readiness]
     description: "One or more gates warn or are deferred (but not failed)"
+  - condition: provenance_unknown_or_synthetic
+    cap: 67
+    factor: provenance_unknown_or_synthetic
+    scope: [current_verified_readiness, seven_by_twenty_four_operational_readiness]
+    description: "Evidence consumed by gate has unknown or synthetic provenance"
+  - condition: soak_24h_missing
+    cap: 65
+    factor: soak_24h_missing
+    scope: [seven_by_twenty_four_operational_readiness]
+    description: "Real 24h soak evidence missing or stale"
+  - condition: observability_spine_incomplete
+    cap: 70
+    factor: observability_spine_incomplete
+    scope: [seven_by_twenty_four_operational_readiness]
+    description: "Observability spine missing layers or trace_id correlation"
+  - condition: chaos_non_runtime_coupled
+    cap: 72
+    factor: chaos_non_runtime_coupled
+    scope: [seven_by_twenty_four_operational_readiness]
+    description: "Chaos scenarios not coupled to real hi_agent runtime"
+  - condition: expired_allowlist_accepted_as_pass
+    cap: 70
+    factor: expired_allowlist_accepted
+    scope: [architecture_readiness, current_verified_readiness]
+    description: "Expired allowlist still accepted by gate"

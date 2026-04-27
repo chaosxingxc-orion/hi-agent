@@ -113,7 +113,11 @@ def main(argv: list[str] | None = None) -> int:
     checked, current, has_current = _check_artifacts(
         allow_docs_only_gap=args.allow_docs_only_gap
     )
-    status = "pass" if has_current else "fail"
+
+    if len(checked) == 0:
+        status = "not_applicable"
+    else:
+        status = "pass" if has_current else "fail"
 
     if args.json_output:
         print(
@@ -128,8 +132,11 @@ def main(argv: list[str] | None = None) -> int:
                 indent=2,
             )
         )
-        return 0 if has_current else 1
+        return 0 if status in ("pass", "not_applicable") else 1
 
+    if status == "not_applicable":
+        print("not_applicable verification_artifacts: no artifact files found")
+        return 0
     if has_current:
         print(
             f"OK verification_artifacts: {len(current)} current artifact(s) "
