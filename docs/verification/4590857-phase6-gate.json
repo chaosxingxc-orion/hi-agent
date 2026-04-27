@@ -1,0 +1,11 @@
+{
+  "schema_version": "1",
+  "check": "verification_artifacts_gate",
+  "release_head": "4590857",
+  "verified_head": "459085756ac6b2c797135f647ac372993020591f",
+  "wave": "Wave 13",
+  "date": "2026-04-27",
+  "status": "pass",
+  "note": "Implementation freeze at 4590857: Wave 13 all phases complete. V-7 burn-down, route_scope Wave 14 expiry, deprecated Wave 12 notice strings updated.",
+  "generated_at": "2026-04-27T09:25:52.640336+00:00"
+}

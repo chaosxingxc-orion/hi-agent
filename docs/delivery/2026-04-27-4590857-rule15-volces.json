@@ -1,0 +1,26 @@
+{
+  "schema_version": "1",
+  "date": "2026-04-27",
+  "sha": "4590857",
+  "verified_head": "459085756ac6b2c797135f647ac372993020591f",
+  "wave": "Wave 13",
+  "status": "deferred",
+  "gate": "t3_gate",
+  "reason": "Real-LLM key rotation pending; Volces API key requires user rotation before T3 gate can be re-run. T3 gate deferred to Wave 14. Hot-path change: hi_agent/llm/tier_presets.py deprecation string update (Wave 12->14); no LLM routing logic changed.",
+  "score_impact": "current_verified_readiness capped at 72 (t3_deferred cap per docs/governance/score_caps.yaml)",
+  "cap_factor": "t3_deferred",
+  "cap_value": 72.0,
+  "deferred_to": "Wave 14",
+  "deferred_condition": "User provides rotated Volces API key; re-run scripts/run_t3_gate.py --sha 4590857",
+  "prior_t3_record": "docs/delivery/2026-04-27-bbc0c47-rule15-volces.json",
+  "evidence_available": {
+    "clean_env": "docs/verification/bbc0c47-default-offline-clean-env.json",
+    "soak_dry_run": "docs/verification/6ac41b4-soak-dry-1m.json",
+    "observability_spine": "docs/verification/bbc0c47-observability-spine.json",
+    "phase6_gate": "docs/verification/4590857-phase6-gate.json"
+  },
+  "gate_run_required": [
+    "python scripts/run_t3_gate.py --sha 4590857 --provider volces",
+    "python scripts/build_release_manifest.py"
+  ]
+}
