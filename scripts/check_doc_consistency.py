@@ -358,19 +358,25 @@ def check_notice_head_alignment() -> list[str]:
         except ValueError:
             rel = notice
         for sha in func_heads:
-            if not head.startswith(sha) and not sha.startswith(head[:len(sha)]):
-                if not _docs_only_gap(sha, head):
-                    errors.append(
-                        f"  STALE-NOTICE-HEAD: {rel} declares Functional HEAD {sha}, "
-                        f"current is {head[:12]}"
-                    )
+            if (
+                not head.startswith(sha)
+                and not sha.startswith(head[:len(sha)])
+                and not _docs_only_gap(sha, head)
+            ):
+                errors.append(
+                    f"  STALE-NOTICE-HEAD: {rel} declares Functional HEAD {sha}, "
+                    f"current is {head[:12]}"
+                )
         for sha in notice_heads:
-            if not head.startswith(sha) and not sha.startswith(head[:len(sha)]):
-                if not _docs_only_gap(sha, head):
-                    errors.append(
-                        f"  STALE-NOTICE-HEAD: {rel} declares Notice HEAD {sha}, "
-                        f"current is {head[:12]}"
-                    )
+            if (
+                not head.startswith(sha)
+                and not sha.startswith(head[:len(sha)])
+                and not _docs_only_gap(sha, head)
+            ):
+                errors.append(
+                    f"  STALE-NOTICE-HEAD: {rel} declares Notice HEAD {sha}, "
+                    f"current is {head[:12]}"
+                )
         if not func_heads and not notice_heads:
             # No HEAD fields at all — check for legacy HEAD SHA line
             legacy = [
