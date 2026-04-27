@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import argparse
 import ast
+import pathlib
 import re
 import sys
-import pathlib
 from pathlib import Path
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))

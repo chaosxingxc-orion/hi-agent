@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -57,7 +57,7 @@ def _capture_head_state() -> tuple[str, str, bool]:
         ).stdout.strip()
     )
 
-    ts = datetime.now(timezone.utc).isoformat()
+    ts = datetime.now(UTC).isoformat()
     return head, ts, dirty
 
 

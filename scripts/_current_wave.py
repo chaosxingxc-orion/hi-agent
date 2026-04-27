@@ -1,5 +1,6 @@
 """Single source of truth for the current development wave."""
 from __future__ import annotations
+
 import pathlib
 
 _WAVE_FILE = pathlib.Path(__file__).parent.parent / "docs" / "current-wave.txt"

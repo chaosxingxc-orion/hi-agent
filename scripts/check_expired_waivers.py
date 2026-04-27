@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Check for expired time-bounded waivers (comments, shims, TODOs)."""
 from __future__ import annotations
+
 import argparse
+import json
 import pathlib
 import re
 import subprocess
 import sys
-import json
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from _current_wave import current_wave, wave_number, is_expired  # noqa: E402
+from _current_wave import current_wave, is_expired
 
 _WAIVER_PATTERN = re.compile(
     r"(Wave\s+\d+(?:\.\d+)?)",

@@ -23,8 +23,8 @@ from __future__ import annotations
 import argparse
 import ast
 import io
-import sys
 import pathlib
+import sys
 import tokenize
 from pathlib import Path
 

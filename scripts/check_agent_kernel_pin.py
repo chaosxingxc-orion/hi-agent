@@ -10,10 +10,10 @@ Checks:
 from __future__ import annotations
 
 import argparse
+import pathlib
 import re
 import subprocess
 import sys
-import pathlib
 from pathlib import Path
 from typing import Any
 

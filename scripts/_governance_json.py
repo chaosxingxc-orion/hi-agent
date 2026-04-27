@@ -1,9 +1,10 @@
 """Standard JSON output schema for governance check scripts."""
 from __future__ import annotations
+
 import json
+import pathlib
 import subprocess
 import sys
-import pathlib
 from typing import Any
 
 
