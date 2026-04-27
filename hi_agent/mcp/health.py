@@ -91,7 +91,7 @@ class MCPHealth:
             try:
                 stderr_tail = self._transport.get_stderr_tail()
             except TypeError:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: fallback transport API probe; must not block health check
                     stderr_tail = self._transport.get_stderr_tail(server_id)
             except Exception:
                 pass

@@ -122,7 +122,7 @@ class SyncBridge:
             finally:
                 # Best-effort asyncgen teardown — the loop is terminating
                 # anyway, so we don't care which exception type escapes.
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: async generator teardown on loop close; best-effort
                     loop.run_until_complete(loop.shutdown_asyncgens())
                 loop.close()
 

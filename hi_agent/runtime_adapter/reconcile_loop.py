@@ -111,6 +111,27 @@ class ReconcileLoop:
                     self._dead_letter.setdefault(issue_key, issue)
                     self._retry_counts.pop(issue_key, None)
                     skipped += 1
+                    try:
+                        from hi_agent.observability.silent_degradation import (
+                            record_silent_degradation,
+                        )
+                        record_silent_degradation(
+                            component="reconcile_loop",
+                            reason="dlq_depth_unavailable",
+                            extra={"issue_key": issue_key, "dlq_depth": len(self._dead_letter)},
+                        )
+                    except Exception:  # rule7-exempt: metric must not block reconciler
+                        pass
+                    try:
+                        from hi_agent.observability.collector import get_metrics_collector
+                        _collector = get_metrics_collector()
+                        if _collector is not None:
+                            _collector.increment("hi_agent_reconcile_dlq_error_total")
+                            _collector.gauge_set(
+                                "hi_agent_dlq_depth", float(len(self._dead_letter))
+                            )
+                    except Exception:  # rule7-exempt: metric must not block reconciler
+                        pass
                 else:
                     failed += 1
                 continue

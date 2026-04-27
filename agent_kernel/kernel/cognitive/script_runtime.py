@@ -304,7 +304,7 @@ class LocalProcessScriptRuntime:
         except TimeoutError:
             with contextlib.suppress(ProcessLookupError):
                 proc.kill()
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: process teardown after kill; wait must not raise
                 await proc.wait()
             elapsed_ms = int((time.monotonic() - start) * 1000)
             return ScriptResult(
@@ -434,7 +434,7 @@ class DedupeAwareScriptRuntime:
         try:
             result = await self._inner.execute_script(input_value)
         except Exception:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on error path; must not mask original exception
                 self._dedupe_store.mark_unknown_effect(idempotency_key)
             raise
         self._dedupe_store.mark_acknowledged(idempotency_key)

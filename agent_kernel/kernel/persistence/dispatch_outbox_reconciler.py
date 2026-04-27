@@ -511,7 +511,7 @@ class ScheduledOutboxReconciler:
         )
         self._last_result = summary
         if total_found > 0 and self._observability_hook is not None:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block reconciler
                 self._observability_hook.on_recovery_triggered(
                     run_id="kernel",
                     reason_code="outbox_inconsistency_detected",

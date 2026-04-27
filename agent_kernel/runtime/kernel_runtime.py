@@ -307,7 +307,7 @@ class KernelRuntime:
         def _worker_health_check() -> tuple[HealthStatus, str]:
             """Worker health check."""
             if adaptor.worker_failed:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: worker health check probe; must not block health endpoint
                     adaptor.check_worker()
                 return HealthStatus.UNHEALTHY, "worker_failed"
             return HealthStatus.OK, "worker_running"

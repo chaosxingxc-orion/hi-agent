@@ -478,7 +478,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out turn FSM transition to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block turn engine if one hook fails
                 hook.on_turn_state_transition(
                     run_id=run_id,
                     action_id=action_id,
@@ -498,7 +498,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out run lifecycle transition to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block run lifecycle if one hook fails
                 hook.on_run_lifecycle_transition(
                     run_id=run_id,
                     from_state=from_state,
@@ -516,7 +516,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out LLM call event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block inference path if one hook fails
                 hook.on_llm_call(
                     run_id=run_id,
                     model_ref=model_ref,
@@ -535,7 +535,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out action dispatch event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block action dispatch if one hook fails
                 hook.on_action_dispatch(
                     run_id=run_id,
                     action_id=action_id,
@@ -553,7 +553,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out recovery triggered event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block recovery path if one hook fails
                 hook.on_recovery_triggered(
                     run_id=run_id,
                     reason_code=reason_code,
@@ -570,7 +570,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out admission evaluation event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block admission path if one hook fails
                 hook.on_admission_evaluated(
                     run_id=run_id,
                     action_id=action_id,
@@ -588,7 +588,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out dispatch attempted event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block dispatch path if one hook fails
                 hook.on_dispatch_attempted(
                     run_id=run_id,
                     action_id=action_id,
@@ -607,7 +607,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out parallel branch result event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block parallel branch path if one hook fails
                 hook.on_parallel_branch_result(
                     run_id=run_id,
                     group_idempotency_key=group_idempotency_key,
@@ -619,7 +619,7 @@ class CompositeObservabilityHook:
     def on_dedupe_hit(self, *, run_id: str, action_id: str, outcome: str) -> None:
         """Fan-out dedupe hit event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block dedupe path if one hook fails
                 hook.on_dedupe_hit(run_id=run_id, action_id=action_id, outcome=outcome)
 
     def on_reflection_round(
@@ -627,7 +627,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out reflection round event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block reflection path if one hook fails
                 hook.on_reflection_round(
                     run_id=run_id,
                     action_id=action_id,
@@ -640,7 +640,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out circuit breaker trip event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block circuit breaker path if one hook fails
                 hook.on_circuit_breaker_trip(
                     run_id=run_id,
                     effect_class=effect_class,
@@ -658,7 +658,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out branch rollback triggered event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block rollback path if one hook fails
                 hook.on_branch_rollback_triggered(
                     run_id=run_id,
                     group_idempotency_key=group_idempotency_key,
@@ -676,7 +676,7 @@ class CompositeObservabilityHook:
     ) -> None:
         """Fan-out turn phase event to all inner hooks."""
         for hook in self.hooks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: fan-out hook must not block turn phase if one hook fails
                 hook.on_turn_phase(
                     run_id=run_id,
                     action_id=action_id,

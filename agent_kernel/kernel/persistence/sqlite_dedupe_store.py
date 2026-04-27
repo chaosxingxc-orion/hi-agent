@@ -76,7 +76,7 @@ class SQLiteDedupeStore:
         """
         with self._lock:
             if self._pool is None:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown
                     self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 self._conn.close()
 
@@ -167,7 +167,7 @@ class SQLiteDedupeStore:
                 )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception
                     self._conn.execute("ROLLBACK")
                 raise
 
@@ -225,7 +225,7 @@ class SQLiteDedupeStore:
                 )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception
                     self._conn.execute("ROLLBACK")
                 raise
         return DedupeReservation(accepted=True, reason="accepted")
@@ -261,7 +261,7 @@ class SQLiteDedupeStore:
                 )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception
                     self._conn.execute("ROLLBACK")
                 raise
 
@@ -294,7 +294,7 @@ class SQLiteDedupeStore:
                 )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception
                     self._conn.execute("ROLLBACK")
                 raise
 
@@ -324,7 +324,7 @@ class SQLiteDedupeStore:
                 )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception
                     self._conn.execute("ROLLBACK")
                 raise
 

@@ -507,7 +507,7 @@ class TurnEngine:
                 await phase_fn(ctx)
             if self._observability_hook is not None:
                 _phase_elapsed_ms = (time.monotonic_ns() - _phase_start_ns) // 1_000_000
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine
                     self._observability_hook.on_turn_phase(
                         run_id=ctx.input_value.run_id,
                         action_id=ctx.action.action_id if ctx.action else "",
@@ -648,7 +648,7 @@ class TurnEngine:
         admitted = _is_admitted(ctx.admission_result)
         ctx.emitted_events.append(TurnStateEvent(state="admission_checked"))
         if self._observability_hook is not None:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine
                 self._observability_hook.on_admission_evaluated(
                     run_id=ctx.input_value.run_id,
                     action_id=ctx.action.action_id,
@@ -711,7 +711,7 @@ class TurnEngine:
         )
         if legacy_key != ti.dispatch_dedupe_key:
             legacy_record = None
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: legacy dedupe key lookup must not block dispatch
                 legacy_record = self._dedupe_store.get(legacy_key)
             if legacy_record is not None:
                 ctx.emitted_events.append(TurnStateEvent(state="dispatch_blocked"))
@@ -727,7 +727,7 @@ class TurnEngine:
                     emitted_events=ctx.emitted_events,
                 )
                 if self._observability_hook is not None:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine
                         self._observability_hook.on_dedupe_hit(
                             run_id=ctx.input_value.run_id,
                             action_id=legacy_key,
@@ -763,7 +763,7 @@ class TurnEngine:
                 emitted_events=ctx.emitted_events,
             )
             if self._observability_hook is not None:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine
                     self._observability_hook.on_dedupe_hit(
                         run_id=ctx.input_value.run_id,
                         action_id=ti.dispatch_dedupe_key,
@@ -777,7 +777,7 @@ class TurnEngine:
             # Backward compatibility: mirror the new dedupe slot into the
             # historical key shape so pre-policy readers can still resolve the
             # same dispatch lifecycle.
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: legacy idempotency envelope mirror must not block dispatch
                 legacy_envelope = IdempotencyEnvelope(
                     dispatch_idempotency_key=legacy_key,
                     operation_fingerprint=ctx.envelope.operation_fingerprint,
@@ -799,7 +799,7 @@ class TurnEngine:
         # uses reserve_and_dispatch() which atomically combines reservation and
         # dispatch state update, eliminating the non-atomic window (D-M3).
         if self._observability_hook is not None:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine
                 self._observability_hook.on_dedupe_hit(
                     run_id=ctx.input_value.run_id,
                     action_id=ti.dispatch_dedupe_key,
@@ -846,15 +846,15 @@ class TurnEngine:
                 exc_info=True,
             )
             if dedupe_available:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on error path; must not mask original exception
                     self._dedupe_store.mark_unknown_effect(ti.dispatch_dedupe_key)
                 if legacy_alias_key is not None:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on error path; must not mask original exception
                         self._dedupe_store.mark_unknown_effect(legacy_alias_key)
             raise
         _dispatch_latency_ms = (time.monotonic_ns() - _dispatch_start_ns) // 1_000_000
         if self._observability_hook is not None:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine
                 self._observability_hook.on_dispatch_attempted(
                     run_id=ctx.input_value.run_id,
                     action_id=ctx.action.action_id,
@@ -866,11 +866,11 @@ class TurnEngine:
             if dedupe_available:
                 self._dedupe_store.mark_acknowledged(ti.dispatch_dedupe_key)
                 if legacy_alias_key is not None:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(Exception):  # rule7-exempt: mark_acknowledged for legacy key; must not block primary key success path
                         self._dedupe_store.mark_acknowledged(legacy_alias_key)
             ctx.emitted_events.append(TurnStateEvent(state="dispatch_acknowledged"))
             if self._observability_hook is not None:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine
                     self._observability_hook.on_action_dispatch(
                         run_id=ctx.input_value.run_id,
                         action_id=ctx.action.action_id,
@@ -900,13 +900,13 @@ class TurnEngine:
         if dedupe_available:
             self._dedupe_store.mark_unknown_effect(ti.dispatch_dedupe_key)
             if legacy_alias_key is not None:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect for legacy key; must not mask original exception
                     self._dedupe_store.mark_unknown_effect(legacy_alias_key)
         ctx.emitted_events.extend(
             [TurnStateEvent(state="effect_unknown"), TurnStateEvent(state="recovery_pending")]
         )
         if self._observability_hook is not None:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine
                 self._observability_hook.on_action_dispatch(
                     run_id=ctx.input_value.run_id,
                     action_id=ctx.action.action_id,

@@ -692,7 +692,7 @@ class RunActorWorkflow:
                 # not skip re-execution, preserving at-most-once semantics.
                 dedupe_key = turn_result.dispatch_dedupe_key
                 if dedupe_key is not None and self._dedupe_store is not None:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on failure path; must not mask original exception
                         self._dedupe_store.mark_unknown_effect(dedupe_key)
                 raise
             _assert_single_dispatch_attempt_in_turn(turn_result)
@@ -701,7 +701,7 @@ class RunActorWorkflow:
                 # reset the failure counter for this effect class.
                 _on_success = getattr(self._recovery, "on_action_success", None)
                 if callable(_on_success):
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(Exception):  # rule7-exempt: on_action_success callback must not block workflow
                         _result = _on_success(commit.action.effect_class)  # pylint: disable=not-callable
                         # on_action_success is sync; if a mock returns a
                         # coroutine, discard it cleanly to avoid ResourceWarning.

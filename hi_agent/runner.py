@@ -387,7 +387,7 @@ class RunExecutor:
         self.evolve_engine = evolve_engine
         self.harness_executor = harness_executor
         self.human_gate_quality_threshold = human_gate_quality_threshold
-        self._gate_seq = 0
+        self._gate_seq = 0  # RUNTIME-ONLY: per-run counter, valid for instance lifetime
         self.gate_coordinator = GateCoordinator(self)
         # Pending async delegation futures, keyed by task_id.
         self._pending_subrun_futures: dict[str, object] = {}
@@ -2451,7 +2451,7 @@ async def execute_async(
     except Exception as _fe_exc:
         import contextlib
 
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(Exception):  # rule7-exempt: record_fallback on error path; must not mask original exception
             record_fallback(
                 "llm",
                 reason="fallback_events_lookup_failed",

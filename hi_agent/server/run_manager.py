@@ -135,7 +135,7 @@ class RunManager:
         self._run_store = run_store
         self._run_queue = run_queue
         self._event_store: SQLiteEventStore | None = None
-        self._event_seq: int = 0
+        self._event_seqs: dict[str, int] = {}  # per-run sequence counters (seeded from storage on first use)
         self._event_seq_lock = threading.Lock()
         # Maps run_id -> executor_fn when run_queue is used; populated by start_run.
         self._pending_executors: dict[str, Callable[[ManagedRun], Any]] = {}
@@ -149,7 +149,7 @@ class RunManager:
         self._queue: queue.PriorityQueue[
             tuple[int, int, ManagedRun, Callable[[ManagedRun], Any]]
         ] = queue.PriorityQueue(maxsize=queue_size)
-        self._queue_seq: int = 0  # monotonic counter for tie-breaking
+        self._queue_seq: int = 0  # monotonic counter for tie-breaking; RUNTIME-ONLY: in-memory queue resets on restart
         self._queue_size = queue_size
         self._queue_timeout_s = queue_timeout_s
         self._active_count = 0  # guarded by _lock
@@ -235,8 +235,14 @@ class RunManager:
         if self._event_store is None:
             return
         with self._event_seq_lock:
-            seq = self._event_seq
-            self._event_seq += 1
+            if run_id not in self._event_seqs and self._event_store is not None:
+                try:
+                    seed = self._event_store.max_sequence(run_id) + 1
+                except Exception:
+                    seed = 0
+                self._event_seqs[run_id] = seed
+            seq = self._event_seqs.get(run_id, 0)
+            self._event_seqs[run_id] = seq + 1
         event = StoredEvent(
             event_id=str(uuid.uuid4()),
             run_id=run_id,
@@ -683,9 +689,44 @@ class RunManager:
                     renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]
                     if not renewed:
                         _hb_log.warning(
-                            "Lease renewal failed for run_id=%s; run may be expired",
+                            "Lease renewal failed for run_id=%s; transitioning to lease_lost state",
                             run_id,
                         )
+                        # Transition run state
+                        with self._lock:
+                            run_obj = self._runs.get(run_id)
+                            if run_obj is not None and run_obj.state == "running":
+                                run_obj.state = "failed"
+                                run_obj.error = "lease_lost: heartbeat renewal denied"
+                        # Emit event
+                        run_for_event = self._runs.get(run_id)
+                        if run_for_event is not None:
+                            self._publish_run_event(
+                                run_id,
+                                "lease_lost",
+                                {"reason": "heartbeat_renewal_denied", "state": "failed"},
+                                run_for_event,
+                            )
+                        # Move to DLQ
+                        if self._run_queue is not None:
+                            try:
+                                self._run_queue.dead_letter(
+                                    run_id,
+                                    "lease_lost",
+                                    "running",
+                                    tenant_id=getattr(run_for_event, "tenant_id", "") or "",
+                                )
+                            except Exception as _dlq_exc:
+                                _hb_log.warning(
+                                    "Failed to dead-letter run_id=%s: %s", run_id, _dlq_exc
+                                )
+                        # Metric
+                        try:
+                            from hi_agent.observability.collector import get_metrics_collector
+                            get_metrics_collector().increment("hi_agent_runtime_lease_lost_total")
+                        except Exception:  # rule7-exempt: metric must not block state transition
+                            pass
+                        _heartbeat_stop.set()  # stop the heartbeat thread
                 except Exception as _hb_exc:
                     _hb_log.warning(
                         "Lease heartbeat error for run_id=%s: %s",
@@ -992,18 +1033,30 @@ class RunManager:
             run.updated_at = datetime.now(UTC).isoformat()
         # Propagate to durable queue (cooperative cancellation flag).
         if self._run_queue is not None:
-            with contextlib.suppress(Exception):
+            try:
                 self._run_queue.cancel(run_id)
+            except Exception as _exc:
+                logging.getLogger(__name__).warning(
+                    "cancel_run: run_queue.cancel failed for run_id=%s: %s", run_id, _exc
+                )
         # Sync cancellation to run_store.
         if self._run_store is not None:
-            with contextlib.suppress(Exception):
+            try:
                 self._run_store.mark_cancelled(run_id)
+            except Exception as _exc:
+                logging.getLogger(__name__).warning(
+                    "cancel_run: run_store.mark_cancelled failed for run_id=%s: %s", run_id, _exc
+                )
         # Propagate to in-process CancellationToken if one is registered.
         with self._lock:
             token = self._active_executor_tokens.get(run_id)
         if token is not None and hasattr(token, "cancel"):
-            with contextlib.suppress(Exception):
+            try:
                 token.cancel()
+            except Exception as _exc:
+                logging.getLogger(__name__).warning(
+                    "cancel_run: token.cancel failed for run_id=%s: %s", run_id, _exc
+                )
         return True
 
     def to_dict(self, run: ManagedRun) -> dict[str, Any]:
@@ -1064,7 +1117,7 @@ class RunManager:
         _no_progress_seconds: float | None = None
         _candidates: list[float] = []
         if run.last_heartbeat_at is not None:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: ISO timestamp parse for heartbeat age; must not block stall detection
                 _candidates.append(
                     datetime.fromisoformat(run.last_heartbeat_at).timestamp()
                 )
@@ -1148,9 +1201,17 @@ class RunManager:
                 list(abandoned),
             )
             for _rid in abandoned:
-                with contextlib.suppress(Exception):
-                    if self._run_queue is not None:
+                if self._run_queue is not None:
+                    try:
                         self._run_queue.fail(_rid, "run_manager", "server_shutdown")
-                with contextlib.suppress(Exception):
-                    if self._run_store is not None:
+                    except Exception as _exc:
+                        _log.warning(
+                            "shutdown: run_queue.fail failed for run_id=%s: %s", _rid, _exc
+                        )
+                if self._run_store is not None:
+                    try:
                         self._run_store.mark_failed(_rid, "server_shutdown")
+                    except Exception as _exc:
+                        _log.warning(
+                            "shutdown: run_store.mark_failed failed for run_id=%s: %s", _rid, _exc
+                        )

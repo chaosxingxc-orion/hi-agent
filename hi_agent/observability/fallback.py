@@ -169,7 +169,7 @@ def record_fallback(
         pass
 
     # --- 2. Emit a WARNING log carrying run_id / kind / reason / extra. ---
-    with contextlib.suppress(Exception):  # pragma: no cover — logging must not crash callers
+    with contextlib.suppress(Exception):  # pragma: no cover — logging must not crash callers; rule7-exempt: logging must not crash callers (pre-existing annotation)
         _log.warning(
             "fallback recorded run_id=%s kind=%s reason=%s extra=%s",
             run_id,
@@ -183,7 +183,7 @@ def record_fallback(
     if run_id == "system":
         _increment_no_run_scope_counter()
     else:
-        with contextlib.suppress(Exception):  # pragma: no cover
+        with contextlib.suppress(Exception):  # pragma: no cover; rule7-exempt: append_fallback_event must not crash callers
             append_fallback_event(run_id, event)
 
     # Hint when a caller uses a kind outside the four-kind taxonomy.

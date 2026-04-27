@@ -308,6 +308,30 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Sync observer calls that raised an exception (Rule 7 alarm).",
     ),
+    # I-8 / Rule 7: generic silent-degradation events recorded via helper.
+    "hi_agent_silent_degradation_total": _MetricDef(
+        "hi_agent_silent_degradation_total",
+        "counter",
+        "Silent-degradation events recorded via record_silent_degradation() (Rule 7).",
+    ),
+    # I-5 / Rule 7: watchdog scan errors in HeartbeatWatchdog.
+    "hi_agent_watchdog_scan_failed_total": _MetricDef(
+        "hi_agent_watchdog_scan_failed_total",
+        "counter",
+        "Watchdog scan errors in HeartbeatWatchdog (Rule 7 alarm).",
+    ),
+    # I-6 / Rule 7: reconcile-loop DLQ error metric.
+    "hi_agent_reconcile_dlq_error_total": _MetricDef(
+        "hi_agent_reconcile_dlq_error_total",
+        "counter",
+        "Reconcile loop DLQ-depth read errors (Rule 7 alarm).",
+    ),
+    # I-1 / Rule 7: run lease lost due to heartbeat renewal failure.
+    "hi_agent_runtime_lease_lost_total": _MetricDef(
+        "hi_agent_runtime_lease_lost_total",
+        "counter",
+        "Run lease lost due to heartbeat renewal failure (Rule 7 alarm).",
+    ),
     # Run and tool histograms (labels: tenant_id, outcome, tool).
     "hi_agent_run_duration_seconds": _MetricDef(
         "hi_agent_run_duration_seconds",

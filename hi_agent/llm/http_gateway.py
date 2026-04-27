@@ -185,8 +185,14 @@ class HttpLLMGateway:
                             run_id=_run_id_for_fallback,
                             extra={"exc": str(exc)},
                         )
-                    except Exception:
-                        pass
+                    except Exception as _obs_exc:
+                        logger.warning(
+
+                            "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
+
+                            _obs_exc,
+
+                        )
                     logger.warning(
                         "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
                     )
@@ -202,8 +208,14 @@ class HttpLLMGateway:
                     run_id=_run_id_for_fallback,
                     extra={"exc": str(exc)},
                 )
-            except Exception:
-                pass
+            except Exception as _obs_exc:
+                logger.warning(
+
+                    "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
+
+                    _obs_exc,
+
+                )
             logger.warning("http_gateway integration error (%s), using direct path.", exc)
 
         # 3. Fallback: original direct HTTP logic.
@@ -381,8 +393,14 @@ class HttpLLMGateway:
                 run_id=run_id or "unknown",
                 extra={"component": "http_llm_gateway", "model": str(payload.get("model", ""))},
             )
-        except Exception:
-            pass  # metrics must not crash caller — observability is best-effort
+        except Exception as _obs_exc:
+            logger.warning(
+
+                "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
+
+                _obs_exc,
+
+            )
         raise last_exc  # type: ignore[misc]
 
     @staticmethod
@@ -518,8 +536,14 @@ class HTTPGateway:
                             run_id=_run_id_for_fallback,
                             extra={"exc": str(exc)},
                         )
-                    except Exception:
-                        pass
+                    except Exception as _obs_exc:
+                        logger.warning(
+
+                            "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
+
+                            _obs_exc,
+
+                        )
                     logger.warning(
                         "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
                     )
@@ -535,8 +559,14 @@ class HTTPGateway:
                     run_id=_run_id_for_fallback,
                     extra={"exc": str(exc)},
                 )
-            except Exception:
-                pass
+            except Exception as _obs_exc:
+                logger.warning(
+
+                    "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
+
+                    _obs_exc,
+
+                )
             logger.warning("HTTPGateway integration error (%s), using direct path.", exc)
 
         # 3. Fallback: original direct HTTP logic.

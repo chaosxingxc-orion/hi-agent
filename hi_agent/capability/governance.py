@@ -386,7 +386,7 @@ class GovernedToolExecutor:
             else "unknown"
         )
         # Audit must never block execution.
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(Exception):  # rule7-exempt: audit store must not block capability execution
             self._audit_store.record_tool_call(
                 capability_name=capability_name,
                 principal=principal,

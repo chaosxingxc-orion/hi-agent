@@ -132,7 +132,7 @@ class SubprocessScriptRuntime:
             except TimeoutError:
                 with contextlib.suppress(ProcessLookupError):
                     proc.kill()
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception):  # rule7-exempt: process teardown after kill; wait must not raise
                     await proc.wait()
                 elapsed_ms = int((time.monotonic() - start) * 1000)
                 return ScriptResult(

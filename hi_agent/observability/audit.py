@@ -88,7 +88,7 @@ class AuditStore:
             timestamp=now,
         )
         # Audit emitters must never block execution.
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(Exception):  # rule7-exempt: audit emitters must not block execution path
             emit(
                 "tool_call.audit",
                 {

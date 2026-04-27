@@ -212,7 +212,7 @@ class TemporalAdaptor:
             clear_run_actor_dependencies(self._deps)
         if self._env is not None:
             _logger.info("TemporalAdaptor shutting down embedded dev-server")
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: Temporal dev-server shutdown; best-effort teardown
                 await self._env.shutdown()
 
     @property
@@ -349,5 +349,5 @@ class TemporalAdaptor:
                 task.get_name(),
             )
         for cb in self._worker_done_callbacks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: worker done callback must not block shutdown
                 cb(task)

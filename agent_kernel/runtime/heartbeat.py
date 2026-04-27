@@ -720,6 +720,13 @@ class HeartbeatWatchdog:
                 await self._monitor.watchdog_once(self._gateway)
             except Exception as exc:
                 _logger.warning("HeartbeatWatchdog scan error: %s", exc)
+                try:
+                    from hi_agent.observability.collector import get_metrics_collector
+                    _collector = get_metrics_collector()
+                    if _collector is not None:
+                        _collector.increment("hi_agent_watchdog_scan_failed_total")
+                except Exception:  # rule7-exempt: metric must not block watchdog
+                    pass
 
 
 def _now_ms() -> int:

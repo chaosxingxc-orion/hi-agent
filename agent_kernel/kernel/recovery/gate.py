@@ -337,7 +337,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
         """Emit on_recovery_triggered to the observability hook, if present."""
         if self._observability_hook is None:
             return
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate
             self._observability_hook.on_recovery_triggered(
                 run_id=run_id,
                 reason_code=reason_code,
@@ -350,7 +350,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
         """Emit on_reflection_round to the observability hook, if present."""
         if self._observability_hook is None:
             return
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate
             self._observability_hook.on_reflection_round(
                 run_id=run_id,
                 action_id=action_id,
@@ -364,7 +364,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
         """Emit on_circuit_breaker_trip to the observability hook, if present."""
         if self._observability_hook is None:
             return
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate
             self._observability_hook.on_circuit_breaker_trip(
                 run_id=run_id,
                 effect_class=effect_class,

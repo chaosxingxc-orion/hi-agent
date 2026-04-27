@@ -93,7 +93,7 @@ class RetryingExecutorService:
                         isinstance(exc, ServiceOverloadTransientError)
                         and self._observability_hook is not None
                     ):
-                        with contextlib.suppress(Exception):
+                        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block retry executor
                             self._observability_hook.on_circuit_breaker_trip(
                                 run_id=getattr(action, "run_id", ""),
                                 effect_class=getattr(action, "effect_class", ""),

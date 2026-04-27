@@ -62,7 +62,7 @@ class SQLiteRecoveryOutcomeStore(RecoveryOutcomeStore):
             )
             self._conn.commit()
         except Exception:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception
                 self._conn.rollback()
             raise
 
