@@ -309,25 +309,23 @@ def _compute_cap(
             manifest_head = str(latest_manifest.get("release_head", "")).strip()
             if not manifest_head:
                 return None
-            # Docs-only gap exemption: allow ≤3 commits where no Python/TOML/YAML changed
+            # Docs-only gap exemption: allow any number of commits where only
+            # governance files changed (docs/, scripts/, tests/, .github/, pyproject.toml).
+            # Mirrors the logic in check_manifest_freshness.py _manifest_commit_gap().
             try:
-                gap_proc = subprocess.run(
-                    ["git", "rev-list", "--count", f"{manifest_head}..HEAD"],
+                diff_proc = subprocess.run(
+                    ["git", "diff", "--name-only", f"{manifest_head}..HEAD"],
                     capture_output=True, text=True, cwd=str(ROOT),
                 )
-                gap_count = int(gap_proc.stdout.strip()) if gap_proc.returncode == 0 else 99
-                if gap_count <= 3:
-                    diff_proc = subprocess.run(
-                        ["git", "diff", "--name-only", f"{manifest_head}..HEAD"],
-                        capture_output=True, text=True, cwd=str(ROOT),
+                if diff_proc.returncode == 0:
+                    changed = [f.strip() for f in diff_proc.stdout.splitlines() if f.strip()]
+                    _gov_prefixes = (
+                        "docs/", "scripts/", "tests/", ".github/", "pyproject.toml",
                     )
-                    changed = diff_proc.stdout.strip().splitlines() if diff_proc.returncode == 0 else []
-                    non_doc = [f for f in changed if not (
-                        f.startswith("docs/") or f.endswith(".md") or f.endswith(".json")
-                        or f.endswith(".txt") or f.endswith(".rst")
-                    )]
-                    if not non_doc:
-                        return None  # docs-only gap — exempt
+                    if changed and all(
+                        any(f.startswith(p) for p in _gov_prefixes) for f in changed
+                    ):
+                        return None  # governance-only gap — exempt
             except Exception:
                 pass
             return f"head_mismatch: manifest={manifest_head[:12]} HEAD={current_head[:12]}"

@@ -80,8 +80,11 @@ def _t3_is_fresh(repo_root: Path = ROOT) -> bool:
         delivery_dir = repo_root / "docs" / "delivery"
         if not delivery_dir.is_dir():
             return False
+        # Include both legacy *-rule15-*.json and modern *-t3-*.json (excluding deferred).
         candidates = sorted(
-            delivery_dir.glob("*-rule15-*.json"),
+            list(delivery_dir.glob("*-rule15-*.json")) + [
+                p for p in delivery_dir.glob("*-t3-*.json") if "deferred" not in p.name
+            ],
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )
@@ -92,11 +95,16 @@ def _t3_is_fresh(repo_root: Path = ROOT) -> bool:
         gate_sha: str | None = None
         try:
             data = json.loads(latest.read_text(encoding="utf-8"))
-            gate_sha = data.get("sha") if isinstance(data.get("sha"), str) else None
+            # Prefer modern verified_head field; fall back to legacy sha field.
+            for key in ("verified_head", "sha"):
+                val = data.get(key)
+                if isinstance(val, str) and len(val) >= 7:
+                    gate_sha = val
+                    break
         except (json.JSONDecodeError, OSError):
             pass
         if not gate_sha:
-            m = re.search(r"-([0-9a-f]{7,40})-rule15", latest.name)
+            m = re.search(r"-([0-9a-f]{7,40})(?:-rule15|-t3)", latest.name)
             gate_sha = m.group(1) if m else None
         if not gate_sha:
             return False
