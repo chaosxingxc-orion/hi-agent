@@ -321,7 +321,7 @@ def check_notice_sha_reachable(notice: Path | None) -> list[str]:
     if re.search(r"Status:.*(?:draft|superseded)", src, re.IGNORECASE):
         return []
     sha_pattern = re.compile(
-        r"(?:Functional HEAD|HEAD SHA[:\s*]+|HEAD):\s*([0-9a-f]{7,40})\b", re.IGNORECASE
+        r"(?:Functional HEAD|HEAD SHA|HEAD):[:\s*]*([0-9a-f]{7,40})\b", re.IGNORECASE
     )
     claimed_sha: str | None = None
     for line in src.splitlines():

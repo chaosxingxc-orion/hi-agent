@@ -128,7 +128,12 @@ def test_template_substitution(tmp_path):
 
 
 def test_post_commit_head_realignment(tmp_path):
-    """When the commit changes HEAD, the notice is rewritten and commit is amended."""
+    """Functional HEAD in notice stays as the pre-commit code HEAD (no amend loop).
+
+    The amend loop was removed because each amend changes the commit SHA, creating
+    an infinite diverging cycle. Functional HEAD now points to the last code commit
+    (stable). The docs-only gap exemption in check_doc_consistency handles the gap.
+    """
     template_dir = tmp_path / "_templates"
     template_dir.mkdir(parents=True)
     template_file = template_dir / "notice-10.6.md"
@@ -137,7 +142,6 @@ def test_post_commit_head_realignment(tmp_path):
             # Wave {{WAVE}} Delivery Notice
             ```
             Functional HEAD:  {{HEAD}}
-            Notice HEAD:      {{HEAD}}
             Validated by:     scripts/check_doc_consistency.py
             ```
         """),
@@ -162,7 +166,6 @@ def test_post_commit_head_realignment(tmp_path):
         if cmd[1] == "add":
             return _make_cp()
         if cmd[1] == "commit":
-            # Both initial commit and amend
             return _make_cp()
         return _make_cp()
 
@@ -177,12 +180,13 @@ def test_post_commit_head_realignment(tmp_path):
     written = list(notices_dir.glob("*delivery-notice.md"))
     assert written, "Notice file must have been written"
     content = written[0].read_text(encoding="utf-8")
-    # After realignment, the notice should contain the post-commit HEAD
-    assert "bbb2222" in content, (
-        f"Expected realigned HEAD 'bbb2222' in notice:\n{content}"
+    # Functional HEAD stays at the pre-commit code SHA (aaa1111), not the notice SHA.
+    assert "aaa1111" in content, (
+        f"Expected pre-commit HEAD 'aaa1111' in notice:\n{content}"
     )
-    assert "aaa1111" not in content, (
-        f"Stale HEAD 'aaa1111' should have been replaced in notice:\n{content}"
+    # Notice does NOT chase the post-commit SHA (no amend loop).
+    assert "bbb2222" not in content, (
+        f"Post-commit SHA 'bbb2222' must not appear in notice:\n{content}"
     )
 
 
