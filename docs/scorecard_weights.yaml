@@ -85,3 +85,12 @@ dimensions:
     weight: 5
     base_score: 65
     gate_check: ci_gate
+
+# Three-tier score structure (per upstream conduct spec §6)
+# raw_implementation_maturity:  sum(weight * base_score / 100)
+# current_verified_readiness:   min(raw, gate_cap)
+# conditional_readiness_after_blockers: raw (cap removed if blockers cleared)
+tiers:
+  raw_implementation_maturity: true
+  current_verified_readiness: true
+  conditional_readiness_after_blockers: true

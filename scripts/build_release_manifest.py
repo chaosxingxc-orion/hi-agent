@@ -154,21 +154,54 @@ def _compute_raw(dimensions: list[dict[str, Any]]) -> float:
     return round(total, 2)
 
 
-def _compute_cap(gates: dict[str, Any]) -> tuple[float | None, str]:
-    """Return (cap_value, cap_reason) based on gate statuses."""
+def _compute_cap(
+    gates: dict[str, Any],
+    *,
+    is_dirty: bool = False,
+    t3_stale: bool = False,
+    expired_allowlist: int = 0,
+) -> tuple[float | None, str, list[str]]:
+    """Return (cap_value, cap_reason, cap_factors) based on gate statuses and extra context."""
+    cap_factors: list[str] = []
+
     statuses = [v.get("status", "unknown") for v in gates.values() if isinstance(v, dict)]
     if "fail" in statuses:
         failing = [k for k, v in gates.items() if isinstance(v, dict) and v.get("status") == "fail"]
-        return 70.0, f"gate fail: {', '.join(failing)}"
+        cap_factors.append(f"gate_fail: {', '.join(failing)}")
     if "warn" in statuses or "deferred" in statuses:
         degraded = [
             k for k, v in gates.items()
             if isinstance(v, dict) and v.get("status") in ("warn", "deferred")
         ]
-        return 80.0, f"gate warn/deferred: {', '.join(degraded)}"
+        cap_factors.append(f"gate_warn/deferred: {', '.join(degraded)}")
     if "missing" in statuses:
-        return 80.0, "one or more scripts missing"
-    return None, "all gates pass"
+        cap_factors.append("one or more scripts missing")
+    if is_dirty:
+        cap_factors.append("dirty_worktree")
+    if t3_stale:
+        cap_factors.append("t3_stale")
+    if expired_allowlist > 0:
+        cap_factors.append(f"expired_allowlist_count={expired_allowlist}")
+
+    if not cap_factors:
+        return None, "all gates pass", []
+
+    if any("gate_fail" in f for f in cap_factors) or is_dirty:
+        return 70.0, "; ".join(cap_factors), cap_factors
+    return 80.0, "; ".join(cap_factors), cap_factors
+
+
+def _compute_conditional(raw: float, dimensions: list[dict[str, Any]]) -> float:
+    """Score if all blockers were resolved: raw score uncapped."""
+    return raw
+
+
+def _load_captains_sha() -> str:
+    path = ROOT / "docs" / "releases" / "release-captains.md"
+    if not path.exists():
+        return "not_found"
+    import hashlib
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
 
 def _current_wave() -> str:
@@ -192,30 +225,71 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
         gates[gate_key] = _run_gate(gate_key, script, has_json)
         print(gates[gate_key].get("status", "?"), file=sys.stderr)
 
+    # Gather extra context for cap computation
+    head_sha = _git_head_sha()
+    dirty = _is_dirty()
+
+    t3_gate = gates.get("t3_freshness", {})
+    t3_status = t3_gate.get("status", "unknown")
+    t3_verified_head = t3_gate.get("verified_head", "")
+    t3_stale = t3_status not in ("pass", "fresh_at_head")
+
+    route_scope_gate = gates.get("route_scope", {})
+    allowlist_total = route_scope_gate.get("allowlist_total", 0)
+    expired_allowlist_total = route_scope_gate.get("expired_allowlist_total", 0)
+
+    clean_env_gate = gates.get("clean_env", {})
+    clean_env_status = clean_env_gate.get("status", "unknown")
+    clean_env_summary_available = clean_env_gate.get("summary_available", None)
+
     # Score computation
     dimensions = _load_weights()
     raw = _compute_raw(dimensions) if dimensions else 0.0
-    cap, cap_reason = _compute_cap(gates)
+    cap, cap_reason, cap_factors = _compute_cap(
+        gates,
+        is_dirty=dirty,
+        t3_stale=t3_stale,
+        expired_allowlist=expired_allowlist_total,
+    )
     verified = round(min(raw, cap), 2) if cap is not None else raw
 
     manifest: dict[str, Any] = {
         "manifest_id": manifest_id,
         "schema_version": "1",
         "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
+        "release_head": head_sha,
         "git": {
-            "head_sha": _git_head_sha(),
+            "head_sha": head_sha,
             "short_sha": short_sha,
-            "is_dirty": _is_dirty(),
+            "is_dirty": dirty,
         },
         "wave": _current_wave(),
         "gates": gates,
         "scorecard": {
             "raw": raw,
             "verified": verified,
+            "raw_implementation_maturity": raw,
+            "current_verified_readiness": verified,
+            "conditional_readiness_after_blockers": _compute_conditional(raw, dimensions),
             "cap": cap,
             "cap_reason": cap_reason,
+            "cap_factors": cap_factors,
             "weights_version": "1",
         },
+        "t3": {
+            "status": t3_status,
+            "verified_head": t3_verified_head,
+        },
+        "clean_env": {
+            "profile": "default-offline",
+            "status": clean_env_status,
+            "summary_available": clean_env_summary_available,
+        },
+        "route_scope": {
+            "allowlist_total": allowlist_total,
+            "expired_allowlist_total": expired_allowlist_total,
+        },
+        "captains": _load_captains_sha(),
     }
 
     all_passed = all(
@@ -256,6 +330,7 @@ def main() -> int:
     print(
         f"Score: raw={manifest['scorecard']['raw']:.1f}  "
         f"verified={manifest['scorecard']['verified']:.1f}  "
+        f"conditional={manifest['scorecard']['conditional_readiness_after_blockers']:.1f}  "
         f"cap={manifest['scorecard']['cap']}  "
         f"({manifest['scorecard']['cap_reason']})",
         file=sys.stderr,

@@ -241,6 +241,24 @@ A capability cannot move to L3 without: (a) posture-aware default-on, (b) quaran
 
 ---
 
+### Rule 14 — Manifest is the Single Release Fact Source
+
+**The release manifest is the only authoritative source of release facts. Closure notices and delivery documents MUST derive their claims from the manifest — they MUST NOT independently restate HEAD, gate status, scores, or readiness.**
+
+Binding constraints (from upstream-engineering-conduct-spec-2026-04-27.md §4.2, §5, §4.4):
+
+- The manifest MUST satisfy `release_head == git rev-parse HEAD` and `git.is_dirty == false` for any release-readiness claim.
+- If either condition fails, `current_verified_readiness` MUST be capped at 70; the release MUST NOT be described as closed.
+- The order of operations is MANDATORY: (1) final implementation commit, (2) gates run, (3) manifest generated, (4) score cap computed, (5) closure notice generated from manifest.
+- Score is three-tier: `raw_implementation_maturity` / `current_verified_readiness` / `conditional_readiness_after_blockers`. These MUST NOT be merged. Headlines cite `current_verified_readiness` only.
+- Manual score increases are prohibited. Score increases MUST be computed from manifest facts.
+- A closure notice generated before the final manifest exists MUST be labeled non-release commentary and MUST NOT include verified readiness claims.
+- Forbidden phrases (prohibited unless current-HEAD evidence in the manifest supports them): "closed", "fully closed", "complete", "all green", "release-ready", "verified 80+", "production-ready", "7×24 ready", "L3 unchanged", "default path closed".
+
+**Enforcement:** `scripts/check_manifest_freshness.py` fails CI when manifest is stale. `scripts/check_doc_consistency.py` validates that closure notices cite the manifest_id and match Functional HEAD to manifest release_head.
+
+---
+
 ## Ownership Tracks
 
 Every PR identifies its primary owner track in the commit body (`Owner: CO|RO|DX|TE|GOV`). A PR touching files outside its owner track requires co-owner approval or a GOV-track exception note.
@@ -279,4 +297,4 @@ Before accepting any new capability request into hi-agent:
 
 **G4 — Posture & Spine gate**: declare (a) default behaviour under `dev`/`research`/`prod` postures and (b) which contract-spine fields it carries; otherwise stays at L0–L1 and cannot enter research/prod default path.
 
-Rule origin history (R1–R13) → `docs/rules-incident-log.md`.
+Rule origin history (R1–R14) → `docs/rules-incident-log.md`.
