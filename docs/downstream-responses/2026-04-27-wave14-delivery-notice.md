@@ -3,11 +3,11 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    c14c676
-Manifest:           2026-04-27-0276580
+Functional HEAD:    48795b4
+Manifest:           2026-04-27-bf82c3d
 T3 evidence:        PENDING — run scripts/run_t3_gate.py
 Clean-env evidence: PENDING — run verify_clean_env.py --profile default-offline
-Current verified readiness: 70.0 (dirty_worktree; gate_fail: doc_consistency, manifest_freshness, score_cap; t3_deferred; gate_warn/deferred: vocab, t3_freshness, noqa_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling)
+Current verified readiness: 63.0 (gate_fail: clean_env; clean_env_unverified: fail; t3_deferred; gate_warn/deferred: vocab, t3_freshness, noqa_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling)
 Validated by:       scripts/build_release_manifest.py scripts/check_evidence_provenance.py scripts/check_score_cap.py
 Status:             current
 ```
@@ -71,11 +71,11 @@ Target: lift verified readiness from `67.0` (downstream) / `72.0` (upstream) to 
 
 ---
 
-## Evidence Index (at c14c676)
+## Evidence Index (at 48795b4)
 
-- `docs/releases/2026-04-27-0276580.json` — release manifest
-- `docs/verification/c14c676-manifest-gate.json` — manifest build gate
-- `docs/verification/c14c676-observability-spine.json` — spine evidence (structural)
+- `docs/releases/2026-04-27-bf82c3d.json` — release manifest
+- `docs/verification/48795b4-manifest-gate.json` — manifest build gate
+- `docs/verification/48795b4-observability-spine.json` — spine evidence (structural)
 - `docs/verification/*-score-cap.json` — score cap gate evidence
 
 ---
@@ -83,7 +83,7 @@ Target: lift verified readiness from `67.0` (downstream) / `72.0` (upstream) to 
 ## Reproduction
 
 ```bash
-git checkout c14c676
+git checkout 48795b4
 python scripts/build_release_manifest.py --print
 python scripts/check_evidence_provenance.py --json
 python scripts/check_score_cap.py --json
