@@ -1,4 +1,4 @@
-# Wave 14 scorecard weights — human-curated, must sum to 100.
+# Wave 16 scorecard weights — human-curated, must sum to 100.
 # base_score: current implementation quality (0–100, human-assessed).
 # weight: contribution to final raw score.
 # gate_check: primary governance script that validates this dimension.
@@ -12,7 +12,7 @@
 # INVARIANT: sum(weight) MUST equal 100. CI fails on violation.
 
 schema_version: "2"
-wave: "Wave 14"
+wave: "Wave 16"
 
 dimensions:
   - name: layering
@@ -66,13 +66,13 @@ dimensions:
   - name: claim_discipline
     description: "Downstream notices bind claims to release manifest IDs"
     weight: 7
-    base_score: 70
+    base_score: 85
     gate_check: doc_consistency
 
   - name: t3_gate
     description: "Real-LLM operator-shape gate passed at current HEAD (Rule 8 T3 Invariance)"
     weight: 7
-    base_score: 70
+    base_score: 88
     gate_check: t3_freshness
 
   - name: clean_env
@@ -84,7 +84,7 @@ dimensions:
   - name: ci_gate
     description: "Release-gate CI job aggregates all governance checks non-skippably (W14-G)"
     weight: 4
-    base_score: 65
+    base_score: 80
     gate_check: doc_consistency
 
   - name: allowlist_discipline
@@ -108,7 +108,7 @@ dimensions:
   - name: verification_artifacts
     description: "Verification and delivery artifacts are current at release HEAD"
     weight: 4
-    base_score: 60
+    base_score: 78
     gate_check: verification_artifacts
 
   - name: targeted_default_path
