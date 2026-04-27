@@ -80,6 +80,10 @@ class ManagedRun:
     idempotency_key: str | None = None
     outcome: str = "created"  # "created" | "replayed" | "conflict"
     response_snapshot: str = ""  # non-empty when replayed and original run is complete
+    # W12-C liveness fields
+    started_at: str | None = None
+    last_heartbeat_at: str | None = None
+    current_action_id: str | None = None
 
 
 class RunManager:
@@ -100,6 +104,7 @@ class RunManager:
         idempotency_store: IdempotencyStore | None = None,
         run_store: SQLiteRunStore | None = None,
         run_queue: RunQueue | None = None,
+        event_store: object | None = None,
     ) -> None:
         """Initialize the run manager.
 
@@ -118,6 +123,9 @@ class RunManager:
                 ``claim_next``/``complete``/``fail`` instead of the in-memory
                 PriorityQueue.  When ``None``, the original in-memory queue
                 path is used unchanged.
+            event_store: Optional SQLiteEventStore.  When provided,
+                ``to_dict`` reads the most recent event offset and timestamp
+                for liveness reporting (W12-C).
         """
         self._runs: dict[str, ManagedRun] = {}
         self._lock = threading.Lock()
@@ -558,7 +566,9 @@ class RunManager:
             self._active_count += 1
             self._active_run_ids.add(run.run_id)
             run.state = "running"
-            run.updated_at = datetime.now(UTC).isoformat()
+            _started_now = datetime.now(UTC).isoformat()
+            run.updated_at = _started_now
+            run.started_at = _started_now
         if self._run_store is not None:
             self._run_store.mark_running(run.run_id)
         self._publish_run_event(
@@ -652,7 +662,9 @@ class RunManager:
             self._active_count += 1
             self._active_run_ids.add(run.run_id)
             run.state = "running"
-            run.updated_at = datetime.now(UTC).isoformat()
+            _started_now_d = datetime.now(UTC).isoformat()
+            run.updated_at = _started_now_d
+            run.started_at = _started_now_d
         if self._run_store is not None:
             self._run_store.mark_running(run.run_id)
 
@@ -1028,6 +1040,39 @@ class RunManager:
         from hi_agent.observability.fallback import get_fallback_events as _gfe
 
         _top_fallback_events: list[dict] = list(_gfe(run.run_id))
+
+        # W12-C: liveness fields from event store
+        _last_event_offset: int | None = None
+        _last_event_at_ts: float | None = None
+        if self._event_store is not None:
+            try:
+                _events = self._event_store.list_since(run.run_id, 0)
+                if _events:
+                    _last_evt = _events[-1]
+                    _last_event_offset = _last_evt.sequence
+                    _last_event_at_ts = _last_evt.created_at
+            except Exception:
+                pass
+
+        _last_event_at: str | None = (
+            datetime.fromtimestamp(_last_event_at_ts, tz=UTC).isoformat()
+            if _last_event_at_ts is not None
+            else None
+        )
+
+        # no_progress_seconds: seconds since the most recent heartbeat or event
+        _no_progress_seconds: float | None = None
+        _candidates: list[float] = []
+        if run.last_heartbeat_at is not None:
+            with contextlib.suppress(Exception):
+                _candidates.append(
+                    datetime.fromisoformat(run.last_heartbeat_at).timestamp()
+                )
+        if _last_event_at_ts is not None:
+            _candidates.append(_last_event_at_ts)
+        if _candidates:
+            _no_progress_seconds = time.time() - max(_candidates)
+
         return {
             "run_id": run.run_id,
             "task_contract": run.task_contract,
@@ -1041,6 +1086,13 @@ class RunManager:
             "llm_fallback_count": _llm_fallback_count,
             "finished_at": _finished_at,
             "fallback_events": _top_fallback_events,
+            # W12-C liveness fields
+            "started_at": run.started_at,
+            "last_heartbeat_at": run.last_heartbeat_at,
+            "last_event_offset": _last_event_offset,
+            "last_event_at": _last_event_at,
+            "current_action_id": run.current_action_id,
+            "no_progress_seconds": _no_progress_seconds,
         }
 
     def shutdown(self, timeout: float = 2.0) -> None:
