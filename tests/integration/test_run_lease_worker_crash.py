@@ -12,7 +12,6 @@ from __future__ import annotations
 import time
 
 import pytest
-
 from hi_agent.server.run_queue import RunQueue
 
 

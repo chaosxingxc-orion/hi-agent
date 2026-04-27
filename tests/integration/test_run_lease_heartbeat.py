@@ -6,11 +6,9 @@ No mocks on the subsystem under test.
 
 from __future__ import annotations
 
-import threading
 import time
 
 import pytest
-
 from hi_agent.server.run_manager import ManagedRun, RunManager
 from hi_agent.server.run_queue import RunQueue
 from hi_agent.server.tenant_context import TenantContext
