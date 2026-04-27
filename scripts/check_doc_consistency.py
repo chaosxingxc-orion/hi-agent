@@ -449,6 +449,10 @@ def _check_closure_notice_levels(docs_dir: Path) -> list[str]:
         content = notice_file.read_text(encoding="utf-8")
         lines = content.splitlines()
 
+        # Skip superseded and draft notices — they predate the Rule 15 taxonomy.
+        if any(re.search(r"Status:.*(?:draft|superseded)", ln, re.IGNORECASE) for ln in lines):
+            continue
+
         in_table = False
         has_level_column = False
         level_col = -1

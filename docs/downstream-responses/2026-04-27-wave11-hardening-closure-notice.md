@@ -1,5 +1,7 @@
 # Wave 11 Hardening Sprint — 工程准备度闭合通知
 
+Status: superseded — replaced by Wave 12 default-path hardening closure notice.
+
 ```
 日期：         2026-04-27
 Functional HEAD: 8cc324480263b143e5f22457296a60b6930c04af
