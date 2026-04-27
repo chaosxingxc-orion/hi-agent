@@ -266,9 +266,7 @@ class CognitionBuilder:
                     if self._llm_budget_tracker is None:
                         self._llm_budget_tracker = self._build_llm_budget_tracker()
                     if provider == "anthropic":
-                        from hi_agent.llm.protocol import (
-                            LLMGateway,  # noqa: F401  expiry_wave: Wave 17
-                        )
+                        from hi_agent.llm.protocol import LLMGateway  # noqa: F401  expiry_wave: Wave 17
 
                         raw_gateway: LLMGateway = AnthropicLLMGateway(
                             api_key_env=env_var,

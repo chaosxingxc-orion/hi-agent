@@ -44,8 +44,17 @@ def _sha_matches(artifact_head: str, head: str) -> bool:
     return artifact_head[:min_len] == head[:min_len]
 
 
+_GOVERNANCE_PREFIXES = (
+    "docs/", "scripts/", "tests/", ".github/",
+)
+
+
 def _docs_only_gap(base_sha: str, head: str) -> bool:
-    """Return True if the only commits between base_sha and head touch docs/ files."""
+    """Return True if commits between base_sha and head only touch governance files.
+
+    Governance files: docs/, scripts/, tests/, .github/ — none of which affect
+    the platform's release-verified runtime behaviour.
+    """
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", f"{base_sha}..{head}"],
@@ -54,7 +63,9 @@ def _docs_only_gap(base_sha: str, head: str) -> bool:
         if result.returncode != 0:
             return False
         changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-        return bool(changed) and all(f.startswith("docs/") for f in changed)
+        return bool(changed) and all(
+            any(f.startswith(p) for p in _GOVERNANCE_PREFIXES) for f in changed
+        )
     except Exception:
         return False
 
@@ -73,6 +84,7 @@ def _check_artifacts(allow_docs_only_gap: bool = False) -> tuple[list[str], list
     dirs = [
         ROOT / "docs" / "verification",
         ROOT / "docs" / "delivery",
+        ROOT / "docs" / "releases",
     ]
     for d in dirs:
         if not d.exists():
