@@ -1,6 +1,9 @@
 """Guard: hi_agent package must not import from examples/ at runtime."""
 import subprocess
 import sys
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def test_hi_agent_does_not_import_examples_at_runtime():
@@ -14,7 +17,7 @@ def test_hi_agent_does_not_import_examples_at_runtime():
         [sys.executable, "-c", script],
         capture_output=True,
         text=True,
-        cwd=r"D:\chao_workspace\hi-agent",
+        cwd=str(_REPO_ROOT),
     )
     assert result.returncode == 0, f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"
 
@@ -25,6 +28,6 @@ def test_check_layering_script_passes():
         [sys.executable, "scripts/check_layering.py"],
         capture_output=True,
         text=True,
-        cwd=r"D:\chao_workspace\hi-agent",
+        cwd=str(_REPO_ROOT),
     )
     assert result.returncode == 0, f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"
