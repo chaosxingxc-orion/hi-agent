@@ -66,7 +66,15 @@ from hi_agent.server._durable_backends import build_durable_backends
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.server.event_bus import event_bus
-from hi_agent.server.ops_routes import handle_diagnostics, handle_doctor, handle_release_gate
+from hi_agent.server.ops_routes import (
+    handle_diagnostics,
+    handle_doctor,
+    handle_ops_alerts,
+    handle_ops_dashboard,
+    handle_ops_runbook,
+    handle_ops_slo,
+    handle_release_gate,
+)
 from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.routes_artifacts import (
     artifact_routes,
@@ -1169,6 +1177,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/ops/release-gate", handle_release_gate, methods=["GET"]),
         Route("/ops/dlq", handle_list_dlq, methods=["GET"]),
         Route("/ops/dlq/{run_id}/requeue", handle_requeue_from_dlq, methods=["POST"]),
+        Route("/ops/slo", handle_ops_slo, methods=["GET"]),
+        Route("/ops/alerts", handle_ops_alerts, methods=["GET"]),
+        Route("/ops/runbook", handle_ops_runbook, methods=["GET"]),
+        Route("/ops/dashboard", handle_ops_dashboard, methods=["GET"]),
         # Runs
         Route("/runs", handle_list_runs, methods=["GET"]),
         Route("/runs", handle_create_run, methods=["POST"]),
