@@ -293,9 +293,33 @@ def _compute_cap(
                 cwd=str(ROOT),
             )
             current_head = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
-            if current_head and manifest_head != current_head:
-                return f"head_mismatch: manifest={manifest_head} HEAD={current_head}"
-            return None
+            if not current_head or manifest_head == current_head:
+                return None
+            # Short-SHA prefix match (7-char vs full SHA)
+            if current_head.startswith(manifest_head) or manifest_head.startswith(current_head[:len(manifest_head)]):
+                return None
+            # Docs-only gap exemption: allow ≤3 commits where no Python/TOML/YAML changed
+            try:
+                gap_proc = subprocess.run(
+                    ["git", "rev-list", "--count", f"{manifest_head}..HEAD"],
+                    capture_output=True, text=True, cwd=str(ROOT),
+                )
+                gap_count = int(gap_proc.stdout.strip()) if gap_proc.returncode == 0 else 99
+                if gap_count <= 3:
+                    diff_proc = subprocess.run(
+                        ["git", "diff", "--name-only", f"{manifest_head}..HEAD"],
+                        capture_output=True, text=True, cwd=str(ROOT),
+                    )
+                    changed = diff_proc.stdout.strip().splitlines() if diff_proc.returncode == 0 else []
+                    non_doc = [f for f in changed if not (
+                        f.startswith("docs/") or f.endswith(".md") or f.endswith(".json")
+                        or f.endswith(".txt") or f.endswith(".rst")
+                    )]
+                    if not non_doc:
+                        return None  # docs-only gap — exempt
+            except Exception:
+                pass
+            return f"head_mismatch: manifest={manifest_head[:12]} HEAD={current_head[:12]}"
         if condition == "dirty_worktree":
             return "dirty_worktree" if is_dirty else None
         if condition == "gate_fail":
