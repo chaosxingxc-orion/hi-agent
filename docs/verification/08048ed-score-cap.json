@@ -1,0 +1,22 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "real",
+  "manifest_id": "2026-04-27-08048ed",
+  "verified_head": "08048ed760f8733dcef5ad921e6106d8a28a3281",
+  "generated_at": "2026-04-27T13:01:39.102390+00:00",
+  "current_verified_readiness": 63.0,
+  "cap": 63.0,
+  "cap_reason": "dirty_worktree; gate_fail: clean_env, score_cap; clean_env_unverified: fail; t3_deferred; gate_warn/deferred: vocab, t3_freshness, noqa_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "dirty_worktree",
+    "gate_fail: clean_env, score_cap",
+    "clean_env_unverified: fail",
+    "t3_deferred",
+    "gate_warn/deferred: vocab, t3_freshness, noqa_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [
+    "2026-04-27-wave14-delivery-notice.md: claims 72.0 > manifest verified 63.0"
+  ],
+  "status": "fail"
+}
