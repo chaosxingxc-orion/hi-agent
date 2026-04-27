@@ -23,6 +23,7 @@ from typing import Any
 from hi_agent.config.posture import Posture
 from hi_agent.context.run_execution_context import RunExecutionContext
 from hi_agent.contracts.run import RunState
+from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
 from hi_agent.server.run_queue import RunQueue
 from hi_agent.server.run_store import RunRecord, SQLiteRunStore
@@ -125,6 +126,9 @@ class RunManager:
         self._idempotency_store = idempotency_store
         self._run_store = run_store
         self._run_queue = run_queue
+        self._event_store: SQLiteEventStore | None = None
+        self._event_seq: int = 0
+        self._event_seq_lock = threading.Lock()
         # Maps run_id -> executor_fn when run_queue is used; populated by start_run.
         self._pending_executors: dict[str, Callable[[ManagedRun], Any]] = {}
         # Maps run_id -> CancellationToken (or any object with .cancel()) for in-process signal.
@@ -190,6 +194,59 @@ class RunManager:
             if run is not None:
                 run.current_stage = stage_name
                 run.stage_updated_at = datetime.now(UTC).isoformat()
+
+    def set_event_store(self, store: SQLiteEventStore) -> None:
+        """Inject the durable event store for run-progress event publishing.
+
+        Args:
+            store: SQLiteEventStore instance to receive run lifecycle events.
+        """
+        self._event_store = store
+
+    def _publish_run_event(
+        self,
+        run_id: str,
+        event_type: str,
+        payload_dict: dict[str, Any],
+        run: ManagedRun,
+    ) -> None:
+        """Append a structured lifecycle event to the event store if wired.
+
+        Silently no-ops when ``self._event_store`` is None.  Never propagates
+        exceptions — event publishing must not interrupt run execution.
+
+        Args:
+            run_id: Run identifier.
+            event_type: One of run_queued / run_started / run_completed /
+                run_failed / run_cancelled.
+            payload_dict: Arbitrary JSON-serialisable payload dict.
+            run: ManagedRun from which tenant/user/session spine is read.
+        """
+        if self._event_store is None:
+            return
+        with self._event_seq_lock:
+            seq = self._event_seq
+            self._event_seq += 1
+        event = StoredEvent(
+            event_id=str(uuid.uuid4()),
+            run_id=run_id,
+            sequence=seq,
+            event_type=event_type,
+            payload_json=json.dumps(payload_dict),
+            tenant_id=run.tenant_id,
+            user_id=run.user_id or "__legacy__",
+            session_id=run.session_id or "__legacy__",
+            created_at=datetime.now(UTC).timestamp(),
+        )
+        try:
+            self._event_store.append(event)
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "_publish_run_event: failed to append %s for run_id=%s: %s",
+                event_type,
+                run_id,
+                exc,
+            )
 
     def _owns(self, run: ManagedRun, ctx: TenantContext) -> bool:
         """Return True if the run belongs to the given workspace context.
@@ -357,6 +414,14 @@ class RunManager:
                 raise ValueError(f"run with task_id '{client_task_id}' already exists in workspace")
             self._runs[run_id] = run
 
+        # --- emit run_queued lifecycle event ---------------------------------
+        self._publish_run_event(
+            run_id,
+            "run_queued",
+            {"state": "created", "created_at": now},
+            run,
+        )
+
         # --- persist to run_store if available ------------------------------
         if self._run_store is not None:
             import time as _time
@@ -493,6 +558,12 @@ class RunManager:
             run.updated_at = datetime.now(UTC).isoformat()
         if self._run_store is not None:
             self._run_store.mark_running(run.run_id)
+        self._publish_run_event(
+            run.run_id,
+            "run_started",
+            {"state": "running", "started_at": run.updated_at},
+            run,
+        )
         try:
             result = executor_fn(run)
             with self._lock:
@@ -536,6 +607,19 @@ class RunManager:
                     self._run_store.mark_failed(run.run_id, run.error or "")
             self._semaphore.release()
             self._write_trace_stub(run)
+            _terminal_event = (
+                "run_completed"
+                if run.state == "completed"
+                else "run_cancelled"
+                if run.state == "cancelled"
+                else "run_failed"
+            )
+            self._publish_run_event(
+                run.run_id,
+                _terminal_event,
+                {"state": run.state, "error": run.error or "", "finished_at": run.finished_at},
+                run,
+            )
             if (
                 run.idempotency_key is not None
                 and self._idempotency_store is not None
@@ -600,6 +684,12 @@ class RunManager:
         if self._run_queue is not None:
             _heartbeat_thread.start()
 
+        self._publish_run_event(
+            run_id,
+            "run_started",
+            {"state": "running", "started_at": run.updated_at},
+            run,
+        )
         try:
             result = executor_fn(run)
             with self._lock:
@@ -648,6 +738,19 @@ class RunManager:
                     self._run_store.mark_failed(run.run_id, run.error or "")
             self._semaphore.release()
             self._write_trace_stub(run)
+            _terminal_event_d = (
+                "run_completed"
+                if run.state == "completed"
+                else "run_cancelled"
+                if run.state == "cancelled"
+                else "run_failed"
+            )
+            self._publish_run_event(
+                run_id,
+                _terminal_event_d,
+                {"state": run.state, "error": run.error or "", "finished_at": run.finished_at},
+                run,
+            )
             if (
                 run.idempotency_key is not None
                 and self._idempotency_store is not None

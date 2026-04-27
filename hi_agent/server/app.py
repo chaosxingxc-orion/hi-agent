@@ -1536,6 +1536,8 @@ class AgentServer:
             run_store=self._run_store,
             run_queue=self._run_queue,
         )
+        if self._event_store is not None:
+            self.run_manager.set_event_store(self._event_store)
 
         from hi_agent.config.builder import SystemBuilder
 
