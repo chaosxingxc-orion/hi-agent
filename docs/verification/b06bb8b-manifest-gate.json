@@ -1,0 +1,11 @@
+{
+  "schema_version": "1",
+  "check": "manifest_build_gate",
+  "provenance": "real",
+  "release_head": "b06bb8b",
+  "verified_head": "b06bb8b854c40e5292fd732fbe3eaf0cac9e7d10",
+  "wave": "Wave 14",
+  "date": "2026-04-27",
+  "status": "pass",
+  "generated_at": "2026-04-27T12:38:00.023923+00:00"
+}

@@ -1,0 +1,26 @@
+{
+  "provenance": "structural",
+  "release_head": "b06bb8b",
+  "verified_head": "b06bb8b",
+  "generated_at": "2026-04-27T12:38:02.899986+00:00",
+  "run_id": "29418e07-3f27-45dc-a3eb-31236355f9b9",
+  "event_count": 5,
+  "event_types": [
+    "run_queued",
+    "run_started",
+    "run_started",
+    "run_completed",
+    "run_completed"
+  ],
+  "spine_ok": true,
+  "metrics_snapshot": {
+    "runs_total": {
+      "status=\"completed\"": 1.0
+    },
+    "hi_agent_runs_completed_total": {
+      "_total": 1.0
+    }
+  },
+  "failures": [],
+  "status": "pass"
+}
