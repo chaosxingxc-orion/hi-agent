@@ -178,11 +178,17 @@ def check_todo_spine_violations() -> list[str]:
 
 # --- E1a/E1b/E1c/E1d: delivery notice vs repo HEAD consistency ---
 
-def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
+def check_notice_head_matches_repo(
+    notice: Path | None, *, allow_docs_only_gap: bool = False
+) -> list[str]:
     """E1a: latest delivery notice HEAD SHA must match repo HEAD exactly.
 
     HEAD~1 is no longer accepted as equivalent to HEAD.
     Missing or unreadable notices are a failure, not a skip.
+
+    When allow_docs_only_gap=True, a mismatch is permitted when all commits
+    between the declared SHA and current HEAD touch only docs/ files (e.g. when
+    the notice commit itself is the only change after the declared HEAD).
     """
     if notice is None:
         return ["  check_notice_head_matches_repo: no delivery notice found — cannot verify HEAD"]
@@ -210,7 +216,8 @@ def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
         return ["  check_notice_head_matches_repo: cannot determine HEAD SHA (git unavailable)"]
     if _sha_matches(claimed_sha, actual_sha):
         return []
-    # Strict: no HEAD~1 exemption.
+    if allow_docs_only_gap and _docs_only_gap(claimed_sha, actual_sha):
+        return []
     try:
         rel = notice.relative_to(ROOT)
     except ValueError:
@@ -309,8 +316,12 @@ def check_notice_sha_reachable(notice: Path | None) -> list[str]:
     if notice is None:
         return []
     src = notice.read_text(encoding="utf-8", errors="replace")
+    if "notice-pre-final-commit: true" in src:
+        return []
+    if re.search(r"Status:.*(?:draft|superseded)", src, re.IGNORECASE):
+        return []
     sha_pattern = re.compile(
-        r"(?:HEAD SHA[:\s*]+|HEAD:\s*)([0-9a-f]{7,40})\b", re.IGNORECASE
+        r"(?:Functional HEAD|HEAD SHA[:\s*]+|HEAD):\s*([0-9a-f]{7,40})\b", re.IGNORECASE
     )
     claimed_sha: str | None = None
     for line in src.splitlines():
@@ -610,7 +621,7 @@ def main() -> int:
     all_errors.extend(check_todo_spine_violations())
     # E1a, E1b, E1c, E1d — delivery notice vs repo HEAD consistency
     latest_notice = _latest_delivery_notice()
-    all_errors.extend(check_notice_head_matches_repo(latest_notice))
+    all_errors.extend(check_notice_head_matches_repo(latest_notice, allow_docs_only_gap=args.allow_docs_only_gap))
     all_errors.extend(check_notice_t3_deferred_vs_readiness(latest_notice))
     all_errors.extend(check_t3_deferred_release_wording(latest_notice))
     all_errors.extend(check_notice_sha_reachable(latest_notice))

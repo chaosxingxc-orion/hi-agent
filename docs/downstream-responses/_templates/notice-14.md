@@ -4,8 +4,7 @@
 
 ```
 Functional HEAD:    {{HEAD}}
-Notice HEAD:        {{HEAD}}
-Manifest ID:        {{MANIFEST_ID}}
+Manifest:           {{MANIFEST_ID}}
 T3 evidence:        {{T3_EVIDENCE}}
 Clean-env evidence: {{CLEAN_ENV_EVIDENCE}}
 Current verified readiness: {{SCORE_CAP}}
