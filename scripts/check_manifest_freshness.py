@@ -68,7 +68,10 @@ def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
         if result.returncode != 0:
             raise RuntimeError(f"git diff exited {result.returncode}: {result.stderr.strip()}")
         changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-        _docs_prefixes = ("docs/releases/", "docs/verification/", "docs/delivery/")
+        _docs_prefixes = (
+            "docs/releases/", "docs/verification/", "docs/delivery/",
+            "docs/downstream-responses/", "docs/governance/", "docs/scorecard",
+        )
         return all(any(f.startswith(p) for p in _docs_prefixes) for f in changed) and bool(changed)
     except RuntimeError:
         raise
