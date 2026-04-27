@@ -36,10 +36,31 @@ _CLOSURE_PATTERN = re.compile(
 _LEVEL_PATTERN = re.compile(r"level:\s*(\S+)", re.IGNORECASE)
 
 
+_CLOSURE_LEVEL_ENUM = re.compile(
+    r"level:\s*(?:" + "|".join(re.escape(l) for l in _VALID_LEVELS) + r")",
+    re.IGNORECASE,
+)
+
+
+def _is_wave14_plus_notice(path: pathlib.Path, text: str) -> bool:
+    """Return True if this notice is Wave 14 or later (must comply with level: requirement)."""
+    # Check filename for wave number >= 14
+    m = re.search(r"wave[-_]?(\d+)", path.name, re.IGNORECASE)
+    if m and int(m.group(1)) >= 14:
+        return True
+    # Check if the notice explicitly uses the closure-level enum (opted-in to new taxonomy)
+    if _CLOSURE_LEVEL_ENUM.search(text):
+        return True
+    return False
+
+
 def _check_notice(path: pathlib.Path) -> list[str]:
     text = path.read_text(encoding="utf-8", errors="replace")
     # Skip template or draft notices
     if re.search(r"Status:.*(?:draft|template|superseded)", text, re.IGNORECASE):
+        return []
+    # Pre-Wave-14 notices without explicit level: fields are exempt
+    if not _is_wave14_plus_notice(path, text):
         return []
     issues: list[str] = []
     for row_match in _CLOSURE_PATTERN.finditer(text):

@@ -116,5 +116,6 @@
   "server_pid": 40872,
   "started_at": "2026-04-22T16:59:45.331546+00:00",
   "status": "passed",
-  "total_duration_s": 1.4677644000039436
+  "total_duration_s": 1.4677644000039436,
+  "provenance": "structural"
 }

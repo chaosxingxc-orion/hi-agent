@@ -172,5 +172,6 @@
   "server_pid": 73296,
   "started_at": "2026-04-26T05:13:27.225319+00:00",
   "status": "passed",
-  "total_duration_s": 360.75643830001354
+  "total_duration_s": 360.75643830001354,
+  "provenance": "real"
 }

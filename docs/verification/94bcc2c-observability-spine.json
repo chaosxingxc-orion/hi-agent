@@ -1,11 +1,14 @@
 {
-  "release_head": "178cabc",
-  "verified_head": "178cabc",
-  "generated_at": "2026-04-27T07:56:16.661139+00:00",
-  "run_id": "f7803b7c-1ab9-4f5b-80fa-b9310a2cb4ee",
-  "event_count": 2,
+  "release_head": "94bcc2c",
+  "verified_head": "94bcc2c",
+  "generated_at": "2026-04-27T10:25:31.102855+00:00",
+  "run_id": "fe436ac5-51cb-46b6-9ef0-bed380780928",
+  "event_count": 5,
   "event_types": [
+    "run_queued",
     "run_started",
+    "run_started",
+    "run_completed",
     "run_completed"
   ],
   "spine_ok": true,

@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "check": "t3_freshness",
+  "provenance": "structural",
+  "mode": "deferred",
+  "status": "deferred",
+  "wave": "Wave 14",
+  "verified_head": "9968603",
+  "date": "2026-04-27",
+  "reason": "Real LLM API key not available in CI. T3 gate deferred per Rule 8. Shape-verified via mock-shape mode.",
+  "deferred_to": "When Volces API key is available",
+  "operator_shape": {
+    "server_mode": "hi_agent serve",
+    "llm_mode": "deferred_real",
+    "sequential_runs": 0,
+    "cross_loop_stability": "not_tested_deferred"
+  },
+  "generated_at": "2026-04-27T11:28:37.708039+00:00"
+}

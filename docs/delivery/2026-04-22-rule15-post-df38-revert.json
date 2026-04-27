@@ -29,5 +29,6 @@
   "server_pid": 35728,
   "started_at": "2026-04-22T14:09:09.850744+00:00",
   "status": "failed",
-  "total_duration_s": 0.0
+  "total_duration_s": 0.0,
+  "provenance": "real"
 }

@@ -59,7 +59,7 @@ def test_done_run_visible_after_restart(tmp_path) -> None:
             break
         time.sleep(0.05)
 
-    assert run1.state in ("completed", "failed", "cancelled"), (
+    assert run1.state == "completed", (
         f"Run did not reach terminal state before restart: {run1.state}"
     )
 
@@ -70,7 +70,7 @@ def test_done_run_visible_after_restart(tmp_path) -> None:
     # RunManager uses run_store for durability; reload from DB directly.
     recovered = store2.get(run_id)
     assert recovered is not None, "Run was lost after restart"
-    assert recovered.status in ("completed", "failed", "cancelled"), (
+    assert recovered.status == "completed", (
         f"Unexpected status after restart: {recovered.status}"
     )
 
@@ -126,6 +126,6 @@ def test_no_duplicate_execution_after_restart(tmp_path) -> None:
     # The DB record must still be terminal.
     recovered = store2.get(run_id)
     assert recovered is not None
-    assert recovered.status in ("completed", "failed", "cancelled"), (
+    assert recovered.status == "completed", (
         f"Unexpected DB status after restart: {recovered.status}"
     )

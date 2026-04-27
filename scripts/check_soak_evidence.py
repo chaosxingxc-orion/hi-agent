@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""W14-C2: Soak evidence gate.
+
+Reads the latest soak evidence from docs/verification/*-soak-*.json.
+  - pass: provenance==real AND duration_seconds>=86400
+  - deferred (cap 65 on 7x24): real soak < 24h OR dry_run
+  - fail: no evidence OR synthetic/unknown provenance
+
+Exit 0: pass.
+Exit 1: fail.
+Exit 2: deferred.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import pathlib
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+VERIF_DIR = ROOT / "docs" / "verification"
+DELIVERY_DIR = ROOT / "docs" / "delivery"
+
+_MIN_SOAK_SECONDS = 86400  # 24 hours
+
+
+def _latest_soak_evidence() -> pathlib.Path | None:
+    candidates = (
+        list(VERIF_DIR.glob("*soak*.json")) +
+        list(DELIVERY_DIR.glob("*soak*.json"))
+    )
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda p: p.stat().st_mtime)[-1]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Soak evidence gate.")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+
+    soak_file = _latest_soak_evidence()
+    if soak_file is None:
+        result = {
+            "status": "deferred",
+            "check": "soak_evidence",
+            "reason": "no soak evidence found (24h soak required for 7x24 readiness)",
+        }
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print("DEFERRED: no soak evidence", file=sys.stderr)
+        return 2
+
+    try:
+        data = json.loads(soak_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        result = {"status": "fail", "check": "soak_evidence", "reason": f"unreadable: {exc}"}
+        if args.json:
+            print(json.dumps(result, indent=2))
+        return 1
+
+    provenance = data.get("provenance", "unknown")
+    duration = data.get("duration_seconds", 0)
+    mode = data.get("mode", "")
+
+    if provenance in ("synthetic", "unknown"):
+        result = {
+            "status": "fail",
+            "check": "soak_evidence",
+            "reason": f"soak evidence has provenance:{provenance} — not accepted",
+        }
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"FAIL: {result['reason']}", file=sys.stderr)
+        return 1
+
+    if provenance == "dry_run" or mode == "dry_run":
+        result = {
+            "status": "deferred",
+            "check": "soak_evidence",
+            "reason": "soak was dry_run; real 24h soak required for 7x24 readiness",
+            "provenance": provenance,
+        }
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"DEFERRED: {result['reason']}", file=sys.stderr)
+        return 2
+
+    if provenance == "real" and duration >= _MIN_SOAK_SECONDS:
+        result = {
+            "status": "pass",
+            "check": "soak_evidence",
+            "provenance": provenance,
+            "duration_seconds": duration,
+        }
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"PASS: real 24h soak evidence present ({duration}s)")
+        return 0
+
+    # Real but short
+    result = {
+        "status": "deferred",
+        "check": "soak_evidence",
+        "reason": f"real soak duration {duration}s < {_MIN_SOAK_SECONDS}s (24h)",
+        "provenance": provenance,
+        "duration_seconds": duration,
+    }
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"DEFERRED: {result['reason']}", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

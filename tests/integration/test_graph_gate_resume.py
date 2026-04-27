@@ -260,6 +260,6 @@ def test_execute_graph_gate_id_is_structured_attribute() -> None:
 
     # Resume via the attribute value — must succeed without KeyError / AttributeError.
     result = executor.continue_from_gate_graph(gate_id=exc.gate_id, decision="approve")
-    assert result.status in {"completed", "failed"}, (
+    assert result.status == "completed", (
         f"resume did not reach a terminal state: {result.status!r}"
     )

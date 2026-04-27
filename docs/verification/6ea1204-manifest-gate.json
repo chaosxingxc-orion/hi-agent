@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "check": "manifest_build_gate",
+  "release_head": "6ea1204",
+  "verified_head": "6ea120460120f69a24ee4135ae43eaea5559d95a",
+  "manifest_id": "2026-04-27-6ea1204",
+  "wave": "Wave 13",
+  "date": "2026-04-27",
+  "status": "pass",
+  "generated_at": "2026-04-27T09:35:34.018171+00:00",
+  "provenance": "real"
+}

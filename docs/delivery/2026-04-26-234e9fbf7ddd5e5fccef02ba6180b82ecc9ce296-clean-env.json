@@ -32,5 +32,6 @@
   "failed": 0,
   "errors": 0,
   "skipped": 0,
-  "missing_paths": []
+  "missing_paths": [],
+  "provenance": "real"
 }

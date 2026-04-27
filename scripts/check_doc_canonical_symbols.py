@@ -1,13 +1,13 @@
-"""check_doc_canonical_symbols.py — verify that Python symbols in doc code blocks exist.
+﻿"""check_doc_canonical_symbols.py - verify that Python symbols in doc code blocks exist.
 
-Scans hi_agent/ARCHITECTURE.md, docs/migration-guides/*.md, and docs/api-reference*.md
-for fenced Python code blocks, extracts `from hi_agent... import ...` statements and
-`hi_agent.XXX.YYY(...)` call expressions, then verifies each symbol is importable and
-is not a shim (does not carry a __deprecated__ attribute).
+Scans docs/**/*.md for fenced Python code blocks, extracts
+`from hi_agent... import ...` statements and `hi_agent.XXX.YYY(...)`
+call expressions, then verifies each symbol is importable and is not a
+shim (does not carry a __deprecated__ attribute).
 
 Exit codes:
-    0 — all checked symbols are canonical and accessible
-    1 — one or more phantoms or stale shims detected
+    0 - all checked symbols are canonical and accessible
+    1 - one or more phantoms or stale shims detected
 
 Usage:
     python scripts/check_doc_canonical_symbols.py
@@ -32,18 +32,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-DOC_PATHS: list[Path] = [
-    REPO_ROOT / "hi_agent" / "ARCHITECTURE.md",
-]
+DOCS_ROOT = REPO_ROOT / "docs"
+DOC_GLOB = "**/*.md"
 
-# Glob patterns for additional docs
-_MIGRATION_GUIDES_DIR = REPO_ROOT / "docs" / "migration-guides"
-_API_REF_GLOB = "api-reference*.md"
-_MIGRATION_GLOB = "*.md"
-
-# Files / directories to skip entirely (historical notices, not guidance)
+# Files / directories to skip entirely (generated evidence and release artifacts)
 SKIP_DIRS = {
-    REPO_ROOT / "docs" / "downstream-responses",
+    DOCS_ROOT / "releases",
+    DOCS_ROOT / "delivery",
+    DOCS_ROOT / "verification",
+    DOCS_ROOT / "governance",
 }
 
 # ---------------------------------------------------------------------------
@@ -68,16 +65,10 @@ _ATTR_CALL_RE = re.compile(
 
 
 def _collect_doc_files() -> list[Path]:
-    files: list[Path] = list(DOC_PATHS)
+    files: list[Path] = []
 
-    if _MIGRATION_GUIDES_DIR.exists():
-        for p in sorted(_MIGRATION_GUIDES_DIR.glob(_MIGRATION_GLOB)):
-            if p.is_file():
-                files.append(p)
-
-    docs_dir = REPO_ROOT / "docs"
-    if docs_dir.exists():
-        for p in sorted(docs_dir.glob(_API_REF_GLOB)):
+    if DOCS_ROOT.exists():
+        for p in sorted(DOCS_ROOT.glob(DOC_GLOB)):
             if p.is_file():
                 files.append(p)
 
@@ -136,9 +127,9 @@ def _parse_symbols(snippet: str) -> list[tuple[str, str]]:
 def _check_symbol(module_path: str, attr_name: str) -> tuple[str, str | None]:
     """Return ("ok"|"phantom"|"stale", detail).
 
-    "ok"      — symbol exists and is not marked deprecated
-    "phantom" — module or attr not importable
-    "stale"   — symbol exists but carries __deprecated__ attribute (shim)
+    "ok"      - symbol exists and is not marked deprecated
+    "phantom" - module or attr not importable
+    "stale"   - symbol exists but carries __deprecated__ attribute (shim)
     """
     # Try the full dotted path as a module/package first (e.g. hi_agent.plugin is a package).
     full_path = f"{module_path}.{attr_name}"
@@ -215,7 +206,7 @@ def main() -> int:
         print(json.dumps(result, indent=2))
     else:
         if result["status"] == "pass":
-            print("doc_canonical: PASS — all checked symbols exist and are canonical.")
+            print("doc_canonical: PASS - all checked symbols exist and are canonical.")
         else:
             print("doc_canonical: FAIL")
             if result["phantoms"]:

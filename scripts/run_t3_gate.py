@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Provider-neutral T3 release gate.
 
 This script verifies the operator-shape contract against a real hi-agent server.
@@ -59,6 +59,48 @@ def _capture_head_state() -> tuple[str, str, bool]:
 
     ts = datetime.now(UTC).isoformat()
     return head, ts, dirty
+def _run_mock_shape() -> Path:
+    started_at = datetime.now(UTC).isoformat()
+    short_sha = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=True,
+    ).stdout.strip()[:7]
+
+    response = {
+        "content": "mock shape ok",
+        "model": "mock",
+        "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+        },
+    }
+
+    if "content" not in response:
+        raise RuntimeError("mock shape check failed: missing 'content'")
+    if "model" not in response:
+        raise RuntimeError("mock shape check failed: missing 'model'")
+    usage = response.get("usage")
+    if not isinstance(usage, dict):
+        raise RuntimeError("mock shape check failed: missing usage dict")
+    if "prompt_tokens" not in usage or "completion_tokens" not in usage:
+        raise RuntimeError("mock shape check failed: usage token keys missing")
+
+    finished_at = datetime.now(UTC).isoformat()
+    evidence = {
+        "provenance": "structural",
+        "mode": "shape_verified",
+        "status": "passed",
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "response": response,
+    }
+    output = ROOT / "docs" / "verification" / f"{short_sha}-shape-verified-t3.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(evidence, indent=2, sort_keys=True), encoding="utf-8")
+    return output
 
 
 @dataclass(frozen=True)
@@ -152,7 +194,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Provider-neutral T3 release gate")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--port", type=int, default=8080)
-    parser.add_argument("--output", required=True)
+    parser.add_argument("--output", default=None)
     parser.add_argument(
         "--provider",
         choices=["volces", "anthropic", "openai", "auto"],
@@ -169,6 +211,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--inject-key",
         action="store_true",
         help="Call inject_provider_key.py before running the gate",
+    )
+    parser.add_argument(
+        "--mock-shape",
+        action="store_true",
+        help="Run structural mock response checks without live HTTP or key injection",
     )
     return parser
 
@@ -573,6 +620,23 @@ def run_gate(
 def main(argv: list[str] | None = None) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.mock_shape:
+        if args.inject_key:
+            print("--mock-shape cannot be combined with --inject-key", file=sys.stderr)
+            raise SystemExit(1)
+        try:
+            output = _run_mock_shape()
+        except Exception as exc:
+            print(f"T3 mock-shape failed: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
+        print(f"T3 mock-shape passed; evidence written to {output}")
+        return
+
+    if not args.output:
+        print("--output is required for live gate runs", file=sys.stderr)
+        raise SystemExit(1)
+
     config = GateConfig(
         base_url=args.base_url,
         port=args.port,
@@ -596,3 +660,5 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
+
+

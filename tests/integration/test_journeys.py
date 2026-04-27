@@ -867,6 +867,7 @@ def test_journey_combined_pi_c_pi_d(tmp_path: Path) -> None:
 
 
 @pytest.mark.skip(
+    expiry_wave="Wave 16",
     reason=(
         "K-13: PI-C+PI-D combination requires live kernel + LLM — add to E2E suite when available"
     )

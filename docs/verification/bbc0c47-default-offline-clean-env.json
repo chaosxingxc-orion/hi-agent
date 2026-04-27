@@ -34,5 +34,6 @@
   "errors": 0,
   "skipped": 0,
   "missing_paths": [],
-  "timeout_triage": null
+  "timeout_triage": null,
+  "provenance": "real"
 }

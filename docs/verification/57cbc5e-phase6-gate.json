@@ -12,5 +12,6 @@
     "docs/verification/bbc0c47-observability-spine.json",
     "docs/delivery/2026-04-27-bbc0c47-rule15-volces.json"
   ],
-  "generated_at": "2026-04-27T09:19:56.097917+00:00"
+  "generated_at": "2026-04-27T09:19:56.097917+00:00",
+  "provenance": "real"
 }

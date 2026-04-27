@@ -24,6 +24,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ALLOWLISTS_FILE = ROOT / "docs" / "governance" / "allowlists.yaml"
 
+
+def _current_wave_number() -> int:
+    """Load current wave from _current_wave.py (single source of truth)."""
+    try:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from _current_wave import wave_number, current_wave as _cw
+        return wave_number(_cw())
+    except Exception:
+        return 0
+
 REQUIRED_FIELDS = {
     "allowlist",
     "entry",
@@ -97,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"FAIL allowlist_discipline: {msg}")
         return 1
 
-    current_wave = data.get("current_wave", 0)
+    current_wave = _current_wave_number() or data.get("current_wave", 0)
     entries = data.get("entries", [])
 
     missing_fields: list[dict] = []

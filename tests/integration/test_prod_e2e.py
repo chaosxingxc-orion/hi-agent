@@ -204,7 +204,7 @@ def test_pe02_run_lifecycle(prod_client: Any) -> None:
     assert run_id, "run_id must not be empty"
 
     final = _wait_terminal(prod_client, run_id)
-    assert final["state"] in {"completed", "failed"}, (
+    assert final["state"] == "completed", (
         f"Unexpected terminal state: {final['state']!r}"
     )
 

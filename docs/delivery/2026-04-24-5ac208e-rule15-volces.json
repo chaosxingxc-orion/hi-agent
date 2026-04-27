@@ -164,5 +164,6 @@
   "server_pid": 10844,
   "started_at": "2026-04-24T08:43:42.873141+00:00",
   "status": "passed",
-  "total_duration_s": 563.4996713000583
+  "total_duration_s": 563.4996713000583,
+  "provenance": "real"
 }

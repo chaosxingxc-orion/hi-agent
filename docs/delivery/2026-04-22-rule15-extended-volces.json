@@ -162,5 +162,6 @@
   "server_pid": 31348,
   "started_at": "2026-04-22T13:49:34.547514+00:00",
   "status": "failed",
-  "total_duration_s": 723.1028391
+  "total_duration_s": 723.1028391,
+  "provenance": "real"
 }

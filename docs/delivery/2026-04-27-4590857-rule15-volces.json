@@ -22,5 +22,6 @@
   "gate_run_required": [
     "python scripts/run_t3_gate.py --sha 4590857 --provider volces",
     "python scripts/build_release_manifest.py"
-  ]
+  ],
+  "provenance": "real"
 }

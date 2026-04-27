@@ -157,5 +157,6 @@
   "server_pid": null,
   "started_at": "2026-04-24T11:09:48.000508+00:00",
   "status": "passed",
-  "total_duration_s": 363.2523726000218
+  "total_duration_s": 363.2523726000218,
+  "provenance": "real"
 }

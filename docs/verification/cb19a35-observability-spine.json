@@ -41,5 +41,6 @@
     ]
   },
   "missing_fields": {},
-  "status": "pass"
+  "status": "pass",
+  "provenance": "structural"
 }

@@ -193,7 +193,7 @@ class TestRealExecutorE2E:
         # ------------------------------------------------------------------
         # Valid terminal outcomes from RunExecutor.execute()
         valid_outcomes = {"completed", "failed", "aborted", "escalated", "timeout"}
-        assert result in valid_outcomes or isinstance(result, str), (
+        assert result == "completed", (
             f"Unexpected result from executor.execute(): {result!r}"
         )
 

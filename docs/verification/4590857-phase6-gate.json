@@ -7,5 +7,6 @@
   "date": "2026-04-27",
   "status": "pass",
   "note": "Implementation freeze at 4590857: Wave 13 all phases complete. V-7 burn-down, route_scope Wave 14 expiry, deprecated Wave 12 notice strings updated.",
-  "generated_at": "2026-04-27T09:25:52.640336+00:00"
+  "generated_at": "2026-04-27T09:25:52.640336+00:00",
+  "provenance": "real"
 }

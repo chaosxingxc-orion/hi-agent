@@ -63,5 +63,6 @@
       "elapsed_wall_seconds": 25.0,
       "error": null
     }
-  ]
+  ],
+  "provenance": "dry_run"
 }

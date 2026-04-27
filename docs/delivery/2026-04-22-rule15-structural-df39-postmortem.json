@@ -173,5 +173,6 @@
   "server_pid": 24708,
   "started_at": "2026-04-22T15:25:40.588927+00:00",
   "status": "passed",
-  "total_duration_s": 3.9002037000027485
+  "total_duration_s": 3.9002037000027485,
+  "provenance": "structural"
 }

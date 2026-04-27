@@ -71,6 +71,11 @@ _GATE_SCRIPTS: dict[str, tuple[str, bool, list[str]]] = {
     "closure_taxonomy":           ("check_closure_taxonomy.py",           True,  []),
     "multistatus_gates":          ("check_multistatus_gates.py",          True,  []),
     "score_cap":                  ("check_score_cap.py",                  True,  []),
+    # W14 7x24 operational readiness gates
+    "observability_spine_completeness": ("check_observability_spine_completeness.py", True, []),
+    "soak_evidence":              ("check_soak_evidence.py",              True,  []),
+    "chaos_runtime_coupling":     ("check_chaos_runtime_coupling.py",     True,  []),
+    "no_hardcoded_wave":          ("check_no_hardcoded_wave.py",          True,  []),
 }
 
 

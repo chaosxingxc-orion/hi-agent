@@ -18,5 +18,6 @@
     }
   },
   "failures": [],
-  "status": "pass"
+  "status": "pass",
+  "provenance": "structural"
 }

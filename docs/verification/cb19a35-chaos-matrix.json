@@ -58,5 +58,6 @@
       "passed": true,
       "skipped": false
     }
-  ]
+  ],
+  "provenance": "structural"
 }
