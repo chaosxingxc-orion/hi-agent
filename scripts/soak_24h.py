@@ -75,7 +75,7 @@ def _dlq_depth(base_url: str) -> int:
     """Query /ops/dlq for dead-lettered run count."""
     try:
         import httpx
-        r = httpx.get(f"{base_url}/ops/dlq", timeout=3.0)
+        r = httpx.get(f"{base_url}/ops/dlq", timeout=3.0, trust_env=False)
         if r.status_code == 200:
             data = r.json()
             return len(data.get("runs", data if isinstance(data, list) else []))
@@ -88,7 +88,7 @@ def _queue_depth(base_url: str) -> int:
     """Estimate queue depth from /ready endpoint."""
     try:
         import httpx
-        r = httpx.get(f"{base_url}/ready", timeout=3.0)
+        r = httpx.get(f"{base_url}/ready", timeout=3.0, trust_env=False)
         if r.status_code == 200:
             data = r.json()
             return int(data.get("queue_depth", 0))
@@ -137,8 +137,8 @@ class _SamplerThread:
 def _server_reachable(base_url: str) -> bool:
     try:
         import httpx
-        r = httpx.get(f"{base_url}/health", timeout=3.0)
-        return r.status_code == 200
+        r = httpx.get(f"{base_url}/ready", timeout=5.0, trust_env=False)
+        return r.status_code in (200, 503)
     except Exception:
         return False
 
@@ -147,13 +147,18 @@ def _submit_run(base_url: str, provider: str, run_index: int) -> dict:
     """Submit one run and wait for terminal state. Returns result dict."""
     import httpx
 
-    payload = {"task": f"soak-run-{run_index}", "provider": provider}
+    payload = {
+        "goal": f"soak-run-{run_index}",
+        "profile_id": "soak_test",
+        "project_id": "soak_test_project",
+    }
     t0 = time.monotonic()
     run_id = None
     state = "unknown"
     error = None
     try:
-        resp = httpx.post(f"{base_url}/runs", json=payload, timeout=10.0)
+        c = httpx.Client(timeout=httpx.Timeout(10.0), trust_env=False)
+        resp = c.post(f"{base_url}/runs", json=payload)
         if resp.status_code not in (200, 201, 202):
             error = f"HTTP {resp.status_code}: {resp.text[:200]}"
             return {
@@ -165,9 +170,9 @@ def _submit_run(base_url: str, provider: str, run_index: int) -> dict:
             }
         body = resp.json()
         run_id = body.get("run_id") or body.get("id")
-        deadline = time.monotonic() + 120.0
+        deadline = time.monotonic() + 600.0  # 10 min; Volces model may take ~6 min/run
         while time.monotonic() < deadline:
-            poll = httpx.get(f"{base_url}/runs/{run_id}", timeout=5.0)
+            poll = c.get(f"{base_url}/runs/{run_id}")
             if poll.status_code == 200:
                 info = poll.json()
                 state = info.get("state", "unknown")
@@ -176,6 +181,7 @@ def _submit_run(base_url: str, provider: str, run_index: int) -> dict:
             time.sleep(2.0)
         else:
             state = "timeout"
+        c.close()
     except Exception as exc:
         error = str(exc)
         state = "exception"
@@ -231,9 +237,19 @@ def _write_evidence(
     all_ids = [r.get("run_id") for r in results if r.get("run_id")]
     duplicate_executions = len(all_ids) - len(set(all_ids))
 
+    _min_real_seconds = 86400.0  # 24h threshold for provenance:real
+    if dry_run:
+        provenance = "dry_run"
+    elif duration_seconds >= _min_real_seconds:
+        provenance = "real"
+    else:
+        provenance = "shape_verified"
+
     evidence = {
         "release_head": sha,
         "verified_head": full_sha,
+        "check": "soak_evidence",
+        "provenance": provenance,
         "start_time": start_time,
         "end_time": end_time,
         "duration_seconds": round(duration_seconds, 3),
