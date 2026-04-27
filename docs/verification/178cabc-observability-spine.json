@@ -1,0 +1,22 @@
+{
+  "release_head": "178cabc",
+  "verified_head": "178cabc",
+  "generated_at": "2026-04-27T07:56:16.661139+00:00",
+  "run_id": "f7803b7c-1ab9-4f5b-80fa-b9310a2cb4ee",
+  "event_count": 2,
+  "event_types": [
+    "run_started",
+    "run_completed"
+  ],
+  "spine_ok": true,
+  "metrics_snapshot": {
+    "runs_total": {
+      "status=\"completed\"": 1.0
+    },
+    "hi_agent_runs_completed_total": {
+      "_total": 1.0
+    }
+  },
+  "failures": [],
+  "status": "pass"
+}

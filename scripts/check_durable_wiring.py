@@ -7,6 +7,9 @@ Each such class must either:
   (b) have a '# scope: process-internal' comment in its source file.
 
 Also verifies all requires_durable_* posture knobs are referenced in app.py/_durable_backends.py.
+
+The --json flag additionally runs an in-process runtime probe that instantiates
+each durable-store class and verifies basic protocol compliance.
 """
 from __future__ import annotations
 
@@ -15,7 +18,9 @@ import ast
 import pathlib
 import re
 import sys
+import uuid
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from _governance_json import emit_result
@@ -55,11 +60,18 @@ def check_posture_knobs_referenced() -> list[str]:
     posture_src = posture_path.read_text(encoding="utf-8")
     knob_pattern = re.compile(r"def (requires_durable_\w+)")
     knobs = knob_pattern.findall(posture_src)
-    app_src = (ROOT / "hi_agent" / "server" / "app.py").read_text(encoding="utf-8")
+    try:
+        app_src = (ROOT / "hi_agent" / "server" / "app.py").read_text(encoding="utf-8")
+    except Exception as exc:
+        print(f"FAIL durable_wiring: could not read app.py: {exc}", file=sys.stderr)
+        app_src = None  # will cause check to fail rather than silently degrade
     backends_src_path = ROOT / "hi_agent" / "server" / "_durable_backends.py"
     backends_src = (
         backends_src_path.read_text(encoding="utf-8") if backends_src_path.exists() else ""
     )
+    if app_src is None:
+        # Return all knobs as dead since we could not read app.py.
+        return list(knobs)
     dead = []
     for knob in knobs:
         if knob not in app_src and knob not in backends_src:
@@ -67,11 +79,59 @@ def check_posture_knobs_referenced() -> list[str]:
     return dead
 
 
+def _runtime_probe() -> dict[str, Any]:
+    """Instantiate each durable-store class and verify basic protocol compliance."""
+    sys.path.insert(0, str(ROOT))
+    results: dict[str, Any] = {}
+
+    # Probe SQLiteEventStore
+    try:
+        from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
+
+        store = SQLiteEventStore(":memory:")
+        event = StoredEvent(
+            event_id=str(uuid.uuid4()),
+            run_id="probe-run",
+            sequence=0,
+            event_type="probe",
+            payload_json="{}",
+        )
+        store.append(event)
+        events = store.list_since("probe-run", -1)
+        assert len(events) >= 1, "list_since returned no events after append"
+        assert store.max_sequence("probe-run") == 0
+        store.close()
+        results["SQLiteEventStore"] = "pass"
+    except Exception as exc:
+        results["SQLiteEventStore"] = f"fail: {exc}"
+
+    # Probe SQLiteRunStore (if available)
+    try:
+        from hi_agent.server.run_store import SQLiteRunStore
+
+        store = SQLiteRunStore(":memory:")
+        results["SQLiteRunStore"] = "pass"
+    except Exception as exc:
+        results["SQLiteRunStore"] = f"fail: {exc}"
+
+    # Probe IdempotencyStore (if available)
+    try:
+        from hi_agent.server.idempotency import IdempotencyStore
+
+        store = IdempotencyStore(":memory:")
+        results["IdempotencyStore"] = "pass"
+    except Exception as exc:
+        results["IdempotencyStore"] = f"fail: {exc}"
+
+    return results
+
+
 def _parse_wiring_error(text: str) -> dict:
     """Parse an error string into a structured dict."""
-    import re
     # Format: "  file::ClassName — message"
-    m = re.match(r"\s+([^:]+)::(\w+)\s+—\s+(.*)", text)
+    m = re.match(r"\s+([^:]+)::(\w+)\s+\xe2\x80\x94\s+(.*)", text)
+    if m is None:
+        m = re.match(r"\s+([^:]+)::(\w+)\s+--\s+(.*)", text)
     if m:
         return {"file": m.group(1), "class": m.group(2), "text": m.group(3)}
     return {"text": text.strip()}
@@ -102,13 +162,21 @@ def main() -> int:
         )
 
     if args.json:
+        probe_results = _runtime_probe()
+        probe_failures = [
+            f"{cls}: {msg}" for cls, msg in probe_results.items() if str(msg).startswith("fail:")
+        ]
         structured = [_parse_wiring_error(e) for e in errors]
+        all_pass = not errors and not probe_failures
         emit_result(
             "durable_wiring",
-            "pass" if not errors else "fail",
+            "pass" if all_pass else "fail",
             violations=structured,
             counts={"classes_checked": len(sqlite_classes)},
+            extra={"runtime_probe": probe_results, "probe_failures": probe_failures},
         )
+        # emit_result calls sys.exit, so the lines below are unreachable when --json.
+        return 0  # pragma: no cover
 
     if errors:
         print("FAIL check_durable_wiring:")
