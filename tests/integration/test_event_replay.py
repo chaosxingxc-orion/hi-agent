@@ -21,7 +21,7 @@ class TestSQLiteEventStore:
 
     def test_list_since_returns_events_after_sequence(self):
         """list_since(run_id, 3) returns only events with sequence > 3."""
-        store = SQLiteEventStore(":memory:")
+        store = SQLiteEventStore(":memory:")  # rule16-ephemeral-ok: not a restart test
         for i in range(1, 6):
             store.append(_evt(f"e{i}", "run-A", i))
 
@@ -33,7 +33,7 @@ class TestSQLiteEventStore:
 
     def test_list_since_ordered_by_sequence(self):
         """Events are returned in ascending sequence order."""
-        store = SQLiteEventStore(":memory:")
+        store = SQLiteEventStore(":memory:")  # rule16-ephemeral-ok: not a restart test
         # Insert out of order
         for seq in [3, 1, 2]:
             store.append(_evt(f"e{seq}", "run-B", seq))
@@ -44,7 +44,7 @@ class TestSQLiteEventStore:
 
     def test_duplicate_event_id_is_idempotent(self):
         """Appending the same event_id twice results in exactly one row."""
-        store = SQLiteEventStore(":memory:")
+        store = SQLiteEventStore(":memory:")  # rule16-ephemeral-ok: not a restart test
         ev = _evt("dup-1", "run-C", 1)
         store.append(ev)
         store.append(ev)  # second append must be silently ignored
@@ -55,7 +55,7 @@ class TestSQLiteEventStore:
 
     def test_run_isolation(self):
         """Events for run-A do not appear in queries for run-B."""
-        store = SQLiteEventStore(":memory:")
+        store = SQLiteEventStore(":memory:")  # rule16-ephemeral-ok: not a restart test
         store.append(_evt("a1", "run-A", 1))
         store.append(_evt("b1", "run-B", 1))
 
@@ -70,7 +70,7 @@ class TestSQLiteEventStore:
 
     def test_list_since_zero_returns_all(self):
         """list_since with since_sequence=0 returns all events."""
-        store = SQLiteEventStore(":memory:")
+        store = SQLiteEventStore(":memory:")  # rule16-ephemeral-ok: not a restart test
         for i in range(1, 4):
             store.append(_evt(f"z{i}", "run-Z", i))
 
@@ -80,7 +80,7 @@ class TestSQLiteEventStore:
 
     def test_empty_run_returns_empty_list(self):
         """Querying an unknown run_id returns an empty list."""
-        store = SQLiteEventStore(":memory:")
+        store = SQLiteEventStore(":memory:")  # rule16-ephemeral-ok: not a restart test
         result = store.list_since("no-such-run", 0)
         assert result == []
         store.close()

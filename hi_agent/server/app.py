@@ -451,7 +451,10 @@ from hi_agent.server.routes_memory import (
 
 async def handle_skills_list(request: Request) -> JSONResponse:
     """List all discovered skills with eligibility status."""
-    # TODO: per-tenant skill overlay needed — currently returns global registry to all tenants.
+    # TODO(owner=RO, expiry_wave=14): per-tenant skill overlay needed — currently returns global
+    # registry to all tenants. SkillDefinition carries no tenant_id; full per-tenant scoping
+    # requires adding a tenant_id field to SkillDefinition and filtering here. Tracked in
+    # test_skills_cross_tenant.py (xfail). Risk: medium — callers see other tenants' skill names.
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_sl
 
     try:
@@ -491,7 +494,10 @@ async def handle_skills_list(request: Request) -> JSONResponse:
 
 async def handle_skills_status(request: Request) -> JSONResponse:
     """Overall skill system status (counts, top performers)."""
-    # TODO: per-tenant skill overlay needed — currently returns global stats to all tenants.
+    # TODO(owner=RO, expiry_wave=14): per-tenant skill overlay needed — currently returns global
+    # stats to all tenants. skill_evolver._observer holds process-wide metrics with no tenant
+    # partitioning; full scoping requires per-tenant observer sharding. Risk: medium — callers
+    # see aggregate metrics across all tenants.
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_ss
 
     try:
@@ -1012,7 +1018,10 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
 
 async def handle_plugins_list(request: Request) -> JSONResponse:
     """Return list of loaded plugins."""
-    # TODO: per-tenant plugin overlay needed — global plugin list returned to all callers.
+    # TODO(owner=RO, expiry_wave=14): per-tenant plugin overlay needed — global plugin list
+    # returned to all callers. PluginManifest carries no tenant_id; full per-tenant scoping
+    # requires adding a tenant_id field to PluginManifest and filtering here. Risk: medium —
+    # callers see other tenants' plugin names.
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
@@ -1028,7 +1037,10 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
 
 async def handle_plugins_status(request: Request) -> JSONResponse:
     """Return plugin system status summary."""
-    # TODO: per-tenant plugin overlay needed — global plugin status returned to all callers.
+    # TODO(owner=RO, expiry_wave=14): per-tenant plugin overlay needed — global plugin status
+    # returned to all callers. PluginLoader._loaded is a single process-wide map; per-tenant
+    # status requires partitioning by tenant. Risk: medium — callers see aggregate plugin counts
+    # across all tenants.
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader

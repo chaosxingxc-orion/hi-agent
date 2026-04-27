@@ -160,6 +160,10 @@ def test_run_survives_server_restart(tmp_path):
         assert terminal_state is not None, (
             f"Run {run_id} did not reach terminal state after server restart."
         )
+        assert terminal_state == "done", (
+            f"Run {run_id} reached terminal state {terminal_state!r} after server restart, "
+            "but recovery must produce state='done', not 'error' or 'failed'."
+        )
 
         # Cross-tenant isolation: tenant T2 must not see tenant T1's run.
         isolation_resp = httpx.get(

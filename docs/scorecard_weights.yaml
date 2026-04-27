@@ -110,6 +110,12 @@ dimensions:
     base_score: 60
     gate_check: verification_artifacts
 
+  - name: targeted_default_path
+    description: "Critical default-path integration tests pass (run lease, progress events, liveness, DLQ, backpressure, drain, metrics catalogue)"
+    weight: 7
+    base_score: 70
+    gate_check: targeted_default_path
+
 # Three-tier score structure (per upstream conduct spec §6)
 # raw_implementation_maturity:  sum(weight * base_score / 100)
 # current_verified_readiness:   min(raw, gate_cap)

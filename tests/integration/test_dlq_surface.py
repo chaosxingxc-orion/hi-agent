@@ -20,7 +20,7 @@ from starlette.testclient import TestClient
 
 def test_dead_letter_and_list() -> None:
     """dead_letter a run, verify it appears in list_dlq."""
-    q = RunQueue(db_path=":memory:")
+    q = RunQueue(db_path=":memory:")  # rule16-ephemeral-ok: not a restart test
     q.enqueue("run-dlq-1", tenant_id="t1")
 
     q.dead_letter(
@@ -42,7 +42,7 @@ def test_dead_letter_and_list() -> None:
 
 def test_dead_letter_marks_queue_entry_failed() -> None:
     """After dead_letter, the run_queue entry status should be 'failed'."""
-    q = RunQueue(db_path=":memory:")
+    q = RunQueue(db_path=":memory:")  # rule16-ephemeral-ok: not a restart test
     q.enqueue("run-dlq-2", tenant_id="t1")
     q.dead_letter(
         run_id="run-dlq-2",
@@ -58,7 +58,7 @@ def test_dead_letter_marks_queue_entry_failed() -> None:
 
 def test_requeue_from_dlq() -> None:
     """dead_letter a run, requeue it, verify it is gone from DLQ and back to queued."""
-    q = RunQueue(db_path=":memory:")
+    q = RunQueue(db_path=":memory:")  # rule16-ephemeral-ok: not a restart test
     q.enqueue("run-dlq-3", tenant_id="t2")
     q.dead_letter(
         run_id="run-dlq-3",
@@ -82,13 +82,13 @@ def test_requeue_from_dlq() -> None:
 
 def test_requeue_from_dlq_returns_false_for_unknown_run() -> None:
     """requeue_from_dlq returns False when run_id is not in the DLQ."""
-    q = RunQueue(db_path=":memory:")
+    q = RunQueue(db_path=":memory:")  # rule16-ephemeral-ok: not a restart test
     assert q.requeue_from_dlq("nonexistent-run") is False
 
 
 def test_list_dlq_tenant_filter() -> None:
     """list_dlq with tenant_id filters to only that tenant's records."""
-    q = RunQueue(db_path=":memory:")
+    q = RunQueue(db_path=":memory:")  # rule16-ephemeral-ok: not a restart test
     q.enqueue("run-t1", tenant_id="t1")
     q.enqueue("run-t2", tenant_id="t2")
     q.dead_letter("run-t1", reason="r1", original_state="leased", tenant_id="t1")

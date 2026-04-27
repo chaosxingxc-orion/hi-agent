@@ -454,11 +454,11 @@ def test_tc10_cancel_signal_terminates_run(client: TestClient) -> None:
         f"Unexpected status {sig_resp.status_code} sending cancel signal"
     )
 
-    # _wait_for_terminal raises TimeoutError if terminal is not reached —
-    # the assertion below is therefore always true when we reach it.
+    # _wait_for_terminal raises TimeoutError if terminal is not reached.
     final = _wait_for_terminal(client, run_id, timeout=15.0)
-    assert final["state"] in _TERMINAL_STATES, (
-        f"_wait_for_terminal returned non-terminal state {final['state']!r}"
+    assert final["state"] == "cancelled", (
+        f"Expected state='cancelled' after cancel signal, got {final['state']!r}. "
+        "A cancel signal must drive the run to state='cancelled', not another terminal state."
     )
 
 

@@ -53,6 +53,7 @@ _GATE_SCRIPTS: dict[str, tuple[str, bool]] = {
     "slo_health":             ("check_slo_health.py",             True),
     "allowlist_discipline":   ("check_allowlist_discipline.py",   True),
     "verification_artifacts": ("check_verification_artifacts.py", True),
+    "targeted_default_path":  ("check_targeted_default_path.py",  True),
 }
 
 
