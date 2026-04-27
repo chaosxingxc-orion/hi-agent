@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS dead_lettered_runs (
     dead_lettered_at TEXT NOT NULL,
     tenant_id       TEXT NOT NULL DEFAULT '__unknown__',
     requeue_count   INTEGER NOT NULL DEFAULT 0,
-    last_requeue_at TEXT
+    last_requeue_at TEXT,
+    attempts_count  INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -137,13 +138,20 @@ ON run_queue (tenant_id, user_id, session_id, status)
         self._migrate()
 
     def _migrate(self) -> None:
-        """Add spine columns to run_queue table if missing."""
+        """Add spine columns to run_queue table and attempts_count to DLQ if missing."""
         cols = {row[1] for row in self._conn.execute("PRAGMA table_info(run_queue)")}
         for stmt in self._MIGRATE_SPINE:
             col = stmt.split("ADD COLUMN ")[1].split(" ")[0]
             if col not in cols:
                 self._conn.execute(stmt)
         self._conn.execute(self._CREATE_SPINE_INDEX)
+        # Migrate dead_lettered_runs: add attempts_count if absent.
+        dlq_cols = {row[1] for row in self._conn.execute("PRAGMA table_info(dead_lettered_runs)")}
+        if "attempts_count" not in dlq_cols:
+            self._conn.execute(
+                "ALTER TABLE dead_lettered_runs "
+                "ADD COLUMN attempts_count INTEGER NOT NULL DEFAULT 0"
+            )
         self._conn.commit()
 
     # -- public API -----------------------------------------------------------
@@ -349,6 +357,29 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 "WHERE run_id = ?",
                 (new_status, new_attempt_count, new_worker, new_lease, now, run_id),
             )
+
+            if new_attempt_count >= max_attempts:
+                # Auto-DLQ: insert dead_lettered_runs record for the exhausted run.
+                _now_iso = datetime.now(UTC).isoformat()
+                _tenant_row = self._conn.execute(
+                    "SELECT tenant_id FROM run_queue WHERE run_id = ?", (run_id,)
+                ).fetchone()
+                _tenant_id = _tenant_row[0] if _tenant_row else "__unknown__"
+                _coalesce = (
+                    "COALESCE("
+                    "(SELECT requeue_count FROM dead_lettered_runs WHERE run_id = ?), 0)"
+                )
+                _last_rq = (
+                    "(SELECT last_requeue_at FROM dead_lettered_runs WHERE run_id = ?)"
+                )
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO dead_lettered_runs "
+                    "(run_id, reason, original_state, dead_lettered_at, tenant_id, "
+                    " requeue_count, last_requeue_at, attempts_count) "
+                    f"VALUES (?, 'max_attempts_exceeded', ?, ?, ?, {_coalesce}, {_last_rq}, ?)",
+                    (run_id, "leased", _now_iso, _tenant_id, run_id, run_id, new_attempt_count),
+                )
+
             self._conn.commit()
 
     def cancel(self, run_id: str) -> None:
@@ -503,14 +534,23 @@ ON run_queue (tenant_id, user_id, session_id, status)
         now_iso = datetime.now(UTC).isoformat()
         now_ts = time.time()
         with self._lock:
+            # Read attempt_count from run_queue so DLQ record captures it.
+            _ac_row = self._conn.execute(
+                "SELECT attempt_count FROM run_queue WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            _attempts_count = int(_ac_row[0]) if _ac_row else 0
             self._conn.execute(
                 "INSERT OR REPLACE INTO dead_lettered_runs "
                 "(run_id, reason, original_state, dead_lettered_at, tenant_id, "
-                " requeue_count, last_requeue_at) "
+                " requeue_count, last_requeue_at, attempts_count) "
                 "VALUES (?, ?, ?, ?, ?, "
-                "  COALESCE((SELECT requeue_count FROM dead_lettered_runs WHERE run_id = ?), 0), "
-                "  (SELECT last_requeue_at FROM dead_lettered_runs WHERE run_id = ?))",
-                (run_id, reason, original_state, now_iso, tenant_id, run_id, run_id),
+                "  COALESCE((SELECT requeue_count FROM dead_lettered_runs"
+                "            WHERE run_id = ?), 0), "
+                "  (SELECT last_requeue_at FROM dead_lettered_runs WHERE run_id = ?), ?)",
+                (
+                    run_id, reason, original_state, now_iso, tenant_id,
+                    run_id, run_id, _attempts_count,
+                ),
             )
             self._conn.execute(
                 "UPDATE run_queue SET status = 'failed', updated_at = ? WHERE run_id = ?",
@@ -539,7 +579,7 @@ ON run_queue (tenant_id, user_id, session_id, status)
             if tenant_id is not None:
                 cur = self._conn.execute(
                     "SELECT run_id, reason, original_state, dead_lettered_at, "
-                    "       tenant_id, requeue_count, last_requeue_at "
+                    "       tenant_id, requeue_count, last_requeue_at, attempts_count "
                     "FROM dead_lettered_runs WHERE tenant_id = ? "
                     "ORDER BY dead_lettered_at DESC",
                     (tenant_id,),
@@ -547,7 +587,7 @@ ON run_queue (tenant_id, user_id, session_id, status)
             else:
                 cur = self._conn.execute(
                     "SELECT run_id, reason, original_state, dead_lettered_at, "
-                    "       tenant_id, requeue_count, last_requeue_at "
+                    "       tenant_id, requeue_count, last_requeue_at, attempts_count "
                     "FROM dead_lettered_runs ORDER BY dead_lettered_at DESC"
                 )
             rows = cur.fetchall()
@@ -560,6 +600,7 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 "tenant_id": row[4],
                 "requeue_count": row[5],
                 "last_requeue_at": row[6],
+                "attempts_count": row[7],
             }
             for row in rows
         ]
