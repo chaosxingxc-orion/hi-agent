@@ -45,7 +45,7 @@ def _sha_matches(artifact_head: str, head: str) -> bool:
 
 
 _GOVERNANCE_PREFIXES = (
-    "docs/", "scripts/", "tests/", ".github/",
+    "docs/", "scripts/", "tests/", ".github/", "pyproject.toml",
 )
 
 
