@@ -74,6 +74,7 @@ from hi_agent.server.routes_artifacts import (
 from hi_agent.server.routes_events import handle_run_events_sse
 from hi_agent.server.routes_manifest import MANIFEST_ROUTES
 from hi_agent.server.routes_ops import handle_cancel_long_op, handle_get_long_op
+from hi_agent.server.routes_ops_dlq import handle_list_dlq, handle_requeue_from_dlq
 from hi_agent.server.routes_profiles import (
     handle_global_l3_summary,
     handle_global_skills,
@@ -1166,6 +1167,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/doctor", handle_doctor, methods=["GET"]),
         Route("/diagnostics", handle_diagnostics, methods=["GET"]),
         Route("/ops/release-gate", handle_release_gate, methods=["GET"]),
+        Route("/ops/dlq", handle_list_dlq, methods=["GET"]),
+        Route("/ops/dlq/{run_id}/requeue", handle_requeue_from_dlq, methods=["POST"]),
         # Runs
         Route("/runs", handle_list_runs, methods=["GET"]),
         Route("/runs", handle_create_run, methods=["POST"]),

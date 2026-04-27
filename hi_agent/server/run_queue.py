@@ -14,6 +14,7 @@ import os
 import sqlite3
 import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
@@ -72,6 +73,18 @@ CREATE INDEX IF NOT EXISTS idx_run_queue_status_priority
 ON run_queue (status, priority ASC, enqueued_at ASC)
 """
 
+    _CREATE_DLQ_TABLE = """\
+CREATE TABLE IF NOT EXISTS dead_lettered_runs (
+    run_id          TEXT PRIMARY KEY,
+    reason          TEXT NOT NULL,
+    original_state  TEXT,
+    dead_lettered_at TEXT NOT NULL,
+    tenant_id       TEXT NOT NULL DEFAULT '__unknown__',
+    requeue_count   INTEGER NOT NULL DEFAULT 0,
+    last_requeue_at TEXT
+)
+"""
+
     _MIGRATE_SPINE: ClassVar[list[str]] = [
         "ALTER TABLE run_queue ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE run_queue ADD COLUMN user_id TEXT NOT NULL DEFAULT ''",
@@ -119,6 +132,7 @@ ON run_queue (tenant_id, user_id, session_id, status)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(self._CREATE_TABLE)
         self._conn.execute(self._CREATE_INDEX)
+        self._conn.execute(self._CREATE_DLQ_TABLE)
         self._conn.commit()
         self._migrate()
 
@@ -463,6 +477,116 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 (run_id,),
             )
             self._conn.commit()
+
+    def dead_letter(
+        self,
+        run_id: str,
+        reason: str,
+        original_state: str,
+        tenant_id: str,
+    ) -> None:
+        """Move a run to the dead-letter queue and mark it failed in run_queue.
+
+        Args:
+            run_id: Identifier of the run to dead-letter.
+            reason: Human-readable reason for dead-lettering.
+            original_state: The run's state/status at dead-letter time.
+            tenant_id: Tenant spine field for the DLQ record.
+        """
+        now_iso = datetime.now(UTC).isoformat()
+        now_ts = time.time()
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO dead_lettered_runs "
+                "(run_id, reason, original_state, dead_lettered_at, tenant_id, "
+                " requeue_count, last_requeue_at) "
+                "VALUES (?, ?, ?, ?, ?, "
+                "  COALESCE((SELECT requeue_count FROM dead_lettered_runs WHERE run_id = ?), 0), "
+                "  (SELECT last_requeue_at FROM dead_lettered_runs WHERE run_id = ?))",
+                (run_id, reason, original_state, now_iso, tenant_id, run_id, run_id),
+            )
+            self._conn.execute(
+                "UPDATE run_queue SET status = 'failed', updated_at = ? WHERE run_id = ?",
+                (now_ts, run_id),
+            )
+            self._conn.commit()
+
+    def list_dlq(self, tenant_id: str | None = None) -> list[dict]:
+        """Return all dead-lettered run records, optionally filtered by tenant.
+
+        Args:
+            tenant_id: If provided, only return records for this tenant.
+
+        Returns:
+            List of dicts with DLQ record fields.
+        """
+        with self._lock:
+            if tenant_id is not None:
+                cur = self._conn.execute(
+                    "SELECT run_id, reason, original_state, dead_lettered_at, "
+                    "       tenant_id, requeue_count, last_requeue_at "
+                    "FROM dead_lettered_runs WHERE tenant_id = ? "
+                    "ORDER BY dead_lettered_at DESC",
+                    (tenant_id,),
+                )
+            else:
+                cur = self._conn.execute(
+                    "SELECT run_id, reason, original_state, dead_lettered_at, "
+                    "       tenant_id, requeue_count, last_requeue_at "
+                    "FROM dead_lettered_runs ORDER BY dead_lettered_at DESC"
+                )
+            rows = cur.fetchall()
+        return [
+            {
+                "run_id": row[0],
+                "reason": row[1],
+                "original_state": row[2],
+                "dead_lettered_at": row[3],
+                "tenant_id": row[4],
+                "requeue_count": row[5],
+                "last_requeue_at": row[6],
+            }
+            for row in rows
+        ]
+
+    def requeue_from_dlq(self, run_id: str) -> bool:
+        """Remove a run from the DLQ and reset it to queued status.
+
+        Args:
+            run_id: Identifier of the dead-lettered run to requeue.
+
+        Returns:
+            ``True`` if the run was found in the DLQ and requeued;
+            ``False`` if not found.
+        """
+        now_ts = time.time()
+        now_iso = datetime.now(UTC).isoformat()
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT run_id FROM dead_lettered_runs WHERE run_id = ?",
+                (run_id,),
+            )
+            if cur.fetchone() is None:
+                return False
+            self._conn.execute(
+                "UPDATE dead_lettered_runs "
+                "SET requeue_count = requeue_count + 1, last_requeue_at = ? "
+                "WHERE run_id = ?",
+                (now_iso, run_id),
+            )
+            self._conn.execute(
+                "DELETE FROM dead_lettered_runs WHERE run_id = ?",
+                (run_id,),
+            )
+            self._conn.execute(
+                "UPDATE run_queue "
+                "SET status = 'queued', worker_id = NULL, "
+                "    lease_expires_at = NULL, updated_at = ? "
+                "WHERE run_id = ?",
+                (now_ts, run_id),
+            )
+            self._conn.commit()
+        return True
 
     def close(self) -> None:
         """Close the underlying database connection."""
