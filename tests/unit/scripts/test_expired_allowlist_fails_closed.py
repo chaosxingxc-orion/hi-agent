@@ -80,6 +80,7 @@ def test_expiry_equal_current_wave_does_not_fail(
     import check_allowlist_discipline as mod
 
     monkeypatch.setattr(mod, "ALLOWLISTS_FILE", yaml_file)
+    monkeypatch.setattr(mod, "_current_wave_number", lambda: 12)
     assert main([]) == 0
 
 

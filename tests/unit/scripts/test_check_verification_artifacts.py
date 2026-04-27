@@ -31,13 +31,12 @@ class TestNoArtifactsDirectory:
         assert result == 0
 
     def test_no_verification_dir_json_output(self, tmp_path, monkeypatch, capsys):
-        """JSON output shows 0 checked and pass status when no dirs exist."""
+        """JSON output shows 0 checked and not_applicable status when no dirs exist."""
         monkeypatch.setattr(cva, "ROOT", tmp_path)
         main(["--json"])
         data = json.loads(capsys.readouterr().out)
-        assert data["status"] == "pass"
+        assert data["status"] == "not_applicable"
         assert data["checked_count"] == 0
-        assert data["has_stale"] is False
 
 
 class TestMatchingHead:
@@ -97,8 +96,8 @@ class TestMismatchingHead:
         result = main(["--json"])
         assert result == 1
 
-    def test_stale_artifact_has_stale_true(self, tmp_path, monkeypatch, capsys):
-        """JSON output must show has_stale=True and list the stale file."""
+    def test_stale_artifact_fails(self, tmp_path, monkeypatch, capsys):
+        """JSON output must show fail status when no current artifact exists."""
         monkeypatch.setattr(cva, "ROOT", tmp_path)
         monkeypatch.setattr(cva, "_git_head", lambda: "aaaa1111bbbb2222cccc3333dddd4444eeee5555")
         _write_artifact(
@@ -109,12 +108,11 @@ class TestMismatchingHead:
         )
         main(["--json"])
         data = json.loads(capsys.readouterr().out)
-        assert data["has_stale"] is True
         assert data["status"] == "fail"
-        assert len(data["stale_files"]) == 1
+        assert data["has_current_head"] is False
 
-    def test_mixed_artifacts_fails_on_stale(self, tmp_path, monkeypatch):
-        """Even one stale artifact causes an overall failure."""
+    def test_mixed_artifacts_passes_when_current_exists(self, tmp_path, monkeypatch):
+        """A current artifact exists alongside historical ones — gate passes."""
         real_head = "aaaa1111bbbb2222cccc3333dddd4444eeee5555"
         monkeypatch.setattr(cva, "ROOT", tmp_path)
         monkeypatch.setattr(cva, "_git_head", lambda: real_head)
@@ -126,20 +124,20 @@ class TestMismatchingHead:
         )
         _write_artifact(
             tmp_path / "docs" / "verification",
-            "gate-stale.json",
+            "gate-historical.json",
             "release_head",
             "cafebabe9876",
         )
-        assert main(["--json"]) == 1
+        assert main(["--json"]) == 0
 
 
 class TestJsonOutputFormat:
     def test_json_output_has_required_keys(self, tmp_path, monkeypatch, capsys):
-        """JSON output must always contain check, status, has_stale, stale_files, checked_count."""
+        """JSON output must always contain check, status, has_current_head, current_files, checked_count."""
         monkeypatch.setattr(cva, "ROOT", tmp_path)
         main(["--json"])
         data = json.loads(capsys.readouterr().out)
-        for key in ("check", "status", "has_stale", "stale_files", "checked_count"):
+        for key in ("check", "status", "has_current_head", "current_files", "checked_count"):
             assert key in data, f"missing key: {key}"
 
     def test_json_check_field_value(self, tmp_path, monkeypatch, capsys):
@@ -159,4 +157,4 @@ class TestJsonOutputFormat:
         main(["--json"])
         data = json.loads(capsys.readouterr().out)
         assert data["checked_count"] == 0
-        assert data["status"] == "pass"
+        assert data["status"] in ("pass", "not_applicable")

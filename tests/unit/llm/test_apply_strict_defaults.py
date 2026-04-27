@@ -45,7 +45,7 @@ def test_apply_research_defaults_emits_deprecation():
         apply_research_defaults(router)
     dep_warns = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert dep_warns, "apply_research_defaults must emit DeprecationWarning"
-    assert "Wave 12" in str(dep_warns[0].message)
+    assert "Wave 15" in str(dep_warns[0].message)
     assert "apply_strict_defaults" in str(dep_warns[0].message)
 
 

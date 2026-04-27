@@ -1,4 +1,5 @@
 # docs/governance/score_caps.yaml
+schema_version: "1"
 # Single source of truth for score cap rules.
 # Priority: lowest cap wins when multiple conditions apply.
 # Conditions are evaluated in the order listed; first match sets the cap.

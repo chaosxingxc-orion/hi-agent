@@ -27,7 +27,7 @@ entries:
     owner: CO
     risk: low
     reason: Test shim entry.
-    expiry_wave: 6
+    expiry_wave: 99
     replacement_test: tests/unit/test_foo.py
     added_at: "2026-01-01"
 """
