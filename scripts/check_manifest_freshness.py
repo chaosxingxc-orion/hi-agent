@@ -52,7 +52,11 @@ def _latest_manifest() -> dict | None:
 
 
 def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
-    """Return True if commits between manifest_head..current_head only touch docs/releases/."""
+    """Return True if commits between manifest_head..current_head only touch docs/releases/.
+
+    Only called when --allow-docs-only-gap is passed; raises RuntimeError on subprocess error
+    so the caller can treat gap detection failure as non-permissive.
+    """
     if manifest_head == current_head:
         return True
     try:
@@ -61,16 +65,28 @@ def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
             capture_output=True, text=True, cwd=str(ROOT),
         )
         if result.returncode != 0:
-            return False
+            raise RuntimeError(f"git diff exited {result.returncode}: {result.stderr.strip()}")
         changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
         return all(f.startswith("docs/releases/") for f in changed) and bool(changed)
-    except Exception:
-        return False
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        raise RuntimeError(f"gap detection failed: {exc}") from exc
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check release manifest freshness.")
     parser.add_argument("--json", action="store_true", dest="json_output")
+    parser.add_argument(
+        "--allow-docs-only-gap",
+        action="store_true",
+        dest="allow_docs_only_gap",
+        help=(
+            "Opt-in: allow a HEAD mismatch when ALL changed files between manifest HEAD "
+            "and current HEAD reside under docs/releases/. Default (without this flag) "
+            "requires strict equality between manifest.release_head and current HEAD."
+        ),
+    )
     args = parser.parse_args(argv)
 
     head = _git_head()
@@ -79,7 +95,13 @@ def main(argv: list[str] | None = None) -> int:
     if manifest is None:
         msg = "no manifest found in docs/releases/"
         if args.json_output:
-            report = {"check": "manifest_freshness", "status": "fail", "reason": msg, "head": head}
+            report = {
+                "check": "manifest_freshness",
+                "status": "fail",
+                "reason": msg,
+                "head": head,
+                "allow_docs_only_gap": args.allow_docs_only_gap,
+            }
             print(json.dumps(report))
         else:
             print(f"FAIL manifest_freshness: {msg}")
@@ -96,11 +118,19 @@ def main(argv: list[str] | None = None) -> int:
         and not head.startswith(manifest_head[:len(head)])
     )
     if head_mismatch:
-        # Allow a single manifest-commit gap: if the only diff between manifest_head
-        # and current HEAD touches only docs/releases/ (the manifest file itself),
-        # the manifest is still considered current for the release gate.
-        gap_is_manifest_only = _manifest_commit_gap(manifest_head, head)
-        if not gap_is_manifest_only:
+        if args.allow_docs_only_gap:
+            # Opt-in: permit gap when only docs/releases/ files changed.
+            try:
+                gap_is_docs_only = _manifest_commit_gap(manifest_head, head)
+            except RuntimeError as exc:
+                reasons.append(f"gap_detection_failed: {exc}")
+                gap_is_docs_only = False
+            if not gap_is_docs_only:
+                reasons.append(
+                    f"head_mismatch: manifest={manifest_head[:12]}, current={head[:12]}"
+                )
+        else:
+            # Default strict mode: any head mismatch is a failure.
             reasons.append(f"head_mismatch: manifest={manifest_head[:12]}, current={head[:12]}")
     if is_dirty:
         reasons.append("manifest_was_dirty")
@@ -114,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
             "current_head": head[:12],
             "is_dirty": is_dirty,
             "reasons": reasons,
+            "allow_docs_only_gap": args.allow_docs_only_gap,
         }, indent=2))
         return 1 if reasons else 0
 

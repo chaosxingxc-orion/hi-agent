@@ -28,13 +28,13 @@ dimensions:
 
   - name: waiver_hygiene
     description: "All time-bounded waivers are tracked; none are past their expiry wave"
-    weight: 8
+    weight: 6
     base_score: 100
     gate_check: expired_waivers
 
   - name: doc_drift
     description: "Documentation references only symbols that exist and are not deprecated"
-    weight: 8
+    weight: 6
     base_score: 100
     gate_check: doc_canonical
 
@@ -76,7 +76,7 @@ dimensions:
 
   - name: clean_env
     description: "Default-offline profile completes without failures in a clean environment"
-    weight: 12
+    weight: 11
     base_score: 88
     gate_check: rule6_warnings
 
@@ -103,6 +103,12 @@ dimensions:
     weight: 5
     base_score: 65
     gate_check: slo_health
+
+  - name: verification_artifacts
+    description: "Verification and delivery artifacts are current at release HEAD"
+    weight: 4
+    base_score: 60
+    gate_check: verification_artifacts
 
 # Three-tier score structure (per upstream conduct spec §6)
 # raw_implementation_maturity:  sum(weight * base_score / 100)

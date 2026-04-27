@@ -73,7 +73,11 @@ def _latest_delivery_notice() -> Path | None:
 
 
 def _is_t3_stale() -> bool:
-    """Return True if check_t3_freshness.py exits non-zero."""
+    """Return True if check_t3_freshness.py exits non-zero.
+
+    On subprocess error (script missing, timeout, OS error), conservatively
+    returns True (treat as stale) rather than silently passing.
+    """
     try:
         r = subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "check_t3_freshness.py")],
@@ -82,7 +86,7 @@ def _is_t3_stale() -> bool:
         )
         return r.returncode != 0
     except Exception:
-        return False  # if we can't check, don't fail
+        return True  # conservative: unknown = treat as stale
 
 
 def check_t3_inherited_claims() -> list[str]:
@@ -175,10 +179,17 @@ def check_todo_spine_violations() -> list[str]:
 # --- E1a/E1b/E1c/E1d: delivery notice vs repo HEAD consistency ---
 
 def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
-    """E1a: latest delivery notice HEAD SHA must match repo HEAD or its direct parent."""
+    """E1a: latest delivery notice HEAD SHA must match repo HEAD exactly.
+
+    HEAD~1 is no longer accepted as equivalent to HEAD.
+    Missing or unreadable notices are a failure, not a skip.
+    """
     if notice is None:
-        return []
-    src = notice.read_text(encoding="utf-8", errors="replace")
+        return ["  check_notice_head_matches_repo: no delivery notice found — cannot verify HEAD"]
+    try:
+        src = notice.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return [f"  check_notice_head_matches_repo: cannot read {notice}: {exc}"]
     if "notice-pre-final-commit: true" in src:
         return []
     if re.search(r"Status:.*(?:draft|superseded)", src, re.IGNORECASE):
@@ -196,15 +207,13 @@ def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
         return []
     actual_sha = _git_head()
     if actual_sha is None:
-        return []
+        return ["  check_notice_head_matches_repo: cannot determine HEAD SHA (git unavailable)"]
     if _sha_matches(claimed_sha, actual_sha):
         return []
-    parent_sha = _git_parent("HEAD")
-    if parent_sha and _sha_matches(claimed_sha, parent_sha):
-        return []
+    # Strict: no HEAD~1 exemption.
     return [
         f"  {notice.relative_to(ROOT)}: Delivery notice HEAD {claimed_sha} does not "
-        f"match repo HEAD {actual_sha} or its parent. Update the notice or add "
+        f"match repo HEAD {actual_sha}. Update the notice or add "
         "'notice-pre-final-commit: true' if this is a pre-final-doc commit."
     ]
 
@@ -330,8 +339,7 @@ def check_notice_sha_reachable(notice: Path | None) -> list[str]:
 def _docs_only_gap(base_sha: str, current_sha: str) -> bool:
     """Return True if commits between base_sha..current_sha only touch docs/ files.
 
-    Allows manifest and closure-notice commits to follow the functional HEAD
-    without triggering a stale-notice false alarm.
+    Only used when --allow-docs-only-gap is explicitly passed.
     """
     if base_sha == current_sha:
         return True
@@ -348,13 +356,17 @@ def _docs_only_gap(base_sha: str, current_sha: str) -> bool:
         return False
 
 
-def check_notice_head_alignment() -> list[str]:
+def check_notice_head_alignment(*, allow_docs_only_gap: bool = False) -> list[str]:
     """Wave notice files must declare the current HEAD SHA unless marked 'Status: draft'.
 
     For each file matching ``docs/downstream-responses/2026-*-wave*-notice.md``:
     - If the file contains ``Status: draft`` on any line → skip (draft notices are exempt).
     - Otherwise both ``Functional HEAD:`` and ``Notice HEAD:`` lines must contain the
       current HEAD SHA.  Missing lines also count as a mismatch.
+
+    When allow_docs_only_gap=True (--allow-docs-only-gap flag), a mismatch is
+    accepted if the only commits between the declared SHA and current HEAD touch
+    docs/ files.  Default is strict (any mismatch = error).
     """
     errors: list[str] = []
     head = _git_head(ROOT)
@@ -385,25 +397,29 @@ def check_notice_head_alignment() -> list[str]:
         except ValueError:
             rel = notice
         for sha in func_heads:
-            if (
-                not head.startswith(sha)
-                and not sha.startswith(head[:len(sha)])
-                and not _docs_only_gap(sha, head)
-            ):
-                errors.append(
-                    f"  STALE-NOTICE-HEAD: {rel} declares Functional HEAD {sha}, "
-                    f"current is {head[:12]}"
-                )
+            sha_matches_head = (
+                head.startswith(sha) or sha.startswith(head[:len(sha)])
+            )
+            if not sha_matches_head:
+                if allow_docs_only_gap and _docs_only_gap(sha, head):
+                    pass  # opt-in exemption: docs-only commits after declared HEAD
+                else:
+                    errors.append(
+                        f"  STALE-NOTICE-HEAD: {rel} declares Functional HEAD {sha}, "
+                        f"current is {head[:12]}"
+                    )
         for sha in notice_heads:
-            if (
-                not head.startswith(sha)
-                and not sha.startswith(head[:len(sha)])
-                and not _docs_only_gap(sha, head)
-            ):
-                errors.append(
-                    f"  STALE-NOTICE-HEAD: {rel} declares Notice HEAD {sha}, "
-                    f"current is {head[:12]}"
-                )
+            sha_matches_head = (
+                head.startswith(sha) or sha.startswith(head[:len(sha)])
+            )
+            if not sha_matches_head:
+                if allow_docs_only_gap and _docs_only_gap(sha, head):
+                    pass  # opt-in exemption
+                else:
+                    errors.append(
+                        f"  STALE-NOTICE-HEAD: {rel} declares Notice HEAD {sha}, "
+                        f"current is {head[:12]}"
+                    )
         if not func_heads and not notice_heads:
             # No HEAD fields at all — check for legacy HEAD SHA line
             legacy = [
@@ -454,11 +470,10 @@ _MANIFEST_CITE_RE = re.compile(r"Manifest:\s*\S+")
 def check_downstream_notices_cite_manifest() -> list[str]:
     """Check 9: downstream-response files newer than the latest manifest must cite Manifest: <id>.
 
-    If no manifest exists yet, skip (manifest infrastructure is new; bootstrap exemption).
+    Bootstrap exemption removed: if no manifest exists and downstream-response files exist,
+    those files should still be flagged for missing manifest citations.
     """
     manifest_mtime = _latest_manifest_mtime()
-    if manifest_mtime is None:
-        return []  # no manifest yet; bootstrap exemption
 
     errors = []
     responses_dir = DOCS / "downstream-responses"
@@ -466,7 +481,8 @@ def check_downstream_notices_cite_manifest() -> list[str]:
         return []
 
     for notice in responses_dir.glob("*.md"):
-        if notice.stat().st_mtime <= manifest_mtime:
+        # If a manifest exists, only check files newer than the manifest.
+        if manifest_mtime is not None and notice.stat().st_mtime <= manifest_mtime:
             continue  # older than manifest; exempt
         src = notice.read_text(encoding="utf-8", errors="replace")
         # Draft/superseded notices are exempt
@@ -475,7 +491,7 @@ def check_downstream_notices_cite_manifest() -> list[str]:
         if not _MANIFEST_CITE_RE.search(src):
             errors.append(
                 f"  {notice.relative_to(ROOT)}: downstream-response newer than latest manifest "
-                "must contain 'Manifest: <manifest_id>' line"
+                "(or no manifest exists) must contain 'Manifest: <manifest_id>' line"
             )
     return errors
 
@@ -571,6 +587,16 @@ def main() -> int:
         action="store_true",
         help="Emit JSON output instead of human-readable text.",
     )
+    parser.add_argument(
+        "--allow-docs-only-gap",
+        action="store_true",
+        dest="allow_docs_only_gap",
+        help=(
+            "Opt-in: accept a SHA mismatch in wave notices when ALL changed files between "
+            "the declared HEAD and current HEAD reside under docs/. Default (without this "
+            "flag) requires strict SHA equality."
+        ),
+    )
     args = parser.parse_args()
 
     all_errors = []
@@ -585,7 +611,7 @@ def main() -> int:
     all_errors.extend(check_t3_deferred_release_wording(latest_notice))
     all_errors.extend(check_notice_sha_reachable(latest_notice))
     # Wave notice HEAD alignment
-    all_errors.extend(check_notice_head_alignment())
+    all_errors.extend(check_notice_head_alignment(allow_docs_only_gap=args.allow_docs_only_gap))
     # Check 9: downstream-response notices newer than manifest must cite Manifest: <id>
     all_errors.extend(check_downstream_notices_cite_manifest())
     # Check 11: closure notices must have a valid level enum in every defect row

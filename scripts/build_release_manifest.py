@@ -37,21 +37,22 @@ CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 #   by `git update-index --skip-worktree`; not a code-quality gate.
 # Excluded: check_t3_evidence.py — PR-time gate (requires --changed-files / --pr-body args).
 _GATE_SCRIPTS: dict[str, tuple[str, bool]] = {
-    "layering":             ("check_layering.py",              True),
-    "vocab":                ("check_no_research_vocab.py",     True),
-    "route_scope":          ("check_route_scope.py",           True),
-    "expired_waivers":      ("check_expired_waivers.py",       True),
-    "doc_canonical":        ("check_doc_canonical_symbols.py", True),
-    "doc_consistency":      ("check_doc_consistency.py",       True),
-    "wave_tags":            ("check_no_wave_tags.py",          True),
-    "rule6_warnings":       ("check_rules.py",                 True),
-    "t3_freshness":         ("check_t3_freshness.py",          False),
-    "boundary":             ("check_boundary.py",              True),
-    "deprecated_api":       ("check_deprecated_field_usage.py", True),
-    "durable_wiring":       ("check_durable_wiring.py",        True),
-    "metrics_cardinality":  ("check_metrics_cardinality.py",   True),
-    "slo_health":           ("check_slo_health.py",            True),
-    "allowlist_discipline": ("check_allowlist_discipline.py",  True),
+    "layering":               ("check_layering.py",               True),
+    "vocab":                  ("check_no_research_vocab.py",      True),
+    "route_scope":            ("check_route_scope.py",            True),
+    "expired_waivers":        ("check_expired_waivers.py",        True),
+    "doc_canonical":          ("check_doc_canonical_symbols.py",  True),
+    "doc_consistency":        ("check_doc_consistency.py",        True),
+    "wave_tags":              ("check_no_wave_tags.py",           True),
+    "rule6_warnings":         ("check_rules.py",                  True),
+    "t3_freshness":           ("check_t3_freshness.py",           False),
+    "boundary":               ("check_boundary.py",               True),
+    "deprecated_api":         ("check_deprecated_field_usage.py", True),
+    "durable_wiring":         ("check_durable_wiring.py",         True),
+    "metrics_cardinality":    ("check_metrics_cardinality.py",    True),
+    "slo_health":             ("check_slo_health.py",             True),
+    "allowlist_discipline":   ("check_allowlist_discipline.py",   True),
+    "verification_artifacts": ("check_verification_artifacts.py", True),
 }
 
 
