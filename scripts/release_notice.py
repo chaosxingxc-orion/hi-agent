@@ -245,35 +245,13 @@ def run(wave: str, allow_dirty: bool = False, dry_run: bool = False) -> int:
     _git_commit(commit_msg)
     print(f"Committed: {commit_msg}")
 
-    # Steps 8-11: post-commit HEAD realignment loop (cap at 2 iterations)
-    for iteration in range(1, 3):
-        # Step 8: re-resolve HEAD after commit
-        new_head = _git_head_short()
-
-        # Step 9: check Functional HEAD in notice matches new HEAD
-        current_text = notice_path.read_text(encoding="utf-8")
-        declared_head = _extract_functional_head(current_text)
-
-        if declared_head is None:
-            print(
-                f"WARNING: Could not find 'Functional HEAD:' in notice after iteration {iteration}."
-            )
-            break
-
-        if declared_head == new_head or new_head.startswith(declared_head):
-            # Aligned: done
-            break
-
-        # Step 10: mismatch — rewrite notice with new HEAD
-        print(
-            f"[iteration {iteration}] HEAD mismatch: notice declares {declared_head}, "
-            f"actual is {new_head}. Realigning..."
-        )
-        updated_text = _update_head_in_notice(current_text, declared_head, new_head)
-        notice_path.write_text(updated_text, encoding="utf-8")
-        _git_add(notice_path)
-        _git_commit_amend()
-        print(f"[iteration {iteration}] Amended commit with updated HEAD {new_head}")
+    # Note: no post-commit HEAD realignment loop.
+    # Functional HEAD: is intentionally set to the HEAD at render time (the last
+    # code commit), NOT the notice commit's own SHA.  Putting the notice commit's
+    # SHA into the notice and then amending creates an infinite loop (each amend
+    # produces a new SHA, which would need to be written into the notice, causing
+    # another amend, etc.).  The docs-only gap exemption in check_doc_consistency
+    # handles the stable one-commit gap between Functional HEAD and current HEAD.
 
     # Step 12: print final result
     final_head = _git_head_short()
