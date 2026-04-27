@@ -133,6 +133,8 @@ class RunManager:
         self._pending_executors: dict[str, Callable[[ManagedRun], Any]] = {}
         # Maps run_id -> CancellationToken (or any object with .cancel()) for in-process signal.
         self._active_executor_tokens: dict[str, Any] = {}
+        # Tracks run_ids that are currently executing (between start and finally block).
+        self._active_run_ids: set[str] = set()
         # PriorityQueue: items are (priority, sequence, run, executor_fn).
         # Lower priority integer = higher urgency (1 executes before 5).
         # sequence is a monotonic counter that breaks priority ties (FIFO within tier).
@@ -554,6 +556,7 @@ class RunManager:
         """Execute a single run under the semaphore (already acquired)."""
         with self._lock:
             self._active_count += 1
+            self._active_run_ids.add(run.run_id)
             run.state = "running"
             run.updated_at = datetime.now(UTC).isoformat()
         if self._run_store is not None:
@@ -594,6 +597,7 @@ class RunManager:
             _now_iso = datetime.now(UTC).isoformat()
             with self._lock:
                 self._active_count -= 1
+                self._active_run_ids.discard(run.run_id)
                 if run.finished_at is None:
                     run.finished_at = _now_iso
             # Sync terminal state to run_store.
@@ -646,6 +650,7 @@ class RunManager:
         """
         with self._lock:
             self._active_count += 1
+            self._active_run_ids.add(run.run_id)
             run.state = "running"
             run.updated_at = datetime.now(UTC).isoformat()
         if self._run_store is not None:
@@ -725,6 +730,7 @@ class RunManager:
             _now_iso_d = datetime.now(UTC).isoformat()
             with self._lock:
                 self._active_count -= 1
+                self._active_run_ids.discard(run.run_id)
                 if run.finished_at is None:
                     run.finished_at = _now_iso_d
             # Sync terminal state to run_store.
@@ -1040,6 +1046,11 @@ class RunManager:
     def shutdown(self, timeout: float = 2.0) -> None:
         """Stop the background worker thread and prevent new queue loops.
 
+        After joining worker threads, any runs still tracked in
+        ``_active_run_ids`` are marked failed in the run store and their
+        durable RunQueue leases are released so the next process restart can
+        recover them via ``_rehydrate_runs``.
+
         This is primarily used by server/test teardown to avoid leaking daemon
         worker threads across many short-lived RunManager instances.
         """
@@ -1073,3 +1084,21 @@ class RunManager:
                 break
             for thread in active_threads:
                 thread.join(timeout=join_slice)
+
+        # Release leases for runs that did not finish before the deadline.
+        with self._lock:
+            abandoned = set(self._active_run_ids)
+        if abandoned:
+            _log = logging.getLogger(__name__)
+            _log.warning(
+                "shutdown: %d run(s) still active at shutdown — marking failed: %s",
+                len(abandoned),
+                list(abandoned),
+            )
+            for _rid in abandoned:
+                with contextlib.suppress(Exception):
+                    if self._run_queue is not None:
+                        self._run_queue.fail(_rid, "run_manager", "server_shutdown")
+                with contextlib.suppress(Exception):
+                    if self._run_store is not None:
+                        self._run_store.mark_failed(_rid, "server_shutdown")

@@ -48,6 +48,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import signal
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -1303,6 +1304,22 @@ def build_app(agent_server: AgentServer) -> Starlette:
             _rehydrate_runs(agent_server)
         except Exception as _rh_exc:
             logger.warning("lifespan: _rehydrate_runs raised unexpectedly: %s", _rh_exc)
+
+        # Install SIGTERM handler so the server drains active runs on graceful
+        # termination (PM2/systemd/docker stop).  SIGTERM is available on
+        # Windows via the signal module but cannot be sent by kill(); it is
+        # raised by TerminateProcess.  The try/except guards against platforms
+        # where SIGTERM is not a valid signal number.
+        try:
+            def _sigterm_handler(signum: int, frame: object) -> None:
+                logger.warning("SIGTERM received — initiating graceful drain")
+                agent_server.run_manager.shutdown()
+
+            signal.signal(signal.SIGTERM, _sigterm_handler)
+        except (OSError, ValueError):
+            # signal.signal raises ValueError when called from a non-main thread
+            # (e.g. in some test harnesses) and OSError on unsupported platforms.
+            logger.debug("lifespan: SIGTERM handler not installed (non-main thread or unsupported)")
 
         try:
             yield
