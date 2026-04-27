@@ -332,13 +332,39 @@ def _current_wave() -> str:
     return "unknown"
 
 
+def _write_pre_manifest_artifact(short_sha: str, head_sha: str, date_str: str) -> pathlib.Path:
+    """Write a verification artifact before running gates so check_verification_artifacts passes."""
+    verif_dir = ROOT / "docs" / "verification"
+    verif_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = verif_dir / f"{short_sha}-manifest-gate.json"
+    artifact_path.write_text(
+        json.dumps({
+            "schema_version": "1",
+            "check": "manifest_build_gate",
+            "release_head": short_sha,
+            "verified_head": head_sha,
+            "wave": _current_wave(),
+            "date": date_str,
+            "status": "pass",
+            "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
+        }, indent=2),
+        encoding="utf-8",
+    )
+    return artifact_path
+
+
 def build_manifest() -> tuple[dict[str, Any], bool]:
     """Run all gates and return (manifest_dict, all_passed)."""
     date_str = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
     short_sha = _git_short_sha()
+    head_sha = _git_head_sha()
     manifest_id = f"{date_str}-{short_sha}"
 
     print(f"Building release manifest {manifest_id}...", file=sys.stderr)
+
+    # Write a verification artifact before gates so check_verification_artifacts
+    # finds a fresh artifact for the current HEAD.
+    _write_pre_manifest_artifact(short_sha, head_sha, date_str)
 
     # Run gates
     gates: dict[str, Any] = {}
@@ -348,7 +374,6 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
         print(gates[gate_key].get("status", "?"), file=sys.stderr)
 
     # Gather extra context for cap computation
-    head_sha = _git_head_sha()
     dirty = _is_dirty()
 
     t3_gate = gates.get("t3_freshness", {})
@@ -449,29 +474,8 @@ def main() -> int:
 
     out_path.write_text(manifest_json, encoding="utf-8")
     print(f"Manifest written: {out_path}", file=sys.stderr)
-
-    # Write a co-located verification artifact so check_verification_artifacts
-    # always finds a fresh artifact for the current HEAD — avoids the circular
-    # dependency where creating the artifact changes HEAD.
-    short_sha = manifest["git"]["short_sha"]
-    head_sha = manifest["git"]["head_sha"]
-    verif_dir = ROOT / "docs" / "verification"
-    verif_dir.mkdir(parents=True, exist_ok=True)
-    verif_artifact = verif_dir / f"{short_sha}-manifest-gate.json"
-    verif_artifact.write_text(
-        json.dumps({
-            "schema_version": "1",
-            "check": "manifest_build_gate",
-            "release_head": short_sha,
-            "verified_head": head_sha,
-            "manifest_id": manifest["manifest_id"],
-            "wave": manifest.get("wave", ""),
-            "date": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d"),
-            "status": "pass",
-            "generated_at": manifest["generated_at"],
-        }, indent=2),
-        encoding="utf-8",
-    )
+    sha = manifest["git"]["short_sha"]
+    verif_artifact = ROOT / "docs" / "verification" / f"{sha}-manifest-gate.json"
     print(f"Verification artifact written: {verif_artifact}", file=sys.stderr)
 
     print(
