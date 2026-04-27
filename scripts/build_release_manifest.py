@@ -73,7 +73,15 @@ def _git_short_sha() -> str:
 
 
 def _is_dirty() -> bool:
-    return bool(_git("status", "--porcelain"))
+    # Use 'git diff --quiet HEAD' to detect tracked-file modifications and
+    # staged changes, but NOT untracked files (e.g. the manifest output itself
+    # in docs/releases/ is expected to be untracked during manifest generation).
+    result = subprocess.run(
+        ["git", "diff", "--quiet", "HEAD"],
+        capture_output=True,
+        cwd=str(ROOT),
+    )
+    return result.returncode != 0
 
 
 def _run_gate(gate_key: str, script: str, has_json: bool) -> dict[str, Any]:

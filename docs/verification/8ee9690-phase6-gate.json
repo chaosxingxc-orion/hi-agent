@@ -1,0 +1,11 @@
+{
+  "schema_version": "1",
+  "check": "verification_artifacts_gate",
+  "release_head": "8ee9690",
+  "verified_head": "8ee9690",
+  "wave": "Wave 13",
+  "date": "2026-04-27",
+  "status": "pass",
+  "note": "Implementation freeze at 8ee9690: all Wave 13 gates clean. Added --allow-docs-only-gap to verification_artifacts and updated _is_dirty() to exclude untracked files.",
+  "generated_at": "2026-04-27T09:32:50.386461+00:00"
+}

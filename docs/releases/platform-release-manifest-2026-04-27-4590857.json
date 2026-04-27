@@ -1,0 +1,324 @@
+{
+  "manifest_id": "2026-04-27-4590857",
+  "schema_version": "1",
+  "generated_at": "2026-04-27T09:26:21.322972+00:00",
+  "release_head": "459085756ac6b2c797135f647ac372993020591f",
+  "git": {
+    "head_sha": "459085756ac6b2c797135f647ac372993020591f",
+    "short_sha": "4590857",
+    "is_dirty": true
+  },
+  "wave": "Wave 13",
+  "gates": {
+    "layering": {
+      "check": "layering",
+      "status": "pass",
+      "violations": [],
+      "allowlisted": [
+        {
+          "file": "hi_agent/artifacts/contracts.py",
+          "line": 185,
+          "module": "examples",
+          "reason": "lazy DeprecationWarning shim",
+          "expiry_wave": "Wave 12"
+        },
+        {
+          "file": "hi_agent/capability/bundles/__init__.py",
+          "line": 32,
+          "module": "examples",
+          "reason": "lazy DeprecationWarning shim for ResearchBundle (examples layer)",
+          "expiry_wave": "Wave 12"
+        }
+      ],
+      "head": "4590857"
+    },
+    "vocab": {
+      "check": "no_research_vocab",
+      "status": "warn",
+      "violations": [],
+      "hard_violations": [],
+      "soft_violations": [
+        {
+          "file": "hi_agent/artifacts/validators.py",
+          "line": 26,
+          "identifier": "class CitationValidator",
+          "expiry_wave": "Wave 12"
+        }
+      ],
+      "migration_guide_violations": [],
+      "head": "4590857"
+    },
+    "route_scope": {
+      "check": "route_scope",
+      "status": "pass",
+      "allowlist_total": 34,
+      "allowlist_expired": 0,
+      "expiring_this_wave": 0,
+      "violations": [],
+      "head": "4590857"
+    },
+    "expired_waivers": {
+      "check": "expired_waivers",
+      "status": "pass",
+      "current_wave": "Wave 13",
+      "violations": [],
+      "head": "4590857"
+    },
+    "doc_canonical": {
+      "check": "doc_canonical",
+      "status": "pass",
+      "phantoms": [],
+      "stale": []
+    },
+    "doc_consistency": {
+      "check": "doc_consistency",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "notices_checked": 5
+      },
+      "head": "4590857"
+    },
+    "wave_tags": {
+      "check": "no_wave_tags",
+      "status": "pass",
+      "violations": [],
+      "head": "4590857"
+    },
+    "rule6_warnings": {
+      "check": "rules",
+      "status": "pass",
+      "violations": [],
+      "hard_pass": true,
+      "rule6_warnings": {
+        "count": 24,
+        "sites": [
+          {
+            "file": "hi_agent/task_mgmt/reflection_bridge.py",
+            "line": 78,
+            "text": "restart_policy or TaskRestartPolicy(max_attempts=3),"
+          },
+          {
+            "file": "agent_kernel/kernel/minimal_runtime.py",
+            "line": 429,
+            "text": "self._policy = policy or StaticRecoveryPolicy()"
+          },
+          {
+            "file": "agent_kernel/kernel/turn_engine.py",
+            "line": 460,
+            "text": "self._defaults = defaults or TurnEngineDefaults("
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 324,
+            "text": "resolved_event_log_config = event_log_config or RuntimeEventLogConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 325,
+            "text": "resolved_dedupe_config = dedupe_config or RuntimeDedupeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 326,
+            "text": "resolved_decision_deduper_config = decision_deduper_config or RuntimeDecisionDedupeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 327,
+            "text": "resolved_recovery_config = recovery_outcome_config or RuntimeRecoveryOutcomeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 328,
+            "text": "resolved_turn_intent_config = turn_intent_log_config or RuntimeTurnIntentLogConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 329,
+            "text": "resolved_production_safety = production_safety_config or RuntimeProductionSafetyConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 374,
+            "text": "strict_mode_config=(strict_mode_config or RuntimeStrictModeConfig()),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 534,
+            "text": "event_log_config or RuntimeEventLogConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 537,
+            "text": "dedupe_config or RuntimeDedupeConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 540,
+            "text": "recovery_outcome_config or RuntimeRecoveryOutcomeConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 543,
+            "text": "turn_intent_log_config or RuntimeTurnIntentLogConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 564,
+            "text": "resolved_deduper_config = decision_deduper_config or RuntimeDecisionDedupeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/heartbeat.py",
+            "line": 187,
+            "text": "self._policy = policy or HeartbeatPolicy()"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/client.py",
+            "line": 48,
+            "text": "active_config = config or TemporalClientConfig()"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/gateway.py",
+            "line": 100,
+            "text": "self._config = config or TemporalGatewayConfig()"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/run_actor_workflow.py",
+            "line": 1359,
+            "text": "strict_mode=strict_mode or RunActorStrictModeConfig(),"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/run_actor_workflow.py",
+            "line": 1442,
+            "text": "strict_mode=strict_mode or RunActorStrictModeConfig(),"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/worker.py",
+            "line": 58,
+            "text": "self._config = config or TemporalWorkerConfig()"
+          },
+          {
+            "file": "agent_kernel/kernel/cognitive/script_runtime_subprocess.py",
+            "line": 55,
+            "text": "self._config = config or SubprocessScriptConfig()"
+          },
+          {
+            "file": "agent_kernel/kernel/recovery/gate.py",
+            "line": 120,
+            "text": "self._planner = planner or RecoveryPlanner()"
+          },
+          {
+            "file": "agent_kernel/kernel/recovery/planner.py",
+            "line": 156,
+            "text": "self._policy = policy or PlannerHeuristicPolicy()"
+          }
+        ]
+      },
+      "rule13_warnings": {
+        "count": 0,
+        "sites": []
+      },
+      "head": "4590857"
+    },
+    "t3_freshness": {
+      "status": "fail",
+      "summary": "T3: Using delivery file: 2026-04-27-bbc0c47-rule15-volces.json\nT3: Gate SHA = bbc0c47268f0811667569d25d003d47736129566\nT3: HEAD SHA  = 459085756ac6b2c797135f647ac372993020591f\nSTATUS: STALE\nCLEAN-ENV: NOT VERIFIED AT CURRENT HEAD",
+      "stderr": "T3-STALE: 1 hot-path file(s) changed since gate (bbc0c47268f0811667569d25d003d47736129566):\n  hi_agent/llm/tier_presets.py\n\nRule 8 T3 Invariance violated. Record a fresh gate run before release:\n  python scripts/run_t3_gate.py --provider volces \\\n      --output docs/delivery/<date>-<sha7>-t3-volces.json\nOr tag this PR: T3 evidence: DEFERRED \u2014 <reason>"
+    },
+    "boundary": {
+      "check": "boundary",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "total": 0
+      },
+      "head": "4590857"
+    },
+    "deprecated_api": {
+      "check": "deprecated_field_usage",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "total": 0
+      },
+      "head": "4590857"
+    },
+    "durable_wiring": {
+      "check": "durable_wiring",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "classes_checked": 13
+      },
+      "head": "4590857",
+      "runtime_probe": {
+        "SQLiteEventStore": "pass",
+        "SQLiteRunStore": "pass",
+        "IdempotencyStore": "pass"
+      },
+      "probe_failures": []
+    },
+    "metrics_cardinality": {
+      "check": "metrics_cardinality",
+      "status": "pass",
+      "violations": [],
+      "metrics_checked": 66
+    },
+    "slo_health": {
+      "status": "pass"
+    },
+    "allowlist_discipline": {
+      "check": "allowlist_discipline",
+      "status": "pass",
+      "total": 7,
+      "expired_total": 0,
+      "missing_fields_total": 0,
+      "invalid_risk_total": 0,
+      "failures": []
+    },
+    "verification_artifacts": {
+      "check": "verification_artifacts",
+      "status": "pass",
+      "has_current_head": true,
+      "current_files": [
+        "docs\\verification\\4590857-phase6-gate.json"
+      ],
+      "checked_count": 13
+    },
+    "targeted_default_path": {
+      "status": "pass",
+      "raw_stdout": "........................s..........                                      [100%]\n34 passed, 1 skipped in 8.67s\n{\"check\": \"targeted_default_path\", \"status\": \"pass\", \"returncode\": 0, \"test_files\": [\"tests/integration/test_run_lease_heartbeat.py\", \"tests/integration/test_run_progress_events.py\", \"tests/integration/test_run_liveness_fields.py\", \"tests/integration/test_dlq_surface.py\", \"tests/integration/test_backpressure.py\", \"tests/integration/test_graceful_drain.py\", \"tests/unit/test_metrics_catalo"
+    }
+  },
+  "scorecard": {
+    "raw": 88.83,
+    "verified": 63.0,
+    "raw_implementation_maturity": 88.83,
+    "current_verified_readiness": 63.0,
+    "conditional_readiness_after_blockers": 88.83,
+    "cap": 63.0,
+    "cap_reason": "dirty_worktree; gate_fail: t3_freshness; t3_stale; gate_warn/deferred: vocab",
+    "cap_factors": [
+      "dirty_worktree",
+      "gate_fail: t3_freshness",
+      "t3_stale",
+      "gate_warn/deferred: vocab"
+    ],
+    "weights_version": "1"
+  },
+  "t3": {
+    "status": "fail",
+    "verified_head": ""
+  },
+  "clean_env": {
+    "profile": "default-offline",
+    "status": "unknown",
+    "summary_available": null
+  },
+  "route_scope": {
+    "allowlist_total": 34,
+    "expired_allowlist_total": 0
+  },
+  "captains": "270cf97705346507"
+}
