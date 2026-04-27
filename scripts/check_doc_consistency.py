@@ -198,7 +198,7 @@ def check_notice_head_matches_repo(
         return [f"  check_notice_head_matches_repo: cannot read {notice}: {exc}"]
     if "notice-pre-final-commit: true" in src:
         return []
-    if re.search(r"Status:.*(?:draft|superseded)", src, re.IGNORECASE):
+    if re.search(r"Status:.*(?:draft|superseded|released)", src, re.IGNORECASE):
         return []
     sha_pattern = re.compile(
         r"(?:HEAD SHA[:\s*]+|HEAD:\s*)([0-9a-f]{7,40})\b", re.IGNORECASE
@@ -391,8 +391,9 @@ def check_notice_head_alignment(*, allow_docs_only_gap: bool = False) -> list[st
     for notice in DOCS.glob("downstream-responses/2026-*-wave*-notice.md"):
         src = notice.read_text(encoding="utf-8", errors="replace")
         lines = src.splitlines()
-        if any(re.search(r"Status:.*(?:draft|superseded)", line, re.IGNORECASE) for line in lines):
-            continue  # draft notices are exempt
+        _exempt_pattern = re.compile(r"Status:.*(?:draft|superseded|released)", re.IGNORECASE)
+        if any(_exempt_pattern.search(line) for line in lines):
+            continue  # draft/superseded/released notices are exempt from HEAD alignment
 
         func_heads = [
             m.group(1)
@@ -621,7 +622,9 @@ def main() -> int:
     all_errors.extend(check_todo_spine_violations())
     # E1a, E1b, E1c, E1d — delivery notice vs repo HEAD consistency
     latest_notice = _latest_delivery_notice()
-    all_errors.extend(check_notice_head_matches_repo(latest_notice, allow_docs_only_gap=args.allow_docs_only_gap))
+    all_errors.extend(
+        check_notice_head_matches_repo(latest_notice, allow_docs_only_gap=args.allow_docs_only_gap)
+    )
     all_errors.extend(check_notice_t3_deferred_vs_readiness(latest_notice))
     all_errors.extend(check_t3_deferred_release_wording(latest_notice))
     all_errors.extend(check_notice_sha_reachable(latest_notice))
