@@ -25,6 +25,8 @@ SCRIPTS_DIR = ROOT / "scripts"
 
 _WAVE_PATTERN = re.compile(r'"Wave\s+\d+"', re.IGNORECASE)
 _EXCEPTION_COMMENT = re.compile(r"wave-literal-ok", re.IGNORECASE)
+# expiry_wave data fields and pytest skip expiry_wave args are legitimate historical values
+_EXPIRY_WAVE_PATTERN = re.compile(r'expiry_wave["\']*\s*[=:]\s*"Wave\s+\d+"', re.IGNORECASE)
 _EXEMPT_FILES = frozenset({"_current_wave.py", "check_no_hardcoded_wave.py"})
 
 
@@ -42,7 +44,9 @@ def main() -> int:
         except OSError:
             continue
         for i, line in enumerate(lines, 1):
-            if _WAVE_PATTERN.search(line) and not _EXCEPTION_COMMENT.search(line):
+            if (_WAVE_PATTERN.search(line)
+                    and not _EXCEPTION_COMMENT.search(line)
+                    and not _EXPIRY_WAVE_PATTERN.search(line)):
                 issues.append({
                     "file": f"scripts/{script.name}",
                     "line": i,

@@ -2,7 +2,7 @@
 
 ```
 Date:             2026-04-27
-Status:           current
+Status:           superseded
 Functional HEAD:  88960cc0a270ab2fa3e5920ab3a3e754d9dcf712
 Notice HEAD:      88960cc0a270ab2fa3e5920ab3a3e754d9dcf712
 Manifest:         2026-04-27-88960cc

@@ -269,7 +269,7 @@ def _build_structured_violations(
 
     def _parse_soft_message(msg: str) -> dict:
         d = _parse_message(msg)
-        d["expiry_wave"] = "Wave 12"
+        d["expiry_wave"] = "Wave 12"  # wave-literal-ok: historical allowlist expiry
         d.pop("reason", None)
         return d
 
