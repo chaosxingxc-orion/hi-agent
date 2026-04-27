@@ -1,4 +1,4 @@
-﻿"""CLAUDE.md Rule Enforcement (DF-42).
+"""CLAUDE.md Rule Enforcement (DF-42).
 
 Mechanically enforces the grep-based rules from CLAUDE.md that previously
 relied on author discipline. Exits non-zero if any hard rule is violated.

@@ -9,7 +9,7 @@ T3 evidence:        PENDING — run scripts/run_t3_gate.py
 Clean-env evidence: PENDING — run verify_clean_env.py --profile default-offline
 Current verified readiness: 72.0 (t3_deferred; gate_warn/deferred: vocab, t3_freshness, noqa_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling)
 Validated by:       scripts/build_release_manifest.py scripts/check_evidence_provenance.py scripts/check_score_cap.py
-Status:             current
+Status:             superseded
 ```
 
 ---

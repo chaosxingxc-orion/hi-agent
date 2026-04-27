@@ -9,6 +9,7 @@ cleaned up, masking real defects.
 
 Exit 0: pass (all suppressions have expiry).
 Exit 1: fail (suppressions missing expiry_wave).
+Status values: pass | fail | not_applicable | deferred
 """
 from __future__ import annotations
 
