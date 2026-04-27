@@ -313,6 +313,7 @@ def main(argv: list[str] | None = None) -> int:
         report = {
             "check": "no_research_vocab",
             "status": status,
+            "violations": hard_structs + migration_violations,
             "hard_violations": hard_structs,
             "soft_violations": soft_structs,
             "migration_guide_violations": migration_violations,

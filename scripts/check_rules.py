@@ -619,6 +619,10 @@ def main(argv: list[str] | None = None) -> int:
         payload = {
             "check": "rules",
             "status": "fail" if hard_fails else "pass",
+            "violations": [
+                {"rule": r.rule_id, "description": r.description, "sites": r.violations}
+                for r in hard_fails
+            ],
             "hard_pass": not bool(hard_fails),
             "rule6_warnings": {
                 "count": len(r6_violations),
