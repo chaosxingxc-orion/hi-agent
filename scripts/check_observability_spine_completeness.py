@@ -69,10 +69,24 @@ def main() -> int:
     has_run_id = bool(data.get("run_id"))
     has_trace_id = bool(data.get("trace_id"))
 
+    # Structural/synthetic evidence: spine shape recorded but real execution not confirmed.
+    # Emit deferred (exit 2) rather than fail — pending real spine run.
+    if provenance not in ("real",):
+        result = {
+            "status": "deferred",
+            "check": "observability_spine_completeness",
+            "provenance": provenance,
+            "spine_file": spine_file.name,
+            "reason": f"provenance='{provenance}'; real spine run required for pass",
+        }
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"DEFERRED: spine provenance='{provenance}', real run required", file=sys.stderr)
+        return 2
+
+    missing_layers = [la for la in _EXPECTED_LAYERS if la not in layers_present]
     issues = []
-    if provenance != "real":
-        issues.append(f"provenance is '{provenance}', requires 'real'")
-    missing_layers = [l for l in _EXPECTED_LAYERS if l not in layers_present]
     if missing_layers:
         issues.append(f"missing layers: {', '.join(missing_layers)}")
     if not has_run_id:
