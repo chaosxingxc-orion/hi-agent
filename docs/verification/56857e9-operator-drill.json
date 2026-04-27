@@ -1,0 +1,57 @@
+{
+  "schema_version": "1",
+  "check": "operator_drill",
+  "provenance": "real",
+  "all_passed": true,
+  "head": "56857e9",
+  "submitted_run_id": "c007e4d5-4229-4cfa-b6b0-e896b136df50",
+  "actions": [
+    {
+      "name": "health_check",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 10.8,
+      "payload_snapshot": "{'status': 'ok', 'subsystems': {'run_manager': {'status': 'ok', 'active_runs': 1, 'queued_runs': 0, 'capacity': 4}, 'memory': {'status': 'ok', 'configured': True}, 'metrics': {'status': 'ok', 'events_"
+    },
+    {
+      "name": "list_runs",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 16.2,
+      "payload_snapshot": "{'runs': [{'run_id': 'cee9fbbd-3af5-4222-8c74-90b2bb135243', 'task_contract': {'goal': 'operator drill test', 'context': {}, 'profile_id': 'default'}, 'state': 'cancelled', 'result': None, 'error': No"
+    },
+    {
+      "name": "query_run_state",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 0.9,
+      "payload_snapshot": "{'run_id': 'c007e4d5-4229-4cfa-b6b0-e896b136df50', 'task_contract': {'goal': 'operator drill test', 'context': {}, 'profile_id': 'default'}, 'state': 'created', 'result': None, 'error': None, 'created"
+    },
+    {
+      "name": "metrics_json",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 14.4,
+      "payload_snapshot": "{'fallback_route': {'reason=\"missing_profile_id\"': 2.0}, 'hi_agent_route_fallback_total': {'reason=\"missing_profile_id\"': 2.0}, 'fallback_llm': {'reason=\"tier_downgrade purpose=medium from=medium to=l"
+    },
+    {
+      "name": "cancel_run",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 18.0,
+      "payload_snapshot": "{'run_id': 'c007e4d5-4229-4cfa-b6b0-e896b136df50', 'state': 'cancelled', 'cancellation_propagated': {'queue': True, 'token': False}}"
+    },
+    {
+      "name": "ready_check",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 14.4,
+      "payload_snapshot": "{'ready': True, 'health': 'ok', 'execution_mode': 'local', 'kernel_mode': 'local-fsm', 'llm_mode': 'real', 'llm_provider': 'volces', 'llm_backend': 'AnthropicLLMGateway', 'models': [{'name': 'glm-5.1'"
+    }
+  ],
+  "actions_total": 6,
+  "actions_passed": 6,
+  "command": "python scripts/run_operator_drill.py --base-url http://127.0.0.1:8091",
+  "start_ts": "2026-04-27T19:39:54.208797+00:00",
+  "finish_ts": "2026-04-27T19:39:54.208797+00:00"
+}

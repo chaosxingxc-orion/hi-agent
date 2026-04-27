@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-27-2445f85",
+  "verified_head": "2445f853cb8fb7b4d7b84f26d14c704817180080",
+  "generated_at": "2026-04-27T19:52:45.492785+00:00",
+  "current_verified_readiness": 55.0,
+  "cap": 55.0,
+  "cap_reason": "head_mismatch: manifest=dd0aad24efe7 HEAD=2445f853cb8f; notice_inconsistency: doc_consistency=fail; clean_env_not_final_head: evidence=1a53b260a422 HEAD=2445f853cb8f; operator_drill_missing: no evidence found; gate_fail: doc_consistency, evidence_provenance; gate_warn/deferred: multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "head_mismatch: manifest=dd0aad24efe7 HEAD=2445f853cb8f",
+    "notice_inconsistency: doc_consistency=fail",
+    "clean_env_not_final_head: evidence=1a53b260a422 HEAD=2445f853cb8f",
+    "operator_drill_missing: no evidence found",
+    "gate_fail: doc_consistency, evidence_provenance",
+    "gate_warn/deferred: multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}
