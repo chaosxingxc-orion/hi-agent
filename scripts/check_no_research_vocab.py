@@ -58,7 +58,7 @@ _SOFT_BAN_IDENTIFIERS = frozenset({
     "CitationArtifact",
     "PaperArtifact",
     "LeanProofArtifact",
-    "apply_research_defaults",   # deprecated wrapper shim; Wave 14 removal
+    "apply_research_defaults",   # deprecated wrapper shim; Wave 15 removal
 })
 
 # Files allowed to contain soft-ban identifiers (Wave 12 migration targets).

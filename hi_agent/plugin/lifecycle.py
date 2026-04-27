@@ -3,7 +3,7 @@ import warnings
 
 warnings.warn(
     "hi_agent.plugin.lifecycle is deprecated; use hi_agent.plugins.lifecycle instead. "
-    "This shim will be removed in Wave 14.",
+    "This shim will be removed in Wave 15.",
     DeprecationWarning,
     stacklevel=2,
 )

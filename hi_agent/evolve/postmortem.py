@@ -4,7 +4,7 @@ import warnings
 
 warnings.warn(
     "hi_agent.evolve.postmortem is deprecated; use hi_agent.evolve.retrospective instead. "
-    "Removed in Wave 14.",
+    "Removed in Wave 15.",
     DeprecationWarning,
     stacklevel=2,
 )

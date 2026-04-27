@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "real",
+  "manifest_id": "2026-04-27-88960cc",
+  "verified_head": "88960cc0a270ab2fa3e5920ab3a3e754d9dcf712",
+  "generated_at": "2026-04-27T11:50:21.290263+00:00",
+  "current_verified_readiness": 72.0,
+  "cap": 72.0,
+  "cap_reason": "t3_deferred; gate_warn/deferred: vocab, t3_freshness",
+  "cap_factors": [
+    "t3_deferred",
+    "gate_warn/deferred: vocab, t3_freshness"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}

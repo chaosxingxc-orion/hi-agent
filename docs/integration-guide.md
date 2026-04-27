@@ -71,7 +71,7 @@ curl -s http://localhost:8080/runs/$RUN_ID | jq '{state, result}'
 ```python
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
-from hi_agent.contracts.task_contract import TaskContract
+from hi_agent.contracts.task import TaskContract
 
 config = TraceConfig()
 builder = SystemBuilder(config)
@@ -184,7 +184,7 @@ curl http://localhost:8080/mcp/tools
 适合研究类智能体的场景化能力包：
 
 ```python
-from hi_agent.capability.bundles.research import ResearchBundle
+from hi_agent.capability.bundles import ResearchBundle
 from hi_agent.capability.registry import CapabilityRegistry
 
 registry = CapabilityRegistry()

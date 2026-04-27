@@ -212,7 +212,7 @@ GET /plugins/status    # plugin health + activation status
 ### 6.2 Bundle Registration
 
 ```python
-from hi_agent.capability.bundles.research import ResearchBundle
+from hi_agent.capability.bundles import ResearchBundle
 
 registry = CapabilityRegistry()
 registry.register_bundle(ResearchBundle())

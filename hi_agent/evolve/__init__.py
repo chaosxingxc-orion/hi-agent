@@ -37,12 +37,12 @@ __all__ = [
 
 def __getattr__(name: str) -> object:
     """Backward-compat shim for deprecated evolve module exports."""
-    if name == "RunPostmortem":  # deprecated alias -- use RunRetrospective; removed in Wave 14
+    if name == "RunPostmortem":  # deprecated alias -- use RunRetrospective; removed in Wave 15
         import warnings
 
         warnings.warn(
             "hi_agent.evolve.RunPostmortem is deprecated; use RunRetrospective instead. "
-            "RunPostmortem will be removed in Wave 14.",
+            "RunPostmortem will be removed in Wave 15.",
             DeprecationWarning,
             stacklevel=2,
         )

@@ -36,7 +36,7 @@ class TeamSharedContext:
     working_set: tuple[str, ...] = ()
     assertions: tuple[str, ...] = ()
     # Deprecated aliases — use working_set / assertions instead.
-    # Will be removed in Wave 14.
+    # Will be removed in Wave 15.
     hypotheses: tuple[str, ...] = ()
     claims: tuple[str, ...] = ()
     phase_history: tuple[str, ...] = ()
@@ -46,7 +46,7 @@ class TeamSharedContext:
         if self.hypotheses and not self.working_set:
             warnings.warn(
                 "TeamSharedContext.hypotheses is deprecated; use working_set instead. "
-                "hypotheses will be removed in Wave 14.",
+                "hypotheses will be removed in Wave 15.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -54,7 +54,7 @@ class TeamSharedContext:
         if self.claims and not self.assertions:
             warnings.warn(
                 "TeamSharedContext.claims is deprecated; use assertions instead. "
-                "claims will be removed in Wave 14.",
+                "claims will be removed in Wave 15.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -75,7 +75,7 @@ class TeamRun:
     tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
-    # Deprecated: use lead_run_id instead. Will be removed in Wave 14.
+    # Deprecated: use lead_run_id instead. Will be removed in Wave 15.
     pi_run_id: str = ""
     # Canonical field (Wave 11+). Prefer lead_run_id for all new callers.
     lead_run_id: str = dataclasses.field(default="")
@@ -84,7 +84,7 @@ class TeamRun:
         if self.pi_run_id and not self.lead_run_id:
             warnings.warn(
                 "TeamRun.pi_run_id is deprecated; use lead_run_id instead. "
-                "pi_run_id will be removed in Wave 14.",
+                "pi_run_id will be removed in Wave 15.",
                 DeprecationWarning,
                 stacklevel=2,
             )

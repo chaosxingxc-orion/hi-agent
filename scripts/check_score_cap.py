@@ -32,7 +32,10 @@ def _latest_manifest() -> pathlib.Path | None:
 
 
 def _check_notice_score_claims(verified: float) -> list[str]:
-    """Return list of notices that claim a verified score higher than current_verified_readiness."""
+    """Return list of notices that claim a verified score higher than current_verified_readiness.
+
+    Skips notices marked as 'Status: superseded' or 'Status: draft'.
+    """
     issues: list[str] = []
     if not NOTICES_DIR.exists():
         return issues
@@ -40,8 +43,11 @@ def _check_notice_score_claims(verified: float) -> list[str]:
         r"(?:verified|current_verified_readiness|readiness)[:\s]+(\d{2,3}(?:\.\d+)?)",
         re.IGNORECASE,
     )
+    status_pattern = re.compile(r"Status:\s*(?:superseded|draft)", re.IGNORECASE)
     for f in NOTICES_DIR.glob("*.md"):
         text = f.read_text(encoding="utf-8", errors="replace")
+        if status_pattern.search(text):
+            continue  # superseded/draft notices are exempt
         for m in score_pattern.finditer(text):
             claimed = float(m.group(1))
             if claimed > verified + 0.5:  # allow 0.5 rounding tolerance

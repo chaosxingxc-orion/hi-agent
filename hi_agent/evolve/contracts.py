@@ -239,7 +239,7 @@ def __getattr__(name: str) -> object:
 
         warnings.warn(
             f"{name} is deprecated; use {replacement_name} instead. "
-            f"{name} will be removed in Wave 14.",
+            f"{name} will be removed in Wave 15.",
             DeprecationWarning,
             stacklevel=2,
         )

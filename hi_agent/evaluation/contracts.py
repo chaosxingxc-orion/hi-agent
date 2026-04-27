@@ -88,12 +88,12 @@ class DefaultEvaluator:
         )
 
         # C3: output includes evidence or source references
-        # "citations" is deprecated (Wave 14 removal); callers should use "evidence_refs".
+        # "citations" is deprecated (Wave 15 removal); callers should use "evidence_refs".
         if "citations" in output and "evidence_refs" not in output:
             import warnings
 
             warnings.warn(
-                "Output key 'citations' is deprecated and will stop being recognised in Wave 14. "
+                "Output key 'citations' is deprecated and will stop being recognised in Wave 15. "
                 "Use 'evidence_refs' instead.",
                 DeprecationWarning,
                 stacklevel=2,

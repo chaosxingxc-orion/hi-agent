@@ -35,12 +35,18 @@ if str(REPO_ROOT) not in sys.path:
 DOCS_ROOT = REPO_ROOT / "docs"
 DOC_GLOB = "**/*.md"
 
-# Files / directories to skip entirely (generated evidence and release artifacts)
+# Files / directories to skip entirely (generated evidence, release artifacts, and
+# historical request/optimization documents from external stakeholders)
 SKIP_DIRS = {
     DOCS_ROOT / "releases",
     DOCS_ROOT / "delivery",
     DOCS_ROOT / "verification",
     DOCS_ROOT / "governance",
+}
+
+# Individual files to skip (historical external documents referencing old module paths)
+SKIP_FILES = {
+    DOCS_ROOT / "hi-agent-optimization-requests-2026-04-15-round3.md",
 }
 
 # ---------------------------------------------------------------------------
@@ -78,6 +84,9 @@ def _collect_doc_files() -> list[Path]:
     for p in files:
         rp = p.resolve()
         if rp in seen:
+            continue
+        # Skip individual files
+        if rp in {f.resolve() for f in SKIP_FILES}:
             continue
         # Skip any path under a skip directory
         skip = False
