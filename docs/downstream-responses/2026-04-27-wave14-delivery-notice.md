@@ -3,7 +3,7 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    9e93b11
+Functional HEAD:    c14c676
 Manifest:           2026-04-27-0276580
 T3 evidence:        PENDING — run scripts/run_t3_gate.py
 Clean-env evidence: PENDING — run verify_clean_env.py --profile default-offline
@@ -71,11 +71,11 @@ Target: lift verified readiness from `67.0` (downstream) / `72.0` (upstream) to 
 
 ---
 
-## Evidence Index (at 9e93b11)
+## Evidence Index (at c14c676)
 
 - `docs/releases/2026-04-27-0276580.json` — release manifest
-- `docs/verification/9e93b11-manifest-gate.json` — manifest build gate
-- `docs/verification/9e93b11-observability-spine.json` — spine evidence (structural)
+- `docs/verification/c14c676-manifest-gate.json` — manifest build gate
+- `docs/verification/c14c676-observability-spine.json` — spine evidence (structural)
 - `docs/verification/*-score-cap.json` — score cap gate evidence
 
 ---
@@ -83,7 +83,7 @@ Target: lift verified readiness from `67.0` (downstream) / `72.0` (upstream) to 
 ## Reproduction
 
 ```bash
-git checkout 9e93b11
+git checkout c14c676
 python scripts/build_release_manifest.py --print
 python scripts/check_evidence_provenance.py --json
 python scripts/check_score_cap.py --json
