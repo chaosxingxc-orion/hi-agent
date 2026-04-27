@@ -3,8 +3,9 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    73867a4368d0f6f57224f42a9f67a0aa73298004
-Manifest ID:        2026-04-27-73867a4
+Functional HEAD:    252b7a25692c
+Manifest:           2026-04-27-a1bfa88
+Manifest ID:        2026-04-27-a1bfa88
 T3 evidence:        REAL — docs/delivery/2026-04-27-fd6386e-t3-volces.json
                     (3 runs completed: 264s, 178s, 124s; 0 fallback events; cancel verified)
 Clean-env evidence: docs/verification/1a53b26-default-offline-clean-env.json
@@ -95,7 +96,7 @@ Status:       RELEASED
 | `head_mismatch` | **RESOLVED** | — | Logic fix: scans all manifests for current HEAD |
 | `dirty_worktree` | **RESOLVED** | — | Clean git state at HEAD |
 | `observability_spine_completeness` | deferred | 80 cap | Real 14-layer spine harness not yet built |
-| `soak_evidence` | deferred | — | 1h shape_verified run in progress |
+| `soak_evidence` | deferred | — | 1h shape_verified run executing now |
 | `soak_24h_missing` | deferred | 65 (7×24) | 24h reproduction requires long-lived process |
 | `chaos_non_runtime_coupled` | deferred | — | Runtime chaos harness not yet built |
 
