@@ -1,0 +1,22 @@
+{
+  "release_head": "bbc0c47",
+  "verified_head": "bbc0c47",
+  "generated_at": "2026-04-27T09:00:17.578363+00:00",
+  "run_id": "ab646eb4-1659-4450-9ac2-d40dce0bf881",
+  "event_count": 2,
+  "event_types": [
+    "run_started",
+    "run_completed"
+  ],
+  "spine_ok": true,
+  "metrics_snapshot": {
+    "runs_total": {
+      "status=\"completed\"": 1.0
+    },
+    "hi_agent_runs_completed_total": {
+      "_total": 1.0
+    }
+  },
+  "failures": [],
+  "status": "pass"
+}

@@ -221,7 +221,7 @@ def _write_evidence(
     )
 
     label = "soak-dry" if dry_run else "soak"
-    duration_min = int(round(duration_seconds / 60))
+    duration_min = round(duration_seconds / 60)
     filename = f"{sha}-{label}-{duration_min}m.json"
     out_path = out_dir / filename
 

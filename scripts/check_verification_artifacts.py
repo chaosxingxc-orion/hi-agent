@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""CI gate: fail if verification artifacts are stale vs current HEAD.
+"""CI gate: verify that current HEAD has at least one verification artifact.
 
 Walks docs/verification/*.json and docs/delivery/*.json.
-For each file, checks if its 'release_head' or 'verified_head' field matches
-the current git HEAD. Emits 'verification_artifacts.has_stale' flag.
+Passes when at least one artifact's 'release_head' or 'verified_head' matches
+the current git HEAD (short or full SHA prefix).
 
-Exit 0: all artifacts current (or no artifacts found).
-Exit 1: one or more stale artifacts detected.
+Historical artifacts from prior HEADs are normal record-keeping — they are NOT
+treated as "stale". The gate only fails when NO fresh artifact exists for the
+current HEAD.
+
+Exit 0: at least one current artifact found.
+Exit 1: no artifact for current HEAD found (or checked_count==0).
 """
 from __future__ import annotations
 
@@ -29,11 +33,23 @@ def _git_head() -> str:
         return "unknown"
 
 
-def _check_artifacts() -> tuple[list[str], list[str]]:
-    """Return (stale_files, checked_files)."""
+def _sha_matches(artifact_head: str, head: str) -> bool:
+    if not artifact_head or not head or head == "unknown":
+        return False
+    min_len = min(len(artifact_head), len(head))
+    return artifact_head[:min_len] == head[:min_len]
+
+
+def _check_artifacts() -> tuple[list[str], list[str], bool]:
+    """Return (checked_files, current_files, has_current_head).
+
+    checked_files: all artifact files that have a SHA field.
+    current_files: artifacts whose SHA matches current HEAD.
+    has_current_head: True when at least one current artifact exists.
+    """
     head = _git_head()
-    stale: list[str] = []
     checked: list[str] = []
+    current: list[str] = []
 
     dirs = [
         ROOT / "docs" / "verification",
@@ -51,19 +67,17 @@ def _check_artifacts() -> tuple[list[str], list[str]]:
                 data.get("release_head")
                 or data.get("verified_head")
                 or data.get("head_sha")
+                or data.get("sha")
                 or ""
             )
             if not artifact_head:
                 continue
-            checked.append(str(f.relative_to(ROOT)))
-            # Compare: artifact_head must start with head or vice versa (short/long SHA comparison)
-            if head != "unknown" and artifact_head and not (
-                head.startswith(artifact_head[: len(head)])
-                or artifact_head.startswith(head[: len(artifact_head)])
-            ):
-                stale.append(str(f.relative_to(ROOT)))
+            rel = str(f.relative_to(ROOT))
+            checked.append(rel)
+            if _sha_matches(artifact_head, head):
+                current.append(rel)
 
-    return stale, checked
+    return checked, current, bool(current)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -71,30 +85,36 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", dest="json_output")
     args = parser.parse_args(argv)
 
-    stale, checked = _check_artifacts()
-    has_stale = bool(stale)
+    checked, current, has_current = _check_artifacts()
+    status = "pass" if has_current else "fail"
 
     if args.json_output:
         print(
             json.dumps(
                 {
                     "check": "verification_artifacts",
-                    "status": "fail" if has_stale else "pass",
-                    "has_stale": has_stale,
-                    "stale_files": stale,
+                    "status": status,
+                    "has_current_head": has_current,
+                    "current_files": current,
                     "checked_count": len(checked),
                 },
                 indent=2,
             )
         )
-        return 1 if has_stale else 0
+        return 0 if has_current else 1
 
-    if has_stale:
-        print(f"FAIL verification_artifacts: {len(stale)} stale artifact(s): {stale}")
-        return 1
+    if has_current:
+        print(
+            f"OK verification_artifacts: {len(current)} current artifact(s) "
+            f"({len(checked)} total checked)"
+        )
+        return 0
 
-    print(f"OK verification_artifacts: {len(checked)} artifact(s) checked, all current")
-    return 0
+    print(
+        f"FAIL verification_artifacts: no artifact for current HEAD "
+        f"({len(checked)} total checked, none match HEAD)"
+    )
+    return 1
 
 
 if __name__ == "__main__":

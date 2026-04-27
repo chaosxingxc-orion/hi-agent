@@ -1,0 +1,92 @@
+{
+  "release_head": "e5b5183",
+  "generated_at": "2026-04-27T08:03:17.520067+00:00",
+  "scenarios_total": 8,
+  "scenarios_passed": 8,
+  "scenarios_skipped": 0,
+  "results": [
+    {
+      "scenario": "worker_kill_9",
+      "injection_method": "proc.kill() (SIGKILL on POSIX, TerminateProcess on win32)",
+      "expected_state": "terminated",
+      "actual_state": "terminated",
+      "recovery_result": "process_reaped",
+      "residual_risk": "none",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "scenario": "sigterm_drain",
+      "injection_method": "proc.terminate() (SIGTERM on POSIX, TerminateProcess on win32)",
+      "expected_state": "terminated",
+      "actual_state": "terminated",
+      "recovery_result": "process_reaped",
+      "residual_risk": "none",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "scenario": "db_locked_busy",
+      "injection_method": "concurrent_write",
+      "expected_state": "OperationalError",
+      "actual_state": "OperationalError",
+      "recovery_result": "transaction_aborted",
+      "residual_risk": "none",
+      "error_type": "OperationalError",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "scenario": "llm_timeout",
+      "injection_method": "httpx_timeout_0.001s",
+      "expected_state": "TimeoutException",
+      "actual_state": "ReadTimeout",
+      "recovery_result": "exception_propagated",
+      "residual_risk": "none",
+      "elapsed_seconds": 0.6233,
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "scenario": "mcp_crash",
+      "injection_method": "exit_1",
+      "expected_state": "nonzero_exit",
+      "actual_state": "nonzero_exit",
+      "recovery_result": "returncode_detectable",
+      "residual_risk": "none",
+      "returncode": 1,
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "scenario": "disk_full_simulation",
+      "injection_method": "read_only_db_file",
+      "expected_state": "graceful_failure_or_in_memory_fallback",
+      "actual_state": "exception: OperationalError",
+      "recovery_result": "process_alive",
+      "residual_risk": "none",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "scenario": "queue_unavailable",
+      "injection_method": "corrupted_sqlite_db",
+      "expected_state": "graceful_failure_or_in_memory_fallback",
+      "actual_state": "queue_exc: DatabaseError",
+      "recovery_result": "run_manager_fallback_ok",
+      "residual_risk": "none",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "scenario": "lease_clock_skew",
+      "injection_method": "1ms_lease_ttl",
+      "expected_state": "lease_expired_and_reclaimable",
+      "actual_state": "heartbeat_returned_True",
+      "recovery_result": "bool_returned_no_hang",
+      "residual_risk": "none",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}
