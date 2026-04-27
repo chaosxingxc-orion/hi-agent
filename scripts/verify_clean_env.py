@@ -720,6 +720,8 @@ def main() -> int:
 
         evidence = {
             "schema_version": 2,
+            "provenance": "real",
+            "check": "clean_env",
             "bundle_profile": profile,
             "status": status,
             "summary_available": stats.get("summary_available", False),
