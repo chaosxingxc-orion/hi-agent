@@ -129,12 +129,17 @@ def test_production_eligibility_prod_required_under_dev_blocked():
 
 
 def test_production_eligibility_research_required_under_dev_blocked():
-    """Extension with required_posture='research' is blocked under dev posture."""
+    """Extension with required_posture='research' is blocked under dev posture.
+
+    Wave 11 strict-deprecation: 'research' is translated to 'strict' internally,
+    so the block reason mentions 'strict' rather than 'research'.
+    """
     pm = _make_plugin(required_posture="research")
     eligible, reasons = pm.production_eligibility(Posture.DEV)
     assert eligible is False
     assert len(reasons) >= 1
-    assert any("research" in r for r in reasons)
+    # Wave 11: 'research' is a deprecated alias for 'strict'; reason uses 'strict'
+    assert any("strict" in r for r in reasons)
 
 
 def test_production_eligibility_dangerous_no_schema_strict_blocked():

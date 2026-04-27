@@ -21,10 +21,18 @@ from hi_agent.capability.governance import (
     PermissionDeniedError,
 )
 from hi_agent.server.routes_tools_mcp import handle_mcp_tools_call
+from hi_agent.server.tenant_context import TenantContext, reset_tenant_context, set_tenant_context
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+_TEST_TENANT_CTX = TenantContext(
+    tenant_id="test_tenant",
+    user_id="test_user",
+    session_id="test_session",
+    auth_method="api_key",
+)
 
 
 def _make_request(body: dict, *, mcp_server: object | None = None) -> MagicMock:
@@ -62,18 +70,22 @@ def test_unregistered_tool_returns_capability_not_found_no_raw_call():
     mcp_server = MagicMock()
     request = _make_request({"name": "nonexistent_tool", "arguments": {}}, mcp_server=mcp_server)
 
-    with (
-        patch("hi_agent.capability.governance.GovernedToolExecutor") as mock_executor_cls,
-        patch(
-            "hi_agent.server.runtime_mode_resolver.resolve_runtime_mode",
-            return_value="dev",
-        ),
-    ):
-        # Simulate the executor raising CapabilityNotFoundError
-        instance = mock_executor_cls.return_value
-        instance.invoke.side_effect = CapabilityNotFoundError("nonexistent_tool not registered")
+    token = set_tenant_context(_TEST_TENANT_CTX)
+    try:
+        with (
+            patch("hi_agent.capability.governance.GovernedToolExecutor") as mock_executor_cls,
+            patch(
+                "hi_agent.server.runtime_mode_resolver.resolve_runtime_mode",
+                return_value="dev",
+            ),
+        ):
+            # Simulate the executor raising CapabilityNotFoundError
+            instance = mock_executor_cls.return_value
+            instance.invoke.side_effect = CapabilityNotFoundError("nonexistent_tool not registered")
 
-        response = asyncio.run(handle_mcp_tools_call(request))
+            response = asyncio.run(handle_mcp_tools_call(request))
+    finally:
+        reset_tenant_context(token)
 
     body = json.loads(response.body)
     assert response.status_code == 404
@@ -88,17 +100,21 @@ def test_permission_denied_does_not_invoke_raw_path():
     mcp_server = MagicMock()
     request = _make_request({"name": "restricted_tool", "arguments": {}}, mcp_server=mcp_server)
 
-    with (
-        patch("hi_agent.capability.governance.GovernedToolExecutor") as mock_executor_cls,
-        patch(
-            "hi_agent.server.runtime_mode_resolver.resolve_runtime_mode",
-            return_value="dev",
-        ),
-    ):
-        instance = mock_executor_cls.return_value
-        instance.invoke.side_effect = PermissionDeniedError("principal lacks permission")
+    token = set_tenant_context(_TEST_TENANT_CTX)
+    try:
+        with (
+            patch("hi_agent.capability.governance.GovernedToolExecutor") as mock_executor_cls,
+            patch(
+                "hi_agent.server.runtime_mode_resolver.resolve_runtime_mode",
+                return_value="dev",
+            ),
+        ):
+            instance = mock_executor_cls.return_value
+            instance.invoke.side_effect = PermissionDeniedError("principal lacks permission")
 
-        response = asyncio.run(handle_mcp_tools_call(request))
+            response = asyncio.run(handle_mcp_tools_call(request))
+    finally:
+        reset_tenant_context(token)
 
     body = json.loads(response.body)
     assert response.status_code == 403
@@ -110,7 +126,11 @@ def test_missing_mcp_server_returns_503():
     """When no mcp_server is configured the handler must return 503 immediately."""
     request = _make_request({"name": "any_tool"}, mcp_server=None)
 
-    response = asyncio.run(handle_mcp_tools_call(request))
+    token = set_tenant_context(_TEST_TENANT_CTX)
+    try:
+        response = asyncio.run(handle_mcp_tools_call(request))
+    finally:
+        reset_tenant_context(token)
 
     body = json.loads(response.body)
     assert response.status_code == 503

@@ -14,7 +14,7 @@ from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.contracts.requests import RunResult
 from hi_agent.events import EventEmitter
-from hi_agent.memory import MemoryCompressor
+from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor, execute_async
 
@@ -34,6 +34,7 @@ def _make_executor(contract: TaskContract | None = None) -> RunExecutor:
         kernel=kernel,
         event_emitter=EventEmitter(),
         compressor=MemoryCompressor(),
+        raw_memory=RawMemoryStore(),
         acceptance_policy=AcceptancePolicy(),
         cts_budget=CTSExplorationBudget(),
         policy_versions=PolicyVersionSet(),
@@ -84,6 +85,7 @@ async def test_execute_async_run_result_status_matches_execute():
         kernel=sync_kernel,
         event_emitter=EventEmitter(),
         compressor=MemoryCompressor(),
+        raw_memory=RawMemoryStore(),
         acceptance_policy=AcceptancePolicy(),
         cts_budget=CTSExplorationBudget(),
         policy_versions=PolicyVersionSet(),
