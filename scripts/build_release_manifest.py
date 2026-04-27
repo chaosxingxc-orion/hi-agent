@@ -395,6 +395,9 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
 
     print(f"Building release manifest {manifest_id}...", file=sys.stderr)
 
+    # Write verification artifact BEFORE gates run so check_verification_artifacts passes.
+    _write_pre_manifest_artifact(short_sha, head_sha, date_str)
+
     # Run gates
     gates: dict[str, Any] = {}
     for gate_key, (script, has_json, extra_args) in _GATE_SCRIPTS.items():
@@ -491,9 +494,6 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
         for v in gates.values()
         if isinstance(v, dict)
     )
-
-    # Write verification artifact AFTER gates run (not before — avoids circular dep)
-    _write_pre_manifest_artifact(short_sha, head_sha, date_str)
 
     return manifest, all_passed
 
