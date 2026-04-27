@@ -56,6 +56,11 @@ def _make_recovery_input(
     )
 
 
+def _make_inference_config() -> InferenceConfig:
+    """Minimal InferenceConfig for test gates (required since fb0cf25)."""
+    return InferenceConfig(model_ref="echo-test")
+
+
 def _make_permissive_policy(
     max_rounds: int = 3,
     escalate_on_exhaustion: bool = True,
@@ -162,6 +167,7 @@ class TestReflectAndRetryMode:
             reflection_policy=_make_permissive_policy(),
             reasoning_loop=_make_reasoning_loop_with_tools(),
             reflection_builder=ReflectionContextBuilder(),
+            default_inference_config=_make_inference_config(),
         )
         recovery_input = _make_recovery_input(
             reason_code="runtime_error",
@@ -176,6 +182,7 @@ class TestReflectAndRetryMode:
             reflection_policy=_make_permissive_policy(),
             reasoning_loop=_make_reasoning_loop_with_tools(),
             reflection_builder=ReflectionContextBuilder(),
+            default_inference_config=_make_inference_config(),
         )
         recovery_input = _make_recovery_input(
             reason_code="runtime_error",
@@ -191,6 +198,7 @@ class TestReflectAndRetryMode:
             reflection_policy=_make_permissive_policy(),
             reasoning_loop=_make_reasoning_loop_with_tools(),
             reflection_builder=ReflectionContextBuilder(),
+            default_inference_config=_make_inference_config(),
         )
         recovery_input = _make_recovery_input(
             reason_code="runtime_error",
@@ -216,6 +224,7 @@ class TestNonReflectableFailure:
             reflection_policy=_make_permissive_policy(),
             reasoning_loop=_make_reasoning_loop_with_tools(),
             reflection_builder=ReflectionContextBuilder(),
+            default_inference_config=_make_inference_config(),
         )
         # "permission_denied" is in non_reflectable_failure_kinds by default.
         recovery_input = _make_recovery_input(
@@ -231,6 +240,7 @@ class TestNonReflectableFailure:
             reflection_policy=_make_permissive_policy(),
             reasoning_loop=_make_reasoning_loop_with_tools(),
             reflection_builder=ReflectionContextBuilder(),
+            default_inference_config=_make_inference_config(),
         )
         recovery_input = _make_recovery_input(reason_code="permission_denied")
         decision = asyncio.run(gate.decide(recovery_input))
@@ -292,6 +302,7 @@ class TestRoundsExhausted:
             reflection_policy=policy,
             reasoning_loop=_make_reasoning_loop_no_tools(),  # Returns no actions.
             reflection_builder=ReflectionContextBuilder(),
+            default_inference_config=_make_inference_config(),
         )
         # reflection_round=0 < max_rounds=2 → try to reflect, but loop returns no actions.
         recovery_input = _make_recovery_input(
@@ -314,6 +325,7 @@ class TestRoundsExhausted:
             reflection_policy=policy,
             reasoning_loop=_make_reasoning_loop_no_tools(),
             reflection_builder=ReflectionContextBuilder(),
+            default_inference_config=_make_inference_config(),
         )
         recovery_input = _make_recovery_input(
             reason_code="runtime_error",
@@ -462,6 +474,7 @@ class TestEnrichedContextActuallyUsed:
             reflection_policy=_make_permissive_policy(),
             reasoning_loop=reasoning_loop,
             reflection_builder=ReflectionContextBuilder(),
+            default_inference_config=_make_inference_config(),
         )
         recovery_input = _make_recovery_input(
             reason_code="runtime_error",
@@ -524,6 +537,7 @@ class TestReflectionIdempotencyKey:
             reasoning_loop=loop,
             reflection_builder=ReflectionContextBuilder(),
             reflection_policy=_make_permissive_policy(max_rounds=3),
+            default_inference_config=_make_inference_config(),
         )
         recovery_input = _make_recovery_input(
             run_id="run-key-test",
@@ -572,6 +586,7 @@ class TestReflectionIdempotencyKey:
             reasoning_loop=loop,
             reflection_builder=ReflectionContextBuilder(),
             reflection_policy=_make_permissive_policy(max_rounds=3),
+            default_inference_config=_make_inference_config(),
         )
 
         # Round 0 → key with :reflection:1

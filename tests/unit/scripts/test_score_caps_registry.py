@@ -1,9 +1,8 @@
 """Tests for score_caps.yaml registry and cap computation."""
 from __future__ import annotations
+
 import pathlib
 import re
-
-import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 SCORE_CAPS_FILE = ROOT / "docs" / "governance" / "score_caps.yaml"
@@ -111,4 +110,4 @@ def test_no_hardcoded_78_0_in_check_downstream():
 def test_release_notice_default_score_cap_updated():
     src = (ROOT / "scripts" / "release_notice.py").read_text(encoding="utf-8")
     assert "76.5" not in src, "release_notice.py still contains hardcoded 76.5"
-    assert "63.0" in src, "release_notice.py _DEFAULT_SCORE_CAP should reference 63.0 (t3_stale cap)"
+    assert "63.0" in src, "release_notice.py _DEFAULT_SCORE_CAP should reference 63.0"

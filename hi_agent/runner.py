@@ -2451,7 +2451,7 @@ async def execute_async(
     except Exception as _fe_exc:
         import contextlib
 
-        with contextlib.suppress(Exception):  # rule7-exempt: record_fallback on error path; must not mask original exception
+        with contextlib.suppress(Exception):  # rule7-exempt: record_fallback on error path; must not mask original exc  # noqa: E501
             record_fallback(
                 "llm",
                 reason="fallback_events_lookup_failed",

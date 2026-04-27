@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.windows_unsafe
+
 # ---------------------------------------------------------------------------
 # K-4: RunExecutorFacade.stop() must log, not silently swallow exceptions
 # ---------------------------------------------------------------------------

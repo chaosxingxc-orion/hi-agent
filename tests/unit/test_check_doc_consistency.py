@@ -101,8 +101,8 @@ def test_e1a_skipped_when_pre_final_marker_present(tmp_path):
     assert errors == []
 
 
-def test_e1a_passes_when_claimed_sha_matches_head_parent(tmp_path):
-    """E1a passes when claimed SHA matches HEAD~1 (delivery-notice commit circularity)."""
+def test_e1a_fails_when_claimed_sha_is_parent_not_head(tmp_path):
+    """Wave 13 strict mode: parent SHA does not equal HEAD, so error is returned."""
     import importlib.util
     spec = importlib.util.spec_from_file_location("cdc", SCRIPT)
     cdc = importlib.util.module_from_spec(spec)
@@ -116,7 +116,8 @@ def test_e1a_passes_when_claimed_sha_matches_head_parent(tmp_path):
     with patch.object(cdc, "_git_head", return_value=head_sha), \
          patch.object(cdc, "_git_parent", return_value=parent_sha):
         errors = cdc.check_notice_head_matches_repo(notice)
-    assert errors == []
+    # Strict: parent SHA != HEAD SHA → error required.
+    assert len(errors) == 1
 
 
 def test_e1a_error_when_notice_sha_two_commits_behind():
@@ -141,15 +142,15 @@ def test_e1a_error_when_notice_sha_two_commits_behind():
     assert len(errors) == 1
 
 
-def test_e1a_no_error_when_no_notice(tmp_path):
-    """E1a is non-fatal when no delivery notice exists."""
+def test_e1a_error_when_no_notice(tmp_path):
+    """Wave 13 strict mode: no delivery notice → fail-closed."""
     import importlib.util
     spec = importlib.util.spec_from_file_location("cdc", SCRIPT)
     cdc = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cdc)
 
     errors = cdc.check_notice_head_matches_repo(None)
-    assert errors == []
+    assert len(errors) == 1
 
 
 # ---------------------------------------------------------------------------

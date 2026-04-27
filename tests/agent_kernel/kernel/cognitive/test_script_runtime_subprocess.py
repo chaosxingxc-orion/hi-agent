@@ -2,6 +2,10 @@
 
 import asyncio
 
+import pytest
+
+pytestmark = pytest.mark.windows_unsafe
+
 from agent_kernel.kernel.cognitive.script_runtime_subprocess import (
     SubprocessScriptConfig,
     SubprocessScriptRuntime,

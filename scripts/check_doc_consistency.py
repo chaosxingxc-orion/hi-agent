@@ -211,8 +211,12 @@ def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
     if _sha_matches(claimed_sha, actual_sha):
         return []
     # Strict: no HEAD~1 exemption.
+    try:
+        rel = notice.relative_to(ROOT)
+    except ValueError:
+        rel = notice
     return [
-        f"  {notice.relative_to(ROOT)}: Delivery notice HEAD {claimed_sha} does not "
+        f"  {rel}: Delivery notice HEAD {claimed_sha} does not "
         f"match repo HEAD {actual_sha}. Update the notice or add "
         "'notice-pre-final-commit: true' if this is a pre-final-doc commit."
     ]

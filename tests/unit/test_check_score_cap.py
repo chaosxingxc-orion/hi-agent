@@ -60,14 +60,14 @@ def _patch_git_head(sha: str):
 
 
 def test_t3_stale_score_above_cap_emits_violation(tmp_path: Path) -> None:
-    """T3 stale + score 78 must emit SCORE-CAP-VIOLATION (cap is 76.5)."""
-    _write_notice(tmp_path, score=78.0)
+    """T3 stale + score 70 must emit SCORE-CAP-VIOLATION (cap is 63.0 per score_caps.yaml)."""
+    _write_notice(tmp_path, score=70.0)
 
     with _patch_docs(tmp_path), _patch_t3(False), _patch_git_head(_HEAD):
         errors = check_score_cap()
 
     assert any("SCORE-CAP-VIOLATION" in e for e in errors)
-    assert any("76.5" in e for e in errors)
+    assert any("63.0" in e for e in errors)
 
 
 # ---------------------------------------------------------------------------
@@ -93,8 +93,8 @@ def test_t3_fresh_with_evidence_score_78_passes(tmp_path: Path) -> None:
 
 
 def test_t3_stale_score_within_cap_passes(tmp_path: Path) -> None:
-    """T3 stale + score 76.0 must pass (cap is 76.5)."""
-    _write_notice(tmp_path, score=76.0)
+    """T3 stale + score 60.0 must pass (cap is 63.0 per score_caps.yaml)."""
+    _write_notice(tmp_path, score=60.0)
 
     with _patch_docs(tmp_path), _patch_t3(False), _patch_git_head(_HEAD):
         errors = check_score_cap()
@@ -108,15 +108,15 @@ def test_t3_stale_score_within_cap_passes(tmp_path: Path) -> None:
 
 
 def test_t3_fresh_no_evidence_score_above_cap_emits_violation(tmp_path: Path) -> None:
-    """T3 fresh but no clean-env evidence + score 78.5 must emit SCORE-CAP-VIOLATION (cap 78.0)."""
-    _write_notice(tmp_path, score=78.5)
+    """T3 fresh, no clean-env evidence, score 85 → SCORE-CAP-VIOLATION (gate_warn cap 80.0)."""
+    _write_notice(tmp_path, score=85.0)
     # No delivery JSON created → has_clean_env_evidence = False
 
     with _patch_docs(tmp_path), _patch_t3(True), _patch_git_head(_HEAD):
         errors = check_score_cap()
 
     assert any("SCORE-CAP-VIOLATION" in e for e in errors)
-    assert any("78.0" in e for e in errors)
+    assert any("80.0" in e for e in errors)
 
 
 # ---------------------------------------------------------------------------

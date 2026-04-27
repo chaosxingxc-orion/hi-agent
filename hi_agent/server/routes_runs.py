@@ -176,7 +176,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
     # Register run in RunContextManager so /runs/active reflects live runs.
     rcm = getattr(server, "run_context_manager", None)
     if rcm is not None:
-        with contextlib.suppress(Exception):  # rule7-exempt: run context manager registration must not block run creation
+        with contextlib.suppress(Exception):  # rule7-exempt: rcm registration must not block run creation  # noqa: E501
             rcm.get_or_create(run_id)
 
     # If the server has an executor factory, start the run immediately.
@@ -197,7 +197,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             # prod mode). Return 503 so integrators can act on it, not a raw 500.
             logger.warning("handle_create_run: executor_factory failed — %s", exc)
             # Clean up the run we registered above
-            with contextlib.suppress(Exception):  # rule7-exempt: guard no-op after executor failure; must not mask 503 response
+            with contextlib.suppress(Exception):  # rule7-exempt: cleanup guard must not mask 503  # noqa: E501
                 manager.get_run(run_id)  # no-op, just guard
             return JSONResponse(
                 {
@@ -229,7 +229,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             finally:
                 # Remove from active registry on completion or failure.
                 if rcm is not None:
-                    with contextlib.suppress(Exception):  # rule7-exempt: run context manager cleanup must not block response
+                    with contextlib.suppress(Exception):  # rule7-exempt: rcm cleanup must not block response  # noqa: E501
                         rcm.remove(run_id)
 
         try:
@@ -616,7 +616,7 @@ async def handle_reasoning_trace(request: Request) -> JSONResponse:
             for line in f:
                 line = line.strip()
                 if line:
-                    with contextlib.suppress(Exception):  # skip corrupt trace lines; rule7-exempt: skip corrupt trace lines in JSONL reader
+                    with contextlib.suppress(Exception):  # rule7-exempt: skip corrupt trace lines  # noqa: E501
                         entries.append(json.loads(line))
     except Exception as exc:
         logger.warning("handle_reasoning_trace: failed to read trace file %s: %s", trace_file, exc)

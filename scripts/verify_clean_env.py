@@ -302,6 +302,14 @@ def _filter_existing(paths: list[str]) -> tuple[list[str], list[str]]:
     return existing, missing
 
 
+def _platform_excluded_markers(excluded: list[str]) -> list[str]:
+    """On non-Windows, strip 'windows_unsafe' (those tests only hang on win32)."""
+    import sys
+    if sys.platform != "win32":
+        return [m for m in excluded if m != "windows_unsafe"]
+    return excluded
+
+
 def _resolve_bundle_and_marker_args(args: argparse.Namespace) -> tuple[list[str], list[str]]:
     """Return (raw_paths, extra_pytest_args) based on the selected profile.
 
@@ -335,7 +343,7 @@ def _resolve_bundle_and_marker_args(args: argparse.Namespace) -> tuple[list[str]
         if toml_profiles and profile in toml_profiles:
             p_def = toml_profiles[profile]
             raw_paths = list(p_def.get("targets", []))
-            excluded = p_def.get("excluded_markers", [])
+            excluded = _platform_excluded_markers(p_def.get("excluded_markers", []))
             if excluded:
                 marker_expr = " and ".join(f"not {m}" for m in excluded)
                 extra_args: list[str] = ["-m", marker_expr]
@@ -353,7 +361,7 @@ def _resolve_bundle_and_marker_args(args: argparse.Namespace) -> tuple[list[str]
     if profile in toml_overlay_profiles and toml_profiles and profile in toml_profiles:
         p_def = toml_profiles[profile]
         raw_paths = list(p_def.get("targets", []))
-        excluded = p_def.get("excluded_markers", [])
+        excluded = _platform_excluded_markers(p_def.get("excluded_markers", []))
         if excluded:
             marker_expr = " and ".join(f"not {m}" for m in excluded)
             extra_args = ["-m", marker_expr]

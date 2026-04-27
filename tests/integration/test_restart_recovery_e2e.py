@@ -12,11 +12,9 @@ Tests:
 from __future__ import annotations
 
 import time
-import uuid
 
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.run_store import SQLiteRunStore
-
 
 # ---------------------------------------------------------------------------
 # Shared executor helpers
@@ -67,7 +65,7 @@ def test_done_run_visible_after_restart(tmp_path) -> None:
 
     # --- simulated restart: fresh instances, same DB ---
     store2 = SQLiteRunStore(db_path=db)
-    rm2 = RunManager(run_store=store2)
+    RunManager(run_store=store2)
 
     # RunManager uses run_store for durability; reload from DB directly.
     recovered = store2.get(run_id)

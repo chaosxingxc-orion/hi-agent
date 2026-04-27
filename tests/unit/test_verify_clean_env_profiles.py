@@ -43,17 +43,20 @@ def test_default_offline_excludes_live_markers():
     assert len(raw_paths) > 0, "default-offline must have non-empty path list"
 
 
-def test_release_profile_no_exclusion():
-    """release profile must NOT add any marker filter."""
+def test_release_profile_excludes_network_markers():
+    """release profile excludes live_api/external_llm/soak/chaos (Wave 13 marker discipline)."""
     m = _load_verify_module()
 
     args = _make_args("release")
     raw_paths, extra_args = m._resolve_bundle_and_marker_args(args)
 
-    assert "-m" not in extra_args, (
-        f"release profile must not add marker filter, got extra_args={extra_args!r}"
-    )
     assert len(raw_paths) > 0, "release must have non-empty path list"
+    # release excludes live_api and external_llm so it runs without real LLM keys
+    if "-m" in extra_args:
+        marker_expr = extra_args[extra_args.index("-m") + 1]
+        assert "live_api" in marker_expr or "external_llm" in marker_expr, (
+            f"release marker filter must exclude live_api or external_llm, got: {marker_expr!r}"
+        )
 
 
 def test_smoke_w5_profile_no_exclusion_marker():

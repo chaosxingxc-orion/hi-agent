@@ -66,6 +66,7 @@ markers = [
     "perf: performance and load tests",
     "slow: marks tests as slow (>30s)",
     "anyio: marks tests as anyio async tests",
+    "windows_unsafe: test uses IOCP/asyncio in a way that hangs on Windows; excluded from default-offline on win32",
 ]
 
 [tool.ruff]

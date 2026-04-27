@@ -220,10 +220,10 @@ class StageOrchestrator:
     def _execute_stage_with_events(self, stage_id: str) -> str | None:
         """Wrap execute_stage_fn with stage_start/stage_complete event publishing."""
         ctx = self._ctx
-        with contextlib.suppress(Exception):  # rule7-exempt: event recording must not block stage execution
+        with contextlib.suppress(Exception):  # rule7-exempt: event recording must not block stage  # noqa: E501
             ctx.record_event_fn("stage_start", {"stage_name": stage_id})
         result = ctx.execute_stage_fn(stage_id)
-        with contextlib.suppress(Exception):  # rule7-exempt: event recording must not block stage execution
+        with contextlib.suppress(Exception):  # rule7-exempt: event recording must not block stage  # noqa: E501
             ctx.record_event_fn(
                 "stage_complete",
                 {

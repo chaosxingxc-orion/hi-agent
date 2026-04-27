@@ -6,6 +6,8 @@ import asyncio
 import json
 
 import pytest
+
+pytestmark = pytest.mark.windows_unsafe
 from agent_kernel.kernel.cognitive.script_runtime import (
     DedupeAwareScriptRuntime,
     EchoScriptRuntime,

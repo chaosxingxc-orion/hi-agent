@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 import scripts.check_verification_artifacts as cva
 from scripts.check_verification_artifacts import main
 

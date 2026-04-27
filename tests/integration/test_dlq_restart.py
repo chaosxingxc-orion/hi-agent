@@ -76,7 +76,6 @@ def test_auto_dlq_via_fail_exhaustion_survives_restart(tmp_path) -> None:
     q1.enqueue("auto-dlq-1", tenant_id="t1")
 
     # Override max_attempts to 2 for this run.
-    import time as _time
     q1._conn.execute(
         "UPDATE run_queue SET max_attempts = 2 WHERE run_id = ?", ("auto-dlq-1",)
     )

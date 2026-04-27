@@ -18,8 +18,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 
-# Matches: Wave 10.3 (versioned), Wave 11 (bare integer), W10-A (sprint label)
-# Does NOT match: WaveProcessor or other identifiers containing "Wave" as a prefix
+# Pattern matches versioned sprint references and bare sprint labels.
+# Does NOT match: WaveProcessor or other identifiers using "Wave" as a prefix.
 _WAVE_PATTERN = re.compile(r"Wave\s+\d+\.\d+|W\d+-[A-Z]\b")
 _LEGACY_ANNOTATION = "# legacy:"
 

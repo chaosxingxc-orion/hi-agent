@@ -1119,7 +1119,7 @@ class RunManager:
         _no_progress_seconds: float | None = None
         _candidates: list[float] = []
         if run.last_heartbeat_at is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: ISO timestamp parse for heartbeat age; must not block stall detection
+            with contextlib.suppress(Exception):  # rule7-exempt: ISO timestamp parse for heartbeat age  # noqa: E501
                 _candidates.append(
                     datetime.fromisoformat(run.last_heartbeat_at).timestamp()
                 )

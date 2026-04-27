@@ -1,8 +1,9 @@
 """Tests for record_silent_degradation helper."""
 from __future__ import annotations
+
 import logging
-import pytest
-from hi_agent.observability.silent_degradation import record_silent_degradation, get_fallback_events
+
+from hi_agent.observability.silent_degradation import get_fallback_events, record_silent_degradation
 
 
 def test_records_event():
