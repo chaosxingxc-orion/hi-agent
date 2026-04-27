@@ -182,6 +182,157 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "KG backend overridden away from posture default (Rule 7 alarm).",
     ),
+    # W12-G: run lifecycle counters (labels: tenant_id, outcome, reason).
+    "hi_agent_runs_started_total": _MetricDef(
+        "hi_agent_runs_started_total",
+        "counter",
+        "Total run execution starts.",
+    ),
+    "hi_agent_runs_completed_total": _MetricDef(
+        "hi_agent_runs_completed_total",
+        "counter",
+        "Total run completions.",
+    ),
+    "hi_agent_runs_failed_total": _MetricDef(
+        "hi_agent_runs_failed_total",
+        "counter",
+        "Total run failures.",
+    ),
+    "hi_agent_runs_cancelled_total": _MetricDef(
+        "hi_agent_runs_cancelled_total",
+        "counter",
+        "Total run cancellations.",
+    ),
+    "hi_agent_runs_timed_out_total": _MetricDef(
+        "hi_agent_runs_timed_out_total",
+        "counter",
+        "Total run timeouts.",
+    ),
+    # W12-G: queue operation counters (labels: outcome).
+    "hi_agent_queue_lease_renew_total": _MetricDef(
+        "hi_agent_queue_lease_renew_total",
+        "counter",
+        "Lease renewal attempts.",
+    ),
+    "hi_agent_queue_expired_lease_total": _MetricDef(
+        "hi_agent_queue_expired_lease_total",
+        "counter",
+        "Expired leases reclaimed.",
+    ),
+    "hi_agent_queue_duplicate_claim_blocked_total": _MetricDef(
+        "hi_agent_queue_duplicate_claim_blocked_total",
+        "counter",
+        "Duplicate claim attempts blocked.",
+    ),
+    # W12-G: admission and recovery counters (labels: reason).
+    "hi_agent_admission_rejected_total": _MetricDef(
+        "hi_agent_admission_rejected_total",
+        "counter",
+        "Run admission rejections.",
+    ),
+    "hi_agent_recovery_triggered_total": _MetricDef(
+        "hi_agent_recovery_triggered_total",
+        "counter",
+        "Recovery attempts triggered.",
+    ),
+    "hi_agent_recovery_success_total": _MetricDef(
+        "hi_agent_recovery_success_total",
+        "counter",
+        "Recovery successes.",
+    ),
+    "hi_agent_recovery_failed_total": _MetricDef(
+        "hi_agent_recovery_failed_total",
+        "counter",
+        "Recovery failures.",
+    ),
+    # W12-G: MCP and tool counters (labels: server, tool, outcome).
+    "hi_agent_mcp_crash_total": _MetricDef(
+        "hi_agent_mcp_crash_total",
+        "counter",
+        "MCP subprocess crashes.",
+    ),
+    "hi_agent_tool_calls_total": _MetricDef(
+        "hi_agent_tool_calls_total",
+        "counter",
+        "Tool call attempts.",
+    ),
+    "hi_agent_human_gate_open_total": _MetricDef(
+        "hi_agent_human_gate_open_total",
+        "counter",
+        "Human gate open events.",
+    ),
+    "hi_agent_runs_recovered_after_restart_total": _MetricDef(
+        "hi_agent_runs_recovered_after_restart_total",
+        "counter",
+        "Runs recovered after worker restart.",
+    ),
+    "hi_agent_runs_dead_lettered_total": _MetricDef(
+        "hi_agent_runs_dead_lettered_total",
+        "counter",
+        "Runs moved to DLQ.",
+    ),
+    # W12-G: run and queue gauges.
+    "hi_agent_runs_stalled": _MetricDef(
+        "hi_agent_runs_stalled",
+        "gauge",
+        "Runs with no progress for >120s.",
+    ),
+    "hi_agent_queue_depth": _MetricDef(
+        "hi_agent_queue_depth",
+        "gauge",
+        "Current queue depth.",
+    ),
+    "hi_agent_queue_oldest_age_seconds": _MetricDef(
+        "hi_agent_queue_oldest_age_seconds",
+        "gauge",
+        "Age of oldest queued item.",
+    ),
+    "hi_agent_dlq_depth": _MetricDef(
+        "hi_agent_dlq_depth",
+        "gauge",
+        "Dead letter queue depth.",
+    ),
+    "hi_agent_dlq_oldest_age_seconds": _MetricDef(
+        "hi_agent_dlq_oldest_age_seconds",
+        "gauge",
+        "Age of oldest DLQ item.",
+    ),
+    "hi_agent_active_runs_at_drain": _MetricDef(
+        "hi_agent_active_runs_at_drain",
+        "gauge",
+        "Active runs when drain initiated.",
+    ),
+    # W12-G: run and tool histograms (labels: tenant_id, outcome, tool).
+    "hi_agent_run_duration_seconds": _MetricDef(
+        "hi_agent_run_duration_seconds",
+        "histogram",
+        "End-to-end run duration.",
+    ),
+    "hi_agent_run_no_progress_seconds": _MetricDef(
+        "hi_agent_run_no_progress_seconds",
+        "histogram",
+        "Duration of no-progress gaps.",
+    ),
+    "hi_agent_queue_claim_latency_seconds": _MetricDef(
+        "hi_agent_queue_claim_latency_seconds",
+        "histogram",
+        "Queue claim latency.",
+    ),
+    "hi_agent_tool_latency_seconds": _MetricDef(
+        "hi_agent_tool_latency_seconds",
+        "histogram",
+        "Tool call latency.",
+    ),
+    "hi_agent_human_gate_age_seconds": _MetricDef(
+        "hi_agent_human_gate_age_seconds",
+        "histogram",
+        "Human gate pending duration.",
+    ),
+    "hi_agent_drain_duration_seconds": _MetricDef(
+        "hi_agent_drain_duration_seconds",
+        "histogram",
+        "Graceful drain duration.",
+    ),
 }
 
 # Maximum samples retained for histogram-like metrics.
