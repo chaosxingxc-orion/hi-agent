@@ -26,6 +26,36 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 DOCS = ROOT / "docs"
+_SCORE_CAPS_FILE = ROOT / "docs" / "governance" / "score_caps.yaml"
+
+
+def _load_score_cap(condition: str) -> float:
+    """Return the cap value for a named condition from score_caps.yaml.
+
+    Falls back to hardcoded defaults when the registry file is absent or unparseable.
+    """
+    _fallbacks = {
+        "t3_stale": 63.0,
+        "gate_warn": 80.0,
+        "t3_deferred": 72.0,
+        "gate_fail": 70.0,
+    }
+    if not _SCORE_CAPS_FILE.exists():
+        return _fallbacks.get(condition, 70.0)
+    try:
+        text = _SCORE_CAPS_FILE.read_text(encoding="utf-8")
+        current_cond: str | None = None
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- condition:"):
+                current_cond = stripped.split(":", 1)[1].strip()
+            elif current_cond == condition:
+                m = re.match(r"^\s+cap:\s*(\d+(?:\.\d+)?)\s*$", line)
+                if m:
+                    return float(m.group(1))
+    except Exception:
+        pass
+    return _fallbacks.get(condition, 70.0)
 
 
 def _git_head(repo_root: Path = ROOT) -> str | None:
@@ -111,13 +141,13 @@ def _t3_is_fresh(repo_root: Path = ROOT) -> bool:
 def check_score_cap(notice: Path | None = None) -> list[str]:
     """Declared readiness score must not exceed the cap for the T3 status.
 
-    Cap rules:
-    - T3 stale: max 76.5
-    - T3 fresh but no clean-env evidence JSON for current HEAD: max 78.0
+    Cap rules (loaded from docs/governance/score_caps.yaml):
+    - T3 stale: max _load_score_cap("t3_stale")
+    - T3 fresh but no clean-env evidence JSON for current HEAD: max _load_score_cap("gate_warn")
     - T3 fresh + clean-env evidence present + HEAD aligned: no cap
 
-    Extended check: if score > 76.5 and no 'Validated by:' field present,
-    emit a WARNING (not hard FAIL) about missing validation record.
+    Extended check: if score > _load_score_cap("t3_stale") and no 'Validated by:' field
+    present, emit a WARNING (not hard FAIL) about missing validation record.
     """
     errors: list[str] = []
     if notice is None:
@@ -150,11 +180,14 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
                     has_clean_env_evidence = True
                     break
 
+    _t3_stale_cap = _load_score_cap("t3_stale")
+    _gate_warn_cap = _load_score_cap("gate_warn")
+
     if not t3_fresh:
-        cap = 76.5
+        cap: float | None = _t3_stale_cap
         status = "stale"
     elif not has_clean_env_evidence:
-        cap = 78.0
+        cap = _gate_warn_cap
         status = "fresh-no-clean-env"
     else:
         cap = None
@@ -170,8 +203,8 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
             f"{score}, max allowed {cap} (T3: {status})"
         )
 
-    # Warn when score > 76.5 but Validated by: is absent
-    if score > 76.5:
+    # Warn when score > t3_stale cap but Validated by: is absent
+    if score > _t3_stale_cap:
         has_validated_by = bool(re.search(r"Validated by:\s*\S", src, re.IGNORECASE))
         if not has_validated_by:
             try:
@@ -179,24 +212,27 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
             except ValueError:
                 rel = notice
             errors.append(
-                f"  WARNING MISSING-VALIDATED-BY: {rel} declares readiness {score} > 76.5 "
-                "but has no 'Validated by:' field. Add 'Validated by: <scripts>' to the "
-                "notice header block (generated automatically by release_notice.py)."
+                f"  WARNING MISSING-VALIDATED-BY: {rel} declares readiness "
+                f"{score} > {_t3_stale_cap} but has no 'Validated by:' field. "
+                "Add 'Validated by: <scripts>' to the notice header block "
+                "(generated automatically by release_notice.py)."
             )
 
     return errors
 
 
 def check_validated_by_header() -> list[str]:
-    """Wave notices with score > 76.5 must carry a 'Validated by:' field.
+    """Wave notices with score above t3_stale cap must carry a 'Validated by:' field.
 
     Scans all wave notices in docs/downstream-responses/ for a ``Validated by:``
     field inside the code block at the top of the notice.  If the notice's
-    declared ``Current verified readiness:`` exceeds 76.5 but ``Validated by:``
-    is missing or empty, emits a WARNING (not a hard FAIL).
+    declared ``Current verified readiness:`` exceeds the t3_stale cap (loaded from
+    score_caps.yaml) but ``Validated by:`` is missing or empty, emits a WARNING
+    (not a hard FAIL).
 
     Draft notices (``Status: draft``) are exempt.
     """
+    _t3_stale_cap = _load_score_cap("t3_stale")
     warnings: list[str] = []
     for notice in DOCS.glob("downstream-responses/2026-*-wave*-notice.md"):
         src = notice.read_text(encoding="utf-8", errors="replace")
@@ -213,7 +249,7 @@ def check_validated_by_header() -> list[str]:
                     score = float(m.group(1))
                 break
 
-        if score is None or score <= 76.5:
+        if score is None or score <= _t3_stale_cap:
             continue
 
         has_validated_by = bool(re.search(r"Validated by:\s*\S", src, re.IGNORECASE))
@@ -223,9 +259,10 @@ def check_validated_by_header() -> list[str]:
             except ValueError:
                 rel = notice
             warnings.append(
-                f"  WARNING MISSING-VALIDATED-BY: {rel} declares readiness {score} > 76.5 "
-                "but has no 'Validated by:' field in the notice header block. "
-                "Regenerate with scripts/release_notice.py to add this field."
+                f"  WARNING MISSING-VALIDATED-BY: {rel} declares readiness "
+                f"{score} > {_t3_stale_cap} but has no 'Validated by:' field in the "
+                "notice header block. Regenerate with scripts/release_notice.py to add "
+                "this field."
             )
 
     return warnings

@@ -209,8 +209,29 @@ def check_notice_head_matches_repo(notice: Path | None) -> list[str]:
     ]
 
 
+def _load_t3_deferred_cap() -> float:
+    """Return t3_deferred cap from score_caps.yaml, defaulting to 72.0."""
+    caps_file = ROOT / "docs" / "governance" / "score_caps.yaml"
+    if not caps_file.exists():
+        return 72.0
+    try:
+        text = caps_file.read_text(encoding="utf-8")
+        current_cond: str | None = None
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- condition:"):
+                current_cond = stripped.split(":", 1)[1].strip()
+            elif current_cond == "t3_deferred":
+                m = re.match(r"^\s+cap:\s*(\d+(?:\.\d+)?)\s*$", line)
+                if m:
+                    return float(m.group(1))
+    except Exception:
+        pass
+    return 72.0
+
+
 def check_notice_t3_deferred_vs_readiness(notice: Path | None) -> list[str]:
-    """E1b: T3 DEFERRED contradicts readiness improvement above 72."""
+    """E1b: T3 DEFERRED contradicts readiness improvement above t3_deferred cap."""
     if notice is None:
         return []
     src = notice.read_text(encoding="utf-8", errors="replace")
@@ -219,17 +240,23 @@ def check_notice_t3_deferred_vs_readiness(notice: Path | None) -> list[str]:
     has_t3_deferred = bool(re.search(r"T3 evidence[*:]+\s*DEFERRED", src, re.IGNORECASE))
     if not has_t3_deferred:
         return []
+    _t3_deferred_cap = _load_t3_deferred_cap()
     high_score = re.search(
-        r"(?:scorecard delta|readiness)[^\n]*\b(7[3-9]|[89][0-9]|100)\b",
+        r"(?:scorecard delta|readiness)[^\n]*\b(\d+(?:\.\d+)?)\b",
         src,
         re.IGNORECASE,
     )
     if high_score:
-        return [
-            f"  {notice.relative_to(ROOT)}: Delivery notice claims readiness improvement "
-            "above 72 while T3 evidence is DEFERRED. Either complete the T3 gate or "
-            "remove/defer the readiness claim."
-        ]
+        try:
+            val = float(high_score.group(1))
+        except ValueError:
+            val = 0.0
+        if val > _t3_deferred_cap:
+            return [
+                f"  {notice.relative_to(ROOT)}: Delivery notice claims readiness improvement "
+                f"above {_t3_deferred_cap} while T3 evidence is DEFERRED. Either complete "
+                "the T3 gate or remove/defer the readiness claim."
+            ]
     return []
 
 

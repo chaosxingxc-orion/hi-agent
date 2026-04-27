@@ -37,18 +37,21 @@ CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 #   by `git update-index --skip-worktree`; not a code-quality gate.
 # Excluded: check_t3_evidence.py — PR-time gate (requires --changed-files / --pr-body args).
 _GATE_SCRIPTS: dict[str, tuple[str, bool]] = {
-    "layering":          ("check_layering.py",              True),
-    "vocab":             ("check_no_research_vocab.py",     True),
-    "route_scope":       ("check_route_scope.py",           True),
-    "expired_waivers":   ("check_expired_waivers.py",       True),
-    "doc_canonical":     ("check_doc_canonical_symbols.py", True),
-    "doc_consistency":   ("check_doc_consistency.py",       True),
-    "wave_tags":         ("check_no_wave_tags.py",          True),
-    "rule6_warnings":    ("check_rules.py",                 True),
-    "t3_freshness":      ("check_t3_freshness.py",          False),
-    "boundary":          ("check_boundary.py",              True),
-    "deprecated_api":    ("check_deprecated_field_usage.py", True),
-    "durable_wiring":    ("check_durable_wiring.py",        True),
+    "layering":             ("check_layering.py",              True),
+    "vocab":                ("check_no_research_vocab.py",     True),
+    "route_scope":          ("check_route_scope.py",           True),
+    "expired_waivers":      ("check_expired_waivers.py",       True),
+    "doc_canonical":        ("check_doc_canonical_symbols.py", True),
+    "doc_consistency":      ("check_doc_consistency.py",       True),
+    "wave_tags":            ("check_no_wave_tags.py",          True),
+    "rule6_warnings":       ("check_rules.py",                 True),
+    "t3_freshness":         ("check_t3_freshness.py",          False),
+    "boundary":             ("check_boundary.py",              True),
+    "deprecated_api":       ("check_deprecated_field_usage.py", True),
+    "durable_wiring":       ("check_durable_wiring.py",        True),
+    "metrics_cardinality":  ("check_metrics_cardinality.py",   True),
+    "slo_health":           ("check_slo_health.py",            True),
+    "allowlist_discipline": ("check_allowlist_discipline.py",  True),
 }
 
 
@@ -154,6 +157,41 @@ def _compute_raw(dimensions: list[dict[str, Any]]) -> float:
     return round(total, 2)
 
 
+def _load_score_caps() -> list[dict[str, Any]]:
+    """Load cap rules from docs/governance/score_caps.yaml.
+
+    Returns list of rule dicts with keys: condition, cap, factor, description.
+    Returns empty list on any error (caller falls back to hardcoded behaviour).
+    """
+    caps_file = ROOT / "docs" / "governance" / "score_caps.yaml"
+    if not caps_file.exists():
+        return []
+    try:
+        import re as _re
+        text = caps_file.read_text(encoding="utf-8")
+        rules: list[dict[str, Any]] = []
+        current: dict[str, Any] | None = None
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- condition:"):
+                if current:
+                    rules.append(current)
+                current = {"condition": stripped.split(":", 1)[1].strip()}
+            elif current is not None:
+                for field in ("factor", "description"):
+                    m = _re.match(rf"^\s+{field}:\s*(.+)\s*$", line)
+                    if m:
+                        current[field] = m.group(1).strip().strip('"')
+                m = _re.match(r"^\s+cap:\s*(\d+(?:\.\d+)?)\s*$", line)
+                if m:
+                    current["cap"] = float(m.group(1))
+        if current:
+            rules.append(current)
+        return rules
+    except Exception:
+        return []
+
+
 def _compute_cap(
     gates: dict[str, Any],
     *,
@@ -161,34 +199,104 @@ def _compute_cap(
     t3_stale: bool = False,
     expired_allowlist: int = 0,
 ) -> tuple[float | None, str, list[str]]:
-    """Return (cap_value, cap_reason, cap_factors) based on gate statuses and extra context."""
-    cap_factors: list[str] = []
+    """Return (cap_value, cap_reason, cap_factors) based on gate statuses and registry rules.
 
-    statuses = [v.get("status", "unknown") for v in gates.values() if isinstance(v, dict)]
-    if "fail" in statuses:
-        failing = [k for k, v in gates.items() if isinstance(v, dict) and v.get("status") == "fail"]
-        cap_factors.append(f"gate_fail: {', '.join(failing)}")
-    if "warn" in statuses or "deferred" in statuses:
-        degraded = [
-            k for k, v in gates.items()
-            if isinstance(v, dict) and v.get("status") in ("warn", "deferred")
-        ]
-        cap_factors.append(f"gate_warn/deferred: {', '.join(degraded)}")
-    if "missing" in statuses:
-        cap_factors.append("one or more scripts missing")
-    if is_dirty:
-        cap_factors.append("dirty_worktree")
-    if t3_stale:
-        cap_factors.append("t3_stale")
-    if expired_allowlist > 0:
-        cap_factors.append(f"expired_allowlist_count={expired_allowlist}")
+    Loads cap rules from docs/governance/score_caps.yaml.  Falls back to hardcoded
+    70.0 / 80.0 thresholds when the registry cannot be loaded.
+    The lowest matching cap wins.
+    """
+    cap_rules = _load_score_caps()
+    if not cap_rules:
+        # Fallback: original hardcoded behaviour
+        cap_factors_fb: list[str] = []
+        statuses_fb = [v.get("status", "unknown") for v in gates.values() if isinstance(v, dict)]
+        if "fail" in statuses_fb:
+            failing_fb = [
+                k for k, v in gates.items()
+                if isinstance(v, dict) and v.get("status") == "fail"
+            ]
+            cap_factors_fb.append(f"gate_fail: {', '.join(failing_fb)}")
+        if "warn" in statuses_fb or "deferred" in statuses_fb:
+            degraded_fb = [
+                k for k, v in gates.items()
+                if isinstance(v, dict) and v.get("status") in ("warn", "deferred")
+            ]
+            cap_factors_fb.append(f"gate_warn/deferred: {', '.join(degraded_fb)}")
+        if "missing" in statuses_fb:
+            cap_factors_fb.append("one or more scripts missing")
+        if is_dirty:
+            cap_factors_fb.append("dirty_worktree")
+        if t3_stale:
+            cap_factors_fb.append("t3_stale")
+        if expired_allowlist > 0:
+            cap_factors_fb.append(f"expired_allowlist_count={expired_allowlist}")
+        if not cap_factors_fb:
+            return None, "all gates pass", []
+        if any("gate_fail" in f for f in cap_factors_fb) or is_dirty:
+            return 70.0, "; ".join(cap_factors_fb), cap_factors_fb
+        return 80.0, "; ".join(cap_factors_fb), cap_factors_fb
 
-    if not cap_factors:
+    # Collect gate statuses once
+    statuses = {k: v.get("status", "unknown") for k, v in gates.items() if isinstance(v, dict)}
+
+    t3_gate_val = gates.get("t3_freshness")
+    t3_status = (
+        t3_gate_val.get("status", "unknown") if isinstance(t3_gate_val, dict) else "unknown"
+    )
+
+    def _condition_matches(condition: str) -> str | None:
+        """Return a human-readable factor string if the condition is true, else None."""
+        if condition == "head_mismatch":
+            # head_mismatch is not directly computable here (caller does not pass head info);
+            # leave for manifest-level checks.
+            return None
+        if condition == "dirty_worktree":
+            return "dirty_worktree" if is_dirty else None
+        if condition == "gate_fail":
+            failing = [k for k, s in statuses.items() if s == "fail"]
+            return f"gate_fail: {', '.join(failing)}" if failing else None
+        if condition == "expired_allowlist":
+            return f"expired_allowlist_count={expired_allowlist}" if expired_allowlist > 0 else None
+        if condition == "clean_env_unverified":
+            ce = gates.get("clean_env", {})
+            ce_status = ce.get("status", "unknown") if isinstance(ce, dict) else "unknown"
+            if ce_status not in ("pass", "passed", "unknown"):
+                return f"clean_env_unverified: {ce_status}"
+            return None
+        if condition == "t3_stale":
+            if t3_stale and t3_status != "deferred":
+                return "t3_stale"
+            return None
+        if condition == "t3_deferred":
+            return "t3_deferred" if t3_status == "deferred" else None
+        if condition == "verification_stale":
+            va = gates.get("verification_artifacts", {})
+            if isinstance(va, dict) and va.get("has_stale"):
+                return "verification_stale"
+            return None
+        if condition == "gate_missing":
+            missing = [k for k, s in statuses.items() if s == "missing"]
+            return f"gate_missing: {', '.join(missing)}" if missing else None
+        if condition == "gate_warn":
+            degraded = [k for k, s in statuses.items() if s in ("warn", "deferred")]
+            return f"gate_warn/deferred: {', '.join(degraded)}" if degraded else None
+        return None
+
+    matched_factors: list[str] = []
+    matched_caps: list[float] = []
+
+    for rule in cap_rules:
+        condition = rule.get("condition", "")
+        factor_val = _condition_matches(condition)
+        if factor_val is not None:
+            matched_factors.append(factor_val)
+            matched_caps.append(float(rule.get("cap", 70.0)))
+
+    if not matched_factors:
         return None, "all gates pass", []
 
-    if any("gate_fail" in f for f in cap_factors) or is_dirty:
-        return 70.0, "; ".join(cap_factors), cap_factors
-    return 80.0, "; ".join(cap_factors), cap_factors
+    lowest_cap = min(matched_caps)
+    return lowest_cap, "; ".join(matched_factors), matched_factors
 
 
 def _compute_conditional(raw: float, dimensions: list[dict[str, Any]]) -> float:

@@ -1,28 +1,28 @@
-# Wave 11 scorecard weights — human-curated, must sum to 100.
+# Wave 13 scorecard weights — human-curated, must sum to 100.
 # base_score: current implementation quality (0–100, human-assessed).
 # weight: contribution to final raw score.
 # gate_check: primary governance script that validates this dimension.
 #
 # raw = sum(weight * base_score / 100)  across all dimensions
 # verified = min(raw, gate_cap)
-#   gate_cap: 70 if any gate=fail, 80 if any gate=warn/deferred, else no cap
+#   gate_cap: driven by docs/governance/score_caps.yaml registry
 #
 # Update base_score when implementation state changes.
 # Bump version when dimensions or weights change.
 
 schema_version: "1"
-wave: "Wave 11"
+wave: "Wave 13"
 
 dimensions:
   - name: layering
     description: "Platform code does not import from lower-stability layers (examples/tests/scripts/docs)"
-    weight: 8
+    weight: 7
     base_score: 100
     gate_check: layering
 
   - name: vocab_discipline
-    description: "No domain vocabulary leaking into hi_agent/ public surface (hard bans clean; soft-ban allowlisted for Wave 12)"
-    weight: 7
+    description: "No domain vocabulary leaking into hi_agent/ public surface (hard bans clean; soft-ban allowlisted for Wave 13)"
+    weight: 6
     base_score: 85
     gate_check: vocab
 
@@ -46,31 +46,31 @@ dimensions:
 
   - name: test_markers
     description: "Integration tests carry correct pytest markers; profile filters are functional"
-    weight: 10
+    weight: 8
     base_score: 95
-    gate_check: clean_env
+    gate_check: wave_tags
 
   - name: governance_readability
     description: "All governance scripts emit machine-readable --json; wave-tag regex catches bare Wave N"
-    weight: 7
+    weight: 6
     base_score: 100
     gate_check: wave_tags
 
   - name: evidence_identity
     description: "Gate evidence files carry verified_head SHA, timestamp, and dirty-worktree guard"
-    weight: 10
+    weight: 8
     base_score: 100
     gate_check: t3_freshness
 
   - name: claim_discipline
     description: "Downstream notices bind claims to release manifest IDs"
-    weight: 10
+    weight: 8
     base_score: 70
     gate_check: doc_consistency
 
   - name: t3_gate
     description: "Real-LLM operator-shape gate passed at current HEAD (Rule 8 T3 Invariance)"
-    weight: 10
+    weight: 8
     base_score: 70
     gate_check: t3_freshness
 
@@ -78,19 +78,31 @@ dimensions:
     description: "Default-offline profile completes without failures in a clean environment"
     weight: 12
     base_score: 88
-    gate_check: clean_env
+    gate_check: rule6_warnings
 
   - name: ci_gate
-    description: "Release-gate CI job aggregates all governance checks non-skippably (W11-G)"
-    weight: 5
+    description: "Release-gate CI job aggregates all governance checks non-skippably (W13-G)"
+    weight: 4
     base_score: 65
-    gate_check: ci_gate
+    gate_check: doc_consistency
 
   - name: allowlist_discipline
     description: "All allowlist entries have owner/risk/reason/expiry/replacement-test; none expired"
-    weight: 4
+    weight: 2
     base_score: 80
     gate_check: allowlist_discipline
+
+  - name: metrics_cardinality
+    description: "All named metrics have real producer callsites"
+    weight: 5
+    base_score: 60
+    gate_check: metrics_cardinality
+
+  - name: slo_health
+    description: "SLO/alerts/runbook/dashboard HTTP routes pass health check"
+    weight: 5
+    base_score: 65
+    gate_check: slo_health
 
 # Three-tier score structure (per upstream conduct spec §6)
 # raw_implementation_maturity:  sum(weight * base_score / 100)

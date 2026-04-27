@@ -31,7 +31,7 @@ NOTICES_DIR = ROOT / "docs" / "downstream-responses"
 
 _DEFAULT_T3_EVIDENCE = "PENDING — run scripts/run_t3_gate.sh"
 _DEFAULT_CLEAN_ENV_EVIDENCE = "PENDING — run verify_clean_env.py --profile default-offline"
-_DEFAULT_SCORE_CAP = "76.5 (T3 pending; score cap applies until T3 gate passes)"
+_DEFAULT_SCORE_CAP = "63.0 (T3 deferred; score cap applies until T3 gate passes)"
 
 
 def _git_run(args: list[str], check: bool = True) -> subprocess.CompletedProcess:

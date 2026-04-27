@@ -1,0 +1,48 @@
+# docs/governance/score_caps.yaml
+# Single source of truth for score cap rules.
+# Priority: lowest cap wins when multiple conditions apply.
+# Conditions are evaluated in the order listed; first match sets the cap.
+# Factor names appear in manifest cap_factors list.
+schema_version: "1"
+
+cap_rules:
+  - condition: head_mismatch
+    cap: 60
+    factor: head_mismatch
+    description: "Manifest release_head does not match current HEAD"
+  - condition: dirty_worktree
+    cap: 70
+    factor: dirty_worktree
+    description: "Working tree has uncommitted changes"
+  - condition: gate_fail
+    cap: 70
+    factor: gate_fail
+    description: "One or more gates failed"
+  - condition: expired_allowlist
+    cap: 63
+    factor: expired_allowlist
+    description: "Expired allowlist entries present"
+  - condition: clean_env_unverified
+    cap: 63
+    factor: clean_env_unverified
+    description: "clean_env gate missing or failed"
+  - condition: t3_stale
+    cap: 63
+    factor: t3_stale
+    description: "T3 evidence is stale or missing"
+  - condition: t3_deferred
+    cap: 72
+    factor: t3_deferred
+    description: "T3 gate deferred (real LLM key not available)"
+  - condition: verification_stale
+    cap: 68
+    factor: verification_stale
+    description: "Verification artifacts are stale vs current HEAD"
+  - condition: gate_missing
+    cap: 70
+    factor: gate_missing
+    description: "One or more gate scripts not found"
+  - condition: gate_warn
+    cap: 80
+    factor: gate_warn
+    description: "One or more gates warn or are deferred (but not failed)"
