@@ -100,9 +100,19 @@ def main() -> int:
         "status": status,
     }
 
-    short_sha = manifest.get("git", {}).get("short_sha", "unknown")
+    # Name the artifact using the CURRENT git HEAD, not the manifest's SHA.
+    # Using manifest's SHA would overwrite a committed artifact whenever the
+    # manifest is rebuilt at a later HEAD, creating dirty-tree false positives.
+    import subprocess as _sp
+    _head_result = _sp.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        capture_output=True, text=True, cwd=str(ROOT),
+    )
+    current_short_sha = _head_result.stdout.strip() if _head_result.returncode == 0 else (
+        manifest.get("git", {}).get("short_sha", "unknown")
+    )
     VERIF_DIR.mkdir(parents=True, exist_ok=True)
-    out = VERIF_DIR / f"{short_sha}-score-cap.json"
+    out = VERIF_DIR / f"{current_short_sha}-score-cap.json"
     out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
 
     result = {"status": status, "check": "score_cap", **evidence}
