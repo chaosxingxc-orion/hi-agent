@@ -173,6 +173,9 @@ def main() -> int:
         "command": f"python scripts/run_operator_drill.py --base-url {base}",
         "start_ts": start_ts,
         "finish_ts": finish_ts,
+        # generated_at lets _governance.evidence_picker sort drill files
+        # consistently with manifests and other evidence.
+        "generated_at": finish_ts,
     }
 
     if args.output:

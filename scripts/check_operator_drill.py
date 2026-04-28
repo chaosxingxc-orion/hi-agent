@@ -18,10 +18,17 @@ import pathlib
 import subprocess
 import sys
 
+from _governance.evidence_picker import latest_evidence
+from _governance.governance_gap import is_gov_only_gap
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VERIF_DIR = ROOT / "docs" / "verification"
 
-_GOV_PREFIXES = ("docs/", "scripts/", ".github/")
+# Tightened from "*operator-drill*.json" to "*-operator-drill.json" (GS-5):
+# the producer always writes "{sha}-operator-drill.json", so requiring the
+# hyphen before "operator-drill" rejects any accidentally-named sibling file
+# that doesn't follow the SHA prefix convention.
+_DRILL_GLOB = "*-operator-drill.json"
 
 
 def _git_head() -> str:
@@ -34,55 +41,21 @@ def _git_head() -> str:
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
-def _commit_timestamp(sha: str) -> int:
-    """Return unix commit timestamp for sha, or 0 on failure."""
-    try:
-        r = subprocess.run(
-            ["git", "log", "-1", "--format=%ct", sha],
-            capture_output=True, text=True, cwd=str(ROOT),
-        )
-        if r.returncode == 0 and r.stdout.strip():
-            return int(r.stdout.strip())
-    except Exception:
-        pass
-    return 0
-
-
 def _gov_only_gap(base_sha: str, head_sha: str) -> bool:
-    """Return True when commits base_sha..head_sha only touch governance files."""
-    if base_sha[:12] == head_sha[:12]:
-        return True
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
-            capture_output=True, text=True, cwd=str(ROOT),
-        )
-        if result.returncode != 0:
-            return False
-        changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-        return bool(changed) and all(
-            any(f.startswith(p) for p in _GOV_PREFIXES) for f in changed
-        )
-    except Exception:
-        return False
+    """Backward-compat wrapper for the canonical helper (G-3 fix)."""
+    return is_gov_only_gap(base_sha, head_sha, repo_root=ROOT)
 
 
 def _latest_drill_evidence() -> pathlib.Path | None:
-    # Sort by git commit timestamp of the head SHA recorded in each file.
-    # This is stable across CI runs (where all files have identical checkout mtime).
-    candidates = []
-    for p in VERIF_DIR.glob("*operator-drill*.json"):
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-            head = data.get("head", "")
-            ts = _commit_timestamp(head) if head else 0
-            candidates.append((ts, p.name, p))
-        except Exception:
-            candidates.append((0, p.name, p))
-    if not candidates:
-        return None
-    candidates.sort(key=lambda t: (t[0], t[1]))
-    return candidates[-1][2]
+    """Pick latest drill evidence via canonical helper.
+
+    GS-6 fix: replaces the prior `git log -1 --format=%ct <short-sha>` lookup,
+    which silently returned 0 on shallow CI clones (and on commits not yet
+    fetched), causing all drill evidence to tie at ts=0 and fall back to
+    alphabetical order. The helper sorts by (generated_at-from-content,
+    mtime, name) — no git access needed.
+    """
+    return latest_evidence(VERIF_DIR, _DRILL_GLOB)
 
 
 def main() -> int:
