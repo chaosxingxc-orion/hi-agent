@@ -3,8 +3,8 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    ac0bd79
-Manifest:           2026-04-28-ed69a62
+Functional HEAD:    58394d6
+Manifest:           2026-04-28-58394d6
 T3 evidence:        docs/delivery/2026-04-29-9ed019c-t3-volces.json (3 Volces runs, real LLM, provenance=real)
 Clean-env evidence: docs/verification/1d78056-default-offline-clean-env.json (8707 passed, 0 failed)
 Current verified readiness: 80.0 (gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence)
@@ -57,9 +57,9 @@ Note: Verified stays at 80.0 not because nothing improved, but because the remai
 
 ---
 
-## Evidence Index (at ac0bd79)
+## Evidence Index (at 58394d6)
 
-- `docs/releases/2026-04-28-ed69a62.json` — release manifest
+- `docs/releases/2026-04-28-58394d6.json` — release manifest
 - `docs/delivery/2026-04-29-9ed019c-t3-volces.json` — T3 evidence (3 Volces runs, real LLM)
-- `docs/verification/ac0bd79-default-offline-clean-env.json` — clean-env evidence
-- `docs/verification/ac0bd79-observability-spine.json` — spine evidence (structural)
+- `docs/verification/58394d6-default-offline-clean-env.json` — clean-env evidence
+- `docs/verification/58394d6-observability-spine.json` — spine evidence (structural)

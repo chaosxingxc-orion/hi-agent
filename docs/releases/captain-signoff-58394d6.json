@@ -1,0 +1,13 @@
+{
+  "wave": "18",
+  "release_head": "58394d6e436347fc3a67ca7684d35fb899c8af42",
+  "manifest_id": "2026-04-28-58394d6",
+  "verified_readiness": 80.0,
+  "signed_by": "release-captain",
+  "signed_at": "2026-04-28T23:02:53Z",
+  "t3_evidence": "docs/delivery/2026-04-29-9ed019c-t3-volces.json",
+  "clean_env_evidence": "docs/verification/1d78056-default-offline-clean-env.json",
+  "cap_factors": ["gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence"],
+  "deferred_to_wave_19": ["C1 gate strictness audit", "C2 evidence driver rewrite"],
+  "notes": "Wave 18 C4 vocabulary debt cleared (7 allowlist entries), chaos gate unblocked, head_mismatch resolved. Wave 18 governance tooling: manifest_freshness and doc_consistency auto-detect gov-infra gap."
+}
