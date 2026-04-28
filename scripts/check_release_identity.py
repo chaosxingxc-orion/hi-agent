@@ -32,22 +32,48 @@ def _repo_head() -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def _latest_manifest_head() -> tuple[str, str]:
-    manifests = sorted(
-        RELEASES_DIR.glob("platform-release-manifest-*.json"),
-        key=lambda p: p.stat().st_mtime,
-    )
-    if not manifests:
-        return "", ""
+_GOV_PREFIXES = ("docs/", "scripts/", ".github/")
+
+
+def _gov_only_gap(base_sha: str, head_sha: str) -> bool:
+    """Return True when commits base_sha..head_sha only touch governance files."""
+    if base_sha[:12] == head_sha[:12]:
+        return True
     try:
-        data = json.loads(manifests[-1].read_text(encoding="utf-8"))
-        return data.get("release_head", ""), manifests[-1].name
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
+            capture_output=True, text=True, cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            return False
+        changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+        return bool(changed) and all(
+            any(f.startswith(p) for p in _GOV_PREFIXES) for f in changed
+        )
     except Exception:
-        return "", manifests[-1].name
+        return False
+
+
+def _latest_manifest_head() -> tuple[str, str]:
+    # Sort by generated_at from inside the JSON — on CI all files share the same
+    # checkout mtime so mtime is not a reliable tiebreaker; SHA-alphabetical order
+    # is not chronological.
+    candidates = []
+    for p in RELEASES_DIR.glob("platform-release-manifest-*.json"):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            candidates.append((data.get("generated_at", ""), p.name, p, data))
+        except Exception:
+            continue
+    if not candidates:
+        return "", ""
+    candidates.sort(key=lambda t: (t[0], t[1]))
+    _, _, path, data = candidates[-1]
+    return data.get("release_head", ""), path.name
 
 
 def _latest_notice_head() -> tuple[str, str]:
-    notices = sorted(NOTICES_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime)
+    notices = sorted(NOTICES_DIR.glob("*.md"), key=lambda p: (p.stat().st_mtime, p.name))
     if not notices:
         return "", ""
     for notice in reversed(notices):
@@ -70,6 +96,16 @@ def _sha_match(a: str, b: str) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Release identity consistency gate.")
     parser.add_argument("--json", action="store_true", help="Emit JSON to stdout")
+    parser.add_argument(
+        "--allow-docs-only-gap",
+        action="store_true",
+        default=False,
+        dest="allow_docs_only_gap",
+        help=(
+            "Permit HEAD mismatches when all commits between the declared HEAD and "
+            "current HEAD touch only governance files (docs/, scripts/, .github/)."
+        ),
+    )
     args = parser.parse_args()
 
     repo_head = _repo_head()
@@ -104,17 +140,27 @@ def main() -> int:
 
     violations = []
     if not _sha_match(repo_head, manifest_head):
-        violations.append(
-            f"repo HEAD {repo_head[:12]} != manifest head {manifest_head[:12]} ({manifest_name})"
-        )
+        if args.allow_docs_only_gap and _gov_only_gap(manifest_head, repo_head):
+            pass  # governance-only commits after manifest — identity still valid
+        else:
+            violations.append(
+                f"repo HEAD {repo_head[:12]} != manifest head "
+                f"{manifest_head[:12]} ({manifest_name})"
+            )
     if notice_head and not _sha_match(repo_head, notice_head):
-        violations.append(
-            f"repo HEAD {repo_head[:12]} != notice head {notice_head[:12]} ({notice_name})"
-        )
+        if args.allow_docs_only_gap and _gov_only_gap(notice_head, repo_head):
+            pass  # governance-only commits after declared functional HEAD
+        else:
+            violations.append(
+                f"repo HEAD {repo_head[:12]} != notice head {notice_head[:12]} ({notice_name})"
+            )
     if notice_head and manifest_head and not _sha_match(notice_head, manifest_head):
-        violations.append(
-            f"notice head {notice_head[:12]} != manifest head {manifest_head[:12]}"
-        )
+        if args.allow_docs_only_gap and _gov_only_gap(notice_head, manifest_head):
+            pass  # governance-only gap between notice and manifest heads
+        else:
+            violations.append(
+                f"notice head {notice_head[:12]} != manifest head {manifest_head[:12]}"
+            )
 
     status = "pass" if not violations else "fail"
     result = {
