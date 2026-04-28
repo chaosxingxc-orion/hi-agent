@@ -74,17 +74,50 @@ def _scan_dir(directory: pathlib.Path) -> list[dict]:
     return results
 
 
+_EVIDENCE_SCRIPTS = [
+    "scripts/build_observability_spine_e2e_real.py",
+    "scripts/run_chaos_matrix.py",
+]
+
+
+def _check_script_provenance(root: pathlib.Path) -> list[dict]:
+    """Scan evidence-producing scripts for unannotated provenance='real' literals.
+
+    Every line assigning provenance="real" in a script must be immediately
+    preceded by a '# observation: <funcname>' comment.
+    """
+    issues = []
+    for rel_path in _EVIDENCE_SCRIPTS:
+        script = root / rel_path
+        if not script.exists():
+            continue
+        lines = script.read_text(encoding="utf-8").splitlines()
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if '"provenance"' in stripped and '"real"' in stripped and ":" in stripped:
+                prev = lines[i - 1].strip() if i > 0 else ""
+                if not prev.startswith("# observation:"):
+                    issues.append({
+                        "path": rel_path,
+                        "line": i + 1,
+                        "content": stripped[:120],
+                        "issue": 'provenance="real" without preceding "# observation: <funcname>" comment',
+                    })
+    return issues
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Evidence provenance gate.")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
     all_results = _scan_dir(VERIF_DIR) + _scan_dir(DELIVERY_DIR)
+    script_issues = _check_script_provenance(ROOT)
 
     failing = [r for r in all_results if r.get("issues")]
     missing_provenance = [r for r in all_results if not r.get("provenance") and not r.get("issues")]
 
-    if not all_results:
+    if not all_results and not script_issues:
         result = {
             "status": "not_applicable",
             "check": "evidence_provenance",
@@ -95,7 +128,7 @@ def main() -> int:
             print(json.dumps(result, indent=2))
         return 0
 
-    status = "pass" if not failing else "fail"
+    status = "pass" if not failing and not script_issues else "fail"
     result = {
         "status": status,
         "check": "evidence_provenance",
@@ -107,6 +140,7 @@ def main() -> int:
             {"path": r["path"], "issues": r["issues"]}
             for r in failing
         ],
+        "script_source_issues": script_issues,
         "summary": [
             {"path": r["path"], "check": r.get("check", ""), "provenance": r.get("provenance")}
             for r in all_results
@@ -120,8 +154,11 @@ def main() -> int:
             for r in failing:
                 for issue in r["issues"]:
                     print(f"FAIL {r['path']}: {issue}", file=sys.stderr)
-        else:
-            print(f"PASS: {len(all_results)} artifacts checked, all have valid provenance")
+        if script_issues:
+            for si in script_issues:
+                print(f"FAIL {si['path']}:{si['line']}: {si['issue']}", file=sys.stderr)
+        if not failing and not script_issues:
+            print(f"PASS: {len(all_results)} artifacts checked, 0 script source issues")
 
     return 0 if status == "pass" else 1
 

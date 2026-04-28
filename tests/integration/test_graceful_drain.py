@@ -145,3 +145,31 @@ def test_sigterm_handler_installed() -> None:
     assert received == [signal.SIGTERM], (
         f"Expected SIGTERM to be received exactly once; got {received}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 4 — RunManager.drain() waits for active runs and returns True
+# ---------------------------------------------------------------------------
+
+
+def test_drain_returns_true_when_no_active_runs() -> None:
+    """drain() returns True immediately when _active_run_ids is empty."""
+    import time as _time
+
+    manager = RunManager(max_concurrent=2, queue_size=4)
+    t0 = _time.monotonic()
+    drained = manager.drain(timeout_s=5.0)
+    elapsed = _time.monotonic() - t0
+
+    assert drained is True, "drain() should return True when no active runs"
+    assert elapsed < 2.0, f"drain() took too long with no active runs: {elapsed:.2f}s"
+    manager.shutdown(timeout=0.5)
+
+
+def test_drain_sets_shutdown_flag() -> None:
+    """drain() sets _shutdown=True to stop new queue dispatches."""
+    manager = RunManager(max_concurrent=2, queue_size=4)
+    assert not manager._shutdown
+    manager.drain(timeout_s=1.0)
+    assert manager._shutdown is True
+    manager.shutdown(timeout=0.5)
