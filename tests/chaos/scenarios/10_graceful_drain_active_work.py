@@ -1,11 +1,10 @@
 """Scenario 10: Graceful drain under active work.
 
-Sends a signal to /runs/{id}/signal with action=cancel to verify
-graceful drain path. Checks that the run transitions to cancelled/done.
+Calls POST /ops/drain to initiate server-level graceful drain while a run is
+active. Verifies the run reaches terminal state through the drain path.
 """
 from __future__ import annotations
 
-import json
 import time
 import urllib.error
 import urllib.request
@@ -13,11 +12,28 @@ import urllib.request
 from _helpers import _fail_result, _ok_result, submit_run, wait_terminal
 
 SCENARIO_NAME = "graceful_drain_active_work"
-SCENARIO_DESCRIPTION = "Submit run, signal cancel, verify graceful drain to terminal state."
+SCENARIO_DESCRIPTION = "Submit run, POST /ops/drain, verify run reaches terminal via drain path."
 
 _TERMINAL = frozenset(
     {"completed", "succeeded", "failed", "cancelled", "done", "error", "timed_out"}
 )
+
+
+def _post_drain(base_url: str) -> int:
+    """POST /ops/drain; returns HTTP status code or 0 on network error."""
+    req = urllib.request.Request(
+        f"{base_url}/ops/drain",
+        data=b"{}",
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=35) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except Exception:
+        return 0
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
@@ -32,39 +48,26 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
     if not run_id:
         result.update(_fail_result("could not submit run"))
         return result
-    # Wait briefly then send cancel signal
-    time.sleep(1)
-    signal_code = 0
-    try:
-        body = json.dumps({"action": "cancel"}).encode()
-        req = urllib.request.Request(
-            f"{base_url}/runs/{run_id}/signal",
-            data=body,
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=10) as r:
-            signal_code = r.status
-    except urllib.error.HTTPError as e:
-        signal_code = e.code
-    except Exception:
-        signal_code = 0
+
+    # Wait briefly then initiate server-level drain
+    time.sleep(0.5)
+    drain_code = _post_drain(base_url)
+
+    if drain_code == 404:
+        result.update(_fail_result("/ops/drain endpoint not found (404) — endpoint missing"))
+        return result
 
     final_state = wait_terminal(base_url, run_id, timeout=timeout - 10)
     if final_state in _TERMINAL:
         result.update(
             _ok_result(
-                f"drain signal={signal_code}, run reached terminal: {final_state}"
+                f"drain_code={drain_code}, run reached terminal: {final_state}"
             )
-        )
-    elif signal_code == 404:
-        # Run already completed before drain signal
-        result.update(
-            _ok_result("run completed before drain signal (signal_code=404); drain handled")
         )
     else:
         result.update(
             _fail_result(
-                f"run in state={final_state} after drain signal={signal_code}"
+                f"run in state={final_state} after drain (drain_code={drain_code})"
             )
         )
     return result

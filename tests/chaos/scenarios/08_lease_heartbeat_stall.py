@@ -35,6 +35,8 @@ SCENARIO_DESCRIPTION = (
     "Submit run with heartbeat-stall env vars; assert watchdog drives the run "
     "to a classified terminal state (not a silent dangle)."
 )
+# Chaos runner must set these before starting the server subprocess.
+REQUIRED_ENV = ["HI_AGENT_HEARTBEAT_STALL_S", "HI_AGENT_HEARTBEAT_INTERVAL_MS"]
 
 _TERMINAL = frozenset(
     {"completed", "succeeded", "failed", "cancelled", "done", "error", "timed_out"}
