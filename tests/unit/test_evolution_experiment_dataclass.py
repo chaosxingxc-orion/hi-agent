@@ -1,12 +1,12 @@
-"""Unit tests: EvolutionExperiment dataclass posture enforcement."""
+"""Unit tests: EvolutionTrial dataclass posture enforcement (W18: EvolutionExperiment removed)."""
 
 from __future__ import annotations
 
 import pytest
-from hi_agent.evolve.contracts import EvolutionExperiment
+from hi_agent.evolve.contracts import EvolutionTrial
 
 
-def _make_experiment(**overrides) -> EvolutionExperiment:
+def _make_trial(**overrides) -> EvolutionTrial:
     kwargs: dict = {
         "experiment_id": "exp-001",
         "capability_name": "skill_routing",
@@ -17,27 +17,27 @@ def _make_experiment(**overrides) -> EvolutionExperiment:
         "status": "active",
     }
     kwargs.update(overrides)
-    return EvolutionExperiment(**kwargs)
+    return EvolutionTrial(**kwargs)
 
 
 def test_research_rejects_missing_tenant(monkeypatch: pytest.MonkeyPatch) -> None:
-    """EvolutionExperiment with empty tenant_id must raise ValueError under research posture."""
+    """EvolutionTrial with empty tenant_id must raise ValueError under research posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     with pytest.raises(ValueError, match="tenant_id"):
-        _make_experiment(tenant_id="")
+        _make_trial(tenant_id="")
 
 
 def test_dev_allows_missing_tenant(monkeypatch: pytest.MonkeyPatch) -> None:
-    """EvolutionExperiment with empty tenant_id must succeed under dev posture."""
+    """EvolutionTrial with empty tenant_id must succeed under dev posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
-    exp = _make_experiment(tenant_id="")
+    exp = _make_trial(tenant_id="")
     assert exp.tenant_id == ""
 
 
-def test_valid_experiment_roundtrip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Well-formed EvolutionExperiment should construct successfully under all postures."""
+def test_valid_trial_roundtrip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Well-formed EvolutionTrial should construct successfully under all postures."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    exp = _make_experiment(
+    exp = _make_trial(
         tenant_id="tenant-abc",
         project_id="proj-123",
         run_id="run-001",
@@ -56,7 +56,7 @@ def test_valid_experiment_roundtrip(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_default_spine_fields_are_empty_strings(monkeypatch: pytest.MonkeyPatch) -> None:
     """Optional spine fields default to empty string under dev posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
-    exp = _make_experiment()
+    exp = _make_trial()
     assert exp.tenant_id == ""
     assert exp.project_id == ""
     assert exp.run_id == ""

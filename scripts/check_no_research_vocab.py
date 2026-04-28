@@ -27,13 +27,8 @@ HI_AGENT = ROOT / "hi_agent"
 MIGRATION_GUIDES = ROOT / "docs" / "migration-guides"
 
 # Files that are the shim/compat layer 鈥?allowed to reference old names
-_PATH_ALLOWLIST = {
-    "hi_agent/contracts/team_runtime.py",
-    "hi_agent/server/team_run_registry.py",
-    "hi_agent/evolve/contracts.py",
-    "hi_agent/evolve/postmortem.py",
-    "hi_agent/artifacts/contracts.py",
-}
+# (W18: all entries removed; shims burned down)
+_PATH_ALLOWLIST: set[str] = set()
 
 # Hard-ban: any match in non-allowlisted hi_agent/ code fails immediately.
 # These are deprecated / removed names; a shim exists for each.
@@ -64,10 +59,8 @@ _SOFT_BAN_IDENTIFIERS = frozenset({
 
 # Files allowed to contain soft-ban identifiers (Wave 12 migration targets).
 # These carry active but Wave-12-targeted usage; flag them as WARN only.
-_SOFT_BAN_PATH_ALLOWLIST = {
-    "hi_agent/llm/tier_presets.py",   # Wave 12: apply_strict_defaults replaces research presets
-    "hi_agent/llm/__init__.py",       # Wave 12: re-exports deprecated apply_research_defaults shim
-}
+# (W18: all entries removed)
+_SOFT_BAN_PATH_ALLOWLIST: set[str] = set()
 
 _LEGACY_ANNOTATION = "# legacy:"
 

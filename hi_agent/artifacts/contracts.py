@@ -165,31 +165,3 @@ class DatasetArtifact(Artifact):
         super().__post_init__()
 
 
-# CitationArtifact, PaperArtifact, and LeanProofArtifact have moved to
-# examples.research_overlay.artifacts.  They are research-domain types and do
-# not belong in the platform artifact module.  A backward-compat shim below
-# forwards attribute access (removed in a future release).
-
-
-def __getattr__(name: str) -> object:
-    """Backward-compat shim for research-domain artifact classes.
-
-    CitationArtifact, PaperArtifact, and LeanProofArtifact have moved to
-    ``examples.research_overlay.artifacts``.  Import them from there instead.
-    This shim emits DeprecationWarning and will be removed in a future release.
-    """
-    _overlay_classes = {"CitationArtifact", "PaperArtifact", "LeanProofArtifact"}
-    if name in _overlay_classes:
-        import importlib
-        import warnings
-
-        warnings.warn(
-            f"{name} has moved to examples.research_overlay.artifacts. "
-            "Import it from there instead. This compatibility shim will be "
-            "removed in Wave 15.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        overlay = importlib.import_module("examples.research_overlay.artifacts")
-        return getattr(overlay, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

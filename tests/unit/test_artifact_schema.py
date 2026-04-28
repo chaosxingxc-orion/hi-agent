@@ -5,12 +5,14 @@ Wave 8 / P2.7
 
 from __future__ import annotations
 
-from hi_agent.artifacts.contracts import (
-    Artifact,
+from examples.research_overlay.artifacts import (
     CitationArtifact,
-    DatasetArtifact,
     LeanProofArtifact,
     PaperArtifact,
+)
+from hi_agent.artifacts.contracts import (
+    Artifact,
+    DatasetArtifact,
 )
 
 # ---------------------------------------------------------------------------

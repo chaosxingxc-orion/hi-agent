@@ -78,26 +78,10 @@ class TeamRun:
     tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
-    # Deprecated: use lead_run_id instead. Will be removed in Wave 15.
+    # Deprecated: use lead_run_id instead. Will be removed in Wave 18.
     pi_run_id: str = ""
     # Canonical field (Wave 11+). Prefer lead_run_id for all new callers.
     lead_run_id: str = dataclasses.field(default="")
-
-    def __post_init__(self) -> None:
-        if self.pi_run_id and not self.lead_run_id:
-            warnings.warn(
-                "TeamRun.pi_run_id is deprecated; use lead_run_id instead. "
-                "pi_run_id will be removed in Wave 15.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            # Frozen dataclass: use object.__setattr__ to bypass freeze.
-            object.__setattr__(self, "lead_run_id", self.pi_run_id)
-        elif self.pi_run_id and self.lead_run_id and self.pi_run_id != self.lead_run_id:
-            raise ValueError(
-                f"TeamRun: pi_run_id={self.pi_run_id!r} and lead_run_id={self.lead_run_id!r} "
-                "are both set but differ; pass only lead_run_id."
-            )
 
 
 @dataclass(frozen=True)

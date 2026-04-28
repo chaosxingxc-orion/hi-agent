@@ -1,9 +1,8 @@
-"""Test TeamRun.lead_run_id deprecation alias for pi_run_id."""
+"""Test TeamRun.lead_run_id field (W18: pi_run_id deprecation shim removed)."""
 from __future__ import annotations
 
 import warnings
 
-import pytest
 from hi_agent.contracts.team_runtime import TeamRun
 
 
@@ -31,24 +30,19 @@ def test_lead_run_id_only_no_warning():
     assert tr.lead_run_id == "run-leader"
 
 
-def test_pi_run_id_only_warns_and_copies():
-    """pi_run_id= alone emits DeprecationWarning and copies value to lead_run_id."""
+def test_pi_run_id_field_still_exists():
+    """pi_run_id field still present for backward compat; no longer triggers DeprecationWarning."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         tr = _make_base(pi_run_id="run-pi")
     dep_warns = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert dep_warns, "Expected DeprecationWarning"
-    assert "lead_run_id" in str(dep_warns[0].message)
-    assert tr.lead_run_id == "run-pi"
+    # W18: no DeprecationWarning emitted; __post_init__ shim removed
+    assert not dep_warns
+    assert tr.pi_run_id == "run-pi"
 
 
-def test_both_set_same_value_ok():
-    """Setting both to the same value is allowed (idempotent)."""
+def test_both_lead_and_pi_run_id_set():
+    """Setting both lead_run_id and pi_run_id is allowed (no cross-validation after W18)."""
     tr = _make_base(pi_run_id="run-x", lead_run_id="run-x")
     assert tr.lead_run_id == "run-x"
-
-
-def test_both_set_different_raises():
-    """Setting pi_run_id and lead_run_id to different values raises ValueError."""
-    with pytest.raises(ValueError, match="differ"):
-        _make_base(pi_run_id="run-a", lead_run_id="run-b")
+    assert tr.pi_run_id == "run-x"

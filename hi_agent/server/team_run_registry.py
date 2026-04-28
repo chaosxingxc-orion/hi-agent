@@ -114,10 +114,10 @@ CREATE TABLE IF NOT EXISTS team_runs (
 
     def _to_row(self, team_run: TeamRun) -> tuple:
         member_json = json.dumps(list(team_run.member_runs))
-        lead = team_run.lead_run_id if team_run.lead_run_id else team_run.pi_run_id
+        lead = team_run.lead_run_id
         return (
             team_run.team_id,
-            team_run.pi_run_id,
+            "",
             team_run.project_id,
             member_json,
             team_run.created_at,
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
         )
 
     def _from_row(self, row: tuple) -> TeamRun:
-        team_id, pi_run_id, project_id, member_json, created_at = (
+        team_id, _legacy_pi_run_id, project_id, member_json, created_at = (
             row[0], row[1], row[2], row[3], row[4]
         )
         tenant_id = row[7]
@@ -139,11 +139,10 @@ CREATE TABLE IF NOT EXISTS team_runs (
         lead_run_id = row[10]
         raw_members = json.loads(member_json) if member_json else []
         member_runs = tuple(tuple(pair) for pair in raw_members)
-        # Prefer lead_run_id from DB; fall back to pi_run_id for legacy rows.
-        effective_lead = lead_run_id if lead_run_id else pi_run_id
+        # Prefer lead_run_id from DB; fall back to legacy pi_run_id column for old rows.
+        effective_lead = lead_run_id if lead_run_id else _legacy_pi_run_id
         return TeamRun(
             team_id=team_id,
-            pi_run_id=pi_run_id,
             project_id=project_id,
             member_runs=member_runs,
             created_at=created_at,

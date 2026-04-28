@@ -227,21 +227,3 @@ class EvolutionTrial:
             )
 
 
-def __getattr__(name: str) -> object:
-    _deprecated = {
-        "RunPostmortem": ("RunRetrospective", RunRetrospective),
-        "ProjectPostmortem": ("ProjectRetrospective", ProjectRetrospective),
-        "EvolutionExperiment": ("EvolutionTrial", EvolutionTrial),
-    }
-    if name in _deprecated:
-        replacement_name, replacement_cls = _deprecated[name]
-        import warnings
-
-        warnings.warn(
-            f"{name} is deprecated; use {replacement_name} instead. "
-            f"{name} will be removed in Wave 15.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return replacement_cls
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

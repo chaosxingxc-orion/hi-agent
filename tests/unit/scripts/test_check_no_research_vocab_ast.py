@@ -199,18 +199,17 @@ def test_skips_legacy_annotated_function_def(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_allowlisted_path_is_fully_skipped():
-    """Files in _PATH_ALLOWLIST must return no violations at all."""
+    """_PATH_ALLOWLIST must exist (W18: burned down to empty set)."""
     assert hasattr(checker, "_PATH_ALLOWLIST"), "_PATH_ALLOWLIST must exist"
-    # Verify the set is non-empty and contains at least one known shim
-    assert "hi_agent/contracts/team_runtime.py" in checker._PATH_ALLOWLIST
+    # W18: all shim allowlist entries removed; set is empty
+    assert isinstance(checker._PATH_ALLOWLIST, (set, frozenset))
 
 
 def test_soft_ban_path_allowlist_exists():
-    """_SOFT_BAN_PATH_ALLOWLIST must exist and cover tier_presets.py."""
+    """_SOFT_BAN_PATH_ALLOWLIST must exist (W18: burned down to empty set)."""
     assert hasattr(checker, "_SOFT_BAN_PATH_ALLOWLIST"), "_SOFT_BAN_PATH_ALLOWLIST must exist"
-    assert "hi_agent/llm/tier_presets.py" in checker._SOFT_BAN_PATH_ALLOWLIST, (
-        "tier_presets.py must be in soft-ban allowlist (Wave 12 target)"
-    )
+    # W18: apply_research_defaults shim removed; set is empty
+    assert isinstance(checker._SOFT_BAN_PATH_ALLOWLIST, (set, frozenset))
 
 
 def test_soft_ban_allowlisted_file_produces_no_soft_violations(tmp_path):

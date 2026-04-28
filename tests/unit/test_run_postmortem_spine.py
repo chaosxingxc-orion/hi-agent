@@ -1,16 +1,16 @@
-"""Unit tests: spine field enforcement on evolve dataclasses.
+"""Unit tests: spine field enforcement on evolve dataclasses (W18: renamed to canonical names).
 
-Covers RunPostmortem, CalibrationSignal, and ProjectPostmortem under
+Covers RunRetrospective, CalibrationSignal, and ProjectRetrospective under
 dev (permissive) and research (fail-closed) postures per Rule 11.
 """
 
 from __future__ import annotations
 
 import pytest
-from hi_agent.evolve.contracts import CalibrationSignal, ProjectPostmortem, RunPostmortem
+from hi_agent.evolve.contracts import CalibrationSignal, ProjectRetrospective, RunRetrospective
 
 
-def _make_run_postmortem(**overrides) -> RunPostmortem:
+def _make_run_retrospective(**overrides) -> RunRetrospective:
     kwargs: dict = {
         "run_id": "run-001",
         "task_id": "task-001",
@@ -25,7 +25,7 @@ def _make_run_postmortem(**overrides) -> RunPostmortem:
         "duration_seconds": 1.5,
     }
     kwargs.update(overrides)
-    return RunPostmortem(**kwargs)
+    return RunRetrospective(**kwargs)
 
 
 def _make_calibration_signal(**overrides) -> CalibrationSignal:
@@ -39,38 +39,38 @@ def _make_calibration_signal(**overrides) -> CalibrationSignal:
     return CalibrationSignal(**kwargs)
 
 
-def _make_project_postmortem(**overrides) -> ProjectPostmortem:
+def _make_project_retrospective(**overrides) -> ProjectRetrospective:
     kwargs: dict = {
         "project_id": "proj-1",
         "run_ids": ["run-001"],
     }
     kwargs.update(overrides)
-    return ProjectPostmortem(**kwargs)
+    return ProjectRetrospective(**kwargs)
 
 
 # ---------------------------------------------------------------------------
-# RunPostmortem
+# RunRetrospective
 # ---------------------------------------------------------------------------
 
 
-def test_research_rejects_empty_tenant_runpostmortem(monkeypatch: pytest.MonkeyPatch) -> None:
-    """RunPostmortem with tenant_id='' must raise ValueError under research posture."""
+def test_research_rejects_empty_tenant_runretrospective(monkeypatch: pytest.MonkeyPatch) -> None:
+    """RunRetrospective with tenant_id='' must raise ValueError under research posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     with pytest.raises(ValueError, match="tenant_id"):
-        _make_run_postmortem(tenant_id="")
+        _make_run_retrospective(tenant_id="")
 
 
-def test_dev_allows_empty_tenant_runpostmortem(monkeypatch: pytest.MonkeyPatch) -> None:
-    """RunPostmortem with tenant_id='' must succeed under dev posture."""
+def test_dev_allows_empty_tenant_runretrospective(monkeypatch: pytest.MonkeyPatch) -> None:
+    """RunRetrospective with tenant_id='' must succeed under dev posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
-    pm = _make_run_postmortem(tenant_id="")
+    pm = _make_run_retrospective(tenant_id="")
     assert pm.tenant_id == ""
 
 
-def test_research_allows_nonempty_tenant_runpostmortem(monkeypatch: pytest.MonkeyPatch) -> None:
-    """RunPostmortem with valid tenant_id must succeed under research posture."""
+def test_research_allows_nonempty_tenant_runretrospective(monkeypatch: pytest.MonkeyPatch) -> None:
+    """RunRetrospective with valid tenant_id must succeed under research posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    pm = _make_run_postmortem(tenant_id="tenant-abc")
+    pm = _make_run_retrospective(tenant_id="tenant-abc")
     assert pm.tenant_id == "tenant-abc"
 
 
@@ -101,28 +101,30 @@ def test_research_allows_nonempty_tenant_calibration(monkeypatch: pytest.MonkeyP
 
 
 # ---------------------------------------------------------------------------
-# ProjectPostmortem
+# ProjectRetrospective
 # ---------------------------------------------------------------------------
 
 
-def test_research_rejects_empty_tenant_project_postmortem(monkeypatch: pytest.MonkeyPatch) -> None:
-    """ProjectPostmortem with tenant_id='' must raise ValueError under research posture."""
+def test_research_rejects_empty_tenant_project_retrospective(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ProjectRetrospective with tenant_id='' must raise ValueError under research posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     with pytest.raises(ValueError, match="tenant_id"):
-        _make_project_postmortem(tenant_id="")
+        _make_project_retrospective(tenant_id="")
 
 
-def test_dev_allows_empty_tenant_project_postmortem(monkeypatch: pytest.MonkeyPatch) -> None:
-    """ProjectPostmortem with tenant_id='' must succeed under dev posture."""
+def test_dev_allows_empty_tenant_project_retrospective(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ProjectRetrospective with tenant_id='' must succeed under dev posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
-    pm = _make_project_postmortem(tenant_id="")
+    pm = _make_project_retrospective(tenant_id="")
     assert pm.tenant_id == ""
 
 
-def test_research_allows_nonempty_tenant_project_postmortem(
+def test_research_allows_nonempty_tenant_project_retrospective(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ProjectPostmortem with valid tenant_id must succeed under research posture."""
+    """ProjectRetrospective with valid tenant_id must succeed under research posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    pm = _make_project_postmortem(tenant_id="tenant-abc")
+    pm = _make_project_retrospective(tenant_id="tenant-abc")
     assert pm.tenant_id == "tenant-abc"
