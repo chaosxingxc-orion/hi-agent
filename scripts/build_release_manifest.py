@@ -73,7 +73,10 @@ _GATE_SCRIPTS: dict[str, tuple] = {
     "pytest_skip_discipline":     ("check_pytest_skip_discipline.py",     True,  []),
     "closure_taxonomy":           ("check_closure_taxonomy.py",           True,  []),
     "multistatus_gates":          ("check_multistatus_gates.py",          True,  []),
-    "score_cap":                  ("check_score_cap.py",                  True,  []),
+    # score_cap is excluded from inline gates: it compares the notice claimed score against
+    # the manifest's own score while the manifest is being computed — that creates a circular
+    # dependency (score_cap fails → gate_fail=70 cap → manifest says 70 → score_cap fails again).
+    # check_score_cap.py runs as a separate CI step in release-gate.yml after the manifest is final.
     # W14 7x24 operational readiness gates
     "observability_spine_completeness": ("check_observability_spine_completeness.py", True, []),
     "soak_evidence":              ("check_soak_evidence.py",              True,  []),
