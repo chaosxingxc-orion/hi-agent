@@ -61,14 +61,31 @@ def _read_allowlists_current_wave() -> object | None:
 
 
 def _latest_manifest_wave() -> str | None:
-    """Read `wave` field from the latest release manifest."""
+    """Read `wave` field from the latest release manifest.
+
+    Returns None (deferred) when no manifests exist for the current wave label.
+    This avoids a spurious wave-drift failure when the wave has been bumped but
+    no manifest has been generated yet for the new wave. The check_manifest_rewrite_budget
+    gate separately enforces that a manifest must exist for the current wave before release.
+    """
     data = latest_manifest(RELEASES_DIR)
     if data is None:
         return None
     wave = data.get("wave")
     if wave is None:
         return None
-    return str(wave)
+    manifest_wave_str = str(wave)
+    # Defer if the latest manifest is from a different wave than current-wave.txt.
+    # A new manifest must be generated for the current wave to restore tracking.
+    if WAVE_FILE.exists():
+        try:
+            current = current_wave()
+            manifest_int = parse_wave(manifest_wave_str)
+            if manifest_int != current:
+                return None  # defer: manifest is stale (different wave)
+        except (ValueError, OSError):
+            pass  # fall through to returning manifest wave as-is
+    return manifest_wave_str
 
 
 _NOTICE_WAVE_RE = re.compile(r"^\s*-?\s*\*?\*?Wave\s*:?\s*(\d+)", re.MULTILINE | re.IGNORECASE)
@@ -84,7 +101,10 @@ def _latest_notice_wave() -> str | None:
     """
     if not NOTICES_DIR.exists():
         return None
-    notices = sorted(NOTICES_DIR.glob("*delivery-notice*.md"), key=lambda p: (p.stat().st_mtime, p.name))
+    notices = sorted(
+        NOTICES_DIR.glob("*delivery-notice*.md"),
+        key=lambda p: (p.stat().st_mtime, p.name),
+    )
     for notice in reversed(notices):
         try:
             text = notice.read_text(encoding="utf-8", errors="replace")

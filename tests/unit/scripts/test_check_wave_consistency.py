@@ -9,8 +9,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
@@ -81,14 +79,50 @@ def test_all_sources_agree_returns_pass(tmp_path, monkeypatch, capsys):
     assert data["status"] == "pass"
 
 
-def test_drift_detected_returns_fail(tmp_path, monkeypatch, capsys):
+def test_manifest_from_earlier_wave_is_deferred(tmp_path, monkeypatch, capsys):
+    """When the only manifest is from an earlier wave, manifest_wave is deferred.
+
+    W18-C1-d: Wave bumps happen before a new manifest is generated. This is
+    an expected bootstrap gap — check_manifest_rewrite_budget tracks it separately.
+    The wave_consistency check must not fail during this window.
+    """
     import check_wave_consistency as mod
 
     wave_file = _write_wave(tmp_path, "Wave 17")
     allowlists = _write_allowlists(tmp_path, 17)
     releases = tmp_path / "releases"
     releases.mkdir()
-    _write_manifest(releases, "abc1234", "Wave 14", "2026-04-28T10:00:00+00:00")  # DRIFT
+    _write_manifest(releases, "abc1234", "Wave 14", "2026-04-28T10:00:00+00:00")  # stale wave
+    notices = tmp_path / "notices"
+    notices.mkdir()
+    _write_notice(notices, "2026-04-28-wave17-delivery-notice.md", 17)
+
+    monkeypatch.setattr(mod, "WAVE_FILE", wave_file)
+    monkeypatch.setattr(mod, "ALLOWLISTS_FILE", allowlists)
+    monkeypatch.setattr(mod, "RELEASES_DIR", releases)
+    monkeypatch.setattr(mod, "NOTICES_DIR", notices)
+    from _governance import wave as wave_mod
+    monkeypatch.setattr(wave_mod, "_WAVE_FILE", wave_file)
+
+    rc = mod.main(["--json"])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    # Manifest from earlier wave is excluded from comparison — remaining sources agree
+    assert rc == 0
+    assert data["status"] == "pass"
+    # manifest_wave should appear as None (deferred) in sources
+    assert data["sources"]["manifest_wave"] is None
+
+
+def test_drift_detected_returns_fail(tmp_path, monkeypatch, capsys):
+    """Wave drift among same-generation sources returns fail."""
+    import check_wave_consistency as mod
+
+    wave_file = _write_wave(tmp_path, "Wave 17")
+    allowlists = _write_allowlists(tmp_path, 16)  # DRIFT: allowlists says 16, txt says 17
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    _write_manifest(releases, "abc1234", "Wave 17", "2026-04-28T10:00:00+00:00")  # matches current
     notices = tmp_path / "notices"
     notices.mkdir()
     _write_notice(notices, "2026-04-28-wave17-delivery-notice.md", 17)
