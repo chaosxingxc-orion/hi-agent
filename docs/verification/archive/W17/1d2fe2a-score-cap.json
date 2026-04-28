@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-28-bebc54a",
+  "verified_head": "bebc54a729f38a4f7d08c68d5a4a1e2546ab8221",
+  "generated_at": "2026-04-28T07:59:48.186688+00:00",
+  "current_verified_readiness": 80.0,
+  "cap": 80.0,
+  "cap_reason": "gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}

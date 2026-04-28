@@ -1,0 +1,22 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-28-06a6a73",
+  "verified_head": "06a6a73cb9295b73f8c1cd1d585736c63d50af01",
+  "generated_at": "2026-04-28T08:20:43.113432+00:00",
+  "current_verified_readiness": 70.0,
+  "cap": 70.0,
+  "cap_reason": "gate_fail: score_cap; gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "gate_fail: score_cap",
+    "gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [
+    "2026-04-28-wave17-delivery-notice.md: claims 80.0 > manifest verified 55.0",
+    "2026-04-28-wave17-delivery-notice.md: claims 65.0 > manifest verified 55.0",
+    "2026-04-28-wave17-delivery-notice.md: claims 80.0 > manifest verified 55.0",
+    "2026-04-28-wave17-delivery-notice.md: claims 65.0 > manifest verified 55.0"
+  ],
+  "status": "fail"
+}

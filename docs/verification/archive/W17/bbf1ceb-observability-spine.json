@@ -1,0 +1,36 @@
+{
+  "provenance": "structural",
+  "release_head": "bbf1ceb",
+  "verified_head": "bbf1ceb",
+  "generated_at": "2026-04-28T08:46:50.920160+00:00",
+  "run_id": "7d8d9351-2bbd-4df6-b6e2-a5c68ae41e4d",
+  "event_count": 6,
+  "event_types": [
+    "run_queued",
+    "run_started",
+    "run_started",
+    "run_finalized",
+    "run_completed",
+    "run_completed"
+  ],
+  "spine_ok": true,
+  "metrics_snapshot": {
+    "hi_agent_events_stored_total": {
+      "_total": 6.0
+    },
+    "hi_agent_events_published_total": {
+      "_total": 4.0
+    },
+    "runs_total": {
+      "status=\"completed\"": 1.0
+    },
+    "hi_agent_runs_completed_total": {
+      "_total": 1.0
+    },
+    "hi_agent_thread_count": {
+      "_total": 2.0
+    }
+  },
+  "failures": [],
+  "status": "pass"
+}
