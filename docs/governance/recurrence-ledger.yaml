@@ -4,7 +4,7 @@
 # All 13 fields are required. Closure level uses docs/governance/closure-taxonomy.md enum.
 
 schema_version: "1"
-current_wave: 17
+current_wave: 18
 
 entries:
   - issue_id: P0-1
@@ -156,8 +156,8 @@ entries:
       be correct. Each wave introduced a new exemption path (released-status exemption,
       broader governance prefixes, advisory continue-on-error) that collectively allowed
       a stale release identity to report as passing.
-    code_fix: "W17-A1-A9: removed 'released' from exemption regexes in check_doc_consistency.py; restricted _GOVERNANCE_PREFIXES to ('docs/',) in check_verification_artifacts.py, check_manifest_freshness.py, build_release_manifest.py; removed continue-on-error from release-gate.yml"
-    regression_test: "scripts/check_gate_strictness.py --json (verifies no gate-loosening keywords exist in gate scripts without justification)"
+    code_fix: "W17-A1-A9: removed 'released' from exemption regexes in check_doc_consistency.py; restricted _GOVERNANCE_PREFIXES to ('docs/',) in check_verification_artifacts.py, check_manifest_freshness.py, build_release_manifest.py; NOTE: continue-on-error on spine/soak/chaos gates NOT removed in W17 -- deferred to W18-C1"
+    regression_test: "scripts/check_gate_strictness.py --json (script created in W18-C1; verifies no gate-loosening keywords exist in gate scripts without justification)"
     release_gate: "release-gate.yml step: Release identity (W16-A8) — now blocking, not advisory"
     process_change: "Governance Freeze policy for W17: no new --allow-* flags; any gate-pass via exemption must be self-documented in recurrence-ledger.yaml within the same PR"
     owner: GOV
