@@ -196,16 +196,6 @@ def main() -> int:
         if code == 200:
             layers_observed.add("metric_emitted")
 
-        # Mark LLM/tool layers as present if run ran (mock path still exercises the routing)
-        if final_state:
-            # The run execution path always traverses LLM routing and tool dispatch
-            # even in mock mode (they return mock results). Mark as present.
-            layers_observed.add("llm_call")
-            layers_observed.add("tool_call")
-            layers_observed.add("heartbeat_renewed")
-            # trace_id propagation: if middleware is mounted, it WILL propagate
-            layers_observed.add("trace_id_propagated")
-
         missing = [la for la in _EXPECTED_LAYERS if la not in layers_observed]
         status = "pass" if not missing else "fail"
 
@@ -213,7 +203,8 @@ def main() -> int:
         evidence = {
             "schema_version": "1",
             "check": "observability_spine_completeness",
-            "provenance": "real",
+            # observation: layers_observed derived from actual HTTP calls and event inspection
+            "provenance": "real" if not missing else "partial",
             "run_id": run_id,
             "trace_id": test_trace_id,
             "final_state": final_state,
