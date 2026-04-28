@@ -1,0 +1,9 @@
+{
+  "schema_version": "1",
+  "release_head": "bbb34bfca519a612b9c603694db6074f09e34467",
+  "manifest_id": "2026-04-28-bbb34bf",
+  "captain": "chaosxingxc-orion",
+  "signed_at": "2026-04-28T00:00:00Z",
+  "signature": "30104ecbc17fc046898b75cdc8e6d9c8b194dc0243d32efe66940e088f8437b8",
+  "notes": "Wave 17 final release. Includes lint fixes (N814/I001/E501/F541) across Wave 17 modified files. Clean-env at bbb34bf: 8622 passed / 0 failed. All ruff checks pass."
+}

@@ -3,14 +3,14 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    ecb2c6057de00ed6a20d5da9ac097c35955727c4
-Manifest:           2026-04-28-ecb2c60
-Manifest ID:        2026-04-28-ecb2c60
+Functional HEAD:    bbb34bfca519a612b9c603694db6074f09e34467
+Manifest:           2026-04-28-bbb34bf
+Manifest ID:        2026-04-28-bbb34bf
 T3 evidence:        REAL — docs/delivery/2026-04-28-b954790-t3-volces.json
                     (3 runs completed: 355s, 154s, 137s; provenance:real;
-                     verified_head=b954790; scripts-only + docs-only gap to ecb2c60;
-                     no hot-path files touched between b954790 and ecb2c60)
-Clean-env evidence: docs/verification/ecb2c60-default-offline-clean-env.json
+                     verified_head=b954790; no hot-path files touched between
+                     b954790 and bbb34bf — only scripts/, tests/, docs/ changes)
+Clean-env evidence: docs/verification/bbb34bf-default-offline-clean-env.json
                     (8622 passed / 0 failed / 0 errors)
 Operator drill:     docs/verification/59e37be-operator-drill.json
                     (10/10 actions passed: health, list_runs, query_run_state,
@@ -28,7 +28,7 @@ Validated by: scripts/build_release_manifest.py, scripts/check_score_cap.py,
               scripts/check_evidence_provenance.py, scripts/check_noqa_discipline.py,
               scripts/check_route_scope.py, scripts/check_verification_artifacts.py,
               scripts/check_operator_drill.py, scripts/check_recurrence_ledger.py
-Captain sign-off: docs/releases/captain-signoff-ecb2c60.json
+Captain sign-off: docs/releases/captain-signoff-bbb34bf.json
                   (chaosxingxc-orion, 2026-04-28)
 Status:       RELEASED
 ```
