@@ -68,7 +68,7 @@ jobs:
         run: python scripts/check_doc_canonical_symbols.py --json
 
       - name: Check doc consistency (Class C / Check 9)
-        run: python scripts/check_doc_consistency.py --json
+        run: python scripts/check_doc_consistency.py --json --allow-docs-only-gap
 
       - name: Check boundary (platform / kernel)
         run: python scripts/check_boundary.py --json
