@@ -216,7 +216,7 @@ class TestAtomicDispatchRecord:
         bundle.atomic_dispatch_record(_make_commit(run_id, [event]), env)
 
         record = bundle.dedupe_store.get(env.dispatch_idempotency_key)
-        assert record is not None
+        assert record is not None, f"Expected non-None result for record"
         assert record.state == "reserved"
         bundle.close()
 
@@ -393,7 +393,7 @@ class TestDedupeStoreOperations:
         env = _make_envelope("run-get", "k3")
         bundle.dedupe_store.reserve(env)
         record = bundle.dedupe_store.get(env.dispatch_idempotency_key)
-        assert record is not None
+        assert record is not None, f"Expected non-None result for record"
         assert record.state == "reserved"
         assert record.dispatch_idempotency_key == env.dispatch_idempotency_key
         bundle.close()
@@ -405,7 +405,7 @@ class TestDedupeStoreOperations:
         bundle.dedupe_store.reserve(env)
         bundle.dedupe_store.mark_dispatched(env.dispatch_idempotency_key)
         record = bundle.dedupe_store.get(env.dispatch_idempotency_key)
-        assert record is not None
+        assert record is not None, f"Expected non-None result for record"
         assert record.state == "dispatched"
         bundle.close()
 
@@ -419,7 +419,7 @@ class TestDedupeStoreOperations:
             env.dispatch_idempotency_key, external_ack_ref="ack-1"
         )
         record = bundle.dedupe_store.get(env.dispatch_idempotency_key)
-        assert record is not None
+        assert record is not None, f"Expected non-None result for record"
         assert record.state == "acknowledged"
         assert record.external_ack_ref == "ack-1"
         bundle.close()
@@ -432,7 +432,7 @@ class TestDedupeStoreOperations:
         bundle.dedupe_store.mark_dispatched(env.dispatch_idempotency_key)
         bundle.dedupe_store.mark_unknown_effect(env.dispatch_idempotency_key)
         record = bundle.dedupe_store.get(env.dispatch_idempotency_key)
-        assert record is not None
+        assert record is not None, f"Expected non-None result for record"
         assert record.state == "unknown_effect"
         bundle.close()
 
@@ -461,7 +461,7 @@ class TestDedupeStoreOperations:
         bundle.dedupe_store.mark_dispatched(env.dispatch_idempotency_key)
         bundle.dedupe_store.mark_acknowledged(env.dispatch_idempotency_key)
         record = bundle.dedupe_store.get(env.dispatch_idempotency_key)
-        assert record is not None
+        assert record is not None, f"Expected non-None result for record"
         assert record.state == "acknowledged"
         bundle.close()
 
@@ -474,7 +474,7 @@ class TestDedupeStoreOperations:
         bundle.dedupe_store.mark_acknowledged(env.dispatch_idempotency_key)
         bundle.dedupe_store.mark_succeeded(env.dispatch_idempotency_key, external_ack_ref="ack-ok")
         record = bundle.dedupe_store.get(env.dispatch_idempotency_key)
-        assert record is not None
+        assert record is not None, f"Expected non-None result for record"
         assert record.state == "succeeded"
         assert record.external_ack_ref == "ack-ok"
         bundle.close()

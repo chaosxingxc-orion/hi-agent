@@ -279,7 +279,7 @@ class TestSystemBuilderKnowledge:
         builder = SystemBuilder(config)
         km = builder.build_knowledge_manager(profile_id="test-profile")
 
-        assert km is not None
+        assert km is not None, f"Expected non-None result for km"
         assert km.wiki is not None
         assert km.user_store is not None
         assert km.graph is not None

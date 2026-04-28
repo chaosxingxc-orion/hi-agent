@@ -79,7 +79,8 @@ from hi_agent.server.rate_limiter import RateLimiter
 from hi_agent.server.routes_artifacts import (
     artifact_routes,
 )
-from hi_agent.server.routes_events import handle_run_events_sse
+from hi_agent.server.routes_events import handle_run_events_snapshot, handle_run_events_sse
+from hi_agent.server.routes_ops_runs import handle_ops_run_diagnose, handle_ops_run_full
 from hi_agent.server.routes_manifest import MANIFEST_ROUTES
 from hi_agent.server.routes_ops import handle_cancel_long_op, handle_get_long_op
 from hi_agent.server.routes_ops_dlq import handle_list_dlq, handle_requeue_from_dlq
@@ -1102,6 +1103,25 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
         logger.warning("_rehydrate_runs: expire_stale_leases failed: %s", exc)
         return
 
+    # Emit dlq_checked once per recovery scan.
+    _evt_store = agent_server._event_store
+    if _evt_store is not None:
+        try:
+            from hi_agent.server.event_store import StoredEvent as _SE
+            _evt_store.append(_SE(
+                event_id=str(uuid.uuid4()),
+                run_id="__system__",
+                sequence=0,
+                event_type="dlq_checked",
+                payload_json=json.dumps({
+                    "expired_count": len(expired) if expired else 0,
+                    "posture": str(posture),
+                }),
+                tenant_id="__system__",
+            ))
+        except Exception as _dlq_exc:
+            logger.debug("_rehydrate_runs: dlq_checked event failed: %s", _dlq_exc)
+
     if not expired:
         logger.debug("_rehydrate_runs: no lease-expired runs found.")
         return
@@ -1127,6 +1147,30 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
 
         # Opt-out overrides research/prod decision to warn-only.
         effective_requeue = decision.should_requeue and not opt_out
+
+        # Emit recovery_decision per run.
+        if _evt_store is not None:
+            try:
+                from hi_agent.server.event_store import StoredEvent as _SE
+                _evt_store.append(_SE(
+                    event_id=str(uuid.uuid4()),
+                    run_id=run_id,
+                    sequence=0,
+                    event_type="recovery_decision",
+                    payload_json=json.dumps({
+                        "decision": "requeue" if effective_requeue else "warn_only",
+                        "reason": decision.reason,
+                        "lease_age_s": lease_age_s,
+                        "posture": str(posture),
+                    }),
+                    tenant_id=tenant_id,
+                ))
+            except Exception as _rd_exc:
+                logger.debug(
+                    "_rehydrate_runs: recovery_decision event failed for run_id=%s: %s",
+                    run_id,
+                    _rd_exc,
+                )
 
         if effective_requeue:
             token = str(uuid.uuid4())
@@ -1193,6 +1237,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/ops/alerts", handle_ops_alerts, methods=["GET"]),
         Route("/ops/runbook", handle_ops_runbook, methods=["GET"]),
         Route("/ops/dashboard", handle_ops_dashboard, methods=["GET"]),
+        # Operator run diagnostics (E1)
+        Route("/ops/runs/{run_id}/full", handle_ops_run_full, methods=["GET"]),
+        Route("/ops/runs/{run_id}/diagnose", handle_ops_run_diagnose, methods=["GET"]),
         # Runs
         Route("/runs", handle_list_runs, methods=["GET"]),
         Route("/runs", handle_create_run, methods=["POST"]),
@@ -1206,6 +1253,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         Route("/runs/{run_id}/resume", handle_resume_run, methods=["POST"]),
         Route("/runs/{run_id}/gate_decision", handle_gate_decision, methods=["POST"]),
         Route("/runs/{run_id}/events", handle_run_events_sse, methods=["GET"]),
+        Route("/runs/{run_id}/events/snapshot", handle_run_events_snapshot, methods=["GET"]),
         Route("/runs/{run_id}/reasoning-trace", handle_reasoning_trace, methods=["GET"]),
         # Metrics
         Route("/metrics", handle_metrics_prometheus, methods=["GET"]),
@@ -1371,6 +1419,16 @@ def build_app(agent_server: AgentServer) -> Starlette:
             if evidence_store is not None and hasattr(evidence_store, "close"):
                 evidence_store.close()
                 logger.info("lifespan: SqliteEvidenceStore connection closed.")
+            # H1: close httpx.AsyncClient connection pool so FDs are released
+            # before the event loop stops. Wrapped in try/except so a partially-
+            # closed client does not abort other teardown steps.
+            _llm_gw = getattr(agent_server._builder, "_llm_gateway", None)
+            if _llm_gw is not None and hasattr(_llm_gw, "aclose"):
+                try:
+                    await _llm_gw.aclose()
+                    logger.info("lifespan: LLM gateway AsyncClient closed.")
+                except Exception as _exc:
+                    logger.warning("lifespan: LLM gateway aclose raised: %s", _exc)
             # G-8: shut down poller
             _op_poller.stop()
             with contextlib.suppress(TimeoutError, asyncio.CancelledError):

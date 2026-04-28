@@ -20,7 +20,7 @@ class TestEnqueueAndClaimNext:
     def test_enqueue_then_claim_returns_run(self, q: RunQueue) -> None:
         q.enqueue("run-1", priority=0, payload_json='{"goal": "test"}')
         item = q.claim_next("worker-A")
-        assert item is not None
+        assert item is not None, f"Expected non-None result for item"
         assert item["run_id"] == "run-1"
         assert item["payload_json"] == '{"goal": "test"}'
 
@@ -28,7 +28,7 @@ class TestEnqueueAndClaimNext:
         q.enqueue("run-1", priority=0, payload_json="first")
         q.enqueue("run-1", priority=0, payload_json="second")  # ignored
         item = q.claim_next("worker-A")
-        assert item is not None
+        assert item is not None, f"Expected non-None result for item"
         assert item["payload_json"] == "first"  # second enqueue was a no-op
         # Queue should now be empty
         assert q.claim_next("worker-A") is None
@@ -40,7 +40,7 @@ class TestEnqueueAndClaimNext:
         q.enqueue("run-low", priority=10, payload_json="low")
         q.enqueue("run-high", priority=1, payload_json="high")
         item = q.claim_next("worker-A")
-        assert item is not None
+        assert item is not None, f"Expected non-None result for item"
         assert item["run_id"] == "run-high"
 
 
@@ -52,7 +52,7 @@ class TestTwoWorkersCantClaimSameRun:
         q.enqueue("run-1", priority=0)
         first = q.claim_next("worker-A")
         second = q.claim_next("worker-B")
-        assert first is not None
+        assert first is not None, f"Expected non-None result for first"
         assert second is None  # already leased; no more queued runs
 
 
@@ -62,13 +62,13 @@ class TestExpiredLeases:
         try:
             rq.enqueue("run-1", priority=0)
             item = rq.claim_next("worker-A")
-            assert item is not None
+            assert item is not None, f"Expected non-None result for item"
             # Lease expires after 50 ms
             time.sleep(0.1)
             released = rq.release_expired_leases()
             assert released == 1
             reclaimed = rq.claim_next("worker-B")
-            assert reclaimed is not None
+            assert reclaimed is not None, f"Expected non-None result for reclaimed"
             assert reclaimed["run_id"] == "run-1"
         finally:
             rq.close()
@@ -97,7 +97,7 @@ class TestFailWithMaxAttempts:
         q.fail("run-1", "worker-A", "temporary error")
         # Should be back in queue
         item = q.claim_next("worker-B")
-        assert item is not None
+        assert item is not None, f"Expected non-None result for item"
         assert item["run_id"] == "run-1"
 
     def test_fail_at_max_attempts_marks_failed_not_requeued(self, q: RunQueue) -> None:

@@ -11,4 +11,9 @@ collect_ignore_glob = ["test_*.py"]
 # Tests run in non-prod mode so strict production fail-fast gates do not
 # block deterministic local/in-process test execution.
 os.environ.setdefault("HI_AGENT_ENV", "dev")
-os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+
+# Only enable heuristic fallback when not running the "release" test profile.
+# The release profile must exercise strict paths without heuristic fallback.
+_test_profile = os.environ.get("HI_AGENT_TEST_PROFILE", "")
+if _test_profile != "release":
+    os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")

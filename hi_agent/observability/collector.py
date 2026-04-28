@@ -369,6 +369,43 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Requests rejected because a body field exceeded the size limit.",
     ),
+    # Wave 17 Theme C: observability spine new counters.
+    # http_request: incremented by TraceIdMiddleware for every HTTP request received.
+    "hi_agent_http_requests_total": _MetricDef(
+        "hi_agent_http_requests_total",
+        "counter",
+        "Total HTTP requests received by the server (method + path labels).",
+    ),
+    # event_stored: incremented by SQLiteEventStore for every event appended.
+    "hi_agent_events_stored_total": _MetricDef(
+        "hi_agent_events_stored_total",
+        "counter",
+        "Total events written to the durable SQLiteEventStore.",
+    ),
+    # metric_emitted: incremented by _publish_run_event in RunManager.
+    "hi_agent_events_published_total": _MetricDef(
+        "hi_agent_events_published_total",
+        "counter",
+        "Total lifecycle events published via _publish_run_event in RunManager.",
+    ),
+    # H2: subprocess zombie prevention — incremented when proc.wait(timeout=5)
+    # fails after terminate(), meaning the OS must reap the process eventually.
+    "hi_agent_subprocess_zombie_total": _MetricDef(
+        "hi_agent_subprocess_zombie_total",
+        "counter",
+        "Subprocess terminate() calls where wait(timeout=5) timed out (potential zombie).",
+    ),
+    # H3: process-level resource gauges, sampled on each /metrics scrape.
+    "hi_agent_open_fd_count": _MetricDef(
+        "hi_agent_open_fd_count",
+        "gauge",
+        "Number of open file descriptors in the current process (psutil; skipped on Windows).",
+    ),
+    "hi_agent_thread_count": _MetricDef(
+        "hi_agent_thread_count",
+        "gauge",
+        "Number of active threads in the current process (threading.active_count()).",
+    ),
 }
 
 # Maximum samples retained for histogram-like metrics.
@@ -587,8 +624,25 @@ class MetricsCollector:
     # Reads
     # ------------------------------------------------------------------
 
+    def sample_process_metrics(self) -> None:
+        """Sample process-level resource gauges (H3).
+
+        Called before each /metrics scrape so hi_agent_open_fd_count and
+        hi_agent_thread_count reflect current process state without a background timer.
+        """
+        import threading as _threading
+        import sys as _sys
+        self.gauge_set("hi_agent_thread_count", float(_threading.active_count()))
+        if _sys.platform != "win32":
+            try:
+                import psutil  # type: ignore[import-untyped]
+                self.gauge_set("hi_agent_open_fd_count", float(psutil.Process().num_fds()))
+            except Exception:
+                pass
+
     def snapshot(self) -> dict[str, Any]:
         """Return all current metric values as a JSON-friendly dict."""
+        self.sample_process_metrics()
         with self._lock:
             result: dict[str, Any] = {}
 
@@ -618,6 +672,7 @@ class MetricsCollector:
 
     def to_prometheus_text(self) -> str:
         """Return all metrics in Prometheus exposition format (text/plain)."""
+        self.sample_process_metrics()
         lines: list[str] = []
         with self._lock:
             # Counters

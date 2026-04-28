@@ -42,7 +42,7 @@ class TestRunManagerCreate:
         mgr = RunManager()
         run_id = mgr.create_run({"goal": "test"}).run_id
         run = mgr.get_run(run_id)
-        assert run is not None
+        assert run is not None, f"Expected non-None result for run"
         assert run.state == "created"
         assert run.created_at != ""
         assert run.updated_at != ""
@@ -62,7 +62,7 @@ class TestRunManagerStartAndQuery:
         mgr.start_run(run_id, executor)
         # Wait for the background worker to pick up and finish.
         run = mgr.get_run(run_id)
-        assert run is not None
+        assert run is not None, f"Expected non-None result for run"
         deadline = time.monotonic() + 5
         while run.thread is None and time.monotonic() < deadline:
             time.sleep(0.02)
@@ -81,7 +81,7 @@ class TestRunManagerStartAndQuery:
 
         mgr.start_run(run_id, bad_executor)
         run = mgr.get_run(run_id)
-        assert run is not None
+        assert run is not None, f"Expected non-None result for run"
         deadline = time.monotonic() + 5
         while run.thread is None and time.monotonic() < deadline:
             time.sleep(0.02)
@@ -120,7 +120,7 @@ class TestRunManagerCancel:
         run_id = mgr.create_run({"goal": "test"}).run_id
         assert mgr.cancel_run(run_id) is True
         run = mgr.get_run(run_id)
-        assert run is not None
+        assert run is not None, f"Expected non-None result for run"
         assert run.state == "cancelled"
 
     def test_cancel_completed_run_fails(self) -> None:
@@ -129,7 +129,7 @@ class TestRunManagerCancel:
         run_id = mgr.create_run({"goal": "test"}).run_id
         mgr.start_run(run_id, lambda r: "ok")
         run = mgr.get_run(run_id)
-        assert run is not None
+        assert run is not None, f"Expected non-None result for run"
         deadline = time.monotonic() + 5
         while run.thread is None and time.monotonic() < deadline:
             time.sleep(0.02)
@@ -217,7 +217,7 @@ class TestRunManagerMaxConcurrent:
         # All runs should complete (queued, not rejected).
         for rid in ids:
             run = mgr.get_run(rid)
-            assert run is not None
+            assert run is not None, f"Expected non-None result for run"
             assert run.state == "completed"
 
 
@@ -245,7 +245,7 @@ class TestRunManagerQueue:
         # None should be rejected — queue absorbed them.
         for rid in ids:
             run = mgr.get_run(rid)
-            assert run is not None
+            assert run is not None, f"Expected non-None result for run"
             assert run.error != "queue_full", f"{rid} was rejected"
 
         # Release the gate so all runs complete.
@@ -255,13 +255,13 @@ class TestRunManagerQueue:
         deadline = time.monotonic() + 10
         for rid in ids:
             run = mgr.get_run(rid)
-            assert run is not None
+            assert run is not None, f"Expected non-None result for run"
             while run.state not in ("completed", "failed") and time.monotonic() < deadline:
                 time.sleep(0.05)
 
         for rid in ids:
             run = mgr.get_run(rid)
-            assert run is not None
+            assert run is not None, f"Expected non-None result for run"
             assert run.state == "completed", f"{rid} state={run.state} err={run.error}"
 
     def test_queue_full_rejects(self) -> None:
@@ -394,7 +394,7 @@ class TestRunManagerSerialize:
         mgr = RunManager()
         run_id = mgr.create_run({"goal": "test"}).run_id
         run = mgr.get_run(run_id)
-        assert run is not None
+        assert run is not None, f"Expected non-None result for run"
         d = mgr.to_dict(run)
         assert d["run_id"] == run_id
         assert d["state"] == "created"

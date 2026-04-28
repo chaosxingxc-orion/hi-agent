@@ -440,7 +440,6 @@ async def handle_resume_run(request: Request) -> JSONResponse:
         ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    import threading
 
     run_id = request.path_params["run_id"]
     server: Any = request.app.state.agent_server
@@ -492,8 +491,8 @@ async def handle_resume_run(request: Request) -> JSONResponse:
                 exc_info=True,
             )
 
-    thread = threading.Thread(target=_resume_in_background, daemon=True)
-    thread.start()
+    from hi_agent.server.background_tasks import get_registry as _get_bgtask_registry
+    _get_bgtask_registry().submit(target=_resume_in_background, name="resume")
 
     return JSONResponse(
         {

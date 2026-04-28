@@ -85,7 +85,7 @@ class TestRegistration:
         reg = TaskRegistry()
         reg.register(_make_descriptor())
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.lifecycle_state == "pending"
 
     def test_session_index_populated(self) -> None:
@@ -118,7 +118,7 @@ class TestAttemptTracking:
         reg.register(_make_descriptor())
         reg.start_attempt(_make_attempt())
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.lifecycle_state == "running"
         assert health.current_run_id == "r1"
 
@@ -135,7 +135,7 @@ class TestAttemptTracking:
         reg.start_attempt(_make_attempt())
         reg.complete_attempt("t1", "r1", "completed")
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.lifecycle_state == "completed"
         assert health.current_run_id is None
 
@@ -146,7 +146,7 @@ class TestAttemptTracking:
         reg.start_attempt(_make_attempt())
         reg.complete_attempt("t1", "r1", "failed")
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.lifecycle_state == "failed"
 
     def test_complete_attempt_unknown_task_is_noop(self) -> None:
@@ -162,7 +162,7 @@ class TestAttemptTracking:
         reg.start_attempt(_make_attempt())
         reg.complete_attempt("t1", "wrong-run", "completed")
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.lifecycle_state == "running"
         assert health.current_run_id == "r1"
 
@@ -192,7 +192,7 @@ class TestAttemptTracking:
         reg.register(_make_descriptor())
         reg.start_attempt(_make_attempt(attempt_seq=1))
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.attempt_seq == 1
 
 
@@ -210,7 +210,7 @@ class TestUpdateState:
         reg.register(_make_descriptor())
         reg.update_state("t1", "restarting")
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.lifecycle_state == "restarting"
 
     def test_update_state_unknown_task_is_noop(self) -> None:
@@ -225,7 +225,7 @@ class TestUpdateState:
             reg.register(_make_descriptor())
             reg.update_state("t1", state)
             health = reg.get_health("t1")
-            assert health is not None
+            assert health is not None, f"Expected non-None result for health"
             assert health.lifecycle_state == state
 
 
@@ -244,7 +244,7 @@ class TestHeartbeat:
         reg.start_attempt(_make_attempt())
         reg.heartbeat("t1")
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.consecutive_missed_beats == 0
 
     def test_heartbeat_for_run(self) -> None:
@@ -254,7 +254,7 @@ class TestHeartbeat:
         reg.start_attempt(_make_attempt())
         reg.heartbeat_for_run("r1")
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.last_heartbeat_ms is not None
 
     def test_heartbeat_unknown_task_is_noop(self) -> None:
@@ -306,7 +306,7 @@ class TestHeartbeat:
         entry = reg._tasks["t1"]
         entry.last_heartbeat_ms = int(time.monotonic() * 1000) - 10_000
         health = reg.get_health("t1")
-        assert health is not None
+        assert health is not None, f"Expected non-None result for health"
         assert health.is_stalled is True
 
 

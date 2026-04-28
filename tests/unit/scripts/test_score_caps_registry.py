@@ -74,7 +74,7 @@ def test_t3_deferred_cap_below_t3_stale_cap():
 
 def test_score_caps_yaml_schema_version():
     text = SCORE_CAPS_FILE.read_text(encoding="utf-8")
-    assert 'schema_version: "1"' in text, "score_caps.yaml must declare schema_version: \"1\""
+    assert 'schema_version: "2"' in text, "score_caps.yaml must declare schema_version: \"2\""
 
 
 def test_score_caps_all_rules_have_required_fields():

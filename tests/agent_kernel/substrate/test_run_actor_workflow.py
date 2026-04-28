@@ -553,7 +553,7 @@ def test_workflow_canonical_path_combines_remote_policy_and_strict_digest(
     event_log.append_action_commit.assert_awaited_once()
     appended_turn_commit = event_log.append_action_commit.await_args.args[0]
     payload = appended_turn_commit.events[0].payload_json
-    assert payload is not None
+    assert payload is not None, f"Expected non-None result for payload"
     assert payload["outcome_kind"] == expected_outcome_kind
     assert payload["emitted_states"][-1] == expected_terminal_state
     if include_declarative_bundle_digest:
@@ -800,7 +800,7 @@ def test_workflow_writes_recovery_outcome_after_failure_recovery_decision() -> N
         asyncio.run(workflow.process_action_commit(make_commit(31)))
 
     latest_outcome = asyncio.run(recovery_outcomes.latest_for_run("run-1"))
-    assert latest_outcome is not None
+    assert latest_outcome is not None, f"Expected non-None result for latest_outcome"
     assert latest_outcome.recovery_mode == "human_escalation"
     assert latest_outcome.outcome_state == "escalated"
     assert latest_outcome.operator_escalation_ref == "ops://pager"
@@ -858,7 +858,7 @@ def test_workflow_writes_turn_intent_record_after_turn_outcome_commit() -> None:
     asyncio.run(workflow.process_action_commit(make_commit(41)))
 
     latest_intent = asyncio.run(turn_intent_log.latest_for_run("run-1"))
-    assert latest_intent is not None
+    assert latest_intent is not None, f"Expected non-None result for latest_intent"
     assert latest_intent.intent_commit_ref.startswith("intent:action-1:")
     assert latest_intent.outcome_kind == "dispatched"
     assert latest_intent.dispatch_dedupe_key is not None

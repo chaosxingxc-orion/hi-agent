@@ -262,6 +262,14 @@ class RunManager:
         )
         try:
             self._event_store.append(event)
+            # Increment metric_emitted counter per successful publish.
+            try:
+                from hi_agent.observability.collector import get_metrics_collector
+                _col = get_metrics_collector()
+                if _col is not None:
+                    _col.increment("hi_agent_events_published_total")
+            except Exception:
+                pass
         except Exception as exc:
             logging.getLogger(__name__).warning(
                 "_publish_run_event: failed to append %s for run_id=%s: %s",
@@ -635,6 +643,13 @@ class RunManager:
                     self._run_store.mark_failed(run.run_id, run.error or "")
             self._semaphore.release()
             self._write_trace_stub(run)
+            # Emit run_finalized before the terminal lifecycle event.
+            self._publish_run_event(
+                run.run_id,
+                "run_finalized",
+                {"state": run.state, "finished_at": run.finished_at},
+                run,
+            )
             _terminal_event = (
                 "run_completed"
                 if run.state == "completed"
@@ -695,6 +710,15 @@ class RunManager:
             while not _heartbeat_stop.wait(interval):
                 try:
                     renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 17
+                    if renewed:
+                        run_for_hb = self._runs.get(run_id)
+                        if run_for_hb is not None:
+                            self._publish_run_event(
+                                run_id,
+                                "heartbeat_renewed",
+                                {"worker_id": "run_manager", "state": run_for_hb.state},
+                                run_for_hb,
+                            )
                     if not renewed:
                         _hb_log.warning(
                             "Lease renewal failed for run_id=%s; transitioning to lease_lost state",
@@ -749,6 +773,13 @@ class RunManager:
         )
         if self._run_queue is not None:
             _heartbeat_thread.start()
+            # Emit lease_acquired once the lease is live.
+            self._publish_run_event(
+                run_id,
+                "lease_acquired",
+                {"worker_id": "run_manager", "state": "running"},
+                run,
+            )
 
         self._publish_run_event(
             run_id,
@@ -805,6 +836,13 @@ class RunManager:
                     self._run_store.mark_failed(run.run_id, run.error or "")
             self._semaphore.release()
             self._write_trace_stub(run)
+            # Emit run_finalized before the terminal lifecycle event.
+            self._publish_run_event(
+                run_id,
+                "run_finalized",
+                {"state": run.state, "finished_at": run.finished_at},
+                run,
+            )
             _terminal_event_d = (
                 "run_completed"
                 if run.state == "completed"

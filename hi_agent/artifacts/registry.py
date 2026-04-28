@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 from typing import TYPE_CHECKING
 
 from hi_agent.artifacts.contracts import Artifact
@@ -62,7 +63,13 @@ class ArtifactRegistry:
                 (tenant_id, run_id, project_id) are set on the artifact via
                 setattr when the artifact's own fields are empty and the
                 artifact supports dynamic attribute setting.
+
+        Raises:
+            OSError: When ``HI_AGENT_ARTIFACT_FAULT=oserror`` is set in the
+                environment (chaos fault injection for disk-full simulation).
         """
+        if os.environ.get("HI_AGENT_ARTIFACT_FAULT") == "oserror":
+            raise OSError("Simulated disk full fault — HI_AGENT_ARTIFACT_FAULT=oserror")
         if exec_ctx is not None:
             for field_name, ctx_value in (
                 ("tenant_id", exec_ctx.tenant_id),

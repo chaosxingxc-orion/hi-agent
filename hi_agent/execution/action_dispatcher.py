@@ -169,6 +169,18 @@ class ActionDispatcher:
             }
             self._ctx.record_event_fn("ActionPlanned", payload)
 
+            # Emit tool_call at state transition boundary (first attempt only).
+            if attempt == 1:
+                self._ctx.record_event_fn(
+                    "tool_call",
+                    {
+                        "run_id": self._ctx.run_id,
+                        "stage_id": stage_id,
+                        "tool_name": str(getattr(proposal, "action_kind", "unknown")),
+                        "seq": self._ctx.action_seq,
+                    },
+                )
+
             try:
                 # Fix-4: route through ExecutionHookManager (pre/post tool hooks)
                 result = self._invoke_capability_via_hooks(proposal, payload)

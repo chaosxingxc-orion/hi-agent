@@ -423,7 +423,7 @@ class TestPerceptionMiddleware:
         msg = _make_input_msg(long_text)
         result = pm.process(msg)
         summary = result.payload.get("summary")
-        assert summary is not None
+        assert summary is not None, f"Expected non-None result for summary"
         assert "First paragraph" in summary
 
     def test_no_summary_for_short_input(self):
@@ -791,7 +791,7 @@ class TestMiddlewareOrchestrator:
         """Default flow: perception -> control -> execution -> evaluation."""
         orch = create_default_orchestrator()
         result = orch.run("hello world")
-        assert result is not None
+        assert result is not None, f"Expected non-None result for result"
         log = orch.get_message_log()
         sources = [m.source for m in log]
         assert "user" in sources
@@ -915,7 +915,7 @@ class TestMiddlewareOrchestrator:
         """Full end-to-end run with default config."""
         orch = create_default_orchestrator()
         result = orch.run("Analyze quarterly revenue data for Q1 2024")
-        assert result is not None
+        assert result is not None, f"Expected non-None result for result"
         assert result.source in ("evaluation", "execution", "control", "perception")
         summary = orch.get_cost_summary()
         assert summary["total_tokens"] > 0
@@ -951,7 +951,7 @@ class TestDefaults:
     def test_create_default_orchestrator_runs_through(self):
         orch = create_default_orchestrator()
         result = orch.run("Create a simple report on Python best practices")
-        assert result is not None
+        assert result is not None, f"Expected non-None result for result"
         metrics = orch.get_metrics()
         for name in ("perception", "control", "execution", "evaluation"):
             assert name in metrics
@@ -966,7 +966,7 @@ class TestDefaults:
             max_plan_nodes=5,
         )
         result = orch.run("test with custom params")
-        assert result is not None
+        assert result is not None, f"Expected non-None result for result"
 
     def test_all_middlewares_registered(self):
         orch = create_default_orchestrator()

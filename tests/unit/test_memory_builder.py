@@ -38,12 +38,12 @@ def test_build_long_term_graph_returns_object(mb):
 
 def test_build_retrieval_engine_returns_object(mb):
     obj = mb.build_retrieval_engine(profile_id="unit-test-profile")
-    assert obj is not None
+    assert obj is not None, f"Expected non-None result for obj"
 
 
 def test_build_memory_lifecycle_manager_returns_object(mb):
     obj = mb.build_memory_lifecycle_manager(profile_id="unit-test-profile")
-    assert obj is not None
+    assert obj is not None, f"Expected non-None result for obj"
 
 
 def test_memory_builder_profile_id_param(mb):

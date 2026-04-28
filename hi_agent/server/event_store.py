@@ -144,6 +144,14 @@ class SQLiteEventStore:
                 ),
             )
             self._conn.commit()
+        # Increment event_stored counter (secondary signal — no recursion risk).
+        try:
+            from hi_agent.observability.collector import get_metrics_collector
+            _col = get_metrics_collector()
+            if _col is not None:
+                _col.increment("hi_agent_events_stored_total")
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Read
@@ -206,6 +214,50 @@ class SQLiteEventStore:
         with self._lock:
             rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_event(r) for r in rows]
+
+    def get_events(
+        self,
+        run_id: str,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> list[dict]:
+        """Return paginated events for *run_id* as plain dicts.
+
+        Ordered by ascending row id (insertion order).  Suitable for
+        non-SSE snapshot replay via the ``GET /runs/{run_id}/events`` endpoint.
+
+        Args:
+            run_id: Run identifier.
+            offset: Number of rows to skip (0-based).
+            limit: Maximum number of rows to return.
+
+        Returns:
+            List of dicts with keys matching StoredEvent fields.
+        """
+        query = (
+            "SELECT event_id, run_id, sequence, event_type, payload_json, "
+            "tenant_id, user_id, session_id, trace_id, created_at "
+            "FROM run_events WHERE run_id = ? ORDER BY id ASC LIMIT ? OFFSET ?"
+        )
+        with self._lock:
+            rows = self._conn.execute(query, (run_id, limit, offset)).fetchall()
+        result = []
+        for row in rows:
+            result.append(
+                {
+                    "event_id": row[0],
+                    "run_id": row[1],
+                    "sequence": row[2],
+                    "event_type": row[3],
+                    "payload_json": row[4],
+                    "tenant_id": row[5],
+                    "user_id": row[6],
+                    "session_id": row[7],
+                    "trace_id": row[8],
+                    "created_at": row[9],
+                }
+            )
+        return result
 
     def max_sequence(self, run_id: str) -> int:
         """Return the highest stored sequence for run_id, or -1 if none.

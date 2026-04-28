@@ -4,13 +4,15 @@ Extracted from app.py (Arch-7 decomposition). All route paths, HTTP methods,
 and response schemas are identical to the originals — this is a pure move.
 
 Handlers:
-    handle_run_events_sse   GET /runs/{run_id}/events  (SSE stream)
+    handle_run_events_sse      GET /runs/{run_id}/events  (SSE stream)
+    handle_run_events_snapshot GET /runs/{run_id}/events/snapshot  (JSON replay)
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import threading
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
@@ -18,6 +20,16 @@ from starlette.responses import JSONResponse, StreamingResponse
 from hi_agent.server.event_bus import event_bus
 from hi_agent.server.event_store import SQLiteEventStore
 from hi_agent.server.tenant_context import require_tenant_context
+
+# Rule 7: countable dropped-event alarm.
+_sse_events_dropped_total: int = 0
+_sse_events_dropped_lock = threading.Lock()
+
+
+def _increment_dropped() -> None:
+    global _sse_events_dropped_total
+    with _sse_events_dropped_lock:
+        _sse_events_dropped_total += 1
 
 
 async def handle_run_events_sse(request: Request) -> StreamingResponse | JSONResponse:
@@ -88,3 +100,41 @@ async def handle_run_events_sse(request: Request) -> StreamingResponse | JSONRes
             "X-Accel-Buffering": "no",
         },
     )
+
+
+async def handle_run_events_snapshot(request: Request) -> JSONResponse:
+    """Return a JSON snapshot of past events for a run (non-SSE, queryable).
+
+    Query parameters:
+        since (int, default 0): Row offset to start from.
+        limit (int, default 100): Maximum number of events to return.
+    """
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+
+    run_id = request.path_params["run_id"]
+    server = request.app.state.agent_server
+    manager = server.run_manager
+    run = manager.get_run(run_id, workspace=ctx)
+    if run is None:
+        return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
+
+    try:
+        since = int(request.query_params.get("since", "0"))
+    except ValueError:
+        since = 0
+    try:
+        limit = min(int(request.query_params.get("limit", "100")), 500)
+    except ValueError:
+        limit = 100
+
+    _store: SQLiteEventStore | None = getattr(event_bus, "_event_store", None)
+    if _store is None:
+        return JSONResponse(
+            {"run_id": run_id, "events": [], "count": 0, "note": "event_store_not_configured"}
+        )
+
+    events = _store.get_events(run_id, offset=since, limit=limit)
+    return JSONResponse({"run_id": run_id, "events": events, "count": len(events)})

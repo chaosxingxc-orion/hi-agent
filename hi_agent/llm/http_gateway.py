@@ -110,11 +110,41 @@ class HttpLLMGateway:
         """
         from hi_agent.observability.fallback import record_llm_request
 
+        _run_id_for_event = request.metadata.get("run_id") if request.metadata else None
         record_llm_request(
             provider=getattr(self, "_provider", "unknown"),
             model=request.model or "",
-            run_id=request.metadata.get("run_id") if request.metadata else None,
+            run_id=_run_id_for_event,
         )
+        # Emit llm_call event to EventBus (-> SQLiteEventStore) at call boundary.
+        try:
+            import datetime as _dt
+            import uuid as _uuid
+
+            from hi_agent.runtime_adapter import RuntimeEvent as _RE
+            from hi_agent.server.event_bus import event_bus as _ebus
+
+            _ebus.publish(
+                _RE(
+                    run_id=_run_id_for_event or "__system__",
+                    event_id=_uuid.uuid4().hex,
+                    commit_offset=0,
+                    event_type="llm_call",
+                    event_class="derived",
+                    event_authority="derived_diagnostic",
+                    ordering_key="",
+                    wake_policy="projection_only",
+                    created_at=_dt.datetime.now(_dt.UTC).isoformat(),
+                    payload_json={
+                        "model": request.model or "",
+                        "provider": getattr(self, "_provider", "unknown"),
+                        "message_count": len(request.messages),
+                    },
+                )
+            )
+        except Exception:
+            pass  # must not block LLM call; event bus unavailable is non-fatal
+
         if self._budget_tracker is not None:
             self._budget_tracker.check()
             # Inject real-time remaining budget ratio into request metadata so

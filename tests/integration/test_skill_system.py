@@ -39,7 +39,7 @@ def _make_candidate(
 def _promote_to_certified(registry: SkillRegistry, skill_id: str) -> ManagedSkill:
     """Helper: fast-track a skill to certified by setting counts directly."""
     skill = registry.get(skill_id)
-    assert skill is not None
+    assert skill is not None, f"Expected non-None result for skill"
     # Meet provisional criteria
     skill.evidence_count = 2
     registry.promote(skill_id, "provisional", evidence=["e1", "e2"])
@@ -100,7 +100,7 @@ class TestSkillRegistry:
 
         reg.promote("skill_abc", "provisional")
         skill = reg.get("skill_abc")
-        assert skill is not None
+        assert skill is not None, f"Expected non-None result for skill"
         skill.evidence_count = 6
         skill.success_count = 5
         skill.failure_count = 1
@@ -196,7 +196,7 @@ class TestSkillRegistry:
             reg2.load()
 
             skill = reg2.get("skill_abc")
-            assert skill is not None
+            assert skill is not None, f"Expected non-None result for skill"
             assert skill.lifecycle_stage == "provisional"
             assert len(skill.promotion_history) == 1
             assert skill.promotion_history[0].from_stage == "candidate"
@@ -335,7 +335,7 @@ class TestSkillMatcher:
         )
         reg.register_candidate(c)
         skill = reg.get(skill_id)
-        assert skill is not None
+        assert skill is not None, f"Expected non-None result for skill"
         if forbidden:
             skill.forbidden_conditions = forbidden
         _promote_to_certified(reg, skill_id)
@@ -427,7 +427,7 @@ class TestSkillUsageRecorder:
         recorder.record_usage("skill_abc", "run_100", success=True)
 
         skill = reg.get("skill_abc")
-        assert skill is not None
+        assert skill is not None, f"Expected non-None result for skill"
         assert skill.success_count == 1
         assert skill.failure_count == 0
         assert skill.evidence_count == 2  # 1 original + 1 recorded
@@ -441,7 +441,7 @@ class TestSkillUsageRecorder:
         recorder.record_usage("skill_abc", "run_100", success=False)
 
         skill = reg.get("skill_abc")
-        assert skill is not None
+        assert skill is not None, f"Expected non-None result for skill"
         assert skill.failure_count == 1
 
     def test_record_missing_skill_raises(self) -> None:
@@ -507,7 +507,7 @@ class TestFullLifecycle:
             candidate = _make_candidate(evidence=1, run_ids=["run_001"])
             reg.register_candidate(candidate)
             skill = reg.get("skill_abc")
-            assert skill is not None
+            assert skill is not None, f"Expected non-None result for skill"
             assert skill.lifecycle_stage == "candidate"
 
             # Step 2: Record usage to build evidence
@@ -538,7 +538,7 @@ class TestFullLifecycle:
             reg2 = SkillRegistry(storage_dir=tmpdir)
             reg2.load()
             loaded = reg2.get("skill_abc")
-            assert loaded is not None
+            assert loaded is not None, f"Expected non-None result for loaded"
             assert loaded.lifecycle_stage == "certified"
             assert loaded.success_count == 4
             assert len(loaded.promotion_history) == 2

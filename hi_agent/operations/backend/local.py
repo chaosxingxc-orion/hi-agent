@@ -10,6 +10,8 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from hi_agent.observability.collector import get_metrics_collector
+
 _logger = logging.getLogger(__name__)
 
 
@@ -98,4 +100,16 @@ class LocalBackend:
         record.cancelled = True
         if record.proc is not None and record.proc.poll() is None:
             record.proc.terminate()
+            try:
+                record.proc.wait(timeout=5)
+            except Exception:  # pragma: no cover  # wait timed out; OS will reap
+                # Process did not exit within 5 s; leave it for the OS to reap
+                # so we do not block the cancel path indefinitely.
+                _logger.warning(
+                    "LocalBackend: process ext_id=%s did not exit within 5s after terminate",
+                    external_id,
+                )
+                _mc = get_metrics_collector()
+                if _mc is not None:
+                    _mc.increment("hi_agent_subprocess_zombie_total")
             _logger.info("LocalBackend cancelled ext_id=%s", external_id)

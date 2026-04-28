@@ -288,11 +288,11 @@ class TestSystemBuilder:
         retrieval = builder.build_retrieval_engine(profile_id=_pid)
         mgr = builder.build_memory_lifecycle_manager(profile_id=_pid)
 
-        assert short is not None
-        assert mid is not None
-        assert graph is not None
-        assert retrieval is not None
-        assert mgr is not None
+        assert short is not None, f"Expected non-None result for short"
+        assert mid is not None, f"Expected non-None result for mid"
+        assert graph is not None, f"Expected non-None result for graph"
+        assert retrieval is not None, f"Expected non-None result for retrieval"
+        assert mgr is not None, f"Expected non-None result for mgr"
         assert mgr._dream is not None
         assert mgr._consolidator is not None
 
@@ -335,7 +335,7 @@ class TestFullLifecycle:
 
         # Verify DailySummary was created
         summary = mid.load("2026-04-07")
-        assert summary is not None
+        assert summary is not None, f"Expected non-None result for summary"
         assert summary.sessions_count == 3
         assert len(summary.tasks_completed) == 3
 

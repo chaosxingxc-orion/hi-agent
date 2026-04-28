@@ -214,7 +214,7 @@ class TestSkillVersionManager:
         mgr.create_version("sk1", "prompt v2")
         mgr.set_champion("sk1", "v2")
         champ = mgr.get_champion("sk1")
-        assert champ is not None
+        assert champ is not None, f"Expected non-None result for champ"
         assert champ.version == "v2"
         # v1 should no longer be champion
         versions = mgr.list_versions("sk1")
@@ -226,7 +226,7 @@ class TestSkillVersionManager:
         mgr.create_version("sk1", "prompt v2")
         mgr.set_challenger("sk1", "v2")
         chall = mgr.get_challenger("sk1")
-        assert chall is not None
+        assert chall is not None, f"Expected non-None result for chall"
         assert chall.version == "v2"
 
     def test_select_version_respects_traffic_split(self) -> None:
@@ -265,13 +265,13 @@ class TestSkillVersionManager:
         # Give challenger better metrics
         v2.metrics = SkillMetrics(skill_id="sk1", success_rate=0.9)
         champ = mgr.get_champion("sk1")
-        assert champ is not None
+        assert champ is not None, f"Expected non-None result for champ"
         champ.metrics = SkillMetrics(skill_id="sk1", success_rate=0.6)
 
         result = mgr.promote_challenger("sk1")
         assert result is True
         new_champ = mgr.get_champion("sk1")
-        assert new_champ is not None
+        assert new_champ is not None, f"Expected non-None result for new_champ"
         assert new_champ.version == "v2"
         # Challenger flag should be cleared
         assert new_champ.is_challenger is False
@@ -290,7 +290,7 @@ class TestSkillVersionManager:
         result = mgr.rollback("sk1")
         assert result is True
         champ = mgr.get_champion("sk1")
-        assert champ is not None
+        assert champ is not None, f"Expected non-None result for champ"
         assert champ.version == "v1"
 
     def test_rollback_single_version(self) -> None:
@@ -421,7 +421,7 @@ class TestSkillEvolver:
             observer.observe(_make_obs(run_id=f"s-{i}"))
 
         result = evolver.optimize_prompt("skill_abc")
-        assert result is not None
+        assert result is not None, f"Expected non-None result for result"
         assert "Original prompt" in result
         assert "Improvement Notes" in result
 
@@ -463,7 +463,7 @@ class TestSkillEvolver:
         assert record.is_challenger is True
 
         challenger = version_mgr.get_challenger("skill_abc")
-        assert challenger is not None
+        assert challenger is not None, f"Expected non-None result for challenger"
         assert challenger.version == record.version
 
     def test_discover_patterns(self, tmp_path: Any) -> None:
@@ -506,7 +506,7 @@ class TestSkillEvolver:
         )
 
         skill_def = evolver.create_skill_from_pattern(pattern)
-        assert skill_def is not None
+        assert skill_def is not None, f"Expected non-None result for skill_def"
         assert isinstance(skill_def, SkillDefinition)
         assert skill_def.source == "evolved"
         assert "etl" in skill_def.when_to_use
@@ -534,7 +534,7 @@ class TestSkillEvolver:
         )
 
         skill_def = evolver.create_skill_from_pattern(pattern)
-        assert skill_def is not None
+        assert skill_def is not None, f"Expected non-None result for skill_def"
         assert skill_def.prompt_content == "LLM-generated skill prompt"
 
     def test_evolve_cycle(self, tmp_path: Any) -> None:

@@ -441,7 +441,7 @@ class TestSystemBuilderSkillComponents:
 
         builder = SystemBuilder(TraceConfig())
         loader = builder.build_skill_loader()
-        assert loader is not None
+        assert loader is not None, f"Expected non-None result for loader"
         assert hasattr(loader, "discover")
         assert hasattr(loader, "build_prompt")
 
@@ -451,7 +451,7 @@ class TestSystemBuilderSkillComponents:
 
         builder = SystemBuilder(TraceConfig())
         observer = builder.build_skill_observer()
-        assert observer is not None
+        assert observer is not None, f"Expected non-None result for observer"
         assert hasattr(observer, "observe")
         assert hasattr(observer, "get_metrics")
 
@@ -461,7 +461,7 @@ class TestSystemBuilderSkillComponents:
 
         builder = SystemBuilder(TraceConfig())
         vmgr = builder.build_skill_version_manager()
-        assert vmgr is not None
+        assert vmgr is not None, f"Expected non-None result for vmgr"
         assert hasattr(vmgr, "create_version")
         assert hasattr(vmgr, "select_version")
 
@@ -471,7 +471,7 @@ class TestSystemBuilderSkillComponents:
 
         builder = SystemBuilder(TraceConfig())
         evolver = builder.build_skill_evolver()
-        assert evolver is not None
+        assert evolver is not None, f"Expected non-None result for evolver"
         assert hasattr(evolver, "evolve_cycle")
         assert hasattr(evolver, "optimize_prompt")
 
@@ -511,7 +511,7 @@ class TestSkillLifecycleIntegration:
         assert count == 1
 
         skill = loader.get_skill("analyze-data")
-        assert skill is not None
+        assert skill is not None, f"Expected non-None result for skill"
         assert skill.name == "analyze-data"
 
         # 3. Build prompt for LLM injection

@@ -122,9 +122,9 @@ def _cleanup_run_actor_dependency_config() -> None:
 @pytest.mark.asyncio
 async def test_real_run_actor_workflow_runs_signal_and_query_in_temporal_test_env() -> None:
     """RunActorWorkflow should run through start->callback signal->projection query."""
-    assert WorkflowEnvironment is not None
-    assert Worker is not None
-    assert UnsandboxedWorkflowRunner is not None
+    assert WorkflowEnvironment is not None, f"Expected non-None result for WorkflowEnvironment"
+    assert Worker is not None, f"Expected non-None result for Worker"
+    assert UnsandboxedWorkflowRunner is not None, f"Expected non-None result for UnsandboxedWorkflowRunner"
 
     _ensure_run_actor_workflow_is_temporal_workflow()
 
@@ -181,7 +181,7 @@ async def test_real_run_actor_workflow_runs_signal_and_query_in_temporal_test_en
                     break
                 await asyncio.sleep(0.1)
 
-            assert projection is not None
+            assert projection is not None, f"Expected non-None result for projection"
             assert started["run_id"] == run_id
             assert started["workflow_id"] == f"run:{run_id}"
             assert projection.run_id == run_id
@@ -192,9 +192,9 @@ async def test_real_run_actor_workflow_runs_signal_and_query_in_temporal_test_en
 @pytest.mark.asyncio
 async def test_child_completion_signal_updates_parent_active_child_runs_in_temporal_env() -> None:
     """Child completion should remove child id from parent projection list."""
-    assert WorkflowEnvironment is not None
-    assert Worker is not None
-    assert UnsandboxedWorkflowRunner is not None
+    assert WorkflowEnvironment is not None, f"Expected non-None result for WorkflowEnvironment"
+    assert Worker is not None, f"Expected non-None result for Worker"
+    assert UnsandboxedWorkflowRunner is not None, f"Expected non-None result for UnsandboxedWorkflowRunner"
 
     _ensure_run_actor_workflow_is_temporal_workflow()
 
@@ -257,7 +257,7 @@ async def test_child_completion_signal_updates_parent_active_child_runs_in_tempo
                     break
                 await asyncio.sleep(0.1)
 
-            assert spawned_projection is not None
+            assert spawned_projection is not None, f"Expected non-None result for spawned_projection"
             assert child_run_id in spawned_projection.active_child_runs
 
             child_started = await gateway.start_workflow(
@@ -289,7 +289,7 @@ async def test_child_completion_signal_updates_parent_active_child_runs_in_tempo
                     break
                 await asyncio.sleep(0.1)
 
-            assert completed_projection is not None
+            assert completed_projection is not None, f"Expected non-None result for completed_projection"
             assert parent_started["run_id"] == parent_run_id
             assert child_started["run_id"] == child_run_id
             assert child_run_id not in completed_projection.active_child_runs
