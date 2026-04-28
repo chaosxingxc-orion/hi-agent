@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-28-0a721be",
+  "verified_head": "0a721be59096a02291e2c1b2eadacace18bb7d4f",
+  "generated_at": "2026-04-28T07:50:20.757663+00:00",
+  "current_verified_readiness": 55.0,
+  "cap": 55.0,
+  "cap_reason": "score_artifact_inconsistent: 0de89b3-score-cap.json manifest_id=2026-04-27-a1bfa88 not in filename; gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "score_artifact_inconsistent: 0de89b3-score-cap.json manifest_id=2026-04-27-a1bfa88 not in filename",
+    "gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}

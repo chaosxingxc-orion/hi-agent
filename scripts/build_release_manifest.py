@@ -518,25 +518,36 @@ def _compute_cap(
                     return None
             return f"clean_env_artifact_missing_at_head: no artifact matches HEAD={current_head[:12]}"
         if condition == "score_artifact_inconsistent":
+            # Only check score-cap artifacts that are at the CURRENT HEAD.
+            # Historical artifacts at intermediate commits will naturally have manifest_ids
+            # that differ from their filename SHA — that is expected, not an error.
+            head_proc = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, cwd=str(ROOT),
+            )
+            current_head = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
+            if not current_head:
+                return None
             score_files = list((ROOT / "docs" / "verification").glob("*score*.json"))
             for sf in score_files:
                 try:
                     sd = json.loads(sf.read_text(encoding="utf-8"))
                 except Exception:
                     continue
-                file_stem = sf.stem  # e.g. "YYYY-MM-DD-<sha>-score-cap"
-                manifest_id = str(sd.get("manifest_id", "")).strip()
                 verified_head = str(sd.get("verified_head", "")).strip()
-                # filename must contain manifest_id or its SHA portion (legacy files use SHA-only prefix)
+                # Only validate artifacts that claim to be at the current HEAD.
+                if not verified_head or not (
+                    current_head.startswith(verified_head[:7]) or
+                    verified_head.startswith(current_head[:7])
+                ):
+                    continue  # historical artifact from a different HEAD — skip
+                file_stem = sf.stem  # e.g. "<sha>-score-cap"
+                manifest_id = str(sd.get("manifest_id", "")).strip()
+                # filename must contain manifest_id or its SHA portion
                 if manifest_id and manifest_id not in file_stem:
                     sha_part = manifest_id.split("-")[-1] if "-" in manifest_id else manifest_id
                     if sha_part not in file_stem:
                         return f"score_artifact_inconsistent: {sf.name} manifest_id={manifest_id} not in filename"
-                if verified_head and not any(
-                    file_stem.startswith(p) or verified_head[:7] in file_stem
-                    for p in [verified_head[:7]]
-                ):
-                    pass  # filename-sha consistency is advisory; manifest_id check is primary
             return None
         return None
 

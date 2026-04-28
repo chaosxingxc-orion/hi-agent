@@ -1,0 +1,22 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-28-8d1727f",
+  "verified_head": "8d1727f5f1a69cce980fa51c561879317a5974a8",
+  "generated_at": "2026-04-28T07:33:03.383442+00:00",
+  "current_verified_readiness": 55.0,
+  "cap": 55.0,
+  "cap_reason": "head_mismatch: manifest=7838a1b411b4 HEAD=8d1727f5f1a6; clean_env_not_final_head: evidence=c6ee39882fe7 HEAD=8d1727f5f1a6; gate_fail: verification_artifacts; verification_artifact_missing_at_head: fail; clean_env_artifact_missing_at_head: no artifact matches HEAD=8d1727f5f1a6; score_artifact_inconsistent: 08048ed-score-cap.json manifest_id=2026-04-27-08048ed not in filename; gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "head_mismatch: manifest=7838a1b411b4 HEAD=8d1727f5f1a6",
+    "clean_env_not_final_head: evidence=c6ee39882fe7 HEAD=8d1727f5f1a6",
+    "gate_fail: verification_artifacts",
+    "verification_artifact_missing_at_head: fail",
+    "clean_env_artifact_missing_at_head: no artifact matches HEAD=8d1727f5f1a6",
+    "score_artifact_inconsistent: 08048ed-score-cap.json manifest_id=2026-04-27-08048ed not in filename",
+    "gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}
