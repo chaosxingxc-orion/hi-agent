@@ -181,6 +181,7 @@ class GateEvidence:
             "verified_head": self.verified_head,
             "verified_at": self.verified_at,
             "dirty_during_run": self.dirty_during_run,
+            "provenance": "real",
         }
 
 
