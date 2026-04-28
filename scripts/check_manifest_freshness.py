@@ -37,21 +37,25 @@ def _git_head() -> str:
 
 
 def _latest_manifest() -> dict | None:
-    # Sort by (mtime, name) so that in CI — where all files share the same
-    # checkout mtime — the most recently dated filename wins.
-    manifests = sorted(
-        RELEASES_DIR.glob("platform-release-manifest-*.json"),
-        key=lambda p: (p.stat().st_mtime, p.name),
-    )
-    if not manifests:
+    # Sort by generated_at from inside each manifest JSON — this is stable across
+    # CI runs where checkout mtime is the same for all files, and SHA-alphabetical
+    # order is not chronological (e.g. bebc54a > 252500e but is an older manifest).
+    import json as _json
+
+    candidates = []
+    for p in RELEASES_DIR.glob("platform-release-manifest-*.json"):
+        try:
+            data = _json.loads(p.read_text(encoding="utf-8"))
+            generated_at = data.get("generated_at", "")
+            candidates.append((generated_at, p.name, p, data))
+        except Exception:
+            continue
+    if not candidates:
         return None
-    try:
-        import json as _json
-        data = _json.loads(manifests[-1].read_text(encoding="utf-8"))
-        data["_path"] = str(manifests[-1])
-        return data
-    except Exception:
-        return None
+    candidates.sort(key=lambda t: (t[0], t[1]))
+    _, _, path, data = candidates[-1]
+    data["_path"] = str(path)
+    return data
 
 
 def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
