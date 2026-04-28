@@ -466,29 +466,35 @@ def check_notice_head_alignment(*, allow_docs_only_gap: bool = False) -> list[st
 
 
 def _latest_manifest_mtime() -> float | None:
-    """Return mtime of the most-recent release manifest, or None if none exist."""
+    """Return mtime of the most-recent release manifest, or None if none exist.
+
+    Uses the canonical helper (_governance.manifest_picker) to ensure all
+    callers in this module agree on which manifest is "latest".
+    """
+    from _governance.manifest_picker import latest_manifest_path
+
     releases = DOCS / "releases"
-    manifests = list(releases.glob("platform-release-manifest-*.json"))
-    if not manifests:
+    p = latest_manifest_path(releases)
+    if p is None:
         return None
-    return max(p.stat().st_mtime for p in manifests)
+    try:
+        return p.stat().st_mtime
+    except OSError:
+        return None
 
 
 def _latest_manifest_id() -> str | None:
-    """Return the manifest_id from the most-recent release manifest."""
-    import json as _json
+    """Return the manifest_id from the most-recent release manifest.
+
+    Uses the canonical helper (_governance.manifest_picker).
+    """
+    from _governance.manifest_picker import latest_manifest
+
     releases = DOCS / "releases"
-    manifests = sorted(
-        releases.glob("platform-release-manifest-*.json"),
-        key=lambda p: p.stat().st_mtime,
-    )
-    if not manifests:
+    data = latest_manifest(releases)
+    if data is None:
         return None
-    try:
-        data = _json.loads(manifests[-1].read_text(encoding="utf-8"))
-        return str(data.get("manifest_id", ""))
-    except Exception:
-        return None
+    return str(data.get("manifest_id", ""))
 
 
 _MANIFEST_CITE_RE = re.compile(r"Manifest:\s*\S+")
