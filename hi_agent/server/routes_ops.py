@@ -90,3 +90,21 @@ async def handle_cancel_long_op(request: Request) -> JSONResponse:
     if not ok:
         return JSONResponse({"error": "not_found", "op_id": op_id}, status_code=404)
     return JSONResponse({"cancelled": True, "op_id": op_id})
+
+
+async def handle_ops_drain(request: Request) -> JSONResponse:
+    """POST /ops/drain — initiate graceful drain; waits for in-flight runs to complete."""
+    server = request.app.state.agent_server
+    run_manager = getattr(server, "run_manager", None)
+    if run_manager is None:
+        return JSONResponse({"error": "run_manager_not_configured"}, status_code=503)
+
+    server._draining = True
+
+    timeout_s = float(request.query_params.get("timeout", "30"))
+    drained = run_manager.drain(timeout_s=timeout_s)
+
+    return JSONResponse({
+        "status": "drained" if drained else "drain_timeout",
+        "draining": True,
+    }, status_code=200)

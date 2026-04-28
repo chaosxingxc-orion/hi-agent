@@ -82,7 +82,7 @@ from hi_agent.server.routes_artifacts import (
 from hi_agent.server.routes_events import handle_run_events_snapshot, handle_run_events_sse
 from hi_agent.server.routes_ops_runs import handle_ops_run_diagnose, handle_ops_run_full
 from hi_agent.server.routes_manifest import MANIFEST_ROUTES
-from hi_agent.server.routes_ops import handle_cancel_long_op, handle_get_long_op
+from hi_agent.server.routes_ops import handle_cancel_long_op, handle_get_long_op, handle_ops_drain
 from hi_agent.server.routes_ops_dlq import handle_list_dlq, handle_requeue_from_dlq
 from hi_agent.server.routes_profiles import (
     handle_global_l3_summary,
@@ -1315,6 +1315,8 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # Long-running ops (G-8) — static cancel path before dynamic op_id catch-all
         Route("/long-ops/{op_id}/cancel", handle_cancel_long_op, methods=["POST"]),
         Route("/long-ops/{op_id}", handle_get_long_op, methods=["GET"]),
+        # Operational control (W18-C2)
+        Route("/ops/drain", handle_ops_drain, methods=["POST"]),
     ]
 
     @contextlib.asynccontextmanager

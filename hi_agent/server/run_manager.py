@@ -1261,3 +1261,22 @@ class RunManager:
                         _log.warning(
                             "shutdown: run_store.mark_failed failed for run_id=%s: %s", _rid, _exc
                         )
+
+    def drain(self, timeout_s: float = 30.0) -> bool:
+        """Wait for all in-flight runs to reach terminal state without forcing failure.
+
+        Sets _shutdown=True to stop new queue dispatches, then waits until
+        _active_run_ids is empty. Returns True if all runs drained within
+        timeout_s, False on timeout. Unlike shutdown(), does not mark runs failed.
+        """
+        with self._lock:
+            self._shutdown = True
+
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            with self._lock:
+                active = set(self._active_run_ids)
+            if not active:
+                return True
+            time.sleep(0.2)
+        return False
