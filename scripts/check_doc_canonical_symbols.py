@@ -47,6 +47,7 @@ SKIP_DIRS = {
 
 # Individual files to skip (historical external documents referencing old module paths)
 SKIP_FILES = {
+    DOCS_ROOT / "hi-agent-optimization-requests-2026-04-15-round2.md",
     DOCS_ROOT / "hi-agent-optimization-requests-2026-04-15-round3.md",
 }
 

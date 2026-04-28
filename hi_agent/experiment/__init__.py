@@ -1,13 +1,13 @@
 """Deprecated: use hi_agent.operations instead.
 
 This package is a compatibility shim for Wave 11 migration.
-It will be removed in Wave 15.
+It will be removed in Wave 19.
 """
 import warnings
 
 warnings.warn(
     "hi_agent.experiment is deprecated; use hi_agent.operations instead. "
-    "This shim will be removed in Wave 15.",
+    "This shim will be removed in Wave 19.",
     DeprecationWarning,
     stacklevel=2,
 )

@@ -34,7 +34,7 @@ _REAL_REQUIRED_CHECKS = frozenset({
     "soak_evidence",
 })
 
-_ALLOWED_FOR_ALL = frozenset({"real", "structural", "dry_run", "synthetic", "unknown", "derived", "shape_verified", "manifest_self_reference"})
+_ALLOWED_FOR_ALL = frozenset({"real", "partial", "structural", "degraded", "dry_run", "synthetic", "unknown", "derived", "shape_verified", "manifest_self_reference"})
 _DISALLOWED_FOR_STRICT = frozenset({"synthetic", "unknown"})
 
 

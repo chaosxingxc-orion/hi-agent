@@ -78,21 +78,19 @@ New examples: `"lead" | "worker" | "reviewer" | "summarizer"`
 | `ProjectPostmortem.failed_assumptions` | `ProjectRetrospective.invalidated_assumptions` |
 
 **Migration:**
-```python
-# Before
-from hi_agent.evolve.contracts import RunPostmortem, ProjectPostmortem, EvolutionExperiment
+```diff
+-# Before (removed in Wave 18 — aliases deleted, ImportError on import)
+-from hi_agent.evolve.contracts import RunPostmortem, ProjectPostmortem, EvolutionExperiment
+-retro = RunPostmortem(run_id="r1", tenant_id="t1", ...)
+-proj = ProjectPostmortem(project_id="p1", hypothesis_outcomes=[...], failed_assumptions=[...])
 
-retro = RunPostmortem(run_id="r1", tenant_id="t1", ...)
-proj = ProjectPostmortem(project_id="p1", hypothesis_outcomes=[...], failed_assumptions=[...])
-
-# After
-from hi_agent.evolve.contracts import RunRetrospective, ProjectRetrospective, EvolutionTrial
-
-retro = RunRetrospective(run_id="r1", tenant_id="t1", ...)
-proj = ProjectRetrospective(project_id="p1", outcome_assessments=[...], invalidated_assumptions=[...])
++# After (canonical)
++from hi_agent.evolve.contracts import RunRetrospective, ProjectRetrospective, EvolutionTrial
++retro = RunRetrospective(run_id="r1", tenant_id="t1", ...)
++proj = ProjectRetrospective(project_id="p1", outcome_assessments=[...], invalidated_assumptions=[...])
 ```
 
-Old names are accessible via module-level `__getattr__` and emit `DeprecationWarning` on import.
+Old names (`RunPostmortem`, `ProjectPostmortem`, `EvolutionExperiment`) were removed in Wave 18. Use canonical names above.
 
 ---
 

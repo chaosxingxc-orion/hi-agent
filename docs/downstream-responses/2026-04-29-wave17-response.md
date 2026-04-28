@@ -3,6 +3,7 @@
 **Response date:** 2026-04-29
 **Responding to:** `docs/downstream-responses/2026-04-28-wave17-delivery-notice.md`
 **Head at response:** see current manifest
+Manifest: 2026-04-28-3d46066
 
 ---
 
