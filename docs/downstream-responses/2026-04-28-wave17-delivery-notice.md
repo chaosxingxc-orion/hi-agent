@@ -3,14 +3,14 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    bbb34bfca519a612b9c603694db6074f09e34467
-Manifest:           2026-04-28-bbb34bf
-Manifest ID:        2026-04-28-bbb34bf
+Functional HEAD:    13f904e18b2792c822215b0e7df02687cc5cc69d
+Manifest:           2026-04-28-13f904e
+Manifest ID:        2026-04-28-13f904e
 T3 evidence:        REAL — docs/delivery/2026-04-28-b954790-t3-volces.json
                     (3 runs completed: 355s, 154s, 137s; provenance:real;
-                     verified_head=b954790; no hot-path files touched between
-                     b954790 and bbb34bf — only scripts/, tests/, docs/ changes)
-Clean-env evidence: docs/verification/bbb34bf-default-offline-clean-env.json
+                     verified_head=b954790; no hot-path file changes between
+                     b954790 and 13f904e — T3 freshness gate passes)
+Clean-env evidence: docs/verification/13f904e-default-offline-clean-env.json
                     (8622 passed / 0 failed / 0 errors)
 Operator drill:     docs/verification/59e37be-operator-drill.json
                     (10/10 actions passed: health, list_runs, query_run_state,
@@ -28,7 +28,7 @@ Validated by: scripts/build_release_manifest.py, scripts/check_score_cap.py,
               scripts/check_evidence_provenance.py, scripts/check_noqa_discipline.py,
               scripts/check_route_scope.py, scripts/check_verification_artifacts.py,
               scripts/check_operator_drill.py, scripts/check_recurrence_ledger.py
-Captain sign-off: docs/releases/captain-signoff-bbb34bf.json
+Captain sign-off: docs/releases/captain-signoff-13f904e.json
                   (chaosxingxc-orion, 2026-04-28)
 Status:       RELEASED
 ```

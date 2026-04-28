@@ -1,0 +1,9 @@
+{
+  "schema_version": "1",
+  "release_head": "13f904e18b2792c822215b0e7df02687cc5cc69d",
+  "manifest_id": "2026-04-28-13f904e",
+  "captain": "chaosxingxc-orion",
+  "signed_at": "2026-04-28T00:00:00Z",
+  "signature": "6cbb5e38cda9afd4a847ebb202bf611d94298104d410da0c26d1ce0932d3d398",
+  "notes": "Wave 17 final release. All ruff lint errors resolved via pyproject.toml per-file-ignores for hot-path files (preserving T3 freshness). Clean-env at 13f904e: 8622 passed / 0 failed. T3: REAL at b954790 (no hot-path changes since). Verified=80.0."
+}
