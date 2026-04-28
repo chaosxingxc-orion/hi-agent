@@ -58,15 +58,30 @@ def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
     return False
 
 
+_ENV_DEFAULTS: dict[str, str] = {
+    "HI_AGENT_HEARTBEAT_STALL_S": "5",
+    "HI_AGENT_HEARTBEAT_INTERVAL_MS": "200",
+}
+
+
 def _run_with_server(scenario_mod) -> dict:  # type: ignore[type-arg]  expiry_wave: Wave 17
     """Start server, run scenario, stop server."""
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
+
+    # Inject env vars declared by the scenario before starting the server subprocess.
+    import os as _os
+    env = _os.environ.copy()
+    for var in getattr(scenario_mod, "REQUIRED_ENV", []):
+        if var not in env and var in _ENV_DEFAULTS:
+            env[var] = _ENV_DEFAULTS[var]
+
     proc = subprocess.Popen(
         [sys.executable, "-m", "hi_agent", "serve", "--port", str(port)],
         cwd=str(ROOT),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env=env,
     )
     try:
         if not _wait_healthy(base_url, timeout=30):
@@ -74,7 +89,7 @@ def _run_with_server(scenario_mod) -> dict:  # type: ignore[type-arg]  expiry_wa
                 "name": scenario_mod.SCENARIO_NAME,
                 "runtime_coupled": True,
                 "synthetic": False,
-                "provenance": "real",
+                "provenance": "degraded",
                 "passed": False,
                 "assertions": {
                     "accepted_runs_lost": -1,
@@ -137,11 +152,25 @@ def main() -> int:
     finish_ts = datetime.datetime.now(datetime.UTC).isoformat()
     overall_status = "pass" if failed == 0 else "fail"
 
+    # Derive aggregate provenance and runtime_coupled from actual per-scenario results.
+    # observation: aggregate_provenance derived from per-scenario provenance fields
+    any_degraded = any(
+        r.get("provenance") == "degraded" or r.get("skipped")
+        for r in results
+    )
+    all_runtime_coupled = all(
+        r.get("runtime_coupled", False)
+        for r in results
+        if not r.get("skipped")
+    )
+    aggregate_provenance = "degraded" if any_degraded else "real"
+    aggregate_runtime_coupled = all_runtime_coupled and not any_degraded
+
     evidence = {
         "schema_version": "1",
         "check": "chaos_runtime_coupling",
-        "provenance": "real",
-        "runtime_coupled": True,
+        "provenance": aggregate_provenance,
+        "runtime_coupled": aggregate_runtime_coupled,
         "head": sha,
         "scenarios_total": len(results),
         "scenarios_passed": passed,
