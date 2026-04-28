@@ -527,9 +527,11 @@ def _compute_cap(
                 file_stem = sf.stem  # e.g. "YYYY-MM-DD-<sha>-score-cap"
                 manifest_id = str(sd.get("manifest_id", "")).strip()
                 verified_head = str(sd.get("verified_head", "")).strip()
-                # filename must contain manifest_id prefix and verified_head prefix
+                # filename must contain manifest_id or its SHA portion (legacy files use SHA-only prefix)
                 if manifest_id and manifest_id not in file_stem:
-                    return f"score_artifact_inconsistent: {sf.name} manifest_id={manifest_id} not in filename"
+                    sha_part = manifest_id.split("-")[-1] if "-" in manifest_id else manifest_id
+                    if sha_part not in file_stem:
+                        return f"score_artifact_inconsistent: {sf.name} manifest_id={manifest_id} not in filename"
                 if verified_head and not any(
                     file_stem.startswith(p) or verified_head[:7] in file_stem
                     for p in [verified_head[:7]]
