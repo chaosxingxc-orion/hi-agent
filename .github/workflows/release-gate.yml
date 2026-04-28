@@ -68,7 +68,7 @@ jobs:
         run: python scripts/check_doc_canonical_symbols.py --json
 
       - name: Check doc consistency (Class C / Check 9)
-        run: python scripts/check_doc_consistency.py --json --allow-docs-only-gap
+        run: python scripts/check_doc_consistency.py --json
 
       - name: Check boundary (platform / kernel)
         run: python scripts/check_boundary.py --json
@@ -94,7 +94,7 @@ jobs:
         run: python scripts/check_targeted_default_path.py --json
 
       - name: Check verification artifacts (W14-A1)
-        run: python scripts/check_verification_artifacts.py --json --allow-docs-only-gap
+        run: python scripts/check_verification_artifacts.py --json
 
       - name: Check validate-before-mutate (W14-A1)
         run: python scripts/check_validate_before_mutate.py --json
@@ -133,15 +133,12 @@ jobs:
 
       - name: Check observability spine completeness (W14-B8)
         run: python scripts/check_observability_spine_completeness.py --json
-        continue-on-error: true  # deferred — provenance:structural; cap=80 applied in manifest
 
       - name: Check soak evidence (W14-C2)
         run: python scripts/check_soak_evidence.py --json
-        continue-on-error: true  # deferred — 7x24 soak at architectural posture; cap=65 applied
 
       - name: Check chaos runtime coupling (W14-C4)
         run: python scripts/check_chaos_runtime_coupling.py --json
-        continue-on-error: true  # deferred — infra ready; real evidence pending; cap applied
 
       # --- T3 invariance (Rule 8) ---
       # Fails if hot-path files changed since the last recorded gate run in docs/delivery/.
@@ -156,16 +153,16 @@ jobs:
       # --- W16 new gates ---
 
       - name: Manifest freshness (W16-A8)
-        run: python scripts/check_manifest_freshness.py --json --allow-docs-only-gap
+        run: python scripts/check_manifest_freshness.py --json
 
       - name: Release identity (W16-A8)
-        run: python scripts/check_release_identity.py --json --allow-docs-only-gap
+        run: python scripts/check_release_identity.py --json
 
       - name: Recurrence ledger (W16-G3)
         run: python scripts/check_recurrence_ledger.py --json
 
       - name: Operator drill evidence (W16-H4)
-        run: python scripts/check_operator_drill.py --json --allow-docs-only-gap
+        run: python scripts/check_operator_drill.py --json
 
       - name: Test honesty audit (W16-K)
         run: python scripts/check_test_honesty.py --json

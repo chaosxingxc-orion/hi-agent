@@ -68,7 +68,7 @@ _GATE_SCRIPTS: dict[str, tuple] = {
     "route_scope":            ("check_route_scope.py",            True,  []),
     "expired_waivers":        ("check_expired_waivers.py",        True,  []),
     "doc_canonical":          ("check_doc_canonical_symbols.py",  True,  []),
-    "doc_consistency":        ("check_doc_consistency.py",        True,  ["--allow-docs-only-gap"]),
+    "doc_consistency":        ("check_doc_consistency.py",        True,  []),
     "wave_tags":              ("check_no_wave_tags.py",           True,  []),
     "rule6_warnings":         ("check_rules.py",                  True,  []),
     "t3_freshness":           ("check_t3_freshness.py",           True,  []),
@@ -78,7 +78,7 @@ _GATE_SCRIPTS: dict[str, tuple] = {
     "metrics_cardinality":    ("check_metrics_cardinality.py",    True,  []),
     "slo_health":             ("check_slo_health.py",             True,  []),
     "allowlist_discipline":   ("check_allowlist_discipline.py",   True,  []),
-    "verification_artifacts": ("check_verification_artifacts.py", True,  ["--allow-docs-only-gap"]),
+    "verification_artifacts": ("check_verification_artifacts.py", True,  []),
     "targeted_default_path":  ("check_targeted_default_path.py",  True,  []),
     # W14-A1: 7 previously absent gates added to registry
     # manifest_freshness is intentionally NOT in _GATE_SCRIPTS: it runs
