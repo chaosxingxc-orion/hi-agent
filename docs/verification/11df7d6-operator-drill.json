@@ -1,0 +1,85 @@
+{
+  "schema_version": "1",
+  "check": "operator_drill",
+  "provenance": "real",
+  "all_passed": true,
+  "head": "11df7d6",
+  "submitted_run_id": "e08f03d2-0a61-481e-bc9c-dcb35ed8e007",
+  "actions": [
+    {
+      "name": "health_check",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 21.1,
+      "payload_snapshot": "{'status': 'ok', 'subsystems': {'run_manager': {'status': 'ok', 'active_runs': 1, 'queued_runs': 0, 'capacity': 4}, 'memory': {'status': 'ok', 'configured': True}, 'metrics': {'status': 'ok', 'events_"
+    },
+    {
+      "name": "list_runs",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 1.2,
+      "payload_snapshot": "{'runs': [{'run_id': 'e08f03d2-0a61-481e-bc9c-dcb35ed8e007', 'task_contract': {'goal': 'operator drill test', 'context': {}, 'profile_id': 'default'}, 'state': 'running', 'result': None, 'error': None"
+    },
+    {
+      "name": "query_run_state",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 22.7,
+      "payload_snapshot": "{'run_id': 'e08f03d2-0a61-481e-bc9c-dcb35ed8e007', 'task_contract': {'goal': 'operator drill test', 'context': {}, 'profile_id': 'default'}, 'state': 'running', 'result': None, 'error': None, 'created"
+    },
+    {
+      "name": "metrics_json",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 15.5,
+      "payload_snapshot": "{'hi_agent_events_stored_total': {'_total': 7.0}, 'hi_agent_http_requests_total': {'method=\"GET\",path=\"/health\"': 2.0, 'method=\"POST\",path=\"/runs\"': 1.0, 'method=\"GET\",path=\"/runs\"': 1.0, 'method=\"GET"
+    },
+    {
+      "name": "cancel_or_signal_run",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 15.3,
+      "payload_snapshot": "{}"
+    },
+    {
+      "name": "ready_check",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 1.5,
+      "payload_snapshot": "{'ready': True, 'health': 'ok', 'execution_mode': 'local', 'kernel_mode': 'local-fsm', 'llm_mode': 'real', 'llm_provider': 'volces', 'llm_backend': 'AnthropicLLMGateway', 'models': [{'name': 'glm-5.1'"
+    },
+    {
+      "name": "inspect_full_state",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 13.9,
+      "payload_snapshot": "{'run_id': 'e08f03d2-0a61-481e-bc9c-dcb35ed8e007', 'task_contract': {'goal': 'operator drill test', 'context': {}, 'profile_id': 'default'}, 'state': 'running', 'result': None, 'error': None, 'created"
+    },
+    {
+      "name": "dlq_recovery",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 15.7,
+      "payload_snapshot": "{'dead_lettered_runs': []}"
+    },
+    {
+      "name": "provider_outage_response",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 1.2,
+      "payload_snapshot": "{'status': 'ok', 'subsystems': {'run_manager': {'status': 'ok', 'active_runs': 1, 'queued_runs': 0, 'capacity': 4}, 'memory': {'status': 'ok', 'configured': True}, 'metrics': {'status': 'ok', 'events_"
+    },
+    {
+      "name": "restart_recovery",
+      "passed": true,
+      "response_code": 200,
+      "duration_ms": 1.4,
+      "payload_snapshot": "{'ready': True, 'health': 'ok', 'execution_mode': 'local', 'kernel_mode': 'local-fsm', 'llm_mode': 'real', 'llm_provider': 'volces', 'llm_backend': 'AnthropicLLMGateway', 'models': [{'name': 'glm-5.1'"
+    }
+  ],
+  "actions_total": 10,
+  "actions_passed": 10,
+  "command": "python scripts/run_operator_drill.py --base-url http://127.0.0.1:8800",
+  "start_ts": "2026-04-28T12:02:54.932566+00:00",
+  "finish_ts": "2026-04-28T12:02:55.114361+00:00"
+}
