@@ -1,27 +1,27 @@
-"""Single source of truth for the current development wave."""
+"""Backward-compat shim for the wave helper.
+
+The canonical implementation lives in scripts/_governance/wave.py.
+This module re-exports the historical API so existing callers keep working.
+New code should import from scripts._governance.wave directly.
+"""
 from __future__ import annotations
 
-import pathlib
-
-_WAVE_FILE = pathlib.Path(__file__).parent.parent / "docs" / "current-wave.txt"
-
-
-def current_wave() -> str:
-    """Return the current wave string, e.g. 'Wave 11'."""
-    return _WAVE_FILE.read_text(encoding="utf-8").strip()
+from _governance.wave import (
+    current_wave,
+    is_expired,
+)
+from _governance.wave import (
+    parse_wave as _parse_wave,
+)
 
 
 def wave_number(wave_str: str) -> int:
-    """Parse 'Wave 11' -> 11. Raises ValueError on bad format."""
-    parts = wave_str.strip().split()
-    if len(parts) != 2 or parts[0] != "Wave":
-        raise ValueError(f"Expected 'Wave N', got: {wave_str!r}")
-    return int(parts[1])
+    """Parse 'Wave 11' -> 11. Raises ValueError on bad format.
+
+    Preserved for backward compatibility; new code should use
+    scripts._governance.wave.parse_wave directly.
+    """
+    return _parse_wave(wave_str)
 
 
-def is_expired(expiry_wave: str) -> bool:
-    """Return True if expiry_wave <= current wave (i.e., deadline has passed)."""
-    try:
-        return wave_number(expiry_wave) <= wave_number(current_wave())
-    except ValueError:
-        return False  # unknown format, don't fail-close
+__all__ = ["current_wave", "is_expired", "wave_number"]
