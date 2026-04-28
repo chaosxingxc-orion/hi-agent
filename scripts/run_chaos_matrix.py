@@ -20,11 +20,16 @@ import subprocess
 import sys
 import time
 
+import urllib.request as _urllib_request
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VERIF_DIR = ROOT / "docs" / "verification"
 SCENARIOS_DIR = ROOT / "tests" / "chaos" / "scenarios"
 
 sys.path.insert(0, str(SCENARIOS_DIR))
+
+# Bypass system proxy for localhost server connections.
+_OPENER = _urllib_request.build_opener(_urllib_request.ProxyHandler({}))
 
 
 def _free_port() -> int:
@@ -44,12 +49,10 @@ def _git_short() -> str:
 
 
 def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
-    import urllib.request
-
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen(f"{base_url}/health", timeout=2) as r:
+            with _OPENER.open(f"{base_url}/health", timeout=2) as r:
                 if r.status == 200:
                     return True
         except Exception:

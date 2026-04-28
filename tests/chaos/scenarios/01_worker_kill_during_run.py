@@ -17,6 +17,7 @@ import urllib.error
 import urllib.request
 
 from _helpers import (
+    _OPENER,
     _fail_result,
     _ok_result,
     _skip_result,
@@ -38,7 +39,7 @@ _TERMINAL = frozenset(
 
 def _check_health(base_url: str) -> bool:
     try:
-        with urllib.request.urlopen(f"{base_url}/health", timeout=5) as r:
+        with _OPENER.open(f"{base_url}/health", timeout=5) as r:
             return r.status == 200
     except Exception:
         return False
@@ -54,7 +55,7 @@ def _cancel_run(base_url: str, run_id: str) -> int:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with _OPENER.open(req, timeout=10) as r:
             return r.status
     except urllib.error.HTTPError as e:
         return e.code

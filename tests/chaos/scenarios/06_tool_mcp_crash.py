@@ -20,6 +20,7 @@ import json
 import urllib.request
 
 from _helpers import (
+    _OPENER,
     _fail_result,
     _ok_result,
     _skip_result,
@@ -41,7 +42,7 @@ _FAILURE_STATES = frozenset({"failed", "error", "timed_out", "cancelled"})
 
 def _get_run_detail(base_url: str, run_id: str) -> dict:
     try:
-        with urllib.request.urlopen(f"{base_url}/runs/{run_id}", timeout=10) as r:
+        with _OPENER.open(f"{base_url}/runs/{run_id}", timeout=10) as r:
             return json.loads(r.read())
     except Exception:
         return {}
@@ -51,7 +52,7 @@ def _submit_tool_run(base_url: str) -> str | None:
     """Submit a run with context hinting that a tool invocation is required."""
     body = json.dumps(
         {
-            "task": "tool crash chaos test — call any available tool",
+            "goal": "tool crash chaos test — call any available tool",
             "context": {"_chaos_require_tool": True},
         }
     ).encode()
@@ -61,7 +62,7 @@ def _submit_tool_run(base_url: str) -> str | None:
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with _OPENER.open(req, timeout=15) as r:
             return json.loads(r.read()).get("run_id")
     except Exception:
         return None

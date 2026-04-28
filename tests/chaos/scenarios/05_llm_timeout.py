@@ -19,6 +19,7 @@ import time
 import urllib.request
 
 from _helpers import (
+    _OPENER,
     _fail_result,
     _ok_result,
     _skip_result,
@@ -44,7 +45,7 @@ _MAX_WALL_CLOCK_S = 50.0
 def _post_run_with_hint(base_url: str) -> str | None:
     """Submit a run with a task hint that triggers the mock LLM delay path."""
     body = json.dumps(
-        {"task": "llm timeout chaos test", "context": {"_chaos_llm_delay": True}}
+        {"goal": "llm timeout chaos test", "context": {"_chaos_llm_delay": True}}
     ).encode()
     req = urllib.request.Request(
         f"{base_url}/runs",
@@ -52,7 +53,7 @@ def _post_run_with_hint(base_url: str) -> str | None:
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with _OPENER.open(req, timeout=15) as r:
             return json.loads(r.read()).get("run_id")
     except Exception:
         return None

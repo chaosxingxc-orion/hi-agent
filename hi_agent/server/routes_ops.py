@@ -93,7 +93,11 @@ async def handle_cancel_long_op(request: Request) -> JSONResponse:
 
 
 async def handle_ops_drain(request: Request) -> JSONResponse:
-    """POST /ops/drain — initiate graceful drain; waits for in-flight runs to complete."""
+    """POST /ops/drain — initiate graceful drain; waits for in-flight runs to complete.
+
+    If runs do not reach terminal within timeout_s, forcibly fails remaining
+    active runs via run_manager.shutdown() so callers always see terminal state.
+    """
     server = request.app.state.agent_server
     run_manager = getattr(server, "run_manager", None)
     if run_manager is None:
@@ -104,7 +108,12 @@ async def handle_ops_drain(request: Request) -> JSONResponse:
     timeout_s = float(request.query_params.get("timeout", "30"))
     drained = run_manager.drain(timeout_s=timeout_s)
 
+    if not drained:
+        # Graceful wait expired — forcibly fail remaining active runs so they
+        # reach terminal state (callers can observe this via /runs/{id}).
+        run_manager.shutdown(timeout=5.0)
+
     return JSONResponse({
-        "status": "drained" if drained else "drain_timeout",
+        "status": "drained" if drained else "forced",
         "draining": True,
     }, status_code=200)

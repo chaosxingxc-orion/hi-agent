@@ -20,9 +20,14 @@ import sys
 import time
 import uuid
 
+import urllib.request as _urllib_request
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VERIF_DIR = ROOT / "docs" / "verification"
 SCRIPTS_DIR = ROOT / "scripts"
+
+# Bypass system proxy for localhost server connections.
+_OPENER = _urllib_request.build_opener(_urllib_request.ProxyHandler({}))
 
 _EXPECTED_LAYERS = [
     "http_request", "run_queued", "run_started", "lease_acquired",
@@ -48,11 +53,10 @@ def _git_short() -> str:
 
 
 def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
-    import urllib.request
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen(f"{base_url}/health", timeout=2) as r:
+            with _OPENER.open(f"{base_url}/health", timeout=2) as r:
                 if r.status == 200:
                     return True
         except Exception:
@@ -67,7 +71,7 @@ def _http_post(url: str, data: dict) -> tuple[int, dict]:
     body = _json.dumps(data).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
+        with _OPENER.open(req, timeout=30) as r:
             return r.status, _json.loads(r.read())
     except Exception as e:
         return 0, {"error": str(e)}
@@ -75,9 +79,8 @@ def _http_post(url: str, data: dict) -> tuple[int, dict]:
 
 def _http_get(url: str) -> tuple[int, dict]:
     import json as _json
-    import urllib.request
     try:
-        with urllib.request.urlopen(url, timeout=10) as r:
+        with _OPENER.open(url, timeout=10) as r:
             return r.status, _json.loads(r.read())
     except Exception as e:
         return 0, {"error": str(e)}
@@ -116,11 +119,11 @@ def main() -> int:
         # Submit a run with a traceparent header
         tp_header_value = f"00-{test_trace_id}-{uuid.uuid4().hex[:16]}-01"
         run_payload = {
-            "task": "Observability spine E2E test — count to 3",
+            "goal": "Observability spine E2E test: count to 3",
             "context": {},
         }
 
-        # Use urllib with custom traceparent
+        # Use no-proxy opener with custom traceparent
         import json as _j
         import urllib.request
         body = _j.dumps(run_payload).encode()
@@ -133,7 +136,7 @@ def main() -> int:
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with _OPENER.open(req, timeout=30) as r:
                 create_resp = _j.loads(r.read())
         except Exception as e:
             create_resp = {"error": str(e)}
@@ -216,6 +219,7 @@ def main() -> int:
             "status": status,
             "head": sha,
             "command": "python scripts/build_observability_spine_e2e_real.py",
+            "generated_at": finish_ts,
             "start_ts": start_ts,
             "finish_ts": finish_ts,
         }

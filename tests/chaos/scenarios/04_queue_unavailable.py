@@ -8,7 +8,7 @@ import json
 import urllib.error
 import urllib.request
 
-from _helpers import _fail_result, _ok_result
+from _helpers import _OPENER, _fail_result, _ok_result
 
 SCENARIO_NAME = "queue_unavailable"
 SCENARIO_DESCRIPTION = "Flood queue to test saturation rejection path."
@@ -25,14 +25,14 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
     rejections = 0
     submitted = 0
     for _ in range(20):
-        body = json.dumps({"task": "queue flood test", "context": {}}).encode()
+        body = json.dumps({"goal": "queue flood test", "context": {}}).encode()
         req = urllib.request.Request(
             f"{base_url}/runs",
             data=body,
             headers={"Content-Type": "application/json"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=5) as r:
+            with _OPENER.open(req, timeout=5) as r:
                 if r.status < 400:
                     submitted += 1
         except urllib.error.HTTPError as e:

@@ -1261,6 +1261,12 @@ class RunManager:
                         _log.warning(
                             "shutdown: run_store.mark_failed failed for run_id=%s: %s", _rid, _exc
                         )
+                # Update in-memory state so /runs/{id} reflects terminal status.
+                with self._lock:
+                    _run = self._runs.get(_rid)
+                if _run is not None and _run.state not in ("completed", "failed", "cancelled"):
+                    _run.state = "failed"
+                    _run.error = "server_shutdown"
 
     def drain(self, timeout_s: float = 30.0) -> bool:
         """Wait for all in-flight runs to reach terminal state without forcing failure.

@@ -6,17 +6,20 @@ import time
 import urllib.error
 import urllib.request
 
+# Bypass system proxy for localhost server connections.
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
 
 def submit_run(base_url: str, task: str = "chaos test run") -> str | None:
     """POST /runs and return run_id, or None on failure."""
-    body = json.dumps({"task": task, "context": {}}).encode()
+    body = json.dumps({"goal": task, "context": {}}).encode()
     req = urllib.request.Request(
         f"{base_url}/runs",
         data=body,
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with _OPENER.open(req, timeout=15) as r:
             return json.loads(r.read()).get("run_id")
     except Exception:
         return None
@@ -25,7 +28,7 @@ def submit_run(base_url: str, task: str = "chaos test run") -> str | None:
 def get_run_state(base_url: str, run_id: str) -> str:
     """GET /runs/{run_id} and return state, or 'error' on failure."""
     try:
-        with urllib.request.urlopen(f"{base_url}/runs/{run_id}", timeout=10) as r:
+        with _OPENER.open(f"{base_url}/runs/{run_id}", timeout=10) as r:
             data = json.loads(r.read())
             return data.get("state", data.get("status", "unknown"))
     except Exception:
@@ -47,7 +50,7 @@ def wait_terminal(base_url: str, run_id: str, timeout: float = 45.0) -> str:
 def list_runs(base_url: str) -> list[dict]:
     """GET /runs and return list."""
     try:
-        with urllib.request.urlopen(f"{base_url}/runs?limit=100", timeout=10) as r:
+        with _OPENER.open(f"{base_url}/runs?limit=100", timeout=10) as r:
             data = json.loads(r.read())
             return data if isinstance(data, list) else data.get("runs", [])
     except Exception:

@@ -9,7 +9,7 @@ import time
 import urllib.error
 import urllib.request
 
-from _helpers import _fail_result, _ok_result, submit_run, wait_terminal
+from _helpers import _OPENER, _fail_result, _ok_result, submit_run, wait_terminal
 
 SCENARIO_NAME = "graceful_drain_active_work"
 SCENARIO_DESCRIPTION = "Submit run, POST /ops/drain, verify run reaches terminal via drain path."
@@ -28,7 +28,7 @@ def _post_drain(base_url: str) -> int:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=35) as r:
+        with _OPENER.open(req, timeout=35) as r:
             return r.status
     except urllib.error.HTTPError as e:
         return e.code
