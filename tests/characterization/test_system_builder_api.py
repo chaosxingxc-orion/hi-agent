@@ -27,7 +27,7 @@ def builder():
 
 def test_build_metrics_collector_returns_object(builder):
     obj = builder.build_metrics_collector()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_metrics_collector_is_singleton(builder):
@@ -39,7 +39,7 @@ def test_build_metrics_collector_is_singleton(builder):
 
 def test_build_kernel_returns_object(builder):
     obj = builder.build_kernel()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_kernel_is_singleton(builder):
@@ -60,7 +60,7 @@ def test_build_llm_gateway_is_stable(builder):
 
 def test_build_evolve_engine_returns_object(builder):
     obj = builder.build_evolve_engine()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 # ── Capability ────────────────────────────────────────────────────────────────
@@ -68,12 +68,12 @@ def test_build_evolve_engine_returns_object(builder):
 
 def test_build_invoker_returns_object(builder):
     obj = builder.build_invoker()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_capability_registry_returns_object(builder):
     obj = builder.build_capability_registry()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_capability_registry_is_singleton(builder):
@@ -89,7 +89,7 @@ def test_build_capability_registry_has_list_names(builder):
 
 def test_build_artifact_registry_returns_object(builder):
     obj = builder.build_artifact_registry()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_artifact_registry_is_singleton(builder):
@@ -98,7 +98,7 @@ def test_build_artifact_registry_is_singleton(builder):
 
 def test_build_mcp_registry_returns_object(builder):
     obj = builder.build_mcp_registry()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_mcp_registry_is_singleton(builder):
@@ -118,7 +118,7 @@ def test_build_mcp_transport_does_not_raise(builder):
 
 def test_build_harness_returns_object(builder):
     obj = builder.build_harness()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_harness_has_execute_method(builder):
@@ -131,13 +131,13 @@ def test_build_harness_has_execute_method(builder):
 
 def test_build_skill_registry_returns_object(builder):
     obj = builder.build_skill_registry()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_skill_loader_returns_object(builder):
     # SkillLoader always returns an object (not None), even with no skills on disk
     obj = builder.build_skill_loader()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_skill_loader_is_singleton(builder):
@@ -146,7 +146,7 @@ def test_build_skill_loader_is_singleton(builder):
 
 def test_build_plugin_loader_returns_object(builder):
     obj = builder.build_plugin_loader()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_plugin_loader_is_singleton(builder):
@@ -155,17 +155,17 @@ def test_build_plugin_loader_is_singleton(builder):
 
 def test_build_skill_observer_returns_object(builder):
     obj = builder.build_skill_observer()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_skill_version_manager_returns_object(builder):
     obj = builder.build_skill_version_manager()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_skill_evolver_returns_object(builder):
     obj = builder.build_skill_evolver()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_skill_evolver_is_singleton(builder):
@@ -177,42 +177,42 @@ def test_build_skill_evolver_is_singleton(builder):
 
 def test_build_episodic_store_returns_object(builder):
     obj = builder.build_episodic_store()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_failure_collector_returns_object(builder):
     obj = builder.build_failure_collector()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_watchdog_returns_object(builder):
     obj = builder.build_watchdog()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_short_term_store_returns_object(builder):
     obj = builder.build_short_term_store(profile_id="characterization-profile")
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_mid_term_store_returns_object(builder):
     obj = builder.build_mid_term_store(profile_id="characterization-profile")
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_long_term_graph_returns_object(builder):
     obj = builder.build_long_term_graph(profile_id="characterization-profile")
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_retrieval_engine_returns_object(builder):
     obj = builder.build_retrieval_engine(profile_id="characterization-profile")
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_memory_lifecycle_manager_returns_object(builder):
     obj = builder.build_memory_lifecycle_manager(profile_id="characterization-profile")
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 # ── Knowledge ─────────────────────────────────────────────────────────────────
@@ -220,22 +220,22 @@ def test_build_memory_lifecycle_manager_returns_object(builder):
 
 def test_build_knowledge_wiki_returns_object(builder):
     obj = builder.build_knowledge_wiki()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_user_knowledge_store_returns_object(builder):
     obj = builder.build_user_knowledge_store()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_knowledge_manager_returns_object(builder):
     obj = builder.build_knowledge_manager(profile_id="characterization-profile")
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_profile_registry_returns_object(builder):
     obj = builder.build_profile_registry()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_profile_registry_is_singleton(builder):
@@ -247,12 +247,12 @@ def test_build_profile_registry_is_singleton(builder):
 
 def test_build_context_manager_returns_object(builder):
     obj = builder.build_context_manager()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_budget_guard_returns_object(builder):
     obj = builder.build_budget_guard()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_executor_returns_object(builder):
@@ -260,7 +260,7 @@ def test_build_executor_returns_object(builder):
         task_id="char-test-001", goal="characterization test goal", profile_id="test"
     )
     obj = builder.build_executor(contract=contract)
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_executor_has_execute_method(builder):
@@ -273,7 +273,7 @@ def test_build_executor_has_execute_method(builder):
 
 def test_build_orchestrator_returns_object(builder):
     obj = builder.build_orchestrator()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_orchestrator_has_kernel(builder):
@@ -287,7 +287,7 @@ def test_build_orchestrator_has_kernel(builder):
 
 def test_build_server_returns_object(builder):
     obj = builder.build_server()
-    assert obj is not None, f"Expected non-None result for obj"
+    assert obj is not None, "Expected non-None result for obj"
 
 
 def test_build_server_has_run_manager(builder):

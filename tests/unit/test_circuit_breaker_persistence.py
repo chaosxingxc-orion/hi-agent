@@ -80,7 +80,7 @@ class TestInMemoryPersistence:
         row = cb._db.execute("PRAGMA journal_mode").fetchone()  # type: ignore[union-attr]  expiry_wave: Wave 17
         # :memory: always returns "memory" for journal_mode, which is fine —
         # the PRAGMA is accepted without error.
-        assert row is not None, f"Expected non-None result for row"
+        assert row is not None, "Expected non-None result for row"
         cb.close()
 
     def test_failure_persisted(self) -> None:
@@ -89,7 +89,7 @@ class TestInMemoryPersistence:
         row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 17
             "SELECT state, failures FROM circuit_breaker_state WHERE name='cap'"
         ).fetchone()
-        assert row is not None, f"Expected non-None result for row"
+        assert row is not None, "Expected non-None result for row"
         assert row[0] == "closed"
         assert row[1] == 1
         cb.close()
@@ -100,7 +100,7 @@ class TestInMemoryPersistence:
         row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 17
             "SELECT state FROM circuit_breaker_state WHERE name='cap'"
         ).fetchone()
-        assert row is not None, f"Expected non-None result for row"
+        assert row is not None, "Expected non-None result for row"
         assert row[0] == "open"
         cb.close()
 
@@ -111,7 +111,7 @@ class TestInMemoryPersistence:
         row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 17
             "SELECT state, failures FROM circuit_breaker_state WHERE name='cap'"
         ).fetchone()
-        assert row is not None, f"Expected non-None result for row"
+        assert row is not None, "Expected non-None result for row"
         assert row[0] == "closed"
         assert row[1] == 0
         cb.close()
@@ -130,7 +130,7 @@ class TestInMemoryPersistence:
         row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 17
             "SELECT state FROM circuit_breaker_state WHERE name='cap'"
         ).fetchone()
-        assert row is not None, f"Expected non-None result for row"
+        assert row is not None, "Expected non-None result for row"
         assert row[0] == "half_open"
         cb.close()
 

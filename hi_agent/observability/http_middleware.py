@@ -62,6 +62,9 @@ class TraceIdMiddleware:
             from hi_agent.observability.collector import get_metrics_collector
             _col = get_metrics_collector()
             if _col is not None:
-                _col.increment("hi_agent_http_requests_total", labels={"method": _method, "path": _path})
+                _col.increment(
+                    "hi_agent_http_requests_total",
+                    labels={"method": _method, "path": _path},
+                )
         except Exception:
             pass

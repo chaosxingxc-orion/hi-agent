@@ -649,8 +649,8 @@ class MetricsCollector:
         Called before each /metrics scrape so hi_agent_open_fd_count and
         hi_agent_thread_count reflect current process state without a background timer.
         """
-        import threading as _threading
         import sys as _sys
+        import threading as _threading
         self.gauge_set("hi_agent_thread_count", float(_threading.active_count()))
         if _sys.platform != "win32":
             try:

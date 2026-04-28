@@ -105,7 +105,7 @@ class TestAssembly:
             system_prompt="x" * 200,  # 50 tokens, budget is 10
         )
         system_section = snap.get_section("system")
-        assert system_section is not None, f"Expected non-None result for system_section"
+        assert system_section is not None, "Expected non-None result for system_section"
         assert system_section.tokens <= 10 + 1  # +1 for rounding in count_tokens
 
     def test_extra_context_injected(self):
@@ -114,7 +114,7 @@ class TestAssembly:
             extra_context={"custom_section": "Hello custom context"},
         )
         custom = snap.get_section("custom_section")
-        assert custom is not None, f"Expected non-None result for custom"
+        assert custom is not None, "Expected non-None result for custom"
         assert "Hello custom context" in custom.content
 
     def test_missing_sources_handled_gracefully(self):
@@ -126,12 +126,12 @@ class TestAssembly:
         )
         snap = mgr.prepare_context()
         skill_section = snap.get_section("skills")
-        assert skill_section is not None, f"Expected non-None result for skill_section"
+        assert skill_section is not None, "Expected non-None result for skill_section"
         assert skill_section.content == ""
         assert skill_section.tokens == 0
 
         memory_section = snap.get_section("memory")
-        assert memory_section is not None, f"Expected non-None result for memory_section"
+        assert memory_section is not None, "Expected non-None result for memory_section"
         assert memory_section.content == ""
         assert memory_section.tokens == 0
 
@@ -617,7 +617,7 @@ class TestIntegration:
         )
         assert snap.health == ContextHealth.GREEN
         history = snap.get_section("history")
-        assert history is not None, f"Expected non-None result for history"
+        assert history is not None, "Expected non-None result for history"
         assert "revenue data" in history.content
 
     def test_with_mock_skill_loader(self):
@@ -638,7 +638,7 @@ class TestIntegration:
         mgr = ContextManager(budget=ContextBudget(), skill_loader=MockSkillLoader())
         snap = mgr.prepare_context()
         skills = snap.get_section("skills")
-        assert skills is not None, f"Expected non-None result for skills"
+        assert skills is not None, "Expected non-None result for skills"
         assert "analyze_data" in skills.content
         assert skills.tokens == 15
 
@@ -656,7 +656,7 @@ class TestIntegration:
         mgr = ContextManager(budget=ContextBudget(), memory_retriever=MockRetriever())
         snap = mgr.prepare_context()
         memory = snap.get_section("memory")
-        assert memory is not None, f"Expected non-None result for memory"
+        assert memory is not None, "Expected non-None result for memory"
         assert "Revenue analysis" in memory.content
 
     def test_full_cycle_prepare_respond_compress(self):

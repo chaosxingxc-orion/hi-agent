@@ -44,7 +44,7 @@ class TestKnowledgeWiki:
         page = WikiPage(page_id="alpha", title="Alpha", content="Alpha content.")
         wiki.add_page(page)
         result = wiki.get_page("alpha")
-        assert result is not None, f"Expected non-None result for result"
+        assert result is not None, "Expected non-None result for result"
         assert result.title == "Alpha"
         assert result.created_at != ""
 
@@ -175,7 +175,7 @@ class TestKnowledgeWiki:
         wiki.add_page(WikiPage(page_id="upd", title="Upd", content="Old content."))
         wiki.update_page("upd", content="New content with [[link]].", tags=["updated"])
         page = wiki.get_page("upd")
-        assert page is not None, f"Expected non-None result for page"
+        assert page is not None, "Expected non-None result for page"
         assert page.content == "New content with [[link]]."
         assert page.tags == ["updated"]
         assert "link" in page.outgoing_links
@@ -388,7 +388,7 @@ class TestGraphRenderer:
         count = renderer.to_wiki_pages(wiki)
         assert count == 3
         page = wiki.get_page("n1")
-        assert page is not None, f"Expected non-None result for page"
+        assert page is not None, "Expected non-None result for page"
         assert "Revenue Analysis" in page.title
         # Should have wikilinks to neighbors
         assert "[[n2]]" in page.content or "[[n3]]" in page.content
@@ -402,7 +402,7 @@ class TestGraphRenderer:
         wiki.add_page(WikiPage(page_id="n1", title="Old Title", content="Old."))
         renderer.to_wiki_pages(wiki)
         page = wiki.get_page("n1")
-        assert page is not None, f"Expected non-None result for page"
+        assert page is not None, "Expected non-None result for page"
         assert "Revenue Analysis" in page.content
 
     def test_to_context_string_with_query(self) -> None:
@@ -455,7 +455,7 @@ class TestKnowledgeManager:
         page_id = km.ingest_text("Test Finding", "This is a test finding.", tags=["test"])
         assert page_id != ""
         page = km.wiki.get_page(page_id)
-        assert page is not None, f"Expected non-None result for page"
+        assert page is not None, "Expected non-None result for page"
         assert page.title == "Test Finding"
         assert "test" in page.tags
 

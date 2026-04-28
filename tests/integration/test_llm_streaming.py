@@ -124,7 +124,7 @@ class TestSseParserTextDelta:
             "delta": {"type": "text_delta", "text": "Hello, world!"},
         }
         delta = self.parser.parse_event("content_block_delta", json.dumps(data))
-        assert delta is not None, f"Expected non-None result for delta"
+        assert delta is not None, "Expected non-None result for delta"
         assert delta.type == "text"
         assert delta.content == "Hello, world!"
 
@@ -141,7 +141,7 @@ class TestSseParserTextDelta:
             "delta": {"type": "thinking_delta", "thinking": "Let me reason…"},
         }
         delta = self.parser.parse_event("content_block_delta", json.dumps(data))
-        assert delta is not None, f"Expected non-None result for delta"
+        assert delta is not None, "Expected non-None result for delta"
         assert delta.type == "thinking"
         assert delta.content == "Let me reason…"
 
@@ -152,7 +152,7 @@ class TestSseParserTextDelta:
             "delta": {"type": "input_json_delta", "partial_json": '{"q":'},
         }
         delta = self.parser.parse_event("content_block_delta", json.dumps(data))
-        assert delta is not None, f"Expected non-None result for delta"
+        assert delta is not None, "Expected non-None result for delta"
         assert delta.type == "tool_use"
         assert delta.content == '{"q":'
 
@@ -178,7 +178,7 @@ class TestSseParserToolUse:
             },
         }
         delta = self.parser.parse_event("content_block_start", json.dumps(data))
-        assert delta is not None, f"Expected non-None result for delta"
+        assert delta is not None, "Expected non-None result for delta"
         assert delta.type == "tool_use"
         assert delta.tool_name == "web_search"
         assert delta.tool_id == "toolu_abc123"
@@ -210,7 +210,7 @@ class TestSseParserStop:
             "usage": {"output_tokens": 42},
         }
         delta = self.parser.parse_event("message_delta", json.dumps(data))
-        assert delta is not None, f"Expected non-None result for delta"
+        assert delta is not None, "Expected non-None result for delta"
         assert delta.type == "stop"
         assert delta.finish_reason == "end_turn"
         assert delta.usage is not None
@@ -223,7 +223,7 @@ class TestSseParserStop:
             "usage": {"output_tokens": 10},
         }
         delta = self.parser.parse_event("message_delta", json.dumps(data))
-        assert delta is not None, f"Expected non-None result for delta"
+        assert delta is not None, "Expected non-None result for delta"
         assert delta.type == "usage"
         assert delta.usage.completion_tokens == 10
 
@@ -238,14 +238,14 @@ class TestSseParserStop:
             },
         }
         delta = self.parser.parse_event("message_start", json.dumps(data))
-        assert delta is not None, f"Expected non-None result for delta"
+        assert delta is not None, "Expected non-None result for delta"
         assert delta.type == "usage"
         assert delta.usage.prompt_tokens == 100
 
     def test_parse_event_message_stop(self):
         data = {"type": "message_stop"}
         delta = self.parser.parse_event("message_stop", json.dumps(data))
-        assert delta is not None, f"Expected non-None result for delta"
+        assert delta is not None, "Expected non-None result for delta"
         assert delta.type == "stop"
         assert delta.finish_reason == "end_turn"
 

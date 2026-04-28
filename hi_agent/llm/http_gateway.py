@@ -121,7 +121,9 @@ class HttpLLMGateway:
             import datetime as _dt
             import uuid as _uuid
 
-            from hi_agent.runtime_adapter import RuntimeEvent as _RE
+            from hi_agent.runtime_adapter import (
+                RuntimeEvent as _RE,  # noqa: N814  # expiry_wave: Wave 18
+            )
             from hi_agent.server.event_bus import event_bus as _ebus
 
             _ebus.publish(

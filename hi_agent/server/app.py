@@ -80,10 +80,10 @@ from hi_agent.server.routes_artifacts import (
     artifact_routes,
 )
 from hi_agent.server.routes_events import handle_run_events_snapshot, handle_run_events_sse
-from hi_agent.server.routes_ops_runs import handle_ops_run_diagnose, handle_ops_run_full
 from hi_agent.server.routes_manifest import MANIFEST_ROUTES
 from hi_agent.server.routes_ops import handle_cancel_long_op, handle_get_long_op
 from hi_agent.server.routes_ops_dlq import handle_list_dlq, handle_requeue_from_dlq
+from hi_agent.server.routes_ops_runs import handle_ops_run_diagnose, handle_ops_run_full
 from hi_agent.server.routes_profiles import (
     handle_global_l3_summary,
     handle_global_skills,
@@ -1107,7 +1107,9 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
     _evt_store = agent_server._event_store
     if _evt_store is not None:
         try:
-            from hi_agent.server.event_store import StoredEvent as _SE
+            from hi_agent.server.event_store import (
+                StoredEvent as _SE,  # noqa: N814  # expiry_wave: Wave 18
+            )
             _evt_store.append(_SE(
                 event_id=str(uuid.uuid4()),
                 run_id="__system__",
@@ -1151,7 +1153,9 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
         # Emit recovery_decision per run.
         if _evt_store is not None:
             try:
-                from hi_agent.server.event_store import StoredEvent as _SE
+                from hi_agent.server.event_store import (
+                    StoredEvent as _SE,  # noqa: N814  # expiry_wave: Wave 18
+                )
                 _evt_store.append(_SE(
                     event_id=str(uuid.uuid4()),
                     run_id=run_id,

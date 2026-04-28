@@ -292,7 +292,7 @@ class TestInMemoryRunTraceStore:
         asyncio.run(store.export_commit(commit))
 
         trace = store.get("run-a")
-        assert trace is not None, f"Expected non-None result for trace"
+        assert trace is not None, "Expected non-None result for trace"
         assert trace.run_id == "run-a"
         assert "run.created" in trace.lifecycle_event_types
         assert "run.started" in trace.lifecycle_event_types
@@ -309,7 +309,7 @@ class TestInMemoryRunTraceStore:
             )
         )
         trace = store.get("run-b")
-        assert trace is not None, f"Expected non-None result for trace"
+        assert trace is not None, "Expected non-None result for trace"
         assert trace.lifecycle_event_types.count("run.started") == 1
         assert "run.ready" in trace.lifecycle_event_types
 
@@ -325,7 +325,7 @@ class TestInMemoryRunTraceStore:
         asyncio.run(store.export_commit(commit))
 
         trace = store.get("run-c")
-        assert trace is not None, f"Expected non-None result for trace"
+        assert trace is not None, "Expected non-None result for trace"
         assert len(trace.turns) == 1
         turn = trace.turns[0]
         assert turn.action_id == action.action_id
@@ -343,7 +343,7 @@ class TestInMemoryRunTraceStore:
             )
         )
         trace = store.get("run-d")
-        assert trace is not None, f"Expected non-None result for trace"
+        assert trace is not None, "Expected non-None result for trace"
         assert trace.turns[0].outcome_kind == "noop"
         assert trace.failure_count == 0
 
@@ -372,7 +372,7 @@ class TestInMemoryRunTraceStore:
             )
         )
         trace = store.get("run-f")
-        assert trace is not None, f"Expected non-None result for trace"
+        assert trace is not None, "Expected non-None result for trace"
         assert trace.turns[0].outcome_kind == "recovery_pending"
         assert trace.failure_count == 1
 
@@ -414,7 +414,7 @@ class TestInMemoryRunTraceStore:
         store = InMemoryRunTraceStore()
         asyncio.run(store.export_commit(_make_commit("run-h", event_types=["run.completed"])))
         trace = store.get("run-h")
-        assert trace is not None, f"Expected non-None result for trace"
+        assert trace is not None, "Expected non-None result for trace"
         assert trace.is_terminal
         assert trace.terminal_state == "completed"
 
@@ -423,7 +423,7 @@ class TestInMemoryRunTraceStore:
         store = InMemoryRunTraceStore()
         asyncio.run(store.export_commit(_make_commit("run-i", event_types=["run.aborted"])))
         trace = store.get("run-i")
-        assert trace is not None, f"Expected non-None result for trace"
+        assert trace is not None, "Expected non-None result for trace"
         assert trace.is_terminal
         assert trace.terminal_state == "aborted"
 
@@ -490,7 +490,7 @@ class TestInMemoryRunTraceStore:
             store.export_commit(_make_commit("run-ts", offset=2, event_types=["run.ready"]))
         )
         trace = store.get("run-ts")
-        assert trace is not None, f"Expected non-None result for trace"
+        assert trace is not None, "Expected non-None result for trace"
         assert trace.first_commit_at is not None
         assert trace.last_commit_at is not None
 
@@ -551,6 +551,6 @@ class TestKernelRuntimeConfigExportWiring:
         asyncio.run(_run())
 
         trace = store.get("run-wire")
-        assert trace is not None, f"Expected non-None result for trace"
+        assert trace is not None, "Expected non-None result for trace"
         assert trace.is_terminal
         assert trace.terminal_state == "completed"
