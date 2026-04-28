@@ -32,6 +32,9 @@ class TeamSharedContext:
     team_id: str
     project_id: str
     artifact_handoff_ids: tuple[str, ...] = ()
+    # Rule 12 spine — tenant context for shared team state.
+    # Default "" for backward compatibility; TODO(W17-I4): make required after migration.
+    tenant_id: str = ""
     # Canonical generic fields (Wave 11+)
     working_set: tuple[str, ...] = ()
     assertions: tuple[str, ...] = ()

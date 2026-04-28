@@ -597,26 +597,87 @@ def _current_wave() -> str:
     return "unknown"
 
 
-def _write_pre_manifest_artifact(short_sha: str, head_sha: str, date_str: str) -> pathlib.Path:
-    """Write a verification artifact before running gates so check_verification_artifacts passes."""
-    verif_dir = ROOT / "docs" / "verification"
-    verif_dir.mkdir(parents=True, exist_ok=True)
-    artifact_path = verif_dir / f"{short_sha}-manifest-gate.json"
-    artifact_path.write_text(
-        json.dumps({
-            "schema_version": "1",
-            "check": "manifest_build_gate",
-            "provenance": "manifest_self_reference",
-            "release_head": short_sha,
-            "verified_head": head_sha,
-            "wave": _current_wave(),
-            "date": date_str,
-            "status": "pass",
-            "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
-        }, indent=2),
-        encoding="utf-8",
+def _gather_evidence(gates: dict[str, Any]) -> dict[str, Any]:
+    """Extract per-gate context values needed for cap computation and manifest sections.
+
+    Pure with respect to file I/O beyond what gates already contain.
+    Returns a dict with keys: dirty, t3_status, t3_verified_head, t3_stale,
+    allowlist_total, expired_allowlist_total, clean_env_status, clean_env_summary_available.
+    """
+    dirty = _is_dirty()
+
+    t3_gate = gates.get("t3_freshness", {})
+    t3_status = t3_gate.get("status", "unknown") if isinstance(t3_gate, dict) else "unknown"
+    t3_verified_head = t3_gate.get("verified_head", "") if isinstance(t3_gate, dict) else ""
+    t3_stale = t3_status not in ("pass", "fresh_at_head")
+
+    route_scope_gate = gates.get("route_scope", {})
+    allowlist_total = route_scope_gate.get("allowlist_total", 0) if isinstance(route_scope_gate, dict) else 0
+    expired_allowlist_total = route_scope_gate.get("expired_allowlist_total", 0) if isinstance(route_scope_gate, dict) else 0
+
+    clean_env_gate = gates.get("clean_env", {})
+    clean_env_status = clean_env_gate.get("status", "unknown") if isinstance(clean_env_gate, dict) else "unknown"
+    clean_env_summary_available = clean_env_gate.get("summary_available", None) if isinstance(clean_env_gate, dict) else None
+
+    return {
+        "dirty": dirty,
+        "t3_status": t3_status,
+        "t3_verified_head": t3_verified_head,
+        "t3_stale": t3_stale,
+        "allowlist_total": allowlist_total,
+        "expired_allowlist_total": expired_allowlist_total,
+        "clean_env_status": clean_env_status,
+        "clean_env_summary_available": clean_env_summary_available,
+    }
+
+
+def _compute_score(gates: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+    """Compute the three-tier scorecard from gate results and gathered evidence.
+
+    Pure with respect to gate execution — receives already-collected gate dicts.
+    Returns the full scorecard dict (raw, verified, 7x24, conditional, caps).
+    """
+    dirty = evidence["dirty"]
+    t3_stale = evidence["t3_stale"]
+    expired_allowlist_total = evidence["expired_allowlist_total"]
+
+    dimensions = _load_weights()
+    raw = _compute_raw(dimensions) if dimensions else 0.0
+
+    cap, cap_reason, cap_factors = _compute_cap(
+        gates,
+        is_dirty=dirty,
+        t3_stale=t3_stale,
+        expired_allowlist=expired_allowlist_total,
+        tier="current_verified_readiness",
     )
-    return artifact_path
+    verified = round(min(raw, cap), 2) if cap is not None else raw
+
+    cap_7x24, _cap_reason_7x24, cap_factors_7x24 = _compute_cap(
+        gates,
+        is_dirty=dirty,
+        t3_stale=t3_stale,
+        expired_allowlist=expired_allowlist_total,
+        tier="seven_by_twenty_four_operational_readiness",
+    )
+    seven_by_twenty_four = round(min(raw, cap_7x24), 2) if cap_7x24 is not None else raw
+
+    return {
+        "raw": raw,
+        "verified": verified,
+        "raw_implementation_maturity": raw,
+        "current_verified_readiness": verified,
+        "seven_by_twenty_four_operational_readiness": seven_by_twenty_four,
+        "conditional_readiness_after_blockers": _compute_conditional(
+            raw, gates, is_dirty=dirty
+        ),
+        "cap": cap,
+        "cap_reason": cap_reason,
+        "cap_factors": cap_factors,
+        "cap_7x24": cap_7x24,
+        "cap_factors_7x24": cap_factors_7x24,
+        "weights_version": "2",
+    }
 
 
 def build_manifest() -> tuple[dict[str, Any], bool]:
@@ -628,9 +689,6 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
 
     print(f"Building release manifest {manifest_id}...", file=sys.stderr)
 
-    # Write verification artifact BEFORE gates run so check_verification_artifacts passes.
-    _write_pre_manifest_artifact(short_sha, head_sha, date_str)
-
     # Run gates
     gates: dict[str, Any] = {}
     for gate_key, gate_spec in _GATE_SCRIPTS.items():
@@ -640,45 +698,8 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
         gates[gate_key] = _run_gate(gate_key, script, has_json, extra_args, gate_timeout)
         print(gates[gate_key].get("status", "?"), file=sys.stderr)
 
-    # Gather extra context for cap computation
-    dirty = _is_dirty()
-
-    t3_gate = gates.get("t3_freshness", {})
-    t3_status = t3_gate.get("status", "unknown")
-    t3_verified_head = t3_gate.get("verified_head", "")
-    t3_stale = t3_status not in ("pass", "fresh_at_head")
-
-    route_scope_gate = gates.get("route_scope", {})
-    allowlist_total = route_scope_gate.get("allowlist_total", 0)
-    expired_allowlist_total = route_scope_gate.get("expired_allowlist_total", 0)
-
-    clean_env_gate = gates.get("clean_env", {})
-    clean_env_status = clean_env_gate.get("status", "unknown")
-    clean_env_summary_available = clean_env_gate.get("summary_available", None)
-
-    # Score computation — per-tier caps
-    dimensions = _load_weights()
-    raw = _compute_raw(dimensions) if dimensions else 0.0
-
-    # current_verified_readiness tier cap
-    cap, cap_reason, cap_factors = _compute_cap(
-        gates,
-        is_dirty=dirty,
-        t3_stale=t3_stale,
-        expired_allowlist=expired_allowlist_total,
-        tier="current_verified_readiness",
-    )
-    verified = round(min(raw, cap), 2) if cap is not None else raw
-
-    # seven_by_twenty_four_operational_readiness tier cap
-    cap_7x24, cap_reason_7x24, cap_factors_7x24 = _compute_cap(
-        gates,
-        is_dirty=dirty,
-        t3_stale=t3_stale,
-        expired_allowlist=expired_allowlist_total,
-        tier="seven_by_twenty_four_operational_readiness",
-    )
-    seven_by_twenty_four = round(min(raw, cap_7x24), 2) if cap_7x24 is not None else raw
+    evidence = _gather_evidence(gates)
+    scorecard = _compute_score(gates, evidence)
 
     manifest: dict[str, Any] = {
         "manifest_id": manifest_id,
@@ -688,38 +709,23 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
         "git": {
             "head_sha": head_sha,
             "short_sha": short_sha,
-            "is_dirty": dirty,
+            "is_dirty": evidence["dirty"],
         },
         "wave": _current_wave(),
         "gates": gates,
-        "scorecard": {
-            "raw": raw,
-            "verified": verified,
-            "raw_implementation_maturity": raw,
-            "current_verified_readiness": verified,
-            "seven_by_twenty_four_operational_readiness": seven_by_twenty_four,
-            "conditional_readiness_after_blockers": _compute_conditional(
-                raw, gates, is_dirty=dirty
-            ),
-            "cap": cap,
-            "cap_reason": cap_reason,
-            "cap_factors": cap_factors,
-            "cap_7x24": cap_7x24,
-            "cap_factors_7x24": cap_factors_7x24,
-            "weights_version": "2",
-        },
+        "scorecard": scorecard,
         "t3": {
-            "status": t3_status,
-            "verified_head": t3_verified_head,
+            "status": evidence["t3_status"],
+            "verified_head": evidence["t3_verified_head"],
         },
         "clean_env": {
             "profile": "default-offline",
-            "status": clean_env_status,
-            "summary_available": clean_env_summary_available,
+            "status": evidence["clean_env_status"],
+            "summary_available": evidence["clean_env_summary_available"],
         },
         "route_scope": {
-            "allowlist_total": allowlist_total,
-            "expired_allowlist_total": expired_allowlist_total,
+            "allowlist_total": evidence["allowlist_total"],
+            "expired_allowlist_total": evidence["expired_allowlist_total"],
         },
         "captains": _load_captains_sha(),
     }
@@ -760,9 +766,6 @@ def main() -> int:
 
     out_path.write_text(manifest_json, encoding="utf-8")
     print(f"Manifest written: {out_path}", file=sys.stderr)
-    sha = manifest["git"]["short_sha"]
-    verif_artifact = ROOT / "docs" / "verification" / f"{sha}-manifest-gate.json"
-    print(f"Verification artifact written: {verif_artifact}", file=sys.stderr)
 
     sc = manifest["scorecard"]
     print(

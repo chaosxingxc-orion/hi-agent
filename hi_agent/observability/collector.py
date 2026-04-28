@@ -120,6 +120,25 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "MCP transport get_stderr_tail() raised unexpectedly (Rule 7 alarm).",
     ),
+    # B2: stderr-reader thread join timeout (FD leak signal).
+    "hi_agent_mcp_thread_join_timeout_total": _MetricDef(
+        "hi_agent_mcp_thread_join_timeout_total",
+        "counter",
+        "MCP stderr-reader threads that did not exit within 5s on close() (Rule 7 alarm).",
+    ),
+    # B4: per-failure-code counter (labels: failure_code).
+    "hi_agent_failure_total": _MetricDef(
+        "hi_agent_failure_total",
+        "counter",
+        "Failures classified by FailureCode taxonomy (Rule 7 alarm; labels: failure_code).",
+    ),
+    # B6: LLM token counter with tenant_bucket dimension (labels: direction, tenant_bucket).
+    # tenant_bucket = str(hash(tenant_id) % 16) keeps cardinality bounded to 16 buckets.
+    "hi_agent_llm_tokens_total": _MetricDef(
+        "hi_agent_llm_tokens_total",
+        "counter",
+        "Total LLM tokens by direction and tenant bucket (labels: direction, tenant_bucket).",
+    ),
     # Rule 7 alarm for recovery reenqueue disabled under strict posture.
     "hi_agent_recovery_reenqueue_disabled_total": _MetricDef(
         "hi_agent_recovery_reenqueue_disabled_total",

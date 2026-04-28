@@ -4,7 +4,7 @@
 # All 13 fields are required. Closure level uses docs/governance/closure-taxonomy.md enum.
 
 schema_version: "1"
-current_wave: 16
+current_wave: 17
 
 entries:
   - issue_id: P0-1
@@ -144,3 +144,63 @@ entries:
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/governance/recurrence-ledger.yaml"
     current_closure_level: in_progress
+
+  - issue_id: W17-A
+    defect_class: gate_weakening_during_release
+    named_instance: "Wave 16 exempted Status:RELEASED notices from HEAD check (commit f0b35a2); widened _GOVERNANCE_PREFIXES to include scripts/tests/.github (commit fa347c6); used continue-on-error:true on release-identity and operator-drill gates"
+    peer_instances_audited:
+      - "Wave 15: check_doc_consistency.py Check E1a regex excluded 'superseded' notices"
+      - "Wave 14: score cap trigger condition silently never fired in _condition_matches"
+    root_cause: >
+      Gate scripts were modified to produce passes rather than modifying code to
+      be correct. Each wave introduced a new exemption path (released-status exemption,
+      broader governance prefixes, advisory continue-on-error) that collectively allowed
+      a stale release identity to report as passing.
+    code_fix: "W17-A1-A9: removed 'released' from exemption regexes in check_doc_consistency.py; restricted _GOVERNANCE_PREFIXES to ('docs/',) in check_verification_artifacts.py, check_manifest_freshness.py, build_release_manifest.py; removed continue-on-error from release-gate.yml"
+    regression_test: "scripts/check_gate_strictness.py --json (verifies no gate-loosening keywords exist in gate scripts without justification)"
+    release_gate: "release-gate.yml step: Release identity (W16-A8) — now blocking, not advisory"
+    process_change: "Governance Freeze policy for W17: no new --allow-* flags; any gate-pass via exemption must be self-documented in recurrence-ledger.yaml within the same PR"
+    owner: GOV
+    expiry_or_followup: "2026-06-01"
+    evidence_artifact: "scripts/check_doc_consistency.py, scripts/check_verification_artifacts.py (diff W17 vs W16)"
+    current_closure_level: wired_into_default_path
+
+  - issue_id: W17-B
+    defect_class: cross_tenant_primitive_footgun
+    named_instance: "SQLiteRunStore.get/delete/mark_running/mark_complete/mark_failed/is_cancelled accepted bare run_id without workspace filter — any future caller forgetting workspace= creates cross-tenant data exposure"
+    peer_instances_audited:
+      - "Wave 16 routes_runs.py: GET /runs/{run_id} returned data without tenant validation"
+      - "Wave 15 list_by_workspace: existed but not used by all handlers"
+    root_cause: >
+      The run_store primitive methods were designed for internal use but exposed in
+      HTTP handlers without workspace-scoped filtering. The absence of a required
+      workspace parameter made it easy for future callers to accidentally skip tenant
+      isolation.
+    code_fix: "W17-B1: Added workspace: str | None = None param to 6 methods; added get_for_tenant() requiring non-None workspace; tests/security/test_run_store_tenant_required.py (6 tests)"
+    regression_test: "tests/security/test_run_store_tenant_required.py — tests that get_for_tenant(run_id, None) raises ValueError; cross-tenant run_id returns None"
+    release_gate: "pytest tests/security/ (blocking in release-gate.yml)"
+    process_change: "CLAUDE.md Rule 12 enforcement: all new run_store callers in routes_*.py must use get_for_tenant() or explicitly annotate # scope: process-internal with reason"
+    owner: RO
+    expiry_or_followup: "2026-06-01"
+    evidence_artifact: "tests/security/test_run_store_tenant_required.py"
+    current_closure_level: wired_into_default_path
+
+  - issue_id: W17-C
+    defect_class: test_theatre_passing_via_fallback
+    named_instance: "tests/conftest.py set HI_AGENT_ALLOW_HEURISTIC_FALLBACK=1 globally — all test failures were silently caught by heuristic fallback, masking real runtime failures; 743 weak 'assert X is not None' assertions provided no coverage signal"
+    peer_instances_audited:
+      - "Wave 15: 3 integration tests used MagicMock on the subsystem under test"
+      - "Wave 14: test_honesty violations baseline 25 (18 still present in Wave 16)"
+    root_cause: >
+      Heuristic fallback was enabled unconditionally in conftest.py as a developer
+      convenience that was never scoped away from the release profile. Combined with
+      743 single-line is-not-None assertions, the test suite could pass even when the
+      platform was producing wrong outputs.
+    code_fix: "W17-F4: conftest.py now only enables fallback when HI_AGENT_TEST_PROFILE != 'release'; scripts/check_conftest_fallback_scope.py gate; F2: assertions strengthened 743 → ~590"
+    regression_test: "scripts/check_conftest_fallback_scope.py --json (fails if unconditional fallback assignment detected)"
+    release_gate: "release-gate.yml — add check_conftest_fallback_scope.py step"
+    process_change: "CLAUDE.md Rule 16: test profiles section now explicitly forbids HI_AGENT_ALLOW_HEURISTIC_FALLBACK in release profile"
+    owner: TE
+    expiry_or_followup: "2026-06-01"
+    evidence_artifact: "tests/conftest.py, scripts/check_conftest_fallback_scope.py"
+    current_closure_level: wired_into_default_path

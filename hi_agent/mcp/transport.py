@@ -63,6 +63,7 @@ class StdioMCPTransport:
         self._next_id = 1
         self._stderr_buf: collections.deque[str] = collections.deque(maxlen=1024)
         self._stderr_thread: threading.Thread | None = None
+        self._subprocess_threads: list[threading.Thread] = []
         # W10-005: crash restart tracking
         self._restart_attempts: int = 0
         self._unavailable: bool = False
@@ -226,7 +227,7 @@ class StdioMCPTransport:
             return []
 
     def close(self) -> None:
-        """Terminate the subprocess if running."""
+        """Terminate the subprocess if running and join stderr-reader threads."""
         with self._lock:
             if self._proc is not None:
                 try:
@@ -237,6 +238,22 @@ class StdioMCPTransport:
                     pass
                 finally:
                     self._proc = None
+            threads, self._subprocess_threads = self._subprocess_threads, []
+        for t in threads:
+            t.join(timeout=5)
+            if t.is_alive():
+                logger.warning(
+                    "StdioMCPTransport: stderr-reader thread %r did not exit within 5s",
+                    t.name,
+                )
+                try:
+                    from hi_agent.observability.collector import get_metrics_collector
+
+                    _mc = get_metrics_collector()
+                    if _mc is not None:
+                        _mc.increment("hi_agent_mcp_thread_join_timeout_total")
+                except Exception:
+                    pass
 
     # ------------------------------------------------------------------
     # Internal
@@ -259,10 +276,11 @@ class StdioMCPTransport:
         self._stderr_thread = threading.Thread(
             target=_read_stderr,
             args=(self._proc, self._stderr_buf),
-            daemon=True,
+            daemon=False,
             name=f"mcp-stderr-{id(self)}",
         )
         self._stderr_thread.start()
+        self._subprocess_threads.append(self._stderr_thread)
 
     def _ensure_running(self) -> None:
         """Spawn subprocess if not already running.

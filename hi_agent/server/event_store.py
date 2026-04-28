@@ -94,6 +94,11 @@ class SQLiteEventStore:
             "CREATE INDEX IF NOT EXISTS idx_run_events_workspace_run_seq "
             "ON run_events (tenant_id, user_id, session_id, run_id, sequence)"
         )
+        # I5: trace_id index for trace-based event lookup.
+        cx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_run_events_trace_id "
+            "ON run_events (trace_id, run_id)"
+        )
         cx.commit()
 
     # ------------------------------------------------------------------

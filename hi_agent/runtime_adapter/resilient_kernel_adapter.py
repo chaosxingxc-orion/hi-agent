@@ -197,6 +197,25 @@ class ResilientKernelAdapter:
         cause = last_exc or RuntimeError(
             f"kernel adapter call {method_name!r} failed after {attempts} attempt(s)"
         )
+        # B4: classify exception to FailureCode and emit labeled counter.
+        try:
+            from hi_agent.failures.taxonomy import FailureCode
+            from hi_agent.observability.collector import get_metrics_collector
+
+            _mc = get_metrics_collector()
+            if _mc is not None:
+                if isinstance(cause, TimeoutError):
+                    _fc = FailureCode.CALLBACK_TIMEOUT
+                elif isinstance(cause, RuntimeError) and "budget" in str(cause).lower():
+                    _fc = FailureCode.EXECUTION_BUDGET_EXHAUSTED
+                else:
+                    _fc = FailureCode.INVALID_CONTEXT
+                _mc.increment(
+                    "hi_agent_failure_total",
+                    labels={"failure_code": _fc.value},
+                )
+        except Exception:
+            pass
         raise RuntimeAdapterBackendError(method_name, cause=cause) from cause
 
     def replay_buffered(self) -> int:
