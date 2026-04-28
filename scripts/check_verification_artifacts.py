@@ -45,7 +45,7 @@ def _sha_matches(artifact_head: str, head: str) -> bool:
 
 
 _GOVERNANCE_PREFIXES = (
-    "docs/", "scripts/", "tests/", ".github/", "pyproject.toml",
+    "docs/",
 )
 
 
@@ -94,6 +94,8 @@ def _check_artifacts(allow_docs_only_gap: bool = False) -> tuple[list[str], list
                 data = json.loads(f.read_text(encoding="utf-8"))
             except Exception:
                 continue
+            if data.get("provenance") == "manifest_self_reference":
+                continue  # pre-write bootstrap artifact; excluded from head-check
             artifact_head = (
                 data.get("release_head")
                 or data.get("verified_head")

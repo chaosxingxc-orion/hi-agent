@@ -83,7 +83,7 @@ _GATE_SCRIPTS: dict[str, tuple] = {
 
 
 _GOV_PREFIXES: tuple[str, ...] = (
-    "docs/", "scripts/", "tests/", ".github/", "pyproject.toml",
+    "docs/",
 )
 
 
@@ -142,10 +142,6 @@ def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] 
         cmd.extend(extra_args)
     if has_json:
         cmd.append("--json")
-    # Allow a docs-only gap for both notice and verification-artifact gates so
-    # the manifest/notice/artifact commit itself does not cause false violations.
-    if gate_key in ("doc_consistency", "verification_artifacts"):
-        cmd.append("--allow-docs-only-gap")
 
     try:
         result = subprocess.run(
@@ -487,6 +483,59 @@ def _compute_cap(
             if drill_prov != "real" or not drill_passed:
                 return f"operator_drill_missing: provenance={drill_prov} all_passed={drill_passed}"
             return None
+        if condition == "release_identity_fail":
+            id_gate = gates.get("release_identity", {})
+            id_status = id_gate.get("status", "unknown") if isinstance(id_gate, dict) else "unknown"
+            return f"release_identity_fail: {id_status}" if id_status == "fail" else None
+        if condition == "verification_artifact_missing_at_head":
+            va_gate = gates.get("verification_artifacts", {})
+            va_status = va_gate.get("status", "unknown") if isinstance(va_gate, dict) else "unknown"
+            has_current = va_gate.get("has_current_head", True) if isinstance(va_gate, dict) else True
+            if va_status == "fail" or not has_current:
+                return f"verification_artifact_missing_at_head: {va_status}"
+            return None
+        if condition == "clean_env_artifact_missing_at_head":
+            ce_files = list((ROOT / "docs" / "verification").glob("*clean-env*.json"))
+            if not ce_files:
+                return "clean_env_artifact_missing_at_head: no clean-env artifact found"
+            head_proc = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, cwd=str(ROOT),
+            )
+            current_head = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
+            if not current_head:
+                return None
+            for ce_f in ce_files:
+                try:
+                    ce_data = json.loads(ce_f.read_text(encoding="utf-8"))
+                    ce_head = str(ce_data.get("head", "")).strip()
+                except Exception:
+                    continue
+                if not ce_head:
+                    continue
+                min_len = min(len(ce_head), len(current_head), 12)
+                if ce_head[:min_len] == current_head[:min_len]:
+                    return None
+            return f"clean_env_artifact_missing_at_head: no artifact matches HEAD={current_head[:12]}"
+        if condition == "score_artifact_inconsistent":
+            score_files = list((ROOT / "docs" / "verification").glob("*score*.json"))
+            for sf in score_files:
+                try:
+                    sd = json.loads(sf.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                file_stem = sf.stem  # e.g. "YYYY-MM-DD-<sha>-score-cap"
+                manifest_id = str(sd.get("manifest_id", "")).strip()
+                verified_head = str(sd.get("verified_head", "")).strip()
+                # filename must contain manifest_id prefix and verified_head prefix
+                if manifest_id and manifest_id not in file_stem:
+                    return f"score_artifact_inconsistent: {sf.name} manifest_id={manifest_id} not in filename"
+                if verified_head and not any(
+                    file_stem.startswith(p) or verified_head[:7] in file_stem
+                    for p in [verified_head[:7]]
+                ):
+                    pass  # filename-sha consistency is advisory; manifest_id check is primary
+            return None
         return None
 
     matched_factors: list[str] = []
@@ -557,7 +606,7 @@ def _write_pre_manifest_artifact(short_sha: str, head_sha: str, date_str: str) -
         json.dumps({
             "schema_version": "1",
             "check": "manifest_build_gate",
-            "provenance": "structural",
+            "provenance": "manifest_self_reference",
             "release_head": short_sha,
             "verified_head": head_sha,
             "wave": _current_wave(),

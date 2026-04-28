@@ -25,7 +25,7 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/<sha>-release-identity.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: in_progress
 
   - issue_id: P0-2
     defect_class: clean_env_not_final_head
@@ -44,7 +44,7 @@ entries:
     owner: DX
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/<sha>-default-offline-clean-env.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: in_progress
 
   - issue_id: P0-3
     defect_class: observability_spine_structural
@@ -64,7 +64,7 @@ entries:
     owner: TE
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/<sha>-observability-spine.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: in_progress
 
   - issue_id: P0-4
     defect_class: soak_not_24h
@@ -84,7 +84,7 @@ entries:
     owner: TE
     expiry_or_followup: "2026-07-01"
     evidence_artifact: "docs/verification/<sha>-soak-pilot-360m.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: in_progress
 
   - issue_id: P0-5
     defect_class: chaos_no_runtime_coupling
@@ -104,7 +104,7 @@ entries:
     owner: TE
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/<sha>-runtime-chaos.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: in_progress
 
   - issue_id: P0-6
     defect_class: score_cap_overstates_readiness
@@ -124,7 +124,7 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/<sha>-score-cap.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: in_progress
 
   - issue_id: S4-10
     defect_class: ownership_accountability_weak
@@ -143,4 +143,4 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/governance/recurrence-ledger.yaml"
-    current_closure_level: wired_into_default_path
+    current_closure_level: in_progress

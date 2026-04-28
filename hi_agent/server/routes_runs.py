@@ -112,6 +112,29 @@ async def handle_create_run(request: Request) -> JSONResponse:
     except (ValueError, json.JSONDecodeError):
         return JSONResponse({"error": "invalid_json"}, status_code=400)
 
+    # --- J1: request body size limits (security gate) -----------------------
+    _task_val = body.get("task", "")
+    if isinstance(_task_val, str) and len(_task_val.encode("utf-8")) > 32768:
+        try:
+            from hi_agent.observability.collector import get_metrics_collector as _gmc
+            _mc = _gmc()
+            if _mc is not None:
+                _mc.increment("hi_agent_request_too_large_total", labels={"field": "task"})
+        except Exception:
+            pass
+        return JSONResponse({"error": "task field exceeds 32KB limit"}, status_code=413)
+    _context_val = body.get("context", "")
+    if isinstance(_context_val, str) and len(_context_val.encode("utf-8")) > 65536:
+        try:
+            from hi_agent.observability.collector import get_metrics_collector as _gmc
+            _mc = _gmc()
+            if _mc is not None:
+                _mc.increment("hi_agent_request_too_large_total", labels={"field": "context"})
+        except Exception:
+            pass
+        return JSONResponse({"error": "context field exceeds 64KB limit"}, status_code=413)
+    # --- end J1 size limits -------------------------------------------------
+
     _idem_header = request.headers.get("Idempotency-Key")
     _idempotency_key_missing = _idem_header is None and "idempotency_key" not in body
     if _idem_header:

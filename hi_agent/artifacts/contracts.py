@@ -10,6 +10,8 @@ source_refs, metadata, provenance, upstream_artifact_ids, created_at, content
 
 from __future__ import annotations
 
+import hashlib
+import json as _json
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -47,6 +49,13 @@ class Artifact:
     # Default "" for backward compatibility.
     run_id: str = ""
 
+    def __post_init__(self) -> None:
+        """Auto-compute content_hash for all artifact types when content is present."""
+        if self.content and not self.content_hash:
+            self.content_hash = hashlib.sha256(
+                _json.dumps(self.content, sort_keys=True, default=str).encode()
+            ).hexdigest()
+
     def __hash__(self) -> int:  # identity by artifact_id; mutable fields excluded
         """Hash by artifact_id; mutable fields excluded."""
         return hash(self.artifact_id)
@@ -71,8 +80,9 @@ class ResourceArtifact(Artifact):
     snippet: str = ""
 
     def __post_init__(self) -> None:
-        """Set artifact_type to 'resource'."""
+        """Set artifact_type to 'resource' and compute content_hash."""
         self.artifact_type = "resource"
+        super().__post_init__()
 
 
 @dataclass
@@ -85,8 +95,9 @@ class DocumentArtifact(Artifact):
     word_count: int = 0
 
     def __post_init__(self) -> None:
-        """Set artifact_type to 'document'."""
+        """Set artifact_type to 'document' and compute content_hash."""
         self.artifact_type = "document"
+        super().__post_init__()
 
 
 @dataclass
@@ -97,8 +108,9 @@ class StructuredDataArtifact(Artifact):
     data: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Set artifact_type to 'structured_data'."""
+        """Set artifact_type to 'structured_data' and compute content_hash."""
         self.artifact_type = "structured_data"
+        super().__post_init__()
 
 
 @dataclass
@@ -110,8 +122,9 @@ class EvidenceArtifact(Artifact):
     source_id: str = ""
 
     def __post_init__(self) -> None:
-        """Set artifact_type to 'evidence'."""
+        """Set artifact_type to 'evidence' and compute content_hash."""
         self.artifact_type = "evidence"
+        super().__post_init__()
 
 
 @dataclass
@@ -124,8 +137,9 @@ class EvaluationArtifact(Artifact):
     feedback: str = ""
 
     def __post_init__(self) -> None:
-        """Set artifact_type to 'evaluation'."""
+        """Set artifact_type to 'evaluation' and compute content_hash."""
         self.artifact_type = "evaluation"
+        super().__post_init__()
 
 
 class CapabilityPolicyError(Exception):
@@ -148,13 +162,7 @@ class DatasetArtifact(Artifact):
     def __post_init__(self) -> None:
         """Set artifact_type to 'dataset' and auto-compute content_hash if empty."""
         self.artifact_type = "dataset"
-        if self.content and not self.content_hash:
-            import hashlib
-            import json as _json
-
-            self.content_hash = hashlib.sha256(
-                _json.dumps(self.content, sort_keys=True, default=str).encode()
-            ).hexdigest()
+        super().__post_init__()
 
 
 # CitationArtifact, PaperArtifact, and LeanProofArtifact have moved to

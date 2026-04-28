@@ -112,6 +112,12 @@ class ArtifactLedger:
         with self._lock:
             self._store[artifact.artifact_id] = artifact
             if self._path is not None:
+                # J2: path traversal guard — ledger path is controlled by
+                # __init__ (derived from HI_AGENT_DATA_DIR or an explicit
+                # constructor argument), so this is an internal consistency
+                # check rather than an untrusted-input guard.
+                from hi_agent.artifacts.storage import assert_within_workspace
+                assert_within_workspace(self._path, self._path.parent)
                 with self._path.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(artifact.to_dict(), default=str) + "\n")
                     f.flush()

@@ -1,5 +1,4 @@
 # docs/governance/score_caps.yaml
-schema_version: "1"
 # Single source of truth for score cap rules.
 # Priority: lowest cap wins when multiple conditions apply.
 # Conditions are evaluated in the order listed; first match sets the cap.
@@ -78,6 +77,26 @@ cap_rules:
     factor: gate_missing
     scope: [current_verified_readiness, architecture_readiness]
     description: "One or more gate scripts not found"
+  - condition: release_identity_fail
+    cap: 50
+    factor: release_identity_fail
+    scope: [current_verified_readiness, architecture_readiness]
+    description: "check_release_identity.py failed — repo/manifest/notice heads do not agree"
+  - condition: verification_artifact_missing_at_head
+    cap: 55
+    factor: verification_artifact_missing_at_head
+    scope: [current_verified_readiness]
+    description: "Required verification artifacts missing for current HEAD"
+  - condition: clean_env_artifact_missing_at_head
+    cap: 55
+    factor: clean_env_artifact_missing_at_head
+    scope: [current_verified_readiness]
+    description: "No clean-env artifact exists for the current HEAD"
+  - condition: score_artifact_inconsistent
+    cap: 55
+    factor: score_artifact_inconsistent
+    scope: [current_verified_readiness, architecture_readiness]
+    description: "Score artifact filename, manifest_id, and verified_head are not internally consistent"
   - condition: gate_warn
     cap: 80
     factor: gate_warn

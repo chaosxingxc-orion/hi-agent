@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from hi_agent.artifacts.contracts import DatasetArtifact
+from hi_agent.artifacts.contracts import Artifact, DatasetArtifact
 
 
 @runtime_checkable
@@ -51,6 +51,36 @@ class PaperReferenceValidator:
                     f"local paper meta not found: {meta_path}. "
                     "Citations must refer to locally registered papers."
                 )
+        return ValidationResult(valid=len(errors) == 0, errors=errors)
+
+
+class ArtifactContentHashValidator:
+    """Validates content_hash integrity for any Artifact that has content."""
+
+    def validate(self, artifact: Artifact) -> ValidationResult:
+        """Validate an artifact's content_hash against its content.
+
+        Args:
+            artifact: Any artifact with a content field.
+
+        Returns:
+            ValidationResult with valid=True if the content_hash matches
+            the computed sha256 of the content, or if either is absent.
+        """
+        errors: list[str] = []
+        if artifact.content and artifact.content_hash:
+            expected = hashlib.sha256(
+                _json.dumps(artifact.content, sort_keys=True, default=str).encode()
+            ).hexdigest()
+            if expected != artifact.content_hash:
+                errors.append(
+                    f"{artifact.artifact_type} content_hash mismatch: "
+                    f"stored {artifact.content_hash!r} != computed {expected!r}"
+                )
+        elif artifact.content and not artifact.content_hash:
+            errors.append(
+                f"{artifact.artifact_type} has content but content_hash is empty"
+            )
         return ValidationResult(valid=len(errors) == 0, errors=errors)
 
 

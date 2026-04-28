@@ -73,7 +73,6 @@ def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
         _docs_prefixes = (
             "docs/releases/", "docs/verification/", "docs/delivery/",
             "docs/downstream-responses/", "docs/governance/", "docs/scorecard",
-            "scripts/", "tests/", ".github/", "pyproject.toml",
         )
         return all(any(f.startswith(p) for p in _docs_prefixes) for f in changed) and bool(changed)
     except RuntimeError:

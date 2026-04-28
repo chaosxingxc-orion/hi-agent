@@ -363,6 +363,12 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "histogram",
         "Graceful drain duration.",
     ),
+    # J1: request body too-large rejections (Rule 7: countable security signal).
+    "hi_agent_request_too_large_total": _MetricDef(
+        "hi_agent_request_too_large_total",
+        "counter",
+        "Requests rejected because a body field exceeded the size limit.",
+    ),
 }
 
 # Maximum samples retained for histogram-like metrics.

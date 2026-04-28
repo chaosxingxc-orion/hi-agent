@@ -48,12 +48,30 @@ _STALE_SECONDS: float = 600.0  # 10 minutes
 class RateLimiter:
     """ASGI middleware implementing per-client-IP token-bucket rate limiting.
 
+    Two independent limiters are applied in series for authenticated requests:
+
+    1. **Global limiter** (``_buckets``): unchanged from the original; one
+       bucket per client IP (or per tenant when a tenant context is present).
+       Budget: *max_requests* / *window_seconds*.
+
+    2. **Per-tenant limiter** (``_tenant_limiters``): applied only when a
+       tenant ID is available in the request scope.  Each tenant receives an
+       independent bucket with budget ``max_requests / window_seconds / 10``
+       tokens/s (configurable via *tenant_rate_divisor*).  This limits the
+       share of overall capacity any single tenant can consume even when many
+       tenants share the same IP.
+
+    Both must pass for the request to be allowed.
+
     Args:
         app: The wrapped ASGI application.
-        max_requests: Maximum tokens (requests) per window.
+        max_requests: Maximum tokens (requests) per window for the global limiter.
         window_seconds: Window duration over which *max_requests* tokens
             are fully replenished.
         burst: Initial and maximum bucket size (allows short bursts).
+        tenant_rate_divisor: Divisor applied to the global rate to derive the
+            per-tenant rate cap.  Defaults to 10 (i.e. each tenant gets at
+            most 1/10th of the global budget per second).
     """
 
     def __init__(
@@ -62,14 +80,19 @@ class RateLimiter:
         max_requests: int = 100,
         window_seconds: float = 60.0,
         burst: int = 20,
+        tenant_rate_divisor: float = 10.0,
     ) -> None:
         self.app = app
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.burst = burst
-        # Tokens added per second.
+        # Tokens added per second — global limiter.
         self._rate: float = max_requests / window_seconds
         self._buckets: dict[str, _Bucket] = {}
+        # Per-tenant limiter: separate bucket dict, lower rate.
+        self._tenant_rate: float = self._rate / max(tenant_rate_divisor, 1.0)
+        self._tenant_burst: int = max(1, int(burst / max(tenant_rate_divisor, 1.0)))
+        self._tenant_limiters: dict[str, _Bucket] = {}
         self._lock = threading.Lock()
         self._last_cleanup: float = time.monotonic()
 
@@ -100,6 +123,7 @@ class RateLimiter:
         tenant_ctx = scope.get("tenant_context")
         tenant_id: str = tenant_ctx.tenant_id if tenant_ctx is not None else ""
 
+        # 1. Global limiter (existing behaviour, unchanged).
         allowed, retry_after = self._consume(client_ip, tenant_id=tenant_id)
         if not allowed:
             response = JSONResponse(
@@ -109,6 +133,19 @@ class RateLimiter:
             )
             await response(scope, receive, send)
             return
+
+        # 2. Per-tenant limiter (J3): applied only when a tenant context is
+        #    available.  Skipped for unauthenticated requests for backward compat.
+        if tenant_id:
+            allowed_tenant, retry_after_tenant = self._consume_tenant(tenant_id)
+            if not allowed_tenant:
+                response = JSONResponse(
+                    {"error": "rate_limit_exceeded"},
+                    status_code=429,
+                    headers={"Retry-After": str(int(retry_after_tenant) + 1)},
+                )
+                await response(scope, receive, send)
+                return
 
         await self.app(scope, receive, send)
 
@@ -160,6 +197,36 @@ class RateLimiter:
             wait = (1.0 - bucket.tokens) / self._rate
             return False, wait
 
+    def _consume_tenant(self, tenant_id: str) -> tuple[bool, float]:
+        """Try to consume one token from the per-tenant bucket.
+
+        Each tenant has an independent token bucket at ``_tenant_rate`` tokens/s
+        and initial capacity ``_tenant_burst``.
+
+        Returns:
+            ``(allowed, retry_after_seconds)``.
+        """
+        now = time.monotonic()
+        with self._lock:
+            bucket = self._tenant_limiters.get(tenant_id)
+            if bucket is None:
+                bucket = _Bucket(tokens=float(self._tenant_burst), last_refill=now)
+                self._tenant_limiters[tenant_id] = bucket
+
+            elapsed = now - bucket.last_refill
+            bucket.tokens = min(
+                float(self._tenant_burst),
+                bucket.tokens + elapsed * self._tenant_rate,
+            )
+            bucket.last_refill = now
+
+            if bucket.tokens >= 1.0:
+                bucket.tokens -= 1.0
+                return True, 0.0
+
+            wait = (1.0 - bucket.tokens) / self._tenant_rate
+            return False, wait
+
     # ------------------------------------------------------------------
     # Stale bucket cleanup
     # ------------------------------------------------------------------
@@ -181,3 +248,11 @@ class RateLimiter:
         stale = [key for key, b in self._buckets.items() if now - b.last_refill > _STALE_SECONDS]
         for key in stale:
             del self._buckets[key]
+        # Also clean up stale per-tenant limiter buckets.
+        stale_tenant = [
+            tid
+            for tid, b in self._tenant_limiters.items()
+            if now - b.last_refill > _STALE_SECONDS
+        ]
+        for tid in stale_tenant:
+            del self._tenant_limiters[tid]

@@ -160,14 +160,12 @@ jobs:
 
       - name: Release identity (W16-A8)
         run: python scripts/check_release_identity.py --json
-        continue-on-error: true  # advisory until Wave 16 final manifest is committed
 
       - name: Recurrence ledger (W16-G3)
         run: python scripts/check_recurrence_ledger.py --json
 
       - name: Operator drill evidence (W16-H4)
         run: python scripts/check_operator_drill.py --json
-        continue-on-error: true  # deferred until operator drill run against current HEAD
 
       - name: Test honesty audit (W16-K)
         run: python scripts/check_test_honesty.py --json
