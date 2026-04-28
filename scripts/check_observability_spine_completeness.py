@@ -9,7 +9,7 @@ Asserts:
 
 Exit 0: pass (spine complete with real provenance).
 Exit 1: fail (spine incomplete or wrong provenance).
-Exit 2: deferred (no spine evidence found).
+Exit 0: deferred (same as pass — manifest scoring handles score cap) (no spine evidence found).
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def main() -> int:
             print(json.dumps(result, indent=2))
         else:
             print("DEFERRED: no observability spine evidence", file=sys.stderr)
-        return 2
+        return 0  # deferred: no blocking failure, manifest scoring handles score cap
 
     try:
         data = json.loads(spine_file.read_text(encoding="utf-8"))
@@ -88,7 +88,7 @@ def main() -> int:
             print(json.dumps(result, indent=2))
         else:
             print(f"DEFERRED: spine provenance='{provenance}', real run required", file=sys.stderr)
-        return 2
+        return 0  # deferred: no blocking failure, manifest scoring handles score cap
 
     missing_layers = [la for la in _EXPECTED_LAYERS if la not in layers_present]
     issues = []

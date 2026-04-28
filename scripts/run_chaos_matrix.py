@@ -182,6 +182,7 @@ def main() -> int:
         "status": overall_status,
         "scenarios": results,
         "command": "python scripts/run_chaos_matrix.py",
+        "generated_at": finish_ts,
         "start_ts": start_ts,
         "finish_ts": finish_ts,
     }

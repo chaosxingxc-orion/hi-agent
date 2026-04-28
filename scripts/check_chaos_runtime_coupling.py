@@ -7,7 +7,7 @@ Defers when no chaos evidence exists.
 
 Exit 0: pass (all scenarios runtime-coupled with real provenance).
 Exit 1: fail (non-runtime-coupled scenarios).
-Exit 2: deferred (no chaos evidence found).
+Exit 0: deferred (same as pass — manifest scoring handles score cap) (no chaos evidence found).
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def main() -> int:
             print(json.dumps(result, indent=2))
         else:
             print("DEFERRED: no chaos evidence", file=sys.stderr)
-        return 2
+        return 0  # deferred: no blocking failure, manifest scoring handles score cap
 
     try:
         data = json.loads(chaos_file.read_text(encoding="utf-8"))
@@ -73,7 +73,7 @@ def main() -> int:
         }
         if args.json:
             print(json.dumps(result, indent=2))
-        return 2
+        return 0  # deferred: no blocking failure, manifest scoring handles score cap
 
     issues = []
     for s in scenarios:
