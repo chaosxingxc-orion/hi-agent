@@ -1,4 +1,4 @@
-name: Release Gate (W14-G)
+name: Release Gate (W17-G)
 
 # Consolidated non-skippable release gate �?enforces all governance checks and
 # produces a versioned manifest artifact. Deferred gates use continue-on-error: true.
@@ -169,6 +169,17 @@ jobs:
 
       - name: Test honesty audit (W16-K)
         run: python scripts/check_test_honesty.py --json
+
+      # --- W17 anti-loop gates ---
+
+      - name: Wave label consistency (W17-B11)
+        run: python scripts/check_wave_consistency.py --json
+
+      - name: Untracked release artifacts (W17-B13)
+        run: python scripts/check_untracked_release_artifacts.py --json
+
+      - name: Manifest rewrite budget (W17-B19)
+        run: python scripts/check_manifest_rewrite_budget.py --json
 
       # --- Release manifest ---
 
