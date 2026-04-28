@@ -54,6 +54,7 @@ _SOFT_BAN_IDENTIFIERS = frozenset({
     "CitationArtifact",
     "PaperArtifact",
     "LeanProofArtifact",
+    "apply_research_defaults",   # deleted in Wave 18 (C4); flag any surviving callsites
 })
 
 # Files allowed to contain soft-ban identifiers (Wave 12 migration targets).
