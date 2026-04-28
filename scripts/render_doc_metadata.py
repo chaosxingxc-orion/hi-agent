@@ -15,11 +15,12 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+from _governance.manifest_picker import latest_manifest
 
 ROOT = Path(__file__).resolve().parent.parent
 RELEASES_DIR = ROOT / "docs" / "releases"
@@ -29,18 +30,12 @@ _MANIFEST_REF_RE = re.compile(r"Manifest:\s*\S+")
 
 
 def _latest_manifest() -> dict | None:
-    manifests = sorted(
-        RELEASES_DIR.glob("platform-release-manifest-*.json"),
-        key=lambda p: p.stat().st_mtime,
-    )
-    if not manifests:
-        return None
-    try:
-        data = json.loads(manifests[-1].read_text(encoding="utf-8"))
-        data["_path"] = str(manifests[-1])
-        return data
-    except (json.JSONDecodeError, OSError):
-        return None
+    """Return latest manifest dict via the canonical helper.
+
+    Sort order: (generated_at, mtime, name) — see scripts/_governance/manifest_picker.
+    The helper attaches _path to the returned dict.
+    """
+    return latest_manifest(RELEASES_DIR)
 
 
 def _git_short_head() -> str:

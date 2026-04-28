@@ -18,7 +18,13 @@ import datetime
 import json
 import pathlib
 import re
+import subprocess
 import sys
+
+from _governance.manifest_picker import (
+    latest_manifest_path,
+    manifest_for_sha,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RELEASES_DIR = ROOT / "docs" / "releases"
@@ -26,11 +32,33 @@ VERIF_DIR = ROOT / "docs" / "verification"
 NOTICES_DIR = ROOT / "docs" / "downstream-responses"
 
 
-def _latest_manifest() -> pathlib.Path | None:
-    # (mtime, name) tiebreaker so the most-recently-dated file wins in CI
-    # where all files share the same checkout mtime.
-    manifests = sorted(RELEASES_DIR.glob("platform-release-manifest-*.json"), key=lambda p: (p.stat().st_mtime, p.name))
-    return manifests[-1] if manifests else None
+def _git_head_full() -> str:
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, cwd=str(ROOT),
+        )
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _select_manifest(strict_head: bool) -> pathlib.Path | None:
+    """CP-6 fix: prefer the manifest at current HEAD over the latest-by-time.
+
+    When strict_head=True and no manifest exists for current HEAD, return None
+    rather than reading an older manifest. This breaks the W17 score-cap
+    circular dependency where T3-deferred caps would silently re-cap against
+    a stale manifest.
+    """
+    head = _git_head_full()
+    if head:
+        m = manifest_for_sha(head, RELEASES_DIR)
+        if m:
+            return pathlib.Path(m["_path"])
+        if strict_head:
+            return None
+    return latest_manifest_path(RELEASES_DIR)
 
 
 def _manifest_verified_for_notice(text: str, default_verified: float) -> float:
@@ -86,22 +114,37 @@ def _check_notice_score_claims(verified: float) -> list[str]:
     return issues
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Score-cap gate.")
     parser.add_argument("--json", action="store_true", help="Emit JSON to stdout.")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--strict-head",
+        action="store_true",
+        default=False,
+        help=(
+            "Defer when no manifest exists at current git HEAD instead of "
+            "reading an older manifest. Breaks the score-cap circular "
+            "dependency (CP-6) when used in CI."
+        ),
+    )
+    args = parser.parse_args(argv)
 
-    manifest_path = _latest_manifest()
+    manifest_path = _select_manifest(strict_head=args.strict_head)
     if manifest_path is None:
+        reason = (
+            "no manifest at current HEAD (--strict-head)"
+            if args.strict_head
+            else "no manifest found in docs/releases/"
+        )
         result = {
             "status": "deferred",
-            "reason": "no manifest found in docs/releases/",
+            "reason": reason,
             "check": "score_cap",
         }
         if args.json:
             print(json.dumps(result, indent=2))
         else:
-            print("DEFERRED: no manifest found", file=sys.stderr)
+            print(f"DEFERRED: {reason}", file=sys.stderr)
         return 2
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

@@ -100,16 +100,14 @@ def _git_status_porcelain() -> str:
 
 
 def _load_latest_manifest() -> dict | None:
-    """Load the most recent manifest from docs/releases/."""
-    import json
+    """Load the most recent manifest via the canonical helper.
+
+    Sort order: (generated_at, mtime, name) — see scripts/_governance/manifest_picker.
+    """
+    from _governance.manifest_picker import latest_manifest
+
     releases_dir = ROOT / "docs" / "releases"
-    manifests = sorted(releases_dir.glob("platform-release-manifest-*.json"), key=lambda p: p.stat().st_mtime)
-    if not manifests:
-        return None
-    try:
-        return json.loads(manifests[-1].read_text(encoding="utf-8"))
-    except Exception:
-        return None
+    return latest_manifest(releases_dir)
 
 
 def _render_template(template_text: str, wave: str, head: str, date: str) -> str:
