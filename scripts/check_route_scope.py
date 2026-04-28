@@ -40,6 +40,7 @@ SCOPE_INDICATORS = frozenset({
     "_belongs_to_tenant",
     "_resolve_profile_id",
     "admin_required",
+    "get_for_tenant",
 })
 
 

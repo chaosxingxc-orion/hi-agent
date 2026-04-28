@@ -41,7 +41,7 @@ FORBIDDEN_PREFIXES = ("examples", "tests", "scripts", "docs")
 ALLOWLIST: list[dict[str, object]] = [
     {
         "file": "hi_agent/artifacts/contracts.py",
-        "line": 185,
+        "line": 193,
         "reason": "lazy DeprecationWarning shim",
         "expiry_wave": "Wave 12",
     },
