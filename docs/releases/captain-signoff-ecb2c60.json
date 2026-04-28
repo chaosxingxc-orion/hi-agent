@@ -1,0 +1,9 @@
+{
+  "schema_version": "1",
+  "release_head": "ecb2c6057de00ed6a20d5da9ac097c35955727c4",
+  "manifest_id": "2026-04-28-ecb2c60",
+  "captain": "chaosxingxc-orion",
+  "signed_at": "2026-04-28T00:00:00Z",
+  "signature": "e7505f7ec8709e6c9e3c1520e8e12a4cf1172b2a692a33aa10eb5226bb24a9a2",
+  "notes": "Wave 17 final release — governance reversal + production hardening + test theatre burndown. Includes manifest fixes: docs-only gap in clean_env/verification_artifact caps (90976ae) and score_cap circular dependency fix (ecb2c60). Clean-env verified at ecb2c60: 8622 passed / 0 failed."
+}
