@@ -24,6 +24,31 @@ import subprocess
 import sys
 from typing import Any
 
+# Ensure scripts/ is on sys.path so sibling-package imports work both for
+# direct script invocation and for `import scripts.build_release_manifest` from
+# pytest. Matches the existing pattern in check_doc_consistency.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+# Local helpers — single source of truth for manifest selection, gap
+# classification, and wave labels. See scripts/_governance/.
+from _governance.governance_gap import (
+    GAP_DOCS_ONLY,
+    GAP_GOV_INFRA,
+)
+from _governance.governance_gap import (
+    is_docs_only_gap as _gov_is_docs_only_gap,
+)
+from _governance.governance_gap import (
+    is_gov_only_gap as _gov_is_gov_only_gap,
+)
+from _governance.manifest_picker import (
+    latest_manifest as _latest_manifest_dict,
+)
+from _governance.manifest_picker import (
+    manifest_for_sha,
+)
+from _governance.wave import current_wave as _wave_current_wave
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
 RELEASES_DIR = ROOT / "docs" / "releases"
@@ -85,57 +110,30 @@ _GATE_SCRIPTS: dict[str, tuple] = {
 }
 
 
-_GOV_PREFIXES: tuple[str, ...] = (
-    "docs/",
-)
-
-# Evidence gap prefixes: used when deciding whether clean-env or verification
-# artifacts remain valid after subsequent commits.  Governance infrastructure
-# changes (scripts/, .github/) do not alter functional product code, so the
-# evidence collected at the last functional HEAD remains valid.
-_EVIDENCE_GAP_PREFIXES: tuple[str, ...] = ("docs/", "scripts/", ".github/")
+# Backward-compat aliases — the canonical definitions live in
+# _governance.governance_gap. Keep the historical names so internal callers
+# in this file (and any external consumers that imported them) still work
+# while the migration completes.
+_GOV_PREFIXES: tuple[str, ...] = GAP_DOCS_ONLY
+_EVIDENCE_GAP_PREFIXES: tuple[str, ...] = GAP_GOV_INFRA
 
 
 def _docs_only_gap(base_sha: str, head_sha: str) -> bool:
-    """Return True when all commits between base_sha and head_sha touch only docs/ files.
+    """Manifest-freshness gap: only docs/** changed (excludes functional configs).
 
-    Used for head_mismatch: a new manifest is required when scripts/ or .github/ change.
+    Delegates to the canonical helper so all callers agree.
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
-            capture_output=True, text=True, cwd=str(ROOT),
-        )
-        if result.returncode != 0:
-            return False
-        changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-        return bool(changed) and all(
-            any(f.startswith(p) for p in _GOV_PREFIXES) for f in changed
-        )
-    except Exception:
-        return False
+    return _gov_is_docs_only_gap(base_sha, head_sha, repo_root=ROOT)
 
 
 def _evidence_gov_gap(base_sha: str, head_sha: str) -> bool:
-    """Return True when commits between base_sha..head_sha only touch governance files.
+    """Evidence-freshness gap: only docs/scripts/.github changed.
 
-    Governance files: docs/, scripts/, .github/.  Used for clean-env and
-    verification-artifact freshness checks — these evidence files remain valid
-    when only governance infrastructure changed after the evidence was collected.
+    Delegates to the canonical helper. Looser than _docs_only_gap because
+    gate-script and CI-config changes don't invalidate evidence collected
+    against a prior product HEAD.
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
-            capture_output=True, text=True, cwd=str(ROOT),
-        )
-        if result.returncode != 0:
-            return False
-        changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-        return bool(changed) and all(
-            any(f.startswith(p) for p in _EVIDENCE_GAP_PREFIXES) for f in changed
-        )
-    except Exception:
-        return False
+    return _gov_is_gov_only_gap(base_sha, head_sha, repo_root=ROOT)
 
 
 def _git(*args: str) -> str:
@@ -334,36 +332,19 @@ def _compute_cap(
             current_head = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
             if not current_head:
                 return None
-            # Check if ANY manifest already covers the current HEAD.
-            # Using mtime-latest is wrong during fresh manifest generation because
-            # the new file doesn't exist yet when caps are computed.
-            all_manifests = list(RELEASES_DIR.glob("*.json"))
-            for mp in all_manifests:
-                try:
-                    mdata = json.loads(mp.read_text(encoding="utf-8"))
-                except Exception:
-                    continue
-                mhead = str(mdata.get("release_head", "")).strip()
-                if not mhead:
-                    continue
-                if mhead == current_head:
-                    return None
-                if current_head.startswith(mhead) or mhead.startswith(current_head[:len(mhead)]):
-                    return None
-            # No manifest covers current HEAD — use the latest manifest for cap reason.
-            # Use (mtime, name) tiebreaker so the most-recently-dated file wins in CI
-            # where all files share the same checkout mtime.
-            manifests_by_mtime = sorted(all_manifests, key=lambda p: (p.stat().st_mtime, p.name))
-            if not manifests_by_mtime:
+            # Does any manifest already cover the current HEAD?
+            if manifest_for_sha(current_head, RELEASES_DIR) is not None:
                 return None
-            try:
-                latest_manifest = json.loads(manifests_by_mtime[-1].read_text(encoding="utf-8"))
-            except Exception:
+            # No manifest covers current HEAD — find the latest manifest to
+            # report the gap. Use the canonical helper so cap-computation and
+            # other manifest-consuming gates agree on which manifest is "latest".
+            latest = _latest_manifest_dict(RELEASES_DIR)
+            if latest is None:
                 return None
-            manifest_head = str(latest_manifest.get("release_head", "")).strip()
+            manifest_head = str(latest.get("release_head", "")).strip()
             if not manifest_head:
                 return None
-            # Docs-only gap exemption: allow commits where only governance files changed.
+            # Docs-only gap exemption: only docs/** changed (excludes functional configs).
             if _docs_only_gap(manifest_head, current_head):
                 return None
             return f"head_mismatch: manifest={manifest_head[:12]} HEAD={current_head[:12]}"
@@ -642,9 +623,11 @@ def _load_captains_sha() -> str:
 
 
 def _current_wave() -> str:
-    if CURRENT_WAVE_FILE.exists():
-        return CURRENT_WAVE_FILE.read_text(encoding="utf-8").strip()
-    return "unknown"
+    """Return the canonical current wave label.
+
+    Delegates to _governance.wave so all callers agree.
+    """
+    return _wave_current_wave()
 
 
 def _gather_evidence(gates: dict[str, Any]) -> dict[str, Any]:
@@ -730,8 +713,14 @@ def _compute_score(gates: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
     }
 
 
-def build_manifest() -> tuple[dict[str, Any], bool]:
-    """Run all gates and return (manifest_dict, all_passed)."""
+def build_manifest(wave_override: str | None = None) -> tuple[dict[str, Any], bool]:
+    """Run all gates and return (manifest_dict, all_passed).
+
+    wave_override: when provided (e.g. via --wave CLI), used in place of
+    docs/current-wave.txt. CP-4 fix: lets the release captain set the wave
+    explicitly at manifest time, eliminating the GS-8 wave-label drift
+    (where the file fell behind the actual release wave).
+    """
     date_str = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
     short_sha = _git_short_sha()
     head_sha = _git_head_sha()
@@ -751,6 +740,9 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
     evidence = _gather_evidence(gates)
     scorecard = _compute_score(gates, evidence)
 
+    wave_label = wave_override if wave_override else _current_wave()
+    wave_source = "cli" if wave_override else "file"
+
     manifest: dict[str, Any] = {
         "manifest_id": manifest_id,
         "schema_version": "1",
@@ -761,7 +753,8 @@ def build_manifest() -> tuple[dict[str, Any], bool]:
             "short_sha": short_sha,
             "is_dirty": evidence["dirty"],
         },
-        "wave": _current_wave(),
+        "wave": wave_label,
+        "wave_source": wave_source,
         "gates": gates,
         "scorecard": scorecard,
         "t3": {
@@ -796,9 +789,18 @@ def main() -> int:
                         help="Print manifest to stdout; do not write file.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Run checks, print manifest, exit 0 regardless of gate state.")
+    parser.add_argument(
+        "--wave",
+        default=None,
+        help=(
+            "Wave label to embed in the manifest (e.g. 'Wave 17'). When omitted, "
+            "reads docs/current-wave.txt. CP-4 fix: explicit captain assertion at "
+            "manifest time prevents GS-8 wave-label drift."
+        ),
+    )
     args = parser.parse_args()
 
-    manifest, all_passed = build_manifest()
+    manifest, all_passed = build_manifest(wave_override=args.wave)
     manifest_json = json.dumps(manifest, indent=2)
 
     if args.print_only or args.dry_run:
