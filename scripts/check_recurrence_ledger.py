@@ -44,13 +44,32 @@ _VALID_CLOSURE_LEVELS = {
 }
 
 
-def _load_yaml(path: pathlib.Path) -> object:
+def _load_yaml(path: pathlib.Path, *, strict: bool = True) -> object:
+    """Load the ledger YAML.
+
+    LB-5 fix: by default (strict=True) raise RuntimeError when PyYAML is
+    unavailable rather than falling back to a hand-rolled regex parser. The
+    fallback parser tolerates malformed input that should fail validation
+    (e.g. closure-level enum typos that would slip past validation when the
+    fallback returns a partial dict). PyYAML is a dev dependency; missing it
+    in CI means the toolchain is misconfigured.
+
+    Pass strict=False only for local debugging in environments where
+    installing PyYAML is impractical.
+    """
     try:
         import yaml  # type: ignore[import-untyped]  expiry_wave: Wave 17
         return yaml.safe_load(path.read_text(encoding="utf-8"))
-    except ImportError:
-        pass
-    # Minimal fallback: parse with a hand-rolled YAML-key reader (no deps)
+    except ImportError as exc:
+        if strict:
+            raise RuntimeError(
+                "PyYAML is required for recurrence_ledger validation. "
+                "Install it via `pip install -e .[dev]`. "
+                "Pass --no-strict-yaml to fall back to the fragile regex parser."
+            ) from exc
+    # Fragile fallback: hand-rolled regex YAML reader. Only used when PyYAML
+    # is missing AND --no-strict-yaml is set. Does not validate nested
+    # structures; closure-level enum drift may slip past.
     import re
     text = path.read_text(encoding="utf-8")
     entries: list[dict] = []
@@ -76,6 +95,17 @@ def _load_yaml(path: pathlib.Path) -> object:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Recurrence-prevention ledger gate.")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--no-strict-yaml",
+        action="store_true",
+        default=False,
+        dest="no_strict_yaml",
+        help=(
+            "Fall back to the regex YAML parser when PyYAML is missing. "
+            "DO NOT use in CI — the fallback parser does not validate enum "
+            "values strictly (LB-5)."
+        ),
+    )
     args = parser.parse_args()
 
     if not LEDGER_PATH.exists():
@@ -90,7 +120,19 @@ def main() -> int:
             print("DEFERRED: recurrence-ledger.yaml not found", file=sys.stderr)
         return 2
 
-    data = _load_yaml(LEDGER_PATH)
+    try:
+        data = _load_yaml(LEDGER_PATH, strict=not args.no_strict_yaml)
+    except RuntimeError as exc:
+        result = {
+            "check": "recurrence_ledger",
+            "status": "fail",
+            "reason": str(exc),
+        }
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"FAIL: {exc}", file=sys.stderr)
+        return 1
     entries = data.get("entries", []) if isinstance(data, dict) else []
 
     if not entries:
