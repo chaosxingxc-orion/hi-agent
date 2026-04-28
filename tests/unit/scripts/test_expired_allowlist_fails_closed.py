@@ -97,10 +97,15 @@ def test_expiry_one_before_current_fails(
 
 
 def test_future_expiry_passes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """expiry_wave > current_wave must pass."""
+    """expiry_wave > current_wave must pass.
+
+    Pin _current_wave_number so the assertion stays valid regardless of what
+    docs/current-wave.txt currently contains.
+    """
     yaml_file = _make_yaml(tmp_path, current_wave=12, expiry_wave=15)
 
     import check_allowlist_discipline as mod
 
     monkeypatch.setattr(mod, "ALLOWLISTS_FILE", yaml_file)
+    monkeypatch.setattr(mod, "_current_wave_number", lambda: 12)
     assert main([]) == 0

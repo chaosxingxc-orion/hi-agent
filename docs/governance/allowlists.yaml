@@ -5,7 +5,7 @@
 # risk: low | medium | high
 
 schema_version: "1"
-current_wave: 16
+current_wave: 17
 
 entries:
   # --- check_no_research_vocab: path allowlist ---
