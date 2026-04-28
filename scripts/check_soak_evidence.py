@@ -17,6 +17,8 @@ import json
 import pathlib
 import sys
 
+from _governance.evidence_picker import latest_evidence
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VERIF_DIR = ROOT / "docs" / "verification"
 DELIVERY_DIR = ROOT / "docs" / "delivery"
@@ -25,13 +27,19 @@ _MIN_SOAK_SECONDS = 86400  # 24 hours
 
 
 def _latest_soak_evidence() -> pathlib.Path | None:
-    candidates = (
-        list(VERIF_DIR.glob("*soak*.json")) +
-        list(DELIVERY_DIR.glob("*soak*.json"))
-    )
-    if not candidates:
-        return None
-    return sorted(candidates, key=lambda p: p.stat().st_mtime)[-1]
+    """Pick latest soak evidence from either verification or delivery directories.
+
+    Sort logic delegated to _governance.evidence_picker — single source of truth
+    that uses (generated_at, mtime, name).
+    """
+    a = latest_evidence(VERIF_DIR, "*soak*.json")
+    b = latest_evidence(DELIVERY_DIR, "*soak*.json")
+    if a and b:
+        try:
+            return a if a.stat().st_mtime >= b.stat().st_mtime else b
+        except OSError:
+            return a
+    return a or b
 
 
 def main() -> int:

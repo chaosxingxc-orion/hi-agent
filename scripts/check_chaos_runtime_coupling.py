@@ -16,19 +16,26 @@ import json
 import pathlib
 import sys
 
+from _governance.evidence_picker import latest_evidence
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VERIF_DIR = ROOT / "docs" / "verification"
 DELIVERY_DIR = ROOT / "docs" / "delivery"
 
 
 def _latest_chaos_evidence() -> pathlib.Path | None:
-    candidates = (
-        list(VERIF_DIR.glob("*chaos*.json")) +
-        list(DELIVERY_DIR.glob("*chaos*.json"))
-    )
-    if not candidates:
-        return None
-    return sorted(candidates, key=lambda p: p.stat().st_mtime)[-1]
+    """Pick latest chaos evidence from either verification or delivery directories.
+
+    Sort logic delegated to _governance.evidence_picker.
+    """
+    a = latest_evidence(VERIF_DIR, "*chaos*.json")
+    b = latest_evidence(DELIVERY_DIR, "*chaos*.json")
+    if a and b:
+        try:
+            return a if a.stat().st_mtime >= b.stat().st_mtime else b
+        except OSError:
+            return a
+    return a or b
 
 
 def main() -> int:

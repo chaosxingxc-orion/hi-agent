@@ -18,6 +18,8 @@ import json
 import pathlib
 import sys
 
+from _governance.evidence_picker import latest_evidence
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VERIF_DIR = ROOT / "docs" / "verification"
 
@@ -30,8 +32,11 @@ _EXPECTED_LAYERS = [
 
 
 def _latest_spine_evidence() -> pathlib.Path | None:
-    files = sorted(VERIF_DIR.glob("*-observability-spine.json"), key=lambda p: p.stat().st_mtime)
-    return files[-1] if files else None
+    """Pick latest spine evidence via canonical helper.
+
+    Sort: (generated_at, mtime, name) — see _governance.evidence_picker.
+    """
+    return latest_evidence(VERIF_DIR, "*-observability-spine.json")
 
 
 def main() -> int:
