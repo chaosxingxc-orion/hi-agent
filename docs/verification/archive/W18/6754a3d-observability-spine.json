@@ -1,0 +1,35 @@
+{
+  "schema_version": "1",
+  "check": "observability_spine_completeness",
+  "provenance": "partial",
+  "run_id": "fcfc2b69-c806-42e4-9398-f15400b14ef9",
+  "trace_id": "582a356ed3224fafbb35b76aa640b1b1",
+  "final_state": "",
+  "layers": [
+    "http_request",
+    "lease_acquired",
+    "metric_emitted",
+    "run_queued",
+    "run_started"
+  ],
+  "layers_count": 5,
+  "expected_layers": 14,
+  "missing_layers": [
+    "heartbeat_renewed",
+    "llm_call",
+    "tool_call",
+    "run_completed",
+    "event_stored",
+    "trace_id_propagated",
+    "dlq_checked",
+    "recovery_decision",
+    "run_finalized"
+  ],
+  "event_count": 5,
+  "status": "fail",
+  "head": "6754a3d",
+  "command": "python scripts/build_observability_spine_e2e_real.py",
+  "generated_at": "2026-04-28T20:42:17.568613+00:00",
+  "start_ts": "2026-04-28T20:40:05.585283+00:00",
+  "finish_ts": "2026-04-28T20:42:17.568613+00:00"
+}

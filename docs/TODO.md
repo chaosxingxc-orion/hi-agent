@@ -1,6 +1,6 @@
 # hi-agent Engineering TODO
 
-Last updated: 2026-04-25 (Wave 9 — Owner-Track Hardening DONE)
+Last updated: 2026-04-29 (Wave 18 — "Stop Lying" governance class fixes)
 
 ## DONE (Wave 1-4, SA-1..SA-8, 2026-04-22/24)
 
@@ -105,6 +105,63 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - **Knowledge graph durable backend**: JsonGraphBackend remains experimental
 - **Self-evolution gated update + rollback**: Needs human-approval design; TE-5 is schema only
 - **ResearchProjectSpec → TeamRunSpec compile reference**: CO-7 introduces TeamRunSpec; downstream compile is research team's
+
+## DONE (Waves 10–18 summary, 2026-04-26–29)
+
+### Wave 10 — Platform Spine + Strict Defaults
+- Contract spine (tenant_id across all 5 writers), Rule 7 alarms, GateStore, TeamRunRegistry durable
+- ExperimentStore, ExtensionManifest, RecoveryCoordinator, KG SQLite backend
+- verified=72.0 (t3_deferred cap at Wave 12 baseline)
+
+### Wave 11 — Event Spine + Idempotency
+- EventStore append exec_ctx, SessionStore, ArtifactRegistry spine
+- 8-writer consistency integration test, HTTP body enrichment (RunResult/TaskContract)
+
+### Wave 12 — Default-Path Hardening (Rules 14–17)
+- 16 tracks A–P; manifest as single release truth; allowlist discipline gate
+- Rules 14–17 in CLAUDE.md; check_manifest_freshness, check_doc_consistency, check_wave_consistency
+- verified=70.0 (docs-only gap cap)
+
+### Wave 13 — Systemic Hardening
+- 5 systemic pattern classes; snapshot-then-diff cross-tenant denial; route-scope gate
+- verified=72.0 (t3_deferred cap)
+
+### Wave 14 — Systemic Class Closure
+- 7 classes closed; 35-gate infrastructure; check_recurrence_ledger; check_allowlist_discipline
+- verified=72.0 (gate_warn cap)
+
+### Wave 15 — systemic class closure
+- 8 classes; verified=77.6 (+5.6); noqa migration; type:ignore sweep
+
+### Wave 16 — Observability Spine + Chaos + Operator Drill
+- Operator drill scenarios; chaos matrix (10 scenarios); observability spine E2E driver
+- Score capped at 80 by gate_warn (5 deferred) + soak 24h missing
+
+### Wave 17 — Governance Hardening
+- check_manifest_rewrite_budget, captain-checklist, W17-B* series
+- verified=80.0 (gate_warn cap, 7 expired vocab allowlists)
+
+### Wave 18 — "Stop Lying" (class-driven)
+- C1: Gate strictness — removed all continue-on-error + --allow-docs-only-gap weakening; check_gate_strictness.py
+- C2: Evidence honesty — spine driver observation-based, chaos runner ENV injection, /ops/drain endpoint
+- C4: Vocab debt — all 7 expired aliases deleted atomically; allowlists cleared
+- Clean-env: 8707 passed, 0 failures; chaos matrix: 4 passed, 6 skipped, 0 failed
+
+## PENDING — Wave 19 (Test Honesty)
+- C5: Delete conftest global HI_AGENT_ALLOW_HEURISTIC_FALLBACK + convert to fixture
+- C6: tests/posture/ matrix (34 Posture.from_env() callsites)
+- C10: check_doc_truth.py in release-gate; Wave 17/18 written response
+- C11: ledger schema + metric/alert/runbook fields
+
+## PENDING — Wave 20 (Operational Evidence)
+- C8: event_emitter.py + 12 typed events (llm_call, tool_call, heartbeat_renewed, etc.)
+- C9: 24h soak with mid-soak SIGTERM; sampler bind to server PID; check_soak_evidence hardening
+- C7a: error_categories.py typed exception hierarchy; app.py/runner.py/run_manager.py narrowing
+
+## PENDING — Wave 21 (Ecosystem Closure)
+- C7b: type:ignore 85→<25; noqa 47→<15
+- C11: all 10 ledger entries to operationally_observable
+- C12: ExtensionRegistry upgrade/rollback, ExperimentStore rollback, StageDirective skip_to
 
 ## WARNING DEBT (low priority)
 

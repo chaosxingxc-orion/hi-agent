@@ -1,0 +1,207 @@
+{
+  "schema_version": "1",
+  "check": "chaos_runtime_coupling",
+  "provenance": "degraded",
+  "runtime_coupled": false,
+  "head": "6754a3d",
+  "scenarios_total": 10,
+  "scenarios_passed": 1,
+  "scenarios_skipped": 3,
+  "scenarios_failed": 6,
+  "status": "fail",
+  "scenarios": [
+    {
+      "name": "worker_kill_during_run",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 0.12,
+      "passed": true,
+      "assertions": {
+        "accepted_runs_lost": 0,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 0,
+        "operator_visible_signal": true
+      },
+      "notes": "cancel_code=200, terminal=cancelled, health_after=ok",
+      "skipped": false,
+      "skip_reason": ""
+    },
+    {
+      "name": "restart_after_unfinished",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 55.33,
+      "passed": true,
+      "assertions": {
+        "accepted_runs_lost": 0,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 0,
+        "operator_visible_signal": true
+      },
+      "notes": "skipped: cannot simulate restart within scenario; state=timeout",
+      "skipped": true,
+      "skip_reason": "cannot simulate restart within scenario; state=timeout"
+    },
+    {
+      "name": "db_lock_busy",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 150.6,
+      "passed": false,
+      "assertions": {
+        "accepted_runs_lost": 1,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 1,
+        "operator_visible_signal": false
+      },
+      "notes": "no runs reached terminal under contention",
+      "skipped": false,
+      "skip_reason": ""
+    },
+    {
+      "name": "queue_unavailable",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 0.15,
+      "passed": false,
+      "assertions": {
+        "accepted_runs_lost": 1,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 1,
+        "operator_visible_signal": false
+      },
+      "notes": "could not submit any runs",
+      "skipped": false,
+      "skip_reason": ""
+    },
+    {
+      "name": "llm_timeout",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 0.0,
+      "passed": false,
+      "assertions": {
+        "accepted_runs_lost": 1,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 1,
+        "operator_visible_signal": false
+      },
+      "notes": "could not submit run",
+      "skipped": false,
+      "skip_reason": ""
+    },
+    {
+      "name": "tool_mcp_crash",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 0.0,
+      "passed": false,
+      "assertions": {
+        "accepted_runs_lost": 1,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 1,
+        "operator_visible_signal": false
+      },
+      "notes": "could not submit tool-run",
+      "skipped": false,
+      "skip_reason": ""
+    },
+    {
+      "name": "disk_full_artifact_write",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 0.0,
+      "passed": false,
+      "assertions": {
+        "accepted_runs_lost": 1,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 1,
+        "operator_visible_signal": false
+      },
+      "notes": "could not submit artifact-run",
+      "skipped": false,
+      "skip_reason": ""
+    },
+    {
+      "name": "lease_heartbeat_stall",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 55.22,
+      "passed": true,
+      "assertions": {
+        "accepted_runs_lost": 0,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 0,
+        "operator_visible_signal": true
+      },
+      "notes": "skipped: run did not complete within timeout and heartbeat stall env vars were not set; skipping as no fault was injected",
+      "skipped": true,
+      "skip_reason": "run did not complete within timeout and heartbeat stall env vars were not set; skipping as no fault was injected"
+    },
+    {
+      "name": "clock_skew_stale_lease",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 55.35,
+      "passed": true,
+      "assertions": {
+        "accepted_runs_lost": 0,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 0,
+        "operator_visible_signal": true
+      },
+      "notes": "skipped: clock skew injection requires system time manipulation; state=timeout",
+      "skipped": true,
+      "skip_reason": "clock skew injection requires system time manipulation; state=timeout"
+    },
+    {
+      "name": "graceful_drain_active_work",
+      "runtime_coupled": true,
+      "synthetic": false,
+      "provenance": "real",
+      "duration_s": 80.91,
+      "passed": false,
+      "assertions": {
+        "accepted_runs_lost": 1,
+        "duplicate_terminal_executions": 0,
+        "duplicate_terminal_events": 0,
+        "progress_offset_regressions": 0,
+        "unclassified_failures": 1,
+        "operator_visible_signal": false
+      },
+      "notes": "run in state=timeout after drain (drain_code=200)",
+      "skipped": false,
+      "skip_reason": ""
+    }
+  ],
+  "command": "python scripts/run_chaos_matrix.py",
+  "start_ts": "2026-04-28T20:42:13.331743+00:00",
+  "finish_ts": "2026-04-28T20:49:01.936225+00:00"
+}
