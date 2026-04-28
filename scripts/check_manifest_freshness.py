@@ -129,20 +129,17 @@ def main(argv: list[str] | None = None) -> int:
         and not head.startswith(manifest_head[:len(head)])
     )
     if head_mismatch:
-        if args.allow_docs_only_gap:
-            # Opt-in: permit gap when only docs/releases/ files changed.
-            try:
-                gap_is_docs_only = _manifest_commit_gap(manifest_head, head)
-            except RuntimeError as exc:
-                reasons.append(f"gap_detection_failed: {exc}")
-                gap_is_docs_only = False
-            if not gap_is_docs_only:
-                reasons.append(
-                    f"head_mismatch: manifest={manifest_head[:12]}, current={head[:12]}"
-                )
-        else:
-            # Default strict mode: any head mismatch is a failure.
-            reasons.append(f"head_mismatch: manifest={manifest_head[:12]}, current={head[:12]}")
+        # Always check for docs-only gap (Rule 14 permits release-commit gaps).
+        # --allow-docs-only-gap retained for backward compat but no longer needed.
+        try:
+            gap_is_docs_only = _manifest_commit_gap(manifest_head, head)
+        except RuntimeError as exc:
+            reasons.append(f"gap_detection_failed: {exc}")
+            gap_is_docs_only = False
+        if not gap_is_docs_only:
+            reasons.append(
+                f"head_mismatch: manifest={manifest_head[:12]}, current={head[:12]}"
+            )
     if is_dirty:
         reasons.append("manifest_was_dirty")
 
