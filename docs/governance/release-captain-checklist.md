@@ -27,6 +27,9 @@ Complete all rows before running `git push`.
 | Recurrence ledger complete | `check_recurrence_ledger.py` → pass | [ ] |
 | Score cap correctly reflects deferred items | `check_score_cap.py` → pass | [ ] |
 | Notice derived from manifest (no independent facts) | Visual review | [ ] |
+| Wave label consistent across sources (W17/B11) | `check_wave_consistency.py --json` → pass | [ ] |
+| No untracked release artifacts (W17/B13) | `check_untracked_release_artifacts.py --json` → pass | [ ] |
+| Manifest rewrite budget within limit (W17/B19) | `check_manifest_rewrite_budget.py --json` → pass | [ ] |
 
 ## What Disqualifies a Captain
 
@@ -42,5 +45,5 @@ Wave: ___________
 Captain: ___________
 Date: 2026-___-___
 Signed off at HEAD: ________________________________
-All 12 items above checked: YES / NO
+All 15 items above checked: YES / NO
 ```

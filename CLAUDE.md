@@ -255,7 +255,17 @@ Binding constraints (from upstream-engineering-conduct-spec-2026-04-27.md §4.2,
 - A closure notice generated before the final manifest exists MUST be labeled non-release commentary and MUST NOT include verified readiness claims.
 - Forbidden phrases (prohibited unless current-HEAD evidence in the manifest supports them): "closed", "fully closed", "complete", "all green", "release-ready", "verified 80+", "production-ready", "7×24 ready", "L3 unchanged", "default path closed".
 
-**Enforcement:** `scripts/check_manifest_freshness.py` fails CI when manifest is stale. `scripts/check_doc_consistency.py` validates that closure notices cite the manifest_id and match Functional HEAD to manifest release_head.
+**Definitions** (binding; effective from Wave 18 — see W17 thrash audit):
+
+- **Docs-only gap**: every commit between `manifest.release_head` and current `HEAD` modifies only files matching `docs/**`, EXCLUDING `docs/governance/score_caps.yaml` and `docs/governance/allowlists.yaml` (which are functional governance configs). Changes under `scripts/`, `.github/`, `hi_agent/`, `tests/`, `pyproject.toml`, or any non-`docs/` `*.yaml` are NEVER docs-only. Implemented by `scripts/_governance/governance_gap.py::is_docs_only_gap`.
+- **Gov-infra gap**: every commit modifies only `docs/**`, `scripts/**`, or `.github/**`. Permitted only for *evidence-freshness* gates (clean-env, observability spine, drill artifacts) — never for *manifest-freshness*. A gate-script bug fix is a gov-infra change but NOT a docs-only change. Implemented by `scripts/_governance/governance_gap.py::is_gov_only_gap`.
+- **Functional commit**: any commit that is neither docs-only nor gov-infra-only.
+
+**No commits between final manifest HEAD and closure notice publication.** Once the Step-9 manifest is written, the only permitted commits before push are: (a) the manifest file itself, (b) the closure notice, (c) the release-captain signoff JSON. Any other commit invalidates the manifest under Rule 14 and the wave returns to Step 8.
+
+**Final-manifest rewrite budget**: max 3 manifest rewrites per wave (defined as the number of manifest files in `docs/releases/` whose `wave` field equals `current_wave()`). The 4th rewrite requires release-captain escalation and a recurrence-ledger entry. Stale intermediate manifests must be moved to `docs/releases/archive/W{N}/`. Enforced by `scripts/check_manifest_rewrite_budget.py` (W17/B19).
+
+**Enforcement:** `scripts/check_manifest_freshness.py` fails CI when manifest is stale. `scripts/check_doc_consistency.py` validates that closure notices cite the manifest_id and match Functional HEAD to manifest release_head. `scripts/check_wave_consistency.py` (W17/B11) validates that current-wave.txt, allowlists.yaml `current_wave`, latest manifest `wave`, and latest non-draft notice all agree. `scripts/check_untracked_release_artifacts.py` (W17/B13) fails CI on uncommitted manifests/verifications outside `docs/.../archive/`.
 
 ---
 

@@ -35,3 +35,26 @@ Every upstream delivery MUST follow these steps in order. Skipping or reordering
 - **MUST**: mandatory — failure to follow is a process defect.
 - **CLOSED**: verified at Step 12 (final HEAD) with machine-readable evidence artifact.
 - **DEFERRED**: acknowledged gap; explicitly labeled; does NOT count as closure.
+
+## Gate-Only Commit Exemption (W17/B18 — effective Wave 18)
+
+**Problem.** During W17 closure, every fix to a `scripts/check_*.py` moved git HEAD and forced a manifest regeneration cycle (7 cycles in one wave). Most of those commits did not change product behaviour — they fixed bugs in the gate harness itself.
+
+**Exemption.** A commit that modifies ONLY files under `scripts/_governance/` or `tests/unit/scripts/_governance/` does NOT trigger manifest regeneration provided ALL of:
+
+1. No behavioural change observable to non-`_governance/` scripts. Verified by `tests/integration/governance/test_manifest_consensus.py` continuing to pass.
+2. The commit subject is tagged `[gov-W{N}-B{M}]` (matches the W17 batch convention from `D:/.claude/plans/bugs-memoized-tarjan.md`).
+3. Release captain signs the exemption in `docs/governance/recurrence-ledger.yaml`.
+
+All OTHER `scripts/*.py` and `.github/workflows/*.yml` changes invalidate the manifest under Rule 14.
+
+**Why limit the exemption to `_governance/`.** That subpackage has no consumers other than other governance scripts. It is pure infrastructure. Changes to general check scripts (`scripts/check_*.py`) can change CI verdicts and DO require manifest regeneration.
+
+## Manifest Rewrite Budget (W17/B18 — effective Wave 18)
+
+A wave may produce at most **3 release manifests** (counted by manifest files in `docs/releases/` whose `wave` field matches `current_wave()`). The 4th rewrite requires:
+
+1. Captain escalation note in the recurrence ledger explaining the cause.
+2. Override file `docs/releases/.budget.json` carrying captain SHA and ledger entry ID.
+
+Before bumping, the captain must move stale intermediate manifests into `docs/releases/archive/W{N}/`. Enforced by `scripts/check_manifest_rewrite_budget.py` (W17/B19).
