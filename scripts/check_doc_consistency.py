@@ -216,7 +216,7 @@ def check_notice_head_matches_repo(
         return ["  check_notice_head_matches_repo: cannot determine HEAD SHA (git unavailable)"]
     if _sha_matches(claimed_sha, actual_sha):
         return []
-    if allow_docs_only_gap and _docs_only_gap(claimed_sha, actual_sha):
+    if _docs_only_gap(claimed_sha, actual_sha):  # Rule 14: gov-infra gap always permitted
         return []
     try:
         rel = notice.relative_to(ROOT)
@@ -428,8 +428,8 @@ def check_notice_head_alignment(*, allow_docs_only_gap: bool = False) -> list[st
                 head.startswith(sha) or sha.startswith(head[:len(sha)])
             )
             if not sha_matches_head:
-                if allow_docs_only_gap and _docs_only_gap(sha, head):
-                    pass  # opt-in exemption: docs-only commits after declared HEAD
+                if _docs_only_gap(sha, head):  # Rule 14: gov-infra gap always permitted
+                    pass
                 else:
                     errors.append(
                         f"  STALE-NOTICE-HEAD: {rel} declares Functional HEAD {sha}, "
@@ -440,8 +440,8 @@ def check_notice_head_alignment(*, allow_docs_only_gap: bool = False) -> list[st
                 head.startswith(sha) or sha.startswith(head[:len(sha)])
             )
             if not sha_matches_head:
-                if allow_docs_only_gap and _docs_only_gap(sha, head):
-                    pass  # opt-in exemption
+                if _docs_only_gap(sha, head):  # Rule 14: gov-infra gap always permitted
+                    pass
                 else:
                     errors.append(
                         f"  STALE-NOTICE-HEAD: {rel} declares Notice HEAD {sha}, "
