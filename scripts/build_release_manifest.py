@@ -53,7 +53,7 @@ _GATE_SCRIPTS: dict[str, tuple] = {
     "metrics_cardinality":    ("check_metrics_cardinality.py",    True,  []),
     "slo_health":             ("check_slo_health.py",             True,  []),
     "allowlist_discipline":   ("check_allowlist_discipline.py",   True,  []),
-    "verification_artifacts": ("check_verification_artifacts.py", True,  []),
+    "verification_artifacts": ("check_verification_artifacts.py", True,  ["--allow-docs-only-gap"]),
     "targeted_default_path":  ("check_targeted_default_path.py",  True,  []),
     # W14-A1: 7 previously absent gates added to registry
     # manifest_freshness is intentionally NOT in _GATE_SCRIPTS: it runs
@@ -515,6 +515,9 @@ def _compute_cap(
                     continue
                 min_len = min(len(ce_head), len(current_head), 12)
                 if ce_head[:min_len] == current_head[:min_len]:
+                    return None
+                # Governance-only commits since the artifact are not a gap
+                if _docs_only_gap(ce_head, current_head):
                     return None
             return f"clean_env_artifact_missing_at_head: no artifact matches HEAD={current_head[:12]}"
         if condition == "score_artifact_inconsistent":
