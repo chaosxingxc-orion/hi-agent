@@ -26,9 +26,26 @@ SCRIPTS_DIR = ROOT / "scripts"
 
 _WAVE_PATTERN = re.compile(r'"Wave\s+\d+"', re.IGNORECASE)
 _EXCEPTION_COMMENT = re.compile(r"wave-literal-ok", re.IGNORECASE)
-# expiry_wave data fields and pytest skip expiry_wave args are legitimate historical values
-_EXPIRY_WAVE_PATTERN = re.compile(r'expiry_wave["\']*\s*[=:]\s*"Wave\s+\d+"', re.IGNORECASE)
-_EXEMPT_FILES = frozenset({"_current_wave.py", "check_no_hardcoded_wave.py"})
+# expiry_wave data fields and pytest skip expiry_wave args are legitimate
+# historical values. GS-9 fix: also exempt comment lines that mention
+# expiry_wave (e.g. "# expiry_wave: Wave 17 — burndown"), and inline
+# expiry_wave references inside docstrings or test fixtures (no quotes around
+# the value). Match any of:
+#   expiry_wave: "Wave N"     YAML/dict literal
+#   expiry_wave="Wave N"      kwarg
+#   expiry_wave Wave N        comment / prose form
+_EXPIRY_WAVE_PATTERN = re.compile(
+    r"expiry_wave"        # the field name
+    r"[\"\':\s=]+"        # punctuation between name and value (=, :, quotes, whitespace)
+    r"\"?Wave\s+\d+\"?",  # the value, optionally quoted
+    re.IGNORECASE,
+)
+_EXEMPT_FILES = frozenset({
+    "_current_wave.py",
+    "check_no_hardcoded_wave.py",
+    # _governance/wave.py is the new canonical wave helper — exempt for the
+    # same reason _current_wave.py is.
+})
 
 
 def main() -> int:
@@ -37,8 +54,12 @@ def main() -> int:
     args = parser.parse_args()
 
     issues: list[dict] = []
-    for script in sorted(SCRIPTS_DIR.glob("*.py")):
+    # Walk scripts/ recursively so the scan covers _governance/ too.
+    for script in sorted(SCRIPTS_DIR.rglob("*.py")):
         if script.name in _EXEMPT_FILES:
+            continue
+        # Skip the canonical wave helper(s).
+        if script.parent.name == "_governance" and script.name == "wave.py":
             continue
         try:
             lines = script.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -48,8 +69,9 @@ def main() -> int:
             if (_WAVE_PATTERN.search(line)
                     and not _EXCEPTION_COMMENT.search(line)
                     and not _EXPIRY_WAVE_PATTERN.search(line)):
+                rel_path = script.relative_to(ROOT).as_posix()
                 issues.append({
-                    "file": f"scripts/{script.name}",
+                    "file": rel_path,
                     "line": i,
                     "content": line.strip()[:120],
                 })
