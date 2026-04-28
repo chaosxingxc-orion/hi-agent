@@ -351,8 +351,16 @@ def check_notice_sha_reachable(notice: Path | None) -> list[str]:
 
 # --- Wave notice HEAD alignment ---
 
+_GOV_AND_DOCS_PREFIXES = ("docs/", "scripts/", ".github/")
+
+
 def _docs_only_gap(base_sha: str, current_sha: str) -> bool:
-    """Return True if commits between base_sha..current_sha only touch docs/ files.
+    """Return True if commits between base_sha..current_sha only touch governance/docs files.
+
+    Governance files are docs/, scripts/, and .github/ — none of these touch
+    functional product code (hi_agent/, agent_kernel/, tests/, pyproject.toml).
+    The Functional HEAD concept is about product code, so governance-only commits
+    after a declared Functional HEAD do not invalidate the HEAD claim.
 
     Only used when --allow-docs-only-gap is explicitly passed.
     """
@@ -366,7 +374,10 @@ def _docs_only_gap(base_sha: str, current_sha: str) -> bool:
         if result.returncode != 0:
             return False
         changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-        return all(f.startswith("docs/") for f in changed) and bool(changed)
+        return (
+            all(any(f.startswith(p) for p in _GOV_AND_DOCS_PREFIXES) for f in changed)
+            and bool(changed)
+        )
     except Exception:
         return False
 

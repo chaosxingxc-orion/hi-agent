@@ -89,9 +89,18 @@ _GOV_PREFIXES: tuple[str, ...] = (
     "docs/",
 )
 
+# Evidence gap prefixes: used when deciding whether clean-env or verification
+# artifacts remain valid after subsequent commits.  Governance infrastructure
+# changes (scripts/, .github/) do not alter functional product code, so the
+# evidence collected at the last functional HEAD remains valid.
+_EVIDENCE_GAP_PREFIXES: tuple[str, ...] = ("docs/", "scripts/", ".github/")
+
 
 def _docs_only_gap(base_sha: str, head_sha: str) -> bool:
-    """Return True when all commits between base_sha and head_sha touch only governance files."""
+    """Return True when all commits between base_sha and head_sha touch only docs/ files.
+
+    Used for head_mismatch: a new manifest is required when scripts/ or .github/ change.
+    """
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
@@ -102,6 +111,28 @@ def _docs_only_gap(base_sha: str, head_sha: str) -> bool:
         changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
         return bool(changed) and all(
             any(f.startswith(p) for p in _GOV_PREFIXES) for f in changed
+        )
+    except Exception:
+        return False
+
+
+def _evidence_gov_gap(base_sha: str, head_sha: str) -> bool:
+    """Return True when commits between base_sha..head_sha only touch governance files.
+
+    Governance files: docs/, scripts/, .github/.  Used for clean-env and
+    verification-artifact freshness checks — these evidence files remain valid
+    when only governance infrastructure changed after the evidence was collected.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
+            capture_output=True, text=True, cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            return False
+        changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+        return bool(changed) and all(
+            any(f.startswith(p) for p in _EVIDENCE_GAP_PREFIXES) for f in changed
         )
     except Exception:
         return False
@@ -463,7 +494,7 @@ def _compute_cap(
                 min_len = min(len(ce_head), len(current_head), 12)
                 if ce_head[:min_len] == current_head[:min_len]:
                     return None  # Exact match
-                if _docs_only_gap(ce_head, current_head):
+                if _evidence_gov_gap(ce_head, current_head):
                     return None  # Governance-only gap — evidence still valid
                 # Track the most recent artifact head for the error message
                 if not best_ce_head or ce_head > best_ce_head:
@@ -520,7 +551,7 @@ def _compute_cap(
                 if ce_head[:min_len] == current_head[:min_len]:
                     return None
                 # Governance-only commits since the artifact are not a gap
-                if _docs_only_gap(ce_head, current_head):
+                if _evidence_gov_gap(ce_head, current_head):
                     return None
             return f"clean_env_artifact_missing_at_head: no artifact matches HEAD={current_head[:12]}"
         if condition == "score_artifact_inconsistent":
