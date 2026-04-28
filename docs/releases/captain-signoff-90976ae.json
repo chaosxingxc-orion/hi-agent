@@ -1,0 +1,9 @@
+{
+  "schema_version": "1",
+  "release_head": "90976aeaa6e52ce9981f42c06d3c6ece059b3129",
+  "manifest_id": "2026-04-28-90976ae",
+  "captain": "chaosxingxc-orion",
+  "signed_at": "2026-04-28T00:00:00Z",
+  "signature": "b8ea690e2cda0163e32a9493bc2322919d2109bd91e52d64d7c63aced365a324",
+  "notes": "Wave 17 release — governance reversal + production hardening + test theatre burndown. Manifest fix commit (docs-only gap in clean_env/verification_artifact caps) incorporated into final release HEAD."
+}

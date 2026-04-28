@@ -3,14 +3,15 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    bebc54a729f38a4f7d08c68d5a4a1e2546ab8221
-Manifest:           2026-04-28-bebc54a
-Manifest ID:        2026-04-28-bebc54a
+Functional HEAD:    90976aeaa6e52ce9981f42c06d3c6ece059b3129
+Manifest:           2026-04-28-90976ae
+Manifest ID:        2026-04-28-90976ae
 T3 evidence:        REAL — docs/delivery/2026-04-28-b954790-t3-volces.json
                     (3 runs completed: 355s, 154s, 137s; provenance:real;
-                     verified_head=b954790; docs-only gap to bebc54a)
-Clean-env evidence: docs/verification/bebc54a-default-offline-clean-env.json
-                    (8622 passed / 0 failed / 0 errors)
+                     verified_head=b954790; docs-only gap to bebc54a;
+                     manifest fix at 90976ae touches only scripts/ — non-hot-path)
+Clean-env evidence: docs/verification/90976ae-default-offline-clean-env.json
+                    (8622 passed / 0 skipped / 0 errors)
 Operator drill:     docs/verification/59e37be-operator-drill.json
                     (10/10 actions passed: health, list_runs, query_run_state,
                      metrics_json, cancel_or_signal_run, ready_check,
@@ -27,7 +28,7 @@ Validated by: scripts/build_release_manifest.py, scripts/check_score_cap.py,
               scripts/check_evidence_provenance.py, scripts/check_noqa_discipline.py,
               scripts/check_route_scope.py, scripts/check_verification_artifacts.py,
               scripts/check_operator_drill.py, scripts/check_recurrence_ledger.py
-Captain sign-off: docs/releases/captain-signoff-bebc54a.json
+Captain sign-off: docs/releases/captain-signoff-90976ae.json
                   (chaosxingxc-orion, 2026-04-28)
 Status:       RELEASED
 ```
