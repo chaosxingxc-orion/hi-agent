@@ -95,6 +95,12 @@ _NOTICE_FILENAME_RE = re.compile(r"-wave(\d+)-", re.IGNORECASE)
 def _latest_notice_wave() -> str | None:
     """Find the latest non-draft delivery notice and extract its wave label.
 
+    Returns None (deferred) when the latest non-superseded notice is from a
+    different wave than current-wave.txt. This avoids spurious wave-drift failures
+    during the transition period between waves (old notice superseded before new
+    one is written). The check_doc_consistency gate separately enforces that a
+    current notice exists at release time.
+
     Search order for the wave value:
       1. Filename pattern `*-wave<N>-delivery-notice.md`
       2. First `Wave: N` line in the body
@@ -114,12 +120,23 @@ def _latest_notice_wave() -> str | None:
             continue
         m = _NOTICE_FILENAME_RE.search(notice.name)
         if m:
-            return m.group(1)
-        m = _NOTICE_WAVE_RE.search(text)
-        if m:
-            return m.group(1)
+            wave_str = m.group(1)
+        else:
+            m = _NOTICE_WAVE_RE.search(text)
+            wave_str = m.group(1) if m else None
+        if wave_str is None:
+            continue
+        # Defer if this notice is from an earlier wave than current-wave.txt.
+        if WAVE_FILE.exists():
+            try:
+                current = current_wave()
+                notice_int = parse_wave(wave_str)
+                if notice_int != current:
+                    return None  # defer: notice is stale (different wave)
+            except (ValueError, OSError):
+                pass  # fall through to returning wave_str as-is
+        return wave_str
     return None
-
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Wave-label consistency gate.")

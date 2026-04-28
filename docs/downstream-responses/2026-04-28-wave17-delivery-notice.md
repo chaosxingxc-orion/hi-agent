@@ -30,7 +30,12 @@ Validated by: scripts/build_release_manifest.py, scripts/check_score_cap.py,
               scripts/check_operator_drill.py, scripts/check_recurrence_ledger.py
 Captain sign-off: docs/releases/captain-signoff-13f904e.json
                   (chaosxingxc-orion, 2026-04-28)
-Status:       RELEASED
+Status:       superseded
+Notice HEAD:  d74f638 (gov-infra only: W17-B13..B19 governance scripts + CLAUDE.md)
+Superseded by: Wave 18 has started (W18-C1); Wave 17 functional closure unchanged.
+               All gov-infra commits after 13f904e touch only scripts/, docs/,
+               .github/, CLAUDE.md, and tests/ for governance scripts.
+               The functional release closure at 13f904e remains valid.
 ```
 
 ---

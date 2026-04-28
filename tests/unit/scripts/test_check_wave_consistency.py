@@ -190,3 +190,36 @@ def test_insufficient_sources_returns_deferred(tmp_path, monkeypatch, capsys):
     data = json.loads(captured.out)
     assert rc == 2
     assert data["status"] == "deferred"
+
+def test_notice_from_earlier_wave_is_deferred(tmp_path, monkeypatch, capsys):
+    """When the only non-superseded notice is from an earlier wave, notice_wave is deferred.
+
+    W18-C1-d: Wave bumps happen before a new notice is written. This is
+    an expected bootstrap gap — check_doc_consistency tracks it separately.
+    """
+    import check_wave_consistency as mod
+
+    wave_file = _write_wave(tmp_path, "Wave 18")
+    allowlists = _write_allowlists(tmp_path, 18)
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    _write_manifest(releases, "abc1234", "Wave 18", "2026-04-29T10:00:00+00:00")
+    notices = tmp_path / "notices"
+    notices.mkdir()
+    # Wave 17 notice is superseded; no Wave 18 notice exists yet
+    _write_notice(notices, "2026-04-28-wave17-delivery-notice.md", 17, status="superseded")
+
+    monkeypatch.setattr(mod, "WAVE_FILE", wave_file)
+    monkeypatch.setattr(mod, "ALLOWLISTS_FILE", allowlists)
+    monkeypatch.setattr(mod, "RELEASES_DIR", releases)
+    monkeypatch.setattr(mod, "NOTICES_DIR", notices)
+    from _governance import wave as wave_mod
+    monkeypatch.setattr(wave_mod, "_WAVE_FILE", wave_file)
+
+    rc = mod.main(["--json"])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    # Only superseded notice exists; notice_wave is deferred — remaining sources agree
+    assert rc == 0, f"Expected pass but got: {data}"
+    assert data["status"] == "pass"
+    assert data["sources"]["notice_wave"] is None
