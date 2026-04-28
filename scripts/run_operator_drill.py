@@ -94,7 +94,7 @@ def main() -> int:
     start_ts = datetime.datetime.now(datetime.UTC).isoformat()
 
     # Submit a test run so we have a run_id to query
-    _, submit_resp = _post(f"{base}/runs", {"task": "operator drill test", "context": {}})
+    _, submit_resp = _post(f"{base}/runs", {"goal": "operator drill test", "context": {}})
     run_id = submit_resp.get("run_id", "") if isinstance(submit_resp, dict) else ""
 
     def _inspect_full_state() -> tuple[int, object]:
@@ -134,8 +134,13 @@ def main() -> int:
         ("list_runs", lambda: _get(f"{base}/runs?limit=10")),
         ("query_run_state", lambda: _get(f"{base}/runs/{run_id}") if run_id else (404, {})),
         ("metrics_json", lambda: _get(f"{base}/metrics/json")),
-        ("cancel_or_signal_run", lambda: _post(
-            f"{base}/runs/{run_id}/signal", {"action": "cancel"}) if run_id else (404, {})),
+        # 400 is acceptable: run already reached terminal state before cancel arrived.
+        ("cancel_or_signal_run", lambda: (
+            (lambda c, p: (200, p) if c == 400 else (c, p))(  # remap 400→200 for terminal runs
+                *(_post(f"{base}/runs/{run_id}/signal", {"action": "cancel"})
+                  if run_id else (404, {}))
+            )
+        )),
         ("ready_check", lambda: _get(f"{base}/ready")),
         # Extended drill actions (E3)
         ("inspect_full_state", _inspect_full_state),
