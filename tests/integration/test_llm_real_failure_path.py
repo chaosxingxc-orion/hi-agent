@@ -99,7 +99,7 @@ async def test_503_gateway_exhausts_retries_raises_failover_error() -> None:
 
     call_count = 0
 
-    def _factory(api_key: str):  # noqa: ARG001
+    def _factory(api_key: str):  # noqa: ARG001  # expiry_wave: Wave 18
         nonlocal call_count
         call_count += 1
         return always_503_gateway

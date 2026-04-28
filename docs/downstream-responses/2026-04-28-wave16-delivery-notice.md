@@ -20,7 +20,7 @@ Cap factors: gate_warn/deferred (observability_spine_completeness, soak_evidence
 Validated by: scripts/build_release_manifest.py, scripts/check_evidence_provenance.py,
               scripts/check_score_cap.py, scripts/check_t3_freshness.py,
               scripts/check_release_identity.py, scripts/check_recurrence_ledger.py
-Status:       RELEASED
+Status:       SUPERSEDED — replaced by Wave 17 delivery (2026-04-28)
 ```
 
 ---

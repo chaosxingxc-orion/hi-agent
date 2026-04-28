@@ -22,7 +22,7 @@ def _load_module(path: Path) -> object:
     assert spec is not None, f"Cannot create spec for {path}"
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 18
     return mod
 
 

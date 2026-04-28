@@ -191,7 +191,14 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
         notices = sorted(DOCS.glob("downstream-responses/2026-*-delivery-notice.md"), reverse=True)
         if not notices:
             return errors
-        notice = notices[0]
+        # Skip superseded/draft historical notices — use the most-recent active notice.
+        for candidate in notices:
+            txt = candidate.read_text(encoding="utf-8", errors="replace")
+            if not re.search(r"Status:.*(?:draft|superseded)", txt, re.IGNORECASE):
+                notice = candidate
+                break
+        else:
+            return errors  # all notices are superseded/draft
 
     src = notice.read_text(encoding="utf-8", errors="replace")
 

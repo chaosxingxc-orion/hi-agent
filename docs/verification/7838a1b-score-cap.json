@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-04-28-7838a1b",
+  "verified_head": "7838a1b411b452264b960bdc775011ada02b41b6",
+  "generated_at": "2026-04-28T07:00:55.699309+00:00",
+  "current_verified_readiness": 55.0,
+  "cap": 55.0,
+  "cap_reason": "head_mismatch: manifest=56857e973eba HEAD=7838a1b411b4; notice_inconsistency: doc_consistency=fail; clean_env_not_final_head: evidence=c6ee39882fe7 HEAD=7838a1b411b4; gate_fail: doc_consistency, t3_freshness, verification_artifacts, downstream_response_format, evidence_provenance, noqa_discipline; t3_stale; verification_artifact_missing_at_head: fail; clean_env_artifact_missing_at_head: no artifact matches HEAD=7838a1b411b4; score_artifact_inconsistent: 08048ed-score-cap.json manifest_id=2026-04-27-08048ed not in filename; gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling",
+  "cap_factors": [
+    "head_mismatch: manifest=56857e973eba HEAD=7838a1b411b4",
+    "notice_inconsistency: doc_consistency=fail",
+    "clean_env_not_final_head: evidence=c6ee39882fe7 HEAD=7838a1b411b4",
+    "gate_fail: doc_consistency, t3_freshness, verification_artifacts, downstream_response_format, evidence_provenance, noqa_discipline",
+    "t3_stale",
+    "verification_artifact_missing_at_head: fail",
+    "clean_env_artifact_missing_at_head: no artifact matches HEAD=7838a1b411b4",
+    "score_artifact_inconsistent: 08048ed-score-cap.json manifest_id=2026-04-27-08048ed not in filename",
+    "gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence, chaos_runtime_coupling"
+  ],
+  "score_claim_issues": [],
+  "status": "pass"
+}
