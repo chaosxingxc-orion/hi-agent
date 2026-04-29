@@ -26,14 +26,14 @@ class OpHandle:
     backend: str
     external_id: str
     submitted_at: float
+    tenant_id: str  # Rule 12 spine — required; no default
+    run_id: str  # Rule 12 spine — required; no default
+    project_id: str  # Rule 12 spine — required; no default
     status: OpStatus = OpStatus.PENDING
     artifacts_uri: str = ""
     heartbeat_at: float = 0.0
     completed_at: float = 0.0
     error: str = ""
-    tenant_id: str = ""
-    run_id: str = ""
-    project_id: str = ""
 
     def __post_init__(self):
         if isinstance(self.status, str):
@@ -52,9 +52,9 @@ class LongRunningOpStore:
         heartbeat_at REAL DEFAULT 0,
         completed_at REAL DEFAULT 0,
         error        TEXT DEFAULT '',
-        tenant_id    TEXT NOT NULL DEFAULT '',
-        run_id       TEXT NOT NULL DEFAULT '',
-        project_id   TEXT NOT NULL DEFAULT ''
+        tenant_id    TEXT NOT NULL,
+        run_id       TEXT NOT NULL,
+        project_id   TEXT NOT NULL
     )
     """
 
@@ -80,7 +80,7 @@ class LongRunningOpStore:
         external_id: str,
         submitted_at: float,
         exec_ctx: RunExecutionContext | None = None,
-        tenant_id: str = "",
+        tenant_id: str = "",  # scope: process-internal — resolved from exec_ctx or caller
         run_id: str = "",
         project_id: str = "",
     ) -> OpHandle:

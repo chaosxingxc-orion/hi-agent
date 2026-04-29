@@ -34,8 +34,7 @@ class Artifact:
     content: Any = None
     project_id: str = ""
     # CO-5: tenant/user/session/team spine fields for cross-run scoping.
-    # Defaults empty for backward compatibility with existing JSON artifacts.
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — artifact; populated from exec_ctx
     user_id: str = ""
     session_id: str = ""
     team_space_id: str = ""

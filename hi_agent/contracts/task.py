@@ -131,8 +131,8 @@ class TaskContract:
     # Optional spine fields for HTTP body enrichment (back-compat).
     # These allow callers to supply explicit identity context in the request body.
     # When non-empty, these take precedence over middleware-derived values during
-    # run manager derivation. Default "" so existing requests continue to work.
-    tenant_id: str = ""
+    # run manager derivation.
+    tenant_id: str = ""  # scope: process-internal — body-enrichment path; sentinel allowed
     user_id: str = ""
     session_id: str = ""
 

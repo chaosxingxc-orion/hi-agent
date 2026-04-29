@@ -25,7 +25,7 @@ class StoredEvent:
     sequence: int  # = RuntimeEvent.commit_offset
     event_type: str
     payload_json: str  # serialized full event (JSON string)
-    tenant_id: str = ""
+    tenant_id: str  # Rule 12 spine — required; no default
     user_id: str = "__legacy__"  # workspace owner; "__legacy__" for pre-migration rows
     session_id: str = "__legacy__"  # workspace session; "__legacy__" for pre-migration rows
     trace_id: str = ""
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS run_events (
     sequence    INTEGER NOT NULL,
     event_type  TEXT    NOT NULL,
     payload_json TEXT   NOT NULL DEFAULT '',
-    tenant_id   TEXT    NOT NULL DEFAULT '',
+    tenant_id   TEXT    NOT NULL,
     user_id     TEXT    NOT NULL DEFAULT '__legacy__',
     session_id  TEXT    NOT NULL DEFAULT '__legacy__',
     trace_id    TEXT    NOT NULL DEFAULT '',
@@ -155,7 +155,7 @@ class SQLiteEventStore:
             _col = get_metrics_collector()
             if _col is not None:
                 _col.increment("hi_agent_events_stored_total")
-        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
             pass
 
     # ------------------------------------------------------------------

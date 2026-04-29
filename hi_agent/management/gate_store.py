@@ -48,7 +48,7 @@ def _warn_unscoped_gate_read(
         )
     except ValueError:
         raise
-    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
         # Posture lookup must never break reads.
         return
 
@@ -76,7 +76,7 @@ class SQLiteGateStore:
         created_at REAL NOT NULL,
         updated_at REAL NOT NULL,
         resolved_at REAL NOT NULL DEFAULT 0,
-        tenant_id TEXT NOT NULL DEFAULT '',
+        tenant_id TEXT NOT NULL,
         user_id TEXT NOT NULL DEFAULT '',
         session_id TEXT NOT NULL DEFAULT ''
     );

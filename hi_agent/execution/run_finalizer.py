@@ -10,8 +10,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from hi_agent.contracts.requests import RunResult
+from hi_agent.observability.metric_counter import Counter
 
 _logger = logging.getLogger(__name__)
+_finalizer_errors_total = Counter("hi_agent_run_finalizer_errors_total")
 
 
 @dataclass
@@ -22,7 +24,7 @@ class RunFinalizerContext:
     contract: Any
     lifecycle: Any
     kernel: Any
-    tenant_id: str = ""
+    tenant_id: str  # Rule 12 spine — required; no default
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""
@@ -80,6 +82,7 @@ class RunFinalizer:
                         ctx.run_id,
                     )
             except Exception as _exc:
+                _finalizer_errors_total.inc()
                 _logger.debug("runner.reflect_task_cancel_failed error=%s", _exc)
         _pending_reflect = getattr(ctx, "_pending_reflection_tasks", [])
         _pending_reflect.clear()
@@ -97,6 +100,7 @@ class RunFinalizer:
                         ctx.run_id,
                     )
             except Exception as _exc:
+                _finalizer_errors_total.inc()
                 _logger.warning("runner.subrun_cancel_failed task_id=%s error=%s", task_id, _exc)
         pending.clear()
         completed = ctx.completed_subrun_results
@@ -197,6 +201,7 @@ class RunFinalizer:
             try:
                 ctx.raw_memory.close()
             except Exception as _exc:
+                _finalizer_errors_total.inc()
                 _logger.warning("runner.raw_memory_close_failed error=%s", _exc)
 
         ctx.lifecycle.finalize_run(
@@ -291,6 +296,7 @@ class RunFinalizer:
                             "watchdog_handling",
                         )
                 except Exception as _attr_exc:
+                    _finalizer_errors_total.inc()
                     _logger.debug("Failure attribution enrichment failed: %s", _attr_exc)
             # Final fallback: retryable if a restart policy engine is wired
             if not is_retryable:
@@ -381,6 +387,7 @@ class RunFinalizer:
                 if _summary is not None and ctx.mid_term_store is not None:
                     ctx.mid_term_store.save(_summary)
         except Exception as _cons_exc:  # consolidation must never crash the run
+            _finalizer_errors_total.inc()
             _logger.debug("L0->L2 consolidation failed: %s", _cons_exc)
 
         # --- L2 -> L3 consolidation ---
@@ -389,6 +396,7 @@ class RunFinalizer:
             try:
                 _consolidator.consolidate(days=1)
             except Exception as _exc:
+                _finalizer_errors_total.inc()
                 _logger.debug("L2->L3 consolidation failed: %s", _exc)
 
         # --- FeedbackStore: submit neutral record for completed run ---
@@ -408,6 +416,7 @@ class RunFinalizer:
                 )
                 _logger.debug("feedback_store: neutral record submitted for run %s", ctx.run_id)
             except Exception as _fb_exc:
+                _finalizer_errors_total.inc()
                 _logger.warning("feedback_store: submit failed: %s", _fb_exc)
 
         # --- Wall-clock duration ---
@@ -464,6 +473,7 @@ class RunFinalizer:
             )
             run_result.execution_provenance = _prov
         except Exception as _prov_exc:  # provenance must never crash the run
+            _finalizer_errors_total.inc()
             _logger.warning("runner.provenance_build_failed error=%s", _prov_exc)
 
         # --- Opt-in team sync ---
@@ -478,6 +488,7 @@ class RunFinalizer:
                     publish_reason="auto_sync",
                 )
             except Exception as _sync_exc:
+                _finalizer_errors_total.inc()
                 _logger.warning("runner.team_sync_failed error=%s", _sync_exc)
 
         return run_result

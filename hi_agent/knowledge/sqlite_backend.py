@@ -37,7 +37,7 @@ class SqliteKnowledgeGraphBackend:
     _DDL = """
     CREATE TABLE IF NOT EXISTS kg_nodes (
         id         TEXT NOT NULL,
-        tenant_id  TEXT NOT NULL DEFAULT '',
+        tenant_id  TEXT NOT NULL,
         project_id TEXT NOT NULL DEFAULT '',
         payload    TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL,
@@ -47,7 +47,7 @@ class SqliteKnowledgeGraphBackend:
         src        TEXT NOT NULL,
         dst        TEXT NOT NULL,
         relation   TEXT NOT NULL,
-        tenant_id  TEXT NOT NULL DEFAULT '',
+        tenant_id  TEXT NOT NULL,
         project_id TEXT NOT NULL DEFAULT '',
         payload    TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL,

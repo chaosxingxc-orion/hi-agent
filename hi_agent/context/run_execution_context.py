@@ -25,7 +25,7 @@ class RunExecutionContext:
     must populate at minimum ``tenant_id`` and ``run_id`` per Rule 12.
     """
 
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""

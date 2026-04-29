@@ -47,11 +47,9 @@ class ReasoningTrace:
 
     run_id: str
     stage_id: str
+    tenant_id: str  # Rule 12 spine — required; no default
     trace_id: str = ""
     steps: list[ReasoningStep] = field(default_factory=list)
-    # Rule 12 spine — tenant context for this trace.
-    # Default "" for backward compatibility; TODO(W17-I4): make required after migration.
-    tenant_id: str = ""
 
     def append(self, step: ReasoningStep) -> None:
         """Append a step, assigning ``step_index`` if unset."""

@@ -43,7 +43,7 @@ class SqliteKnowledgeGraphBackend:
         node_id   TEXT NOT NULL,
         profile_id TEXT NOT NULL DEFAULT '',
         project_id TEXT NOT NULL DEFAULT '',
-        tenant_id  TEXT NOT NULL DEFAULT '',
+        tenant_id  TEXT NOT NULL DEFAULT '',  -- migration compat; new rows populate via exec_ctx
         payload    JSON NOT NULL DEFAULT '{}',
         PRIMARY KEY (node_id, profile_id, project_id)
     );
@@ -53,7 +53,7 @@ class SqliteKnowledgeGraphBackend:
         relation   TEXT NOT NULL,
         profile_id TEXT NOT NULL DEFAULT '',
         project_id TEXT NOT NULL DEFAULT '',
-        tenant_id  TEXT NOT NULL DEFAULT '',
+        tenant_id  TEXT NOT NULL DEFAULT '',  -- migration compat; new rows populate via exec_ctx
         payload    JSON NOT NULL DEFAULT '{}',
         PRIMARY KEY (src, dst, relation, profile_id, project_id)
     );

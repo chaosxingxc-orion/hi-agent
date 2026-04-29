@@ -31,10 +31,8 @@ class TeamSharedContext:
 
     team_id: str
     project_id: str
+    tenant_id: str  # Rule 12 spine — required; no default
     artifact_handoff_ids: tuple[str, ...] = ()
-    # Rule 12 spine — tenant context for shared team state.
-    # Default "" for backward compatibility; TODO(W17-I4): make required after migration.
-    tenant_id: str = ""
     # Canonical generic fields (Wave 11+)
     working_set: tuple[str, ...] = ()
     assertions: tuple[str, ...] = ()
@@ -71,11 +69,10 @@ class TeamRun:
     team_id: str
     project_id: str
     # (agent_role_id, run_id) pairs for each team member
+    tenant_id: str  # Rule 12 spine — required; no default
     member_runs: tuple[tuple[str, str], ...] = ()
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     # Contract spine (Rule 12): persistent records must answer "which tenant".
-    # Default "" for backward compatibility with existing callers.
-    tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
     # Deprecated: use lead_run_id instead. Will be removed in Wave 19.

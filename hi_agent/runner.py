@@ -1615,6 +1615,7 @@ class RunExecutor:
 
         return RunFinalizerContext(
             run_id=self.run_id,
+            tenant_id=getattr(self, "tenant_id", "") or getattr(self, "_tenant_id", "") or "",
             contract=self.contract,
             lifecycle=self._lifecycle,
             kernel=self.kernel,
@@ -2451,7 +2452,7 @@ async def execute_async(
     except Exception as _fe_exc:
         import contextlib
 
-        with contextlib.suppress(Exception):  # rule7-exempt: record_fallback on error path; must not mask original exc  # noqa: E501  expiry_wave: Wave 17
+        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 17
             record_fallback(
                 "llm",
                 reason="fallback_events_lookup_failed",

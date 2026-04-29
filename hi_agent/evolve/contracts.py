@@ -44,7 +44,7 @@ class EvolveMetrics:
     tokens_used: int = 0
     skill_candidates_found: int = 0
     regressions_detected: int = 0
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — metrics; populated from caller context
     project_id: str = ""
 
 
@@ -67,7 +67,7 @@ class EvolveResult:
     metrics: EvolveMetrics
     run_ids_analyzed: list[str]
     timestamp: str
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — result; populated from caller context
     project_id: str = ""
 
 
@@ -111,7 +111,7 @@ class RunRetrospective:
     skills_used: list[str] = field(default_factory=list)
     policy_versions: dict[str, str] = field(default_factory=dict)
     project_id: str = ""
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — enforced in __post_init__ under strict posture
     user_id: str = ""
     session_id: str = ""
 
@@ -141,7 +141,7 @@ class CalibrationSignal:
     latency_ms: float = 0.0
     quality_score: float = 0.0
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — enforced in __post_init__ under strict posture
     user_id: str = ""
     session_id: str = ""
 
@@ -175,7 +175,7 @@ class ProjectRetrospective:
     skill_deltas: list[str] = field(default_factory=list)
     routing_deltas: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — enforced in __post_init__ under strict posture
     user_id: str = ""
     session_id: str = ""
 
@@ -213,7 +213,7 @@ class EvolutionTrial:
     metric_name: str
     started_at: str  # ISO 8601
     status: str  # "active" | "completed" | "aborted"
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — enforced in __post_init__ under strict posture
     project_id: str = ""
     run_id: str = ""
 

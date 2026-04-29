@@ -22,9 +22,9 @@ class RunFeedback:
 
     run_id: str
     rating: float  # 0.0 (worst) - 1.0 (best)
+    tenant_id: str  # Rule 12 spine — required; no default
     notes: str = ""
     submitted_at: str = ""  # ISO 8601; set automatically if empty
-    tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""

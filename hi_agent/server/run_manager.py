@@ -23,6 +23,8 @@ from typing import Any
 from hi_agent.config.posture import Posture
 from hi_agent.context.run_execution_context import RunExecutionContext
 from hi_agent.contracts.run import RunState
+from hi_agent.errors.categories import RunQueueFullError
+from hi_agent.observability.metric_counter import Counter
 from hi_agent.observability.trace_context import TraceContextManager as _TraceCtxMgr
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
@@ -31,12 +33,16 @@ from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 from hi_agent.server.tenant_context import TenantContext
 
 _TRACE_CTX = _TraceCtxMgr()
+logger = logging.getLogger(__name__)
+_event_publish_errors_total = Counter("hi_agent_event_publish_errors_total")
+_lease_renew_errors_total = Counter("hi_agent_lease_renew_errors_total")
+_run_execution_errors_total = Counter("hi_agent_run_execution_errors_total")
 
 # Valid terminal/operational states that result_status may be mapped to.
 _VALID_RESULT_STATES: frozenset[str] = frozenset(s.value for s in RunState)
 
 
-class QueueSaturatedError(Exception):
+class QueueSaturatedError(RunQueueFullError):
     """Raised when the in-memory run queue is full and cannot accept new runs."""
 
     def __init__(self, queue_depth: int, max_depth: int) -> None:
@@ -65,6 +71,7 @@ class ManagedRun:
 
     run_id: str
     task_contract: dict[str, Any]
+    tenant_id: str  # Rule 12 spine — required; no default
     state: str = "created"
     result: Any = None
     error: str | None = None
@@ -75,7 +82,6 @@ class ManagedRun:
     # finally block so that every terminal state (success, failure, cancel)
     # populates it — not only runs that produce a RunResult with .finished_at.
     finished_at: str | None = None
-    tenant_id: str = ""
     user_id: str = ""
     session_id: str = ""
     current_stage: str | None = None
@@ -168,8 +174,11 @@ class RunManager:
 
             _event_bus.add_sync_observer(self._on_stage_event)
         except Exception as exc:
-            logging.getLogger(__name__).warning(
-                "run_manager: failed to subscribe to EventBus (stage tracking disabled): %s", exc
+            _event_publish_errors_total.inc()
+            logger.warning(
+                "run_manager: failed to subscribe to EventBus (stage tracking disabled)",
+                extra={"error": str(exc)},
+                exc_info=True,
             )
 
     def _on_stage_event(self, event: object) -> None:
@@ -196,7 +205,14 @@ class RunManager:
                 import json as _json
 
                 payload = _json.loads(payload)
-            except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+            except Exception as exc:
+                _event_publish_errors_total.inc()
+                logger.warning(
+                    "_on_stage_event payload parse failed for event_type=%s: %s",
+                    event_type,
+                    exc,
+                    exc_info=True,
+                )
                 return
         if not isinstance(payload, dict):
             return
@@ -246,7 +262,14 @@ class RunManager:
             if run_id not in self._event_seqs and self._event_store is not None:
                 try:
                     seed = self._event_store.max_sequence(run_id) + 1
-                except Exception:
+                except Exception as exc:
+                    _event_publish_errors_total.inc()
+                    logger.warning(
+                        "_publish_run_event: failed to seed sequence for run_id=%s",
+                        run_id,
+                        extra={"error": str(exc)},
+                        exc_info=True,
+                    )
                     seed = 0
                 self._event_seqs[run_id] = seed
             seq = self._event_seqs.get(run_id, 0)
@@ -270,14 +293,22 @@ class RunManager:
                 _col = get_metrics_collector()
                 if _col is not None:
                     _col.increment("hi_agent_events_published_total")
-            except Exception:  # rule7-exempt: expiry_wave="Wave 21"
-                pass
+            except Exception as exc:
+                _event_publish_errors_total.inc()
+                logger.warning(
+                    "_publish_run_event metric update failed for run_id=%s: %s",
+                    run_id,
+                    exc,
+                    exc_info=True,
+                )
         except Exception as exc:
-            logging.getLogger(__name__).warning(
-                "_publish_run_event: failed to append %s for run_id=%s: %s",
+            _event_publish_errors_total.inc()
+            logger.warning(
+                "_publish_run_event: failed to append %s for run_id=%s",
                 event_type,
                 run_id,
-                exc,
+                extra={"error": str(exc)},
+                exc_info=True,
             )
 
     def _owns(self, run: ManagedRun, ctx: TenantContext) -> bool:
@@ -621,6 +652,13 @@ class RunManager:
                 run.result = result
                 run.updated_at = datetime.now(UTC).isoformat()
         except Exception as exc:
+            _run_execution_errors_total.inc()
+            logger.warning(
+                "_execute_run failed for run_id=%s",
+                run.run_id,
+                extra={"error": str(exc)},
+                exc_info=True,
+            )
             with self._lock:
                 run.state = "failed"
                 run.error = str(exc)
@@ -751,21 +789,33 @@ class RunManager:
                                     tenant_id=getattr(run_for_event, "tenant_id", "") or "",
                                 )
                             except Exception as _dlq_exc:
+                                _lease_renew_errors_total.inc()
                                 _hb_log.warning(
-                                    "Failed to dead-letter run_id=%s: %s", run_id, _dlq_exc
+                                    "Failed to dead-letter run_id=%s",
+                                    run_id,
+                                    extra={"error": str(_dlq_exc)},
+                                    exc_info=True,
                                 )
                         # Metric
                         try:
                             from hi_agent.observability.collector import get_metrics_collector
                             get_metrics_collector().increment("hi_agent_runtime_lease_lost_total")
-                        except Exception:  # rule7-exempt: metric must not block state transition
-                            pass
+                        except Exception as exc:
+                            _lease_renew_errors_total.inc()
+                            _hb_log.warning(
+                                "Lease renewal metric update failed for run_id=%s: %s",
+                                run_id,
+                                exc,
+                                exc_info=True,
+                            )
                         _heartbeat_stop.set()  # stop the heartbeat thread
                 except Exception as _hb_exc:
+                    _lease_renew_errors_total.inc()
                     _hb_log.warning(
                         "Lease heartbeat error for run_id=%s: %s",
                         run_id,
                         _hb_exc,
+                        exc_info=True,
                     )
 
         _heartbeat_thread = threading.Thread(
@@ -809,6 +859,13 @@ class RunManager:
                 else:
                     self._run_queue.fail(run_id, "run_manager", run.error or "")
         except Exception as exc:
+            _run_execution_errors_total.inc()
+            logger.warning(
+                "_execute_run_durable failed for run_id=%s",
+                run_id,
+                extra={"error": str(exc)},
+                exc_info=True,
+            )
             with self._lock:
                 run.state = "failed"
                 run.error = str(exc)
@@ -1169,7 +1226,7 @@ class RunManager:
         _no_progress_seconds: float | None = None
         _candidates: list[float] = []
         if run.last_heartbeat_at is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: ISO timestamp parse for heartbeat age  # noqa: E501  expiry_wave: Wave 17
+            with contextlib.suppress(ValueError):
                 _candidates.append(
                     datetime.fromisoformat(run.last_heartbeat_at).timestamp()
                 )

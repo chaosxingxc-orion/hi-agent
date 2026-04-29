@@ -41,7 +41,7 @@ class ReasoningTraceEntry:
     content: str
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: str = ""  # ISO8601
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — JSONL back-compat; populated from exec_ctx
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""
@@ -65,7 +65,7 @@ class ReasoningTrace:
 
     run_id: str
     entries: list[ReasoningTraceEntry] = field(default_factory=list)
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — JSONL back-compat; populated from exec_ctx
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""

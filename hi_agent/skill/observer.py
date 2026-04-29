@@ -40,7 +40,7 @@ class SkillObservation:
     task_family: str = ""
     tags: list[str] = field(default_factory=list)
     # Contract spine (Rule 12)
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — observation; populated from exec_ctx
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""
@@ -188,7 +188,7 @@ class SkillObserver:
                     method,
                     skill_id,
                 )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
             # Posture lookup must never break reads.
             return
 

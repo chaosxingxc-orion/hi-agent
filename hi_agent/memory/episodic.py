@@ -26,7 +26,7 @@ class EpisodeRecord:
     duration_seconds: float = 0.0
     timestamp: str = ""
     tags: list[str] = field(default_factory=list)
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — episode; backcompat for pre-spine JSON files
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""

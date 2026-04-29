@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
     created_at  TEXT    NOT NULL DEFAULT '',
     status      TEXT    NOT NULL DEFAULT 'created',
     finished_at REAL    NOT NULL DEFAULT 0,
-    tenant_id   TEXT    NOT NULL DEFAULT '',
+    tenant_id   TEXT    NOT NULL,
     user_id     TEXT    NOT NULL DEFAULT '',
     session_id  TEXT    NOT NULL DEFAULT '',
     lead_run_id TEXT    NOT NULL DEFAULT ''

@@ -48,7 +48,7 @@ class SQLiteRunStore:
     _CREATE_TABLE = """\
 CREATE TABLE IF NOT EXISTS run_records (
     run_id              TEXT    PRIMARY KEY,
-    tenant_id           TEXT    NOT NULL DEFAULT '',
+    tenant_id           TEXT    NOT NULL,
     user_id             TEXT    NOT NULL DEFAULT '__legacy__',
     session_id          TEXT    NOT NULL DEFAULT '__legacy__',
     task_contract_json  TEXT    NOT NULL DEFAULT '',

@@ -87,8 +87,8 @@ class HumanGateRequest:
     gate_ref: str
     context: dict[str, Any] = field(default_factory=dict)
     timeout_s: int = 3600
-    # Explicit spine — preferred over context dict. Defaults "" for back-compat.
-    tenant_id: str = ""
+    # Explicit spine — preferred over context dict.
+    tenant_id: str = ""  # scope: process-internal — gate request; middleware-derived
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""
@@ -148,8 +148,7 @@ class RunResult:
     finished_at: str | None = None
     """ISO-8601 UTC timestamp when the run reached a terminal state."""
     # Optional spine fields for HTTP body enrichment (Rule 12).
-    # Default "" — backwards-compatible; included in to_dict() only when non-empty.
-    tenant_id: str = ""
+    tenant_id: str = ""  # scope: process-internal — run-result; populated from exec_ctx
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""

@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS dead_lettered_runs (
     reason          TEXT NOT NULL,
     original_state  TEXT,
     dead_lettered_at TEXT NOT NULL,
-    tenant_id       TEXT NOT NULL DEFAULT '__unknown__',
+    tenant_id       TEXT NOT NULL,
     requeue_count   INTEGER NOT NULL DEFAULT 0,
     last_requeue_at TEXT,
     attempts_count  INTEGER NOT NULL DEFAULT 0
