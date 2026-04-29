@@ -20,15 +20,16 @@ def store():
 
 class TestCreateWithExecCtx:
     def test_exec_ctx_spine_stored_in_session(self, store):
-        """exec_ctx tenant_id/user_id override positional arguments."""
+        """exec_ctx fills empty spine fields (kwargs-wins: positional args take priority)."""
         ctx = RunExecutionContext(
             tenant_id="t1",
             user_id="u1",
             session_id="s1",
         )
+        # positional tenant_id/user_id empty → exec_ctx fills the gap
         sid = store.create(
-            tenant_id="old_tenant",
-            user_id="old_user",
+            tenant_id="",
+            user_id="",
             exec_ctx=ctx,
         )
         record = store.get(sid)
@@ -51,19 +52,19 @@ class TestCreateWithExecCtx:
     def test_exec_ctx_empty_fields_fall_back_to_positional(self, store):
         """exec_ctx empty string fields do not override non-empty positional args."""
         ctx = RunExecutionContext(
-            tenant_id="",   # empty → fall back
+            tenant_id="",   # empty → positional wins
             user_id="u-ctx",
         )
         sid = store.create(
             tenant_id="t-positional",
-            user_id="u-positional",
+            user_id="",          # empty positional → ctx fills the gap
             exec_ctx=ctx,
         )
         record = store.get(sid)
         assert record is not None
         # empty ctx.tenant_id → positional wins
         assert record.tenant_id == "t-positional"
-        # non-empty ctx.user_id → ctx wins
+        # non-empty ctx.user_id + empty positional → ctx fills
         assert record.user_id == "u-ctx"
 
     def test_create_without_exec_ctx_backward_compat(self, store):

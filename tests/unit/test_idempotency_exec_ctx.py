@@ -20,7 +20,7 @@ def store(tmp_path):
 
 class TestReserveOrReplayWithExecCtx:
     def test_exec_ctx_spine_stored_in_record(self, store):
-        """exec_ctx tenant_id/user_id/session_id/project_id override positional args."""
+        """exec_ctx fills empty spine fields (kwargs-wins: positional args take priority)."""
         ctx = RunExecutionContext(
             tenant_id="t1",
             user_id="u1",
@@ -28,8 +28,9 @@ class TestReserveOrReplayWithExecCtx:
             project_id="p1",
             run_id="run-001",
         )
+        # positional tenant_id="" → exec_ctx fills the gap
         outcome, record = store.reserve_or_replay(
-            tenant_id="old_tenant",
+            tenant_id="",
             idempotency_key="key-ctx-001",
             request_hash="hash-001",
             run_id="run-001",
