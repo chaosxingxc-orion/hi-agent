@@ -86,8 +86,16 @@ def main() -> int:
         ROOT / "hi_agent",
         ROOT / "agent_kernel",
     ]
+    existing_dirs = [d for d in scan_dirs if d.is_dir()]
+    if not existing_dirs:
+        if args.json:
+            print(json.dumps({"status": "not_applicable", "reason": "no source directories found"}))
+        else:
+            print("not_applicable: no source directories found")
+        return 0
+
     all_violations: list[dict] = []
-    for d in scan_dirs:
+    for d in existing_dirs:
         for py_file in sorted(d.rglob("*.py")):
             all_violations.extend(_check_file(py_file))
 

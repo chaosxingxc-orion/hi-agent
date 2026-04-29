@@ -52,6 +52,11 @@ def find_descriptor_instantiations(path: str) -> list[tuple[int, str | None]]:
 
 
 def main() -> int:
+    # not_applicable when the capability registry doesn't exist (fresh checkout, stripped bundle)
+    if not Path(DATACLASS_FILE).exists():
+        print(f"not_applicable: {DATACLASS_FILE} not found")
+        return 0
+
     violations: list[str] = []
 
     # 1. Check field exists on dataclass

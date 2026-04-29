@@ -78,10 +78,15 @@ def check_file(path: str) -> list[str]:
 
 
 def main() -> int:
+    # not_applicable when none of the scanned files exist (stripped bundle or alternate layout)
+    existing = [f for f in DATACLASS_FILES if Path(f).exists()]
+    if not existing:
+        print("not_applicable: no spine dataclass files found")
+        return 0
+
     violations: list[str] = []
-    for f in DATACLASS_FILES:
-        if Path(f).exists():
-            violations.extend(check_file(f))
+    for f in existing:
+        violations.extend(check_file(f))
 
     if violations:
         print(f"FAIL: {len(violations)} spine completeness violation(s):")

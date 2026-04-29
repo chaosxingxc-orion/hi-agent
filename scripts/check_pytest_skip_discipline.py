@@ -89,12 +89,25 @@ def main() -> int:
     args = parser.parse_args()
 
     current_wave = _read_current_wave()
+
+    # not_applicable when tests directory is absent (stripped bundle or CI shard with no tests)
+    if not TESTS_DIR.exists():
+        result = {
+            "status": "not_applicable",
+            "check": "pytest_skip_discipline",
+            "reason": "tests directory not found",
+        }
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print("not_applicable: tests directory not found")
+        return 0
+
     all_issues: list[dict] = []
-    if TESTS_DIR.exists():
-        for py_file in sorted(TESTS_DIR.rglob("*.py")):
-            if "__pycache__" in py_file.parts:
-                continue
-            all_issues.extend(_scan_file(py_file, current_wave))
+    for py_file in sorted(TESTS_DIR.rglob("*.py")):
+        if "__pycache__" in py_file.parts:
+            continue
+        all_issues.extend(_scan_file(py_file, current_wave))
 
     status = "pass" if not all_issues else "fail"
     result = {
