@@ -10,7 +10,7 @@ allows_real_llm = false
 allows_secrets = false
 
 [profiles.default-offline]
-targets = ["tests/unit", "tests/contract", "tests/security", "tests/agent_kernel"]
+targets = ["tests/unit", "tests/contract", "tests/security", "tests/agent_kernel", "tests/agent_server/unit", "tests/agent_server/integration", "tests/agent_server/e2e"]
 excluded_markers = ["live_api", "external_llm", "network", "requires_secret", "windows_unsafe"]
 timeout_seconds = 600
 allows_real_network = false
