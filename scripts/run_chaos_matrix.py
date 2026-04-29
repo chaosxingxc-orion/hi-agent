@@ -63,11 +63,18 @@ def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
 _ENV_DEFAULTS: dict[str, str] = {
     "HI_AGENT_HEARTBEAT_STALL_S": "5",
     "HI_AGENT_HEARTBEAT_INTERVAL_MS": "200",
-    # Fault-injection env vars for specific scenarios.
+    # Legacy fault-injection env vars (kept for backward compatibility).
     "HI_AGENT_LLM_MOCK_DELAY_MS": "10000",
     "HI_AGENT_TOOL_FAULT": "crash",
     "HI_AGENT_ARTIFACT_FAULT": "oserror",
     "HI_AGENT_CLOCK_OFFSET_S": "3600",
+    # AX-A A5: FaultInjector env vars (wired into runtime seams via fault_injection.py).
+    "HI_AGENT_FAULT_LLM_TIMEOUT": "1",
+    "HI_AGENT_FAULT_TOOL_CRASH": "*",
+    "HI_AGENT_FAULT_DISK_FULL": "1",
+    "HI_AGENT_FAULT_HEARTBEAT_STALL": "1",
+    "HI_AGENT_FAULT_CLOCK_SKEW_SECONDS": "3600",
+    "HI_AGENT_FAULT_DLQ_POISON": "1",
 }
 
 

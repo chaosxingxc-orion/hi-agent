@@ -1,22 +1,21 @@
 """Scenario 06: Tool/MCP crash during run.
 
-Fault injection: The chaos matrix runner may set ``HI_AGENT_TOOL_FAULT=crash``
-in the server environment. When this env var is set, the tool dispatch layer
-raises an exception on every tool invocation.
+Fault injection: ``HI_AGENT_FAULT_TOOL_CRASH=*`` is set in the server
+environment before startup.  When active, ``FaultInjector.maybe_raise_tool_crash_sync``
+wired into ``CapabilityInvoker.invoke`` raises ``RuntimeError`` for any tool
+invocation, exercising the run's tool-crash recovery path.
 
 From within the scenario we:
-  1. Submit a run with a task that explicitly requests tool use.
+  1. Submit a run with a task that may invoke a capability.
   2. Assert the run reaches a classified terminal state (``failed`` / ``error``)
      rather than hanging or completing silently as succeeded.
   3. Assert the run's reported state is not ``succeeded`` (tool crash must not
      be swallowed as success).
-
-If ``HI_AGENT_TOOL_FAULT`` is not set (env not injected), the run is expected
-to complete normally or fail for another reason — both are acceptable (skipped).
 """
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 
 from _helpers import (
@@ -29,9 +28,12 @@ from _helpers import (
 
 SCENARIO_NAME = "tool_mcp_crash"
 SCENARIO_DESCRIPTION = (
-    "Submit run that invokes a tool; with HI_AGENT_TOOL_FAULT=crash env, "
-    "assert run reaches failed/error (not hung, not silently succeeded)."
+    "Submit run with HI_AGENT_FAULT_TOOL_CRASH=* env; assert run reaches "
+    "failed/error (not hung, not silently succeeded) via FaultInjector."
 )
+
+# AX-A A5: fault vars to be injected by run_chaos_matrix.py before server start.
+REQUIRED_ENV = ["HI_AGENT_FAULT_TOOL_CRASH"]
 
 _TERMINAL = frozenset(
     {"completed", "succeeded", "failed", "cancelled", "done", "error", "timed_out"}
@@ -52,7 +54,7 @@ def _submit_tool_run(base_url: str) -> str | None:
     """Submit a run with context hinting that a tool invocation is required."""
     body = json.dumps(
         {
-            "goal": "tool crash chaos test — call any available tool",
+            "goal": "tool crash chaos test — call any available capability",
             "context": {"_chaos_require_tool": True},
         }
     ).encode()
@@ -69,14 +71,17 @@ def _submit_tool_run(base_url: str) -> str | None:
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
-    # provenance is derived from what was actually observed.
     result: dict = {
         "name": SCENARIO_NAME,
         "duration_s": 0.0,
     }
 
-    import os as _os_env
-    fault_injected = _os_env.environ.get("HI_AGENT_TOOL_FAULT") == "crash"
+    # Detect whether fault injection is active.
+    # FaultInjector uses HI_AGENT_FAULT_TOOL_CRASH; fall back to old var for compat.
+    fault_injected = bool(
+        os.environ.get("HI_AGENT_FAULT_TOOL_CRASH")
+        or os.environ.get("HI_AGENT_TOOL_FAULT") == "crash"
+    )
 
     run_id = _submit_tool_run(base_url)
     if not run_id:
@@ -92,7 +97,7 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
         result.update(
             _skip_result(
                 "run did not reach terminal; tool fault injection requires "
-                "HI_AGENT_TOOL_FAULT=crash env var on the server process"
+                "HI_AGENT_FAULT_TOOL_CRASH=* env var on the server process"
             )
         )
         result["provenance"] = "structural"
@@ -107,7 +112,6 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
         result["synthetic"] = True
         return result
 
-    # Get run detail to check for error classification
     detail = _get_run_detail(base_url, run_id)
     error_type = detail.get("error_type") or detail.get("failure_reason") or ""
 
@@ -115,19 +119,18 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
         result.update(
             _ok_result(
                 f"tool crash led to classified terminal state={final_state}, "
-                f"error_type={error_type!r} (not a silent success)"
+                f"error_type={error_type!r}, fault_injected={fault_injected}"
             )
         )
-        # Real fault injection confirmed only if the env var was actually set.
         result["provenance"] = "real" if fault_injected else "structural"
         result["runtime_coupled"] = fault_injected
         result["synthetic"] = not fault_injected
     elif final_state in ("completed", "succeeded"):
-        # Without fault env var the run may succeed normally — that's acceptable
+        # Without tool invocation, run may succeed — skip rather than fail.
         result.update(
             _skip_result(
-                f"run completed with state={final_state}; no tool fault injected "
-                "(HI_AGENT_TOOL_FAULT env not set on server)"
+                f"run completed with state={final_state}; no tool was invoked or "
+                "fault was not triggered (HI_AGENT_FAULT_TOOL_CRASH may not be set)"
             )
         )
         result["provenance"] = "structural"

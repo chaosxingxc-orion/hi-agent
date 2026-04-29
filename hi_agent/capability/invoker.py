@@ -152,6 +152,8 @@ class CapabilityInvoker:
                 raise CapabilityUnavailableError(capability_name, probe_result[1])
 
         attempt = 0
+        from hi_agent.server.fault_injection import get_fault_injector
+        get_fault_injector().maybe_raise_tool_crash_sync(capability_name)
         while True:
             if self.breaker is not None and not self.breaker.allow(capability_name):
                 raise RuntimeError(f"Capability circuit open: {capability_name}")

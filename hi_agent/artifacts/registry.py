@@ -70,6 +70,8 @@ class ArtifactRegistry:
         """
         if os.environ.get("HI_AGENT_ARTIFACT_FAULT") == "oserror":
             raise OSError("Simulated disk full fault — HI_AGENT_ARTIFACT_FAULT=oserror")
+        from hi_agent.server.fault_injection import get_fault_injector
+        get_fault_injector().maybe_raise_disk_full()
         if exec_ctx is not None:
             for field_name, ctx_value in (
                 ("tenant_id", exec_ctx.tenant_id),

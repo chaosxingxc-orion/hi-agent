@@ -1,9 +1,12 @@
 """Scenario 07: Disk-full artifact write failure.
 
-Fault injection: The chaos matrix runner may set ``HI_AGENT_ARTIFACT_FAULT=oserror``
-in the server environment. When this env var is present, the ArtifactRegistry
-and ArtifactLedger raise ``OSError("Simulated disk full fault")`` on every
-store/write call.
+Fault injection: ``HI_AGENT_FAULT_DISK_FULL=1`` is set in the server
+environment before startup.  When active, ``FaultInjector.maybe_raise_disk_full``
+wired into ``ArtifactRegistry.store`` raises ``OSError(ENOSPC)`` on every
+artifact write, exercising the run's disk-full recovery path.
+
+The legacy ``HI_AGENT_ARTIFACT_FAULT=oserror`` env var is also accepted for
+backward compatibility (it is checked directly in ArtifactRegistry.store).
 
 From within the scenario we:
   1. Submit a run that will attempt to write an artifact.
@@ -11,15 +14,11 @@ From within the scenario we:
      than hanging or completing as succeeded.
   3. Assert the run state is NOT ``succeeded`` when the fault env var is active,
      because a disk-full error must not be silently swallowed.
-
-If ``HI_AGENT_ARTIFACT_FAULT`` is not set, the run may succeed normally; the
-scenario skips to avoid false failures on non-fault CI runs.
 """
 from __future__ import annotations
 
 import json
 import os
-import urllib.error
 import urllib.request
 
 from _helpers import (
@@ -32,9 +31,12 @@ from _helpers import (
 
 SCENARIO_NAME = "disk_full_artifact_write"
 SCENARIO_DESCRIPTION = (
-    "Submit run under HI_AGENT_ARTIFACT_FAULT=oserror; assert run reaches "
-    "classified terminal state (not silent success, not hung)."
+    "Submit run under HI_AGENT_FAULT_DISK_FULL=1; assert run reaches classified "
+    "terminal state (not silent success, not hung) via FaultInjector."
 )
+
+# AX-A A5: fault vars to be injected by run_chaos_matrix.py before server start.
+REQUIRED_ENV = ["HI_AGENT_FAULT_DISK_FULL"]
 
 _TERMINAL = frozenset(
     {"completed", "succeeded", "failed", "cancelled", "done", "error", "timed_out"}
@@ -72,15 +74,17 @@ def _get_run_detail(base_url: str, run_id: str) -> dict:
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
-    # provenance is derived from what was actually observed.
     result: dict = {
         "name": SCENARIO_NAME,
         "duration_s": 0.0,
     }
 
-    # Detect whether fault injection is active in the server environment.
-    # The scenario itself can read the env var; if not set, skip asserting failure.
-    fault_active = os.environ.get("HI_AGENT_ARTIFACT_FAULT") == "oserror"
+    # Detect whether fault injection is active.
+    # FaultInjector uses HI_AGENT_FAULT_DISK_FULL; also accept legacy var.
+    fault_active = bool(
+        os.environ.get("HI_AGENT_FAULT_DISK_FULL")
+        or os.environ.get("HI_AGENT_ARTIFACT_FAULT") == "oserror"
+    )
 
     run_id = _submit_artifact_run(base_url)
     if not run_id:
@@ -96,7 +100,7 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
         result.update(
             _skip_result(
                 "run did not reach terminal within timeout; "
-                "artifact fault injection requires HI_AGENT_ARTIFACT_FAULT=oserror env"
+                "artifact fault injection requires HI_AGENT_FAULT_DISK_FULL=1 env"
             )
         )
         result["provenance"] = "structural"
@@ -115,7 +119,7 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
     error_type = detail.get("error_type") or detail.get("failure_reason") or ""
 
     if fault_active:
-        # With fault active the run MUST NOT silently succeed
+        # With fault active the run MUST NOT silently succeed.
         if final_state in _FAILURE_STATES:
             result.update(
                 _ok_result(
@@ -123,15 +127,14 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                     f"error_type={error_type!r}"
                 )
             )
-            # Fault env set AND run actually failed — real injection observed.
             result["provenance"] = "real"
             result["runtime_coupled"] = True
             result["synthetic"] = False
         elif final_state in ("completed", "succeeded"):
             result.update(
                 _fail_result(
-                    "run succeeded despite HI_AGENT_ARTIFACT_FAULT=oserror — "
-                    "disk-full error was silently swallowed"
+                    "run succeeded despite HI_AGENT_FAULT_DISK_FULL=1 — "
+                    "disk-full error was silently swallowed (no artifact write triggered)"
                 )
             )
             result["provenance"] = "real"
@@ -143,10 +146,10 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
             result["runtime_coupled"] = False
             result["synthetic"] = True
     else:
-        # No fault injected — any terminal state is acceptable
+        # No fault injected — any terminal state is acceptable.
         result.update(
             _skip_result(
-                f"HI_AGENT_ARTIFACT_FAULT not set; run ended with state={final_state} "
+                f"HI_AGENT_FAULT_DISK_FULL not set; run ended with state={final_state} "
                 "(no disk-full fault injected)"
             )
         )
