@@ -17,7 +17,7 @@ Create a new agent run.
 
 ```json
 {
-  "goal": "Analyze quarterly revenue data",
+  "task": "Analyze quarterly revenue data",
   "profile_id": "my-agent-profile",
   "project_id": "proj-acme-q1",
   "idempotency_key": "<uuid>"  // alternative to header
@@ -26,7 +26,7 @@ Create a new agent run.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `goal` | string | Yes | Natural-language goal for the run. |
+| `task` | string | Yes | Natural-language task description for the run. |
 | `profile_id` | string | Recommended | Runtime profile ID. Defaults to `"default"` with a warning when omitted. |
 | `project_id` | string | Recommended | Project scope. Scopes memory, artifacts, and gates to a project namespace. When omitted, the response includes `X-Project-Warning: unscoped`. |
 | `idempotency_key` | string | Recommended | Client-generated UUID for safe retries (alternative to the `Idempotency-Key` header). |
@@ -91,13 +91,13 @@ POST /runs
 Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 Content-Type: application/json
 
-{"goal": "Analyze data", "profile_id": "research"}
+{"task": "Analyze data", "profile_id": "research"}
 ```
 
 **Via body field (alternative):**
 ```json
 {
-  "goal": "Analyze data",
+  "task": "Analyze data",
   "profile_id": "research",
   "idempotency_key": "550e8400-e29b-41d4-a716-446655440000"
 }
@@ -211,7 +211,7 @@ All error responses use the following JSON structure:
 | `queue_full` | 503 | Run queue at capacity (`run_manager.max_concurrent` concurrent runs active) | Yes | Retry after a short backoff (recommended: exponential, starting at 2 s) |
 | `gateway_unavailable` | 503 | LLM backend unreachable (connection error or timeout on the gateway) | Yes | Check `GET /health`; retry after the backend recovers |
 | `idempotency_pending` | 202 | Same `Idempotency-Key` is already in-flight; replay in progress | No | Poll `GET /runs/{run_id}` to observe progress |
-| `invalid_request` | 400 | Malformed request body, missing required field (`goal`), or invalid field type | No | Fix the request body per the API reference |
+| `invalid_request` | 400 | Malformed request body, missing required field (`task`), or invalid field type | No | Fix the request body per the API reference |
 | `internal_error` | 500 | Unexpected server error (bug, unhandled exception) | No | Report the error with the response body; check server logs |
 
 ---

@@ -11,7 +11,7 @@ Extracted from CLAUDE.md for readability. These are stable facts about the codeb
 | Package | Role |
 |---------|------|
 | `hi_agent/` (this repo) | Agent brain: all cognitive + decision logic |
-| `agent_kernel/` (inlined, 2026-04-19) | Durable runtime: run lifecycle, event log, idempotency — source of truth for HTTP endpoints is `agent_kernel/service/http_server.py` |
+| `agent_kernel/` (inlined, 2026-04-19) | Durable runtime: run lifecycle, event log, idempotency — HTTP endpoints are served by `hi_agent/server/app.py` and `hi_agent/server/routes_*.py` (Arch-7 decomposition, Wave 11) |
 | `agent-core` | Reusable capability modules: tools, retrieval, MCP |
 
 Execution modes: `execute()` linear · `execute_graph()` DAG with backtrack · `execute_async()` full asyncio.
