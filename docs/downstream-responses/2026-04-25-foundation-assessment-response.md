@@ -1,5 +1,7 @@
 # Response: Foundation Assessment 2026-04-25
 
+Status: superseded
+
 **Date**: 2026-04-25
 **Wave**: 8
 **Platform team**: hi-agent

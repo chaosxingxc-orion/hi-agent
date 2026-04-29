@@ -1,5 +1,7 @@
 # Wave 18 — Platform Response to Delivery Notice
 
+Status: superseded
+
 **Date**: 2026-04-29
 **Responding to**: `docs/downstream-responses/2026-04-29-wave18-delivery-notice.md`
 **Manifest reference**: `docs/releases/2026-04-28-58394d6.json`

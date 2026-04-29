@@ -1,5 +1,7 @@
 # Downstream Response Notices
 
+Manifest: historical-index
+
 This directory contains delivery notices formatted for the research-intelligence team (one specific downstream consumer of hi-agent).
 
 **These are NOT the canonical platform delivery format.** They are examples of how one consumer has chosen to format their response notices.

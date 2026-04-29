@@ -1,5 +1,7 @@
 # H2 Hardening Wave — Delivery Notice
 
+Status: superseded
+
 **Date:** 2026-04-25
 **HEAD SHA:** 658cba0 (branch: `claude/worktree-integration`)
 **Delivered by:** chao_workspace (platform team)

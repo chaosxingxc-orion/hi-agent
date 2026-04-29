@@ -1,5 +1,7 @@
 # Wave 11 — 全面平台回复：架构解耦完成 + 自检评分
 
+Status: superseded
+
 **日期：** 2026-04-27  
 **SHA：** 52cc431cd4968bb0fde804c39021ab1ded52970d（最终集成修复 b179a17）  
 **发给：** Research-Intelligence App 团队  

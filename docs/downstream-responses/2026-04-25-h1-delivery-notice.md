@@ -1,5 +1,7 @@
 # H1 Hardening Wave — Delivery Notice
 
+Status: superseded
+
 **Date**: 2026-04-25
 **Wave**: H1 (Hardening Pass 1, post-Wave 8)
 **Platform team**: hi-agent (chaosxingxc-orion)

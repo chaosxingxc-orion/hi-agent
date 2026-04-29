@@ -1,5 +1,7 @@
 # Wave 11 — Platform/Business Decoupling Sprint: Delivery Notice
 
+Status: superseded
+
 **Date:** 2026-04-27
 **SHA:** 52cc431cd4968bb0fde804c39021ab1ded52970d
 **Audience:** Research-Intelligence App team

@@ -1,5 +1,7 @@
 # H2 Hardening Wave — Intake Decisions (G1/G2/G3 Governance)
 
+Status: superseded
+
 **Date**: 2026-04-25
 **Wave**: H2 (Hardening Pass 2, post-H1)
 **Platform team**: hi-agent (chaosxingxc-orion)

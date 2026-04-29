@@ -1,5 +1,7 @@
 # hi-agent Platform Response to Research Roadmap 2026-04-16
 
+Status: superseded
+
 **Date**: 2026-04-24
 **From**: hi-agent Platform Team
 **To**: Research Intelligence App Team

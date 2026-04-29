@@ -533,8 +533,12 @@ def _compute_cap(
             return f"clean_env_not_final_head: evidence={best_ce_head[:12]} HEAD={current_head[:12]}"
         if condition == "operator_drill_missing":
             # Fails when no operator-drill evidence exists for the current HEAD
+            # Exclude -provenance.json sidecars; they have no all_passed field.
             drill_files = sorted(
-                (ROOT / "docs" / "verification").glob("*operator-drill*.json"),
+                (
+                    p for p in (ROOT / "docs" / "verification").glob("*operator-drill*.json")
+                    if not p.name.endswith("-provenance.json")
+                ),
                 key=lambda p: p.stat().st_mtime,
             )
             if not drill_files:
