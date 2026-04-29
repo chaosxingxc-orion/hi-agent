@@ -62,6 +62,7 @@ def test_last_event_offset_populated() -> None:
             sequence=1,
             event_type="test_event",
             payload_json="{}",
+            tenant_id="test-tenant",
         )
     )
 

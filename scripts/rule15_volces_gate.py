@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deprecated shim: use run_t3_gate.py --provider volces instead.
 
-This script will be removed in Wave 19.
+This script will be removed in Wave 21.
 """
 import subprocess
 import sys
@@ -10,7 +10,7 @@ import warnings
 if __name__ == "__main__":
     warnings.warn(
         "rule15_volces_gate.py is deprecated; use run_t3_gate.py --provider volces instead. "
-        "This shim will be removed in Wave 19.",
+        "This shim will be removed in Wave 21.",
         DeprecationWarning,
         stacklevel=1,
     )
