@@ -25,7 +25,7 @@ dimensions:
     description: "No domain vocabulary leaking into hi_agent/ public surface (hard bans clean; soft-ban allowlisted)"
     weight: 5
     base_score: 85
-    gate_check: vocab
+    gate_check: no_research_vocab
 
   - name: waiver_hygiene
     description: "All time-bounded waivers are tracked; none are past their expiry wave"
@@ -43,7 +43,7 @@ dimensions:
     description: "Rule 6/13 governance signal-to-noise: FPs suppressed; remaining sites are real defects"
     weight: 4
     base_score: 97
-    gate_check: rule6_warnings
+    gate_check: rules
 
   - name: test_markers
     description: "Integration tests carry correct pytest markers; profile filters are functional"
@@ -61,7 +61,7 @@ dimensions:
     description: "Gate evidence files carry verified_head SHA, timestamp, and dirty-worktree guard"
     weight: 7
     base_score: 100
-    gate_check: t3_freshness
+    gate_check: evidence_identity
 
   - name: claim_discipline
     description: "Downstream notices bind claims to release manifest IDs"
@@ -85,7 +85,7 @@ dimensions:
     description: "Release-gate CI job aggregates all governance checks non-skippably (W14-G)"
     weight: 4
     base_score: 88
-    gate_check: doc_consistency
+    gate_check: gate_strictness
 
   - name: allowlist_discipline
     description: "All allowlist entries have owner/risk/reason/expiry/replacement-test; none expired"

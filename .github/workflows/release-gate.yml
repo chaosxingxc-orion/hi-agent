@@ -181,6 +181,9 @@ jobs:
       - name: Doc freshness + response sibling (W19-E4)
         run: python scripts/check_doc_truth.py --json
 
+      - name: Check gate strictness (W21-AX-D)
+        run: python scripts/check_gate_strictness.py --strict --json
+
       # --- Release manifest ---
 
       - name: Build release manifest

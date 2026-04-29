@@ -92,6 +92,11 @@ def _check_file(wf_path: pathlib.Path) -> list:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Gate strictness enforcer.")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit 1 on any violation (default behaviour; flag is a no-op kept for CI parity).",
+    )
     args = parser.parse_args()
 
     if not WORKFLOWS_DIR.exists():
