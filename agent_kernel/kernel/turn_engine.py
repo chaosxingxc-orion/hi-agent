@@ -457,7 +457,7 @@ class TurnEngine:
         self._phase_timeout_s: float | None = (
             phase_timeout_ms / 1000.0 if phase_timeout_ms is not None else None
         )
-        self._defaults = defaults or TurnEngineDefaults(
+        self._defaults = defaults if defaults is not None else TurnEngineDefaults(
             model_ref="echo",
             tenant_policy_ref="policy:default",
             permission_mode="strict",

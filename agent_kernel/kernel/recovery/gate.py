@@ -117,7 +117,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
                 dispatch evidence while evaluating recovery context.
 
         """
-        self._planner = planner or RecoveryPlanner()
+        self._planner = planner if planner is not None else RecoveryPlanner()
         self._compensation_registry = compensation_registry
         self._reflection_policy = reflection_policy
         self._reasoning_loop = reasoning_loop

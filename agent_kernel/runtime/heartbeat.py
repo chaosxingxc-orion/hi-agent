@@ -184,7 +184,7 @@ class RunHeartbeatMonitor:
 
     def __init__(self, policy: HeartbeatPolicy | None = None) -> None:
         """Initialize the instance with configured dependencies."""
-        self._policy = policy or HeartbeatPolicy()
+        self._policy = policy if policy is not None else HeartbeatPolicy()
         self._entries: dict[str, _RunHeartbeatEntry] = {}
         self._lock = threading.Lock()
         self._timed_out: set[str] = set()  # runs already signalled; avoid repeat

@@ -52,7 +52,7 @@ class SubprocessScriptRuntime:
             config: Runtime configuration. Uses defaults when omitted.
 
         """
-        self._config = config or SubprocessScriptConfig()
+        self._config = config if config is not None else SubprocessScriptConfig()
 
     async def validate_script(self, script_content: str, host_kind: str) -> bool:
         """Validate that script_content is syntactically valid Python.

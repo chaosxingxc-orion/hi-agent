@@ -55,7 +55,7 @@ class TemporalKernelWorker:
 
         """
         self._client = client
-        self._config = config or TemporalWorkerConfig()
+        self._config = config if config is not None else TemporalWorkerConfig()
         self._dependencies = dependencies
 
     async def run(self) -> None:

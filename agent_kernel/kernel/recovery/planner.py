@@ -153,7 +153,7 @@ class RecoveryPlanner:
                 Uses default if not provided.
 
         """
-        self._policy = policy or PlannerHeuristicPolicy()
+        self._policy = policy if policy is not None else PlannerHeuristicPolicy()
 
     def build_plan(
         self,

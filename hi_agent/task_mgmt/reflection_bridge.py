@@ -75,7 +75,7 @@ class TaskDescriptor:
         object.__setattr__(
             self,
             "restart_policy",
-            restart_policy or TaskRestartPolicy(max_attempts=3),
+            restart_policy if restart_policy is not None else TaskRestartPolicy(max_attempts=3),
         )
 
 

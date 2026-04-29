@@ -426,7 +426,7 @@ class StaticRecoveryGateService(RecoveryGateService):
             policy: Optional recovery policy override. Defaults to abort mode.
 
         """
-        self._policy = policy or StaticRecoveryPolicy()
+        self._policy = policy if policy is not None else StaticRecoveryPolicy()
 
     async def decide(self, recovery_input: RecoveryInput) -> RecoveryDecision:
         """Return policy-driven recovery decision.

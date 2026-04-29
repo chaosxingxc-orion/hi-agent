@@ -321,12 +321,12 @@ class AgentKernelRuntimeBundle:
             log backend.
 
         """
-        resolved_event_log_config = event_log_config or RuntimeEventLogConfig()
-        resolved_dedupe_config = dedupe_config or RuntimeDedupeConfig()
-        resolved_decision_deduper_config = decision_deduper_config or RuntimeDecisionDedupeConfig()
-        resolved_recovery_config = recovery_outcome_config or RuntimeRecoveryOutcomeConfig()
-        resolved_turn_intent_config = turn_intent_log_config or RuntimeTurnIntentLogConfig()
-        resolved_production_safety = production_safety_config or RuntimeProductionSafetyConfig()
+        resolved_event_log_config = event_log_config if event_log_config is not None else RuntimeEventLogConfig()
+        resolved_dedupe_config = dedupe_config if dedupe_config is not None else RuntimeDedupeConfig()
+        resolved_decision_deduper_config = decision_deduper_config if decision_deduper_config is not None else RuntimeDecisionDedupeConfig()
+        resolved_recovery_config = recovery_outcome_config if recovery_outcome_config is not None else RuntimeRecoveryOutcomeConfig()
+        resolved_turn_intent_config = turn_intent_log_config if turn_intent_log_config is not None else RuntimeTurnIntentLogConfig()
+        resolved_production_safety = production_safety_config if production_safety_config is not None else RuntimeProductionSafetyConfig()
         cls._enforce_production_safety(
             production_safety_config=resolved_production_safety,
             event_log_config=resolved_event_log_config,
@@ -371,7 +371,7 @@ class AgentKernelRuntimeBundle:
             deduper=kernel_core["deduper"],
             dedupe_store=kernel_core["dedupe_store"],
             turn_intent_log=kernel_core["turn_intent_log"],
-            strict_mode_config=(strict_mode_config or RuntimeStrictModeConfig()),
+            strict_mode_config=(strict_mode_config if strict_mode_config is not None else RuntimeStrictModeConfig()),
             gateway=boundary["gateway"],
             facade=boundary["facade"],
             runner_adapter=boundary["runner_adapter"],
@@ -531,16 +531,16 @@ class AgentKernelRuntimeBundle:
 
         """
         event_log = AgentKernelRuntimeBundle._build_event_log(
-            event_log_config or RuntimeEventLogConfig(),
+            event_log_config if event_log_config is not None else RuntimeEventLogConfig(),
         )
         dedupe_store = AgentKernelRuntimeBundle._build_dedupe_store(
-            dedupe_config or RuntimeDedupeConfig(),
+            dedupe_config if dedupe_config is not None else RuntimeDedupeConfig(),
         )
         recovery_outcomes = AgentKernelRuntimeBundle._build_recovery_outcomes(
-            recovery_outcome_config or RuntimeRecoveryOutcomeConfig(),
+            recovery_outcome_config if recovery_outcome_config is not None else RuntimeRecoveryOutcomeConfig(),
         )
         turn_intent_log = AgentKernelRuntimeBundle._build_turn_intent_log(
-            turn_intent_log_config or RuntimeTurnIntentLogConfig(),
+            turn_intent_log_config if turn_intent_log_config is not None else RuntimeTurnIntentLogConfig(),
         )
         recovery_planner = RecoveryPlanner()
 
@@ -561,7 +561,7 @@ class AgentKernelRuntimeBundle:
             )
             reflection_builder = ReflectionContextBuilder()
 
-        resolved_deduper_config = decision_deduper_config or RuntimeDecisionDedupeConfig()
+        resolved_deduper_config = decision_deduper_config if decision_deduper_config is not None else RuntimeDecisionDedupeConfig()
         deduper: DecisionDeduper
         if resolved_deduper_config.backend == "sqlite":
             deduper = SQLiteDecisionDeduper(resolved_deduper_config.sqlite_database_path)

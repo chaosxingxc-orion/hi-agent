@@ -45,7 +45,7 @@ async def create_temporal_client(
         RuntimeError: If Temporal Python SDK is not installed.
 
     """
-    active_config = config or TemporalClientConfig()
+    active_config = config if config is not None else TemporalClientConfig()
     ensure_vendored_source()
     try:
         client_module = import_module("temporalio.client")

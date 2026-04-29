@@ -1356,7 +1356,7 @@ def _resolve_run_actor_dependencies(
             recovery_outcomes=recovery_outcomes,
             turn_intent_log=turn_intent_log,
             deduper=deduper,
-            strict_mode=strict_mode or RunActorStrictModeConfig(),
+            strict_mode=strict_mode if strict_mode is not None else RunActorStrictModeConfig(),
             workflow_id_prefix="run",
         )
 
@@ -1439,5 +1439,5 @@ def _resolve_run_actor_dependencies(
         recovery_outcomes=None,
         turn_intent_log=turn_intent_log,
         deduper=InMemoryDecisionDeduper(),
-        strict_mode=strict_mode or RunActorStrictModeConfig(),
+        strict_mode=strict_mode if strict_mode is not None else RunActorStrictModeConfig(),
     )

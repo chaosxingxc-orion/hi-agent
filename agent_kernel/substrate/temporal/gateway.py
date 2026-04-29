@@ -97,7 +97,7 @@ class TemporalSDKWorkflowGateway(TemporalWorkflowGateway):
 
         """
         self._client = temporal_client
-        self._config = config or TemporalGatewayConfig()
+        self._config = config if config is not None else TemporalGatewayConfig()
         self._activity_gateway = activity_gateway
 
     async def start_workflow(self, request: StartRunRequest) -> dict[str, str]:
