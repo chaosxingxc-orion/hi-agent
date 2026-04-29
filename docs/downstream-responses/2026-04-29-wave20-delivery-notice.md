@@ -9,7 +9,7 @@ T3 evidence:        DEFERRED — live Volces key required; pending user rotation
 Clean-env evidence: docs/verification/be64d73-default-offline-clean-env.json (8725 passed, 0 failed)
 Current verified readiness: 72.0 (cap: T3 deferred; all engineering gates pass)
 Validated by:       scripts/build_release_manifest.py scripts/check_spine_completeness.py scripts/check_async_init_resources.py scripts/check_silent_degradation.py
-Status:             pre-T3 interim
+Status:             draft (T3 pending)
 notice-pre-final-commit: true
 ```
 
