@@ -109,6 +109,11 @@ class TestRunResultContract:
             "fallback_events",
             "llm_fallback_count",
             "finished_at",
+            # Optional spine fields added in W20 CL1 (Rule 12 / scope: process-internal)
+            "tenant_id",
+            "user_id",
+            "session_id",
+            "project_id",
         ]
 
     def test_run_result_string_equality_and_dict_shape_are_locked(self) -> None:
