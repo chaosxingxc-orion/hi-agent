@@ -42,13 +42,13 @@ dimensions:
   - name: linter_quality
     description: "Rule 6/13 governance signal-to-noise: FPs suppressed; remaining sites are real defects"
     weight: 4
-    base_score: 90
+    base_score: 97
     gate_check: rule6_warnings
 
   - name: test_markers
     description: "Integration tests carry correct pytest markers; profile filters are functional"
     weight: 7
-    base_score: 95
+    base_score: 97
     gate_check: wave_tags
 
   - name: governance_readability
