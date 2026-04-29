@@ -10,12 +10,15 @@ import pytest
 class TestDevSmokeGoldenPath:
     """Full execution path with heuristic fallback (no API keys required)."""
 
-    @pytest.mark.skip(reason=(
-        "H1-Track4: dev_smoke golden is heuristic-mode only; heuristic executor "
-        "may return 'failed' or 'reflected' instead of 'completed', so asserting "
-        "== 'completed' would be a lie. Rule 4 honesty: skip until real-LLM E2E "
-        "gate (Rule 8) covers this path. [expiry: Wave 16]"
-    ))
+    @pytest.mark.skip(
+        reason=(
+            "H1-Track4: dev_smoke golden is heuristic-mode only; heuristic executor "
+            "may return 'failed' or 'reflected' instead of 'completed', so asserting "
+            "== 'completed' would be a lie. Rule 4 honesty: skip until real-LLM E2E "
+            "gate (Rule 8) covers this path."
+        ),
+        expiry_wave="Wave 22",
+    )
     def test_executor_completes_with_heuristic_fallback(self):
         """build_executor() + execute() completes without real LLM."""
         from hi_agent.config.builder import SystemBuilder

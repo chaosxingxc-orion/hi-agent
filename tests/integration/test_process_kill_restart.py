@@ -94,6 +94,7 @@ def _kill(proc: subprocess.Popen) -> None:
         "durable RunQueue boot-wiring gap tracked as DF-pending."
     ),
     strict=False,
+    expiry_wave="Wave 22",
 )
 def test_process_kill_restart(tmp_path):
     """E2E: submit a run, kill the process, restart, query the run.
@@ -137,13 +138,14 @@ def test_process_kill_restart(tmp_path):
         )
         run_data = resp2.json()
         assert run_data.get("run_id") == run_id
-        assert run_data.get("state") in (
-            "queued",
-            "running",
-            "completed",
-            "cancelled",
-            "failed",
-        ), f"Unexpected state: {run_data.get('state')}"
+        # Verify the run record is in a valid known state (durability check).
+        # This test only verifies the record was persisted and is retrievable —
+        # it does NOT assert successful completion (that is an E2E gate assertion).
+        _valid_states = {"queued", "running", "completed", "cancelled", "failed"}
+        assert run_data.get("state") in _valid_states, (
+            f"Unexpected state: {run_data.get('state')!r}; "
+            f"must be one of {sorted(_valid_states)}"
+        )
     finally:
         _kill(proc2)
 
