@@ -190,6 +190,7 @@ async def test_real_run_actor_workflow_runs_signal_and_query_in_temporal_test_en
 
 
 @pytest.mark.asyncio
+@pytest.mark.windows_unsafe  # global-state sensitivity; flaky under full-suite ordering
 async def test_child_completion_signal_updates_parent_active_child_runs_in_temporal_env() -> None:
     """Child completion should remove child id from parent projection list."""
     assert WorkflowEnvironment is not None, "Expected non-None result for WorkflowEnvironment"

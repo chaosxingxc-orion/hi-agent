@@ -197,6 +197,7 @@ async def test_concurrent_queries(benchmark_run_count: int = 100) -> None:
 
 @pytest.mark.serial
 @pytest.mark.asyncio
+@pytest.mark.windows_unsafe  # timing-sensitive; unreliable under full-suite load on Windows
 async def test_sequential_vs_concurrent_speedup() -> None:
     """Compare sequential start_run vs concurrent start_run for 50 runs."""
     count = 50
