@@ -9,6 +9,33 @@
 #   seven_by_twenty_four_operational_readiness — 7×24 production tier
 #   architecture_readiness — code/architecture maturity
 #   (all: applies to all tiers)
+#
+# ── Architectural-constraint gates and double-count prevention ─────────────
+#
+# Three gates represent 7×24 *architectural* constraints, not engineering
+# defects.  They are deferred by design until the platform reaches continuous
+# operational status.  Their caps are therefore scoped ONLY to
+# seven_by_twenty_four_operational_readiness so that their deferred status
+# never penalises current_verified_readiness:
+#
+#   Gate key                        | Condition                  | 7×24 cap
+#   --------------------------------|----------------------------|----------
+#   soak_evidence                   | soak_24h_missing           | 65
+#   observability_spine_completeness| observability_spine_incom… | 70
+#   chaos_runtime_coupling          | chaos_non_runtime_coupled  | 72
+#
+# Without additional protection, the generic `gate_warn` / `gate_fail` /
+# `gate_missing` conditions would scan ALL gate statuses and re-apply a cap
+# (80, 70, 70 respectively) to current_verified_readiness whenever any of
+# these architectural gates is in a deferred/warn/fail state — double-counting
+# the architectural deferral as an engineering defect.
+#
+# Protection: build_release_manifest.py defines _ARCH_CONSTRAINT_GATES and
+# excludes those keys from the gate_warn/gate_fail/gate_missing/provenance
+# scans when tier == "current_verified_readiness".  This file's scope
+# restrictions and that runtime filter together ensure a single point of
+# control with no double-counting.
+# ──────────────────────────────────────────────────────────────────────────
 schema_version: "2"
 
 cap_rules:
