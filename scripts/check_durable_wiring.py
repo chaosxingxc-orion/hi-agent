@@ -96,6 +96,7 @@ def _runtime_probe() -> dict[str, Any]:
             sequence=0,
             event_type="probe",
             payload_json="{}",
+            tenant_id="probe-tenant",
         )
         store.append(event)
         events = store.list_since("probe-run", -1)
@@ -152,8 +153,8 @@ def main() -> int:
     for path, cls_name in sqlite_classes:
         if not check_wired_in_app(cls_name):
             errors.append(
-                f"  {path.relative_to(ROOT)}::{cls_name} 鈥?not wired in app.py/_durable_backends.py"
-                " (add construction or '# scope: process-internal')"
+                f"  {path.relative_to(ROOT)}::{cls_name} -- not wired in"
+                " app.py/_durable_backends.py (add construction or '# scope: process-internal')"
             )
     dead_knobs = check_posture_knobs_referenced()
     for knob in dead_knobs:
