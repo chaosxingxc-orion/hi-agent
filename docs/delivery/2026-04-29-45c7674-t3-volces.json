@@ -1,0 +1,40 @@
+{
+  "base_url": "http://127.0.0.1:8080",
+  "cancel_known": {},
+  "cancel_unknown": {},
+  "command": [
+    "C:\\Python314\\python.exe",
+    "D:\\chao_workspace\\hi-agent\\scripts\\run_t3_gate.py",
+    "--output",
+    "docs\\delivery\\2026-04-29-45c7674-t3-volces.json",
+    "--profile-id",
+    "t3_gate",
+    "--provider",
+    "volces",
+    "--port",
+    "8080"
+  ],
+  "dirty_during_run": false,
+  "error": "timed out waiting for run 12eb6356-cee5-45d8-a09c-3f4938e29083 to reach terminal state",
+  "finished_at": "2026-04-29T03:08:46.930284+00:00",
+  "mode": "spawned",
+  "profile_id": "t3_gate",
+  "provenance": "structural",
+  "provider": "volces",
+  "ready": {},
+  "runs": [],
+  "server_command": [
+    "C:\\Python314\\python.exe",
+    "-m",
+    "hi_agent",
+    "serve",
+    "--port",
+    "8080"
+  ],
+  "server_pid": 89404,
+  "started_at": "2026-04-29T03:05:45.385201+00:00",
+  "status": "failed",
+  "total_duration_s": 0.0,
+  "verified_at": "2026-04-29T03:05:45.138380+00:00",
+  "verified_head": "45c76745878d99498817b279bfd55acc33156a19"
+}
