@@ -304,6 +304,7 @@ async def handle_ready(request: Request) -> JSONResponse:
         snapshot = dict(snapshot, auth_posture="unknown")
 
     # Augment snapshot with fine-grained readiness flags.
+    _draining = getattr(server, "_draining", False)
     try:
         _subsystem_ready = bool(snapshot.get("ready", False))
         _draining = getattr(server, "_draining", False)
@@ -322,6 +323,11 @@ async def handle_ready(request: Request) -> JSONResponse:
         )
     except Exception:
         pass
+
+    # Draining supersedes all other readiness: return 503 immediately so
+    # load-balancers stop routing new traffic to this instance.
+    if _draining:
+        return JSONResponse({"status": "draining", "ready": False}, status_code=503)
 
     status_code = 200 if snapshot.get("ready") else 503
     return JSONResponse(snapshot, status_code=status_code)
@@ -1480,6 +1486,11 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # to all downstream handlers including AuthMiddleware and route handlers.
     from hi_agent.observability.http_middleware import TraceIdMiddleware as _TraceIdMW
     app.add_middleware(_TraceIdMW)
+
+    # Drain middleware — rejects mutating requests when server is draining.
+    # Added after TraceIdMiddleware so it runs inside the trace-id wrapper.
+    from hi_agent.server.middleware_drain import DrainMiddleware
+    app.add_middleware(DrainMiddleware)
 
     # Attach agent server reference so handlers can access it.
     app.state.agent_server = agent_server
