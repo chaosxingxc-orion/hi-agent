@@ -178,6 +178,9 @@ jobs:
       - name: Manifest rewrite budget (W17-B19)
         run: python scripts/check_manifest_rewrite_budget.py --json
 
+      - name: Doc freshness + response sibling (W19-E4)
+        run: python scripts/check_doc_truth.py --json
+
       # --- Release manifest ---
 
       - name: Build release manifest
