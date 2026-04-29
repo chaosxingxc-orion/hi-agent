@@ -461,6 +461,58 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "gauge",
         "Number of active threads in the current process (threading.active_count()).",
     ),
+    # AX-G: recurrence-ledger TBD-resolved counters (7 governance gate metrics).
+    "hi_agent_clean_env_freshness_failures_total": _MetricDef(
+        "hi_agent_clean_env_freshness_failures_total",
+        "counter",
+        "Counts clean-env freshness gate failures.",
+    ),
+    "hi_agent_observability_spine_structural_total": _MetricDef(
+        "hi_agent_observability_spine_structural_total",
+        "counter",
+        "Counts spine layers with non-real provenance.",
+    ),
+    "hi_agent_chaos_not_runtime_coupled_total": _MetricDef(
+        "hi_agent_chaos_not_runtime_coupled_total",
+        "counter",
+        "Counts chaos scenarios not runtime-coupled.",
+    ),
+    "hi_agent_score_cap_overstatement_total": _MetricDef(
+        "hi_agent_score_cap_overstatement_total",
+        "counter",
+        "Counts score cap overstatement events.",
+    ),
+    "hi_agent_missing_owner_tag_total": _MetricDef(
+        "hi_agent_missing_owner_tag_total",
+        "counter",
+        "Counts commits missing owner track tag.",
+    ),
+    "hi_agent_cross_tenant_allowlist_expiry_total": _MetricDef(
+        "hi_agent_cross_tenant_allowlist_expiry_total",
+        "counter",
+        "Counts expiring cross-tenant allowlist entries.",
+    ),
+    "hi_agent_test_theatre_detected_total": _MetricDef(
+        "hi_agent_test_theatre_detected_total",
+        "counter",
+        "Counts test-theatre patterns detected by CI.",
+    ),
+    # AX-G: orphan-resolved counters (3 metrics referenced in ledger but not in _METRIC_DEFS).
+    "hi_agent_manifest_freshness_violations_total": _MetricDef(
+        "hi_agent_manifest_freshness_violations_total",
+        "counter",
+        "Counts manifest freshness violations.",
+    ),
+    "hi_agent_soak_evidence_age_hours": _MetricDef(
+        "hi_agent_soak_evidence_age_hours",
+        "gauge",
+        "Age in hours of most recent soak evidence.",
+    ),
+    "hi_agent_release_gate_continue_on_error_total": _MetricDef(
+        "hi_agent_release_gate_continue_on_error_total",
+        "counter",
+        "Counts release gate steps that used continue-on-error.",
+    ),
 }
 
 # Maximum samples retained for histogram-like metrics.
