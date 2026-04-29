@@ -55,6 +55,19 @@ RELEASES_DIR = ROOT / "docs" / "releases"
 WEIGHTS_FILE = ROOT / "docs" / "scorecard_weights.yaml"
 CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 
+# Architectural-constraint gates -- they represent 7x24 operational readiness
+# requirements that are deferred by design, NOT engineering defects.  These
+# gates must NEVER contribute a cap factor to current_verified_readiness;
+# their caps are scoped exclusively to seven_by_twenty_four_operational_readiness
+# in score_caps.yaml.  Excluding them here prevents double-counting when
+# gate_warn/gate_fail/gate_missing scan all gate statuses without per-gate
+# scope awareness.
+_ARCH_CONSTRAINT_GATES: frozenset[str] = frozenset({
+    "soak_evidence",
+    "observability_spine_completeness",
+    "chaos_runtime_coupling",
+})
+
 # (script_name, supports_json_flag, extra_args)
 # Scripts without --json are run normally; gate status = pass/fail from exit code.
 # extra_args: additional CLI args passed to the script (before --json).
@@ -320,8 +333,22 @@ def _compute_cap(
         t3_gate_val.get("status", "unknown") if isinstance(t3_gate_val, dict) else "unknown"
     )
 
-    def _condition_matches(condition: str) -> str | None:
-        """Return a human-readable factor string if the condition is true, else None."""
+    def _condition_matches(condition: str, _tier: str = tier) -> str | None:
+        """Return a human-readable factor string if the condition is true, else None.
+
+        _tier is passed through so that gate_warn / gate_fail / gate_missing
+        can exclude _ARCH_CONSTRAINT_GATES when computing caps for
+        current_verified_readiness.  Architectural gates (soak, spine, chaos)
+        represent 7x24 operational constraints -- they must never contribute
+        a cap factor to the engineering-readiness tier.
+        """
+        # When computing engineering-readiness caps, ignore architectural gates
+        # so that their deferred status does not double-count into verified score.
+        _exclude_arch = (
+            _ARCH_CONSTRAINT_GATES
+            if _tier == "current_verified_readiness"
+            else frozenset()
+        )
         if condition == "head_mismatch":
             head_proc = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
@@ -351,7 +378,10 @@ def _compute_cap(
         if condition == "dirty_worktree":
             return "dirty_worktree" if is_dirty else None
         if condition == "gate_fail":
-            failing = [k for k, s in statuses.items() if s == "fail"]
+            failing = [
+                k for k, s in statuses.items()
+                if s == "fail" and k not in _exclude_arch
+            ]
             return f"gate_fail: {', '.join(failing)}" if failing else None
         if condition == "expired_allowlist":
             return f"expired_allowlist_count={expired_allowlist}" if expired_allowlist > 0 else None
@@ -373,16 +403,36 @@ def _compute_cap(
                 return "verification_stale"
             return None
         if condition == "gate_missing":
-            missing = [k for k, s in statuses.items() if s == "missing"]
+            missing = [
+                k for k, s in statuses.items()
+                if s == "missing" and k not in _exclude_arch
+            ]
             return f"gate_missing: {', '.join(missing)}" if missing else None
         if condition == "gate_warn":
-            degraded = [k for k, s in statuses.items() if s in ("warn", "deferred")]
+            degraded = [
+                k for k, s in statuses.items()
+                if s in ("warn", "deferred") and k not in _exclude_arch
+            ]
             return f"gate_warn/deferred: {', '.join(degraded)}" if degraded else None
         if condition == "provenance_unknown_or_synthetic":
+            # Filename fragments that identify evidence files belonging to
+            # architectural-constraint gates.  When _tier is
+            # current_verified_readiness those files are excluded from the
+            # provenance scan, mirroring the gate_warn/gate_fail/gate_missing
+            # exclusion of _ARCH_CONSTRAINT_GATES.
+            _arch_file_fragments: tuple[str, ...] = (
+                "soak",
+                "observability-spine",
+                "chaos",
+            ) if _exclude_arch else ()
             for evidence_dir in (ROOT / "docs" / "verification", ROOT / "docs" / "delivery"):
                 if not evidence_dir.exists():
                     continue
                 for json_file in evidence_dir.rglob("*.json"):
+                    if _arch_file_fragments and any(
+                        frag in json_file.name for frag in _arch_file_fragments
+                    ):
+                        continue
                     try:
                         payload = json.loads(json_file.read_text(encoding="utf-8"))
                     except Exception:
