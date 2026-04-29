@@ -39,12 +39,12 @@ def _benign_event() -> EventEnvelope:
 class TestRegisterAndInvokeHandler:
     def test_handler_is_called_with_plan_and_events(self):
         events = [_action_failed_event("s1")]
-        handler = MagicMock(return_value="handled")
+        mock_handler = MagicMock(return_value="handled")
 
-        report = execute_compensation(events, handlers={"retry_failed_actions": handler})
+        report = execute_compensation(events, handlers={"retry_failed_actions": mock_handler})
 
-        handler.assert_called_once()
-        plan_arg, events_arg = handler.call_args[0]
+        mock_handler.assert_called_once()
+        plan_arg, events_arg = mock_handler.call_args[0]
         assert isinstance(plan_arg, CompensationPlan)
         assert isinstance(events_arg, tuple)
         assert report.succeeded_actions == ["retry_failed_actions"]
@@ -52,9 +52,9 @@ class TestRegisterAndInvokeHandler:
 
     def test_handler_return_value_captured_in_result(self):
         events = [_action_failed_event()]
-        handler = MagicMock(return_value={"retried": True})
+        mock_handler = MagicMock(return_value={"retried": True})
 
-        report = execute_compensation(events, handlers={"retry_failed_actions": handler})
+        report = execute_compensation(events, handlers={"retry_failed_actions": mock_handler})
 
         assert report.results[0].output == {"retried": True}
         assert report.results[0].status == "success"
@@ -231,16 +231,16 @@ class TestConcurrentCompensationSafety:
             except Exception as exc:
                 errors.append(exc)
 
-        handler_a = MagicMock(return_value="a")
-        handler_b = MagicMock(return_value="b")
+        mock_handler_a = MagicMock(return_value="a")
+        mock_handler_b = MagicMock(return_value="b")
 
         t1 = threading.Thread(
             target=run,
-            args=("a", events_a, {"retry_failed_actions": handler_a}),
+            args=("a", events_a, {"retry_failed_actions": mock_handler_a}),
         )
         t2 = threading.Thread(
             target=run,
-            args=("b", events_b, {"escalate_to_human": handler_b}),
+            args=("b", events_b, {"escalate_to_human": mock_handler_b}),
         )
 
         t1.start()

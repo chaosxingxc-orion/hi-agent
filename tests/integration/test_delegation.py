@@ -29,12 +29,13 @@ from hi_agent.task_mgmt.delegation import (
 
 
 def _make_kernel(lifecycle_states: list[str], output: str | None = None) -> MagicMock:
-    """Build a mock kernel whose query_run cycles through *lifecycle_states*.
+    """Build a mock kernel dependency whose query_run cycles through *lifecycle_states*.
 
     The last state is returned for all subsequent calls once the list is
-    exhausted.
+    exhausted.  This is a mock of the *kernel dependency* injected into
+    ChildRunPoller/DelegationManager (SUT), not a mock of the SUT itself.
     """
-    kernel = MagicMock()
+    mock_kernel = MagicMock()
     responses = [
         {
             "lifecycle_state": s,
@@ -52,8 +53,8 @@ def _make_kernel(lifecycle_states: list[str], output: str | None = None) -> Magi
         except StopIteration:
             return last
 
-    kernel.query_run.side_effect = _query_run
-    return kernel
+    mock_kernel.query_run.side_effect = _query_run
+    return mock_kernel
 
 
 # ---------------------------------------------------------------------------
@@ -64,22 +65,22 @@ def _make_kernel(lifecycle_states: list[str], output: str | None = None) -> Magi
 @pytest.mark.asyncio
 async def test_child_run_poller_completes() -> None:
     """Poller should exit as soon as lifecycle_state becomes 'completed'."""
-    kernel = _make_kernel(["running", "running", "completed"], output="done!")
-    poller = ChildRunPoller(kernel, poll_interval=0.01)
+    mock_kernel = _make_kernel(["running", "running", "completed"], output="done!")
+    poller = ChildRunPoller(mock_kernel, poll_interval=0.01)
 
     status, raw = await poller.wait_for_completion("child-1", timeout=5.0)
 
     assert status == "completed"
     assert raw == "done!"
     # query_run must have been called at least twice (running x 2, completed)
-    assert kernel.query_run.call_count >= 2
+    assert mock_kernel.query_run.call_count >= 2
 
 
 @pytest.mark.asyncio
 async def test_child_run_poller_timeout() -> None:
     """Poller should return ('timeout', None) when the run never terminates."""
-    kernel = _make_kernel(["running"] * 100)
-    poller = ChildRunPoller(kernel, poll_interval=0.01)
+    mock_kernel = _make_kernel(["running"] * 100)
+    poller = ChildRunPoller(mock_kernel, poll_interval=0.01)
 
     status, raw = await poller.wait_for_completion("child-2", timeout=0.05)
 
@@ -151,9 +152,9 @@ async def test_delegation_manager_single_request() -> None:
     """End-to-end: single request is spawned, polled, summarised, and returned."""
     from hi_agent.llm.protocol import LLMResponse, TokenUsage
 
-    kernel = MagicMock()
-    kernel.spawn_child_run_async = AsyncMock(return_value="child-run-001")
-    kernel.query_run.return_value = {"lifecycle_state": "completed", "output": "task done"}
+    mock_kernel = MagicMock()
+    mock_kernel.spawn_child_run_async = AsyncMock(return_value="child-run-001")
+    mock_kernel.query_run.return_value = {"lifecycle_state": "completed", "output": "task done"}
 
     llm = AsyncMock()
     llm.complete.return_value = LLMResponse(
@@ -163,7 +164,7 @@ async def test_delegation_manager_single_request() -> None:
     )
 
     config = DelegationConfig(max_concurrent=2, poll_interval_seconds=0.01)
-    manager = DelegationManager(kernel=kernel, config=config, llm=llm)
+    manager = DelegationManager(kernel=mock_kernel, config=config, llm=llm)
 
     req = DelegationRequest(goal="Analyse data", task_id="t-001", timeout_seconds=5.0)
     results = await manager.delegate([req], parent_run_id="parent-run-001")
@@ -174,7 +175,7 @@ async def test_delegation_manager_single_request() -> None:
     assert result.status == "completed"
     assert result.request is req
     assert isinstance(result.duration_seconds, float)
-    kernel.spawn_child_run_async.assert_awaited_once_with(
+    mock_kernel.spawn_child_run_async.assert_awaited_once_with(
         "parent-run-001", "t-001", config={"budget_fraction": 0.25, "max_turns": 20}
     )
 
@@ -192,13 +193,13 @@ async def test_delegation_manager_concurrency_limit() -> None:
         active[0] -= 1
         return f"child-{task_id}"
 
-    kernel = MagicMock()
-    kernel.spawn_child_run_async = fake_spawn
+    mock_kernel = MagicMock()
+    mock_kernel.spawn_child_run_async = fake_spawn
     # All spawned children complete immediately on first poll.
-    kernel.query_run.return_value = {"lifecycle_state": "completed", "output": None}
+    mock_kernel.query_run.return_value = {"lifecycle_state": "completed", "output": None}
 
     config = DelegationConfig(max_concurrent=2, poll_interval_seconds=0.01)
-    manager = DelegationManager(kernel=kernel, config=config, llm=None)
+    manager = DelegationManager(kernel=mock_kernel, config=config, llm=None)
 
     requests = [
         DelegationRequest(goal=f"Task {i}", task_id=f"t-{i}", timeout_seconds=5.0) for i in range(5)
@@ -213,11 +214,11 @@ async def test_delegation_manager_concurrency_limit() -> None:
 @pytest.mark.asyncio
 async def test_delegation_manager_handles_exception() -> None:
     """When spawn raises, the result should carry status='failed' with error text."""
-    kernel = MagicMock()
-    kernel.spawn_child_run_async = AsyncMock(side_effect=RuntimeError("kernel unavailable"))
+    mock_kernel = MagicMock()
+    mock_kernel.spawn_child_run_async = AsyncMock(side_effect=RuntimeError("kernel unavailable"))
 
     config = DelegationConfig(max_concurrent=1, poll_interval_seconds=0.01)
-    manager = DelegationManager(kernel=kernel, config=config, llm=None)
+    manager = DelegationManager(kernel=mock_kernel, config=config, llm=None)
 
     req = DelegationRequest(goal="Failing task", task_id="t-fail", timeout_seconds=5.0)
     results = await manager.delegate([req], parent_run_id="parent-run-Y")
@@ -232,15 +233,15 @@ async def test_delegation_manager_handles_exception() -> None:
 @pytest.mark.asyncio
 async def test_delegation_manager_gather_exception_wrapping() -> None:
     """Exceptions raised inside _delegate_one are captured, not propagated."""
-    kernel = MagicMock()
+    mock_kernel = MagicMock()
 
     async def bad_spawn(*args, **kwargs):
         raise ValueError("unexpected error")
 
-    kernel.spawn_child_run_async = bad_spawn
+    mock_kernel.spawn_child_run_async = bad_spawn
 
     config = DelegationConfig(max_concurrent=3, poll_interval_seconds=0.01)
-    manager = DelegationManager(kernel=kernel, config=config, llm=None)
+    manager = DelegationManager(kernel=mock_kernel, config=config, llm=None)
 
     requests = [
         DelegationRequest(goal="Task A", task_id="a", timeout_seconds=5.0),

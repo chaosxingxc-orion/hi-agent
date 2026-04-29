@@ -91,16 +91,16 @@ async def test_503_gateway_exhausts_retries_raises_failover_error() -> None:
     pool = _make_pool()
     policy = _make_policy_no_delay(max_retries=2)
 
-    # Gateway mock: always raises HTTP 503.
-    always_503_gateway = AsyncMock()
-    always_503_gateway.complete = AsyncMock(side_effect=_make_503_error())
+    # Mock gateway dependency: always raises HTTP 503.
+    mock_always_503_gateway = AsyncMock()
+    mock_always_503_gateway.complete = AsyncMock(side_effect=_make_503_error())
 
     call_count = 0
 
     def _factory(api_key: str):  # expiry_wave: Wave 18
         nonlocal call_count
         call_count += 1
-        return always_503_gateway
+        return mock_always_503_gateway
 
     chain = FailoverChain(gateway_factory=_factory, pool=pool, policy=policy)
 

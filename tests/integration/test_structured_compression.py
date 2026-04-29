@@ -65,16 +65,20 @@ def _sample_summary(
 
 
 def _mock_llm_gateway(response_content: str) -> MagicMock:
-    """Create a mock AsyncLLMGateway that returns the given content."""
-    gateway = MagicMock()
-    gateway.complete = AsyncMock(
+    """Create a mock LLM gateway dependency that returns the given content.
+
+    This is a mock of the *injected LLM dependency*, not the SUT
+    (StructuredCompressor).
+    """
+    mock_gateway = MagicMock()
+    mock_gateway.complete = AsyncMock(
         return_value=LLMResponse(
             content=response_content,
             model="mock-light",
             usage=TokenUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
         )
     )
-    return gateway
+    return mock_gateway
 
 
 # ---------------------------------------------------------------------------
@@ -477,10 +481,10 @@ def test_parse_llm_response_invalid_json_fallback():
 @pytest.mark.asyncio
 async def test_structured_compressor_llm_exception_uses_fallback():
     """When LLM raises an exception, compress() returns a fallback summary."""
-    gateway = MagicMock()
-    gateway.complete = AsyncMock(side_effect=RuntimeError("Network error"))
+    mock_gateway = MagicMock()
+    mock_gateway.complete = AsyncMock(side_effect=RuntimeError("Network error"))
     config = StructuredCompressorConfig(head_count=1, tail_token_budget=50)
-    compressor = StructuredCompressor(llm=gateway, config=config)
+    compressor = StructuredCompressor(llm=mock_gateway, config=config)
 
     messages = _make_mixed_messages(8)
     # Should not raise
