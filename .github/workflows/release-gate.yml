@@ -236,6 +236,11 @@ jobs:
         run: python scripts/check_evidence_identity.py --json
         continue-on-error: true  # not_applicable until T3 reruns
 
+      # --- W22 new gates ---
+
+      - name: Score artifact self-consistency (W22-A10)
+        run: python scripts/check_score_artifact_consistency.py --json
+
       # --- Release manifest ---
 
       - name: Build release manifest
