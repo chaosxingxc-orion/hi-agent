@@ -6,7 +6,10 @@ from hi_agent.server.team_run_registry import TeamRunRegistry
 
 
 def _make_team_run():
-    return TeamRun(team_id="t1", pi_run_id="r1", project_id="p1", member_runs=(), created_at="now")
+    return TeamRun(
+        team_id="t1", pi_run_id="r1", project_id="p1", tenant_id="test-tenant",
+        member_runs=(), created_at="now",
+    )
 
 
 def test_set_status_updates_db(tmp_path):

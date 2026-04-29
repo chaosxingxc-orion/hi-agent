@@ -128,6 +128,7 @@ class TestHandleCreateRun:
         fake_managed = ManagedRun(
             run_id="run-abc",
             task_contract={"goal": "do something"},
+            tenant_id="test-tenant",
             outcome="created",
         )
         server.run_manager.create_run.return_value = fake_managed

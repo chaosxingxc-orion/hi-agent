@@ -9,6 +9,7 @@ from hi_agent.execution.run_finalizer import RunFinalizer, RunFinalizerContext
 def make_ctx(**overrides):
     defaults = {
         "run_id": "test-run",
+        "tenant_id": "test-tenant",
         "contract": MagicMock(task_id="t1", acceptance_criteria=[], goal="test"),
         "raw_memory": None,
         "mid_term_store": None,

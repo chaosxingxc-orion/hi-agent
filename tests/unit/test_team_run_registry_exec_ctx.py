@@ -24,6 +24,7 @@ def _make_team_run(**kwargs) -> TeamRun:
         "team_id": "team-001",
         "pi_run_id": "pi-run-001",
         "project_id": "proj-001",
+        "tenant_id": "test-tenant",
         "member_runs": (),
     }
     defaults.update(kwargs)
