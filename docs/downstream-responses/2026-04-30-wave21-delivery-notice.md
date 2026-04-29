@@ -1,5 +1,6 @@
 # Wave 21 — Class-Axis Defect Closure (AX-A through AX-G): Final Notice
 
+Status: superseded (W22 delivery notice replaces this as the current readiness record)
 Manifest: 2026-04-29-eb69e6f
 
 ## Delivery Notice

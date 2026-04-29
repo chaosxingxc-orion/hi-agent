@@ -96,7 +96,7 @@ def transition(
         ValueError: If the transition is not in the legal state graph.
         AttributeError: If *run* has no ``.state`` attribute.
     """
-    current_state = run.state  # type: ignore[attr-defined]
+    current_state = run.state  # type: ignore[attr-defined]  # expiry_wave: Wave 23
 
     # Idempotent: same-state transition is a no-op — not an error.
     if current_state == target_state:
@@ -130,7 +130,7 @@ def transition(
         reason,
         idempotent_token,
     )
-    run.state = target_state  # type: ignore[attr-defined]
+    run.state = target_state  # type: ignore[attr-defined]  # expiry_wave: Wave 23
 
 
 def is_terminal(state: str) -> bool:
