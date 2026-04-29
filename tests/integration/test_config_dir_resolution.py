@@ -227,7 +227,7 @@ def test_non_strict_project_id_returns_warning_header(monkeypatch: pytest.Monkey
     client = _make_client()
 
     resp = _post_run(client, {"goal": "test goal"})
-    assert resp.status_code in (201, 503), f"Unexpected status: {resp.status_code}"
+    assert resp.status_code == 201, f"Expected 201, got {resp.status_code}"
     assert resp.headers.get("X-Hi-Agent-Warning") == "project_id-missing", (
         f"Expected X-Hi-Agent-Warning: project_id-missing header, got: {dict(resp.headers)}"
     )
@@ -241,6 +241,6 @@ def test_non_strict_profile_id_uses_default_fallback(monkeypatch: pytest.MonkeyP
 
     resp = _post_run(client, {"goal": "test goal", "project_id": "proj-123"})
     # Must not return 400 — the fallback path should be followed.
-    assert resp.status_code in (201, 503), (
-        f"Expected 201/503 (fallback), got {resp.status_code}: {resp.text}"
+    assert resp.status_code == 201, (
+        f"Expected 201 (fallback), got {resp.status_code}: {resp.text}"
     )

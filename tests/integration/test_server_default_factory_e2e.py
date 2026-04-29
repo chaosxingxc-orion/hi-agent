@@ -24,6 +24,8 @@ import pytest
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
 
+from tests._helpers.run_states import SUCCESS_STATES
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -37,7 +39,8 @@ def _wait_terminal(
     poll_interval: float = 0.1,
 ) -> dict[str, Any]:
     """Poll GET /runs/{run_id} until terminal state, then return the run dict."""
-    terminal = {"completed", "failed", "aborted"}
+    from tests._helpers.run_states import TERMINAL_STATES
+    terminal = TERMINAL_STATES
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         resp = client.get(f"/runs/{run_id}")
@@ -254,7 +257,7 @@ def test_sdf04_readiness_uses_real_builder(dev_client: TestClient, dev_server: A
     match the live builder — not a fresh default snapshot.
     """
     resp = dev_client.get("/ready")
-    assert resp.status_code in (200, 503)
+    assert resp.status_code == 200, f"/ready returned {resp.status_code}"
     body = resp.json()
 
     assert "ready" in body

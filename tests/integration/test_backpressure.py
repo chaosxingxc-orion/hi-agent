@@ -172,7 +172,7 @@ def test_ready_flags_when_queue_saturated(_saturated_app):
     with TestClient(_saturated_app, raise_server_exceptions=False) as client:
         resp = client.get("/ready")
 
-    assert resp.status_code in (200, 503)
+    assert resp.status_code == 200, f"Backpressure endpoint returned {resp.status_code}"
     body = resp.json()
     # Backward-compat: top-level 'ready' key must be present.
     assert "ready" in body, "backward-compat: 'ready' key missing from /ready response"

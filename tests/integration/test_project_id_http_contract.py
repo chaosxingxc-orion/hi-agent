@@ -71,7 +71,7 @@ def test_missing_project_id_returns_warning_header(
     """Dev posture: missing project_id must set X-Hi-Agent-Warning: project_id-missing."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     resp = _post_run(client, {"goal": "test goal"})
-    assert resp.status_code in (201, 503), f"Unexpected status: {resp.status_code}"
+    assert resp.status_code == 201, f"Expected 201, got {resp.status_code}"
     assert resp.headers.get("X-Hi-Agent-Warning") == "project_id-missing", (
         f"Expected X-Hi-Agent-Warning: project_id-missing, got headers: {dict(resp.headers)}"
     )
@@ -83,7 +83,7 @@ def test_with_project_id_no_warning_header(
     """POST /runs with project_id must NOT set X-Hi-Agent-Warning."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     resp = _post_run(client, {"goal": "test goal", "project_id": "proj-123"})
-    assert resp.status_code in (201, 503), f"Unexpected status: {resp.status_code}"
+    assert resp.status_code == 201, f"Expected 201, got {resp.status_code}"
     assert "X-Hi-Agent-Warning" not in resp.headers, (
         f"X-Hi-Agent-Warning should be absent when project_id provided, "
         f"got headers: {dict(resp.headers)}"

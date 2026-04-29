@@ -80,7 +80,7 @@ def test_dev_posture_allows_missing_project_id(monkeypatch: pytest.MonkeyPatch) 
     client = _make_client()
 
     resp = _post_run(client, {"goal": "test goal"})
-    assert resp.status_code in (201, 503), (
+    assert resp.status_code == 201, (
         f"Dev posture should allow missing project_id; got {resp.status_code}"
     )
     assert resp.headers.get("X-Hi-Agent-Warning") == "project_id-missing", (
@@ -153,7 +153,7 @@ def test_dev_posture_allows_missing_profile_id(monkeypatch: pytest.MonkeyPatch) 
     client = _make_client()
 
     resp = _post_run(client, {"goal": "test goal", "project_id": "proj-123"})
-    assert resp.status_code in (201, 503), (
+    assert resp.status_code == 201, (
         f"Dev posture should allow missing profile_id; got {resp.status_code}"
     )
 

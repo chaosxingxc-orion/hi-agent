@@ -97,7 +97,9 @@ class TestManifestAndHealth:
         """Verifies health readiness."""
         resp = asyncio.run(client.get("/health/readiness"))
         # Without a health_probe, returns minimal static response.
-        assert resp.status_code in (200, 503)
+        if resp.status_code == 503:
+            pytest.fail(f"503 from /health/readiness — investigate server startup failure")
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------

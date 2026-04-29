@@ -28,6 +28,21 @@ TARGETED_TESTS = [
     "tests/integration/test_backpressure.py",
     "tests/integration/test_graceful_drain.py",
     "tests/unit/test_metrics_catalogue_complete.py",
+    # AX-C C2+C5: real-execution tests appended
+    "tests/integration/test_run_idempotency.py",
+    "tests/integration/test_run_lifecycle_finished_at.py",
+    "tests/integration/test_run_cancellation.py",
+    "tests/integration/test_run_session.py",
+    "tests/integration/test_runs_http_provenance.py",
+    "tests/integration/test_manifest_endpoint.py",
+    "tests/integration/test_diagnostics_endpoint.py",
+    "tests/integration/test_doctor_http.py",
+    "tests/integration/test_release_gate_v1.py",
+    "tests/integration/test_ops_routes_http.py",
+    "tests/integration/test_workspace_isolation.py",
+    "tests/integration/test_prometheus_metrics_e2e.py",
+    "tests/integration/test_tenant_scope_universal.py",
+    "tests/integration/test_ops_endpoints_under_load.py",
 ]
 
 

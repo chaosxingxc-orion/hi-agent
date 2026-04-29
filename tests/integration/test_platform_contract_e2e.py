@@ -32,6 +32,7 @@ from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
 
+from tests._helpers.run_states import SUCCESS_STATES, TERMINAL_STATES
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------
@@ -75,7 +76,7 @@ def _wait_terminal(
     timeout: float = 10.0,
     poll_interval: float = 0.05,
 ) -> dict[str, Any]:
-    terminal = {"completed", "failed", "aborted"}
+    terminal = TERMINAL_STATES
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         resp = client.get(f"/runs/{run_id}")
@@ -118,7 +119,7 @@ def test_pc01_readiness_reflects_live_runtime(client: TestClient, server: AgentS
     resp = client.get("/ready")
 
     # Must succeed (kernel + capabilities functional)
-    assert resp.status_code in (200, 503), "Unexpected HTTP status from /ready"
+    assert resp.status_code == 200, f"Unexpected HTTP status from /ready: {resp.status_code}"
     body = resp.json()
 
     # Structural contract: required keys must be present
@@ -493,7 +494,7 @@ def test_pc06_run_state_and_result_status_always_agree() -> None:
         deadline = time.monotonic() + 10.0
         while time.monotonic() < deadline:
             run = manager.get_run(run_id)
-            if run and run.state in ("completed", "failed", "aborted"):
+            if run and run.state in TERMINAL_STATES:
                 break
             time.sleep(0.05)
 
