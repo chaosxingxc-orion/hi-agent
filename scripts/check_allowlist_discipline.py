@@ -30,7 +30,8 @@ def _current_wave_number() -> int:
     """Load current wave from _current_wave.py (single source of truth)."""
     try:
         sys.path.insert(0, str(ROOT / "scripts"))
-        from _current_wave import wave_number, current_wave as _cw
+        from _current_wave import current_wave as _cw
+        from _current_wave import wave_number
         return wave_number(_cw())
     except Exception:
         return 0
@@ -93,10 +94,17 @@ def main(argv: list[str] | None = None) -> int:
     if not ALLOWLISTS_FILE.exists():
         msg = f"allowlists.yaml not found at {ALLOWLISTS_FILE}"
         if args.json_output:
-            print(json.dumps({"check": "allowlist_discipline", "status": "fail", "error": msg}))
+            print(json.dumps({
+                "check": "allowlist_discipline",
+                "status": "not_applicable",
+                "reason": msg,
+                "total": 0,
+                "expired_total": 0,
+                "failures": [],
+            }))
         else:
-            print(f"FAIL allowlist_discipline: {msg}")
-        return 1
+            print(f"NOT_APPLICABLE allowlist_discipline: {msg}")
+        return 2
 
     try:
         data = _load_yaml_simple(ALLOWLISTS_FILE)

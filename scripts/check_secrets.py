@@ -172,7 +172,15 @@ def main() -> int:
             for py_file in sorted(src_dir.rglob("*.py")):
                 check_text_file(py_file)
 
-    status = "pass" if not findings else "fail"
+    # Determine if any source dirs were actually scanned.
+    _src_dirs_present = any(
+        (ROOT / d).exists() for d in ("scripts", "hi_agent", "config")
+    )
+    if not _src_dirs_present and not findings:
+        status = "not_applicable"
+    else:
+        status = "pass" if not findings else "fail"
+
     result = {
         "check": "secret_scan",
         "status": status,
@@ -186,7 +194,9 @@ def main() -> int:
     if args.json:
         print(json.dumps(result, indent=2))
     else:
-        if findings:
+        if status == "not_applicable":
+            print("NOT_APPLICABLE: no source directories found to scan")
+        elif findings:
             print("FAIL: potential secrets found:")
             for f in findings:
                 print(f"  [{f['kind']}] {f['file']}:{f['line']} -- {f['redacted_match']}")
@@ -198,6 +208,8 @@ def main() -> int:
         else:
             print("PASS: no secrets found in tracked files")
 
+    if status == "not_applicable":
+        return 2
     return 0 if status == "pass" else 1
 
 

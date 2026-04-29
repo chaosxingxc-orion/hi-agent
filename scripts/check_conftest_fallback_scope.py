@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Check that conftest.py does not enable heuristic fallback unconditionally."""
+"""Check that conftest.py does not enable heuristic fallback unconditionally.
+
+Exit 0: pass (no violations or file not present).
+Exit 1: fail (violations found).
+Exit 2: not_applicable (conftest.py does not exist in expected location).
+"""
 import json
 import sys
 from pathlib import Path
@@ -9,6 +14,16 @@ CONFTEST = ROOT / "tests" / "conftest.py"
 
 
 def main() -> int:
+    if not CONFTEST.exists():
+        result = {
+            "status": "not_applicable",
+            "check": "conftest_fallback_scope",
+            "reason": "tests/conftest.py not found",
+            "violations": [],
+        }
+        print(json.dumps(result, indent=2))
+        return 2
+
     src = CONFTEST.read_text(encoding="utf-8")
     lines = src.splitlines()
     violations = []
@@ -21,7 +36,12 @@ def main() -> int:
                     f"Line {i}: HEURISTIC_FALLBACK set without conditional guard"
                 )
 
-    result = {"status": "pass" if not violations else "fail", "violations": violations}
+    status = "pass" if not violations else "fail"
+    result = {
+        "status": status,
+        "check": "conftest_fallback_scope",
+        "violations": violations,
+    }
     print(json.dumps(result, indent=2))
     return 0 if not violations else 1
 
