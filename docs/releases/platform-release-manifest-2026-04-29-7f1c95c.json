@@ -1,0 +1,2116 @@
+{
+  "manifest_id": "2026-04-29-7f1c95c",
+  "schema_version": "1",
+  "generated_at": "2026-04-29T02:44:00.206436+00:00",
+  "release_head": "7f1c95c2520893fd36e4f3ffe4ac26fb11d817f4",
+  "git": {
+    "head_sha": "7f1c95c2520893fd36e4f3ffe4ac26fb11d817f4",
+    "short_sha": "7f1c95c",
+    "is_dirty": false
+  },
+  "wave": "19",
+  "wave_source": "cli",
+  "gates": {
+    "layering": {
+      "check": "layering",
+      "status": "pass",
+      "violations": [],
+      "allowlisted": [
+        {
+          "file": "hi_agent/capability/bundles/__init__.py",
+          "line": 32,
+          "module": "examples",
+          "reason": "lazy DeprecationWarning shim for ResearchBundle (examples layer)",
+          "expiry_wave": "Wave 12"
+        }
+      ],
+      "head": "7f1c95c"
+    },
+    "vocab": {
+      "check": "no_research_vocab",
+      "status": "pass",
+      "violations": [],
+      "hard_violations": [],
+      "soft_violations": [],
+      "migration_guide_violations": [],
+      "head": "7f1c95c"
+    },
+    "route_scope": {
+      "check": "route_scope",
+      "status": "pass",
+      "allowlist_total": 34,
+      "allowlist_expired": 0,
+      "expiring_this_wave": 0,
+      "violations": [],
+      "head": "7f1c95c"
+    },
+    "expired_waivers": {
+      "check": "expired_waivers",
+      "status": "pass",
+      "current_wave": "Wave 18",
+      "violations": [],
+      "head": "7f1c95c"
+    },
+    "doc_canonical": {
+      "check": "doc_canonical",
+      "status": "pass",
+      "phantoms": [],
+      "stale": []
+    },
+    "doc_consistency": {
+      "check": "doc_consistency",
+      "status": "fail",
+      "violations": [
+        {
+          "file": "docs\\downstream-responses\\2026-04-29-wave18-delivery-notice.md",
+          "text": "Delivery notice HEAD 58394d6 does not match repo HEAD 7f1c95c2520893fd36e4f3ffe4ac26fb11d817f4. Update the notice or add 'notice-pre-final-commit: true' if this is a pre-final-doc commit."
+        },
+        {
+          "file": "STALE-NOTICE-HEAD",
+          "text": "docs\\downstream-responses\\2026-04-29-wave18-delivery-notice.md declares Functional HEAD 58394d6, current is 7f1c95c25208"
+        },
+        {
+          "file": "docs\\downstream-responses\\2026-04-29-wave18-response.md",
+          "text": "downstream-response newer than latest manifest (or no manifest exists) must contain 'Manifest: <manifest_id>' line"
+        }
+      ],
+      "counts": {
+        "notices_checked": 9
+      },
+      "head": "7f1c95c"
+    },
+    "wave_tags": {
+      "check": "no_wave_tags",
+      "status": "pass",
+      "violations": [],
+      "head": "7f1c95c"
+    },
+    "rule6_warnings": {
+      "check": "rules",
+      "status": "pass",
+      "violations": [],
+      "hard_pass": true,
+      "rule6_warnings": {
+        "count": 24,
+        "sites": [
+          {
+            "file": "hi_agent/task_mgmt/reflection_bridge.py",
+            "line": 78,
+            "text": "restart_policy or TaskRestartPolicy(max_attempts=3),"
+          },
+          {
+            "file": "agent_kernel/kernel/minimal_runtime.py",
+            "line": 429,
+            "text": "self._policy = policy or StaticRecoveryPolicy()"
+          },
+          {
+            "file": "agent_kernel/kernel/turn_engine.py",
+            "line": 460,
+            "text": "self._defaults = defaults or TurnEngineDefaults("
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 324,
+            "text": "resolved_event_log_config = event_log_config or RuntimeEventLogConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 325,
+            "text": "resolved_dedupe_config = dedupe_config or RuntimeDedupeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 326,
+            "text": "resolved_decision_deduper_config = decision_deduper_config or RuntimeDecisionDedupeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 327,
+            "text": "resolved_recovery_config = recovery_outcome_config or RuntimeRecoveryOutcomeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 328,
+            "text": "resolved_turn_intent_config = turn_intent_log_config or RuntimeTurnIntentLogConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 329,
+            "text": "resolved_production_safety = production_safety_config or RuntimeProductionSafetyConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 374,
+            "text": "strict_mode_config=(strict_mode_config or RuntimeStrictModeConfig()),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 534,
+            "text": "event_log_config or RuntimeEventLogConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 537,
+            "text": "dedupe_config or RuntimeDedupeConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 540,
+            "text": "recovery_outcome_config or RuntimeRecoveryOutcomeConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 543,
+            "text": "turn_intent_log_config or RuntimeTurnIntentLogConfig(),"
+          },
+          {
+            "file": "agent_kernel/runtime/bundle.py",
+            "line": 564,
+            "text": "resolved_deduper_config = decision_deduper_config or RuntimeDecisionDedupeConfig()"
+          },
+          {
+            "file": "agent_kernel/runtime/heartbeat.py",
+            "line": 187,
+            "text": "self._policy = policy or HeartbeatPolicy()"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/client.py",
+            "line": 48,
+            "text": "active_config = config or TemporalClientConfig()"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/gateway.py",
+            "line": 100,
+            "text": "self._config = config or TemporalGatewayConfig()"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/run_actor_workflow.py",
+            "line": 1359,
+            "text": "strict_mode=strict_mode or RunActorStrictModeConfig(),"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/run_actor_workflow.py",
+            "line": 1442,
+            "text": "strict_mode=strict_mode or RunActorStrictModeConfig(),"
+          },
+          {
+            "file": "agent_kernel/substrate/temporal/worker.py",
+            "line": 58,
+            "text": "self._config = config or TemporalWorkerConfig()"
+          },
+          {
+            "file": "agent_kernel/kernel/cognitive/script_runtime_subprocess.py",
+            "line": 55,
+            "text": "self._config = config or SubprocessScriptConfig()"
+          },
+          {
+            "file": "agent_kernel/kernel/recovery/gate.py",
+            "line": 120,
+            "text": "self._planner = planner or RecoveryPlanner()"
+          },
+          {
+            "file": "agent_kernel/kernel/recovery/planner.py",
+            "line": 156,
+            "text": "self._policy = policy or PlannerHeuristicPolicy()"
+          }
+        ]
+      },
+      "rule13_warnings": {
+        "count": 0,
+        "sites": []
+      },
+      "head": "7f1c95c"
+    },
+    "t3_freshness": {
+      "check": "t3_freshness",
+      "status": "fail",
+      "verified_head": "9ed019cf7d841955b7ce863ab0c13bfd7f587e76",
+      "hot_path_changes": [
+        "hi_agent/llm/http_gateway.py",
+        "hi_agent/llm/streaming.py",
+        "hi_agent/memory/compressor.py",
+        "hi_agent/runtime_adapter/consistency.py",
+        "hi_agent/runtime_adapter/kernel_facade_client.py",
+        "hi_agent/runtime_adapter/resilient_kernel_adapter.py",
+        "hi_agent/server/app.py"
+      ],
+      "reason": "hot-path files changed since gate",
+      "stderr": "T3-STALE: 7 hot-path file(s) changed since gate (9ed019cf7d841955b7ce863ab0c13bfd7f587e76):\n  hi_agent/llm/http_gateway.py\n  hi_agent/llm/streaming.py\n  hi_agent/memory/compressor.py\n  hi_agent/runtime_adapter/consistency.py\n  hi_agent/runtime_adapter/kernel_facade_client.py\n  hi_agent/runtime_adapter/resilient_kernel_adapter.py\n  hi_agent/server/app.py\n\nRule 8 T3 Invariance violated. Record a fresh gate run before release:\n  python scripts/run_t3_gate.py --provider volces \\\n      --output docs/"
+    },
+    "boundary": {
+      "check": "boundary",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "total": 0
+      },
+      "head": "7f1c95c"
+    },
+    "deprecated_api": {
+      "check": "deprecated_field_usage",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "total": 0
+      },
+      "head": "7f1c95c"
+    },
+    "durable_wiring": {
+      "check": "durable_wiring",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "classes_checked": 12
+      },
+      "head": "7f1c95c",
+      "runtime_probe": {
+        "SQLiteEventStore": "pass",
+        "SQLiteRunStore": "pass",
+        "IdempotencyStore": "pass"
+      },
+      "probe_failures": []
+    },
+    "metrics_cardinality": {
+      "check": "metrics_cardinality",
+      "status": "pass",
+      "violations": [],
+      "metrics_checked": 76
+    },
+    "slo_health": {
+      "status": "pass"
+    },
+    "allowlist_discipline": {
+      "check": "allowlist_discipline",
+      "status": "pass",
+      "total": 0,
+      "expired_total": 0,
+      "missing_fields_total": 0,
+      "invalid_risk_total": 0,
+      "failures": []
+    },
+    "verification_artifacts": {
+      "check": "verification_artifacts",
+      "status": "pass",
+      "has_current_head": true,
+      "current_files": [
+        "docs\\verification\\7f1c95c-observability-spine.json"
+      ],
+      "checked_count": 216
+    },
+    "targeted_default_path": {
+      "status": "pass",
+      "raw_stdout": "........................s............                                    [100%]\n36 passed, 1 skipped in 8.77s\n{\"check\": \"targeted_default_path\", \"status\": \"pass\", \"returncode\": 0, \"test_files\": [\"tests/integration/test_run_lease_heartbeat.py\", \"tests/integration/test_run_progress_events.py\", \"tests/integration/test_run_liveness_fields.py\", \"tests/integration/test_dlq_surface.py\", \"tests/integration/test_backpressure.py\", \"tests/integration/test_graceful_drain.py\", \"tests/unit/test_metrics_catalo"
+    },
+    "clean_env": {
+      "status": "pass",
+      "summary": "profile  : default-offline\nbasetemp : C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest___nxmn7l\ncache_dir: C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_k12mvcei\nmarkers  : -m not live_api and not external_llm and not network and not requires_secret and not windows_unsafe\ncommand  : C:\\Python314\\python.exe -m pytest --basetemp=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest___nxmn7l --override-ini=cache_dir=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_k12mvcei --json-report --json-repo"
+    },
+    "validate_before_mutate": {
+      "check": "validate_before_mutate",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "sites_checked": 13
+      },
+      "head": "7f1c95c"
+    },
+    "select_completeness": {
+      "check": "select_completeness",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "fields_checked": 24
+      },
+      "head": "7f1c95c"
+    },
+    "silent_degradation": {
+      "check": "silent_degradation",
+      "status": "deferred",
+      "hidden_violations_detected": true,
+      "total_violations": 63,
+      "fail_violations": 0,
+      "deferred_violations": 63,
+      "violation_count": 63,
+      "violations": [
+        {
+          "file": "hi_agent\\artifacts\\ledger.py",
+          "line": 107,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\capability\\defaults.py",
+          "line": 157,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\config\\knowledge_builder.py",
+          "line": 39,
+          "exc_type": "(FileNotFoundError, KeyError, ValueError)",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except (FileNotFoundError, KeyError, ValueError):  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\execution\\recovery_coordinator.py",
+          "line": 279,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\knowledge\\retrieval_engine.py",
+          "line": 215,
+          "exc_type": "ImportError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except ImportError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\knowledge\\wiki.py",
+          "line": 223,
+          "exc_type": "(ValueError, TypeError)",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except (ValueError, TypeError):  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\llm\\http_gateway.py",
+          "line": 145,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\llm\\streaming.py",
+          "line": 128,
+          "exc_type": "json.JSONDecodeError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except json.JSONDecodeError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\management\\gate_store.py",
+          "line": 51,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\management\\slo.py",
+          "line": 211,
+          "exc_type": "ValueError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except ValueError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\mcp\\health.py",
+          "line": 96,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\mcp\\transport.py",
+          "line": 273,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\mcp\\transport.py",
+          "line": 373,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\mcp\\transport.py",
+          "line": 237,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\mcp\\transport.py",
+          "line": 255,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\mcp\\transport.py",
+          "line": 356,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\memory\\async_compressor.py",
+          "line": 130,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\memory\\compressor.py",
+          "line": 304,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\memory\\kg_factory.py",
+          "line": 36,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\" metrics must never crash callers"
+        },
+        {
+          "file": "hi_agent\\observability\\fallback.py",
+          "line": 84,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\" metrics must never crash callers"
+        },
+        {
+          "file": "hi_agent\\observability\\fallback.py",
+          "line": 168,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\" metrics must never crash callers"
+        },
+        {
+          "file": "hi_agent\\observability\\fallback.py",
+          "line": 225,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\" metrics must never crash callers"
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 163,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 190,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 212,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 237,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 249,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 271,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\runtime_adapter\\consistency.py",
+          "line": 124,
+          "exc_type": "json.JSONDecodeError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except json.JSONDecodeError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\runtime_adapter\\kernel_facade_client.py",
+          "line": 511,
+          "exc_type": "ImportError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except ImportError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\runtime_adapter\\resilient_kernel_adapter.py",
+          "line": 217,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\security\\url_policy.py",
+          "line": 77,
+          "exc_type": "ValueError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except ValueError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\auth_middleware.py",
+          "line": 72,
+          "exc_type": "pyjwt.PyJWTError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except pyjwt.PyJWTError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\auth_middleware.py",
+          "line": 92,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\auth_middleware.py",
+          "line": 268,
+          "exc_type": "JWTValidationError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except JWTValidationError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\auth_middleware.py",
+          "line": 286,
+          "exc_type": "JWTValidationError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except JWTValidationError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\event_store.py",
+          "line": 158,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\recovery.py",
+          "line": 71,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\" metrics must never crash callers"
+        },
+        {
+          "file": "hi_agent\\server\\routes_events.py",
+          "line": 90,
+          "exc_type": "asyncio.CancelledError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_knowledge.py",
+          "line": 51,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_knowledge.py",
+          "line": 85,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_ops.py",
+          "line": 44,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_ops.py",
+          "line": 87,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 123,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 133,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 185,
+          "exc_type": "(ValueError, json.JSONDecodeError)",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except (ValueError, json.JSONDecodeError):  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_tools_mcp.py",
+          "line": 170,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\run_manager.py",
+          "line": 199,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\run_manager.py",
+          "line": 273,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\server\\sse_routes.py",
+          "line": 53,
+          "exc_type": "asyncio.CancelledError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\skill\\definition.py",
+          "line": 87,
+          "exc_type": "ValueError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except ValueError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "hi_agent\\skill\\observer.py",
+          "line": 191,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "agent_kernel\\kernel\\cognitive\\llm_gateway.py",
+          "line": 101,
+          "exc_type": "(TypeError, ValueError)",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except (TypeError, ValueError):  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "agent_kernel\\kernel\\minimal_runtime.py",
+          "line": 752,
+          "exc_type": "ValueError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except ValueError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\dispatch_outbox_reconciler.py",
+          "line": 533,
+          "exc_type": "asyncio.CancelledError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "agent_kernel\\kernel\\recovery\\circuit_breaker_probe.py",
+          "line": 52,
+          "exc_type": "asyncio.CancelledError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "agent_kernel\\kernel\\task_manager\\watchdog.py",
+          "line": 97,
+          "exc_type": "asyncio.CancelledError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "agent_kernel\\runtime\\heartbeat.py",
+          "line": 416,
+          "exc_type": "asyncio.CancelledError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "agent_kernel\\runtime\\observability_hooks.py",
+          "line": 87,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\" pylint: disable=broad-exception-caught"
+        },
+        {
+          "file": "agent_kernel\\runtime\\otel_export.py",
+          "line": 204,
+          "exc_type": "Exception",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 21\" pylint: disable=broad-exception-caught"
+        },
+        {
+          "file": "agent_kernel\\substrate\\local\\adaptor.py",
+          "line": 358,
+          "exc_type": "RuntimeError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except RuntimeError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "agent_kernel\\substrate\\temporal\\_sdk_source.py",
+          "line": 95,
+          "exc_type": "ImportError",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except ImportError:  # rule7-exempt: expiry_wave=\"Wave 21\""
+        },
+        {
+          "file": "agent_kernel\\substrate\\temporal\\run_actor_workflow.py",
+          "line": 438,
+          "exc_type": "(TemporalError, RuntimeError)",
+          "status": "deferred",
+          "pattern": "silent_except_body",
+          "text": "except (TemporalError, RuntimeError):  # rule7-exempt: expiry_wave=\"Wave 21\""
+        }
+      ]
+    },
+    "metric_producers": {
+      "check": "metric_producers",
+      "status": "pass",
+      "total_metrics": 76,
+      "orphan_count": 0,
+      "orphans": []
+    },
+    "downstream_response_format": {
+      "status": "fail",
+      "summary": "FAIL check_downstream_response_format:\n  SCORE-CAP-VIOLATION: docs\\downstream-responses\\2026-04-29-wave18-delivery-notice.md declares 80.0, max allowed 72.0 (T3: deferred)"
+    },
+    "evidence_provenance": {
+      "status": "pass",
+      "check": "evidence_provenance",
+      "provenance": "real",
+      "generated_at": "2026-04-29T02:43:56.067014+00:00",
+      "artifacts_checked": 213,
+      "issues_found": 0,
+      "issues": [],
+      "script_source_issues": [],
+      "summary": [
+        {
+          "path": "docs\\verification\\0276580-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0276580-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\06daf82-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\08048ed-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\08048ed-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\08048ed-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0a721be-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0a721be-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0a721be-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\0ab8b26-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0ab8b26-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\11df7d6-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\13f904e-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\13f904e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\178cabc-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1932f3d-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\1bf5222-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1bf5222-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\1d78056-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\1d78056-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2445f85-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2445f85-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2445f85-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2445f85-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2445f85-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-0m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-60m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-62m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-63m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-69m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-70m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-9m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\252500e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252500e-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2c66e3b-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2c66e3b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2d57a2b-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2ec9c7d-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\3a69b06-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\3d46066-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\3d46066-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\4590857-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\48ae8d1-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\4c93c50-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\4c93c50-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\53867d5-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\53867d5-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\56857e9-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\56857e9-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\56857e9-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\56857e9-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\56857e9-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\57cbc5e-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\58394d6-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\59e37be-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\59e37be-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\59e37be-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\61b1829-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\61b1829-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\61b1829-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\691a974-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\6ac41b4-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ac41b4-soak-dry-1m.json",
+          "check": "",
+          "provenance": "dry_run"
+        },
+        {
+          "path": "docs\\verification\\6ddcd2b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ddcd2b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\6e11eea-chaos-matrix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\6ea1204-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\73867a4-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\73867a4-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\73867a4-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\778738a-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "manifest_self_reference"
+        },
+        {
+          "path": "docs\\verification\\778738a-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7838a1b-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\7838a1b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7838a1b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\7d8fe45-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7d8fe45-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7d8fe45-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\7e232d5-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7e232d5-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7e232d5-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\7f1c95c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8265208-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8384de8-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\88960cc-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\88960cc-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8d1727f-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8d1727f-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\8ee9690-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\90976ae-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\94bcc2c-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\94bcc2c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ed019c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\a8fffaf-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\a8fffaf-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\b7add94-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b7add94-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\ba656a2-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bbb34bf-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bbc0c47-default-offline-clean-env.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bbc0c47-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bebc54a-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bebc54a-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bebc54a-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\c6ee398-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\c6ee398-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-chaos-matrix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-dry-0s.json",
+          "check": "",
+          "provenance": "dry_run"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cd1ee70-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cd1ee70-runtime-chaos.json",
+          "check": "chaos_runtime_coupling",
+          "provenance": "degraded"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\d899f2b-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d899f2b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\dd0aad2-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\dd0aad2-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\dd0aad2-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\e59a883-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\e59a883-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e59a883-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\e5b5183-chaos-matrix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ecb2c60-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\ecb2c60-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ed69a62-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-soak-61m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\fd6386e-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fd6386e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-extended-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-post-df38-revert.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df35-compressor.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df35-skill-extractor.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df371.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df39-postmortem.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df39-signal-sweep.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-final.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-volces-post-wave5.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-23-rule15-structural-post-fix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-23-rule15-structural.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-5ac208e-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-5dceabf-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-8c5395b-rule15-volces-v2.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-8c5395b-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-25-5f57ff3-rule15-volces-v3.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-25-fa98c7b-rule15-volces-v4.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-234e9fbf7ddd5e5fccef02ba6180b82ecc9ce296-clean-env.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-3b9980594e887a6ce4a733f93b27724f58c00708-clean-env.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-a3e7bed-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-4590857-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-9968603-t3-volces-deferred.json",
+          "check": "t3_freshness",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-bbc0c47-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-fd6386e-t3-volces.json",
+          "check": "t3_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-28-4b055bf-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-28-b954790-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-9ed019c-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        }
+      ]
+    },
+    "allowlist_universal": {
+      "status": "pass",
+      "check": "allowlist_universal",
+      "current_wave": "Wave 18",
+      "entries_checked": 0,
+      "missing_field_issues": [],
+      "expired_issues": [],
+      "total_issues": 0
+    },
+    "noqa_discipline": {
+      "status": "fail",
+      "check": "noqa_discipline",
+      "suppressions_without_expiry": 4,
+      "issues": [
+        {
+          "file": "hi_agent\\server\\middleware_drain.py",
+          "line": 38,
+          "content": "async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]",
+          "issue": "suppression missing expiry_wave comment"
+        },
+        {
+          "file": "scripts\\check_doc_truth.py",
+          "line": 40,
+          "content": "import yaml  # type: ignore[import-untyped]",
+          "issue": "suppression missing expiry_wave comment"
+        },
+        {
+          "file": "tests\\posture\\test_builder_posture.py",
+          "line": 104,
+          "content": "probe._durable_backends_ok = None  # type: ignore[attr-defined]",
+          "issue": "suppression missing expiry_wave comment"
+        },
+        {
+          "file": "tests\\unit\\scripts\\test_conftest_fallback_multistatus.py",
+          "line": 27,
+          "content": "spec.loader.exec_module(mod)  # type: ignore[union-attr]",
+          "issue": "suppression missing expiry_wave comment"
+        }
+      ],
+      "reason": "legacy suppressions lack expiry_wave; gate is fail mode"
+    },
+    "pytest_skip_discipline": {
+      "status": "deferred",
+      "check": "pytest_skip_discipline",
+      "skips_without_expiry": 1,
+      "issues": [
+        {
+          "file": "tests\\golden\\dev_smoke\\test_dev_smoke_golden.py",
+          "line": 13,
+          "content": "@pytest.mark.skip(",
+          "issue": "pytest.mark.skip missing expiry_wave argument"
+        }
+      ],
+      "reason": "legacy skips lack expiry_wave; Wave 15 migration pending"
+    },
+    "closure_taxonomy": {
+      "status": "pass",
+      "check": "closure_taxonomy",
+      "notices_checked": 26,
+      "issues": []
+    },
+    "multistatus_gates": {
+      "status": "pass",
+      "check": "multistatus_gates",
+      "multi_status_gates": 49,
+      "single_path_gates": 0,
+      "single_path_gate_list": [],
+      "multi_status_gate_list": [
+        "check_agent_kernel_pin.py",
+        "check_allowlist_discipline.py",
+        "check_allowlist_universal.py",
+        "check_boundary.py",
+        "check_chaos_runtime_coupling.py",
+        "check_closure_taxonomy.py",
+        "check_conftest_fallback_scope.py",
+        "check_deprecated_field_usage.py",
+        "check_doc_canonical_symbols.py",
+        "check_doc_consistency.py",
+        "check_doc_truth.py",
+        "check_downstream_response_format.py",
+        "check_durable_wiring.py",
+        "check_evidence_provenance.py",
+        "check_expired_waivers.py",
+        "check_gate_strictness.py",
+        "check_layering.py",
+        "check_manifest_freshness.py",
+        "check_manifest_rewrite_budget.py",
+        "check_metric_producers.py",
+        "check_metrics_cardinality.py",
+        "check_multistatus_gates.py",
+        "check_no_hardcoded_wave.py",
+        "check_no_research_vocab.py",
+        "check_no_wave_tags.py",
+        "check_noqa_discipline.py",
+        "check_observability_spine_completeness.py",
+        "check_operator_drill.py",
+        "check_posture_coverage.py",
+        "check_pytest_skip_discipline.py",
+        "check_recurrence_ledger.py",
+        "check_release_identity.py",
+        "check_route_scope.py",
+        "check_rules.py",
+        "check_score_cap.py",
+        "check_secrets.py",
+        "check_select_completeness.py",
+        "check_silent_degradation.py",
+        "check_slo_health.py",
+        "check_soak_evidence.py",
+        "check_sqlite_pragma.py",
+        "check_t3_evidence.py",
+        "check_t3_freshness.py",
+        "check_targeted_default_path.py",
+        "check_test_honesty.py",
+        "check_untracked_release_artifacts.py",
+        "check_validate_before_mutate.py",
+        "check_verification_artifacts.py",
+        "check_wave_consistency.py"
+      ],
+      "reason": ""
+    },
+    "observability_spine_completeness": {
+      "status": "deferred",
+      "check": "observability_spine_completeness",
+      "provenance": "structural",
+      "spine_file": "7f1c95c-observability-spine.json",
+      "reason": "provenance='structural'; real spine run required for pass"
+    },
+    "soak_evidence": {
+      "status": "deferred",
+      "check": "soak_evidence",
+      "reason": "real soak duration 4184.298s < 86400s (24h)",
+      "provenance": "shape_verified",
+      "duration_seconds": 4184.298
+    },
+    "chaos_runtime_coupling": {
+      "status": "pass",
+      "check": "chaos_runtime_coupling",
+      "scenarios_checked": 10,
+      "provenance": "degraded",
+      "issues": []
+    },
+    "no_hardcoded_wave": {
+      "status": "pass",
+      "check": "no_hardcoded_wave",
+      "issues_found": 0,
+      "issues": []
+    }
+  },
+  "scorecard": {
+    "raw": 81.25,
+    "verified": 55.0,
+    "raw_implementation_maturity": 81.25,
+    "current_verified_readiness": 55.0,
+    "seven_by_twenty_four_operational_readiness": 65.0,
+    "conditional_readiness_after_blockers": 55.0,
+    "cap": 55.0,
+    "cap_reason": "head_mismatch: manifest=58394d6e4363 HEAD=7f1c95c25208; notice_inconsistency: doc_consistency=fail; clean_env_not_final_head: evidence=ecb2c6057de0 HEAD=7f1c95c25208; gate_fail: doc_consistency, t3_freshness, downstream_response_format, noqa_discipline; t3_stale; clean_env_artifact_missing_at_head: no artifact matches HEAD=7f1c95c25208; gate_warn/deferred: silent_degradation, pytest_skip_discipline",
+    "cap_factors": [
+      "head_mismatch: manifest=58394d6e4363 HEAD=7f1c95c25208",
+      "notice_inconsistency: doc_consistency=fail",
+      "clean_env_not_final_head: evidence=ecb2c6057de0 HEAD=7f1c95c25208",
+      "gate_fail: doc_consistency, t3_freshness, downstream_response_format, noqa_discipline",
+      "t3_stale",
+      "clean_env_artifact_missing_at_head: no artifact matches HEAD=7f1c95c25208",
+      "gate_warn/deferred: silent_degradation, pytest_skip_discipline"
+    ],
+    "cap_7x24": 65.0,
+    "cap_factors_7x24": [
+      "soak_24h_missing: deferred",
+      "observability_spine_incomplete: deferred"
+    ],
+    "weights_version": "2"
+  },
+  "t3": {
+    "status": "fail",
+    "verified_head": "9ed019cf7d841955b7ce863ab0c13bfd7f587e76"
+  },
+  "clean_env": {
+    "profile": "default-offline",
+    "status": "pass",
+    "summary_available": null
+  },
+  "route_scope": {
+    "allowlist_total": 34,
+    "expired_allowlist_total": 0
+  },
+  "captains": "270cf97705346507"
+}
