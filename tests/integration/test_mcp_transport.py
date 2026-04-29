@@ -315,11 +315,10 @@ class TestMCPHealthWithTransport:
 class TestConfigReloadSafety:
     """Verify _on_config_reload inherits singleton subsystems and bumps generation."""
 
-    def test_reload_increments_generation(self) -> None:
+    def test_reload_increments_generation(self, monkeypatch) -> None:
         import asyncio
-        import os
 
-        os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+        monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
         from hi_agent.server.app import AgentServer
 
         server = AgentServer()
@@ -334,12 +333,11 @@ class TestConfigReloadSafety:
         assert server._builder_generation == 1
         assert server._builder is not old_builder  # new builder instance
 
-    def test_reload_inherits_subsystem_singletons(self) -> None:
+    def test_reload_inherits_subsystem_singletons(self, monkeypatch) -> None:
         """Subsystem singletons from old builder are passed to new builder."""
         import asyncio
-        import os
 
-        os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+        monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
         from hi_agent.mcp.registry import MCPRegistry
         from hi_agent.server.app import AgentServer
 
@@ -353,12 +351,11 @@ class TestConfigReloadSafety:
         # New builder must have inherited the sentinel registry
         assert server._builder._mcp_registry is sentinel_registry
 
-    def test_reload_does_not_affect_in_flight_executor_reference(self) -> None:
+    def test_reload_does_not_affect_in_flight_executor_reference(self, monkeypatch) -> None:
         """Executor built before reload keeps its original builder reference."""
         import asyncio
-        import os
 
-        os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+        monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
         from hi_agent.server.app import AgentServer
 
         server = AgentServer()

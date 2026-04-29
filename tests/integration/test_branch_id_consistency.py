@@ -8,12 +8,9 @@ not a counter-based ID from _make_branch_id().
 from __future__ import annotations
 
 import inspect
-import os
 from typing import Any
 
-# Allow heuristic fallback so tests can run without real LLM credentials.
-os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
-
+import pytest
 from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
@@ -54,6 +51,11 @@ def _proposed_branch_ids(executor: RunExecutor) -> list[str]:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _require_heuristic_fallback(fallback_explicit):
+    """All tests in this module require heuristic fallback (no real LLM)."""
 
 
 class TestBranchIdConsistency:

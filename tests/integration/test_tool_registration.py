@@ -1,10 +1,5 @@
 """Tests that SystemBuilder registers real builtin tools alongside LLM capabilities."""
 
-import os
-
-# Allow heuristic fallback so no real LLM needed in tests
-os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
-
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
 
@@ -45,7 +40,7 @@ def test_capability_spec_has_parameters():
 
 
 def test_file_read_invokable_via_registry(tmp_path, monkeypatch):
-    os.environ["HI_AGENT_ALLOW_HEURISTIC_FALLBACK"] = "1"
+    monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
     monkeypatch.chdir(
         tmp_path
     )  # file_read resolves paths relative to cwd (H-6: payload base_dir ignored)

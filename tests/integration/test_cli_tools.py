@@ -1,9 +1,5 @@
 """Tests for tools CLI subcommand and /tools server endpoints."""
 
-import os
-
-os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
-
 
 def test_cli_tools_parser_exists():
     """Parser must have 'tools' subcommand."""

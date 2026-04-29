@@ -2,13 +2,7 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
-
-# Allow heuristic fallback so tests work without real LLM credentials.
-os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
-
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.harness.contracts import ActionSpec, EffectClass, SideEffectClass
@@ -81,7 +75,7 @@ def test_build_harness_accepts_explicit_invoker() -> None:
     assert harness._invoker is invoker
 
 
-def test_harness_dispatch_does_not_raise_runtime_error() -> None:
+def test_harness_dispatch_does_not_raise_runtime_error(fallback_explicit) -> None:
     """HarnessExecutor.execute() must not raise RuntimeError due to None invoker.
 
     This test dispatches a read-only action through the full harness pipeline.

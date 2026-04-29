@@ -45,14 +45,12 @@ def test_rule15_volces_profile_registers_via_builder() -> None:
     assert RULE15_PROBE_CAPABILITY in spec.required_capabilities
 
 
-def test_register_rule15_probe_capability_with_stub_gateway() -> None:
+def test_register_rule15_probe_capability_with_stub_gateway(monkeypatch) -> None:
     """Register the probe capability with a None gateway (heuristic fallback allowed).
 
     Unit-level assertion only — the live-call path is covered by Task E.
     """
-    import os
-
-    os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+    monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
     from hi_agent.capability.registry import CapabilityRegistry
 
@@ -66,11 +64,9 @@ def test_register_rule15_probe_capability_with_stub_gateway() -> None:
     assert RULE15_PROBE_CAPABILITY in registry.list_names()
 
 
-def test_rule15_probe_capability_handler_executes() -> None:
+def test_rule15_probe_capability_handler_executes(monkeypatch) -> None:
     """Invoke the registered handler to confirm it returns a well-formed dict."""
-    import os
-
-    os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+    monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
     from hi_agent.capability.registry import CapabilityRegistry
 
