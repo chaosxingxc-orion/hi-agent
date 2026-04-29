@@ -14,7 +14,7 @@ Last updated: 2026-04-29 (Wave 18 — Vocabulary Debt Clearance + Stable 80 Base
 | L3 | production default | research/prod default-on, migration + observability |
 | L4 | ecosystem ready | third-party can register/extend/upgrade/rollback without source |
 
-Legacy labels still shown for backward reference: `experimental`≈L1, `implemented_unstable`≈L1, `public_contract`≈L2, `production_ready`≈L3.
+Active docs use L0–L4 exclusively (Rule 13, Wave 9+). Mapping from retired labels: see `docs/governance/maturity-glossary.md`.
 
 ---
 
@@ -111,7 +111,7 @@ Legacy labels still shown for backward reference: `experimental`≈L1, `implemen
 | POST /artifacts write API | Needs CO-5 + TE-3 stable first | Wave 10 |
 | ProjectPostmortem lifecycle integration | Needs TE-2 durable ledger wired | Wave 10 |
 | Budget multi-level enforcement (project/profile/run/stage) | Descriptor fields exist; runtime enforcement deferred | Wave 10 |
-| Knowledge graph durable backend | JsonGraphBackend remains experimental | Wave 10 |
+| Knowledge graph durable backend | JsonGraphBackend at L1 (tested, not default path) | Wave 10 |
 | Self-evolution gated update + rollback | Needs human-approval design; TE-5 is schema only | Wave 10 |
 | Process-kill restart full boot integration | RO-5 xfail — durable queue not yet wired through server boot | Wave 10 pre-work |
 | Temporal as production main path | Not prioritized | Deferred |

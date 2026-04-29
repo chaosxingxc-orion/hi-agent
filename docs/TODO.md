@@ -102,7 +102,7 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - **POST /artifacts write API**: Needs CO-5 + TE-3 stable first (now satisfied; Wave 10 P1)
 - **ProjectPostmortem lifecycle integration**: Needs TE-2 durable ledger wired (now satisfied; Wave 10)
 - **Budget multi-level enforcement (project/profile/run/stage)**: Descriptor fields exist; runtime enforcement deferred
-- **Knowledge graph durable backend**: JsonGraphBackend remains experimental
+- **Knowledge graph durable backend**: JsonGraphBackend at L1 (tested, not default path)
 - **Self-evolution gated update + rollback**: Needs human-approval design; TE-5 is schema only
 - **ResearchProjectSpec → TeamRunSpec compile reference**: CO-7 introduces TeamRunSpec; downstream compile is research team's
 

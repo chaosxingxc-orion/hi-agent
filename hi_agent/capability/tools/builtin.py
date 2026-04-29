@@ -263,6 +263,7 @@ _BUILTIN_TOOLS = [
             side_effect_class="filesystem_read",
             prod_enabled_default=True,
             requires_approval=False,
+            maturity_level="L3",
         ),
     ),
     CapabilitySpec(
@@ -284,6 +285,7 @@ _BUILTIN_TOOLS = [
             side_effect_class="filesystem_write",
             prod_enabled_default=True,
             requires_approval=True,
+            maturity_level="L3",
         ),
     ),
     CapabilitySpec(
@@ -309,6 +311,7 @@ _BUILTIN_TOOLS = [
             # fetches can opt out via profile policy.
             prod_enabled_default=True,
             requires_approval=True,
+            maturity_level="L2",
         ),
     ),
     CapabilitySpec(
@@ -330,6 +333,7 @@ _BUILTIN_TOOLS = [
             side_effect_class="shell_exec",
             prod_enabled_default=False,
             requires_approval=True,
+            maturity_level="L2",
         ),
     ),
 ]

@@ -49,6 +49,7 @@ class CapabilityDescriptor:
     extra: dict = field(default_factory=dict)        # catch-all for additional metadata
     toolset_id: str = "default"
     output_budget_tokens: int = 0  # 0 = unlimited
+    maturity_level: Literal["L0", "L1", "L2", "L3", "L4"] = "L1"
 
 
 @dataclass(frozen=True)

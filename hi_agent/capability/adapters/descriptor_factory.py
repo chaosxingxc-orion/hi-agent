@@ -168,6 +168,9 @@ class CapabilityDescriptorFactory:
         availability_probe = overrides.get(
             "availability_probe", tool_info.get("availability_probe")
         )
+        maturity_level = overrides.get(
+            "maturity_level", tool_info.get("maturity_level", "L1")
+        )
 
         return CapabilityDescriptor(
             name=name,
@@ -181,4 +184,5 @@ class CapabilityDescriptorFactory:
             required_env=required_env,
             output_budget_tokens=output_budget_tokens,
             availability_probe=availability_probe,
+            maturity_level=maturity_level,
         )
