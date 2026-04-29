@@ -93,6 +93,8 @@ A feature is implementable only when all three layers are designed. A feature is
 
 **Test honesty is not optional**: MagicMocking the subsystem under test in integration = mislabeled unit test; accepting any terminal status = documentation, not a test; a test that passes when the subject raises = a lie.
 
+**`agent_server` route handlers**: every new route handler in `agent_server/api/routes_*.py` requires a `# tdd-red-sha: <sha>` comment referencing the commit SHA of the failing test (RED stage). This is enforced by `check_tdd_evidence.py` (R-AS-5).
+
 ---
 
 ### Rule 5 — Async/Sync Resource Lifetime
@@ -154,7 +156,7 @@ All six hold. Any FAIL blocks ship. The artifact owner records the gate run in `
 
 **T3 Invariance** — a gate pass is valid only for the SHA at which it was recorded. Any subsequent commit touching hot-path files invalidates T3 until a fresh gate run is recorded.
 
-Hot-path files: `hi_agent/llm/**`, `hi_agent/runtime/**`, `hi_agent/config/cognition_builder.py`, `hi_agent/config/json_config_loader.py`, `hi_agent/config/builder.py`, `hi_agent/runner.py`, `hi_agent/runner_stage.py`, `hi_agent/runtime_adapter/**`, `hi_agent/memory/compressor.py`, `hi_agent/server/app.py`, `hi_agent/profiles/**`
+Hot-path files: `hi_agent/llm/**`, `hi_agent/runtime/**`, `hi_agent/config/cognition_builder.py`, `hi_agent/config/json_config_loader.py`, `hi_agent/config/builder.py`, `hi_agent/runner.py`, `hi_agent/runner_stage.py`, `hi_agent/runtime_adapter/**`, `hi_agent/memory/compressor.py`, `hi_agent/server/app.py`, `hi_agent/profiles/**`, `agent_server/api/**`, `agent_server/facade/**`, `agent_server/cli/**`
 
 Hot-path PR descriptions must include `T3 evidence: docs/delivery/<date>-<sha>-rule15-volces.json` or `T3 evidence: DEFERRED — <reason>`. T1/T2 passing does NOT preserve T3.
 
@@ -220,6 +222,8 @@ Tests must cover at least `dev` and `research` paths for any new contract.
 A record that cannot answer "which tenant / project / profile / run / phase / capability does this belong to" cannot enter the research/prod default path.
 
 **Pre-commit check:** any new dataclass under `hi_agent/contracts/`, `hi_agent/artifacts/`, `hi_agent/server/{run_store,idempotency,team_run_registry,event_store,gate_*}` must declare a `tenant_id` field unless explicitly marked `# scope: process-internal` with reason.
+
+**Process-internal marker**: Pure value objects that are process-internal (not stored or transmitted across tenants) may be marked `# scope: process-internal` with a rationale comment. Examples: `CTSBudget`, `Provenance`, `ValidationResult`, `ConfidenceInputs`, `StageDirective`. These are exempt from the `tenant_id` requirement. The `check_contract_spine_completeness.py` gate (W23) will enforce this marker discipline.
 
 ---
 
@@ -344,6 +348,8 @@ Every PR identifies its primary owner track in the commit body (`Owner: CO|RO|DX
 | **DX** | Developer journey: first contact → upgrade | `__main__.py`, `cli.py`, `cli_commands/**`, `ops/{doctor_report,diagnostics}.py`, `server/routes_manifest.py`, `config/{validator,readiness,builder,...,watcher}.py`, `examples/**`, `docs/quickstart*.md`, `docs/posture-reference.md`, `docs/api-reference.md` | No L2 without documented quickstart path, doctor-check coverage, and structured error category in `/runs`. |
 | **TE** | Artifacts, evidence, provenance, evolution | `artifacts/{registry,adapters,confidence,ledger}.py`, `routes_artifacts.py`, `trace/**`, `observability/**`, `evolve/**`, `skill/{evolver,observer,recorder}.py`, `ops/release_gate.py`, `agent_kernel/kernel/{event_export,failure_evidence,failure_mappings}.py` | Every silent-degradation path: Countable + Attributable + Inspectable + Gate-asserted. ArtifactLedger corruption never silently skipped. |
 | **GOV** | CLAUDE.md, capability matrix, CI, delivery | `CLAUDE.md`, `docs/platform-capability-matrix.md`, `docs/TODO.md`, `docs/downstream-responses/**`, `.github/workflows/**`, `scripts/check_*.py`, `docs/delivery/**` | Capability matrix = single source of truth. Delivery notice, TODO, matrix agree at every push to main. |
+| **AS-CO** | Agent-Server Contracts: versioned northbound facade schemas | `agent_server/contracts/**`, `agent_server/config/version.py`, `docs/platform/agent-server-northbound-contract-v1.md` | Public contract change = AS-CO; include migration note + contract-version bump if any field changes after v1 RELEASED. |
+| **AS-RO** | Agent-Server Runtime/Facade: route handlers, middleware, CLI | `agent_server/api/**`, `agent_server/facade/**`, `agent_server/cli/**`, `agent_server/mcp/**`, `agent_server/tenancy/**`, `agent_server/workspace/**` | Every new route handler requires `# tdd-red-sha: <sha>` annotation (R-AS-5). Facade modules must stay ≤200 LOC (R-AS-8). |
 
 ---
 
@@ -358,12 +364,14 @@ These apply only when the stated condition is true. Full detail and incident rec
 | Changing `agent_kernel/service/http_server.py` or `kernel_facade_client.py` | PR must include side-by-side client↔server path/method table; every row ✅ before merge. |
 | Adding/modifying CI `if: ${{ env.X_API_KEY != '' }}` | Grep consumers first; every `\|\|` clause must have a matching read in the fixture. |
 | Adding latency assertions against a real LLM in CI | Only advisory (`continue-on-error: true`), ≥3× p95 headroom, or trend-not-point. Never a fixed second-count. |
+| Modifying `agent_server/contracts/**` after v1 RELEASED | Require migration note + `check_contract_freeze.py` pass; create `agent_server/contracts/v2/` sub-package for breaking changes. |
+| Adding a new `agent_server/api/routes_*.py` route handler | Require `# tdd-red-sha: <sha>` annotation referencing the RED-test commit SHA per R-AS-5. |
 
 ### Three-Gate Demand Intake
 
 Before accepting any new capability request into hi-agent:
 
-**G1 — Positioning gate**: capability-layer only (runtime, memory, LLM routing, observability, contract); business-layer → decline and redirect to research team.
+**G1 — Positioning gate**: capability-layer only — (a) `hi_agent/` runtime kernel, (b) `agent_server/` versioned northbound facade, (c) `agent_kernel/` execution substrate; anything business-layer → decline and redirect to research team.
 
 **G2 — Abstraction gate**: composable from existing capabilities without new code → provide a composition example, no new code.
 
