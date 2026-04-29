@@ -34,7 +34,10 @@ _REAL_REQUIRED_CHECKS = frozenset({
     "soak_evidence",
 })
 
-_ALLOWED_FOR_ALL = frozenset({"real", "partial", "structural", "degraded", "dry_run", "synthetic", "unknown", "derived", "shape_verified", "manifest_self_reference"})
+_ALLOWED_FOR_ALL = frozenset({
+    "real", "partial", "structural", "degraded", "dry_run",
+    "synthetic", "unknown", "derived", "shape_verified", "manifest_self_reference",
+})
 _DISALLOWED_FOR_STRICT = frozenset({"synthetic", "unknown"})
 
 
@@ -101,7 +104,10 @@ def _check_script_provenance(root: pathlib.Path) -> list[dict]:
                         "path": rel_path,
                         "line": i + 1,
                         "content": stripped[:120],
-                        "issue": 'provenance="real" without preceding "# observation: <funcname>" comment',
+                        "issue": (
+                            'provenance="real" without preceding'
+                            ' "# observation: <funcname>" comment'
+                        ),
                     })
     return issues
 
@@ -115,7 +121,6 @@ def main() -> int:
     script_issues = _check_script_provenance(ROOT)
 
     failing = [r for r in all_results if r.get("issues")]
-    missing_provenance = [r for r in all_results if not r.get("provenance") and not r.get("issues")]
 
     if not all_results and not script_issues:
         result = {
@@ -129,10 +134,14 @@ def main() -> int:
         return 0
 
     status = "pass" if not failing and not script_issues else "fail"
+    # provenance is "real" only when the check actually ran and all assertions
+    # passed.  If there are failures, the script observed real artifacts but the
+    # results are not clean, so "structural" is more honest.
+    derived_provenance = "real" if status == "pass" else "structural"
     result = {
         "status": status,
         "check": "evidence_provenance",
-        "provenance": "real",
+        "provenance": derived_provenance,
         "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         "artifacts_checked": len(all_results),
         "issues_found": len(failing),

@@ -15,6 +15,7 @@ Exit 0: pass
 Exit 1: fail (unaccounted gate weakenings found)
 """
 from __future__ import annotations
+
 import argparse
 import datetime
 import json
@@ -72,7 +73,10 @@ def _check_file(wf_path: pathlib.Path) -> list:
                 "file": str(wf_path.relative_to(ROOT)),
                 "step": step_name,
                 "violation": "--allow-docs-only-gap",
-                "detail": "Flag removes docs-only-gap exemption from gate; not permitted without ledger issue_id",
+                "detail": (
+                    "Flag removes docs-only-gap exemption from gate; "
+                    "not permitted without ledger issue_id"
+                ),
             })
         if has_continue_on_error and not has_api_key_if:
             issues.append({
@@ -106,10 +110,14 @@ def main() -> int:
         all_issues.extend(_check_file(wf_file))
 
     status = "pass" if not all_issues else "fail"
+    # provenance is "real" when the check actually scanned real workflow files
+    # and all assertions passed.  "structural" when there are violations or
+    # the scan did not complete cleanly.
+    derived_provenance = "real" if status == "pass" else "structural"
     result = {
         "status": status,
         "check": "gate_strictness",
-        "provenance": "real",
+        "provenance": derived_provenance,
         "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         "violations_found": len(all_issues),
         "violations": all_issues,

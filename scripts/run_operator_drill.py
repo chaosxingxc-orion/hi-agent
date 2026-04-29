@@ -160,10 +160,14 @@ def main() -> int:
     all_passed = all(r["passed"] for r in results)
     finish_ts = datetime.datetime.now(datetime.UTC).isoformat()
 
+    # provenance is "real" when the drill actually ran against a live server
+    # and all actions passed.  If any action failed or the server was
+    # unreachable, the evidence is "structural" (shape observed, not verified).
+    derived_provenance = "real" if all_passed and bool(run_id) else "structural"
     evidence = {
         "schema_version": "1",
         "check": "operator_drill",
-        "provenance": "real",
+        "provenance": derived_provenance,
         "all_passed": all_passed,
         "head": sha,
         "submitted_run_id": run_id,

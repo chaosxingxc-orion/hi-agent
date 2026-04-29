@@ -718,9 +718,17 @@ def main() -> int:
         except importlib.metadata.PackageNotFoundError:
             pytest_version = "unknown"
 
+        # provenance is "real" when pytest actually ran and produced a summary.
+        # "structural" when summary is unavailable (crash/timeout) or status
+        # indicates the run never completed cleanly.
+        _derived_provenance = (
+            "real"
+            if stats.get("summary_available") and status in ("pass", "fail")
+            else "structural"
+        )
         evidence = {
             "schema_version": 2,
-            "provenance": "real",
+            "provenance": _derived_provenance,
             "check": "clean_env",
             "bundle_profile": profile,
             "status": status,

@@ -181,7 +181,22 @@ class GateEvidence:
             "verified_head": self.verified_head,
             "verified_at": self.verified_at,
             "dirty_during_run": self.dirty_during_run,
-            "provenance": "real",
+            # provenance is "real" only when:
+            #  - mode is "real" (not mock/structural),
+            #  - at least one run was made,
+            #  - git was not dirty (so verified_head is stable),
+            #  - the gate passed.
+            # Anything else is "structural" (shape confirmed but not fully verified).
+            "provenance": (
+                "real"
+                if (
+                    self.mode == "real"
+                    and self.runs
+                    and not self.dirty_during_run
+                    and self.status == "passed"
+                )
+                else "structural"
+            ),
         }
 
 
