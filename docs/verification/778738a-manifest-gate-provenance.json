@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\verification\\778738a-manifest-gate.json",
+  "provenance": "manifest_self_reference",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}

@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\verification\\8265208-observability-spine.json",
+  "provenance": "structural",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}

@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\verification\\1d78056-default-offline-clean-env.json",
+  "provenance": "real",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}

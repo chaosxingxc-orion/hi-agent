@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\verification\\5794a0e-score-cap.json",
+  "provenance": "derived",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}

@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\verification\\ef8ed3c-manifest-gate.json",
+  "provenance": "real",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}

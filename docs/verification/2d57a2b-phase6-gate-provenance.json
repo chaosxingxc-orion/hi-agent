@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\verification\\2d57a2b-phase6-gate.json",
+  "provenance": "real",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}

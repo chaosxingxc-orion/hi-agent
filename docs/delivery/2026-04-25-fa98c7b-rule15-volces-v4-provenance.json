@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\delivery\\2026-04-25-fa98c7b-rule15-volces-v4.json",
+  "provenance": "real",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}

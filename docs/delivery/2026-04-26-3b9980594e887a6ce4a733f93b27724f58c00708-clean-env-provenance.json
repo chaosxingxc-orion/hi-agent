@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\delivery\\2026-04-26-3b9980594e887a6ce4a733f93b27724f58c00708-clean-env.json",
+  "provenance": "real",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}

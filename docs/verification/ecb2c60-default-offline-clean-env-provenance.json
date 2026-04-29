@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\verification\\ecb2c60-default-offline-clean-env.json",
+  "provenance": "real",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}

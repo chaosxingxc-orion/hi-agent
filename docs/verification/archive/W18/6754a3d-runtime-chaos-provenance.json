@@ -1,0 +1,8 @@
+{
+  "artifact_path": "docs\\verification\\archive\\W18\\6754a3d-runtime-chaos.json",
+  "provenance": "degraded",
+  "head_sha": "backfill-unknown",
+  "generated_at": "backfill-unknown",
+  "generator_script": "scripts/backfill_provenance.py",
+  "backfill": true
+}
