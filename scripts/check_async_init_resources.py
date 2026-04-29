@@ -80,6 +80,8 @@ def _check_file(path: pathlib.Path) -> list[dict]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check for async resources in __init__.")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
     args = parser.parse_args()
 
     scan_dirs = [
@@ -88,6 +90,10 @@ def main() -> int:
     ]
     existing_dirs = [d for d in scan_dirs if d.is_dir()]
     if not existing_dirs:
+        if args.strict:
+            print("FAIL (strict): input absent at hi_agent/agent_kernel; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         if args.json:
             print(json.dumps({"status": "not_applicable", "reason": "no source directories found"}))
         else:

@@ -112,6 +112,8 @@ def main() -> int:
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--emit-evidence", action="store_true")
     parser.add_argument("--baseline", type=int, default=_BASELINE_UNCOVERED)
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
     args = parser.parse_args()
 
     callsites = _find_posture_callsites()
@@ -139,6 +141,10 @@ def main() -> int:
 
     # not_applicable: no hi_agent/ source exists to scan
     if total == 0:
+        if args.strict:
+            print("FAIL (strict): input absent at hi_agent/ (no posture callsites found); "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         result["status"] = "not_applicable"
         result["reason"] = "no posture callsites found in hi_agent/"
         if args.json:

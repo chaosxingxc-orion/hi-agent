@@ -86,12 +86,18 @@ def _scan_file(path: pathlib.Path, current_wave: int) -> list[dict]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="pytest skip discipline gate.")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
     args = parser.parse_args()
 
     current_wave = _read_current_wave()
 
     # not_applicable when tests directory is absent (stripped bundle or CI shard with no tests)
     if not TESTS_DIR.exists():
+        if args.strict:
+            print(f"FAIL (strict): input absent at {TESTS_DIR}; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         result = {
             "status": "not_applicable",
             "check": "pytest_skip_discipline",

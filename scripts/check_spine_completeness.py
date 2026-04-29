@@ -8,6 +8,7 @@ comment are exempt.
 """
 from __future__ import annotations
 
+import argparse
 import ast
 import sys
 from pathlib import Path
@@ -78,9 +79,18 @@ def check_file(path: str) -> list[str]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Spine completeness gate.")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
+    args = parser.parse_args()
+
     # not_applicable when none of the scanned files exist (stripped bundle or alternate layout)
     existing = [f for f in DATACLASS_FILES if Path(f).exists()]
     if not existing:
+        if args.strict:
+            print("FAIL (strict): input absent at hi_agent/contracts/; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         print("not_applicable: no spine dataclass files found")
         return 0
 

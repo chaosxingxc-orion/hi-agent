@@ -5,6 +5,7 @@ Exit 0: pass (no violations or file not present).
 Exit 1: fail (violations found).
 Exit 2: not_applicable (conftest.py does not exist in expected location).
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -14,7 +15,16 @@ CONFTEST = ROOT / "tests" / "conftest.py"
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Conftest fallback scope gate.")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
+    args = parser.parse_args()
+
     if not CONFTEST.exists():
+        if args.strict:
+            print(f"FAIL (strict): input absent at {CONFTEST}; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         result = {
             "status": "not_applicable",
             "check": "conftest_fallback_scope",

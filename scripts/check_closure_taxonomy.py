@@ -93,9 +93,15 @@ def _check_notice(path: pathlib.Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Closure taxonomy gate.")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
     args = parser.parse_args()
 
     if not NOTICES_DIR.exists():
+        if args.strict:
+            print(f"FAIL (strict): input absent at {NOTICES_DIR}; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         result = {"status": "not_applicable", "check": "closure_taxonomy",
                   "reason": "docs/downstream-responses/ not found"}
         if args.json:
@@ -107,6 +113,10 @@ def main() -> int:
         if not f.name.startswith("_")
     ]
     if not notices:
+        if args.strict:
+            print(f"FAIL (strict): input absent at {NOTICES_DIR} (no .md notices); "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         result = {"status": "not_applicable", "check": "closure_taxonomy",
                   "reason": "no closure notices found"}
         if args.json:

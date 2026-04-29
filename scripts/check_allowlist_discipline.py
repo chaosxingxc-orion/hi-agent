@@ -89,10 +89,16 @@ def _load_yaml_simple(path: Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check allowlist discipline.")
     parser.add_argument("--json", action="store_true", dest="json_output")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
     args = parser.parse_args(argv)
 
     if not ALLOWLISTS_FILE.exists():
         msg = f"allowlists.yaml not found at {ALLOWLISTS_FILE}"
+        if args.strict:
+            print(f"FAIL (strict): input absent at {ALLOWLISTS_FILE}; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         if args.json_output:
             print(json.dumps({
                 "check": "allowlist_discipline",

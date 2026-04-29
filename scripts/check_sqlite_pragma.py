@@ -5,6 +5,7 @@ Exit 0: pass (WAL pragma found in all checked files).
 Exit 1: fail (WAL pragma missing in one or more files).
 Exit 2: not_applicable (checked files do not exist in this checkout).
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -18,8 +19,17 @@ _CHECKED_FILES = [
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="SQLite WAL pragma gate.")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
+    args = parser.parse_args()
+
     missing_files = [f for f in _CHECKED_FILES if not (ROOT / f).exists()]
     if len(missing_files) == len(_CHECKED_FILES):
+        if args.strict:
+            print("FAIL (strict): input absent at hi_agent/server/event_store.py and run_store.py; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         result = {
             "status": "not_applicable",
             "check": "sqlite_wal_pragma",

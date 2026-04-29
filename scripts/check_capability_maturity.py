@@ -2,6 +2,7 @@
 """CI gate: every registered CapabilityDescriptor must have an explicit maturity_level (Rule 13 / CL5)."""
 from __future__ import annotations
 
+import argparse
 import ast
 import sys
 from pathlib import Path
@@ -52,8 +53,17 @@ def find_descriptor_instantiations(path: str) -> list[tuple[int, str | None]]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Capability maturity gate.")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
+    args = parser.parse_args()
+
     # not_applicable when the capability registry doesn't exist (fresh checkout, stripped bundle)
     if not Path(DATACLASS_FILE).exists():
+        if args.strict:
+            print(f"FAIL (strict): input absent at {DATACLASS_FILE}; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         print(f"not_applicable: {DATACLASS_FILE} not found")
         return 0
 

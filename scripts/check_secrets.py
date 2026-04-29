@@ -151,6 +151,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Secret scan gate.")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--output", help="Write evidence JSON to this path")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
     args = parser.parse_args()
 
     for config_path in [ROOT / "config" / "llm_config.json"]:
@@ -177,6 +179,10 @@ def main() -> int:
         (ROOT / d).exists() for d in ("scripts", "hi_agent", "config")
     )
     if not _src_dirs_present and not findings:
+        if args.strict:
+            print("FAIL (strict): input absent at scripts/hi_agent/config; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         status = "not_applicable"
     else:
         status = "pass" if not findings else "fail"

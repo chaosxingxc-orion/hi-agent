@@ -158,6 +158,8 @@ def main() -> int:
     parser.add_argument("--paths", nargs="*",
                         default=["tests/integration", "tests/e2e"],
                         help="Directories to scan")
+    parser.add_argument("--strict", action="store_true",
+                        help="Treat absent input as fail rather than not_applicable")
     args = parser.parse_args()
 
     all_violations: list[dict] = []
@@ -179,6 +181,10 @@ def main() -> int:
     )
     # not_applicable: no integration/e2e test directories found
     if files_scanned == 0:
+        if args.strict:
+            print("FAIL (strict): input absent at tests/integration and tests/e2e; "
+                  "in strict mode, absent input is a defect", file=sys.stderr)
+            return 1
         result_na = {
             "check": "test_honesty",
             "status": "not_applicable",
