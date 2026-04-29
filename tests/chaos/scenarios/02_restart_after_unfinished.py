@@ -25,22 +25,31 @@ _TERMINAL = frozenset(
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
+    # provenance is derived from what is actually observed.
     result = {
         "name": SCENARIO_NAME,
-        "runtime_coupled": True,
-        "synthetic": False,
-        "provenance": "real",
         "duration_s": 0.0,
     }
     run_id = submit_run(base_url, "restart test run")
     if not run_id:
         result.update(_fail_result("could not submit run"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
     final_state = wait_terminal(base_url, run_id, timeout=timeout - 5)
     if final_state in _TERMINAL:
+        # Run completed — real lifecycle path observed.
         result.update(_ok_result(f"run reached terminal state: {final_state}"))
+        result["provenance"] = "real"
+        result["runtime_coupled"] = True
+        result["synthetic"] = False
     else:
         result.update(
             _skip_result(f"cannot simulate restart within scenario; state={final_state}")
         )
+        # Could not confirm restart-recovery — no real injection observed.
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     return result

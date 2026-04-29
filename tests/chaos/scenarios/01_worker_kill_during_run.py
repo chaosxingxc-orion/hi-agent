@@ -64,11 +64,10 @@ def _cancel_run(base_url: str, run_id: str) -> int:
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
+    # provenance, runtime_coupled, and synthetic are derived at the end of the
+    # scenario based on what was actually observed.
     result: dict = {
         "name": SCENARIO_NAME,
-        "runtime_coupled": True,
-        "synthetic": False,
-        "provenance": "real",
         "duration_s": 0.0,
     }
 
@@ -101,11 +100,16 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
     health_after = _check_health(base_url)
 
     if final_state in _TERMINAL and health_after:
+        # Fault injection exercised (cancel signal sent), run reached terminal,
+        # health endpoint still live — all three real observations confirmed.
         result.update(
             _ok_result(
                 f"cancel_code={cancel_code}, terminal={final_state}, health_after=ok"
             )
         )
+        result["provenance"] = "real"
+        result["runtime_coupled"] = True
+        result["synthetic"] = False
     elif final_state == "timeout":
         result.update(
             _skip_result(
@@ -113,8 +117,19 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 "worker-kill injection requires separate worker process"
             )
         )
+        # Could not confirm real fault injection — provenance is structural.
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     elif not health_after:
         result.update(_fail_result(f"terminal={final_state} but /health not 200 after cancel"))
+        # Observed real failure path; health degraded.
+        result["provenance"] = "real"
+        result["runtime_coupled"] = True
+        result["synthetic"] = False
     else:
         result.update(_fail_result(f"unexpected state: {final_state}"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     return result

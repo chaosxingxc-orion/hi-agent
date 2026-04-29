@@ -38,11 +38,9 @@ def _cancel_run(base_url: str, run_id: str) -> int:
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
+    # provenance is derived at the end based on what was observed.
     result = {
         "name": SCENARIO_NAME,
-        "runtime_coupled": True,
-        "synthetic": False,
-        "provenance": "real",
         "duration_s": 0.0,
     }
     # Submit multiple runs concurrently to stress SQLite WAL
@@ -60,6 +58,9 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
         t.join(timeout=15)
     if not run_ids:
         result.update(_fail_result("no runs submitted"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
 
     # Try to wait briefly for natural completion.
@@ -70,7 +71,11 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
             terminal_count += 1
 
     if terminal_count == len(run_ids):
+        # Multiple concurrent runs completed — real contention path observed.
         result.update(_ok_result(f"all {len(run_ids)} concurrent runs reached terminal"))
+        result["provenance"] = "real"
+        result["runtime_coupled"] = True
+        result["synthetic"] = False
         return result
 
     # Runs are in-flight (no real LLM available); cancel them all to verify
@@ -92,6 +97,9 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 f"(cancel-under-contention handled correctly)"
             )
         )
+        result["provenance"] = "real"
+        result["runtime_coupled"] = True
+        result["synthetic"] = False
     elif terminal_after_cancel > 0:
         result.update(
             _ok_result(
@@ -99,6 +107,12 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 f"under contention"
             )
         )
+        result["provenance"] = "real"
+        result["runtime_coupled"] = True
+        result["synthetic"] = False
     else:
         result.update(_fail_result("no runs reached terminal under contention (incl. cancel)"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     return result

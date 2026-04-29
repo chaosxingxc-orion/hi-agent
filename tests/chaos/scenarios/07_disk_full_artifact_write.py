@@ -72,11 +72,9 @@ def _get_run_detail(base_url: str, run_id: str) -> dict:
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
+    # provenance is derived from what was actually observed.
     result: dict = {
         "name": SCENARIO_NAME,
-        "runtime_coupled": True,
-        "synthetic": False,
-        "provenance": "real",
         "duration_s": 0.0,
     }
 
@@ -87,6 +85,9 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
     run_id = _submit_artifact_run(base_url)
     if not run_id:
         result.update(_fail_result("could not submit artifact-run"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
 
     final_state = wait_terminal(base_url, run_id, timeout=timeout - 5)
@@ -98,10 +99,16 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 "artifact fault injection requires HI_AGENT_ARTIFACT_FAULT=oserror env"
             )
         )
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
 
     if final_state not in _TERMINAL:
         result.update(_fail_result(f"unexpected state: {final_state}"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
 
     detail = _get_run_detail(base_url, run_id)
@@ -116,6 +123,10 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                     f"error_type={error_type!r}"
                 )
             )
+            # Fault env set AND run actually failed — real injection observed.
+            result["provenance"] = "real"
+            result["runtime_coupled"] = True
+            result["synthetic"] = False
         elif final_state in ("completed", "succeeded"):
             result.update(
                 _fail_result(
@@ -123,8 +134,14 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                     "disk-full error was silently swallowed"
                 )
             )
+            result["provenance"] = "real"
+            result["runtime_coupled"] = True
+            result["synthetic"] = False
         else:
             result.update(_fail_result(f"unclassified terminal state: {final_state}"))
+            result["provenance"] = "structural"
+            result["runtime_coupled"] = False
+            result["synthetic"] = True
     else:
         # No fault injected — any terminal state is acceptable
         result.update(
@@ -133,4 +150,7 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 "(no disk-full fault injected)"
             )
         )
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     return result

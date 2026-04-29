@@ -22,16 +22,21 @@ _TERMINAL = frozenset(
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
+    # provenance is derived from what was actually observed.
     result = {
         "name": SCENARIO_NAME,
-        "runtime_coupled": True,
-        "synthetic": False,
-        "provenance": "real",
         "duration_s": 0.0,
     }
+
+    import os as _os_env
+    clock_offset_injected = bool(_os_env.environ.get("HI_AGENT_CLOCK_OFFSET_S"))
+
     run_id = submit_run(base_url, "clock skew test")
     if not run_id:
         result.update(_fail_result("could not submit run"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
     final_state = wait_terminal(base_url, run_id, timeout=timeout - 5)
     if final_state in _TERMINAL:
@@ -41,6 +46,10 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 "(clock skew resilience verified via lease lifecycle)"
             )
         )
+        # Real observation only if clock-offset env var was injected into the server.
+        result["provenance"] = "real" if clock_offset_injected else "structural"
+        result["runtime_coupled"] = clock_offset_injected
+        result["synthetic"] = not clock_offset_injected
     else:
         result.update(
             _skip_result(
@@ -48,4 +57,7 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 f"state={final_state}"
             )
         )
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     return result

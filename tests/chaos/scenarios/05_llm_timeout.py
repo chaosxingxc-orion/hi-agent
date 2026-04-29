@@ -60,11 +60,9 @@ def _post_run_with_hint(base_url: str) -> str | None:
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
+    # provenance is derived from what was actually observed.
     result: dict = {
         "name": SCENARIO_NAME,
-        "runtime_coupled": True,
-        "synthetic": False,
-        "provenance": "real",
         "duration_s": 0.0,
     }
 
@@ -72,11 +70,17 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
     run_id = _post_run_with_hint(base_url)
     if not run_id:
         result.update(_fail_result("could not submit run"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
 
     wait_budget = min(_MAX_WALL_CLOCK_S, timeout - 5)
     final_state = wait_terminal(base_url, run_id, timeout=wait_budget)
     elapsed = round(time.monotonic() - t0, 2)
+
+    import os as _os_env
+    delay_injected = bool(_os_env.environ.get("HI_AGENT_LLM_MOCK_DELAY_MS"))
 
     if final_state in _TERMINAL:
         result.update(
@@ -85,6 +89,10 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 f"(well under timeout={timeout}s — LLM timeout resilience verified)"
             )
         )
+        # Real observation only if fault env var was injected into the server.
+        result["provenance"] = "real" if delay_injected else "structural"
+        result["runtime_coupled"] = delay_injected
+        result["synthetic"] = not delay_injected
     elif final_state == "timeout":
         # The run did not complete: this means the system is hanging on the
         # slow LLM path.  Skip rather than fail to avoid blocking CI on slow
@@ -96,6 +104,12 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 "(run will complete eventually)"
             )
         )
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     else:
         result.update(_fail_result(f"unexpected state after {elapsed}s: {final_state}"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     return result

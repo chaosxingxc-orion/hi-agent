@@ -69,17 +69,21 @@ def _submit_tool_run(base_url: str) -> str | None:
 
 
 def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
+    # provenance is derived from what was actually observed.
     result: dict = {
         "name": SCENARIO_NAME,
-        "runtime_coupled": True,
-        "synthetic": False,
-        "provenance": "real",
         "duration_s": 0.0,
     }
+
+    import os as _os_env
+    fault_injected = _os_env.environ.get("HI_AGENT_TOOL_FAULT") == "crash"
 
     run_id = _submit_tool_run(base_url)
     if not run_id:
         result.update(_fail_result("could not submit tool-run"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
 
     final_state = wait_terminal(base_url, run_id, timeout=timeout - 5)
@@ -91,10 +95,16 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 "HI_AGENT_TOOL_FAULT=crash env var on the server process"
             )
         )
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
 
     if final_state not in _TERMINAL:
         result.update(_fail_result(f"unexpected state: {final_state}"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
         return result
 
     # Get run detail to check for error classification
@@ -108,6 +118,10 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 f"error_type={error_type!r} (not a silent success)"
             )
         )
+        # Real fault injection confirmed only if the env var was actually set.
+        result["provenance"] = "real" if fault_injected else "structural"
+        result["runtime_coupled"] = fault_injected
+        result["synthetic"] = not fault_injected
     elif final_state in ("completed", "succeeded"):
         # Without fault env var the run may succeed normally — that's acceptable
         result.update(
@@ -116,6 +130,12 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
                 "(HI_AGENT_TOOL_FAULT env not set on server)"
             )
         )
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     else:
         result.update(_fail_result(f"unclassified terminal state: {final_state}"))
+        result["provenance"] = "structural"
+        result["runtime_coupled"] = False
+        result["synthetic"] = True
     return result
