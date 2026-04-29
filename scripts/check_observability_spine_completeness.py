@@ -91,6 +91,17 @@ def main() -> int:
         return 0  # deferred: no blocking failure, manifest scoring handles score cap
 
     missing_layers = [la for la in _EXPECTED_LAYERS if la not in layers_present]
+    layer_count = len(layers_present)
+    # The spine must report at least 12 event observations to be considered
+    # complete.  Fewer implies the run was too short or the spine was synthetic.
+    min_event_count = 12
+    event_count = data.get("event_count", data.get("layers_count", layer_count))
+    # trace_id consistency: all events in the evidence must share the claimed trace_id.
+    # We check via event_count > 0 && trace_id present as a proxy (the builder script
+    # is responsible for per-event trace_id checks; the gate validates the spine claims).
+    claimed_trace_id = data.get("trace_id", "")
+    claimed_run_id = data.get("run_id", "")
+
     issues = []
     if missing_layers:
         issues.append(f"missing layers: {', '.join(missing_layers)}")
@@ -98,6 +109,16 @@ def main() -> int:
         issues.append("missing run_id correlation field")
     if not has_trace_id:
         issues.append("missing trace_id correlation field")
+    if event_count < min_event_count:
+        issues.append(
+            f"event_count={event_count} < required minimum {min_event_count}; "
+            "spine may be truncated or synthetic"
+        )
+    if claimed_trace_id and claimed_run_id and len(claimed_trace_id) < 16:
+        issues.append(
+            f"trace_id='{claimed_trace_id}' too short to be a valid trace ID; "
+            "spine trace_id must be a 32-char hex string"
+        )
 
     status = "pass" if not issues else "fail"
     result = {
@@ -105,9 +126,12 @@ def main() -> int:
         "check": "observability_spine_completeness",
         "provenance": provenance,
         "spine_file": spine_file.name,
-        "layers_present": len(layers_present),
+        "layers_present": layer_count,
         "expected_layers": len(_EXPECTED_LAYERS),
         "missing_layers": missing_layers,
+        "event_count": event_count,
+        "min_event_count": min_event_count,
+        "trace_id_present": bool(claimed_trace_id),
         "issues": issues,
     }
 
@@ -117,7 +141,9 @@ def main() -> int:
         for issue in issues:
             print(f"FAIL: {issue}", file=sys.stderr)
         if not issues:
-            print(f"PASS: spine complete ({len(layers_present)}/{len(_EXPECTED_LAYERS)} layers), provenance:real")
+            n = len(layers_present)
+            t = len(_EXPECTED_LAYERS)
+            print(f"PASS: spine complete ({n}/{t} layers), provenance:real")
 
     return 0 if status == "pass" else 1
 
