@@ -42,7 +42,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["hi_agent*", "agent_kernel*"]
+include = ["hi_agent*", "agent_kernel*", "agent_server*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -74,7 +74,7 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["hi_agent", "agent_kernel", "tests"]
+src = ["hi_agent", "agent_kernel", "agent_server", "tests"]
 exclude = [".claude", ".worktrees", ".git"]
 
 [tool.ruff.lint]
