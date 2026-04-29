@@ -9,7 +9,7 @@ T3 evidence:        docs/delivery/2026-04-29-9ed019c-t3-volces.json (3 Volces ru
 Clean-env evidence: docs/verification/1d78056-default-offline-clean-env.json (8707 passed, 0 failed)
 Current verified readiness: 80.0 (gate_warn/deferred: pytest_skip_discipline, multistatus_gates, observability_spine_completeness, soak_evidence)
 Validated by:       scripts/build_release_manifest.py scripts/check_allowlist_discipline.py scripts/check_no_research_vocab.py
-Status:             current
+Status:             superseded
 ```
 
 ---
