@@ -217,12 +217,34 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
     head = _git_head(ROOT)
     has_clean_env_evidence = False
     if head and t3_fresh:
-        delivery_dir = DOCS / "delivery"
-        if delivery_dir.is_dir():
-            for f in delivery_dir.glob("*.json"):
-                if head[:7] in f.name:
+        # Check docs/delivery/ and docs/verification/ for clean-env evidence.
+        # Evidence at an older SHA is valid if the gap to current HEAD is gov-only
+        # (only docs/**,scripts/**,.github/** changed between evidence SHA and HEAD).
+        _scan_dirs = [DOCS / "delivery", DOCS / "verification"]
+        _head7 = head[:7]
+        for _dir in _scan_dirs:
+            if not _dir.is_dir():
+                continue
+            for f in _dir.glob("*.json"):
+                if _head7 in f.name:
                     has_clean_env_evidence = True
                     break
+                # Gov-only gap: extract SHA prefix (first 7 hex chars in filename)
+                _m = re.match(r"([0-9a-f]{7})", f.name)
+                if _m:
+                    _evid_sha = _m.group(1)
+                    with contextlib.suppress(Exception):
+                        import sys as _sys
+                        import os as _os
+                        _scripts = Path(__file__).parent
+                        if str(_scripts) not in _sys.path:
+                            _sys.path.insert(0, str(_scripts))
+                        from _governance.governance_gap import is_gov_only_gap
+                        if is_gov_only_gap(_evid_sha, head):
+                            has_clean_env_evidence = True
+                            break
+            if has_clean_env_evidence:
+                break
 
     _t3_stale_cap = _load_score_cap("t3_stale")
     _gate_warn_cap = _load_score_cap("gate_warn")
