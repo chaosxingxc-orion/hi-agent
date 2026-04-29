@@ -144,7 +144,7 @@ route_scope_allowlist:
     owner: RO
     risk: high
     reason: "Knowledge ingest — global KG, per-tenant isolation not yet implemented; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "tests/integration/test_route_handle_knowledge_ingest_tenant_isolation.py"
     added_at: "Wave 17"
     contract: ""
@@ -152,7 +152,7 @@ route_scope_allowlist:
     owner: RO
     risk: high
     reason: "Structured knowledge ingest — same scope gap as handle_knowledge_ingest; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "tests/integration/test_route_handle_knowledge_ingest_structured_tenant_isolation.py"
     added_at: "Wave 17"
     contract: ""
@@ -160,7 +160,7 @@ route_scope_allowlist:
     owner: RO
     risk: high
     reason: "Knowledge query — global graph, per-tenant filtering not yet implemented; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "tests/integration/test_route_handle_knowledge_query_tenant_isolation.py"
     added_at: "Wave 17"
     contract: ""
@@ -168,7 +168,7 @@ route_scope_allowlist:
     owner: RO
     risk: low
     reason: "Knowledge status — system-wide KG stats; tenant-isolation not yet impl; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_knowledge_tenant_isolation.py"
     added_at: "Wave 17"
     contract: "system-info"
@@ -176,7 +176,7 @@ route_scope_allowlist:
     owner: RO
     risk: low
     reason: "Knowledge lint — stateless validation; tenant-isolation not yet impl; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_knowledge_tenant_isolation.py"
     added_at: "Wave 17"
     contract: ""
@@ -184,7 +184,7 @@ route_scope_allowlist:
     owner: RO
     risk: high
     reason: "Knowledge sync — system-wide sync, per-tenant scope not yet implemented; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "tests/integration/test_route_handle_knowledge_sync_tenant_isolation.py"
     added_at: "Wave 17"
     contract: ""
@@ -192,7 +192,7 @@ route_scope_allowlist:
     owner: TE
     risk: low
     reason: "Skills listing — global registry, per-tenant overlay not yet implemented; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_skills_tenant_overlay.py"
     added_at: "Wave 17"
     contract: "global-readonly"
@@ -200,7 +200,7 @@ route_scope_allowlist:
     owner: TE
     risk: low
     reason: "Skills status — system-wide skill health; tenant-isolation not yet impl; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_skills_tenant_overlay.py"
     added_at: "Wave 17"
     contract: "system-info"
@@ -208,7 +208,7 @@ route_scope_allowlist:
     owner: TE
     risk: high
     reason: "Skill evolution — global trigger, per-tenant scope not yet implemented; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "tests/integration/test_route_handle_skills_evolve_tenant_isolation.py"
     added_at: "Wave 17"
     contract: ""
@@ -216,7 +216,7 @@ route_scope_allowlist:
     owner: TE
     risk: low
     reason: "Skill metrics — aggregate counters; tenant-isolation not yet implemented; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_skills_tenant_overlay.py"
     added_at: "Wave 17"
     contract: "system-info"
@@ -224,7 +224,7 @@ route_scope_allowlist:
     owner: TE
     risk: low
     reason: "Skill versions — global version history; tenant-isolation not yet impl; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_skills_tenant_overlay.py"
     added_at: "Wave 17"
     contract: "global-readonly"
@@ -232,7 +232,7 @@ route_scope_allowlist:
     owner: TE
     risk: high
     reason: "Skill optimization — global trigger, per-tenant scope not yet implemented; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "tests/integration/test_route_handle_skill_optimize_tenant_isolation.py"
     added_at: "Wave 17"
     contract: ""
@@ -240,7 +240,7 @@ route_scope_allowlist:
     owner: TE
     risk: high
     reason: "Skill promotion — global promotion, per-tenant approval not yet impl; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "tests/integration/test_route_handle_skill_promote_tenant_isolation.py"
     added_at: "Wave 17"
     contract: ""
@@ -248,7 +248,7 @@ route_scope_allowlist:
     owner: DX
     risk: medium
     reason: "Tool invocation — tenant_id injected downstream; per-tenant filter absent; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_tools_tenant_injection.py"
     added_at: "Wave 17"
     contract: ""
@@ -256,7 +256,7 @@ route_scope_allowlist:
     owner: DX
     risk: low
     reason: "Tool listing — global registry, per-tenant filtering not yet implemented; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_tools_tenant_injection.py"
     added_at: "Wave 17"
     contract: "global-readonly"
@@ -264,7 +264,7 @@ route_scope_allowlist:
     owner: DX
     risk: low
     reason: "MCP tools root handler — global registry, per-tenant overlay not yet impl; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_tools_tenant_injection.py"
     added_at: "Wave 17"
     contract: "global-readonly"
@@ -272,7 +272,7 @@ route_scope_allowlist:
     owner: DX
     risk: low
     reason: "MCP tool listing — global registry, per-tenant filtering not yet impl; Wave 14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_tools_tenant_injection.py"
     added_at: "Wave 17"
     contract: "global-readonly"
@@ -280,7 +280,7 @@ route_scope_allowlist:
     owner: DX
     risk: medium
     reason: "MCP tool invocation — tenant_id injected downstream; per-tenant filter absent; W14"
-    expiry_wave: "Wave 22"
+    expiry_wave: "Wave 23"
     replacement_test: "test_routes_tools_tenant_injection.py"
     added_at: "Wave 17"
     contract: ""
