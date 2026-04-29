@@ -1,0 +1,20 @@
+{
+  "wave": "Wave 21",
+  "manifest_id": "2026-04-29-eb69e6f",
+  "release_head": "eb69e6ffa4202c487c24c6ad012ab0ab20c82b9f",
+  "delivery_notice": "docs/downstream-responses/2026-04-30-wave21-delivery-notice.md",
+  "signed_at": "2026-04-30T00:00:00Z",
+  "signer": "chaosxingxc-orion",
+  "scores": {
+    "raw_implementation_maturity": 94.55,
+    "current_verified_readiness": 94.55,
+    "seven_by_twenty_four_operational_readiness": 65.0,
+    "conditional_readiness_after_blockers": 94.55,
+    "cap": null,
+    "w20_baseline": 88.74,
+    "delta": 5.81
+  },
+  "t3_evidence": "docs/delivery/2026-04-30-159b304-t3-volces.json",
+  "clean_env_evidence": "docs/verification/0074102-default-offline-clean-env.json",
+  "notes": "W21 closes 7 defect axes (AX-A through AX-G). 24h soak, spine completeness, and chaos coupling deferred to Wave 22 per architectural posture decision."
+}
