@@ -1,6 +1,6 @@
 # hi-agent Platform Capability Matrix
 
-Last updated: 2026-04-25 (Wave 9 — Owner-Track Hardening)
+Last updated: 2026-04-29 (Wave 18 — Vocabulary Debt Clearance + Stable 80 Baseline)
 
 ---
 
@@ -197,3 +197,102 @@ Legacy labels still shown for backward reference: `experimental`≈L1, `implemen
 | failover Retry-After parse Rule 7 counter | L3 | RO | `tests/unit/test_failover_retry_after_parse_alarm.py` | R7 + Class I — counter-only |
 | mcp/transport stderr tail Rule 7 counter | L3 | TE | `tests/unit/test_mcp_transport_stderr_tail_alarm.py` | R7 + Class I — counter-only |
 | Wave 10.4 clean-env verification bundle (254 tests) | L3 | DX | `scripts/verify_clean_env.py` | R8 — expanded bundle passes in clean-env |
+
+---
+
+## Wave 11 — Comprehensive Hardening (2026-04-27, HEAD 88960cc)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| Platform vocabulary decoupling (no research-domain terms) | L3 | GOV | `scripts/check_no_research_vocab.py` | R2 — platform must not couple business logic |
+| Route scope completeness (all 25+ routes carry tenant isolation) | L3 | TE | `scripts/check_route_scope.py` | R12 — tenant guard on every handler |
+| Silent degradation sweep (16 sites audited) | L3 | TE | `scripts/check_silent_degradation.py` | R7 — all fallback branches emit metrics |
+| Metric producer completeness | L3 | TE | `scripts/check_metric_producers.py` | R7 — metric registration cross-check |
+| Evidence provenance validation | L3 | GOV | `scripts/check_evidence_provenance.py` | R8 — no synthetic-only evidence in release |
+| Validate-before-mutate pattern | L3 | RO | `scripts/check_validate_before_mutate.py` | R3 — all store mutations validate first |
+
+---
+
+## Waves 12–13 — Default-Path Hardening + Systemic Class Closure (2026-04-27)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| Async client lifetime (cross-loop stress, Rule 5) | L3 | RO | `tests/integration/test_async_client_lifetime.py` | R5 — no Event-loop-closed on run ≥2 |
+| Durable backend wiring gate | L3 | GOV | `scripts/check_durable_wiring.py` | R11 — durable stores required under research/prod |
+| Closure taxonomy enforcement | L3 | GOV | `scripts/check_closure_taxonomy.py` (W14-D8) | R15 — all closures carry level enum |
+| Test honesty audit (MagicMock on subsystem) | L3 | TE | `scripts/check_test_honesty.py` | R4 — integration tests use real components |
+| noqa discipline gate | L3 | GOV | `scripts/check_noqa_discipline.py` | R3 — no noqa added same commit as offending line |
+| pytest skip discipline gate | L3 | GOV | `scripts/check_pytest_skip_discipline.py` | R4 — skips carry reason + expiry_wave |
+| No hardcoded wave strings | L3 | GOV | `scripts/check_no_hardcoded_wave.py` | R2 — wave labels never hardcoded in source |
+| Multi-status gate support | L3 | GOV | `scripts/check_multistatus_gates.py` | R8 — deferred gates declare multi-status |
+
+---
+
+## Waves 14–15 — Systemic Class Closure Sprint (2026-04-27)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| Governance gate infrastructure (35 CI gates) | L3 | GOV | `release-gate.yml` — all 35 steps blocking | W14/W15 gate additions |
+| Allowlist universal coverage | L3 | GOV | `scripts/check_allowlist_universal.py` (W14-D3) | R17 — every allowlist entry carries owner/risk/expiry |
+| Score cap automation | L3 | GOV | `scripts/check_score_cap.py` (W14-A7) | R14 — no manual score increase path |
+| Operator drill evidence | L3 | GOV | `scripts/check_operator_drill.py` (W16-H4) | R8 — operator-shape drill recorded |
+| Observability spine completeness (structural) | L2 | TE | `scripts/check_observability_spine_completeness.py` | P0-3 — real spine deferred to W19 |
+| Soak evidence (pilot 360m) | L2 | TE | `scripts/check_soak_evidence.py` | P0-4 — 24h soak deferred; 7x24=65 cap enforced |
+| Chaos runtime coupling | L3 | TE | `scripts/check_chaos_runtime_coupling.py` | P0-5 — real HTTP chaos scenarios with runtime_coupled:true |
+| Manifest rewrite budget gate | L3 | GOV | `scripts/check_manifest_rewrite_budget.py` (W17-B19) | R14 — max 3 manifest rewrites per wave |
+| Untracked release artifacts gate | L3 | GOV | `scripts/check_untracked_release_artifacts.py` (W17-B13) | R14 — no uncommitted manifests in working tree |
+
+---
+
+## Wave 16 — Release Identity + Operator Drill (2026-04-28)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| Release identity triple-SHA consistency | L3 | GOV | `scripts/check_release_identity.py` (W16-A8) | R14 — manifest.release_head == git HEAD == notice HEAD |
+| Manifest freshness gate | L3 | GOV | `scripts/check_manifest_freshness.py` (W16-A8) | R14 — manifest not stale vs current HEAD |
+| Wave label consistency gate | L3 | GOV | `scripts/check_wave_consistency.py` (W17-B11) | R14 — current-wave.txt, allowlists, manifest, notice all agree |
+| Recurrence ledger gate | L3 | GOV | `scripts/check_recurrence_ledger.py` (W16-G3) | R15 — all 13 ledger fields present per entry |
+| Release captain checklist | L3 | GOV | `docs/governance/release-captain-checklist.md` | R15 — named captain signs off on all 13 steps |
+| Delivery protocol | L3 | GOV | `docs/governance/delivery-protocol.md` | R15 — 13-step protocol documented |
+| Gate-weakening freeze policy | L3 | GOV | `docs/governance/recurrence-ledger.yaml` W17-A | R8 — no new --allow-* flags without ledger entry |
+| Cross-tenant run_store primitive safety | L3 | RO | `tests/security/test_run_store_tenant_required.py` | W17-B — get_for_tenant() required; bare run_id blocked |
+| Test fallback scope isolation | L3 | TE | `scripts/check_conftest_fallback_scope.py` | W17-C — heuristic fallback blocked in release profile |
+
+---
+
+## Wave 17 — Anti-Loop + Governance Tightening (2026-04-28)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| Governance gap classification (docs-only vs gov-infra vs functional) | L3 | GOV | `scripts/_governance/governance_gap.py` | R14 — binding gap definitions added to CLAUDE.md |
+| Manifest rewrite budget enforcement | L3 | GOV | `scripts/check_manifest_rewrite_budget.py` (W17-B19) | R14 — 4th rewrite requires captain escalation |
+| Override schema for rewrite budget | L3 | GOV | `scripts/check_manifest_rewrite_budget.py` — `--override` flag with ledger reference | W17-B19 — budget gate + override documented |
+| Smoke-test archive mechanism | L3 | GOV | `docs/delivery/` W17-B13.1 archive smoke artifact | W17-B13 — CI fails on uncommitted test artifacts |
+
+---
+
+## Wave 18 — Vocabulary Debt Clearance + Stable 80 Baseline (2026-04-29)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| Research-vocabulary clean (C4 closed) | L3 | GOV | `scripts/check_no_research_vocab.py` — 0 violations | C4 — 7 expired allowlist entries cleared; aliases deleted |
+| Release identity stable (C3 closed) | L3 | GOV | `scripts/check_manifest_freshness.py`, `check_wave_consistency.py` | C3 — manifest at functional HEAD 58394d6 |
+| T3 evidence at functional HEAD | L3 | TE | `docs/delivery/2026-04-29-9ed019c-t3-volces.json` | R8 — 3 Volces real-LLM runs, provenance=real |
+| Clean-env evidence at functional HEAD (8707 tests) | L3 | DX | `docs/verification/58394d6-default-offline-clean-env.json` | R8/R16 — portable clean-env, 0 failures |
+| Verified readiness baseline 80.0 held | L3 | GOV | `docs/releases/2026-04-28-58394d6.json` | R14 — no regression from W17; C1/C2 deferred to W19 |
+
+---
+
+## Core Capability Summary (Wave 18 current)
+
+| Dimension | L-Level | Notes |
+|---|---|---|
+| Execution Engine (TRACE) | L3 | Stable since Wave 10.2; cross-loop stress passing; R5/R8 gates green |
+| Memory Infrastructure | L3 | L0→L3 chain; ledger durable under research/prod; tenant-first query |
+| Capability Plugin System | L3-L4 | ExtensionRegistry with enforcement fields; posture-aware enable gate |
+| Knowledge Graph | L3 | SQLite backend default under research/prod (Wave 10.5) |
+| Planning / Multi-stage | L2-L3 | TRACE static; dynamic re-planning (P-4) deferred |
+| Artifact / Evidence | L3 | ArtifactLedger durable; provenance fields; tenant-first query |
+| Evolution / Feedback | L2-L3 | ExperimentStore durable; EvolveEngine wired; auto-calibration deferred |
+| Observability | L3 | 14 fallback counters; spine structural (real spine W19) |
+| Governance (gates) | L3 | 35 blocking CI gates; recurrence ledger; release captain protocol |
