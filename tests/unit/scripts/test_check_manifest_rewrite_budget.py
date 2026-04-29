@@ -144,13 +144,15 @@ def test_over_budget_with_wrong_wave_override_fails(tmp_path, monkeypatch, capsy
 
 
 def test_other_wave_manifests_not_counted(tmp_path, monkeypatch, capsys):
-    """Manifests for prior waves should not count against current wave's budget."""
+    """Archived prior-wave manifests should not count against current wave's budget."""
     import check_manifest_rewrite_budget as mod
 
-    # 4 manifests for Wave 16 — should not count
+    # 4 manifests for Wave 16 — archived under archive/W16/ (per CL6/Rule 14)
+    archive_dir = tmp_path / "archive" / "W16"
+    archive_dir.mkdir(parents=True)
     for sha in ("aaa1111", "bbb2222", "ccc3333", "ddd4444"):
-        _write_manifest(tmp_path, sha, wave_label="Wave 16")
-    # 2 manifests for Wave 17 — under budget
+        _write_manifest(archive_dir, sha, wave_label="Wave 16")
+    # 2 manifests for Wave 17 — in root, under budget
     for sha in ("eee5555", "fff6666"):
         _write_manifest(tmp_path, sha, wave_label="Wave 17")
 
