@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -93,7 +92,16 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = Path("docs/verification")
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{sha}-runbook-drill.json"
-    out_path.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _governance.evidence_writer import write_artifact
+    write_artifact(
+        path=out_path,
+        body=evidence,
+        provenance="structural",
+        generator_script=__file__,
+        degraded=True,
+    )
 
     if args.json:
         print(json.dumps(evidence, indent=2))

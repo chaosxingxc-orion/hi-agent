@@ -187,7 +187,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     VERIF_DIR.mkdir(parents=True, exist_ok=True)
     out = VERIF_DIR / f"{current_short_sha}-score-cap.json"
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "scripts"))
+    from _governance.evidence_writer import write_artifact
+    write_artifact(
+        path=out,
+        body=evidence,
+        provenance="derived",
+        generator_script=__file__,
+        degraded=True,
+    )
 
     result = {"status": status, "check": "score_cap", **evidence}
     if args.json:

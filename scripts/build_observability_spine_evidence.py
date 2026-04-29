@@ -253,7 +253,15 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = _REPO_ROOT / "docs" / "verification"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{sha}-observability-spine.json"
-    out_path.write_text(evidence_json, encoding="utf-8")
+    sys.path.insert(0, str(_REPO_ROOT / "scripts"))
+    from _governance.evidence_writer import write_artifact
+    write_artifact(
+        path=out_path,
+        body=evidence,
+        provenance="structural",
+        generator_script=__file__,
+        degraded=True,
+    )
     _LOG.info("Evidence written to %s", out_path)
 
     if args.print_output or status == "fail":

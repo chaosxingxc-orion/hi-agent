@@ -200,7 +200,16 @@ def main() -> int:
 
     out_path = pathlib.Path(args.output) if args.output else VERIF_DIR / f"{sha}-runtime-chaos.json"
     VERIF_DIR.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from _governance.evidence_writer import write_artifact
+    _chaos_provenance = evidence.get("provenance", "structural")
+    write_artifact(
+        path=out_path,
+        body=evidence,
+        provenance=_chaos_provenance if _chaos_provenance == "real" else "structural",
+        generator_script=__file__,
+        degraded=(_chaos_provenance != "real"),
+    )
 
     if args.json:
         print(json.dumps(evidence, indent=2))

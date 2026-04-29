@@ -288,7 +288,16 @@ def main() -> int:
             if args.output:
                 out_path = pathlib.Path(args.output)
                 VERIF_DIR.mkdir(parents=True, exist_ok=True)
-                out_path.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+                import sys as _sys
+                _sys.path.insert(0, str(ROOT / "scripts"))
+                from _governance.evidence_writer import write_artifact
+                write_artifact(
+                    path=out_path,
+                    body=evidence,
+                    provenance="degraded",
+                    generator_script=__file__,
+                    degraded=True,
+                )
             if args.json:
                 print(json.dumps(evidence, indent=2))
             return 1
@@ -411,7 +420,17 @@ def main() -> int:
         else:
             out_path = VERIF_DIR / f"{sha}-observability-spine.json"
         VERIF_DIR.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        import sys as _sys
+        _sys.path.insert(0, str(ROOT / "scripts"))
+        from _governance.evidence_writer import write_artifact
+        _ev_provenance = evidence.get("provenance", "structural")
+        write_artifact(
+            path=out_path,
+            body=evidence,
+            provenance=_ev_provenance if _ev_provenance == "real" else "structural",
+            generator_script=__file__,
+            degraded=(_ev_provenance != "real"),
+        )
 
         if args.json:
             print(json.dumps(evidence, indent=2))

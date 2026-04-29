@@ -595,6 +595,59 @@ def _check_closure_notice_levels(docs_dir: Path) -> list[str]:
     return violations
 
 
+def _check_closure_notice_manifest_ids(docs_dir: Path) -> list[str]:
+    """Check 11 (D3 extension): manifest_id citations in closure notices must resolve.
+
+    For each 'manifest_id: <value>' line in a closure notice, verify that a manifest
+    JSON file containing that ID exists under docs/releases/. Advisory warnings only
+    (not blocking) until a full manifest registry is in place.
+    """
+    warnings: list[str] = []
+    notice_pattern = docs_dir / "downstream-responses"
+    if not notice_pattern.exists():
+        return []
+
+    releases_dir = docs_dir / "releases"
+
+    manifest_id_re = re.compile(r"manifest.?id[:\s]+([0-9a-zA-Z_\-\.]+)", re.IGNORECASE)
+
+    for notice_file in notice_pattern.glob("*notice*.md"):
+        content = notice_file.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        # Skip superseded/draft
+        if any(re.search(r"Status:.*(?:draft|superseded)", ln, re.IGNORECASE) for ln in lines):
+            continue
+        for i, line in enumerate(lines):
+            m = manifest_id_re.search(line)
+            if not m:
+                continue
+            manifest_id = m.group(1).strip().rstrip(".,;")
+            if not manifest_id or len(manifest_id) < 4:
+                continue
+            # Look for any manifest JSON containing this ID in its filename or content
+            found = False
+            if releases_dir.exists():
+                # Fast: check by filename glob
+                if list(releases_dir.glob(f"*{manifest_id}*.json")):
+                    found = True
+                else:
+                    # Slow: scan file content (for short SHA citations)
+                    for mf in releases_dir.glob("*.json"):
+                        try:
+                            if manifest_id in mf.read_text(encoding="utf-8"):
+                                found = True
+                                break
+                        except OSError:
+                            pass
+            if not found:
+                warnings.append(
+                    f"  WARN {notice_file.relative_to(docs_dir.parent)}:{i + 1}: "
+                    f"cites manifest_id '{manifest_id}' but no matching file found "
+                    f"under docs/releases/"
+                )
+    return warnings
+
+
 def _count_notices_checked() -> int:
     """Count delivery notice files inspected."""
     return len(list(DOCS.glob("downstream-responses/*delivery-notice*.md")))
@@ -651,15 +704,26 @@ def main() -> int:
     all_errors.extend(check_downstream_notices_cite_manifest())
     # Check 11: closure notices must have a valid level enum in every defect row
     all_errors.extend(_check_closure_notice_levels(DOCS))
+    # Check 11 (D3 extension): manifest_id citations in closure notices must resolve
+    # Advisory only — emitted as warnings, does not cause exit 1.
+    manifest_id_warnings = _check_closure_notice_manifest_ids(DOCS)
+    # Warnings are printed separately and do not count as failures.
 
     if args.json:
         structured = [_parse_doc_error(e) for e in all_errors]
+        warn_structured = [_parse_doc_error(w) for w in manifest_id_warnings]
         emit_result(
             "doc_consistency",
             "pass" if not all_errors else "fail",
             violations=structured,
             counts={"notices_checked": _count_notices_checked()},
+            extra={"manifest_id_warnings": warn_structured} if warn_structured else None,
         )
+
+    if manifest_id_warnings:
+        print("WARN check_doc_consistency (manifest_id citations — advisory):")
+        for w in manifest_id_warnings:
+            print(w)
 
     if all_errors:
         print("FAIL check_doc_consistency:")

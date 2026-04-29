@@ -61,6 +61,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--json", action="store_true", dest="json_output",
                         help="Emit JSON to stdout")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help=(
+            "Under --strict, not_applicable (empty changed-files list) exits 1 instead of 0. "
+            "Use in CI to catch misconfigured changed-files inputs."
+        ),
+    )
     args = parser.parse_args(argv)
 
     changed_files_path = Path(args.changed_files)
@@ -86,6 +94,15 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, indent=2))
         else:
             print("No hot-path files changed. T3 evidence not required.")
+        # Under --strict, an empty changed-files list likely means the input was not
+        # configured; fail-closed so the caller must verify the gate is wired correctly.
+        if args.strict and not changed_files:
+            print(
+                "ERROR (--strict): changed-files list is empty. "
+                "Verify that --changed-files input is correctly wired.",
+                file=sys.stderr,
+            )
+            return 1
         return 0
 
     pr_body = args.pr_body or ""

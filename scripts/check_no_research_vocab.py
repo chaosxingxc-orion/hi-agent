@@ -282,6 +282,15 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="Emit structured JSON report.",
     )
+    parser.add_argument(
+        "--expiry-wave",
+        dest="expiry_wave",
+        default=None,
+        help=(
+            "When provided and soft-ban vocab is found, emit status 'deferred' (exit 3) "
+            "instead of 'warn'. Example: --expiry-wave 'Wave 22'"
+        ),
+    )
     args = parser.parse_args(argv)
 
     all_hard: list[str] = []
@@ -301,10 +310,11 @@ def main(argv: list[str] | None = None) -> int:
         if all_hard or migration_violations:
             status = "fail"
         elif all_soft:
-            status = "warn"
+            # With --expiry-wave: emit "deferred" (exit 3); without it: emit "warn" (exit 1)
+            status = "deferred" if args.expiry_wave else "warn"
         else:
             status = "pass"
-        report = {
+        report: dict = {
             "check": "no_research_vocab",
             "status": status,
             "violations": hard_structs + migration_violations,
@@ -313,8 +323,14 @@ def main(argv: list[str] | None = None) -> int:
             "migration_guide_violations": migration_violations,
             "head": _git_head(),
         }
+        if args.expiry_wave and status == "deferred":
+            report["expiry_wave"] = args.expiry_wave
         print(json.dumps(report, indent=2))
-        return 1 if status == "fail" else 0
+        if status == "fail":
+            return 1
+        if status == "deferred":
+            return 3
+        return 0
 
     # Human-readable output
     failed = False
@@ -332,12 +348,18 @@ def main(argv: list[str] | None = None) -> int:
         failed = True
 
     if all_soft:
-        print("WARN check_no_research_vocab (soft-ban, expiry Wave 12):")
+        if args.expiry_wave:
+            print(f"DEFERRED check_no_research_vocab (soft-ban, expiry {args.expiry_wave}):")
+        else:
+            print("WARN check_no_research_vocab (soft-ban, expiry Wave 12):")
         for e in all_soft:
             print(e)
 
     if not failed:
         if all_soft:
+            if args.expiry_wave:
+                print(f"DEFERRED check_no_research_vocab (soft-ban deferred to {args.expiry_wave})")
+                return 3
             print("OK check_no_research_vocab (soft-ban warnings above)")
         else:
             print("OK check_no_research_vocab")

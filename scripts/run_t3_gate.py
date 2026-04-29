@@ -408,8 +408,18 @@ def _cancel_run(client: HttpClient, run_id: str) -> tuple[int, dict[str, Any]]:
 
 
 def _write_evidence(path: Path, evidence: GateEvidence) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(evidence.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _governance.evidence_writer import write_artifact
+    body = evidence.to_dict()
+    provenance = body.get("provenance", "structural")
+    write_artifact(
+        path=path,
+        body=body,
+        provenance=provenance if provenance == "real" else "structural",
+        generator_script=__file__,
+        degraded=(provenance != "real"),
+    )
 
 
 def _run_gate_with_client(

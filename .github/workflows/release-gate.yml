@@ -184,6 +184,58 @@ jobs:
       - name: Check gate strictness (W21-AX-D)
         run: python scripts/check_gate_strictness.py --strict --json
 
+      # --- W21 orphan gates wired (AX-D D11–D18) ---
+
+      - name: check-async-init-resources (W21-AX-D)
+        run: python scripts/check_async_init_resources.py --strict --json
+
+      - name: check-capability-maturity (W21-AX-D)
+        run: python scripts/check_capability_maturity.py --strict --json
+
+      - name: check-conftest-fallback-scope (W21-AX-D)
+        run: python scripts/check_conftest_fallback_scope.py --strict --json
+        continue-on-error: true  # TODO: promote to blocking in W22
+
+      - name: check-downstream-response-format (W21-AX-D)
+        run: python scripts/check_downstream_response_format.py --strict --json
+        continue-on-error: true  # TODO: promote to blocking in W22
+
+      - name: check-posture-coverage (W21-AX-D)
+        run: python scripts/check_posture_coverage.py --strict --json
+
+      - name: check-spine-completeness (W21-AX-D)
+        run: python scripts/check_spine_completeness.py --strict --json
+
+      - name: check-sqlite-pragma (W21-AX-D)
+        run: python scripts/check_sqlite_pragma.py --strict --json
+
+      - name: check-agent-kernel-pin (W21-AX-D)
+        run: python scripts/check_agent_kernel_pin.py --strict --json
+        continue-on-error: true  # TODO: promote to blocking in W22
+
+      - name: check-vacuous-asserts (W21-AX-D)
+        run: python scripts/check_vacuous_asserts.py --json
+
+      - name: check-route-coverage (W21-AX-D)
+        run: python scripts/check_route_coverage.py --json
+
+      - name: check-state-transition-coverage (W21-AX-D)
+        run: python scripts/check_state_transition_coverage.py --json
+
+      - name: check-owner-tag (W21-AX-D)
+        run: python scripts/check_owner_tag.py --n 20
+        continue-on-error: true  # advisory in W21; blocking in W22
+
+      - name: check-clean-env (W21-AX-D)
+        run: python scripts/check_clean_env.py --json
+
+      - name: check-pytest-markers (W21-AX-D)
+        run: python scripts/check_pytest_markers.py --json
+
+      - name: check-evidence-identity (W21-AX-D)
+        run: python scripts/check_evidence_identity.py --json
+        continue-on-error: true  # not_applicable until T3 reruns
+
       # --- Release manifest ---
 
       - name: Build release manifest
