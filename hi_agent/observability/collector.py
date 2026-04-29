@@ -513,6 +513,37 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Counts release gate steps that used continue-on-error.",
     ),
+    # AX-A4: observability spine layer counters.
+    # hi_agent_spine_llm_call_total: incremented by emit_llm_call() on every
+    # LLM completion dispatch (both sync HttpLLMGateway and async HTTPGateway,
+    # and HTTPStreamingGateway). Labels: profile.
+    "hi_agent_spine_llm_call_total": _MetricDef(
+        "hi_agent_spine_llm_call_total",
+        "counter",
+        "Spine layer: total LLM completion dispatches (labels: profile).",
+    ),
+    # hi_agent_spine_tool_call_total: incremented by emit_tool_call() on every
+    # action dispatch in ActionDispatcher (attempt==1 boundary). Labels: tool, profile.
+    "hi_agent_spine_tool_call_total": _MetricDef(
+        "hi_agent_spine_tool_call_total",
+        "counter",
+        "Spine layer: total tool execution dispatches (labels: tool, profile).",
+    ),
+    # hi_agent_spine_heartbeat_renewed_total: incremented by emit_heartbeat_renewed()
+    # in the lease heartbeat loop of RunManager when heartbeat() returns True.
+    "hi_agent_spine_heartbeat_renewed_total": _MetricDef(
+        "hi_agent_spine_heartbeat_renewed_total",
+        "counter",
+        "Spine layer: total successful run lease heartbeat renewals.",
+    ),
+    # hi_agent_spine_trace_id_propagated_total: incremented by
+    # emit_trace_id_propagated() in TraceIdMiddleware after each HTTP request
+    # that extracts or mints a trace_id.
+    "hi_agent_spine_trace_id_propagated_total": _MetricDef(
+        "hi_agent_spine_trace_id_propagated_total",
+        "counter",
+        "Spine layer: total trace_id propagations through HTTP middleware.",
+    ),
 }
 
 # Maximum samples retained for histogram-like metrics.

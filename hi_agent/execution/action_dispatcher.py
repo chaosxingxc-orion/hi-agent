@@ -180,6 +180,17 @@ class ActionDispatcher:
                         "seq": self._ctx.action_seq,
                     },
                 )
+                try:
+                    from hi_agent.observability.spine_events import (
+                        emit_tool_call,
+                    )
+                    emit_tool_call(
+                        tool_name=str(getattr(proposal, "action_kind", "unknown")),
+                        tenant_id="",
+                        profile_id="",
+                    )
+                except Exception:  # rule7-exempt: expiry_wave="Wave 22"
+                    pass
 
             try:
                 # Fix-4: route through ExecutionHookManager (pre/post tool hooks)

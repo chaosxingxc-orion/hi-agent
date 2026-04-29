@@ -112,13 +112,17 @@ class HttpLLMGateway:
             LLMBudgetExhaustedError: If the configured budget tracker signals exhaustion.
         """
         from hi_agent.observability.fallback import record_llm_request
+        from hi_agent.observability.spine_events import emit_llm_call
+        from hi_agent.server.fault_injection import get_fault_injector
 
+        get_fault_injector().maybe_raise_llm_timeout_sync()
         _run_id_for_event = request.metadata.get("run_id") if request.metadata else None
         record_llm_request(
             provider=getattr(self, "_provider", "unknown"),
             model=request.model or "",
             run_id=_run_id_for_event,
         )
+        emit_llm_call(tenant_id="", profile_id="")
         # Emit llm_call event to EventBus (-> SQLiteEventStore) at call boundary.
         try:
             import datetime as _dt
@@ -523,6 +527,11 @@ class HTTPGateway:
         Raises:
             LLMBudgetExhaustedError: If the configured budget tracker signals exhaustion.
         """
+        from hi_agent.observability.spine_events import emit_llm_call
+        from hi_agent.server.fault_injection import get_fault_injector
+
+        await get_fault_injector().maybe_raise_llm_timeout()
+        emit_llm_call(tenant_id="", profile_id="")
         if self._budget_tracker is not None:
             self._budget_tracker.check()
             # Inject real-time remaining budget ratio into request metadata so

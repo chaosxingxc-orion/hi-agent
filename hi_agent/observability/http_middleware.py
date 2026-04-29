@@ -68,3 +68,8 @@ class TraceIdMiddleware:
                 )
         except Exception as exc:
             _logger.warning("http_middleware: metric emit failed (non-fatal): %s", exc)
+        try:
+            from hi_agent.observability.spine_events import emit_trace_id_propagated
+            emit_trace_id_propagated(trace_id=trace_id, tenant_id="")
+        except Exception as exc:
+            _logger.warning("http_middleware: spine trace_id emit failed (non-fatal): %s", exc)

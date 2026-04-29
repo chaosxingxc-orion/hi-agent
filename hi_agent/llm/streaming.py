@@ -269,7 +269,10 @@ class HTTPStreamingGateway:
                 timeout.
             LLMProviderError: On HTTP 4xx/5xx or network errors.
         """
+        from hi_agent.observability.spine_events import emit_llm_call
+
         model = request.model if request.model != "default" else self._default_model
+        emit_llm_call(tenant_id="", profile_id="")
         payload = self._build_payload(request, model)
 
         if self._client is None:

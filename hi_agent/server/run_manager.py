@@ -749,6 +749,8 @@ class RunManager:
             )
             while not _heartbeat_stop.wait(interval):
                 try:
+                    from hi_agent.server.fault_injection import get_fault_injector
+                    get_fault_injector().maybe_stall_heartbeat_sync()
                     renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 17
                     if renewed:
                         run_for_hb = self._runs.get(run_id)
@@ -759,6 +761,16 @@ class RunManager:
                                 {"worker_id": "run_manager", "state": run_for_hb.state},
                                 run_for_hb,
                             )
+                            try:
+                                from hi_agent.observability.spine_events import (
+                                    emit_heartbeat_renewed,
+                                )
+                                emit_heartbeat_renewed(
+                                    tenant_id=getattr(run_for_hb, "tenant_id", "") or "",
+                                    run_id=run_id,
+                                )
+                            except Exception:  # rule7-exempt: expiry_wave="Wave 22"
+                                pass
                     if not renewed:
                         _hb_log.warning(
                             "Lease renewal failed for run_id=%s; transitioning to lease_lost state",
@@ -951,7 +963,7 @@ class RunManager:
                 run_id=run.run_id,
                 stage_id=run.current_stage or "unknown",
                 step=0,
-                kind="placeholder",
+                kind="run_terminal",
                 content=f"run terminal state={run.state}",
                 metadata={"state": run.state, "error": run.error or ""},
                 created_at=datetime.now(UTC).isoformat(),
