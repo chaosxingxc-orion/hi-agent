@@ -36,32 +36,79 @@ def _get_head_sha() -> str:
     return ""
 
 
+_GOV_INFRA_DIRS = frozenset({"docs/", "scripts/", ".github/"})
+
+
+def _is_gov_infra_commit(sha: str) -> bool:
+    """Return True if every file changed in commit ``sha`` is under a gov-infra prefix."""
+    try:
+        r = subprocess.run(
+            ["git", "diff-tree", "--no-commit-id", "-r", "--name-only", sha],
+            capture_output=True, text=True, timeout=15, cwd=str(ROOT),
+        )
+        if r.returncode != 0 or not r.stdout.strip():
+            return False
+        files = r.stdout.strip().splitlines()
+        return all(
+            any(f.replace("\\", "/").startswith(d) for d in _GOV_INFRA_DIRS)
+            for f in files
+        )
+    except Exception:
+        return False
+
+
+def _find_functional_head(head_sha: str) -> str:
+    """Walk backwards until we reach a non-gov-infra commit.
+
+    Accepts a clean-env evidence file from a SHA if all commits between that
+    SHA and HEAD are gov-infra-only (docs/scripts/.github), matching the
+    same exemption logic as check_t3_freshness.py.
+    """
+    sha = head_sha
+    for _ in range(20):  # bound walk depth
+        parent_result = subprocess.run(
+            ["git", "rev-parse", f"{sha}^"],
+            capture_output=True, text=True, timeout=10, cwd=str(ROOT),
+        )
+        if parent_result.returncode != 0:
+            break
+        if not _is_gov_infra_commit(sha):
+            return sha  # this commit touches hot/functional files
+        sha = parent_result.stdout.strip()
+    return sha
+
+
 def _find_candidates(head_sha: str) -> list[Path]:
-    """Find clean-env evidence files for the given HEAD SHA in both dirs."""
-    short_sha = head_sha[:7]
+    """Find clean-env evidence files for the given HEAD SHA in both dirs.
+
+    Also searches by the "functional HEAD" — the last non-gov-infra commit
+    reachable from HEAD — so that evidence committed as a gov-infra-only
+    commit (docs/verification/ write) remains valid across the evidence commit.
+    """
+    functional_sha = _find_functional_head(head_sha)
+    shas_to_search = {head_sha, functional_sha}
+
     candidates: list[Path] = []
-
-    # docs/verification/<short7>-*-clean-env.json
-    if VERIFICATION_DIR.exists():
-        for pattern in [
-            f"{short_sha}*clean-env*.json",
-            f"{head_sha}*clean-env*.json",
-        ]:
-            candidates += [
-                f for f in VERIFICATION_DIR.glob(pattern)
-                if not f.stem.endswith("-provenance")
-            ]
-
-    # docs/delivery/<date>-<sha>-clean-env.json  (short or full sha in name)
-    if DELIVERY_DIR.exists():
-        for pattern in [
-            f"*{short_sha}*clean-env*.json",
-            f"*{head_sha}*clean-env*.json",
-        ]:
-            candidates += [
-                f for f in DELIVERY_DIR.glob(pattern)
-                if not f.stem.endswith("-provenance")
-            ]
+    for sha in shas_to_search:
+        short_sha = sha[:7]
+        if VERIFICATION_DIR.exists():
+            for pattern in [
+                f"{short_sha}*clean-env*.json",
+                f"{sha}*clean-env*.json",
+            ]:
+                candidates += [
+                    f for f in VERIFICATION_DIR.glob(pattern)
+                    if not f.stem.endswith("-provenance")
+                ]
+        if DELIVERY_DIR.exists():
+            for pattern in [
+                f"*{short_sha}*clean-env*.json",
+                f"*{sha}*clean-env*.json",
+            ]:
+                candidates += [
+                    f for f in DELIVERY_DIR.glob(pattern)
+                    if not f.stem.endswith("-provenance")
+                ]
 
     # Deduplicate while preserving order
     seen: set[Path] = set()
