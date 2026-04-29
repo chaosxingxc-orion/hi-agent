@@ -26,7 +26,7 @@ def create_default_orchestrator(
     max_plan_nodes: int = 20,
     llm_summarize_char_threshold: int = 500,
     summarize_temperature: float = 0.3,
-    summarize_max_tokens: int = 200,
+    summarize_max_tokens: int = 2048,
 ) -> MiddlewareOrchestrator:
     """Create orchestrator with all four default middlewares."""
     orchestrator = MiddlewareOrchestrator()

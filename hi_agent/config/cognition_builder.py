@@ -418,7 +418,9 @@ class CognitionBuilder:
                         f"Recovery context: {recovery_context}\n"
                         "Suggest a corrective action in one sentence."
                     )
-                    req = LLMRequest(messages=[{"role": "user", "content": prompt}], max_tokens=256)
+                    req = LLMRequest(
+                        messages=[{"role": "user", "content": prompt}], max_tokens=2048
+                    )
                     resp = gateway.complete(req)
                     return resp.content
                 except Exception as exc:

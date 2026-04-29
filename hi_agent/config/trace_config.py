@@ -245,7 +245,7 @@ class TraceConfig:
     perception_summarize_char_threshold: int = 500
     perception_max_entities: int = 50
     perception_summarize_temperature: float = 0.3
-    perception_summarize_max_tokens: int = 200
+    perception_summarize_max_tokens: int = 2048
 
     # --- BudgetGuard thresholds (新增) ---
     budget_guard_low_threshold: float = 0.10

@@ -54,7 +54,7 @@ class PerceptionMiddleware:
         model_tier: str = "light",
         llm_summarize_char_threshold: int = 500,
         summarize_temperature: float = 0.3,
-        summarize_max_tokens: int = 200,
+        summarize_max_tokens: int = 2048,
     ) -> None:
         """Initialize PerceptionMiddleware."""
         self._context_manager = context_manager

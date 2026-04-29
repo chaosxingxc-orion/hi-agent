@@ -182,7 +182,7 @@ class RuntimeBuilder:
                         self._config, "perception_summarize_temperature", 0.3
                     ),
                     summarize_max_tokens=getattr(
-                        self._config, "perception_summarize_max_tokens", 200
+                        self._config, "perception_summarize_max_tokens", 2048
                     ),
                 )
                 _logger.info("build_middleware_orchestrator: MiddlewareOrchestrator created.")
