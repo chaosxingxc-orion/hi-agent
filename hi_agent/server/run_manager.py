@@ -29,6 +29,7 @@ from hi_agent.observability.trace_context import TraceContextManager as _TraceCt
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
 from hi_agent.server.run_queue import RunQueue
+from hi_agent.server.run_state_transitions import transition as _transition_state
 from hi_agent.server.run_store import RunRecord, SQLiteRunStore
 from hi_agent.server.tenant_context import TenantContext
 
@@ -561,7 +562,9 @@ class RunManager:
                 if not acquired:
                     self._run_queue.fail(run_id, "run_manager", "queue_timeout")
                     with self._lock:
-                        run.state = "failed"
+                        _transition_state(
+                            run, "failed", reason="queue_timeout: durable semaphore"
+                        )
                         run.error = "queue_timeout"
                         run.updated_at = datetime.now(UTC).isoformat()
                     continue
@@ -589,7 +592,9 @@ class RunManager:
                 acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
                 if not acquired:
                     with self._lock:
-                        run.state = "failed"
+                        _transition_state(
+                            run, "failed", reason="queue_timeout: legacy semaphore"
+                        )
                         run.error = "queue_timeout"
                         run.updated_at = datetime.now(UTC).isoformat()
                     self._queue.task_done()
@@ -620,7 +625,7 @@ class RunManager:
         with self._lock:
             self._active_count += 1
             self._active_run_ids.add(run.run_id)
-            run.state = "running"
+            _transition_state(run, "running", reason="worker claimed run (_execute_run)")
             _started_now = datetime.now(UTC).isoformat()
             run.updated_at = _started_now
             run.started_at = _started_now
@@ -641,14 +646,18 @@ class RunManager:
                 if result_status is not None and result_status != "completed":
                     # Guard: only accept known RunState values to prevent inconsistent state.
                     if result_status in _VALID_RESULT_STATES:
-                        run.state = result_status  # e.g. "failed"
+                        _transition_state(
+                            run, result_status, reason="executor non-completed status"
+                        )
                     else:
                         # Unknown status string — treat as failure rather than silently
                         # accepting an invalid state that would confuse downstream consumers.
-                        run.state = RunState.FAILED
+                        _transition_state(
+                            run, RunState.FAILED, reason="executor unknown status"
+                        )
                     run.error = getattr(result, "error", None) or result_status
                 else:
-                    run.state = "completed"
+                    _transition_state(run, "completed", reason="executor returned success")
                 run.result = result
                 run.updated_at = datetime.now(UTC).isoformat()
         except Exception as exc:
@@ -660,7 +669,7 @@ class RunManager:
                 exc_info=True,
             )
             with self._lock:
-                run.state = "failed"
+                _transition_state(run, "failed", reason="executor raised exception")
                 run.error = str(exc)
                 run.updated_at = datetime.now(UTC).isoformat()
         finally:
@@ -730,7 +739,7 @@ class RunManager:
         with self._lock:
             self._active_count += 1
             self._active_run_ids.add(run.run_id)
-            run.state = "running"
+            _transition_state(run, "running", reason="worker claimed run (_execute_run_durable)")
             _started_now_d = datetime.now(UTC).isoformat()
             run.updated_at = _started_now_d
             run.started_at = _started_now_d
@@ -780,7 +789,9 @@ class RunManager:
                         with self._lock:
                             run_obj = self._runs.get(run_id)
                             if run_obj is not None and run_obj.state == "running":
-                                run_obj.state = "failed"
+                                _transition_state(
+                                    run_obj, "failed", reason="lease_lost"
+                                )
                                 run_obj.error = "lease_lost: heartbeat renewal denied"
                         # Emit event
                         run_for_event = self._runs.get(run_id)
@@ -857,12 +868,18 @@ class RunManager:
                 result_status = getattr(result, "status", None)
                 if result_status is not None and result_status != "completed":
                     if result_status in _VALID_RESULT_STATES:
-                        run.state = result_status
+                        _transition_state(
+                            run, result_status, reason="executor non-completed status (durable)"
+                        )
                     else:
-                        run.state = RunState.FAILED
+                        _transition_state(
+                            run, RunState.FAILED, reason="executor unknown status (durable)"
+                        )
                     run.error = getattr(result, "error", None) or result_status
                 else:
-                    run.state = "completed"
+                    _transition_state(
+                        run, "completed", reason="executor returned success (durable)"
+                    )
                 run.result = result
                 run.updated_at = datetime.now(UTC).isoformat()
             if self._run_queue is not None:
@@ -879,7 +896,7 @@ class RunManager:
                 exc_info=True,
             )
             with self._lock:
-                run.state = "failed"
+                _transition_state(run, "failed", reason="executor raised exception (durable)")
                 run.error = str(exc)
                 run.updated_at = datetime.now(UTC).isoformat()
             if self._run_queue is not None:
@@ -1146,7 +1163,7 @@ class RunManager:
         with self._lock:
             if run.state not in ("created", "running"):
                 return False
-            run.state = "cancelled"
+            _transition_state(run, "cancelled", reason="cancel_run: API cancellation request")
             run.updated_at = datetime.now(UTC).isoformat()
         # Propagate to durable queue (cooperative cancellation flag).
         if self._run_queue is not None:
@@ -1340,7 +1357,7 @@ class RunManager:
                 with self._lock:
                     _run = self._runs.get(_rid)
                 if _run is not None and _run.state not in ("completed", "failed", "cancelled"):
-                    _run.state = "failed"
+                    _transition_state(_run, "failed", reason="server_shutdown")
                     _run.error = "server_shutdown"
 
     def drain(self, timeout_s: float = 30.0) -> bool:
