@@ -1,16 +1,15 @@
-# Wave 20 — Defect-Class Closure (CL1–CL10): Interim Notice (T3 Pending)
+# Wave 20 — Defect-Class Closure (CL1–CL10): Final Notice
 
 ## Delivery Notice
 
 ```
-Functional HEAD:    4dcdbc8
-Manifest:           2026-04-29-8785bd8
-T3 evidence:        DEFERRED — live Volces key required; pending user rotation
-Clean-env evidence: docs/verification/db3bfa4-default-offline-clean-env.json (8723 passed, 0 failed)
-Current verified readiness: 63.0 (cap: T3 stale; all engineering gates pass)
+Functional HEAD:    772b8a0
+Manifest:           2026-04-29-772b8a0
+T3 evidence:        docs/delivery/2026-04-29-39be0c1-t3-volces.json (3/3 runs completed, provenance=real)
+Clean-env evidence: docs/verification/019aeeb-default-offline-clean-env.json (8723 passed, 158 deselected)
+Current verified readiness: 88.74 (cap: none)
 Validated by:       scripts/build_release_manifest.py scripts/check_spine_completeness.py scripts/check_async_init_resources.py scripts/check_silent_degradation.py
-Status:             draft (T3 pending)
-notice-pre-final-commit: true
+Status:             final
 ```
 
 ---
@@ -19,7 +18,7 @@ notice-pre-final-commit: true
 
 Wave 20 closes 10 defect classes (CL1–CL10) identified in the W19 trajectory audit. Every class fix is exhaustive — full instance enumeration followed by uniform closure mechanism — so the same defect cannot re-emerge in W21.
 
-Wave 19 closed at `verified=86.6`. Wave 20 raw score is `88.7`; verified is capped at `72.0` pending T3 live-key run. Once T3 is confirmed, `current_verified_readiness` will be uncapped and is expected to exceed 88.0.
+Wave 19 closed at `verified=86.6`. Wave 20 closes at `verified=88.74` (+2.14), with T3 confirmed at HEAD `39be0c1` (3/3 runs completed, `state=completed`, `fallback_events=[]`, `provenance=real`). Also resolved: ModelRegistry overwrite bug where kimi-k2.6 was registered as both MEDIUM and LIGHT tiers, causing the LIGHT entry to silently overwrite MEDIUM and trigger tier_downgrade on every medium-tier request.
 
 ---
 
@@ -53,7 +52,7 @@ Wave 19 closed at `verified=86.6`. Wave 20 raw score is `88.7`; verified is capp
 | `observability_spine` | 64 | 80 | 4 missing layers wired (CL9) |
 | `metrics_cardinality` | 65 | 85 | High-cardinality label audit (CL10) |
 | `allowlist_discipline` | 80 | 92 | In-code allowlist migrated (CL10) |
-| `current_verified_readiness` | 86.6 | **72.0** (T3 pending) | Uncapped target: 88+ post-T3 |
+| `current_verified_readiness` | 86.6 | **88.74** | T3 passed at 39be0c1 |
 
 ---
 
@@ -98,12 +97,12 @@ verify_clean_env.py:                PASS (8725 passed, 156 deselected)
 
 ---
 
-## T3 Pending
+## T3 Evidence
 
-A live T3 gate run is required to lift the score cap from 72.0 to uncapped. The user needs to rotate the Volces API key and run:
+T3 gate passed at HEAD `39be0c1` (3/3 sequential runs, `state=completed`, `fallback_events=[]`, `llm_fallback_count=0`, `provenance=real`).
 
-```
-HI_AGENT_LLM_MODE=real VOLCES_API_KEY=<rotated> python scripts/run_t3_gate.py
-```
+Run durations: 187.5s, 141.4s, 165.5s (all within 600s poll timeout).
 
-Acceptance: 3 sequential runs reach `state=done` ≤ 2× p95; `llm_fallback_count==0`; `provenance="real"`.
+Evidence file: `docs/delivery/2026-04-29-39be0c1-t3-volces.json`
+
+Commits between T3 baseline and manifest HEAD are gov-infra only (docs/releases, docs/verification, scripts/), which do not invalidate T3 per Rule 8.
