@@ -19,7 +19,6 @@ import socket
 import subprocess
 import sys
 import time
-
 import urllib.request as _urllib_request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -64,6 +63,11 @@ def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
 _ENV_DEFAULTS: dict[str, str] = {
     "HI_AGENT_HEARTBEAT_STALL_S": "5",
     "HI_AGENT_HEARTBEAT_INTERVAL_MS": "200",
+    # Fault-injection env vars for specific scenarios.
+    "HI_AGENT_LLM_MOCK_DELAY_MS": "10000",
+    "HI_AGENT_TOOL_FAULT": "crash",
+    "HI_AGENT_ARTIFACT_FAULT": "oserror",
+    "HI_AGENT_CLOCK_OFFSET_S": "3600",
 }
 
 
