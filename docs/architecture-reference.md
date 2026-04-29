@@ -68,6 +68,8 @@ Middleware: Perception(light) → Control(medium) → Execution(dynamic) → Eva
 | Module | Description |
 |--------|-------------|
 | `hi_agent/server/` | HTTP API (20+ endpoints), EventBus, SSE streaming, RunManager, DreamScheduler |
+
+> Northbound contract (agent_server v1): see [docs/platform/agent-server-northbound-contract-v1.md](../platform/agent-server-northbound-contract-v1.md)
 | `hi_agent/runtime_adapter/` | 22-method RuntimeAdapter protocol; KernelFacadeAdapter (sync); AsyncKernelFacadeAdapter; ResilientKernelAdapter (retry + circuit breaker) |
 | `hi_agent/capability/` | CapabilityRegistry; CapabilityInvoker (timeout+retry); AsyncCapabilityInvoker; CircuitBreaker |
 | `hi_agent/observability/` | MetricsCollector, tracing, notifications |
