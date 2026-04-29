@@ -6,10 +6,12 @@ import logging
 from typing import Any
 
 from hi_agent.config.trace_config import TraceConfig
+from hi_agent.observability.metric_counter import Counter
 from hi_agent.server.app import AgentServer
 from hi_agent.server.run_manager import RunManager
 
 logger = logging.getLogger(__name__)
+_server_builder_errors_total = Counter("hi_agent_server_builder_errors_total")
 
 
 class ServerBuilder:
@@ -52,6 +54,7 @@ class ServerBuilder:
 
                     server.slo_monitor = SLOMonitor(metrics)
                 except Exception as exc:
+                    _server_builder_errors_total.inc()
                     logger.warning(
                         "SLOMonitor initialization failed (%s: %s); SLO monitoring disabled.",
                         type(exc).__name__,

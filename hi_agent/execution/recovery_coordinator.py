@@ -9,8 +9,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.observability.metric_counter import Counter
 
 _logger = logging.getLogger(__name__)
+_recovery_errors_total = Counter("hi_agent_recovery_coordinator_errors_total")
 
 
 def _reflect_task_done_callback(task: Any) -> None:
@@ -109,6 +111,7 @@ class RecoveryCoordinator:
                 report = self._ctx.recovery_executor(consumed_events)
             success = self._resolve_recovery_success(report)
         except Exception as exc:
+            _recovery_errors_total.inc()
             success = False
             self._ctx._log_best_effort_exception(
                 logging.WARNING,
@@ -206,6 +209,7 @@ class RecoveryCoordinator:
                             object.__setattr__(ta_obj, "stage_id", stage_id)
                     self._ctx._restart_policy._record_attempt(ta_obj)
                 except Exception as _rec_exc:
+                    _recovery_errors_total.inc()
                     _logger.debug(
                         "runner.record_attempt_failed stage_id=%s attempt=%d error=%s",
                         stage_id,
@@ -276,7 +280,7 @@ class RecoveryCoordinator:
                                 self._ctx.context_manager.set_reflection_context(
                                     prior_mem.task_goal or ""
                                 )
-                        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+                        except Exception:  # rule7-exempt: expiry_wave="Wave 22"
                             pass  # best-effort
 
                     # Inject reflection prompt into the run context so the next
@@ -292,6 +296,7 @@ class RecoveryCoordinator:
                                 },
                             )
                         except Exception as exc:
+                            _recovery_errors_total.inc()
                             _logger.warning(
                                 "runner.reflect_prompt_record_failed stage_id=%s error=%s",
                                 stage_id,
@@ -309,6 +314,7 @@ class RecoveryCoordinator:
 
                                 descriptor_cls = TaskDescriptor
                             except Exception as exc:
+                                _recovery_errors_total.inc()
                                 _logger.warning(
                                     "runner: task_descriptor import failed, reflection skipped: %s",
                                     exc,
@@ -347,6 +353,7 @@ class RecoveryCoordinator:
                                                 )
                                             )
                                         except Exception as _exc:
+                                            _recovery_errors_total.inc()
                                             _logger.warning(
                                                 "runner.reflect_context_inject_failed "
                                                 "stage_id=%s error=%s",
@@ -404,6 +411,7 @@ class RecoveryCoordinator:
                                                 )
                                             )
                                         except Exception as _exc:
+                                            _recovery_errors_total.inc()
                                             _logger.warning(
                                                 "runner.reflect_context_inject_failed "
                                                 "stage_id=%s error=%s",
@@ -411,6 +419,7 @@ class RecoveryCoordinator:
                                                 _exc,
                                             )
                         except Exception as exc:
+                            _recovery_errors_total.inc()
                             _logger.warning(
                                 "runner.reflect_failed stage_id=%s error=%s",
                                 stage_id,
@@ -452,6 +461,7 @@ class RecoveryCoordinator:
                             },
                         )
                     except Exception as exc:
+                        _recovery_errors_total.inc()
                         _logger.warning(
                             "runner: StageEscalated event recording failed, continuing: %s", exc
                         )
@@ -477,6 +487,7 @@ class RecoveryCoordinator:
             raise  # gate must propagate — not a retry failure
 
         except Exception as exc:
+            _recovery_errors_total.inc()
             _logger.warning(
                 "runner.handle_stage_failure_error stage_id=%s error=%s — falling back to failed",
                 stage_id,

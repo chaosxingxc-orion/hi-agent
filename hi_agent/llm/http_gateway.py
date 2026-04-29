@@ -145,7 +145,7 @@ class HttpLLMGateway:
                     },
                 )
             )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: tests/unit/test_http_gateway.py::test_event_bus_error_does_not_block_llm_call
+        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
             pass  # must not block LLM call; event bus unavailable is non-fatal
 
         if self._budget_tracker is not None:

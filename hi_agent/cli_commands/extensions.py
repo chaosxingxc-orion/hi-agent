@@ -18,7 +18,10 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from hi_agent.observability.metric_counter import Counter
+
 logger = logging.getLogger(__name__)
+_ext_errors_total = Counter("hi_agent_cli_extensions_errors_total")
 
 if TYPE_CHECKING:
     from hi_agent.config.posture import Posture
@@ -69,6 +72,7 @@ def run_inspect(args) -> None:
                         manifest = loaded
                         break
                 except Exception as _load_exc:
+                    _ext_errors_total.inc()
                     logger.warning(
                         "extensions: failed to load manifest %s: %s", candidate, _load_exc
                     )
@@ -99,6 +103,8 @@ def run_inspect(args) -> None:
     except SystemExit:
         raise
     except Exception as exc:
+        _ext_errors_total.inc()
+        logger.warning("extensions.inspect_error error=%s", exc)
         print(f"error: inspect failed — {exc}", file=sys.stderr)
         sys.exit(1)
 
@@ -160,6 +166,8 @@ def run_validate(args) -> None:
         print(f"FAIL: {exc}", file=sys.stderr)
         sys.exit(1)
     except Exception as exc:
+        _ext_errors_total.inc()
+        logger.warning("extensions.validate_error error=%s", exc)
         print(f"FAIL: unexpected error during validation — {exc}", file=sys.stderr)
         sys.exit(1)
 

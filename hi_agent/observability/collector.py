@@ -327,6 +327,12 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Sync observer calls that raised an exception (Rule 7 alarm).",
     ),
+    # Rule 7: event buffering overflow / flush failure signal.
+    "hi_agent_event_buffer_overflow_total": _MetricDef(
+        "hi_agent_event_buffer_overflow_total",
+        "counter",
+        "Event buffer flush failures or capacity overflow signals (Rule 7 alarm).",
+    ),
     # I-8 / Rule 7: generic silent-degradation events recorded via helper.
     "hi_agent_silent_degradation_total": _MetricDef(
         "hi_agent_silent_degradation_total",
@@ -339,6 +345,12 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Watchdog scan errors in HeartbeatWatchdog (Rule 7 alarm).",
     ),
+    # Rule 7: background scheduler failures in MemoryLifecycleManager.
+    "hi_agent_dream_scheduler_errors_total": _MetricDef(
+        "hi_agent_dream_scheduler_errors_total",
+        "counter",
+        "Dream / consolidation scheduler exceptions (Rule 7 alarm).",
+    ),
     # I-6 / Rule 7: reconcile-loop DLQ error metric.
     "hi_agent_reconcile_dlq_error_total": _MetricDef(
         "hi_agent_reconcile_dlq_error_total",
@@ -350,6 +362,12 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "hi_agent_runtime_lease_lost_total",
         "counter",
         "Run lease lost due to heartbeat renewal failure (Rule 7 alarm).",
+    ),
+    # Rule 7: lease renewal / heartbeat failures.
+    "hi_agent_lease_renew_errors_total": _MetricDef(
+        "hi_agent_lease_renew_errors_total",
+        "counter",
+        "Lease renewal exceptions in the run heartbeat loop (Rule 7 alarm).",
     ),
     # Run and tool histograms (labels: tenant_id, outcome, tool).
     "hi_agent_run_duration_seconds": _MetricDef(
@@ -395,6 +413,12 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Total HTTP requests received by the server (method + path labels).",
     ),
+    # Rule 7: health-check subcomponent failures.
+    "hi_agent_health_check_errors_total": _MetricDef(
+        "hi_agent_health_check_errors_total",
+        "counter",
+        "Health check subcomponent exceptions (labels: check_name).",
+    ),
     # event_stored: incremented by SQLiteEventStore for every event appended.
     "hi_agent_events_stored_total": _MetricDef(
         "hi_agent_events_stored_total",
@@ -406,6 +430,18 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "hi_agent_events_published_total",
         "counter",
         "Total lifecycle events published via _publish_run_event in RunManager.",
+    ),
+    # Rule 7: publish-side observability failures.
+    "hi_agent_event_publish_errors_total": _MetricDef(
+        "hi_agent_event_publish_errors_total",
+        "counter",
+        "Failures while recording run lifecycle publish metrics (Rule 7 alarm).",
+    ),
+    # Rule 7: run execution exceptions swallowed by RunManager.
+    "hi_agent_run_execution_errors_total": _MetricDef(
+        "hi_agent_run_execution_errors_total",
+        "counter",
+        "Exceptions raised while executing a run task (Rule 7 alarm).",
     ),
     # H2: subprocess zombie prevention — incremented when proc.wait(timeout=5)
     # fails after terminate(), meaning the OS must reap the process eventually.

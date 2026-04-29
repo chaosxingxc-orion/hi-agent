@@ -7,8 +7,10 @@ from __future__ import annotations
 import logging
 
 from hi_agent.config.posture import Posture
+from hi_agent.observability.metric_counter import Counter
 
 _logger = logging.getLogger(__name__)
+_posture_guards_errors_total = Counter("hi_agent_posture_guards_errors_total")
 
 
 def require_tenant(
@@ -42,6 +44,7 @@ def require_tenant(
                 labels={"site": where, "posture": str(p)},
             )
     except Exception as exc:
+        _posture_guards_errors_total.inc()
         _logger.warning(
             "posture_guards.require_tenant: metric emit failed at %r: %s", where, exc
         )

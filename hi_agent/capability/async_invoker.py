@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 import random
 from collections.abc import Callable
 
 from hi_agent.capability.circuit_breaker import CircuitBreaker
 from hi_agent.capability.policy import CapabilityPolicy
 from hi_agent.capability.registry import CapabilityRegistry
+from hi_agent.observability.metric_counter import Counter
+
+_logger = logging.getLogger(__name__)
+_async_invoker_errors_total = Counter("hi_agent_async_invoker_errors_total")
 
 
 class AsyncCapabilityInvoker:
@@ -95,6 +100,11 @@ class AsyncCapabilityInvoker:
                 self.breaker.mark_success(capability_name)
                 return response
             except Exception as exc:
+                _async_invoker_errors_total.inc()
+                _logger.warning(
+                    "async_invoker.invoke_error capability=%s error=%s",
+                    capability_name, exc,
+                )
                 self.breaker.mark_failure(capability_name)
                 retryable = isinstance(exc, self.retry_exceptions)
                 if attempt >= self.max_retries or not retryable:

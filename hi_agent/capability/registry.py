@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
+
+from hi_agent.observability.metric_counter import Counter
+
+_logger = logging.getLogger(__name__)
+_registry_errors_total = Counter("hi_agent_capability_registry_errors_total")
 
 RiskClass = Literal[
     "read_only", "filesystem_read", "filesystem_write", "network", "shell", "credential"
@@ -137,6 +143,11 @@ class CapabilityRegistry:
                 if not ok:
                     return False, reason
             except Exception as e:
+                _registry_errors_total.inc()
+                _logger.warning(
+                    "registry.availability_probe_error name=%s error=%s",
+                    name if "name" in dir() else "unknown", e,
+                )
                 return False, f"availability_probe raised: {e}"
 
         return True, ""

@@ -11,6 +11,10 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any
 
+from hi_agent.observability.metric_counter import Counter
+
+_runtime_builder_errors_total = Counter("hi_agent_runtime_builder_errors_total")
+
 if TYPE_CHECKING:
     from hi_agent.config.trace_config import TraceConfig
     from hi_agent.observability.collector import MetricsCollector
@@ -151,6 +155,7 @@ class RuntimeBuilder:
                     self._run_context_manager = RunContextManager()
                     _logger.info("build_run_context_manager: RunContextManager created.")
                 except Exception as exc:
+                    _runtime_builder_errors_total.inc()
                     _logger.warning(
                         "build_run_context_manager: failed to create RunContextManager: %s", exc
                     )
@@ -182,6 +187,7 @@ class RuntimeBuilder:
                 )
                 _logger.info("build_middleware_orchestrator: MiddlewareOrchestrator created.")
             except Exception as exc:
+                _runtime_builder_errors_total.inc()
                 _logger.warning(
                     "build_middleware_orchestrator: failed to create MiddlewareOrchestrator: %s",
                     exc,
@@ -235,6 +241,7 @@ class RuntimeBuilder:
                     ", ".join(injected),
                 )
         except Exception as exc:
+            _runtime_builder_errors_total.inc()
             _logger.warning(
                 "inject_middleware_dependencies: failed, middleware may run degraded: %s", exc
             )
@@ -267,6 +274,7 @@ class RuntimeBuilder:
             )
             return engine
         except Exception as exc:
+            _runtime_builder_errors_total.inc()
             _logger.warning(
                 "build_restart_policy_engine: failed to create RestartPolicyEngine: %s", exc
             )

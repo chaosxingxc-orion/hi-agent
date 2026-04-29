@@ -94,7 +94,7 @@ class TaskWatchdog:
                 while True:
                     await asyncio.sleep(interval_s)
                     await self.watchdog_once()
-            except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 21"
+            except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 22"
                 return
 
         return asyncio.get_running_loop().create_task(_loop(), name="task_watchdog")

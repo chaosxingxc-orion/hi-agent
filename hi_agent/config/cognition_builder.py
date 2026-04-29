@@ -10,6 +10,10 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any
 
+from hi_agent.observability.metric_counter import Counter
+
+_cognition_errors_total = Counter("hi_agent_cognition_builder_errors_total")
+
 if TYPE_CHECKING:
     from hi_agent.config.trace_config import TraceConfig
     from hi_agent.evolve.engine import EvolveEngine
@@ -62,6 +66,7 @@ class CognitionBuilder:
                 )
             )
         except Exception as exc:
+            _cognition_errors_total.inc()
             _logger.warning("Failed to build PromptCacheInjector, caching disabled: %s", exc)
             return None
 
@@ -117,6 +122,7 @@ class CognitionBuilder:
             )
             return None
         except Exception as exc:
+            _cognition_errors_total.inc()
             _logger.warning("Failed to build FailoverChain, failover disabled: %s", exc)
             return None
 
@@ -136,6 +142,7 @@ class CognitionBuilder:
             )
             return tracker
         except Exception as exc:
+            _cognition_errors_total.inc()
             _logger.warning("_build_llm_budget_tracker: failed to create LLMBudgetTracker: %s", exc)
             return None
 
@@ -173,6 +180,7 @@ class CognitionBuilder:
                     overrides,
                 )
         except Exception as exc:
+            _cognition_errors_total.inc()
             _logger.warning("Cost optimizer wiring failed: %s", exc)
 
     # ------------------------------------------------------------------
@@ -234,6 +242,7 @@ class CognitionBuilder:
                         )
                         return self._llm_gateway
         except Exception as _pre_exc:
+            _cognition_errors_total.inc()
             _logger.debug("build_llm_gateway: config-file pre-check failed: %s", _pre_exc)
 
         with self._lock:
@@ -355,6 +364,7 @@ class CognitionBuilder:
         try:
             detector.load()
         except Exception as exc:
+            _cognition_errors_total.inc()
             _logger.debug("RegressionDetector.load skipped: %s", exc)
         return detector
 
@@ -434,6 +444,7 @@ class CognitionBuilder:
             _logger.info("build_reflection_orchestrator: ReflectionOrchestrator created.")
             return orchestrator
         except Exception as exc:
+            _cognition_errors_total.inc()
             _logger.warning(
                 "build_reflection_orchestrator: failed to create ReflectionOrchestrator: %s", exc
             )

@@ -24,9 +24,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from hi_agent.observability.metric_counter import Counter
 from hi_agent.task_view.token_budget import count_tokens
 
 _logger = logging.getLogger(__name__)
+_context_manager_errors_total = Counter("hi_agent_context_manager_errors_total")
 
 # ---------------------------------------------------------------------------
 # Enums and data classes
@@ -410,6 +412,7 @@ class ContextManager:
             content = prompt.to_prompt_string()
             tokens = prompt.total_tokens
         except Exception as _exc:
+            _context_manager_errors_total.inc()
             _logger.warning(
                 "ContextManager: skill_loader.build_prompt failed — skills "
                 "section will be empty: %s",
@@ -499,6 +502,7 @@ class ContextManager:
                 content = ""
                 tokens = 0
         except Exception as exc:
+            _context_manager_errors_total.inc()
             _logger.warning(
                 "context.memory_retrieval_failed: %s",
                 exc,
@@ -685,6 +689,7 @@ class ContextManager:
                     self._compression_count += 1
                     self._compression_failures = 0  # reset on success
                 except Exception as e:
+                    _context_manager_errors_total.inc()
                     self._compression_failures += 1
                     if self._compression_failures >= self._max_compression_failures:
                         self._circuit_breaker_open = True
@@ -816,7 +821,9 @@ class ContextManager:
                         "compressor_type": type(self._compressor).__name__,
                     },
                 )
-        except Exception:
+        except Exception as _compact_exc:
+            _context_manager_errors_total.inc()
+            _logger.warning("ContextManager._compact_history: compressor failed: %s", _compact_exc)
             summary = content[:200] + "..." if len(content) > 200 else content
             raise  # re-raise for circuit breaker
 
@@ -1023,6 +1030,7 @@ class ContextManager:
             if self._metrics is not None:
                 self._metrics.increment("context_cache_hit", {"section": section})
         except Exception as exc:
+            _context_manager_errors_total.inc()
             _logger.warning(
                 "context_manager._record_cache_hit: metric emit failed: %s", exc
             )
@@ -1045,6 +1053,7 @@ class ContextManager:
                 extra={"component": "context_manager", **(extra or {})},
             )
         except Exception as exc:
+            _context_manager_errors_total.inc()
             _logger.warning(
                 "context_manager._record_context_fallback: fallback record failed "
                 "(context may grow unbounded): %s",

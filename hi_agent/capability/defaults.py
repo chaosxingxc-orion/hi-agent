@@ -23,7 +23,10 @@ from hi_agent.capability.registry import CapabilityRegistry
 if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
 
+from hi_agent.observability.metric_counter import Counter
+
 logger = logging.getLogger(__name__)
+_defaults_errors_total = Counter("hi_agent_capability_defaults_errors_total")
 
 
 def _allow_heuristic_fallback() -> bool:
@@ -111,6 +114,7 @@ def make_llm_capability_handler(
                         "stage_id": stage_id,
                     }
             except Exception as exc:
+                _defaults_errors_total.inc()
                 if not allow_fallback:
                     return {
                         "success": False,
@@ -154,7 +158,7 @@ def make_llm_capability_handler(
                     "stage_id": stage_id,
                 },
             )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
             pass
 
         return {

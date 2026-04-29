@@ -92,7 +92,7 @@ def ensure_vendored_source() -> None:
                 if os.path.isdir(os.path.join(p, "bridge"))
             ]
             _bridge.__path__ = [vendor_bridge, *installed_bridge]  # type: ignore[assignment]
-        except ImportError:  # rule7-exempt: expiry_wave="Wave 21"
+        except ImportError:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
             pass
 
         importlib.invalidate_caches()

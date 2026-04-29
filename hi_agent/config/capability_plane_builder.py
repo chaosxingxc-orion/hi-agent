@@ -10,6 +10,10 @@ import logging
 import threading
 from typing import Any
 
+from hi_agent.observability.metric_counter import Counter
+
+_plane_errors_total = Counter("hi_agent_capability_plane_builder_errors_total")
+
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
 from hi_agent.harness.executor import HarnessExecutor
@@ -50,6 +54,7 @@ class CapabilityPlaneBuilder:
                     try:
                         register_default_capabilities(registry, llm_gateway=gateway)
                     except Exception as exc:
+                        _plane_errors_total.inc()
                         logger.warning(
                             "build_capability_registry: register_default_capabilities failed (%s); "
                             "registry will have no pre-registered capabilities.",
@@ -63,6 +68,7 @@ class CapabilityPlaneBuilder:
                         len(registry.list_names()),
                     )
                 except Exception as exc:
+                    _plane_errors_total.inc()
                     logger.warning("build_capability_registry: failed: %s", exc)
                     self._capability_registry = None
         return self._capability_registry
@@ -76,6 +82,7 @@ class CapabilityPlaneBuilder:
                 self._artifact_registry = ArtifactRegistry()
                 logger.info("build_artifact_registry: ArtifactRegistry created.")
             except Exception as exc:
+                _plane_errors_total.inc()
                 from hi_agent.config.posture import Posture
 
                 if Posture.from_env().is_strict:
@@ -94,6 +101,7 @@ class CapabilityPlaneBuilder:
                     self._mcp_registry = MCPRegistry()
                     logger.info("build_mcp_registry: MCPRegistry created.")
                 except Exception as exc:
+                    _plane_errors_total.inc()
                     logger.warning("build_mcp_registry: failed: %s", exc)
                     self._mcp_registry = None
         return self._mcp_registry
@@ -126,6 +134,7 @@ class CapabilityPlaneBuilder:
                     len(stdio_servers),
                 )
             except Exception as exc:
+                _plane_errors_total.inc()
                 logger.warning("build_mcp_transport: failed: %s", exc)
                 self._mcp_transport = None
         return self._mcp_transport

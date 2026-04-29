@@ -11,8 +11,10 @@ from typing import Any
 from hi_agent.contracts import HumanGateRequest, NodeState
 from hi_agent.contracts.requests import RunResult
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.observability.metric_counter import Counter
 
 _logger = logging.getLogger(__name__)
+_gate_errors_total = Counter("hi_agent_gate_coordinator_errors_total")
 
 
 class GateCoordinator:
@@ -65,6 +67,7 @@ class GateCoordinator:
                     }
                 )
             except Exception as _exc:  # pragma: no cover
+                _gate_errors_total.inc()
                 executor._log_best_effort_exception(
                     logging.DEBUG,
                     "runner.register_gate_session_failed",
@@ -117,6 +120,7 @@ class GateCoordinator:
                     }
                 )
             except Exception as _exc:  # pragma: no cover
+                _gate_errors_total.inc()
                 executor._log_best_effort_exception(
                     logging.DEBUG,
                     "runner.resume_session_failed",
@@ -207,6 +211,7 @@ class GateCoordinator:
         except GatePendingError:
             raise
         except Exception as exc:
+            _gate_errors_total.inc()
             executor._log_best_effort_exception(
                 logging.WARNING,
                 "runner.continue_from_gate_graph_failed",
@@ -224,6 +229,7 @@ class GateCoordinator:
         try:
             executor._emit_observability(event_type, payload)
         except Exception:
+            _gate_errors_total.inc()
             _logger.debug(
                 "gate_coordinator._emit_event: observability emit failed for %s", event_type
             )

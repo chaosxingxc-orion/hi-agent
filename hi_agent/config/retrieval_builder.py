@@ -8,8 +8,10 @@ from typing import Any
 from hi_agent.config.trace_config import TraceConfig
 from hi_agent.knowledge.retrieval_engine import RetrievalEngine
 from hi_agent.knowledge.tfidf import TFIDFIndex
+from hi_agent.observability.metric_counter import Counter
 
 logger = logging.getLogger(__name__)
+_retrieval_builder_errors_total = Counter("hi_agent_retrieval_builder_errors_total")
 
 
 class RetrievalBuilder:
@@ -33,6 +35,7 @@ class RetrievalBuilder:
 
             embedding_fn = TFIDFEmbeddingProvider(tfidf).as_callable()
         except Exception as exc:
+            _retrieval_builder_errors_total.inc()
             logger.debug("TF-IDF embedding provider unavailable: %s", exc)
 
         return RetrievalEngine(

@@ -6,10 +6,16 @@ when the connection to the kernel restores.
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections import deque
 from collections.abc import Callable
 from typing import Any
+
+from hi_agent.observability.metric_counter import Counter
+
+logger = logging.getLogger(__name__)
+_event_buffer_overflow_total = Counter("hi_agent_event_buffer_overflow_total")
 
 
 class EventBuffer:
@@ -71,7 +77,14 @@ class EventBuffer:
             try:
                 target(event_type, payload)
                 flushed += 1
-            except Exception:
+            except Exception as exc:
+                _event_buffer_overflow_total.inc()
+                logger.warning(
+                    "EventBuffer flush failed for event_type=%s",
+                    event_type,
+                    extra={"error": str(exc)},
+                    exc_info=True,
+                )
                 remaining.append((event_type, payload))
                 # Keep all subsequent events too
                 remaining.extend(snapshot[flushed + len(remaining) :])

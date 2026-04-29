@@ -10,6 +10,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from hi_agent.observability.metric_counter import Counter
+
+_readiness_errors_total = Counter("hi_agent_readiness_errors_total")
+
 if TYPE_CHECKING:
     from hi_agent.config.builder import SystemBuilder
 
@@ -39,7 +43,9 @@ def _list_configured_models(registry: Any | None) -> list[Any]:
             try:
                 models = method()
                 return list(models) if models is not None else []
-            except Exception:
+            except Exception as exc:
+                _readiness_errors_total.inc()
+                logger.warning("_list_configured_models: failed: %s", exc)
                 return []
     return []
 
@@ -124,6 +130,7 @@ class ReadinessProbe:
             result["kernel_mode"] = "http" if mode == "http" else "local-fsm"
             result["subsystems"]["kernel"] = {"status": "ok", "mode": mode}
         except Exception as exc:
+            _readiness_errors_total.inc()
             result["subsystems"]["kernel"] = {"status": "error", "error": str(exc)}
             result["health"] = "degraded"
             issues.append(f"kernel: {exc}")
@@ -156,6 +163,7 @@ class ReadinessProbe:
                 ]
                 result["subsystems"]["llm"] = {"status": "ok", "models": len(model_objs)}
         except Exception as exc:
+            _readiness_errors_total.inc()
             result["subsystems"]["llm"] = {"status": "error", "error": str(exc)}
             result["health"] = "degraded"
             issues.append(f"llm: {exc}")
@@ -171,6 +179,7 @@ class ReadinessProbe:
             result["capabilities"] = cap_names
             result["subsystems"]["capabilities"] = {"status": "ok", "count": len(cap_names)}
         except Exception as exc:
+            _readiness_errors_total.inc()
             result["subsystems"]["capabilities"] = {"status": "error", "error": str(exc)}
             result["health"] = "degraded"
             issues.append(f"capabilities: {exc}")
@@ -190,6 +199,7 @@ class ReadinessProbe:
                 elif isinstance(skill_count, int):
                     skill_count = skill_count  # just the count, no list available
             except Exception as exc:
+                _readiness_errors_total.inc()
                 logger.warning(
                     "readiness: skill loader failed unexpectedly: %s", exc, exc_info=True
                 )
@@ -203,6 +213,7 @@ class ReadinessProbe:
             ]
             result["subsystems"]["skills"] = {"status": "ok", "discovered": len(result["skills"])}
         except Exception as exc:
+            _readiness_errors_total.inc()
             result["subsystems"]["skills"] = {"status": "error", "error": str(exc)}
             issues.append(f"skills: {exc}")
 
@@ -243,6 +254,7 @@ class ReadinessProbe:
             result["mcp_servers"] = []
             result["subsystems"]["mcp"] = {"status": "not_configured"}
         except Exception as exc:
+            _readiness_errors_total.inc()
             result["subsystems"]["mcp"] = {"status": "error", "error": str(exc)}
 
         # --- plugins: use cached singleton so readiness reflects same state as runs ---
@@ -261,6 +273,7 @@ class ReadinessProbe:
             result["plugins"] = []
             result["subsystems"]["plugins"] = {"status": "not_configured"}
         except Exception as exc:
+            _readiness_errors_total.inc()
             result["subsystems"]["plugins"] = {"status": "error", "error": str(exc)}
 
         # --- durable backends (strict posture only) ---
@@ -314,6 +327,7 @@ class ReadinessProbe:
                 "source": _ev_source,
             }
         except Exception as _ep_exc:
+            _readiness_errors_total.inc()
             logger.debug("readiness: evolve_policy snapshot failed: %s", _ep_exc)
 
         # --- prerequisites transparency ---

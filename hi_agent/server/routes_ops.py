@@ -41,7 +41,7 @@ async def handle_get_long_op(request: Request) -> JSONResponse:
                 from hi_agent.observability.fallback import record_fallback
 
                 record_fallback("op", reason="empty_tenant_back_compat_visible", run_id=op_id)
-            except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+            except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
                 pass
     return JSONResponse(
         {
@@ -84,7 +84,7 @@ async def handle_cancel_long_op(request: Request) -> JSONResponse:
                     from hi_agent.observability.fallback import record_fallback
 
                     record_fallback("op", reason="empty_tenant_back_compat_visible", run_id=op_id)
-                except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+                except Exception:  # rule7-exempt: expiry_wave="Wave 22"
                     pass
     ok = coord.cancel(op_id)
     if not ok:

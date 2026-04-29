@@ -23,7 +23,10 @@ if TYPE_CHECKING:
     from hi_agent.capability.invoker import CapabilityInvoker
     from hi_agent.capability.registry import CapabilityRegistry
 
+from hi_agent.observability.metric_counter import Counter
+
 _logger = logging.getLogger(__name__)
+_governance_errors_total = Counter("hi_agent_capability_governance_errors_total")
 
 _SENSITIVE_ARG_FIELDS = frozenset({"password", "secret", "token", "key"})
 
@@ -178,6 +181,8 @@ class GovernedToolExecutor:
                 )
                 return result
             except Exception:
+                _governance_errors_total.inc()
+                _logger.warning("governance.invoke_error capability=%s", capability_name)
                 duration = (time.monotonic() - start) * 1000
                 self._write_audit(
                     capability_name,
@@ -337,6 +342,8 @@ class GovernedToolExecutor:
             )
             return result
         except Exception:
+            _governance_errors_total.inc()
+            _logger.warning("governance.invoke_async_error capability=%s", capability_name)
             duration = (time.monotonic() - start) * 1000
             self._write_audit(
                 capability_name,
@@ -386,7 +393,7 @@ class GovernedToolExecutor:
             else "unknown"
         )
         # Audit must never block execution.
-        with contextlib.suppress(Exception):  # rule7-exempt: audit store must not block execution  # noqa: E501  expiry_wave: Wave 17
+        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
             self._audit_store.record_tool_call(
                 capability_name=capability_name,
                 principal=principal,

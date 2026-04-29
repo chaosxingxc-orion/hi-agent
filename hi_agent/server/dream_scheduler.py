@@ -17,7 +17,10 @@ import threading
 from datetime import UTC, datetime
 from typing import Any
 
+from hi_agent.observability.metric_counter import Counter
+
 logger = logging.getLogger(__name__)
+_dream_scheduler_errors_total = Counter("hi_agent_dream_scheduler_errors_total")
 
 
 class MemoryLifecycleManager:
@@ -181,6 +184,7 @@ class MemoryLifecycleManager:
                 result = self.trigger_dream(today)
                 logger.info("Scheduler: Dream consolidation result: %s", result.get("status"))
             except Exception as exc:
+                _dream_scheduler_errors_total.inc()
                 logger.error("Scheduler: Dream consolidation failed: %s", exc)
 
     async def _maybe_run_consolidate(self) -> None:
@@ -199,6 +203,7 @@ class MemoryLifecycleManager:
                     result.get("status"),
                 )
             except Exception as exc:
+                _dream_scheduler_errors_total.inc()
                 logger.error("Scheduler: LTM consolidation failed: %s", exc)
 
     def trigger_dream(self, date: str | None = None) -> dict[str, Any]:
@@ -217,6 +222,12 @@ class MemoryLifecycleManager:
                     "patterns_observed": len(summary.patterns_observed),
                 }
             except Exception as e:
+                _dream_scheduler_errors_total.inc()
+                logger.warning(
+                    "trigger_dream failed",
+                    extra={"error": str(e)},
+                    exc_info=True,
+                )
                 return {"status": "error", "reason": str(e)}
 
     def trigger_consolidation(self, days: int = 7) -> dict[str, Any]:
@@ -235,6 +246,12 @@ class MemoryLifecycleManager:
                     "total_edges": self._graph.edge_count() if self._graph else 0,
                 }
             except Exception as e:
+                _dream_scheduler_errors_total.inc()
+                logger.warning(
+                    "trigger_consolidation failed",
+                    extra={"error": str(e)},
+                    exc_info=True,
+                )
                 return {"status": "error", "reason": str(e)}
 
     def trigger_full_cycle(self, date: str | None = None, days: int = 7) -> dict[str, Any]:
@@ -260,16 +277,28 @@ class MemoryLifecycleManager:
                 today = datetime.now(UTC).strftime("%Y-%m-%d")
                 result = self.trigger_dream(today)
                 logger.info("Auto dream consolidation (run %d): %s", count, result.get("status"))
-            except Exception:
-                logger.exception("Auto dream consolidation failed (run %d)", count)
+            except Exception as exc:
+                _dream_scheduler_errors_total.inc()
+                logger.warning(
+                    "Auto dream consolidation failed (run %d)",
+                    count,
+                    extra={"error": str(exc), "run_count": str(count)},
+                    exc_info=True,
+                )
 
         # Long-term consolidation check
         if self._should_trigger_consolidate():
             try:
                 result = self.trigger_consolidation()
                 logger.info("Auto LTM consolidation (run %d): %s", count, result.get("status"))
-            except Exception:
-                logger.exception("Auto LTM consolidation failed (run %d)", count)
+            except Exception as exc:
+                _dream_scheduler_errors_total.inc()
+                logger.warning(
+                    "Auto LTM consolidation failed (run %d)",
+                    count,
+                    extra={"error": str(exc), "run_count": str(count)},
+                    exc_info=True,
+                )
 
     def rebuild_index(self) -> int:
         """Rebuild retrieval engine index."""
@@ -288,12 +317,22 @@ class MemoryLifecycleManager:
             if self._short:
                 status["short_term"] = {"count": len(self._short.list_recent(1000))}
         except Exception as exc:
-            logger.warning("Failed to query short_term memory store for status: %s", exc)
+            _dream_scheduler_errors_total.inc()
+            logger.warning(
+                "Failed to query short_term memory store for status",
+                extra={"error": str(exc)},
+                exc_info=True,
+            )
         try:
             if self._mid:
                 status["mid_term"] = {"count": len(self._mid.list_recent(365))}
         except Exception as exc:
-            logger.warning("Failed to query mid_term memory store for status: %s", exc)
+            _dream_scheduler_errors_total.inc()
+            logger.warning(
+                "Failed to query mid_term memory store for status",
+                extra={"error": str(exc)},
+                exc_info=True,
+            )
         try:
             if self._graph:
                 status["long_term"] = {
@@ -301,5 +340,10 @@ class MemoryLifecycleManager:
                     "edges": self._graph.edge_count(),
                 }
         except Exception as exc:
-            logger.warning("Failed to query long_term memory graph for status: %s", exc)
+            _dream_scheduler_errors_total.inc()
+            logger.warning(
+                "Failed to query long_term memory graph for status",
+                extra={"error": str(exc)},
+                exc_info=True,
+            )
         return status

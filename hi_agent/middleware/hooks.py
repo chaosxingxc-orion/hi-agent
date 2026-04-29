@@ -24,8 +24,10 @@ from enum import StrEnum
 from typing import Any
 
 from hi_agent.llm import LLMRequest, LLMResponse
+from hi_agent.observability.metric_counter import Counter
 
 logger = logging.getLogger(__name__)
+_hooks_errors_total = Counter("hi_agent_middleware_hooks_errors_total")
 
 # ---------------------------------------------------------------------------
 # Hook event identifiers
@@ -143,6 +145,7 @@ class HookChain:
                 if result is not None:
                     current = result
             except Exception as exc:
+                _hooks_errors_total.inc()
                 logger.warning(
                     "HookChain[%s/%s] pre_llm hook %r raised %s; skipping.",
                     self.name,
@@ -161,6 +164,7 @@ class HookChain:
                 if out is not None:
                     current = out
             except Exception as exc:
+                _hooks_errors_total.inc()
                 logger.warning(
                     "HookChain[%s/%s] post_llm hook %r raised %s; skipping.",
                     self.name,
@@ -179,6 +183,7 @@ class HookChain:
                 if result is not None:
                     current = result
             except Exception as exc:
+                _hooks_errors_total.inc()
                 logger.warning(
                     "HookChain[%s/%s] pre_tool hook %r raised %s; skipping.",
                     self.name,
@@ -197,6 +202,7 @@ class HookChain:
                 if out is not None:
                     current = out
             except Exception as exc:
+                _hooks_errors_total.inc()
                 logger.warning(
                     "HookChain[%s/%s] post_tool hook %r raised %s; skipping.",
                     self.name,
@@ -311,6 +317,7 @@ class ExecutionHookManager:
             else:
                 response = call_fn(ctx.request)  # type: ignore[assignment]  expiry_wave: Wave 17
         except Exception as exc:
+            _hooks_errors_total.inc()
             error = exc
         finally:
             duration_ms = (time.perf_counter_ns() - start_ns) / 1_000_000
@@ -374,6 +381,7 @@ class ExecutionHookManager:
             else:
                 result_str = call_fn(ctx)  # type: ignore[assignment]  expiry_wave: Wave 17
         except Exception as exc:
+            _hooks_errors_total.inc()
             error = exc
         finally:
             duration_ms = (time.perf_counter_ns() - start_ns) / 1_000_000

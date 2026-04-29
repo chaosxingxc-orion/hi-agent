@@ -12,8 +12,10 @@ from hi_agent.artifacts.metrics import (
     legacy_tenantless_denied_total,
     legacy_tenantless_visible_total,
 )
+from hi_agent.observability.metric_counter import Counter
 
 _logger = logging.getLogger(__name__)
+_ledger_errors_total = Counter("hi_agent_ledger_errors_total")
 
 
 def _resolve_ledger_path(ledger_path: str | Path | None) -> Path | None:
@@ -93,6 +95,7 @@ class ArtifactLedger:
                         with quarantine_path.open("a", encoding="utf-8") as qf:
                             qf.write(line + "\n" if not line.endswith("\n") else line)
                     except Exception as qe:  # quarantine write failure must not crash load
+                        _ledger_errors_total.inc()
                         _logger.warning(
                             "ArtifactLedger._load: failed to write quarantine file %s: %s",
                             quarantine_path,
@@ -104,7 +107,7 @@ class ArtifactLedger:
                         collector = get_metrics_collector()
                         if collector is not None:
                             collector.increment("hi_agent_artifact_corrupt_line_total")
-                    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+                    except Exception:  # rule7-exempt: expiry_wave="Wave 22"
                         pass
 
     def register(self, artifact: Artifact) -> None:

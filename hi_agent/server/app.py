@@ -62,6 +62,7 @@ from hi_agent.auth.operation_policy import require_operation
 from hi_agent.config.posture import Posture
 from hi_agent.config.stack import ConfigStack
 from hi_agent.config.watcher import ConfigFileWatcher
+from hi_agent.observability.metric_counter import Counter
 from hi_agent.server._durable_backends import build_durable_backends
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
@@ -120,6 +121,7 @@ from hi_agent.server.session_store import SessionStore
 from hi_agent.server.team_event_store import TeamEventStore
 
 logger = logging.getLogger(__name__)
+_health_check_errors_total = Counter("hi_agent_health_check_errors_total")
 
 
 async def handle_health(request: Request) -> JSONResponse:
@@ -137,7 +139,13 @@ async def handle_health(request: Request) -> JSONResponse:
             "queued_runs": status["queued_runs"],
             "capacity": status["total_capacity"],
         }
-    except Exception:
+    except Exception as exc:
+        _health_check_errors_total.labels(check_name="run_manager").inc()
+        logger.warning(
+            "health check run_manager failed",
+            extra={"check_name": "run_manager", "error": str(exc)},
+            exc_info=True,
+        )
         subsystems["run_manager"] = {"status": "error"}
         overall = "degraded"
 
@@ -158,7 +166,13 @@ async def handle_health(request: Request) -> JSONResponse:
             if ltm is not None:
                 info["ltm_count"] = len(ltm) if hasattr(ltm, "__len__") else 0
             subsystems["memory"] = info
-    except Exception:
+    except Exception as exc:
+        _health_check_errors_total.labels(check_name="memory").inc()
+        logger.warning(
+            "health check memory failed",
+            extra={"check_name": "memory", "error": str(exc)},
+            exc_info=True,
+        )
         subsystems["memory"] = {"status": "error"}
         overall = "degraded"
 
@@ -181,7 +195,13 @@ async def handle_health(request: Request) -> JSONResponse:
                 "status": "ok",
                 "events_recorded": total_events,
             }
-    except Exception:
+    except Exception as exc:
+        _health_check_errors_total.labels(check_name="metrics").inc()
+        logger.warning(
+            "health check metrics failed",
+            extra={"check_name": "metrics", "error": str(exc)},
+            exc_info=True,
+        )
         subsystems["metrics"] = {"status": "error"}
         overall = "degraded"
 
@@ -201,7 +221,13 @@ async def handle_health(request: Request) -> JSONResponse:
                 "status": ctx_status,
                 "health": health_str,
             }
-    except Exception:
+    except Exception as exc:
+        _health_check_errors_total.labels(check_name="context").inc()
+        logger.warning(
+            "health check context failed",
+            extra={"check_name": "context", "error": str(exc)},
+            exc_info=True,
+        )
         subsystems["context"] = {"status": "error"}
         overall = "degraded"
 
@@ -217,7 +243,13 @@ async def handle_health(request: Request) -> JSONResponse:
             "subscribers": stats.get("subscriber_count", 0),
             "dropped": stats.get("total_dropped", 0),
         }
-    except Exception:
+    except Exception as exc:
+        _health_check_errors_total.labels(check_name="event_bus").inc()
+        logger.warning(
+            "health check event_bus failed",
+            extra={"check_name": "event_bus", "error": str(exc)},
+            exc_info=True,
+        )
         subsystems["event_bus"] = {"status": "error"}
         overall = "degraded"
 
@@ -251,7 +283,13 @@ async def handle_health(request: Request) -> JSONResponse:
                 "configured_mode": _cfg_mode,
                 "configured_base_url": _cfg_url,
             }
-    except Exception:
+    except Exception as exc:
+        _health_check_errors_total.labels(check_name="kernel_adapter").inc()
+        logger.warning(
+            "health check kernel_adapter failed",
+            extra={"check_name": "kernel_adapter", "error": str(exc)},
+            exc_info=True,
+        )
         subsystems["kernel_adapter"] = {"status": "error"}
 
     return JSONResponse(
@@ -288,6 +326,12 @@ async def handle_ready(request: Request) -> JSONResponse:
             builder = SystemBuilder(config=getattr(server, "_config", None))
         snapshot = builder.readiness()
     except Exception as exc:
+        _health_check_errors_total.labels(check_name="readiness").inc()
+        logger.warning(
+            "health check readiness failed",
+            extra={"check_name": "readiness", "error": str(exc)},
+            exc_info=True,
+        )
         snapshot = {
             "ready": False,
             "health": "error",
@@ -298,9 +342,15 @@ async def handle_ready(request: Request) -> JSONResponse:
     try:
         _env_rdy = _os_rdy.environ.get("HI_AGENT_ENV", "dev").lower()
         _runtime_mode_rdy = _rrm_rdy(_env_rdy, snapshot)
-        _auth_rdy = _AM_rdy(app=lambda *a: None, runtime_mode=_runtime_mode_rdy)  # type: ignore[arg-type]  expiry_wave: Wave 17
+        _auth_rdy = _AM_rdy(app=lambda *a: None, runtime_mode=_runtime_mode_rdy)  # type: ignore[arg-type]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
         snapshot = dict(snapshot, auth_posture=_auth_rdy.auth_posture)
-    except Exception:
+    except Exception as exc:
+        _health_check_errors_total.labels(check_name="auth_posture").inc()
+        logger.warning(
+            "health check auth_posture failed",
+            extra={"check_name": "auth_posture", "error": str(exc)},
+            exc_info=True,
+        )
         snapshot = dict(snapshot, auth_posture="unknown")
 
     # Augment snapshot with fine-grained readiness flags.
@@ -322,7 +372,12 @@ async def handle_ready(request: Request) -> JSONResponse:
             },
         )
     except Exception as exc:
-        logger.warning("readiness flag enrichment failed (non-fatal): %s", exc)
+        _health_check_errors_total.labels(check_name="readiness_flags").inc()
+        logger.warning(
+            "readiness flag enrichment failed (non-fatal)",
+            extra={"check_name": "readiness_flags", "error": str(exc)},
+            exc_info=True,
+        )
 
     # Draining supersedes all other readiness: return 503 immediately so
     # load-balancers stop routing new traffic to this instance.
@@ -954,7 +1009,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
         tool_count = 0
         mcp_srv = getattr(server, "_mcp_server", None)
         if mcp_srv is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: MCP probe must not block health  # noqa: E501  expiry_wave: Wave 17
+            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
                 tool_count = len(mcp_srv.list_tools().get("tools", []))
         # Derive transport status from a real health probe, not merely from
         # whether the transport object exists.  A server whose subprocess fails
@@ -1326,7 +1381,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
     ]
 
     @contextlib.asynccontextmanager
-    async def lifespan(app: Starlette):  # type: ignore[misc]  expiry_wave: Wave 17
+    async def lifespan(app: Starlette):  # type: ignore[misc]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
         """Start/stop background subsystems around the Starlette lifespan."""
         mm: MemoryLifecycleManager | None = agent_server.memory_manager
         if mm is not None:
@@ -1456,7 +1511,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
     _builder_auth = getattr(agent_server, "_builder", None)
     _readiness_auth: dict = {}
     if _builder_auth is not None:
-        with contextlib.suppress(Exception):  # rule7-exempt: readiness probe must not block auth  # noqa: E501  expiry_wave: Wave 17
+        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
             _readiness_auth = _builder_auth.readiness()
     _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
     app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)
@@ -1471,7 +1526,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         app.add_middleware(SessionMiddleware, session_store=_session_store)
     # Store the resolved auth posture on app.state so route handlers can read it
     # without constructing a new AuthMiddleware instance per-request.
-    _auth_posture_mw = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_auth)  # type: ignore[arg-type]  expiry_wave: Wave 17
+    _auth_posture_mw = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_auth)  # type: ignore[arg-type]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
     app.state.auth_posture = _auth_posture_mw.auth_posture
 
     # Rate limiting middleware.
@@ -1509,9 +1564,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
         detail = exc.detail if isinstance(exc.detail, dict) else {"error": str(exc.detail)}
         return JSONResponse(detail, status_code=exc.status_code)
 
-    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]  expiry_wave: Wave 17
+    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
     app.add_exception_handler(404, http_exception_handler)  # type: ignore[arg-type]
-    app.add_exception_handler(405, http_exception_handler)  # type: ignore[arg-type]  expiry_wave: Wave 17
+    app.add_exception_handler(405, http_exception_handler)  # type: ignore[arg-type]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
 
     return app
 

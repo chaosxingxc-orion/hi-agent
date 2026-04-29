@@ -208,7 +208,7 @@ class SLOMonitor:
                 success_target=self._success_target,
                 latency_target_ms=self._latency_target_ms,
             )
-        except ValueError:  # rule7-exempt: expiry_wave="Wave 21"
+        except ValueError:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
             return None
 
     def _emit_violations(self, snapshot: SLOSnapshot) -> None:

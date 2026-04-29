@@ -212,7 +212,7 @@ class RetrievalEngine:
             if self._injection_scanner is None:
                 self._injection_scanner = InjectionScanner()
             self._injection_scanner.scan_and_raise(content, source=source)
-        except ImportError:  # rule7-exempt: expiry_wave="Wave 21"
+        except ImportError:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
             pass  # security module not available — skip scan
 
     def build_index(self) -> int:

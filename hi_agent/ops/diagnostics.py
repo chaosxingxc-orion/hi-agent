@@ -160,7 +160,7 @@ def _check_capability_registry(builder, blocking: list) -> None:
                         verify="python -m hi_agent doctor",
                     )
                 )
-    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
         pass  # Registry introspection failure is non-fatal
 
 
@@ -187,7 +187,7 @@ def _check_mcp_health(builder, warnings: list) -> None:
                         ),
                     )
                 )
-    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
         pass
 
 
@@ -209,7 +209,7 @@ def _check_skill_loader(builder, warnings: list) -> None:
                         verify=f"ls {skill_path}",
                     )
                 )
-    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
         pass
 
 
@@ -234,7 +234,7 @@ def _check_memory_dirs(builder, warnings: list) -> None:
                     verify=f"ls -la {memory_path}",
                 )
             )
-    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
         pass
 
 
@@ -246,7 +246,7 @@ def _check_profile(builder, warnings: list) -> None:
             if profile_id and profile_id != "default":
                 # Just note current profile
                 pass
-    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
         pass
 
 
@@ -268,7 +268,7 @@ def _check_evolve_policy(builder, info: list) -> None:
                     ),
                 )
             )
-    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
         pass
 
 

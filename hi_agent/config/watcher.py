@@ -14,7 +14,10 @@ import os
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from hi_agent.observability.metric_counter import Counter
+
 logger = logging.getLogger(__name__)
+_watcher_errors_total = Counter("hi_agent_config_watcher_errors_total")
 
 
 class ConfigFileWatcher:
@@ -56,6 +59,7 @@ class ConfigFileWatcher:
                     await self._on_reload(new_cfg)
                     logger.info("Config reloaded from %s", self._stack._base_path)
                 except Exception as exc:
+                    _watcher_errors_total.inc()
                     logger.error("Config reload failed: %s", exc)
 
     def _current_mtimes(self) -> dict[str, float]:

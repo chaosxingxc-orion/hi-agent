@@ -12,8 +12,10 @@ from collections.abc import Callable
 from typing import Any
 
 from hi_agent.config.trace_config import TraceConfig
+from hi_agent.observability.metric_counter import Counter
 
 logger = logging.getLogger(__name__)
+_knowledge_builder_errors_total = Counter("hi_agent_knowledge_builder_errors_total")
 
 
 class KnowledgeBuilder:
@@ -36,9 +38,10 @@ class KnowledgeBuilder:
         wiki = KnowledgeWiki(os.path.join(self._knowledge_base_dir(), "knowledge", "wiki"))
         try:
             wiki.load()
-        except (FileNotFoundError, KeyError, ValueError):  # rule7-exempt: expiry_wave="Wave 21"
+        except (FileNotFoundError, KeyError, ValueError):  # rule7-exempt: expiry_wave="Wave 22"
             pass  # expected on fresh installs
         except Exception as exc:
+            _knowledge_builder_errors_total.inc()
             logger.warning("build_knowledge_wiki: failed to load prior wiki state: %s", exc)
         return wiki
 

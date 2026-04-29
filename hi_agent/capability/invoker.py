@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from concurrent.futures import TimeoutError as FutureTimeoutError
@@ -9,7 +10,11 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from hi_agent.capability.circuit_breaker import CircuitBreaker
 from hi_agent.capability.policy import CapabilityPolicy
 from hi_agent.capability.registry import CapabilityRegistry
+from hi_agent.observability.metric_counter import Counter
 from hi_agent.runtime.async_bridge import AsyncBridgeService
+
+_logger = logging.getLogger(__name__)
+_invoker_errors_total = Counter("hi_agent_capability_invoker_errors_total")
 
 _DANGEROUS_ALLOWED_ROLES = {"approver", "admin"}
 
@@ -193,6 +198,11 @@ class CapabilityInvoker:
                         }
                 return response
             except Exception as exc:
+                _invoker_errors_total.inc()
+                _logger.warning(
+                    "invoker.invoke_error capability=%s attempt=%d error=%s",
+                    capability_name, attempt, exc,
+                )
                 if self.breaker is not None:
                     self.breaker.mark_failure(capability_name)
                 retryable = isinstance(exc, self.retry_exceptions)

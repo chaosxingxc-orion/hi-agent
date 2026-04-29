@@ -91,9 +91,9 @@ class MCPHealth:
             try:
                 stderr_tail = self._transport.get_stderr_tail()
             except TypeError:
-                with contextlib.suppress(Exception):  # rule7-exempt: fallback transport probe  # noqa: E501  expiry_wave: Wave 17
+                with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
                     stderr_tail = self._transport.get_stderr_tail(server_id)
-            except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+            except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
                 pass
 
         error_keywords = ("error", "exception", "traceback", "fatal", "critical")

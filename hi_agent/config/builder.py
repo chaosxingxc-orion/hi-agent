@@ -26,6 +26,9 @@ from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
 from hi_agent.observability.collector import MetricsCollector
+from hi_agent.observability.metric_counter import Counter
+
+_builder_errors_total = Counter("hi_agent_builder_errors_total")
 from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
@@ -167,6 +170,7 @@ class SystemBuilder:
                     profile_dir,
                 )
         except Exception as exc:
+            _builder_errors_total.inc()
             logger.warning("_load_profiles_from_dir: failed (%s); profiles not loaded.", exc)
 
     def _redirect_deprecated_config(self) -> None:
@@ -303,6 +307,7 @@ class SystemBuilder:
                     try:
                         register_default_capabilities(registry, llm_gateway=gateway)
                     except Exception as exc:
+                        _builder_errors_total.inc()
                         logger.warning(
                             "build_capability_registry: register_default_capabilities failed (%s); "
                             "registry will have no pre-registered capabilities.",
@@ -318,6 +323,7 @@ class SystemBuilder:
                     try:
                         _readiness_rbt = self.readiness()
                     except Exception:
+                        _builder_errors_total.inc()
                         _readiness_rbt = {}
                     _profile_rbt = _rrm_rbt(_env_rbt, _readiness_rbt)
                     register_builtin_tools(registry, profile=_profile_rbt)
@@ -333,6 +339,7 @@ class SystemBuilder:
                     except ConfigValidationError as _tc_exc:
                         raise _tc_exc
                     except Exception as _tc_exc:
+                        _builder_errors_total.inc()
                         logger.warning(
                             "build_capability_registry: tools_config_loader failed (%s); "
                             "custom tools not loaded.",
@@ -345,6 +352,7 @@ class SystemBuilder:
                         len(registry.list_names()),
                     )
                 except Exception as exc:
+                    _builder_errors_total.inc()
                     logger.warning("build_capability_registry: failed: %s", exc)
                     self._capability_registry = None
         return self._capability_registry
@@ -380,6 +388,7 @@ class SystemBuilder:
                     self._artifact_registry = ArtifactRegistry()
                     logger.info("build_artifact_registry: ArtifactRegistry created (in-memory).")
             except Exception as exc:
+                _builder_errors_total.inc()
                 from hi_agent.config.posture import Posture
 
                 if Posture.from_env().is_strict:
@@ -398,6 +407,7 @@ class SystemBuilder:
                     self._mcp_registry = MCPRegistry()
                     logger.info("build_mcp_registry: MCPRegistry created.")
                 except Exception as exc:
+                    _builder_errors_total.inc()
                     logger.warning("build_mcp_registry: failed: %s", exc)
                     self._mcp_registry = None
         return self._mcp_registry
@@ -430,6 +440,7 @@ class SystemBuilder:
                     len(stdio_servers),
                 )
             except Exception as exc:
+                _builder_errors_total.inc()
                 logger.warning("build_mcp_transport: failed: %s", exc)
                 self._mcp_transport = None
         return self._mcp_transport
@@ -584,6 +595,7 @@ class SystemBuilder:
                     _mcp_cfg_path = self._config_dir / "mcp_servers.json"
                     load_mcp_servers_from_config(self._mcp_registry, config_path=_mcp_cfg_path)
                 except Exception as _mcp_cfg_exc:
+                    _builder_errors_total.inc()
                     logger.warning(
                         "_wire_plugin_contributions: mcp_config_loader failed (%s); "
                         "config-driven MCP servers not loaded.",
@@ -612,6 +624,7 @@ class SystemBuilder:
                                 manifest.name,
                             )
                         except Exception as exc:
+                            _builder_errors_total.inc()
                             logger.warning(
                                 "_wire_plugin_contributions: could not load skill_dir %r: %s",
                                 resolved,
@@ -637,6 +650,7 @@ class SystemBuilder:
                             manifest.name,
                         )
                     except Exception as exc:
+                        _builder_errors_total.inc()
                         logger.warning(
                             "_wire_plugin_contributions: failed to register MCP server %r: %s",
                             srv_name,
@@ -672,6 +686,7 @@ class SystemBuilder:
                     _hc.check_all()
                     logger.debug("_wire_plugin_contributions: MCP health probe completed.")
                 except Exception as _hc_exc:
+                    _builder_errors_total.inc()
                     logger.warning(
                         "_wire_plugin_contributions: MCP health probe failed: %s", _hc_exc
                     )
@@ -696,6 +711,7 @@ class SystemBuilder:
                         _bound,
                     )
                 except Exception as _mcp_exc:
+                    _builder_errors_total.inc()
                     logger.warning(
                         "_wire_plugin_contributions: MCPBinding.bind_all() failed: %s", _mcp_exc
                     )
@@ -856,6 +872,7 @@ class SystemBuilder:
                 self._profile_registry = ProfileRegistry()
                 logger.info("build_profile_registry: ProfileRegistry created.")
             except Exception as exc:
+                _builder_errors_total.inc()
                 logger.warning("build_profile_registry: failed: %s", exc)
                 self._profile_registry = None
         return self._profile_registry
@@ -877,7 +894,9 @@ class SystemBuilder:
         try:
             registry = self.build_capability_registry()
             registered = set(registry.list_names()) if hasattr(registry, "list_names") else set()
-        except Exception:
+        except Exception as exc:
+            _builder_errors_total.inc()
+            logger.warning("_validate_required_capabilities: registry unavailable (%s)", exc)
             registered = set()
 
         required = set(resolved_profile.required_capabilities)
@@ -901,6 +920,7 @@ class SystemBuilder:
                 return None
             return ProfileRuntimeResolver(registry).resolve(profile_id)
         except Exception as exc:
+            _builder_errors_total.inc()
             logger.warning("_resolve_profile: failed for %r: %s", profile_id, exc)
             return None
 
@@ -994,6 +1014,7 @@ class SystemBuilder:
                 _sync_gw = self.build_llm_gateway()
                 async_llm = _sync_gw
             except Exception as _exc:
+                _builder_errors_total.inc()
                 logger.debug(
                     "_build_delegation_manager: LLM gateway unavailable (%s), "
                     "child-run summaries will be truncated.",
@@ -1013,6 +1034,7 @@ class SystemBuilder:
             )
             return manager
         except Exception as exc:
+            _builder_errors_total.inc()
             logger.warning("_build_delegation_manager: failed to create DelegationManager: %s", exc)
             return None
 
@@ -1079,6 +1101,7 @@ class SystemBuilder:
         try:
             _skill_ev = self.build_skill_evolver()
         except Exception as exc:
+            _builder_errors_total.inc()
             logger.warning("_build_executor_impl: build_skill_evolver failed: %s", exc)
         _skill_ev_interval = getattr(self._config, "skill_evolve_interval", 10)
         _tracer = None
@@ -1089,6 +1112,7 @@ class SystemBuilder:
 
                 _tracer = Tracer(exporters=[JsonFileTraceExporter(export_dir)])
         except Exception as exc:
+            _builder_errors_total.inc()
             logger.warning("_build_executor_impl: Tracer build failed: %s", exc)
 
         # Determine stage_graph and stage_actions from profile, falling back to
@@ -1180,7 +1204,9 @@ class SystemBuilder:
                 mid_term_store=_mid_term_store,
                 graph=_long_term_graph,
             )
-        except Exception:
+        except Exception as exc:
+            _builder_errors_total.inc()
+            logger.warning("_build_executor_impl: LongTermConsolidator build failed: %s", exc)
             _long_term_consolidator = None
 
         executor = RunExecutor(
@@ -1274,6 +1300,7 @@ class SystemBuilder:
                     resolved_profile.profile_id,
                 )
         except Exception as exc:
+            _builder_errors_total.inc()
             logger.warning("_inject_evaluator: failed: %s", exc)
 
     def build_executor(

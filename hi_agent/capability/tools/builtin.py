@@ -20,7 +20,10 @@ def _now_iso() -> str:
     """Return current UTC time as ISO-8601 string (P-1 Provenance timestamp)."""
     return datetime.now(UTC).isoformat()
 
+from hi_agent.observability.metric_counter import Counter
+
 _handler_logger = _logging.getLogger(__name__)
+_builtin_errors_total = Counter("hi_agent_builtin_tools_errors_total")
 
 
 def file_read_handler(payload: dict, *, workspace_root: Path | None = None) -> dict:
@@ -68,6 +71,8 @@ def file_read_handler(payload: dict, *, workspace_root: Path | None = None) -> d
             "error": f"Path policy violation: {exc}",
         }
     except Exception as exc:
+        _builtin_errors_total.inc()
+        _handler_logger.warning("builtin.file_read_error error=%s", exc)
         return {"success": False, "content": "", "size": 0, "error": str(exc)}
 
 
@@ -100,6 +105,8 @@ def file_write_handler(payload: dict, *, workspace_root: Path | None = None) -> 
     except PathPolicyViolation as exc:
         return {"success": False, "bytes_written": 0, "error": f"Path policy violation: {exc}"}
     except Exception as exc:
+        _builtin_errors_total.inc()
+        _handler_logger.warning("builtin.file_write_error error=%s", exc)
         return {"success": False, "bytes_written": 0, "error": str(exc)}
 
 
@@ -179,6 +186,8 @@ def web_fetch_handler(payload: dict) -> dict:
     except urllib.error.HTTPError as exc:
         return {"success": False, "content": "", "status_code": exc.code, "error": str(exc)}
     except Exception as exc:
+        _builtin_errors_total.inc()
+        _handler_logger.warning("builtin.web_fetch_error error=%s", exc)
         return {"success": False, "content": "", "status_code": 0, "error": str(exc)}
 
 
@@ -241,6 +250,8 @@ def shell_exec_handler(payload: dict) -> dict:
             "error": f"command timed out after {timeout}s",
         }
     except Exception as exc:
+        _builtin_errors_total.inc()
+        _handler_logger.warning("builtin.shell_exec_error error=%s", exc)
         return {"success": False, "stdout": "", "stderr": "", "returncode": -1, "error": str(exc)}
 
 

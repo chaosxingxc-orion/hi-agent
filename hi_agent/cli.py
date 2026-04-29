@@ -12,11 +12,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 import urllib.error
 import urllib.request
 
+from hi_agent.observability.metric_counter import Counter
+
+_logger = logging.getLogger(__name__)
+_cli_errors_total = Counter("hi_agent_cli_errors_total")
 _DEFAULT_API_TIMEOUT_SECONDS = 15.0
 
 
@@ -284,6 +289,8 @@ def _cmd_run(args: argparse.Namespace) -> None:
             executor = builder.build_executor(contract, config_patch=config_patch)
             result = executor.execute()
         except Exception as exc:
+            _cli_errors_total.inc()
+            _logger.warning("cli.local_run_error error=%s", exc)
             print(
                 f"Error: local run failed — {exc}\n"
                 "Tip: check HI_AGENT_ENV, API keys, or run with --json for details.",
@@ -388,6 +395,8 @@ def _cmd_readiness(args: argparse.Namespace) -> None:
             builder = SystemBuilder(config=config, config_stack=stack)
             snapshot = builder.readiness()
         except Exception as exc:
+            _cli_errors_total.inc()
+            _logger.warning("cli.readiness_error error=%s", exc)
             snapshot = {"ready": False, "health": "error", "error": str(exc)}
 
         if getattr(args, "json", False):
