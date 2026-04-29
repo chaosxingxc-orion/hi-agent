@@ -41,8 +41,10 @@ def require_tenant(
                 "hi_agent_empty_tenant_admit_total",
                 labels={"site": where, "posture": str(p)},
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.warning(
+            "posture_guards.require_tenant: metric emit failed at %r: %s", where, exc
+        )
     return ""
 
 

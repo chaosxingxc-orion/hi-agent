@@ -1022,8 +1022,10 @@ class ContextManager:
         try:
             if self._metrics is not None:
                 self._metrics.increment("context_cache_hit", {"section": section})
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning(
+                "context_manager._record_cache_hit: metric emit failed: %s", exc
+            )
 
     def _record_context_fallback(
         self,
@@ -1042,5 +1044,9 @@ class ContextManager:
                 run_id=run_id or "unknown",
                 extra={"component": "context_manager", **(extra or {})},
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning(
+                "context_manager._record_context_fallback: fallback record failed "
+                "(context may grow unbounded): %s",
+                exc,
+            )

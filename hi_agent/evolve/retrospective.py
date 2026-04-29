@@ -319,8 +319,10 @@ def _parse_llm_changes(content: str, run_id: str) -> list[EvolveChange]:
                     "content_preview": content[:200],
                 },
             )
-        except Exception:
-            pass
+        except Exception as _fb_exc:
+            _logger.warning(
+                "retrospective._parse_llm_changes: fallback record failed: %s", _fb_exc
+            )
         return []
 
     if not isinstance(raw, list):

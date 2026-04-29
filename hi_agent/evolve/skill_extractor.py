@@ -173,8 +173,10 @@ class SkillExtractor:
                         "content_preview": content[:200] if content else "",
                     },
                 )
-            except Exception:
-                pass
+            except Exception as _fb_exc:
+                logger.warning(
+                    "skill_extractor._parse_llm_skills: fallback record failed: %s", _fb_exc
+                )
             return []
         if not isinstance(items, list):
             return []

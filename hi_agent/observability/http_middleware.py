@@ -66,5 +66,5 @@ class TraceIdMiddleware:
                     "hi_agent_http_requests_total",
                     labels={"method": _method, "path": _path},
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning("http_middleware: metric emit failed (non-fatal): %s", exc)

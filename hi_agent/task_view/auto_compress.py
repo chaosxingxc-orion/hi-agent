@@ -6,9 +6,12 @@ each LLM call, trigger compression if needed.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from hi_agent.task_view.token_budget import count_tokens
+
+_logger = logging.getLogger(__name__)
 
 
 class AutoCompressTrigger:
@@ -236,5 +239,9 @@ class AutoCompressTrigger:
                 run_id=run_id or "unknown",
                 extra={"stage_id": stage_id, **(extra or {})},
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning(
+                "auto_compress._record_fallback: fallback record failed "
+                "(task view may be uncompressed): %s",
+                exc,
+            )

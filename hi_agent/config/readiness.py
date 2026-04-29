@@ -189,8 +189,10 @@ class ReadinessProbe:
                     skill_list = loader.list_skills()
                 elif isinstance(skill_count, int):
                     skill_count = skill_count  # just the count, no list available
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "readiness: skill loader failed unexpectedly: %s", exc, exc_info=True
+                )
             result["skills"] = [
                 {
                     "name": getattr(s, "name", str(s)),

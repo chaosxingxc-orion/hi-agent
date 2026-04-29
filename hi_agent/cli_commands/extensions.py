@@ -13,9 +13,12 @@ Usage::
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from hi_agent.config.posture import Posture
@@ -65,8 +68,10 @@ def run_inspect(args) -> None:
                     if loaded.version == version:
                         manifest = loaded
                         break
-                except Exception:
-                    pass
+                except Exception as _load_exc:
+                    logger.warning(
+                        "extensions: failed to load manifest %s: %s", candidate, _load_exc
+                    )
 
         if manifest is None:
             print(f"Extension {name}:{version} not found in plugin search paths.")

@@ -167,8 +167,10 @@ class RunManager:
             from hi_agent.server.event_bus import event_bus as _event_bus
 
             _event_bus.add_sync_observer(self._on_stage_event)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "run_manager: failed to subscribe to EventBus (stage tracking disabled): %s", exc
+            )
 
     def _on_stage_event(self, event: object) -> None:
         """Update current_stage on any stage-entry event published to EventBus.
@@ -1150,8 +1152,12 @@ class RunManager:
                     _last_evt = _events[-1]
                     _last_event_offset = _last_evt.sequence
                     _last_event_at_ts = _last_evt.created_at
-            except Exception:
-                pass
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "run_manager.get_run_status: event_store.list_since failed for run_id=%s: %s",
+                    run.run_id,
+                    exc,
+                )
 
         _last_event_at: str | None = (
             datetime.fromtimestamp(_last_event_at_ts, tz=UTC).isoformat()

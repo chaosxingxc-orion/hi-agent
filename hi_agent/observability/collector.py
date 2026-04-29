@@ -656,8 +656,8 @@ class MetricsCollector:
             try:
                 import psutil  # type: ignore[import-untyped]  # expiry_wave: Wave 18
                 self.gauge_set("hi_agent_open_fd_count", float(psutil.Process().num_fds()))
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.warning("collector.sample_process_metrics: psutil fd count failed: %s", exc)
 
     def snapshot(self) -> dict[str, Any]:
         """Return all current metric values as a JSON-friendly dict."""
