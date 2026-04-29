@@ -1,0 +1,7 @@
+{
+  "artifact_path": "docs\\delivery\\2026-04-30-159b304-t3-volces.json",
+  "provenance": "real",
+  "head_sha": "159b3047b16ceb084f04b6130c7e6f44bd4c3d1f",
+  "generated_at": "2026-04-29T16:57:49.234503+00:00",
+  "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\run_t3_gate.py"
+}
