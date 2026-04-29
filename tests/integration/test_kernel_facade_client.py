@@ -514,7 +514,7 @@ class TestModeValidation:
     def test_direct_mode_without_facade_and_no_kernel_raises(self) -> None:
         """When agent-kernel is not importable and no facade given, ImportError."""
         with (
-            patch.object(
+            patch.object(  # B1: SUT-internal mock — schedule replacement with boundary mock
                 KernelFacadeClient,
                 "_try_import_facade",
                 return_value=None,

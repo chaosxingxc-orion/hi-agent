@@ -31,7 +31,7 @@ class TestNoPostConstructionMutation:
 
         builder = SystemBuilder()
 
-        with patch.object(
+        with patch.object(  # B1: SUT-internal mock — schedule replacement with boundary mock
             builder._get_runtime_builder().__class__,
             "build_middleware_orchestrator",
             return_value=sentinel_mw,
@@ -57,7 +57,7 @@ class TestNoPostConstructionMutation:
 
         builder = SystemBuilder()
 
-        with patch.object(builder, "build_skill_evolver", return_value=sentinel_evolver):
+        with patch.object(builder, "build_skill_evolver", return_value=sentinel_evolver):  # B1: SUT-internal mock — schedule replacement with boundary mock
             contract = _make_contract()
             executor = builder.build_executor(contract)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test honesty audit gate (CLAUDE.md Rule 3 + Rule 7 enforcement).
 
-Scans tests/integration/ and tests/e2e/ for two anti-patterns:
+Scans tests/integration/ and tests/e2e/ for three anti-patterns:
 
 1. MagicMock/Mock applied to the system under test (SUT) in integration tests.
    SUT detection heuristic: variable name matches known SUT name patterns
@@ -12,6 +12,11 @@ Scans tests/integration/ and tests/e2e/ for two anti-patterns:
      assert status in ("completed", "failed", "cancelled")
    where both a success state AND a failure state appear in the same assertion
    RHS tuple/set. This disguises a broken test as a passing one.
+
+3. SUT-internal patch targets — integration tests that patch classes/methods
+   inside hi_agent.{server,llm,memory,artifacts,config,...} rather than only
+   boundary/external seams.  Detected via tests/integration/_mock_audit.py
+   (AX-B B1, Wave 21).
 
 Exit 0: pass (no violations)
 Exit 1: fail (violations found)
@@ -146,6 +151,38 @@ def _scan_file(path: pathlib.Path) -> list[dict]:
     return violations
 
 
+def _scan_file_b1(path: pathlib.Path) -> list[dict]:
+    """AX-B B1: detect SUT-internal patch targets in integration tests.
+
+    Delegates to tests/integration/_mock_audit.py when available.
+    Gracefully skips if the module cannot be imported (e.g., in environments
+    where tests/ is not on sys.path).
+    """
+    try:
+        import importlib.util as _ilu
+        audit_path = ROOT / "tests" / "integration" / "_mock_audit.py"
+        if not audit_path.exists():
+            return []
+        spec = _ilu.spec_from_file_location("_mock_audit", audit_path)
+        if spec is None or spec.loader is None:
+            return []
+        mod = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+        raw = mod.scan_file(path)
+        # Normalise: ensure each entry has required keys
+        out = []
+        for v in raw:
+            out.append({
+                "file": v.get("file", str(path.relative_to(ROOT))),
+                "line": v.get("line", 0),
+                "kind": v.get("kind", "sut_internal_mock"),
+                "description": v.get("description", v.get("target", "")),
+            })
+        return out
+    except Exception:  # intentional broad catch: optional B1 gate must never crash the main gate
+        return []
+
+
 # Syntax errors are encoding issues (BOM files), not honesty violations — excluded from count.
 _BASELINE_VIOLATIONS = 0
 
@@ -163,6 +200,7 @@ def main() -> int:
     args = parser.parse_args()
 
     all_violations: list[dict] = []
+    b1_violations: list[dict] = []
     files_scanned = 0
 
     for p in args.paths:
@@ -172,6 +210,9 @@ def main() -> int:
         for py_file in sorted(scan_dir.rglob("*.py")):
             files_scanned += 1
             all_violations.extend(_scan_file(py_file))
+            # AX-B B1: SUT-internal patch detection (integration tests only)
+            if "integration" in str(py_file):
+                b1_violations.extend(_scan_file_b1(py_file))
 
     # Syntax errors are encoding/parse failures, not honesty anti-patterns.
     honesty_violations = [v for v in all_violations if v["kind"] != "syntax_error"]
@@ -179,6 +220,7 @@ def main() -> int:
     accept_fail_count = sum(
         1 for v in honesty_violations if v["kind"] == "accept_failure_assertion"
     )
+    b1_count = len(b1_violations)
     # not_applicable: no integration/e2e test directories found
     if files_scanned == 0:
         if args.strict:
@@ -206,9 +248,11 @@ def main() -> int:
         "files_scanned": files_scanned,
         "mock_on_sut_count": mock_count,
         "accept_failure_assertion_count": accept_fail_count,
+        "b1_sut_internal_patch_count": b1_count,
         "violations_total": len(honesty_violations),
         "baseline": args.baseline,
         "violations": honesty_violations,
+        "b1_violations": b1_violations,
     }
 
     if args.json:
@@ -230,6 +274,15 @@ def main() -> int:
                 f"PASS: {mock_count} mock-on-sut, {accept_fail_count} accept-failure "
                 f"({len(honesty_violations)} total ≤ baseline {args.baseline})"
             )
+        if b1_count:
+            print(
+                f"INFO [B1]: {b1_count} SUT-internal patch targets detected "
+                f"in integration tests (advisory, not counted in baseline)"
+            )
+            for v in b1_violations[:5]:
+                print(
+                    f"  [B1:{v['kind']}] {v['file']}:{v['line']}: {v['description']}"
+                )
 
     return 0 if status == "pass" else 1
 
