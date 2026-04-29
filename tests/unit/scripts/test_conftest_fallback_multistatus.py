@@ -43,7 +43,7 @@ class TestConftestFallbackMultistatus:
         # conftest.py intentionally absent
 
         with patch.object(mod, "CONFTEST", fake_root / "tests" / "conftest.py"):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 2, f"expected exit 2, got {result}"
         out = capsys.readouterr().out
@@ -66,7 +66,7 @@ class TestConftestFallbackMultistatus:
             encoding="utf-8",
         )
         with patch.object(mod, "CONFTEST", conftest):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 0, f"expected exit 0, got {result}"
         out = capsys.readouterr().out
@@ -85,7 +85,7 @@ class TestConftestFallbackMultistatus:
             encoding="utf-8",
         )
         with patch.object(mod, "CONFTEST", conftest):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 1, f"expected exit 1, got {result}"
         out = capsys.readouterr().out
@@ -106,7 +106,7 @@ class TestSqlitePragmaMultistatus:
         mod = _load_script("check_sqlite_pragma.py")
         # Patch ROOT to a temp dir where no source files exist.
         with patch.object(mod, "ROOT", tmp_path):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 2, f"expected exit 2, got {result}"
         out = capsys.readouterr().out
@@ -123,7 +123,7 @@ class TestSqlitePragmaMultistatus:
                 "PRAGMA journal_mode=WAL;\n", encoding="utf-8"
             )
         with patch.object(mod, "ROOT", tmp_path):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 0, f"expected exit 0, got {result}"
         out = capsys.readouterr().out
@@ -141,7 +141,7 @@ class TestSqlitePragmaMultistatus:
                 "# journal mode not configured\n", encoding="utf-8"
             )
         with patch.object(mod, "ROOT", tmp_path):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 1, f"expected exit 1, got {result}"
         out = capsys.readouterr().out

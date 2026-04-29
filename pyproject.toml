@@ -68,6 +68,7 @@ markers = [
     "anyio: marks tests as anyio async tests",
     "windows_unsafe: test uses IOCP/asyncio in a way that hangs on Windows; excluded from default-offline on win32",
     "posture_matrix: parametrized posture-aware tests covering dev/research/prod branches (Rule 11)",
+    "unit: pure unit tests (no network, no filesystem, no real dependencies)",
 ]
 
 [tool.ruff]

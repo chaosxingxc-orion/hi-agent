@@ -72,4 +72,4 @@ jobs:
       - name: check-owner-tag (advisory)
         id: check_owner_tag
         run: python scripts/check_owner_tag.py --n 20
-        continue-on-error: true
+        continue-on-error: true  # TODO: promote to blocking in W22

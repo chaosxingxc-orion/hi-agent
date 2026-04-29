@@ -39,7 +39,7 @@ def emit_llm_call(*, tenant_id: str = "", profile_id: str = "") -> None:
         tenant_id: Tenant identifier for log attribution (not a counter label).
         profile_id: Profile/tier for counter label attribution.
     """
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path
         _llm_call_counter.labels(profile=profile_id or "unknown").inc()
     _logger.debug("spine.llm_call", extra={"tenant_id": tenant_id})
 
@@ -54,7 +54,7 @@ def emit_tool_call(
         tenant_id: Tenant identifier for log attribution (not a counter label).
         profile_id: Profile/tier for counter label attribution.
     """
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path
         _tool_call_counter.labels(
             tool=tool_name or "unknown",
             profile=profile_id or "unknown",
@@ -72,7 +72,7 @@ def emit_heartbeat_renewed(*, tenant_id: str = "", run_id: str = "") -> None:
         tenant_id: Tenant identifier for log attribution.
         run_id: Run identifier for log attribution (not a counter label).
     """
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path
         _heartbeat_counter.labels().inc()
     _logger.debug(
         "spine.heartbeat_renewed run=%s",
@@ -91,7 +91,7 @@ def emit_trace_id_propagated(*, trace_id: str = "", tenant_id: str = "") -> None
         trace_id: The trace_id that was extracted or minted.
         tenant_id: Tenant identifier for log attribution (not a counter label).
     """
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path
         _trace_id_counter.labels().inc()
     _logger.debug(
         "spine.trace_id_propagated trace=%s",

@@ -14,11 +14,11 @@ ROOT = Path(__file__).parent.parent
 CONFTEST = ROOT / "tests" / "conftest.py"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Conftest fallback scope gate.")
     parser.add_argument("--strict", action="store_true",
                         help="Treat absent input as fail rather than not_applicable")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not CONFTEST.exists():
         if args.strict:

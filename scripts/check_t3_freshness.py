@@ -72,10 +72,15 @@ def _find_latest_delivery_file(repo_root: Path) -> Path | None:
     delivery_dir = repo_root / "docs" / "delivery"
     if not delivery_dir.is_dir():
         return None
-    candidates = (
-        list(delivery_dir.glob("*-rule15-*.json")) +
-        list(delivery_dir.glob("*-t3-*.json"))
-    )
+    candidates = [
+        p for p in (
+            list(delivery_dir.glob("*-rule15-*.json")) +
+            list(delivery_dir.glob("*-t3-*.json"))
+        )
+        # Exclude provenance sidecar files (end with -provenance.json);
+        # they are paired metadata, not T3 evidence artifacts.
+        if not p.name.endswith("-provenance.json")
+    ]
     if not candidates:
         return None
     candidates.sort(key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
