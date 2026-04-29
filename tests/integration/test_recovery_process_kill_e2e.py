@@ -19,6 +19,8 @@ import time
 
 import pytest
 
+from tests._helpers.run_states import TERMINAL_STATES
+
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
@@ -61,7 +63,7 @@ def _poll_run_state(base_url: str, run_id: str, timeout: float = 30.0) -> str | 
     except ImportError:
         return None
 
-    terminal_states = {"done", "completed", "failed", "cancelled", "error"}
+    # Reason: recovery test validates fail-fast transitions — any terminal state is acceptable
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
@@ -69,7 +71,7 @@ def _poll_run_state(base_url: str, run_id: str, timeout: float = 30.0) -> str | 
             if resp.status_code == 200:
                 data = resp.json()
                 state = data.get("state") or data.get("status")
-                if state in terminal_states:
+                if state in TERMINAL_STATES:
                     return state
         except Exception:
             pass

@@ -30,6 +30,7 @@ from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
+from tests._helpers.run_states import SUCCESS_STATES, TERMINAL_STATES
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -83,13 +84,12 @@ def _wait_for_terminal(
     Raises:
         TimeoutError: If the run does not finish within *timeout* seconds.
     """
-    terminal = {"completed", "failed", "aborted"}
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         resp = client.get(f"/runs/{run_id}")
         assert resp.status_code == 200, f"Unexpected {resp.status_code} polling {run_id}"
         data = resp.json()
-        if data.get("state") in terminal:
+        if data.get("state") in TERMINAL_STATES:
             return data
         time.sleep(poll_interval)
     raise TimeoutError(f"Run {run_id!r} did not reach a terminal state within {timeout:.1f}s")
@@ -431,7 +431,8 @@ def test_tc09_concurrent_runs_isolated(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # TC10 - cancel signal terminates run
 
-_TERMINAL_STATES = frozenset({"completed", "failed", "aborted", "cancelled"})
+# Reason: cancel test validates reachability of any terminal state (non-deterministic outcome)
+_TERMINAL_STATES = TERMINAL_STATES
 
 
 def test_tc10_cancel_signal_terminates_run(client: TestClient) -> None:

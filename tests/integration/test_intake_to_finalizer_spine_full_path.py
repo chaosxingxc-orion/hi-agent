@@ -13,10 +13,12 @@ import time
 
 import pytest
 
+from tests._helpers.run_states import TERMINAL_STATES
+
 TENANT_ID = "test-tenant-spine-001"
 PROJECT_ID = "proj-spine-001"
 PROFILE_ID = "profile-001"
-_TERMINAL_STATES = {"done", "failed", "cancelled", "error"}
+_TERMINAL_STATES = TERMINAL_STATES
 _POLL_ATTEMPTS = 30
 _POLL_INTERVAL = 1  # seconds
 

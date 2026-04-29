@@ -36,6 +36,8 @@ from typing import Any
 
 import pytest
 
+from tests._helpers.run_states import SUCCESS_STATES, TERMINAL_STATES
+
 # ---------------------------------------------------------------------------
 # Skip guard — all tests in this module require prod prerequisites.
 # Evaluated at *fixture time* (not import time) so that other tests which call
@@ -77,13 +79,12 @@ def _wait_terminal(
     poll_interval: float = 1.0,
 ) -> dict[str, Any]:
     """Poll GET /runs/{run_id} until state is terminal or timeout."""
-    terminal = {"completed", "failed", "aborted"}
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         resp = client.get(f"/runs/{run_id}")
         assert resp.status_code == 200, f"GET /runs/{run_id} returned {resp.status_code}"
         data = resp.json()
-        if data.get("state") in terminal:
+        if data.get("state") in TERMINAL_STATES:
             return data
         time.sleep(poll_interval)
     raise TimeoutError(f"Run {run_id!r} did not reach terminal state within {timeout:.0f}s")
@@ -204,8 +205,8 @@ def test_pe02_run_lifecycle(prod_client: Any) -> None:
     assert run_id, "run_id must not be empty"
 
     final = _wait_terminal(prod_client, run_id)
-    assert final["state"] == "completed", (
-        f"Unexpected terminal state: {final['state']!r}"
+    assert final["state"] in SUCCESS_STATES, (
+        f"Run ended in failure state: {final['state']!r}"
     )
 
     result = final.get("result")

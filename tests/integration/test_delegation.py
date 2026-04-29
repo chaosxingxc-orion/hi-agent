@@ -22,6 +22,7 @@ from hi_agent.task_mgmt.delegation import (
     DelegationResult,
     ResultSummarizer,
 )
+from tests._helpers.run_states import SUCCESS_STATES
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -39,7 +40,7 @@ def _make_kernel(lifecycle_states: list[str], output: str | None = None) -> Magi
     responses = [
         {
             "lifecycle_state": s,
-            "output": output if s in ("completed", "failed", "aborted") else None,
+            "output": output if s in SUCCESS_STATES else None,
         }
         for s in lifecycle_states
     ]

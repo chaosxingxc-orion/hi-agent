@@ -11,9 +11,11 @@ import time
 
 import pytest
 
+from tests._helpers.run_states import TERMINAL_STATES
+
 pytestmark = [pytest.mark.e2e, pytest.mark.network]
 
-_TERMINAL_STATES = frozenset({"done", "failed", "cancelled"})
+_TERMINAL_STATES = TERMINAL_STATES
 _POLL_INTERVAL_S = 2
 _POLL_MAX_ROUNDS = 10
 

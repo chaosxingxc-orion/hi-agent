@@ -20,6 +20,8 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from tests._helpers.run_states import SUCCESS_STATES, TERMINAL_STATES
+
 from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.contracts.requests import RunResult
@@ -80,13 +82,12 @@ def _wait_terminal(
     timeout: float = 15.0,
     poll_interval: float = 0.05,
 ) -> dict[str, Any]:
-    terminal = {"completed", "failed", "aborted"}
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         resp = client.get(f"/runs/{run_id}")
         assert resp.status_code == 200
         data = resp.json()
-        if data.get("state") in terminal:
+        if data.get("state") in TERMINAL_STATES:
             return data
         time.sleep(poll_interval)
     raise TimeoutError(f"Run {run_id!r} did not finish within {timeout:.1f}s")

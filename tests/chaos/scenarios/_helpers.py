@@ -6,6 +6,8 @@ import time
 import urllib.error
 import urllib.request
 
+from tests._helpers.run_states import TERMINAL_STATES
+
 # Bypass system proxy for localhost server connections.
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -57,7 +59,8 @@ def list_runs(base_url: str) -> list[dict]:
         return []
 
 
-_TERMINAL_STATES = {"completed", "succeeded", "failed", "cancelled", "done", "error", "timed_out"}
+# Reason: chaos tests validate any terminal state
+_TERMINAL_STATES = TERMINAL_STATES
 
 
 def _ok_result(notes: str = "") -> dict:

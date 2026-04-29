@@ -11,9 +11,11 @@ import time
 
 import pytest
 
+from tests._helpers.run_states import SUCCESS_STATES, TERMINAL_STATES
+
 pytestmark = [pytest.mark.e2e, pytest.mark.network]
 
-_TERMINAL_STATES = frozenset({"done", "failed", "cancelled"})
+_TERMINAL_STATES = TERMINAL_STATES
 _POLL_INTERVAL_S = 3
 _POLL_MAX_ROUNDS = 40  # 40 * 3s = 120s
 
@@ -44,8 +46,8 @@ def test_run_reaches_terminal_state(e2e_client):
     else:
         pytest.fail(f"Run {run_id} did not reach a terminal state within 120s")
 
-    assert state == "done", (
-        f"Expected state='done' but got state={state!r}. "
+    assert state in SUCCESS_STATES, (
+        f"Run ended in failure state: {state!r}. "
         "A basic lifecycle run must complete successfully, not fail or be cancelled."
     )
 

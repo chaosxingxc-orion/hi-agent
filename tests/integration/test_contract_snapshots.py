@@ -15,6 +15,8 @@ import pytest
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
 
+from tests._helpers.run_states import TERMINAL_STATES
+
 SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "..", "snapshots")
 EXCLUDED_VOLATILE = {
     "timestamp",
@@ -86,13 +88,12 @@ def _wait_terminal(
     poll_interval: float = 0.1,
 ) -> dict[str, Any]:
     """Poll GET /runs/{run_id} until terminal state, then return the run dict."""
-    terminal = {"completed", "failed", "aborted"}
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         resp = client.get(f"/runs/{run_id}")
         assert resp.status_code == 200, f"Unexpected {resp.status_code}"
         data = resp.json()
-        if data.get("state") in terminal:
+        if data.get("state") in TERMINAL_STATES:
             return data
         time.sleep(poll_interval)
     raise TimeoutError(f"Run {run_id!r} did not reach terminal state within {timeout:.1f}s")

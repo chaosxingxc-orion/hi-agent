@@ -123,6 +123,7 @@ def _observe_lease_acquired(base_url: str, run_id: str, final_state: str) -> boo
 
 def _observe_run_completed(final_state: str) -> bool:
     """Layer: run_completed — run reached a terminal state."""
+    # Script (non-test): observability spine accepts any terminal state as evidence of completion
     return final_state in {"completed", "succeeded", "failed", "cancelled", "done", "error"}
 
 
@@ -320,6 +321,7 @@ def main() -> int:
                 time.sleep(1)
                 continue
             state = run_data.get("state", run_data.get("status", ""))
+            # Script (non-test): poll for any terminal state including failure states
             if state in {"completed", "succeeded", "failed", "cancelled", "done", "error"}:
                 final_state = state
                 break
