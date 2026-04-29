@@ -46,13 +46,15 @@ def _sha_matches(artifact_head: str, head: str) -> bool:
 
 _GOVERNANCE_PREFIXES = (
     "docs/",
+    "scripts/",
+    ".github/",
 )
 
 
 def _docs_only_gap(base_sha: str, head: str) -> bool:
-    """Return True if commits between base_sha and head only touch governance files.
+    """Return True if commits between base_sha and head only touch gov-infra files.
 
-    Governance files: docs/, scripts/, tests/, .github/ — none of which affect
+    Gov-infra files: docs/, scripts/, .github/ — none of which affect
     the platform's release-verified runtime behaviour.
     """
     try:
