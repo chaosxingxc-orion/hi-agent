@@ -182,7 +182,8 @@ class GateEvidence:
             "verified_at": self.verified_at,
             "dirty_during_run": self.dirty_during_run,
             # provenance is "real" only when:
-            #  - mode is "real" (not mock/structural),
+            #  - mode is "spawned" or "external" (server runs with real LLM),
+            #  - server readiness confirmed llm_mode="real",
             #  - at least one run was made,
             #  - git was not dirty (so verified_head is stable),
             #  - the gate passed.
@@ -190,7 +191,8 @@ class GateEvidence:
             "provenance": (
                 "real"
                 if (
-                    self.mode == "real"
+                    self.mode in ("spawned", "external")
+                    and self.ready.get("llm_mode") == "real"
                     and self.runs
                     and not self.dirty_during_run
                     and self.status == "passed"
