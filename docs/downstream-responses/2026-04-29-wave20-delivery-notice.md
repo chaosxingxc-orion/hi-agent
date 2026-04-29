@@ -3,11 +3,11 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    7be968b
-Manifest:           2026-04-29-7be968b
+Functional HEAD:    4dcdbc8
+Manifest:           2026-04-29-8785bd8
 T3 evidence:        DEFERRED — live Volces key required; pending user rotation
-Clean-env evidence: docs/verification/be64d73-default-offline-clean-env.json (8725 passed, 0 failed)
-Current verified readiness: 72.0 (cap: T3 deferred; all engineering gates pass)
+Clean-env evidence: docs/verification/db3bfa4-default-offline-clean-env.json (8723 passed, 0 failed)
+Current verified readiness: 63.0 (cap: T3 stale; all engineering gates pass)
 Validated by:       scripts/build_release_manifest.py scripts/check_spine_completeness.py scripts/check_async_init_resources.py scripts/check_silent_degradation.py
 Status:             draft (T3 pending)
 notice-pre-final-commit: true
