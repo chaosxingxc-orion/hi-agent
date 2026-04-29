@@ -36,8 +36,8 @@ def _scan_file(path: pathlib.Path) -> list[dict]:
     for i, line in enumerate(lines, 1):
         if not _SKIP_PATTERN.search(line):
             continue
-        # Check the skip call (may span up to 3 lines)
-        snippet = "\n".join(lines[i - 1 : min(i + 3, len(lines))])
+        # Check the skip call (may span up to 10 lines for multi-line reason strings)
+        snippet = "\n".join(lines[i - 1 : min(i + 10, len(lines))])
         if not _EXPIRY_ARG.search(snippet):
             issues.append({
                 "file": str(path.relative_to(ROOT)),
