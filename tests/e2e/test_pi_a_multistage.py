@@ -10,16 +10,9 @@ Pattern:
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from tests.e2e.conftest import REAL_LLM_AVAILABLE, make_contract, make_linear_profile
-
-# Heuristic mode is allowed for this shape — pi_analyze is deterministic.
-# We set the env var at import time so any test that ends up in the prod
-# capability path can fall back cleanly.
-os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
 
 
 @pytest.mark.integration

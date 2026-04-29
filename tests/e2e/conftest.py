@@ -52,7 +52,6 @@ independent of provider identity.
 
 from __future__ import annotations
 
-import os
 import uuid
 from collections.abc import Iterator
 
@@ -65,17 +64,13 @@ def pytest_collection_modifyitems(items):
         if "tests/e2e" in str(item.fspath).replace("\\", "/"):
             item.add_marker(pytest.mark.e2e)
 
-from tests.helpers.live_llm_config import LiveLLMConfig, load_live_llm_config
-
-# Allow heuristic-only capability execution when no LLM is wired.  This must
-# be set before any hi_agent module imports the capability-defaults path.
-os.environ.setdefault("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
-
 from hi_agent.capability.registry import CapabilitySpec
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.contracts.task import TaskContract
 from hi_agent.profiles.contracts import ProfileSpec
 from hi_agent.trajectory.stage_graph import StageGraph
+
+from tests.helpers.live_llm_config import LiveLLMConfig, load_live_llm_config
 
 # ---------------------------------------------------------------------------
 # Environment-driven mode selection
