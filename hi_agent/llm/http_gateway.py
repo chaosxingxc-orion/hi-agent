@@ -18,7 +18,10 @@ import httpx
 
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, LLMStreamChunk, TokenUsage
+from hi_agent.observability.metric_counter import Counter
 from hi_agent.runtime.async_bridge import AsyncBridgeService
+
+_gateway_errors_total = Counter("hi_agent_http_gateway_errors_total")
 
 if TYPE_CHECKING:
     from hi_agent.llm.budget_tracker import LLMBudgetTracker
@@ -142,7 +145,7 @@ class HttpLLMGateway:
                     },
                 )
             )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: tests/unit/test_http_gateway.py::test_event_bus_error_does_not_block_llm_call
             pass  # must not block LLM call; event bus unavailable is non-fatal
 
         if self._budget_tracker is not None:
@@ -181,6 +184,7 @@ class HttpLLMGateway:
                         metadata=request.metadata,
                     )
                 except Exception as exc:  # pragma: no cover
+                    _gateway_errors_total.inc()
                     logger.warning("PromptCacheInjector.inject failed, skipping: %s", exc)
 
             # 2. Route through failover chain if configured.
@@ -216,6 +220,7 @@ class HttpLLMGateway:
                             extra={"exc": str(exc)},
                         )
                     except Exception as _obs_exc:
+                        _gateway_errors_total.inc()
                         logger.warning(
 
                             "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
@@ -239,6 +244,7 @@ class HttpLLMGateway:
                     extra={"exc": str(exc)},
                 )
             except Exception as _obs_exc:
+                _gateway_errors_total.inc()
                 logger.warning(
 
                     "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
@@ -424,6 +430,7 @@ class HttpLLMGateway:
                 extra={"component": "http_llm_gateway", "model": str(payload.get("model", ""))},
             )
         except Exception as _obs_exc:
+            _gateway_errors_total.inc()
             logger.warning(
 
                 "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
@@ -485,20 +492,23 @@ class HTTPGateway:
         # P1-7: persist timeout so sync callers bridging via AsyncBridgeService
         # can compute a bounded wall-clock wait.
         self._timeout = float(timeout)
-        # AsyncClient instance is long-lived; its connection pool is only
-        # reusable while the owning event loop stays alive. Sync callers that
-        # bridge via ``asyncio.run`` create a fresh loop per call and MUST
-        # route through ``hi_agent.runtime.sync_bridge`` to keep the pool
-        # bound to one durable loop (DF-18 / A-43, tracked alongside A-1).
-        self._client = httpx.AsyncClient(
-            base_url=self._base_url,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            timeout=httpx.Timeout(timeout),
-            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
-        )
+        # Rule 5: do NOT create AsyncClient in __init__ (sync context).
+        # Lazy-create on first use inside the running event loop so the pool
+        # is bound to one durable loop (DF-18 / A-43).
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                base_url=self._base_url,
+                headers={
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=httpx.Timeout(self._timeout),
+                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+            )
+        return self._client
 
     # -- AsyncLLMGateway protocol ----------------------------------------------
 
@@ -549,6 +559,7 @@ class HTTPGateway:
                         metadata=request.metadata,
                     )
                 except Exception as exc:  # pragma: no cover
+                    _gateway_errors_total.inc()
                     logger.warning("PromptCacheInjector.inject failed, skipping: %s", exc)
 
             # 2. Route through failover chain if configured.
@@ -567,6 +578,7 @@ class HTTPGateway:
                             extra={"exc": str(exc)},
                         )
                     except Exception as _obs_exc:
+                        _gateway_errors_total.inc()
                         logger.warning(
 
                             "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
@@ -590,6 +602,7 @@ class HTTPGateway:
                     extra={"exc": str(exc)},
                 )
             except Exception as _obs_exc:
+                _gateway_errors_total.inc()
                 logger.warning(
 
                     "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
@@ -624,7 +637,7 @@ class HTTPGateway:
                 # (e.g. /v2). httpx merges absolute paths via urljoin so
                 # self._client.post("/v1/chat/completions") would overwrite
                 # base_url "https://host/v2" → "https://host/v1/chat/...".
-                response = await self._client.post(
+                response = await self._get_client().post(
                     f"{self._base_url}/chat/completions", json=payload
                 )
                 response.raise_for_status()
@@ -669,10 +682,12 @@ class HTTPGateway:
         """Legacy call method for backward compatibility."""
         payload = {"model": model_id, "messages": messages, **kwargs}
         # P0-3: absolute URL preserves base_url path (see _direct_complete).
-        response = await self._client.post(f"{self._base_url}/chat/completions", json=payload)
+        response = await self._get_client().post(f"{self._base_url}/chat/completions", json=payload)
         response.raise_for_status()
         return response.json()
 
     async def aclose(self) -> None:
         """Run aclose."""
-        await self._client.aclose()
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None

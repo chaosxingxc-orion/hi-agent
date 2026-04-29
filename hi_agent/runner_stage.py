@@ -340,6 +340,12 @@ class StageExecutor:
                 )
 
         proposals = self.route_engine.propose(stage_id, executor.run_id, executor.action_seq)
+        # Spine layer: llm_call — emit after routing LLM call so the observability spine
+        # can verify this layer is real (checked by check_observability_spine_completeness).
+        executor._record_event(
+            "llm_call",
+            {"stage_id": stage_id, "purpose": "routing", "run_id": executor.run_id},
+        )
         # Session: record routing LLM call with cost (best-effort)
         if executor.session is not None:
             try:
@@ -489,6 +495,16 @@ class StageExecutor:
                         "stage_id": stage_id,
                         "branch_id": branch_id,
                         "action_kind": proposal.action_kind,
+                    },
+                )
+                # Spine layer: tool_call — emit when a capability is dispatched so the
+                # observability spine can verify this layer is real.
+                executor._record_event(
+                    "tool_call",
+                    {
+                        "run_id": executor.run_id,
+                        "stage_id": stage_id,
+                        "capability": proposal.action_kind,
                     },
                 )
                 success, result, final_attempt = executor._execute_action_with_retry(

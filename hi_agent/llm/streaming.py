@@ -232,20 +232,26 @@ class HTTPStreamingGateway:
         self._api_key = api_key
         self._default_model = model
         self._timeout = timeout
-        self._client = httpx.AsyncClient(
+        self._pool_size = pool_size
+        # Rule 5: do NOT create AsyncClient in __init__ (sync context).
+        # Lazy-create on first call inside the running event loop.
+        self._client: httpx.AsyncClient | None = None
+        self._parser = SseParser()
+
+    def _make_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
             base_url=self._base_url,
             headers={
-                "x-api-key": api_key,
+                "x-api-key": self._api_key,
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             },
-            timeout=httpx.Timeout(timeout),
+            timeout=httpx.Timeout(self._timeout),
             limits=httpx.Limits(
-                max_connections=pool_size * 5,
-                max_keepalive_connections=pool_size,
+                max_connections=self._pool_size * 5,
+                max_keepalive_connections=self._pool_size,
             ),
         )
-        self._parser = SseParser()
 
     # ------------------------------------------------------------------
     # Public API
@@ -266,6 +272,8 @@ class HTTPStreamingGateway:
         model = request.model if request.model != "default" else self._default_model
         payload = self._build_payload(request, model)
 
+        if self._client is None:
+            self._client = self._make_client()
         try:
             async with self._client.stream(
                 "POST",
@@ -293,7 +301,9 @@ class HTTPStreamingGateway:
 
     async def aclose(self) -> None:
         """Close the underlying httpx client and release connections."""
-        await self._client.aclose()
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     # ------------------------------------------------------------------
     # Internals
