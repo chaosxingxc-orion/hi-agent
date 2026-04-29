@@ -178,6 +178,21 @@ def main() -> int:
     accept_fail_count = sum(
         1 for v in honesty_violations if v["kind"] == "accept_failure_assertion"
     )
+    # not_applicable: no integration/e2e test directories found
+    if files_scanned == 0:
+        result_na = {
+            "check": "test_honesty",
+            "status": "not_applicable",
+            "reason": "no integration/e2e test files found to scan",
+            "files_scanned": 0,
+            "baseline": args.baseline,
+        }
+        if args.json:
+            print(json.dumps(result_na, indent=2))
+        else:
+            print("NOT_APPLICABLE test_honesty: no integration/e2e test files found")
+        return 2
+
     status = "pass" if len(honesty_violations) <= args.baseline else "fail"
 
     result = {

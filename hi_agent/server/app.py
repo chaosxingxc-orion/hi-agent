@@ -321,8 +321,8 @@ async def handle_ready(request: Request) -> JSONResponse:
                 "ready_to_accept_new_runs": _ready_to_accept,
             },
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("readiness flag enrichment failed (non-fatal): %s", exc)
 
     # Draining supersedes all other readiness: return 503 immediately so
     # load-balancers stop routing new traffic to this instance.
@@ -894,8 +894,8 @@ async def handle_capacity_advice(request: Request) -> JSONResponse:
                 "queue_full_rejections": queue_full,
                 "queue_timeouts": queue_timeouts,
             }
-        except Exception:
-            pass  # advisory telemetry — must not crash the capacity-advice handler
+        except Exception as exc:
+            logger.warning("capacity telemetry collection failed (non-fatal): %s", exc)
 
         health_payload: dict[str, Any] = {
             "subsystems": {"run_manager": run_manager_info},
@@ -907,8 +907,8 @@ async def handle_capacity_advice(request: Request) -> JSONResponse:
             collector = getattr(server, "metrics_collector", None)
             if collector is not None:
                 metrics_snapshot = collector.snapshot()
-        except Exception:
-            pass  # advisory telemetry — must not crash the capacity-advice handler
+        except Exception as exc:
+            logger.warning("metrics snapshot collection failed (non-fatal): %s", exc)
 
         recommendations = recommend_server_capacity_tuning(health_payload, metrics_snapshot)
         return JSONResponse(

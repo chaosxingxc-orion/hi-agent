@@ -137,6 +137,16 @@ def main() -> int:
         "uncovered": uncovered[:20],
     }
 
+    # not_applicable: no hi_agent/ source exists to scan
+    if total == 0:
+        result["status"] = "not_applicable"
+        result["reason"] = "no posture callsites found in hi_agent/"
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print("NOT_APPLICABLE posture_coverage: no hi_agent/ posture callsites found")
+        return 2
+
     if args.json:
         print(json.dumps(result, indent=2))
     else:
