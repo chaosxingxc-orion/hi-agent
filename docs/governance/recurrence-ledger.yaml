@@ -1,7 +1,9 @@
 # docs/governance/recurrence-ledger.yaml
 # Recurrence-prevention ledger per §7 of hi-agent-upstream-engineering-corrective-directive-2026-04-27.md
 # Each entry tracks a downstream-identified defect class through to full systemic closure.
-# All 13 fields are required. Closure level uses docs/governance/closure-taxonomy.md enum.
+# All 16 fields are required. Closure level uses docs/governance/closure-taxonomy.md enum.
+# Fields metric_name, alert_rule, runbook_path added in W19-E6 (C11 schema fix).
+# Placeholder values carry expiry: Wave 22 for operationalization.
 
 schema_version: "1"
 current_wave: 18
@@ -24,8 +26,11 @@ entries:
     process_change: "CLAUDE.md Rule 14: manifest is single release fact source; delivery notices derived from manifest only"
     owner: GOV
     expiry_or_followup: "2026-05-12"
-    evidence_artifact: "docs/verification/<sha>-release-identity.json"
+    evidence_artifact: "docs/verification/58394d6-release-identity.json"
     current_closure_level: wired_into_default_path
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
 
   - issue_id: P0-2
     defect_class: clean_env_not_final_head
@@ -43,8 +48,11 @@ entries:
     process_change: "CLAUDE.md Rule 16: wrapper must emit truthful evidence JSON tied to final HEAD; Rule 14: manifest is single fact source"
     owner: DX
     expiry_or_followup: "2026-05-12"
-    evidence_artifact: "docs/verification/<sha>-default-offline-clean-env.json"
+    evidence_artifact: "docs/verification/58394d6-default-offline-clean-env.json"
     current_closure_level: wired_into_default_path
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
 
   - issue_id: P0-3
     defect_class: observability_spine_structural
@@ -56,15 +64,18 @@ entries:
       The spine builder script was designed as a structural scaffold, not a real E2E runner.
       No ASGI middleware existed to inject trace_id from W3C traceparent headers, so
       trace_id was always empty in event_store rows. The script ran in-process rather than
-      via subprocess HTTP calls, skipping the entire HTTP → auth → queue → store pipeline.
+      via subprocess HTTP calls, skipping the entire HTTP -> auth -> queue -> store pipeline.
     code_fix: "Wave16-Track-C: hi_agent/observability/http_middleware.py created; TraceIdMiddleware mounted in app.py; event_store pulls trace_id from context; build_observability_spine_e2e_real.py drives real subprocess server"
     regression_test: "scripts/check_observability_spine_completeness.py --json (defers unless provenance=real and all 14 layers present)"
     release_gate: "release-gate.yml step: Check observability spine completeness (W14-B8)"
     process_change: "CLAUDE.md Rule 7: every silent-degradation path must be inspectable; Rule 8: operator-shape readiness gate"
     owner: TE
     expiry_or_followup: "2026-05-12"
-    evidence_artifact: "docs/verification/<sha>-observability-spine.json"
+    evidence_artifact: "docs/verification/58394d6-observability-spine.json"
     current_closure_level: wired_into_default_path
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
 
   - issue_id: P0-4
     defect_class: soak_not_24h
@@ -83,8 +94,11 @@ entries:
     process_change: "CLAUDE.md Rule 8: operator-shape gate; 7x24 declared as architectural posture not engineering requirement"
     owner: TE
     expiry_or_followup: "2026-07-01"
-    evidence_artifact: "docs/verification/<sha>-soak-pilot-360m.json"
+    evidence_artifact: "docs/verification/58394d6-soak-pilot-360m.json"
     current_closure_level: wired_into_default_path
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
 
   - issue_id: P0-5
     defect_class: chaos_no_runtime_coupling
@@ -94,7 +108,7 @@ entries:
       - "Wave 13 chaos: no chaos evidence at all"
     root_cause: >
       The existing chaos test file used in-memory objects and subprocess-level mocks that
-      did not exercise the real HTTP → queue → worker → state-machine path. The runtime_coupled
+      did not exercise the real HTTP -> queue -> worker -> state-machine path. The runtime_coupled
       field was missing. check_chaos_runtime_coupling.py correctly deferred because no evidence
       file satisfied provenance not in (synthetic, structural, unknown).
     code_fix: "Wave16-Track-E: scripts/run_chaos_matrix.py + tests/chaos/scenarios/01_-10_.py created; each scenario uses real server subprocess + real HTTP calls; provenance:real runtime_coupled:true"
@@ -103,8 +117,11 @@ entries:
     process_change: "CLAUDE.md Rule 8: all chaos evidence must be runtime-coupled; Rule 4: integration tests use real components"
     owner: TE
     expiry_or_followup: "2026-05-12"
-    evidence_artifact: "docs/verification/<sha>-runtime-chaos.json"
+    evidence_artifact: "docs/verification/58394d6-runtime-chaos.json"
     current_closure_level: wired_into_default_path
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
 
   - issue_id: P0-6
     defect_class: score_cap_overstates_readiness
@@ -123,8 +140,11 @@ entries:
     process_change: "CLAUDE.md Rule 14: score caps automated; no manual score increase path"
     owner: GOV
     expiry_or_followup: "2026-05-12"
-    evidence_artifact: "docs/verification/<sha>-score-cap.json"
+    evidence_artifact: "docs/releases/2026-04-28-58394d6.json"
     current_closure_level: verified_at_release_head
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
 
   - issue_id: S4-10
     defect_class: ownership_accountability_weak
@@ -142,8 +162,11 @@ entries:
     process_change: "Each delivery assigns a named release captain who signs off on all 13 steps in delivery-protocol.md"
     owner: GOV
     expiry_or_followup: "2026-05-12"
-    evidence_artifact: "docs/governance/recurrence-ledger.yaml"
+    evidence_artifact: "docs/governance/release-captain-checklist.md"
     current_closure_level: verified_at_release_head
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
 
   - issue_id: W17-A
     defect_class: gate_weakening_during_release
@@ -156,18 +179,21 @@ entries:
       be correct. Each wave introduced a new exemption path (released-status exemption,
       broader governance prefixes, advisory continue-on-error) that collectively allowed
       a stale release identity to report as passing.
-    code_fix: "W17-A1-A9: removed 'released' from exemption regexes in check_doc_consistency.py; restricted _GOVERNANCE_PREFIXES to ('docs/',) in check_verification_artifacts.py, check_manifest_freshness.py, build_release_manifest.py; NOTE: continue-on-error on spine/soak/chaos gates NOT removed in W17 -- deferred to W18-C1"
+    code_fix: "W17-A1-A9: removed 'released' from exemption regexes in check_doc_consistency.py; restricted _GOVERNANCE_PREFIXES to ('docs/',) in check_verification_artifacts.py, check_manifest_freshness.py, build_release_manifest.py; NOTE: continue-on-error on spine/soak/chaos gates NOT removed in W17 -- deferred to W18-C1; 3 sites remain in release-gate.yml"
     regression_test: "scripts/check_gate_strictness.py --json (script created in W18-C1; verifies no gate-loosening keywords exist in gate scripts without justification)"
-    release_gate: "release-gate.yml step: Release identity (W16-A8) — now blocking, not advisory"
+    release_gate: "release-gate.yml step: Release identity (W16-A8) -- blocking for identity; spine/soak/chaos still continue-on-error until W19-C1"
     process_change: "Governance Freeze policy for W17: no new --allow-* flags; any gate-pass via exemption must be self-documented in recurrence-ledger.yaml within the same PR"
     owner: GOV
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "scripts/check_doc_consistency.py, scripts/check_verification_artifacts.py (diff W17 vs W16)"
-    current_closure_level: wired_into_default_path
+    current_closure_level: component_exists
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
 
   - issue_id: W17-B
     defect_class: cross_tenant_primitive_footgun
-    named_instance: "SQLiteRunStore.get/delete/mark_running/mark_complete/mark_failed/is_cancelled accepted bare run_id without workspace filter — any future caller forgetting workspace= creates cross-tenant data exposure"
+    named_instance: "SQLiteRunStore.get/delete/mark_running/mark_complete/mark_failed/is_cancelled accepted bare run_id without workspace filter -- any future caller forgetting workspace= creates cross-tenant data exposure"
     peer_instances_audited:
       - "Wave 16 routes_runs.py: GET /runs/{run_id} returned data without tenant validation"
       - "Wave 15 list_by_workspace: existed but not used by all handlers"
@@ -177,17 +203,20 @@ entries:
       workspace parameter made it easy for future callers to accidentally skip tenant
       isolation.
     code_fix: "W17-B1: Added workspace: str | None = None param to 6 methods; added get_for_tenant() requiring non-None workspace; tests/security/test_run_store_tenant_required.py (6 tests)"
-    regression_test: "tests/security/test_run_store_tenant_required.py — tests that get_for_tenant(run_id, None) raises ValueError; cross-tenant run_id returns None"
+    regression_test: "tests/security/test_run_store_tenant_required.py -- tests that get_for_tenant(run_id, None) raises ValueError; cross-tenant run_id returns None"
     release_gate: "pytest tests/security/ (blocking in release-gate.yml)"
     process_change: "CLAUDE.md Rule 12 enforcement: all new run_store callers in routes_*.py must use get_for_tenant() or explicitly annotate # scope: process-internal with reason"
     owner: RO
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "tests/security/test_run_store_tenant_required.py"
     current_closure_level: wired_into_default_path
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
 
   - issue_id: W17-C
     defect_class: test_theatre_passing_via_fallback
-    named_instance: "tests/conftest.py set HI_AGENT_ALLOW_HEURISTIC_FALLBACK=1 globally — all test failures were silently caught by heuristic fallback, masking real runtime failures; 743 weak 'assert X is not None' assertions provided no coverage signal"
+    named_instance: "tests/conftest.py set HI_AGENT_ALLOW_HEURISTIC_FALLBACK=1 globally -- all test failures were silently caught by heuristic fallback, masking real runtime failures; 743 weak 'assert X is not None' assertions provided no coverage signal"
     peer_instances_audited:
       - "Wave 15: 3 integration tests used MagicMock on the subsystem under test"
       - "Wave 14: test_honesty violations baseline 25 (18 still present in Wave 16)"
@@ -196,11 +225,14 @@ entries:
       convenience that was never scoped away from the release profile. Combined with
       743 single-line is-not-None assertions, the test suite could pass even when the
       platform was producing wrong outputs.
-    code_fix: "W17-F4: conftest.py now only enables fallback when HI_AGENT_TEST_PROFILE != 'release'; scripts/check_conftest_fallback_scope.py gate; F2: assertions strengthened 743 → ~590"
+    code_fix: "W17-F4: conftest.py now only enables fallback when HI_AGENT_TEST_PROFILE != 'release'; scripts/check_conftest_fallback_scope.py gate added; F2: assertions strengthened 743 -> ~590"
     regression_test: "scripts/check_conftest_fallback_scope.py --json (fails if unconditional fallback assignment detected)"
-    release_gate: "release-gate.yml — add check_conftest_fallback_scope.py step"
+    release_gate: "release-gate.yml -- check_conftest_fallback_scope.py step to be added in W19"
     process_change: "CLAUDE.md Rule 16: test profiles section now explicitly forbids HI_AGENT_ALLOW_HEURISTIC_FALLBACK in release profile"
     owner: TE
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "tests/conftest.py, scripts/check_conftest_fallback_scope.py"
     current_closure_level: wired_into_default_path
+    metric_name: "TBD - expiry: Wave 22"
+    alert_rule: "TBD - expiry: Wave 22"
+    runbook_path: "TBD - expiry: Wave 22"
