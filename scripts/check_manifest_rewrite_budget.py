@@ -40,6 +40,7 @@ from _governance.wave import current_wave_number, parse_wave
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RELEASES_DIR = ROOT / "docs" / "releases"
+ARCHIVE_DIR = RELEASES_DIR / "archive"
 BUDGET_FILE = RELEASES_DIR / ".budget.json"
 DEFAULT_BUDGET = 3
 
@@ -93,11 +94,80 @@ def _override_valid(override: dict, current_wave: int) -> tuple[bool, str]:
     captain_sha = str(override.get("captain_sha", "")).strip()
     if not captain_sha:
         return False, "override captain_sha empty"
-    if head and not (head.startswith(captain_sha) or captain_sha.startswith(head[:len(captain_sha)])):
+    cap_len = len(captain_sha)
+    if head and not (head.startswith(captain_sha) or captain_sha.startswith(head[:cap_len])):
         return False, f"override captain_sha={captain_sha[:12]} != HEAD={head[:12]}"
     if not str(override.get("ledger_entry_id", "")).strip():
         return False, "override ledger_entry_id empty"
     return True, ""
+
+
+def _check_stale_in_root(current_wave: int) -> list[str]:
+    """Return error lines for any manifest in RELEASES_DIR root with wave != current_wave.
+
+    Scans only the immediate directory (not archive/ subdirs).
+    """
+    errors: list[str] = []
+    for p in RELEASES_DIR.glob("platform-release-manifest-*.json"):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        wave_label = str(data.get("wave", ""))
+        try:
+            wave_n = parse_wave(wave_label)
+        except ValueError:
+            errors.append(
+                f"STALE-IN-ROOT: {p.name} has unparseable wave={wave_label!r}; "
+                f"expected Wave {current_wave}"
+            )
+            continue
+        if wave_n != current_wave:
+            errors.append(
+                f"STALE-IN-ROOT: {p.name} wave={wave_label!r} (Wave {wave_n}) "
+                f"!= Wave {current_wave} -- move to docs/releases/archive/W{wave_n}/"
+            )
+    return errors
+
+
+def _check_archive_dir_mismatch() -> list[str]:
+    """Return error lines for any manifest in archive/WN/ whose wave field != Wave N.
+
+    Scans each archive subdirectory whose name matches the pattern WN (e.g. W14, W17).
+    """
+    import re
+    errors: list[str] = []
+    if not ARCHIVE_DIR.is_dir():
+        return errors
+    for subdir in sorted(ARCHIVE_DIR.iterdir()):
+        if not subdir.is_dir():
+            continue
+        m = re.fullmatch(r"W(\d+)", subdir.name)
+        if not m:
+            continue
+        expected_wave_n = int(m.group(1))
+        for p in subdir.glob("platform-release-manifest-*.json"):
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            wave_label = str(data.get("wave", ""))
+            try:
+                actual_wave_n = parse_wave(wave_label)
+            except ValueError:
+                errors.append(
+                    f"ARCHIVE-MISMATCH: archive/{subdir.name}/{p.name} "
+                    f"unparseable wave={wave_label!r}; expected Wave {expected_wave_n}"
+                )
+                continue
+            if actual_wave_n != expected_wave_n:
+                errors.append(
+                    f"ARCHIVE-MISMATCH: archive/{subdir.name}/{p.name} "
+                    f"wave={wave_label!r} (Wave {actual_wave_n}) != "
+                    f"expected Wave {expected_wave_n} -- "
+                    f"move to docs/releases/archive/W{actual_wave_n}/"
+                )
+    return errors
 
 
 def _count_current_wave_manifests(current_wave: int) -> tuple[int, list[str]]:
@@ -137,6 +207,27 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("DEFERRED: unknown current wave", file=sys.stderr)
         return 2
+
+    # --- Hygiene checks: stale-in-root and archive-dir-mismatch ---
+    stale_errors = _check_stale_in_root(current_wave)
+    mismatch_errors = _check_archive_dir_mismatch()
+    hygiene_errors = stale_errors + mismatch_errors
+    if hygiene_errors:
+        if args.json:
+            print(json.dumps({
+                "check": "manifest_rewrite_budget",
+                "status": "fail",
+                "current_wave": current_wave,
+                "hygiene_errors": hygiene_errors,
+            }, indent=2))
+        else:
+            print(
+                f"FAIL: manifest hygiene errors ({len(hygiene_errors)} issue(s)):",
+                file=sys.stderr,
+            )
+            for err in hygiene_errors:
+                print(f"  {err}", file=sys.stderr)
+        return 1
 
     count, matches = _count_current_wave_manifests(current_wave)
     if count == 0:
