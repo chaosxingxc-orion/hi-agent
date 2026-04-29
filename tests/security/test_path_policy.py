@@ -21,7 +21,7 @@ def test_absolute_path_blocked(tmp_path):
 
 
 @pytest.mark.skipif(
-    sys.platform != "win32", reason="Windows-only: UNC paths", expiry_wave="Wave 16"
+    sys.platform != "win32", reason="Windows-only: UNC paths"
 )
 def test_windows_unc_blocked(tmp_path):
     """Windows UNC paths (\\\\server\\share) must be rejected."""

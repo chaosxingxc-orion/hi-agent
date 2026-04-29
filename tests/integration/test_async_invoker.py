@@ -155,7 +155,7 @@ async def test_async_invoke_sync_handler():
 
 
 @pytest.mark.skip(
-    expiry_wave="Wave 16",
+    expiry_wave="Wave 21",
     reason=(
         "H1-Track4 K-11: mocks executor._execute_action_with_retry, which is an "
         "internal method of the SUT (RunExecutor). Mocking an internal method makes "

@@ -26,8 +26,7 @@ REQUIRED_FIELDS = {
 
 @pytest.mark.skipif(
     not PROFILES_PATH.exists(),
-    reason="profiles.toml not found",
-    expiry_wave="Wave 16",
+    reason="profiles.toml not found"
 )
 def test_all_required_profiles_present():
     with open(PROFILES_PATH, "rb") as f:
@@ -40,8 +39,7 @@ def test_all_required_profiles_present():
 
 @pytest.mark.skipif(
     not PROFILES_PATH.exists(),
-    reason="profiles.toml not found",
-    expiry_wave="Wave 16",
+    reason="profiles.toml not found"
 )
 def test_all_profiles_have_required_fields():
     with open(PROFILES_PATH, "rb") as f:
@@ -54,8 +52,7 @@ def test_all_profiles_have_required_fields():
 
 @pytest.mark.skipif(
     not PROFILES_PATH.exists(),
-    reason="profiles.toml not found",
-    expiry_wave="Wave 16",
+    reason="profiles.toml not found"
 )
 def test_default_offline_no_real_network():
     with open(PROFILES_PATH, "rb") as f:
@@ -68,8 +65,7 @@ def test_default_offline_no_real_network():
 
 @pytest.mark.skipif(
     not PROFILES_PATH.exists(),
-    reason="profiles.toml not found",
-    expiry_wave="Wave 16",
+    reason="profiles.toml not found"
 )
 def test_smoke_no_real_network():
     with open(PROFILES_PATH, "rb") as f:
@@ -82,8 +78,7 @@ def test_smoke_no_real_network():
 
 @pytest.mark.skipif(
     not PROFILES_PATH.exists(),
-    reason="profiles.toml not found",
-    expiry_wave="Wave 16",
+    reason="profiles.toml not found"
 )
 def test_targets_are_lists():
     with open(PROFILES_PATH, "rb") as f:

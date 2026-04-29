@@ -21,7 +21,6 @@ _POLL_MAX_ROUNDS = 40  # 40 * 3s = 120s
 @pytest.mark.skipif(
     not os.environ.get("HI_AGENT_LLM_KEY"),
     reason="requires LLM key (HI_AGENT_LLM_KEY); skipped in offline environment",
-    expiry_wave="Wave 16",
 )
 def test_run_reaches_terminal_state(e2e_client):
     """POST /runs -> poll until state == 'done' within 120s.
