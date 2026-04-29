@@ -3,8 +3,8 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    668a069
-Manifest:           2026-04-29-668a069
+Functional HEAD:    a2b129d
+Manifest:           2026-04-29-a2b129d
 T3 evidence:        docs/delivery/2026-04-29-b97f0a8-t3-volces.json (3 Volces runs, real LLM, provenance=real)
 Clean-env evidence: docs/verification/668a069-default-offline-clean-env.json (8725 passed, 0 failed)
 Current verified readiness: 86.6 (cap=None; all gates pass)
@@ -57,9 +57,9 @@ Wave 19 delivers six class-level closures and fixes the governance cap-rule to c
 
 ---
 
-## Evidence Index (at 668a069)
+## Evidence Index (at a2b129d)
 
-- `docs/releases/platform-release-manifest-2026-04-29-668a069.json` — release manifest
+- `docs/releases/platform-release-manifest-2026-04-29-a2b129d.json` — release manifest
 - `docs/delivery/2026-04-29-b97f0a8-t3-volces.json` — T3 evidence (3 Volces runs, real LLM, provenance=real)
 - `docs/verification/668a069-default-offline-clean-env.json` — clean-env evidence (8725 passed)
-- `docs/verification/668a069-observability-spine.json` — spine evidence
+- `docs/verification/a2b129d-observability-spine.json` — spine evidence
