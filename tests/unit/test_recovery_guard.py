@@ -6,6 +6,8 @@ import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytestmark = pytest.mark.usefixtures("fallback_explicit")
 from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter

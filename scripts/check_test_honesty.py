@@ -146,7 +146,6 @@ def _scan_file(path: pathlib.Path) -> list[dict]:
     return violations
 
 
-# Wave 19 baseline: all pre-existing violations remediated under gov-W19-C*.
 # Syntax errors are encoding issues (BOM files), not honesty violations — excluded from count.
 _BASELINE_VIOLATIONS = 0
 

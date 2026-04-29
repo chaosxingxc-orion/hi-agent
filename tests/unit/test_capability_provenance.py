@@ -1,6 +1,9 @@
 """Unit tests for capability/action-level provenance (HI-W2-002)."""
 
+import pytest
 from unittest.mock import MagicMock
+
+pytestmark = pytest.mark.usefixtures("fallback_explicit")
 
 from hi_agent.capability.invoker import CapabilityInvoker
 

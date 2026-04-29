@@ -133,9 +133,9 @@ def test_invalid_risk_exits_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert main([]) == 1
 
 
-def test_missing_file_exits_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A missing allowlists.yaml must exit 1."""
+def test_missing_file_exits_two(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing allowlists.yaml must exit 2 (not_applicable)."""
     import check_allowlist_discipline as mod
 
     monkeypatch.setattr(mod, "ALLOWLISTS_FILE", tmp_path / "nonexistent.yaml")
-    assert main([]) == 1
+    assert main([]) == 2

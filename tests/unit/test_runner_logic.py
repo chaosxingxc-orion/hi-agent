@@ -18,6 +18,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from hi_agent.gate_protocol import GatePendingError
 
+# These unit tests exercise runner components in isolation and require the
+# heuristic fallback so no real LLM credentials are needed.
+pytestmark = pytest.mark.usefixtures("fallback_explicit")
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------

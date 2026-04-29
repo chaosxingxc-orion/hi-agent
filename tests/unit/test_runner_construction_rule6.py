@@ -13,6 +13,8 @@ import pytest
 from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
+
+pytestmark = pytest.mark.usefixtures("fallback_explicit")
 from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.route_engine.acceptance import AcceptancePolicy

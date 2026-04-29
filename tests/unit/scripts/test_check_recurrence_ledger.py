@@ -28,13 +28,16 @@ entries:
     peer_instances_audited: "yes, checked 3 peers"
     root_cause: "X happens because Y at line Z"
     code_fix: "commit abc1234"
-    regression_test: "tests/unit/test_foo.py::test_bar"
+    regression_test: "tests/unit/scripts/test_check_recurrence_ledger.py"
     release_gate: "CI gate check_foo.py"
     process_change: "Added rule to CLAUDE.md"
     owner: CO
     expiry_or_followup: "Wave 20"
     evidence_artifact: "docs/verification/abc1234-foo.json"
     current_closure_level: verified_at_release_head
+    metric_name: hi_agent_test_metric_total
+    alert_rule: "<placeholder, expiry: Wave 22>"
+    runbook_path: "<placeholder, expiry: Wave 22>"
 """
 
 _MISSING_FIELDS_LEDGER = """\
