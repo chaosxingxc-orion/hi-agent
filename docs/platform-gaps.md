@@ -1,6 +1,6 @@
 # hi-agent Platform Gaps — Response to Research Roadmap 2026-04-16
 
-**Last updated**: 2026-04-29 (Wave 18)
+**Last updated**: 2026-04-29 (Wave 20)
 **Source**: research/docs/hi-agent-strategic-roadmap-2026-04-16.md
 **Contact**: hi-agent platform team
 
@@ -55,15 +55,21 @@ hi-agent is the **capability platform layer**. The research team is the **busine
 
 ---
 
-## Wave 17–18 New Gap Items
+## Wave 17–20 New Gap Items
 
 | Gap | Status | Notes |
 |---|---|---|
-| **C1** Gate strictness erosion — `continue-on-error: true` on blocking gates | **DEFERRED to Wave 19** | W17-A ledger entry; 3 sites remain in release-gate.yml; check_gate_strictness.py gate created in W18-C1 |
-| **C2** Evidence driver fakery — synthetic/in-process evidence accepted as real | **DEFERRED to Wave 19** | Requires `/ops/drain` endpoint + real observation functions; C8/C9 spine work prerequisite |
+| **C1** Gate strictness erosion — `continue-on-error: true` on blocking gates | **CLOSED (Wave 19)** | W17-A ledger entry resolved; check_gate_strictness.py gate enforced; all sites fixed in W19. |
+| **C2** Evidence driver fakery — synthetic/in-process evidence accepted as real | **CLOSED (Wave 19)** | /ops/drain endpoint + real observation functions delivered W19; spine driver observation-based. |
 | **C3** Release identity inconsistency | **CLOSED (Wave 18)** | Manifest at functional HEAD 58394d6; head_mismatch resolved; `check_manifest_freshness.py` + `check_wave_consistency.py` blocking |
 | **C4** Vocabulary debt — research-domain terms in platform layer | **CLOSED (Wave 18)** | 7 expired allowlist entries cleared; aliases deleted; `check_no_research_vocab.py` 0 violations |
-| **C5–C9** Observability spine real coverage | **IN PROGRESS** | Structural provenance only through Wave 18; real spine requires live LLM trace in W19 |
+| **C5** Test fixture cleanup — conftest HI_AGENT_ALLOW_HEURISTIC_FALLBACK | **CLOSED (Wave 19)** | Global env var removed from conftest; converted to fixture. |
+| **C6** Posture matrix tests | **CLOSED (Wave 19)** | tests/posture/ matrix for 34 Posture.from_env() callsites delivered W19. |
+| **C7** Error category hierarchy | **CLOSED (Wave 19)** | error_categories.py typed exception hierarchy; app.py/runner.py narrowing delivered W19. |
+| **C8** Observability typed events | **PENDING (Wave 20)** | event_emitter.py + 12 typed events; deferred to W20. |
+| **C9** Soak evidence hardening | **PENDING (Wave 20)** | 24h soak + mid-soak SIGTERM; sampler bind to server PID; deferred to W20. |
+| **C10** Doc truth gate | **CLOSED (Wave 19)** | check_doc_truth.py in release-gate; W17/18 written response delivered W19. |
+| **C11** Ledger schema + observability | **CLOSED (Wave 19)** | Ledger schema + metric/alert/runbook fields delivered W19. |
 
 ---
 

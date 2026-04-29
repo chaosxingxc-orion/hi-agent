@@ -5,7 +5,7 @@
 # risk: low | medium | high
 
 schema_version: "1"
-current_wave: 18
+current_wave: 20
 
 entries:
   # All W17 vocab-debt entries burned in gov-W18-C4-a + gov-W18-C4-b.

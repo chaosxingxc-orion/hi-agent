@@ -1,6 +1,6 @@
 # hi-agent Engineering TODO
 
-Last updated: 2026-04-29 (Wave 18 — "Stop Lying" governance class fixes)
+Last updated: 2026-04-29 (Wave 20 — Wave-label drift + CL class closures)
 
 ## DONE (Wave 1-4, SA-1..SA-8, 2026-04-22/24)
 
@@ -147,16 +147,26 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - C4: Vocab debt — all 7 expired aliases deleted atomically; allowlists cleared
 - Clean-env: 8707 passed, 0 failures; chaos matrix: 4 passed, 6 skipped, 0 failed
 
-## PENDING — Wave 19 (Test Honesty)
-- C5: Delete conftest global HI_AGENT_ALLOW_HEURISTIC_FALLBACK + convert to fixture
-- C6: tests/posture/ matrix (34 Posture.from_env() callsites)
-- C10: check_doc_truth.py in release-gate; Wave 17/18 written response
-- C11: ledger schema + metric/alert/runbook fields
+## DONE — Wave 19 (Test Honesty, 2026-04-29)
+- [x] C1: Gate strictness — check_gate_strictness.py all sites resolved (CLOSED Wave 19)
+- [x] C2: Evidence honesty — spine driver observation-based, /ops/drain endpoint (CLOSED Wave 19)
+- [x] C5: Delete conftest global HI_AGENT_ALLOW_HEURISTIC_FALLBACK + convert to fixture (CLOSED Wave 19)
+- [x] C6: tests/posture/ matrix (34 Posture.from_env() callsites) (CLOSED Wave 19)
+- [x] C7: error_categories.py typed exception hierarchy (CLOSED Wave 19)
+- [x] C10: check_doc_truth.py in release-gate; Wave 17/18 written response (CLOSED Wave 19)
+- [x] C11: ledger schema + metric/alert/runbook fields (CLOSED Wave 19)
 
-## PENDING — Wave 20 (Operational Evidence)
-- C8: event_emitter.py + 12 typed events (llm_call, tool_call, heartbeat_renewed, etc.)
-- C9: 24h soak with mid-soak SIGTERM; sampler bind to server PID; check_soak_evidence hardening
-- C7a: error_categories.py typed exception hierarchy; app.py/runner.py/run_manager.py narrowing
+## PENDING — Wave 20 (CL class closures)
+- CL1: Rule 12 Spine — contract spine completeness across all new records
+- CL2: Rule 7 Silent Degradation — every silent-degradation path Countable + Attributable + Inspectable + Gate-asserted
+- CL3: Stale expiry markers — audit and clear all expired allowlist entries; update expiry_wave fields
+- CL4: Rule 5/6 sweep — async resource lifetime + single construction path audit across codebase
+- CL5: Rule 13 maturity — update capability L-level declarations with evidence (SHA + test + manifest + posture)
+- CL6: Manifest hygiene — manifest_id citations consistent; stale intermediates archived
+- CL7: Test honesty — eliminate MagicMock on subsystem-under-test in integration tests
+- CL8: Wave-label drift — update governance docs to wave=20 (THIS COMMIT)
+- CL9: Observability spine wiring — real LLM trace pipeline; event_emitter + typed events; soak evidence
+- CL10: Dimension lifts — update readiness deltas per W19 delivery evidence
 
 ## PENDING — Wave 21 (Ecosystem Closure)
 - C7b: type:ignore 85→<25; noqa 47→<15

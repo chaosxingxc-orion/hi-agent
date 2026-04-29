@@ -12,7 +12,7 @@
 # INVARIANT: sum(weight) MUST equal 100. CI fails on violation.
 
 schema_version: "2"
-wave: "Wave 16"
+wave: "Wave 20"
 
 dimensions:
   - name: layering
