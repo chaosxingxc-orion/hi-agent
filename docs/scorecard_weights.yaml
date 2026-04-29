@@ -12,7 +12,7 @@
 # INVARIANT: sum(weight) MUST equal 100. CI fails on violation.
 
 schema_version: "2"
-wave: "Wave 20"
+wave: "Wave 21"
 
 dimensions:
   - name: layering
@@ -66,55 +66,55 @@ dimensions:
   - name: claim_discipline
     description: "Downstream notices bind claims to release manifest IDs"
     weight: 7
-    base_score: 90
+    base_score: 100
     gate_check: doc_consistency
 
   - name: t3_gate
     description: "Real-LLM operator-shape gate passed at current HEAD (Rule 8 T3 Invariance)"
     weight: 7
-    base_score: 95
+    base_score: 100
     gate_check: t3_freshness
 
   - name: clean_env
     description: "Default-offline profile completes without failures in a clean environment"
     weight: 9
-    base_score: 94
+    base_score: 100
     gate_check: clean_env
 
   - name: ci_gate
     description: "Release-gate CI job aggregates all governance checks non-skippably (W14-G)"
     weight: 4
-    base_score: 88
+    base_score: 100
     gate_check: gate_strictness
 
   - name: allowlist_discipline
     description: "All allowlist entries have owner/risk/reason/expiry/replacement-test; none expired"
     weight: 3
-    base_score: 92
+    base_score: 100
     gate_check: allowlist_discipline
 
   - name: metrics_cardinality
     description: "All named metrics have real producer callsites"
     weight: 4
-    base_score: 85
+    base_score: 97
     gate_check: metrics_cardinality
 
   - name: slo_health
     description: "SLO/alerts/runbook/dashboard HTTP routes pass health check"
     weight: 4
-    base_score: 85
+    base_score: 97
     gate_check: slo_health
 
   - name: verification_artifacts
     description: "Verification and delivery artifacts are current at release HEAD"
     weight: 4
-    base_score: 84
+    base_score: 95
     gate_check: verification_artifacts
 
   - name: targeted_default_path
     description: "Critical default-path integration tests pass (run lease, progress events, liveness, DLQ, backpressure, drain, metrics catalogue)"
     weight: 6
-    base_score: 80
+    base_score: 92
     gate_check: targeted_default_path
 
   - name: soak_24h_evidence
@@ -126,13 +126,13 @@ dimensions:
   - name: observability_spine
     description: "All 14 observability layers correlate by run_id + trace_id with provenance:real"
     weight: 3
-    base_score: 64
+    base_score: 90
     gate_check: observability_spine_completeness
 
   - name: chaos_runtime_coupling
     description: "All chaos scenarios are runtime-coupled (real hi_agent serve subprocess)"
     weight: 3
-    base_score: 75
+    base_score: 95
     gate_check: chaos_runtime_coupling
 
 # Three-tier score structure (per upstream conduct spec §6)
