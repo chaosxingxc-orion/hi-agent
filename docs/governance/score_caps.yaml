@@ -139,16 +139,22 @@ cap_rules:
     factor: soak_24h_missing
     scope: [seven_by_twenty_four_operational_readiness]
     description: "Real 24h soak evidence missing or stale"
+    requires_real_run_by: "Wave 22"
+    lifecycle_note: "Architectural constraint; deferred until platform reaches continuous operational status; not an engineering defect"
   - condition: observability_spine_incomplete
     cap: 70
     factor: observability_spine_incomplete
     scope: [seven_by_twenty_four_operational_readiness]
     description: "Observability spine missing layers or trace_id correlation"
+    resolution_wave: "Wave 21"
+    lifecycle_note: "AX-A A4 closes this in Wave 21; cap should be removed after gate passes"
   - condition: chaos_non_runtime_coupled
     cap: 72
     factor: chaos_non_runtime_coupled
     scope: [seven_by_twenty_four_operational_readiness]
     description: "Chaos scenarios not coupled to real hi_agent runtime"
+    resolution_wave: "Wave 21"
+    lifecycle_note: "AX-A A5 closes this in Wave 21; cap should be removed after gate passes"
   - condition: expired_allowlist_accepted_as_pass
     cap: 70
     factor: expired_allowlist_accepted
