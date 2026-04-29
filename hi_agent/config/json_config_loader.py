@@ -283,7 +283,7 @@ def build_gateway_from_config(
         }
         for tier_name, model_id in models_cfg.items():
             tier = _tier_map.get(tier_name)
-            if tier and model_id:
+            if tier and model_id and registry.get(model_id) is None:
                 registry.register(
                     RegisteredModel(
                         model_id=model_id,
