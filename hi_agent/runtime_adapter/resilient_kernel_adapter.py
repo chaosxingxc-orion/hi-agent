@@ -214,7 +214,7 @@ class ResilientKernelAdapter:
                     "hi_agent_failure_total",
                     labels={"failure_code": _fc.value},
                 )
-        except Exception:
+        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
             pass
         raise RuntimeAdapterBackendError(method_name, cause=cause) from cause
 

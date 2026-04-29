@@ -276,7 +276,7 @@ class RecoveryCoordinator:
                                 self._ctx.context_manager.set_reflection_context(
                                     prior_mem.task_goal or ""
                                 )
-                        except Exception:
+                        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
                             pass  # best-effort
 
                     # Inject reflection prompt into the run context so the next

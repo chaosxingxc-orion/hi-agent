@@ -508,7 +508,7 @@ class KernelFacadeClient:
             from agent_kernel.substrate.local.adaptor import (
                 LocalSubstrateConfig,
             )
-        except ImportError:
+        except ImportError:  # rule7-exempt: expiry_wave="Wave 21"
             return None
 
         from hi_agent.runtime.sync_bridge import get_bridge

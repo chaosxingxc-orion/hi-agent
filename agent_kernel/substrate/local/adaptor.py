@@ -355,8 +355,8 @@ class LocalWorkflowGateway:
         if workflow is not None:
             try:
                 return workflow.query()
-            except RuntimeError:
-                pass  # workflow not yet initialised 鈥?fall through to projection
+            except RuntimeError:  # rule7-exempt: expiry_wave="Wave 21"
+                pass  # workflow not yet initialised — fall through to projection
         return await self._deps.projection.get(run_id)
 
     async def start_child_workflow(

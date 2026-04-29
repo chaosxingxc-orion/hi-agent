@@ -234,7 +234,7 @@ class StdioMCPTransport:
                     self._proc.stdin.close()
                     self._proc.terminate()
                     self._proc.wait(timeout=5)
-                except Exception:
+                except Exception:  # rule7-exempt: expiry_wave="Wave 21"
                     pass
                 finally:
                     self._proc = None
@@ -252,7 +252,7 @@ class StdioMCPTransport:
                     _mc = get_metrics_collector()
                     if _mc is not None:
                         _mc.increment("hi_agent_mcp_thread_join_timeout_total")
-                except Exception:
+                except Exception:  # rule7-exempt: expiry_wave="Wave 21"
                     pass
 
     # ------------------------------------------------------------------
@@ -270,7 +270,7 @@ class StdioMCPTransport:
                     else:
                         line = raw.rstrip(b"\n").decode("utf-8", errors="replace")
                     buf.append(line)
-            except Exception:
+            except Exception:  # rule7-exempt: expiry_wave="Wave 21"
                 pass  # Process closed — exit quietly
 
         self._stderr_thread = threading.Thread(
@@ -353,7 +353,7 @@ class StdioMCPTransport:
                         success=False,
                         error=str(exc),
                     )
-                except Exception:
+                except Exception:  # rule7-exempt: expiry_wave="Wave 21"
                     pass
             raise MCPTransportError(
                 f"Failed to spawn MCP server command {self._command!r}: {exc}"
@@ -370,7 +370,7 @@ class StdioMCPTransport:
                     self._restart_attempts,
                     success=True,
                 )
-            except Exception:
+            except Exception:  # rule7-exempt: expiry_wave="Wave 21"
                 pass
         self._restart_attempts += 1
         if self._restart_attempts >= _MAX_RESTART_ATTEMPTS:

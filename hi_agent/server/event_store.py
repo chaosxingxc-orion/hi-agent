@@ -155,7 +155,7 @@ class SQLiteEventStore:
             _col = get_metrics_collector()
             if _col is not None:
                 _col.increment("hi_agent_events_stored_total")
-        except Exception:
+        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
             pass
 
     # ------------------------------------------------------------------

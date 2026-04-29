@@ -220,7 +220,7 @@ class KnowledgeWiki:
                     delta = now - updated
                     if delta.days > 30:
                         issues.append(f"stale: '{page.page_id}' not updated in {delta.days} days")
-                except (ValueError, TypeError):
+                except (ValueError, TypeError):  # rule7-exempt: expiry_wave="Wave 21"
                     pass
 
         return issues

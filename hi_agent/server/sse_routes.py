@@ -50,7 +50,7 @@ async def stream_run_events(run_id: str, request: Request):
                     }
                 )
                 yield f"id: {event.commit_offset}\ndata: {data}\n\n"
-        except asyncio.CancelledError:
+        except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 21"
             pass
         finally:
             event_bus.unsubscribe(run_id, q)

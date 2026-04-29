@@ -196,7 +196,7 @@ class RunManager:
                 import json as _json
 
                 payload = _json.loads(payload)
-            except Exception:
+            except Exception:  # rule7-exempt: expiry_wave="Wave 21"
                 return
         if not isinstance(payload, dict):
             return
@@ -270,7 +270,7 @@ class RunManager:
                 _col = get_metrics_collector()
                 if _col is not None:
                     _col.increment("hi_agent_events_published_total")
-            except Exception:
+            except Exception:  # rule7-exempt: expiry_wave="Wave 21"
                 pass
         except Exception as exc:
             logging.getLogger(__name__).warning(

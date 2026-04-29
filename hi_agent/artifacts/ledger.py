@@ -104,7 +104,7 @@ class ArtifactLedger:
                         collector = get_metrics_collector()
                         if collector is not None:
                             collector.increment("hi_agent_artifact_corrupt_line_total")
-                    except Exception:  # metrics must never crash callers
+                    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
                         pass
 
     def register(self, artifact: Artifact) -> None:

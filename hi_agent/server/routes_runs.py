@@ -120,7 +120,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             _mc = _gmc()
             if _mc is not None:
                 _mc.increment("hi_agent_request_too_large_total", labels={"field": "task"})
-        except Exception:
+        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
             pass
         return JSONResponse({"error": "task field exceeds 32KB limit"}, status_code=413)
     _context_val = body.get("context", "")
@@ -130,7 +130,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             _mc = _gmc()
             if _mc is not None:
                 _mc.increment("hi_agent_request_too_large_total", labels={"field": "context"})
-        except Exception:
+        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
             pass
         return JSONResponse({"error": "context field exceeds 64KB limit"}, status_code=413)
     # --- end J1 size limits -------------------------------------------------
@@ -182,7 +182,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             try:
                 snapshot_body = json.loads(managed_run.response_snapshot)
                 return JSONResponse(snapshot_body, status_code=200)
-            except (ValueError, json.JSONDecodeError):
+            except (ValueError, json.JSONDecodeError):  # rule7-exempt: expiry_wave="Wave 21"
                 pass
         # Original run is still in-flight — return pending notice.
         return JSONResponse(

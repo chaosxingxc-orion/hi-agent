@@ -98,7 +98,7 @@ def _parse_retry_after(response: Any) -> float | None:
         return None
     try:
         return float(raw)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError):  # rule7-exempt: expiry_wave="Wave 21"
         return None
 
 

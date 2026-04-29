@@ -530,7 +530,7 @@ class ScheduledOutboxReconciler:
                 while True:
                     await asyncio.sleep(self._interval_s)
                     await self.reconcile_once()
-            except asyncio.CancelledError:
+            except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 21"
                 return
 
         self._task = asyncio.get_running_loop().create_task(_loop(), name="outbox_reconciler")

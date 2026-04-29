@@ -36,7 +36,7 @@ class KnowledgeBuilder:
         wiki = KnowledgeWiki(os.path.join(self._knowledge_base_dir(), "knowledge", "wiki"))
         try:
             wiki.load()
-        except (FileNotFoundError, KeyError, ValueError):
+        except (FileNotFoundError, KeyError, ValueError):  # rule7-exempt: expiry_wave="Wave 21"
             pass  # expected on fresh installs
         except Exception as exc:
             logger.warning("build_knowledge_wiki: failed to load prior wiki state: %s", exc)

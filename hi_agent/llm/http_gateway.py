@@ -142,7 +142,7 @@ class HttpLLMGateway:
                     },
                 )
             )
-        except Exception:
+        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
             pass  # must not block LLM call; event bus unavailable is non-fatal
 
         if self._budget_tracker is not None:

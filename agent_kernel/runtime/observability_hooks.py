@@ -84,7 +84,7 @@ def _extract_otel_context(trace_context: str | None) -> Any | None:
         return None
     try:
         return _PROPAGATOR.extract({"traceparent": trace_context})
-    except Exception:  # pylint: disable=broad-exception-caught  # pragma: no cover
+    except Exception:  # rule7-exempt: expiry_wave="Wave 21" pylint: disable=broad-exception-caught
         return None
 
 

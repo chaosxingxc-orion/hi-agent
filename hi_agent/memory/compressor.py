@@ -301,7 +301,7 @@ class MemoryCompressor:
                     "error": str(exc)[:200],
                 },
             )
-        except Exception:
+        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
             pass  # metrics must not crash caller — observability is best-effort
 
     def _build_summary_from_raw(

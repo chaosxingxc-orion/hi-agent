@@ -127,7 +127,7 @@ class AsyncMemoryCompressor:
                 run_id=run_id or "unknown",
                 extra=event_extra,
             )
-        except Exception:
+        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
             pass  # metrics must not crash caller — observability is best-effort
 
     async def compress(

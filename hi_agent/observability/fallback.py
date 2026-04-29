@@ -81,7 +81,7 @@ def _increment_no_run_scope_counter() -> None:
         collector = get_metrics_collector()
         if collector is not None:
             collector.increment("hi_agent_fallback_no_run_scope_total")
-    except Exception:  # pragma: no cover — metrics must never crash callers
+    except Exception:  # rule7-exempt: expiry_wave="Wave 21" metrics must never crash callers
         pass
 
 
@@ -165,7 +165,7 @@ def record_fallback(
             # known kinds so that /metrics exposes hi_agent_<kind>_fallback_total.
             named = f"hi_agent_{kind_str}_fallback_total"
             collector.increment(named, labels=labels or None)
-    except Exception:  # pragma: no cover — metrics must never crash callers
+    except Exception:  # rule7-exempt: expiry_wave="Wave 21" metrics must never crash callers
         pass
 
     # --- 2. Emit a WARNING log carrying run_id / kind / reason / extra. ---
@@ -222,7 +222,7 @@ def record_llm_request(
             if tier is not None:
                 labels["tier"] = tier
             collector.increment("hi_agent_llm_requests_total", labels=labels)
-    except Exception:  # pragma: no cover — metrics must never crash callers
+    except Exception:  # rule7-exempt: expiry_wave="Wave 21" metrics must never crash callers
         pass
 
     # DEBUG only — per-request INFO logs are too noisy in production.

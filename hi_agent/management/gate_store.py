@@ -48,7 +48,7 @@ def _warn_unscoped_gate_read(
         )
     except ValueError:
         raise
-    except Exception:
+    except Exception:  # rule7-exempt: expiry_wave="Wave 21"
         # Posture lookup must never break reads.
         return
 

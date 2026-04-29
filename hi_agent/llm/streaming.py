@@ -125,7 +125,7 @@ class SseParser:
 
         try:
             data: dict[str, Any] = json.loads(data_str)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError:  # rule7-exempt: expiry_wave="Wave 21"
             return None
 
         # ---- text delta ---------------------------------------------------

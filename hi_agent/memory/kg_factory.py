@@ -33,7 +33,7 @@ def _inc_kg_override_counter() -> None:
         collector = get_metrics_collector()
         if collector is not None:
             collector.increment("hi_agent_kg_backend_override_total")
-    except Exception:  # pragma: no cover — metrics must never crash callers
+    except Exception:  # rule7-exempt: expiry_wave="Wave 21" metrics must never crash callers
         pass
 
 

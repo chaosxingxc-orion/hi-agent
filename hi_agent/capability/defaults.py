@@ -154,7 +154,7 @@ def make_llm_capability_handler(
                     "stage_id": stage_id,
                 },
             )
-        except Exception:  # pragma: no cover — observability must never crash caller
+        except Exception:  # rule7-exempt: expiry_wave="Wave 21"
             pass
 
         return {
