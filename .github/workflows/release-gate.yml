@@ -241,6 +241,29 @@ jobs:
       - name: Score artifact self-consistency (W22-A10)
         run: python scripts/check_score_artifact_consistency.py --json
 
+      # --- W22-A5: agent_server/ boundary rule gates (R-AS-1..8) ---
+
+      - name: No reverse imports hi_agent→agent_server (R-AS-1)
+        run: python scripts/check_no_reverse_imports.py
+
+      - name: No forbidden domain types in contracts/ (R-AS-2)
+        run: python scripts/check_no_domain_types.py
+
+      - name: Contract freeze after v1 release (R-AS-3)
+        run: python scripts/check_contract_freeze.py
+
+      - name: Route handlers reference TenantContext (R-AS-4)
+        run: python scripts/check_route_tenant_context.py
+
+      - name: Route handlers have tdd-red-sha annotation (R-AS-5)
+        run: python scripts/check_tdd_evidence.py
+
+      - name: Contracts import stdlib only (R-AS-7)
+        run: python scripts/check_contracts_purity.py
+
+      - name: Facade modules within 200 LOC (R-AS-8)
+        run: python scripts/check_facade_loc.py
+
       # --- Release manifest ---
 
       - name: Build release manifest
