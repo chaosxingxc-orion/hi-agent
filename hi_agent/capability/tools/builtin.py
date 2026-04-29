@@ -345,9 +345,19 @@ _BUILTIN_TOOLS = [
             prod_enabled_default=False,
             requires_approval=True,
             maturity_level="L2",
+            available_in_prod=False,
         ),
     ),
 ]
+
+
+def get_builtin_capabilities() -> list[CapabilitySpec]:
+    """Return the list of all builtin CapabilitySpec objects (unfiltered).
+
+    Unlike register_builtin_tools(), this does not apply profile or env-var
+    gates — callers receive the full list for introspection purposes.
+    """
+    return list(_BUILTIN_TOOLS)
 
 
 def register_builtin_tools(registry: CapabilityRegistry, *, profile: str = "dev-smoke") -> None:

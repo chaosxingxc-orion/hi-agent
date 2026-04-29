@@ -56,6 +56,10 @@ class CapabilityDescriptor:
     toolset_id: str = "default"
     output_budget_tokens: int = 0  # 0 = unlimited
     maturity_level: Literal["L0", "L1", "L2", "L3", "L4"] = "L1"
+    # W22-A9: per-capability posture matrix
+    available_in_dev: bool = True
+    available_in_research: bool = True
+    available_in_prod: bool = True
 
 
 @dataclass(frozen=True)
@@ -152,6 +156,41 @@ class CapabilityRegistry:
 
         return True, ""
 
+    def probe_availability_with_posture(self, name: str, *, posture: str) -> tuple[bool, str]:
+        """Check availability of *name* under the given posture.
+
+        Extends probe_availability() with posture-aware field checks.
+
+        Args:
+            name: Capability name.
+            posture: One of "dev", "research", "prod".
+
+        Returns:
+            (True, "") if available under the given posture.
+            (False, reason) if not available.
+        """
+        ok, reason = self.probe_availability(name)
+        if not ok:
+            return ok, reason
+
+        spec = self._capabilities.get(name)
+        if spec is None:
+            return False, f"capability {name!r} not registered"
+        desc = spec.descriptor
+        if desc is None:
+            return True, ""
+
+        field_map = {
+            "dev": "available_in_dev",
+            "research": "available_in_research",
+            "prod": "available_in_prod",
+        }
+        field = field_map.get(posture)
+        if field is not None and not getattr(desc, field, True):
+            return False, f"capability {name!r} not available in {posture!r} posture"
+
+        return True, ""
+
     def to_extension_manifest_dict(self, name: str) -> dict:
         """Return a dict conforming to the ExtensionManifest shape for *name*.
 
@@ -168,7 +207,11 @@ class CapabilityRegistry:
             "version": "1.0",
             "kind": "kernel",
             "schema_version": "1.0",
-            "posture_support": {"dev": True, "research": True, "prod": True},
+            "posture_support": {
+                "dev": getattr(desc, "available_in_dev", True) if desc else True,
+                "research": getattr(desc, "available_in_research", True) if desc else True,
+                "prod": getattr(desc, "available_in_prod", True) if desc else True,
+            },
             "effect_class": getattr(desc, "effect_class", "unknown_effect")
             if desc
             else "unknown_effect",
