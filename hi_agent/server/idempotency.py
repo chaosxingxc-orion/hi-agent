@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS idempotency_records (
     created_at        REAL    NOT NULL,
     updated_at        REAL    NOT NULL,
     expires_at        REAL    NOT NULL,
-    project_id        TEXT    NOT NULL DEFAULT '',
+    project_id        TEXT    NOT NULL,
     user_id           TEXT    NOT NULL DEFAULT '',
     session_id        TEXT    NOT NULL DEFAULT '',
     UNIQUE (tenant_id, idempotency_key)
@@ -106,7 +106,7 @@ ON idempotency_records (tenant_id, idempotency_key)
         cols = {row[1] for row in cx.execute("PRAGMA table_info(idempotency_records)")}
         if "project_id" not in cols:
             cx.execute(
-                "ALTER TABLE idempotency_records ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"
+                "ALTER TABLE idempotency_records ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"  # migration compat: legacy rows get empty string
             )
         if "user_id" not in cols:
             cx.execute(
@@ -175,10 +175,10 @@ ON idempotency_records (tenant_id, idempotency_key)
               returned (caller should raise 409).
         """
         if exec_ctx is not None:
-            tenant_id = exec_ctx.tenant_id or tenant_id
-            user_id = exec_ctx.user_id or user_id
-            session_id = exec_ctx.session_id or session_id
-            project_id = exec_ctx.project_id or project_id
+            tenant_id = tenant_id or exec_ctx.tenant_id
+            user_id = user_id or exec_ctx.user_id
+            session_id = session_id or exec_ctx.session_id
+            project_id = project_id or exec_ctx.project_id
         now = time.time()
         expires_at = now + ttl_seconds
 

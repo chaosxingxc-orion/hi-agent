@@ -34,7 +34,7 @@ class SessionRecord:
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
     session_id   TEXT    PRIMARY KEY,
-    tenant_id    TEXT    NOT NULL DEFAULT '',
+    tenant_id    TEXT    NOT NULL,
     user_id      TEXT    NOT NULL DEFAULT '',
     team_id      TEXT    NOT NULL DEFAULT '',
     name         TEXT    NOT NULL DEFAULT '',
@@ -100,8 +100,8 @@ class SessionStore:
             Newly generated session ID (UUID4).
         """
         if exec_ctx is not None:
-            tenant_id = exec_ctx.tenant_id or tenant_id
-            user_id = exec_ctx.user_id or user_id
+            tenant_id = tenant_id or exec_ctx.tenant_id
+            user_id = user_id or exec_ctx.user_id
         sid = str(uuid.uuid4())
         with self._lock:
             self._cx().execute(
