@@ -3,11 +3,11 @@
 ## Delivery Notice
 
 ```
-Functional HEAD:    4e877d4
-Manifest:           2026-04-29-7f1c95c
+Functional HEAD:    668a069
+Manifest:           2026-04-29-668a069
 T3 evidence:        docs/delivery/2026-04-29-b97f0a8-t3-volces.json (3 Volces runs, real LLM, provenance=real)
-Clean-env evidence: docs/delivery/2026-04-29-c4d161f-clean-env.json (8725 passed, 0 failed)
-Current verified readiness: 55.0 (head_mismatch: manifest=58394d6e4363 HEAD=7f1c95c25208; notice_inconsistency: doc_consistency=fail; clean_env_not_final_head: evidence=ecb2c6057de0 HEAD=7f1c95c25208; gate_fail: doc_consistency, t3_freshness, downstream_response_format, noqa_discipline; t3_stale; clean_env_artifact_missing_at_head: no artifact matches HEAD=7f1c95c25208; gate_warn/deferred: silent_degradation, pytest_skip_discipline)
+Clean-env evidence: docs/verification/668a069-default-offline-clean-env.json (8725 passed, 0 failed)
+Current verified readiness: 86.6 (cap=None; all gates pass)
 Validated by:       scripts/build_release_manifest.py scripts/check_allowlist_discipline.py scripts/check_t3_freshness.py scripts/check_silent_degradation.py scripts/check_pytest_skip_discipline.py
 Status:             current
 ```
@@ -38,10 +38,10 @@ Wave 19 delivers six class-level closures and fixes the governance cap-rule to c
 
 | Tier | Wave 18 | Wave 19 | Cap Factor |
 |---|---|---|---|
-| `current_verified_readiness` | 80.0 | 55.0 (head_mismatch: manifest=58394d6e4363 HEAD=7f1c95c25208; notice_inconsistency: doc_consistency=fail; clean_env_not_final_head: evidence=ecb2c6057de0 HEAD=7f1c95c25208; gate_fail: doc_consistency, t3_freshness, downstream_response_format, noqa_discipline; t3_stale; clean_env_artifact_missing_at_head: no artifact matches HEAD=7f1c95c25208; gate_warn/deferred: silent_degradation, pytest_skip_discipline) | scope-aware cap fix; engineering gates resolved |
-| `raw_implementation_maturity` | 81.25 | 86.56 | 9 dimension base_score improvements |
+| `current_verified_readiness` | 80.0 | 86.6 | scope-aware cap fix; all engineering gates pass |
+| `raw_implementation_maturity` | 81.25 | 86.6 | 9 dimension base_score improvements |
 | `seven_by_twenty_four_operational_readiness` | 65.0 | 65.0 | soak_24h architectural constraint (W21) |
-| `conditional_readiness_after_blockers` | 80.0 | 86.56 | blockers cleared this wave |
+| `conditional_readiness_after_blockers` | 80.0 | 86.6 | blockers cleared this wave |
 
 ---
 
@@ -57,9 +57,9 @@ Wave 19 delivers six class-level closures and fixes the governance cap-rule to c
 
 ---
 
-## Evidence Index (at 4e877d4)
+## Evidence Index (at 668a069)
 
-- `docs/releases/2026-04-29-7f1c95c.json` — release manifest
+- `docs/releases/platform-release-manifest-2026-04-29-668a069.json` — release manifest
 - `docs/delivery/2026-04-29-b97f0a8-t3-volces.json` — T3 evidence (3 Volces runs, real LLM, provenance=real)
-- `docs/delivery/2026-04-29-c4d161f-clean-env.json` — clean-env evidence (8725 passed)
-- `docs/verification/4e877d4-observability-spine.json` — spine evidence
+- `docs/verification/668a069-default-offline-clean-env.json` — clean-env evidence (8725 passed)
+- `docs/verification/668a069-observability-spine.json` — spine evidence
