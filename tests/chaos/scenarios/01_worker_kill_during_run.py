@@ -99,7 +99,7 @@ def run_scenario(base_url: str, timeout: float = 60.0) -> dict:
     # /health must still be 200 after the cancel round-trip
     health_after = _check_health(base_url)
 
-    if final_state in _TERMINAL and health_after:
+    if final_state in {"done", "cancelled"} and health_after:
         # Fault injection exercised (cancel signal sent), run reached terminal,
         # health endpoint still live — all three real observations confirmed.
         result.update(

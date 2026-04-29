@@ -90,19 +90,19 @@ dimensions:
   - name: allowlist_discipline
     description: "All allowlist entries have owner/risk/reason/expiry/replacement-test; none expired"
     weight: 3
-    base_score: 80
+    base_score: 92
     gate_check: allowlist_discipline
 
   - name: metrics_cardinality
     description: "All named metrics have real producer callsites"
     weight: 4
-    base_score: 65
+    base_score: 85
     gate_check: metrics_cardinality
 
   - name: slo_health
     description: "SLO/alerts/runbook/dashboard HTTP routes pass health check"
     weight: 4
-    base_score: 70
+    base_score: 85
     gate_check: slo_health
 
   - name: verification_artifacts

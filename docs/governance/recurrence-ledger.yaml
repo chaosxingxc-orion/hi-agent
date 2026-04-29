@@ -6,7 +6,7 @@
 # Placeholder values carry expiry: Wave 22 for operationalization.
 
 schema_version: "1"
-current_wave: 18
+current_wave: 20
 
 entries:
   - issue_id: P0-1
@@ -28,9 +28,9 @@ entries:
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/58394d6-release-identity.json"
     current_closure_level: wired_into_default_path
-    metric_name: "TBD - expiry: Wave 22"
-    alert_rule: "TBD - expiry: Wave 22"
-    runbook_path: "TBD - expiry: Wave 22"
+    metric_name: "hi_agent_manifest_freshness_violations_total"
+    alert_rule: "hi_agent_manifest_freshness_violations_total > 0 for 5m"
+    runbook_path: "docs/runbooks/manifest-stale.md"
 
   - issue_id: P0-2
     defect_class: clean_env_not_final_head
@@ -96,9 +96,9 @@ entries:
     expiry_or_followup: "2026-07-01"
     evidence_artifact: "docs/verification/58394d6-soak-pilot-360m.json"
     current_closure_level: wired_into_default_path
-    metric_name: "TBD - expiry: Wave 22"
-    alert_rule: "TBD - expiry: Wave 22"
-    runbook_path: "TBD - expiry: Wave 22"
+    metric_name: "hi_agent_soak_evidence_age_hours"
+    alert_rule: "hi_agent_soak_evidence_age_hours > 168"
+    runbook_path: "docs/runbooks/soak-evidence-stale.md"
 
   - issue_id: P0-5
     defect_class: chaos_no_runtime_coupling
@@ -187,9 +187,9 @@ entries:
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "scripts/check_doc_consistency.py, scripts/check_verification_artifacts.py (diff W17 vs W16)"
     current_closure_level: component_exists
-    metric_name: "TBD - expiry: Wave 22"
-    alert_rule: "TBD - expiry: Wave 22"
-    runbook_path: "TBD - expiry: Wave 22"
+    metric_name: "hi_agent_release_gate_continue_on_error_total"
+    alert_rule: "hi_agent_release_gate_continue_on_error_total > 0 for 1m"
+    runbook_path: "docs/runbooks/release-gate-weakening.md"
 
   - issue_id: W17-B
     defect_class: cross_tenant_primitive_footgun
