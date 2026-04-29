@@ -1,5 +1,7 @@
 # Wave 20 — Defect-Class Closure (CL1–CL10): Final Notice
 
+Status: superseded — see Wave 21 delivery notice (2026-04-30-wave21-delivery-notice.md)
+
 ## Delivery Notice
 
 ```

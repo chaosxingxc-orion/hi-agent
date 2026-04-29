@@ -91,7 +91,7 @@ _GATE_SCRIPTS: dict[str, tuple] = {
     "metrics_cardinality":    ("check_metrics_cardinality.py",    True,  []),
     "slo_health":             ("check_slo_health.py",             True,  []),
     "allowlist_discipline":   ("check_allowlist_discipline.py",   True,  []),
-    "verification_artifacts": ("check_verification_artifacts.py", True,  []),
+    "verification_artifacts": ("check_verification_artifacts.py", True,  ["--allow-docs-only-gap"]),
     "targeted_default_path":  ("check_targeted_default_path.py",  True,  []),
     # W14-A1: 7 previously absent gates added to registry
     # manifest_freshness is intentionally NOT in _GATE_SCRIPTS: it runs

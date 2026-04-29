@@ -46,7 +46,7 @@ def write_artifact(
         provenance: One of "real", "derived", "structural", "degraded", "dry_run".
                     If provenance != "real" and degraded=False, raises ValueError.
         generator_script: __file__ of the calling script. Auto-detected if None.
-        requires_real_run_by: Wave by which a real-run must be recorded (e.g., "Wave 22").
+        requires_real_run_by: Wave by which a real-run must be recorded (e.g. next wave number).
         degraded: When True, permits non-real provenance without error.
         overwrite: When False, raises if the target already exists with provenance=real.
     """
