@@ -38,4 +38,4 @@ def test_event_to_incident_runbook_flow() -> None:
     assert payload["incident"]["incident_id"]
     assert payload["incident"]["status"] == "open"
     assert payload["runbook"]["steps"]
-    assert payload["report"]["severity"] in {"medium", "high"}
+    assert payload["report"]["severity"] == "high"

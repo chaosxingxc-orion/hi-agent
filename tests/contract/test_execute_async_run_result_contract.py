@@ -68,8 +68,8 @@ async def test_execute_async_run_result_has_required_fields():
     assert hasattr(result, "stages"), "RunResult must have stages"
     assert hasattr(result, "artifacts"), "RunResult must have artifacts"
     assert result.run_id, "run_id must be non-empty"
-    assert result.status in {"completed", "failed"}, (
-        f"status must be 'completed' or 'failed', got {result.status!r}"
+    assert result.status == "completed", (
+        f"status must be 'completed', got {result.status!r}"
     )
 
 
