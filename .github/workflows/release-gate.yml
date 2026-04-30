@@ -217,8 +217,7 @@ jobs:
         run: python scripts/check_sqlite_pragma.py --strict --json
 
       - name: check-agent-kernel-pin (W21-AX-D)
-        run: python scripts/check_agent_kernel_pin.py --strict --json
-        continue-on-error: true  # TODO: promote to blocking in W22
+        run: python scripts/check_agent_kernel_pin.py --json
 
       - name: check-vacuous-asserts (W21-AX-D)
         run: python scripts/check_vacuous_asserts.py --json
@@ -231,7 +230,6 @@ jobs:
 
       - name: check-owner-tag (W21-AX-D)
         run: python scripts/check_owner_tag.py --n 20
-        continue-on-error: true  # advisory in W21; blocking in W22
 
       - name: check-clean-env (W21-AX-D)
         run: python scripts/check_clean_env.py --json
