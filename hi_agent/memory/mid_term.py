@@ -7,7 +7,6 @@ Stored as JSON file, available for next-day context.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
@@ -179,8 +178,18 @@ class MidTermMemoryStore:
                 fh.write(payload)
             os.replace(tmp_path, dest)
         except Exception:
-            with contextlib.suppress(OSError):
+            try:
                 os.unlink(tmp_path)
+            except OSError as _exc:
+                from hi_agent.observability.silent_degradation import (
+                    record_silent_degradation,
+                )
+
+                record_silent_degradation(
+                    component="mid_term.persist",
+                    reason="tmp_cleanup_failed",
+                    exc=_exc,
+                )
             raise
         self._manifest_upsert(summary.date, summary.created_at, len(payload))
         if self._max_days > 0:

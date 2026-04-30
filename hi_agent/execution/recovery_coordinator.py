@@ -329,8 +329,21 @@ class RecoveryCoordinator:
                                 loop = None
                                 # No running event loop in this thread means
                                 # we can use asyncio.run below.
-                                with contextlib.suppress(RuntimeError):
+                                try:
                                     loop = asyncio.get_running_loop()
+                                except RuntimeError as _exc:
+                                    if "no running event loop" not in str(_exc).lower():
+                                        from hi_agent.observability.silent_degradation import (
+                                            record_silent_degradation,
+                                        )
+
+                                        _ctx = getattr(self, "_ctx", None)
+                                        record_silent_degradation(
+                                            component="recovery_coordinator.close_loop",
+                                            reason="get_running_loop_unexpected_error",
+                                            run_id=getattr(_ctx, "run_id", None),
+                                            exc=_exc,
+                                        )
 
                                 if loop is not None and loop.is_running():
                                     # Save reflection prompt synchronously — must
