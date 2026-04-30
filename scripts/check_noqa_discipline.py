@@ -22,7 +22,14 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 _SUPPRESSION = re.compile(r"#\s*(?:noqa|type:\s*ignore)", re.IGNORECASE)
-_EXPIRY = re.compile(r"expiry_wave\s*[:\s]+Wave\s*\d+", re.IGNORECASE)
+# Accept either form:
+#   - comment-style: ``expiry_wave: Wave N`` (canonical)
+#   - kwarg-style:   ``expiry_wave="Wave N"`` (used inside rule7-exempt
+#                    annotations and other in-string contexts)
+_EXPIRY = re.compile(
+    r'expiry_wave\s*[:=\s]+["\']?Wave\s*\d+',
+    re.IGNORECASE,
+)
 
 _SCAN_DIRS = ["hi_agent", "scripts", "tests"]
 _EXEMPT_FILES = {
