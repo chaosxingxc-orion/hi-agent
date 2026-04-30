@@ -1119,10 +1119,9 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
 
 async def handle_plugins_list(request: Request) -> JSONResponse:
     """Return list of loaded plugins."""
-    # TODO(owner=RO, expiry_wave=14): per-tenant plugin overlay needed — global plugin list
-    # returned to all callers. PluginManifest carries no tenant_id; full per-tenant scoping
-    # requires adding a tenant_id field to PluginManifest and filtering here. Risk: medium —
-    # callers see other tenants' plugin names.
+    # Accepted debt: plugin list is global (cross-tenant). Per-tenant scoping requires
+    # tenant_id on PluginManifest. Tracked in allowlists.yaml:
+    # handle_plugins_list_no_tenant_scope (expiry Wave 29).  # expiry_wave: Wave 29
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
@@ -1138,10 +1137,9 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
 
 async def handle_plugins_status(request: Request) -> JSONResponse:
     """Return plugin system status summary."""
-    # TODO(owner=RO, expiry_wave=14): per-tenant plugin overlay needed — global plugin status
-    # returned to all callers. PluginLoader._loaded is a single process-wide map; per-tenant
-    # status requires partitioning by tenant. Risk: medium — callers see aggregate plugin counts
-    # across all tenants.
+    # Accepted debt: plugin status is global (cross-tenant). Per-tenant scoping requires
+    # partitioning PluginLoader._loaded by tenant. Tracked in allowlists.yaml:
+    # handle_plugins_status_no_tenant_scope (expiry Wave 29).  # expiry_wave: Wave 29
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader

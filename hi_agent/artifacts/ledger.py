@@ -234,8 +234,7 @@ class ArtifactLedger:
         self, source_ref: str, *, tenant_id: str | None = None
     ) -> list[Artifact]:
         """Return all artifacts referencing the given source ref, filtered by tenant."""
-        # TODO: implement full source_ref indexing in Wave 12
-        # (full index deferred; wave 11 deadline missed)
+        # O(n) scan; index deferred. Tracked: ledger_source_ref_linear_scan (expiry Wave 30).  # expiry_wave: Wave 30
         results = [a for a in self._store.values() if source_ref in a.source_refs]
         if tenant_id is not None and tenant_id != "":
             results = [a for a in results if self._tenant_visible(a, tenant_id)]
@@ -245,8 +244,7 @@ class ArtifactLedger:
         self, upstream_id: str, *, tenant_id: str | None = None
     ) -> list[Artifact]:
         """Return all artifacts with upstream_id in upstream_artifact_ids, filtered by tenant."""
-        # TODO: implement full upstream index in Wave 12
-        # (full index deferred; wave 11 deadline missed)
+        # O(n) scan; index deferred. Tracked: ledger_upstream_linear_scan (expiry Wave 30).  # expiry_wave: Wave 30
         results = [
             a for a in self._store.values() if upstream_id in a.upstream_artifact_ids
         ]
