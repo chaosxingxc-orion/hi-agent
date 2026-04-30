@@ -18,3 +18,4 @@ docs/superpowers/plans/
 docs/superpowers/specs/
 config/llm_config.local.json
 docs/delivery/soak-run-stdout.log
+hi-agent-w25-*
