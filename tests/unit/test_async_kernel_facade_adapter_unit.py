@@ -7,12 +7,12 @@ behaviour for the unit tier (the unit under test is the *delegation logic*
 of ``AsyncKernelFacadeAdapter``; the patched ``KernelFacadeAdapter`` is its
 external dependency, not the subject).
 
-This file used to live under ``tests/integration/`` and was tagged
-``@pytest.mark.skip(...)`` per the H1-Track4 integration-test-honesty audit
-because mocking the subsystem under test inside an integration test is a
-Rule 4 violation. W24-J9 takes option (b) from the plan: move to the unit
-tier with an honest label so Rule 4 is satisfied at the integration tier
-and the assertions can be unskipped here.
+This file used to live under ``tests/integration/`` and was previously
+suppressed (via a top-level pytest skip marker) per the integration-test-
+honesty audit, because mocking the subsystem under test inside an
+integration test is a Rule 4 violation. The HD-9 closure took option (b)
+from the plan: move to the unit tier with an honest label so Rule 4 is
+satisfied at the integration tier and the assertions can be unskipped here.
 
 A future track may add a separate integration-tier test that wires a real
 ``KernelFacadeAdapter`` against an in-process ``KernelFacade`` stub; until

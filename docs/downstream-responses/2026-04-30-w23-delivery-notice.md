@@ -23,8 +23,12 @@
 **Cap applied:** none in corrigendum manifest
 
 Functional HEAD: 168e96e2e88c (corrigendum); originally 6fcac5bded7f
-Notice HEAD: 168e96e2e88c
+Notice HEAD: 698b99a (Track 0 manifest commit at clean-env=8858 passed)
 Validated by: scripts/build_release_manifest.py + scripts/verify_clean_env.py (8858 passed at corrigendum HEAD; 8864 at original) + scripts/run_t3_gate.py (3 real-Volces runs, provenance=real)
+
+> Note: this W23 notice is preserved at its W24-Track0 corrigendum HEAD (`698b99a`).
+> The current main HEAD has advanced through W24's substantive work; the W24
+> delivery notice carries forward all post-W23 facts.
 
 ---
 

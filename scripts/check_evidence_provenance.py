@@ -37,6 +37,8 @@ _REAL_REQUIRED_CHECKS = frozenset({
 _ALLOWED_FOR_ALL = frozenset({
     "real", "partial", "structural", "degraded", "dry_run",
     "synthetic", "unknown", "derived", "shape_verified", "manifest_self_reference",
+    # W24 vocabulary additions (Tracks B, C, G; honest partial-credit tags):
+    "runtime", "runtime_partial", "shape_1h", "simulated_pending_pm2",
 })
 _DISALLOWED_FOR_STRICT = frozenset({"synthetic", "unknown"})
 

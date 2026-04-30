@@ -4,9 +4,12 @@ These tests are the TDD-RED stage per R-AS-5. They drive the build of:
   - agent_server/api/routes_manifest.py
   - agent_server/facade/manifest_facade.py
 
-Track D (per-capability matrix) has not landed at the time these tests
-are written; the facade therefore uses a hardcoded matrix and tags
-``posture_matrix_provenance: hardcoded`` in the response body.
+Track D (per-capability matrix wiring) is now wired (commit 3809930). The
+facade uses ``CapabilityRegistry.to_extension_manifest_dict()`` when
+constructed with the live registry, and tags the response body with
+``posture_matrix_provenance: descriptor`` accordingly. When constructed
+with a hardcoded callable for tests, ``posture_matrix_provenance:
+hardcoded`` is emitted instead.
 """
 from __future__ import annotations
 

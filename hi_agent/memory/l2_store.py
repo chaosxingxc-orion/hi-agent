@@ -209,7 +209,11 @@ class L2RunMemoryIndexStore:
         index_bytes = bytes(combined[4 : 4 + index_len])
         try:
             data = json.loads(index_bytes.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except (UnicodeDecodeError, json.JSONDecodeError):  # rule7-exempt: expiry_wave="Wave 26" replacement_test: l2-store-corrupt-index-quarantine
+            # Corrupt index blob: treat as missing rather than crash. Quarantine
+            # surfacing is via the broader L2 store invariants (the row exists
+            # in SQLite even when its blob is unreadable), so a separate alarm
+            # bell is a follow-up.
             return None
         idx = RunMemoryIndex(run_id=data.get("run_id", ""))
         for stage in data.get("stages", []):
