@@ -278,6 +278,11 @@ jobs:
           path: multistatus-results.json
           retention-days: 90
 
+      # --- W25 new gates ---
+
+      - name: Check notice/manifest score honesty (Rule 14, W25-N)
+        run: python scripts/check_notice_score_match.py --json
+
       # --- Release manifest ---
 
       - name: Build release manifest
