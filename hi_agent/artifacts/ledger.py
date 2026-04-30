@@ -7,7 +7,12 @@ import os
 import threading
 from pathlib import Path
 
-from hi_agent.artifacts.contracts import Artifact
+from hi_agent.artifacts.contracts import (
+    Artifact,
+    ArtifactConflictError,
+    ArtifactIntegrityError,
+    derive_artifact_id,
+)
 from hi_agent.artifacts.metrics import (
     legacy_tenantless_denied_total,
     legacy_tenantless_visible_total,
@@ -111,8 +116,46 @@ class ArtifactLedger:
                         pass
 
     def register(self, artifact: Artifact) -> None:
-        """Persist artifact to the ledger and update in-memory index."""
+        """Persist artifact to the ledger and update in-memory index.
+
+        Raises:
+            ArtifactIntegrityError: A-11 — under research/prod posture when a
+                content-addressable artifact carries a non-derived ``artifact_id``.
+            ArtifactConflictError: A-11 — when an existing ``artifact_id`` is
+                already bound to a different ``content_hash``.
+        """
         with self._lock:
+            # A-11: enforce content-addressed identity at write time.
+            if artifact.is_content_addressable and artifact.content_hash:
+                expected = derive_artifact_id(artifact.content_hash)
+                if artifact.artifact_id != expected:
+                    from hi_agent.config.posture import Posture
+                    posture = Posture.from_env()
+                    msg = (
+                        f"artifact_id must derive from content_hash for type "
+                        f"{artifact.artifact_type!r}: stored={artifact.artifact_id!r} "
+                        f"expected={expected!r}"
+                    )
+                    if posture.is_strict:
+                        raise ArtifactIntegrityError(msg)
+                    _logger.warning(
+                        "auto-deriving artifact_id under dev posture: %s", msg
+                    )
+                    object.__setattr__(artifact, "artifact_id", expected)
+
+            existing = self._store.get(artifact.artifact_id)
+            if (
+                existing is not None
+                and existing.content_hash
+                and artifact.content_hash
+                and existing.content_hash != artifact.content_hash
+            ):
+                raise ArtifactConflictError(
+                    f"artifact_id={artifact.artifact_id!r} already exists with a "
+                    f"different content_hash (existing={existing.content_hash[:16]}... "
+                    f"new={artifact.content_hash[:16]}...)"
+                )
+
             self._store[artifact.artifact_id] = artifact
             if self._path is not None:
                 # J2: path traversal guard — ledger path is controlled by

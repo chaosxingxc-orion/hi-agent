@@ -3,13 +3,54 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 from typing import TYPE_CHECKING
 
-from hi_agent.artifacts.contracts import Artifact
+from hi_agent.artifacts.contracts import (
+    Artifact,
+    ArtifactConflictError,
+    ArtifactIntegrityError,
+    derive_artifact_id,
+)
 
 if TYPE_CHECKING:
     from hi_agent.context.run_execution_context import RunExecutionContext
+
+_logger = logging.getLogger(__name__)
+
+
+def _enforce_content_addressed_id(artifact: Artifact) -> None:
+    """A-11 write-time guard for content-addressable artifacts.
+
+    - Under research/prod posture: stored ``artifact_id`` MUST equal
+      ``derive_artifact_id(content_hash)``; mismatch raises
+      :class:`ArtifactIntegrityError`.
+    - Under dev posture: if the caller supplied a non-derived ``artifact_id``,
+      auto-derive (mutating the artifact) and emit a WARNING.
+
+    Only applies when the artifact is content-addressable AND has a
+    non-empty ``content_hash``.
+    """
+    if not artifact.is_content_addressable or not artifact.content_hash:
+        return
+
+    expected = derive_artifact_id(artifact.content_hash)
+    if artifact.artifact_id == expected:
+        return
+
+    from hi_agent.config.posture import Posture
+    posture = Posture.from_env()
+    msg = (
+        f"artifact_id must derive from content_hash for content-addressable "
+        f"type {artifact.artifact_type!r}: stored={artifact.artifact_id!r} "
+        f"expected={expected!r}"
+    )
+    if posture.is_strict:
+        raise ArtifactIntegrityError(msg)
+    # Dev posture: auto-derive, warn loudly so the drift is observable.
+    _logger.warning("auto-deriving artifact_id under dev posture: %s", msg)
+    object.__setattr__(artifact, "artifact_id", expected)
 
 
 class ArtifactRegistry:
@@ -51,6 +92,17 @@ class ArtifactRegistry:
                 if field not in kwargs and getattr(exec_ctx, field, ""):
                     kwargs[field] = getattr(exec_ctx, field)
         artifact = Artifact(artifact_type=artifact_type, **kwargs)  # type: ignore[arg-type]
+        # A-11: when caller did not pin artifact_id and the type is
+        # content-addressable, derive id from hash before storing so subsequent
+        # idempotent registrations of the same content map to the same id.
+        if (
+            "artifact_id" not in kwargs
+            and artifact.is_content_addressable
+            and artifact.content_hash
+        ):
+            object.__setattr__(
+                artifact, "artifact_id", derive_artifact_id(artifact.content_hash)
+            )
         self.store(artifact)
         return artifact
 
@@ -67,6 +119,12 @@ class ArtifactRegistry:
         Raises:
             OSError: When ``HI_AGENT_ARTIFACT_FAULT=oserror`` is set in the
                 environment (chaos fault injection for disk-full simulation).
+            ArtifactIntegrityError: A-11 — when posture is research/prod and
+                the artifact is content-addressable but ``artifact_id`` does
+                not derive from ``content_hash``.
+            ArtifactConflictError: A-11 — when an existing ``artifact_id``
+                already maps to a different ``content_hash``.  Maps to HTTP
+                409 at the route layer.
         """
         if os.environ.get("HI_AGENT_ARTIFACT_FAULT") == "oserror":
             raise OSError("Simulated disk full fault — HI_AGENT_ARTIFACT_FAULT=oserror")
@@ -81,6 +139,25 @@ class ArtifactRegistry:
                 if ctx_value and not getattr(artifact, field_name, ""):
                     with contextlib.suppress(AttributeError, TypeError):
                         object.__setattr__(artifact, field_name, ctx_value)
+
+        # A-11: content-addressed identity enforcement (may mutate artifact_id
+        # under dev posture; raises under research/prod on mismatch).
+        _enforce_content_addressed_id(artifact)
+
+        # A-11: 409 — same artifact_id, different content_hash is a conflict.
+        existing = self._store.get(artifact.artifact_id)
+        if (
+            existing is not None
+            and existing.content_hash
+            and artifact.content_hash
+            and existing.content_hash != artifact.content_hash
+        ):
+            raise ArtifactConflictError(
+                f"artifact_id={artifact.artifact_id!r} already exists with a "
+                f"different content_hash (existing={existing.content_hash[:16]}... "
+                f"new={artifact.content_hash[:16]}...)"
+            )
+
         self._store[artifact.artifact_id] = artifact
 
     def get(self, artifact_id: str, tenant_id: str | None = None) -> Artifact | None:

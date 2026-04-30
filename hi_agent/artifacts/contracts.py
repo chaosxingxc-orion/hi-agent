@@ -12,10 +12,45 @@ from __future__ import annotations
 
 import hashlib
 import json as _json
+import logging
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+
+_logger = logging.getLogger(__name__)
+
+# A-11: artifact_type values whose identity must be derived from content_hash.
+# Ephemeral types (e.g. "trace", "evaluation", "base") keep uuid-based ids.
+CONTENT_ADDRESSABLE_TYPES: frozenset[str] = frozenset(
+    {"document", "resource", "structured_data", "evidence"}
+)
+
+
+class ArtifactIntegrityError(Exception):
+    """Raised when a stored artifact_id does not match its content-derived id.
+
+    Triggered under research/prod posture by ``Artifact.from_dict`` and by
+    ``ArtifactRegistry`` write paths when a content-addressable artifact carries
+    a non-derived ``artifact_id``.
+    """
+
+
+class ArtifactConflictError(Exception):
+    """Raised on a write that would replace an existing artifact_id with a
+    different content_hash.  Maps to HTTP 409 at the route layer.
+    """
+
+
+def derive_artifact_id(content_hash: str) -> str:
+    """Return the content-addressed artifact id for a given content_hash.
+
+    Format: ``art_<first 24 hex chars of content_hash>``.  24 hex chars =
+    96 bits of collision resistance, sufficient for in-corpus uniqueness.
+    """
+    if not content_hash:
+        raise ValueError("derive_artifact_id requires a non-empty content_hash")
+    return f"art_{content_hash[:24]}"
 
 
 @dataclass
@@ -59,15 +94,62 @@ class Artifact:
         """Hash by artifact_id; mutable fields excluded."""
         return hash(self.artifact_id)
 
+    @property
+    def is_content_addressable(self) -> bool:
+        """True when this artifact's identity must derive from content_hash.
+
+        Driven by ``artifact_type`` membership in ``CONTENT_ADDRESSABLE_TYPES``
+        (Wave 23 / A-11).
+        """
+        return self.artifact_type in CONTENT_ADDRESSABLE_TYPES
+
+    @property
+    def expected_artifact_id(self) -> str:
+        """Content-derived artifact_id for content-addressable types.
+
+        For content-addressable types (``document``, ``resource``,
+        ``structured_data``, ``evidence``) this returns
+        ``f"art_{content_hash[:24]}"``.  For ephemeral types (e.g. ``trace``,
+        ``evaluation``, ``base``) this returns the current ``artifact_id`` —
+        i.e. the uuid-derived value.  Callers that need to *enforce* derivation
+        should gate on ``is_content_addressable``.
+        """
+        if self.is_content_addressable and self.content_hash:
+            return derive_artifact_id(self.content_hash)
+        return self.artifact_id
+
     def to_dict(self) -> dict[str, Any]:
         """Return a plain dict representation of this artifact."""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Artifact:
-        """Construct an artifact from a plain dict, ignoring unknown keys."""
+        """Construct an artifact from a plain dict, ignoring unknown keys.
+
+        A-11: for content-addressable artifact types under research/prod
+        posture, the stored ``artifact_id`` is verified against the
+        content-derived id.  Mismatch raises :class:`ArtifactIntegrityError`.
+        Under dev posture a WARNING is logged and load proceeds (back-compat
+        for legacy ledger entries).
+        """
         known = set(cls.__dataclass_fields__)
-        return cls(**{k: v for k, v in data.items() if k in known})
+        artifact = cls(**{k: v for k, v in data.items() if k in known})
+
+        if artifact.is_content_addressable and artifact.content_hash:
+            expected = artifact.expected_artifact_id
+            if artifact.artifact_id != expected:
+                from hi_agent.config.posture import Posture
+
+                posture = Posture.from_env()
+                msg = (
+                    f"artifact_id mismatch on load: stored={artifact.artifact_id!r} "
+                    f"expected={expected!r} artifact_type={artifact.artifact_type!r} "
+                    f"content_hash={artifact.content_hash[:16]}..."
+                )
+                if posture.is_strict:
+                    raise ArtifactIntegrityError(msg)
+                _logger.warning("ArtifactIntegrityError (dev): %s", msg)
+        return artifact
 
 
 @dataclass
