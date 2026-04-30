@@ -79,6 +79,7 @@ class StageExecutor:
         self._capability_registry = capability_registry
         self._capability_runtime_mode = capability_runtime_mode
         self._short_term_store = short_term_store
+        self._tenant_id: str = ""
         # Side-channel: (run_id, stage_id) -> ReasoningTrace.  Business-layer
         # stage handlers write here via the append/get helpers below.
         self._reasoning_traces: dict[tuple[str, str], ReasoningTrace] = {}
@@ -97,7 +98,7 @@ class StageExecutor:
         key = (run_id, stage_id)
         trace = self._reasoning_traces.get(key)
         if trace is None:
-            trace = ReasoningTrace(run_id=run_id, stage_id=stage_id)
+            trace = ReasoningTrace(run_id=run_id, stage_id=stage_id, tenant_id=self._tenant_id)
             self._reasoning_traces[key] = trace
         return trace
 

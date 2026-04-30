@@ -63,6 +63,7 @@ class ReasoningTrace:
         return {
             "run_id": self.run_id,
             "stage_id": self.stage_id,
+            "tenant_id": self.tenant_id,
             "trace_id": self.trace_id,
             "steps": [
                 {
@@ -102,6 +103,7 @@ class ReasoningTrace:
         return cls(
             run_id=data.get("run_id", ""),
             stage_id=data.get("stage_id", ""),
+            tenant_id=data.get("tenant_id", ""),
             trace_id=data.get("trace_id", ""),
             steps=steps,
         )

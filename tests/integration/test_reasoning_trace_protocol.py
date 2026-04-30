@@ -80,7 +80,7 @@ def test_reasoning_trace_persists_across_retrieve(tmp_path: Path) -> None:
     """A trace written by one store instance is readable from another."""
     storage_dir = tmp_path / "stm"
     writer = ShortTermMemoryStore(storage_dir=str(storage_dir))
-    trace = ReasoningTrace(run_id="run-2", stage_id="act")
+    trace = ReasoningTrace(run_id="run-2", stage_id="act", tenant_id="test")
     trace.append(ReasoningStep(description="step A"))
     trace.append(ReasoningStep(description="step B"))
     writer.save_reasoning_trace("run-2", "act", trace)
