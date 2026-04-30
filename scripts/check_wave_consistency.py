@@ -138,6 +138,32 @@ def _latest_notice_wave() -> str | None:
         return wave_str
     return None
 
+_HARDCODED_WAVE_RE = re.compile(r"_CURRENT_WAVE\s*=\s*\d+")
+SCRIPTS_DIR = ROOT / "scripts"
+
+
+def _find_hardcoded_wave_literals() -> list[str]:
+    """Scan scripts/ for _CURRENT_WAVE = <int> literals.
+
+    Returns list of offending file:line strings.
+    """
+    hits: list[str] = []
+    if not SCRIPTS_DIR.is_dir():
+        return hits
+    for py_file in sorted(SCRIPTS_DIR.rglob("*.py")):
+        try:
+            for i, line in enumerate(py_file.read_text(encoding="utf-8").splitlines(), 1):
+                if _HARDCODED_WAVE_RE.search(line):
+                    try:
+                        rel = str(py_file.relative_to(ROOT))
+                    except ValueError:
+                        rel = str(py_file)
+                    hits.append(f"{rel}:{i}: {line.strip()}")
+        except OSError:
+            continue
+    return hits
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Wave-label consistency gate.")
     parser.add_argument("--json", action="store_true")
@@ -174,6 +200,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     msgs = validate_wave_consistency(**{k: v for k, v in sources.items() if v is not None})
+
+    hardcoded_literals = _find_hardcoded_wave_literals()
+    for hit in hardcoded_literals:
+        msgs.append(f"hardcoded _CURRENT_WAVE literal: {hit}")
+
     status = "pass" if not msgs else "fail"
     result = {
         "check": "wave_consistency",
@@ -181,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
         "sources": {k: (v if v is None else str(v)) for k, v in sources.items()},
         "parsed": parseable,
         "violations": msgs,
+        "hardcoded_wave_literals": hardcoded_literals,
     }
 
     if args.json:

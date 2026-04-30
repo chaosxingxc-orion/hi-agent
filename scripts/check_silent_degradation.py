@@ -20,6 +20,10 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _governance.wave import current_wave_number as _get_current_wave_number
+
 ROOT = Path(__file__).resolve().parent.parent
 SCAN_DIRS = ["hi_agent", "agent_kernel"]
 MIN_RULE7_EXEMPT_WAVE = 22
@@ -31,7 +35,7 @@ _EXPIRY_WAVE_RE = re.compile(
     r'expiry_wave\s*[:=]\s*["\']?Wave\s*(\d+)["\']?',
     re.IGNORECASE,
 )
-_CURRENT_WAVE = 20
+_CURRENT_WAVE = _get_current_wave_number()
 
 
 def _is_silent_except_body(body: list) -> bool:
