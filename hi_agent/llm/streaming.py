@@ -16,6 +16,7 @@ import httpx
 
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest, TokenUsage
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 # ---------------------------------------------------------------------------
 # Type aliases
@@ -125,7 +126,12 @@ class SseParser:
 
         try:
             data: dict[str, Any] = json.loads(data_str)
-        except json.JSONDecodeError:  # rule7-exempt: expiry_wave="Wave 22"
+        except json.JSONDecodeError as exc:
+            record_silent_degradation(
+                component="llm.streaming.StreamParser._parse_event",
+                reason="sse_json_decode_failed",
+                exc=exc,
+            )
             return None
 
         # ---- text delta ---------------------------------------------------
