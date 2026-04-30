@@ -1,0 +1,45 @@
+"""Tenant-context middleware (R-AS-4).
+
+Reads the X-Tenant-Id header (required) and attaches a TenantContext
+instance to ``request.state.tenant_context`` for downstream handlers.
+
+Handlers MUST read the tenant from request state, never from the request
+body, per R-AS-4. A missing or empty header yields 401 Unauthorized so
+the platform fails closed under research/prod posture.
+"""
+from __future__ import annotations
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+from agent_server.contracts.tenancy import TenantContext
+
+TENANT_HEADER = "X-Tenant-Id"
+PROJECT_HEADER = "X-Project-Id"
+PROFILE_HEADER = "X-Profile-Id"
+SESSION_HEADER = "X-Session-Id"
+
+
+class TenantContextMiddleware(BaseHTTPMiddleware):
+    """Inject a TenantContext into request state from request headers."""
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        tenant_id = request.headers.get(TENANT_HEADER, "").strip()
+        if not tenant_id:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "error": "AuthError",
+                    "detail": (
+                        f"missing or empty {TENANT_HEADER} header"
+                    ),
+                },
+            )
+        request.state.tenant_context = TenantContext(
+            tenant_id=tenant_id,
+            project_id=request.headers.get(PROJECT_HEADER, "").strip(),
+            profile_id=request.headers.get(PROFILE_HEADER, "").strip(),
+            session_id=request.headers.get(SESSION_HEADER, "").strip(),
+        )
+        return await call_next(request)
