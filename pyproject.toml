@@ -16,6 +16,9 @@ dependencies = [
   "uvicorn[standard]>=0.29",
 ]
 
+[project.scripts]
+agent-server = "agent_server.cli.main:main"
+
 [project.optional-dependencies]
 temporal = ["temporalio==1.24.0"]
 pg = ["asyncpg>=0.30"]

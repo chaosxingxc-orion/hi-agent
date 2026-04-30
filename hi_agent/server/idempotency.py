@@ -245,6 +245,49 @@ ON idempotency_records (tenant_id, idempotency_key)
             )
             return outcome, record
 
+    # HD-7: identity / observability fields stripped from the snapshot prior
+    # to persistence so that an idempotency replay does not re-issue the
+    # original ``request_id`` / ``trace_id`` / response timestamp on a new
+    # request. The replayed body should describe *the work*, not the
+    # original invocation envelope.
+    _IDENTITY_FIELDS_STRIPPED_ON_REPLAY: tuple[str, ...] = (
+        "request_id",
+        "trace_id",
+        "x_request_id",
+        "_response_timestamp",
+    )
+
+    @classmethod
+    def _normalize_response_for_replay(cls, response_json: str) -> str:
+        """Strip per-call identity metadata from a JSON response snapshot.
+
+        HD-7: ``request_id`` / ``trace_id`` / ``x_request_id`` /
+        ``_response_timestamp`` are observability surfaces tied to the
+        original request — replaying them would falsify trace lineage on
+        the second caller. We drop them here so the stored snapshot is
+        a *pure result*; consumers re-decorate at the route layer with
+        fresh values for the replaying request.
+
+        Returns the input unchanged if it is empty, not a JSON object, or
+        contains no stripped fields.
+        """
+        if not response_json:
+            return response_json
+        try:
+            payload = json.loads(response_json)
+        except (ValueError, json.JSONDecodeError):
+            return response_json  # not JSON — leave alone
+        if not isinstance(payload, dict):
+            return response_json
+        stripped = False
+        for field in cls._IDENTITY_FIELDS_STRIPPED_ON_REPLAY:
+            if field in payload:
+                payload.pop(field, None)
+                stripped = True
+        if not stripped:
+            return response_json
+        return json.dumps(payload, sort_keys=True, ensure_ascii=False)
+
     def mark_complete(
         self,
         tenant_id: str,
@@ -257,6 +300,11 @@ ON idempotency_records (tenant_id, idempotency_key)
         RO-7: the stored status reflects the actual run outcome so that replays
         can surface the precise terminal state to callers.
 
+        HD-7: per-call identity fields (``request_id``, ``trace_id``,
+        ``x_request_id``, ``_response_timestamp``) are stripped from
+        ``response_json`` before storage so a replay does not re-emit the
+        original request's trace metadata.
+
         Args:
             tenant_id: Tenant owning the record.
             idempotency_key: Client-supplied idempotency key.
@@ -266,13 +314,14 @@ ON idempotency_records (tenant_id, idempotency_key)
         """
         _valid = frozenset({"succeeded", "failed", "cancelled", "timed_out"})
         status = terminal_state if terminal_state in _valid else "succeeded"
+        normalized_response = self._normalize_response_for_replay(response_json)
         now = time.time()
         with self._lock:
             self._conn.execute(
                 "UPDATE idempotency_records "
                 "SET status = ?, response_snapshot = ?, updated_at = ? "
                 "WHERE tenant_id = ? AND idempotency_key = ?",
-                (status, response_json, now, tenant_id, idempotency_key),
+                (status, normalized_response, now, tenant_id, idempotency_key),
             )
             self._conn.commit()
 
