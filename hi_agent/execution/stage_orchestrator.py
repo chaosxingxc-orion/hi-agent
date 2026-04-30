@@ -16,6 +16,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.observability.spine_events import (
+    emit_stage_inserted,
+    emit_stage_replanned,
+    emit_stage_skipped,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -107,14 +112,39 @@ class StageOrchestrator:
                                 remaining_stages = [
                                     s for s in remaining_stages if s != directive.target_stage_id
                                 ]
+                                with contextlib.suppress(Exception):
+                                    emit_stage_skipped(
+                                        ctx.run_id,
+                                        stage_id,
+                                        directive.target_stage_id,
+                                        posture=Posture.from_env().name,
+                                        reason=directive.reason,
+                                    )
                             elif directive.action == "repeat":
                                 remaining_stages.insert(0, stage_id)
+                                with contextlib.suppress(Exception):
+                                    emit_stage_replanned(
+                                        ctx.run_id,
+                                        "repeat",
+                                        stage_id,
+                                        stage_id,
+                                        posture=Posture.from_env().name,
+                                        reason=directive.reason,
+                                    )
                             elif directive.action == "insert":
                                 _posture = Posture.from_env()
                                 for spec in directive.insert:
                                     if spec.target_stage_id in remaining_stages:
                                         anchor_idx = remaining_stages.index(spec.target_stage_id)
                                         remaining_stages.insert(anchor_idx + 1, spec.new_stage)
+                                        with contextlib.suppress(Exception):
+                                            emit_stage_inserted(
+                                                ctx.run_id,
+                                                spec.target_stage_id,
+                                                spec.new_stage,
+                                                posture=_posture.name,
+                                                reason=directive.reason,
+                                            )
                                     else:
                                         if _posture.is_strict:
                                             raise StageDirectiveError(
@@ -128,11 +158,28 @@ class StageOrchestrator:
                                             spec.target_stage_id,
                                         )
                                         remaining_stages.append(spec.new_stage)
+                                        with contextlib.suppress(Exception):
+                                            emit_stage_inserted(
+                                                ctx.run_id,
+                                                spec.target_stage_id,
+                                                spec.new_stage,
+                                                posture=_posture.name,
+                                                reason=directive.reason,
+                                            )
                             elif directive.action == "skip_to":
                                 _posture = Posture.from_env()
                                 if directive.skip_to in remaining_stages:
                                     target_idx = remaining_stages.index(directive.skip_to)
                                     remaining_stages = remaining_stages[target_idx:]
+                                    with contextlib.suppress(Exception):
+                                        emit_stage_replanned(
+                                            ctx.run_id,
+                                            "skip_to",
+                                            stage_id,
+                                            directive.skip_to,
+                                            posture=_posture.name,
+                                            reason=directive.reason,
+                                        )
                                 else:
                                     if _posture.is_strict:
                                         raise StageDirectiveError(
@@ -204,6 +251,15 @@ class StageOrchestrator:
                             if directive.action == "skip_to":
                                 _posture = Posture.from_env()
                                 if directive.skip_to in ctx.stage_graph.transitions:
+                                    with contextlib.suppress(Exception):
+                                        emit_stage_replanned(
+                                            ctx.run_id,
+                                            "skip_to",
+                                            current_stage,
+                                            directive.skip_to,
+                                            posture=_posture.name,
+                                            reason=directive.reason,
+                                        )
                                     current_stage = directive.skip_to
                                     continue
                                 elif _posture.is_strict:
@@ -218,6 +274,14 @@ class StageOrchestrator:
                                         spec.new_stage,
                                         current_stage,
                                     )
+                                    with contextlib.suppress(Exception):
+                                        emit_stage_inserted(
+                                            ctx.run_id,
+                                            current_stage,
+                                            spec.new_stage,
+                                            posture=Posture.from_env().name,
+                                            reason=directive.reason,
+                                        )
                                     # Full in-line injection deferred to M.5; log intent now
                             elif directive.action == "skip":
                                 # Skip the next natural successor
@@ -231,6 +295,14 @@ class StageOrchestrator:
                                     )
                                     # Mark the next stage as completed to skip it
                                     completed_stages.add(next_natural)
+                                    with contextlib.suppress(Exception):
+                                        emit_stage_skipped(
+                                            ctx.run_id,
+                                            current_stage,
+                                            next_natural,
+                                            posture=Posture.from_env().name,
+                                            reason=directive.reason,
+                                        )
                             # "repeat" not naturally supported in graph mode
                     except StageDirectiveError:
                         raise
@@ -336,6 +408,15 @@ class StageOrchestrator:
                                 if directive.skip_to in remaining_stages:
                                     target_idx = remaining_stages.index(directive.skip_to)
                                     remaining_stages = remaining_stages[target_idx:]
+                                    with contextlib.suppress(Exception):
+                                        emit_stage_replanned(
+                                            ctx.run_id,
+                                            "skip_to",
+                                            stage_id,
+                                            directive.skip_to,
+                                            posture=_posture.name,
+                                            reason=directive.reason,
+                                        )
                                 else:
                                     if _posture.is_strict:
                                         raise StageDirectiveError(
@@ -352,6 +433,14 @@ class StageOrchestrator:
                                     if spec.target_stage_id in remaining_stages:
                                         anchor_idx = remaining_stages.index(spec.target_stage_id)
                                         remaining_stages.insert(anchor_idx + 1, spec.new_stage)
+                                        with contextlib.suppress(Exception):
+                                            emit_stage_inserted(
+                                                ctx.run_id,
+                                                spec.target_stage_id,
+                                                spec.new_stage,
+                                                posture=_posture.name,
+                                                reason=directive.reason,
+                                            )
                                     else:
                                         if _posture.is_strict:
                                             raise StageDirectiveError(
@@ -365,6 +454,14 @@ class StageOrchestrator:
                                             spec.target_stage_id,
                                         )
                                         remaining_stages.append(spec.new_stage)
+                                        with contextlib.suppress(Exception):
+                                            emit_stage_inserted(
+                                                ctx.run_id,
+                                                spec.target_stage_id,
+                                                spec.new_stage,
+                                                posture=_posture.name,
+                                                reason=directive.reason,
+                                            )
                     except StageDirectiveError:
                         raise
                     except Exception as exc:
