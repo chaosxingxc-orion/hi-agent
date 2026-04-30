@@ -1,4 +1,4 @@
-"""Integration tests: EvolveEngine writes EvolutionExperiment on promotion proposals.
+"""Integration tests: EvolveEngine writes EvolutionTrial on promotion proposals.
 
 Uses real ChampionChallenger and real InMemoryExperimentStore.
 No mocks on the subsystems under test.
@@ -8,15 +8,15 @@ from __future__ import annotations
 
 import pytest
 from hi_agent.evolve.champion_challenger import ChampionChallenger
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import RunRetrospective
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.evolve.experiment_store import InMemoryExperimentStore
 from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillExtractor
 
 
-def _make_postmortem(run_id: str = "run-001", skills: list[str] | None = None) -> RunPostmortem:
-    return RunPostmortem(
+def _make_postmortem(run_id: str = "run-001", skills: list[str] | None = None) -> RunRetrospective:
+    return RunRetrospective(
         run_id=run_id,
         task_id="task-001",
         task_family="quick_task",
@@ -36,12 +36,12 @@ def _make_postmortem(run_id: str = "run-001", skills: list[str] | None = None) -
 
 
 def test_engine_writes_experiment_on_promotion(monkeypatch: pytest.MonkeyPatch) -> None:
-    """EvolveEngine writes EvolutionExperiment when challenger outperforms champion.
+    """EvolveEngine writes EvolutionTrial when challenger outperforms champion.
 
     Integration: real ChampionChallenger, real InMemoryExperimentStore.
     The engine records skills as champion (version="unknown") when no version_manager
     is provided.  We pre-register a challenger with a higher score so the comparison
-    triggers a promote_challenger recommendation and writes an EvolutionExperiment.
+    triggers a promote_challenger recommendation and writes an EvolutionTrial.
     """
     monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
 

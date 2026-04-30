@@ -1,12 +1,12 @@
-"""Integration tests: RunPostmortem spine fields are preserved through construction."""
+"""Integration tests: RunRetrospective spine fields are preserved through construction."""
 
 from __future__ import annotations
 
 import pytest
-from hi_agent.evolve.contracts import RunPostmortem
+from hi_agent.evolve.contracts import RunRetrospective
 
 
-def _make_run_postmortem(**overrides) -> RunPostmortem:
+def _make_run_postmortem(**overrides) -> RunRetrospective:
     kwargs: dict = {
         "run_id": "run-001",
         "task_id": "task-001",
@@ -21,13 +21,13 @@ def _make_run_postmortem(**overrides) -> RunPostmortem:
         "duration_seconds": 1.5,
     }
     kwargs.update(overrides)
-    return RunPostmortem(**kwargs)
+    return RunRetrospective(**kwargs)
 
 
 def test_postmortem_spine_fields_preserved(monkeypatch: pytest.MonkeyPatch) -> None:
-    """RunPostmortem spine fields are accessible after construction under dev posture.
+    """RunRetrospective spine fields are accessible after construction under dev posture.
 
-    Integration: real RunPostmortem dataclass; no mocks on the subject under test.
+    Integration: real RunRetrospective dataclass; no mocks on the subject under test.
     """
     monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     pm = _make_run_postmortem(
@@ -44,7 +44,7 @@ def test_postmortem_spine_fields_preserved(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_postmortem_spine_under_research_posture(monkeypatch: pytest.MonkeyPatch) -> None:
-    """RunPostmortem with tenant_id set succeeds under research posture."""
+    """RunRetrospective with tenant_id set succeeds under research posture."""
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     pm = _make_run_postmortem(tenant_id="tenant-abc", project_id="proj-1")
     assert pm.tenant_id == "tenant-abc"

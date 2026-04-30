@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from hi_agent.evolve.contracts import EvolutionExperiment
+from hi_agent.evolve.contracts import EvolutionTrial
 from hi_agent.evolve.experiment_store import SqliteExperimentStore
 
 
@@ -12,8 +12,8 @@ def _make_exp(
     tenant_id: str,
     *,
     status: str = "active",
-) -> EvolutionExperiment:
-    return EvolutionExperiment(
+) -> EvolutionTrial:
+    return EvolutionTrial(
         experiment_id=experiment_id,
         capability_name="skill_routing",
         baseline_version="v1.0",
