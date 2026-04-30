@@ -116,7 +116,10 @@ def _resolve_provider_api_key(provider: str, provider_cfg: dict) -> tuple[str, s
     api_key = str(provider_cfg.get("api_key", "") or "")
     label = "config/llm_config.json"
 
-    if not api_key:
+    if not api_key and os.environ.get("HI_AGENT_LLM_MODE", "").strip().lower() == "real":
+        # Env-var fallback only when operator explicitly opts into real-LLM mode
+        # (mirrors get_provider_api_key behavior; prevents CI-secret leakage into
+        # default-offline / dev-smoke executor paths).
         normalized = provider.strip().lower()
         env_names = list(_PROVIDER_API_KEY_ENVS.get(normalized, ()))
         env_names.append(f"HI_AGENT_LLM_API_KEY_{normalized.upper()}")
@@ -162,8 +165,13 @@ def get_provider_api_key(
     api_key = str(provider_cfg.get("api_key", "") or "")
     if api_key:
         return api_key
-    # Env-var fallback: secrets injected via env (CI / structural gate / direct
-    # operator deploy) take precedence over the empty JSON template field.
+    # Env-var fallback: only when the operator explicitly opts into real-LLM
+    # mode via ``HI_AGENT_LLM_MODE=real`` (or via local config overlay). The
+    # default-offline / dev-smoke / Rule-8 smoke matrix paths must NOT
+    # auto-activate the gateway just because a CI runner secret is exposed
+    # in env -- those paths exercise the heuristic-fallback executor.
+    if os.environ.get("HI_AGENT_LLM_MODE", "").strip().lower() != "real":
+        return ""
     normalized = provider.strip().lower()
     env_names = list(_PROVIDER_API_KEY_ENVS.get(normalized, ()))
     env_names.append(f"HI_AGENT_LLM_API_KEY_{normalized.upper()}")
