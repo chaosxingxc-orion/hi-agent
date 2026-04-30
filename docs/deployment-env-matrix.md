@@ -40,7 +40,9 @@
 |----------|---------|--------|-----------|
 | `OPENAI_API_KEY` | `""` | Credentials for any OpenAI-compatible endpoint (includes MaaS glm, DeepSeek, Volcengine when using `openai_base_url`). | `hi_agent/llm/http_gateway.py:49`, readiness probes |
 | `ANTHROPIC_API_KEY` | `""` | Credentials for Anthropic Claude endpoints. | `hi_agent/llm/anthropic_gateway.py`, readiness probes |
-| `VOLCE_API_KEY` | `""` | Live-API test gate in CI; not consumed at runtime by the server itself. | `.github/workflows/ci.yml` |
+| `VOLCES_API_KEY` | `""` | Volces LLM provider API key — **canonical name**; read first by `json_config_loader.py` when `HI_AGENT_LLM_MODE=real`. | `hi_agent/config/json_config_loader.py:96` |
+| `VOLCE_API_KEY` | `""` | Volces API key alias (accepted second; also used by CI live-API test gate). | `hi_agent/config/json_config_loader.py:96`, `.github/workflows/ci.yml` |
+| `VOLCES_KEY` | `""` | Volces API key alias (accepted third; **DEPRECATED** — migrate to `VOLCES_API_KEY` by W26). | `hi_agent/config/json_config_loader.py:96` |
 | `HI_AGENT_LLM_MODE` | `""` | Readiness hint — `real` signals that a real LLM gateway is intended. | `hi_agent/server/runtime_mode_resolver.py:27` |
 | `HI_AGENT_LLM_DEFAULT_PROVIDER` | `anthropic` | Selects `openai` or `anthropic` as the primary gateway. | `hi_agent/config/trace_config.py:from_env` |
 | `HI_AGENT_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Base URL for the OpenAI-compatible gateway. **Must include the API version path** (e.g. `/v1`, `/v2`, or a vendor-specific prefix) — hi-agent issues `POST {base}/chat/completions`. | `hi_agent/config/trace_config.py:from_env` |

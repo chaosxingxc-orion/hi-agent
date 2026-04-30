@@ -1,6 +1,6 @@
 # hi-agent Platform Gaps — Response to Research Roadmap 2026-04-16
 
-**Last updated**: 2026-04-29 (Wave 20)
+**Last updated**: 2026-04-30 (Wave 25 — P-4 PARTIAL; W24 Memory/Capability/Cross-Run lifts)
 **Source**: research/docs/hi-agent-strategic-roadmap-2026-04-16.md
 **Contact**: hi-agent platform team
 
@@ -19,27 +19,27 @@ hi-agent is the **capability platform layer**. The research team is the **busine
 | **P-1** Provenance standard — `RawMemoryEntry.provenance` field, `CapabilitySpec.source_reference` contract | HIGH | **CLOSED (Wave 10.2)** | project_id posture-required (CO-2, Wave 9); contract spine completeness enforced under research/prod (Wave 10.2); GateStore/TeamRunRegistry/FeedbackStore/RunQueue all carry tenant/user/session/project fields (L3). | Phase 2 ✓ |
 | **P-2** Reasoning trace storage — structured side-channel for stage LLM reasoning steps | HIGH | **CLOSED (Wave 9/TE-5)** | ReasoningTrace schema + write hook delivered Wave 9 (TE-5). Route `GET /runs/{id}/reasoning-trace` deferred to L2; schema + evidence hook at L1. Downstream can consume via artifact ledger. | Phase 2 ✓ |
 | **P-3** Cross-Run Project aggregation — `project_id` scope alongside `profile_id`; memory spanning multiple runs | HIGH | **CLOSED (Wave 10.2)** | project_id first-class in RunRecord (CO-4, Wave 9); posture-required under research/prod (CO-2); cross-run project query wired (list_runs_by_project, Wave 10.2). | Phase 2 ✓ |
-| **P-4** Dynamic re-planning API — `StageDirective(skip_to, insert_stage)` mid-run plan mutation | MEDIUM | **NOT STARTED** | Deferred Phase 3. TRACE loop currently static; API design needed first. No change through Wave 18. | Phase 3 |
+| **P-4** Dynamic re-planning API — `StageDirective(skip_to, insert_stage)` mid-run plan mutation | MEDIUM | **PARTIAL (Wave 25)** | StageDirective(skip_to, insert_stage with target_stage_id) wired in run_linear + run_graph + run_resume with posture-aware fail-closed; 15 unit + 6 integration tests planned; 3 spine event kinds (stage_skipped/inserted/replanned) (W25 Track M.1-M.5) | Phase 3 → L3 production-default |
 | **P-5** Confidence scoring contract — `Artifact.confidence: float`, `evidence_count` fields | MEDIUM | **CLOSED (Wave 9)** | ArtifactLedger durable (TE-2, Wave 9); evidence_count/content_hash/producer fields on Artifact (CO-5, Wave 9); idempotency replay returns byte-identical snapshot (H1-Track1). | Phase 2 ✓ |
 | **P-6** Knowledge Graph inference layer — transitive queries, conflict detection on `LongTermMemoryGraph` | MEDIUM | **CLOSED (Wave 10.5)** | SqliteKnowledgeGraphBackend deployed as default under research/prod (Wave 10.5); posture-aware factory; upsert_node/upsert_edge/query_relation/transitive_query/detect_conflict supported. Neo4j permanently declined. | Phase 3 ✓ |
 | **P-7** Feedback integration path — `submit_run_feedback()` API wired to `EvolveEngine`/`HybridRouteEngine` | MEDIUM | **PARTIAL (Wave 10.4)** | ExperimentStore durable (Wave 10.4, L2); EvolveEngine writes EvolutionExperiment on proposals; auto-calibration (routing influence) deferred to Wave 19. | Phase 3 partial |
 
 ---
 
-## Readiness Delta — H1 Baseline through Wave 18
+## Readiness Delta — H1 Baseline through Wave 24
 
-| Dimension | H1 (2026-04-25) | Wave 10 | Wave 12 | Wave 15 | Wave 18 | Driver (latest) |
-|---|---|---|---|---|---|---|
-| Execution Engine (TRACE) | 84% | 88% | 90% | 90% | 90% | Cross-loop stress (R5); gate spine (Wave 10.2) |
-| Memory Infrastructure (L0–L3) | 78% | 80% | 82% | 82% | 82% | Durable ledger + tenant-first query (Wave 9/10) |
-| Capability Plugin System | 75% | 82% | 85% | 87% | 87% | ExtensionRegistry + enforce fields (Wave 10.5) |
-| Knowledge Graph | 50% | 72% | 75% | 75% | 75% | SQLite backend default (Wave 10.5) |
-| Planning & Re-planning | 40% | 40% | 40% | 40% | 40% | P-4 deferred; no change |
-| Artifact / Output Contracts | 50% | 70% | 75% | 78% | 78% | ArtifactRegistry exec_ctx spine (Wave 10.4/10.5) |
-| Evolution & Feedback | 35% | 55% | 58% | 60% | 60% | ExperimentStore + EvolveEngine wired (Wave 10.4) |
-| Cross-Run State (Project) | 22% | 55% | 62% | 65% | 65% | project_id required + list_by_project (Wave 10.2) |
-| Ops / Documentation | 65% | 75% | 80% | 82% | 84% | 35 CI gates; recurrence ledger; vocab clean (W18) |
-| **Overall** | **59%** | **70%** | **74%** | **77%** | **80%** | Verified readiness 80.0 at Wave 18 functional HEAD |
+| Dimension | H1 (2026-04-25) | Wave 10 | Wave 12 | Wave 15 | Wave 18 | Wave 23 | Wave 24 | Driver (latest) |
+|---|---|---|---|---|---|---|---|---|
+| Execution Engine (TRACE) | 84% | 88% | 90% | 90% | 90% | 90% | 90% | Cross-loop stress (R5); gate spine (Wave 10.2) |
+| Memory Infrastructure (L0–L3) | 78% | 80% | 82% | 82% | 82% | 82% | **90%** | L1/L2 SQLite persistence + restart-survival (W24 Track E) |
+| Capability Plugin System | 75% | 82% | 85% | 87% | 87% | 87% | **92%** | Per-posture matrix wired; shell_exec prod-blocked (W24 Track D) |
+| Knowledge Graph | 50% | 72% | 75% | 75% | 75% | 75% | 75% | SQLite backend default (Wave 10.5); unchanged |
+| Planning & Re-planning | 40% | 40% | 40% | 40% | 40% | 40% | **50%** | P-4 PARTIAL: StageDirective wired in W25 Track M |
+| Artifact / Output Contracts | 50% | 70% | 75% | 78% | 78% | 82% | 82% | Content-addressed identity (W23 Track E); HD-4 tightened (W24) |
+| Evolution & Feedback | 35% | 55% | 58% | 60% | 60% | 60% | 60% | ExperimentStore + EvolveEngine wired (Wave 10.4) |
+| Cross-Run State (Project) | 22% | 55% | 62% | 65% | 65% | 72% | **85%** | 8 northbound routes + idempotency middleware + CLI (W24 Track I) |
+| Ops / Documentation | 65% | 75% | 80% | 82% | 84% | 88% | **92%** | PM2/systemd/Docker harness + operator runbook (W24 Track F) |
+| **Overall** | **59%** | **70%** | **74%** | **77%** | **80%** | **94.55%** | **≥95%** | Verified readiness ≥95 at Wave 24 HEAD (W24 manifest target) |
 
 ---
 
