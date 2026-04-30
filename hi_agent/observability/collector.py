@@ -566,6 +566,47 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Spine layer: total trace_id propagations through HTTP middleware.",
     ),
+    # w25-F: 8 new spine layer counters for previously unwired layers.
+    "hi_agent_spine_run_manager_total": _MetricDef(
+        "hi_agent_spine_run_manager_total",
+        "counter",
+        "Spine layer: total run_queued events (run_manager boundary).",
+    ),
+    "hi_agent_spine_tenant_context_total": _MetricDef(
+        "hi_agent_spine_tenant_context_total",
+        "counter",
+        "Spine layer: total per-request tenant context resolutions (tenant_context boundary).",
+    ),
+    "hi_agent_spine_reasoning_loop_total": _MetricDef(
+        "hi_agent_spine_reasoning_loop_total",
+        "counter",
+        "Spine layer: total reasoning-loop stage entries (reasoning_loop boundary).",
+    ),
+    "hi_agent_spine_capability_handler_total": _MetricDef(
+        "hi_agent_spine_capability_handler_total",
+        "counter",
+        "Spine layer: total capability handler dispatches (capability_handler boundary).",
+    ),
+    "hi_agent_spine_sync_bridge_total": _MetricDef(
+        "hi_agent_spine_sync_bridge_total",
+        "counter",
+        "Spine layer: total sync→async bridge dispatches (sync_bridge boundary).",
+    ),
+    "hi_agent_spine_http_transport_total": _MetricDef(
+        "hi_agent_spine_http_transport_total",
+        "counter",
+        "Spine layer: total outbound HTTP transport requests (http_transport boundary).",
+    ),
+    "hi_agent_spine_artifact_ledger_total": _MetricDef(
+        "hi_agent_spine_artifact_ledger_total",
+        "counter",
+        "Spine layer: total artifact registrations in ArtifactLedger (artifact_ledger boundary).",
+    ),
+    "hi_agent_spine_event_store_total": _MetricDef(
+        "hi_agent_spine_event_store_total",
+        "counter",
+        "Spine layer: total events persisted to SQLiteEventStore (event_store boundary).",
+    ),
 }
 
 # Maximum samples retained for histogram-like metrics.

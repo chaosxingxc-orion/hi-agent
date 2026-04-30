@@ -12,6 +12,9 @@ Spine layers covered here (AX-A4 additions):
   - heartbeat_renewed   — dispatched by RunManager._heartbeat_loop on renewal
   - trace_id_propagated — dispatched by TraceIdMiddleware per HTTP request
 
+Spine layers added (w25-F): run_manager, tenant_context, reasoning_loop,
+  capability_handler, sync_bridge, http_transport, artifact_ledger, event_store
+
 Directive telemetry (M.5 additions):
   - stage_skipped       — dispatched by run_linear/run_graph directive handler (skip)
   - stage_inserted      — dispatched by run_linear/run_resume directive handler (insert)
@@ -36,6 +39,16 @@ _trace_id_counter = Counter("hi_agent_spine_trace_id_propagated_total")
 _stage_skipped_counter = Counter("hi_agent_spine_stage_skipped_total")
 _stage_inserted_counter = Counter("hi_agent_spine_stage_inserted_total")
 _stage_replanned_counter = Counter("hi_agent_spine_stage_replanned_total")
+
+# w25-F: counters for 8 previously unwired layers
+_run_manager_counter = Counter("hi_agent_spine_run_manager_total")
+_tenant_context_counter = Counter("hi_agent_spine_tenant_context_total")
+_reasoning_loop_counter = Counter("hi_agent_spine_reasoning_loop_total")
+_capability_handler_counter = Counter("hi_agent_spine_capability_handler_total")
+_sync_bridge_counter = Counter("hi_agent_spine_sync_bridge_total")
+_http_transport_counter = Counter("hi_agent_spine_http_transport_total")
+_artifact_ledger_counter = Counter("hi_agent_spine_artifact_ledger_total")
+_event_store_counter = Counter("hi_agent_spine_event_store_total")
 
 
 def emit_llm_call(*, tenant_id: str = "", profile_id: str = "") -> None:
@@ -109,6 +122,85 @@ def emit_trace_id_propagated(*, trace_id: str = "", tenant_id: str = "") -> None
     )
 
 
+def emit_run_manager(*, tenant_id: str = "", run_id: str = "") -> None:
+    """Emit when a run is enqueued by RunManager (run_queued lifecycle boundary)."""
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+        _run_manager_counter.labels().inc()
+    _logger.debug(
+        "spine.run_manager run=%s",
+        run_id[:8] if run_id else "none",
+        extra={"tenant_id": tenant_id},
+    )
+
+
+def emit_tenant_context(*, tenant_id: str = "") -> None:
+    """Emit when per-request tenant context is resolved (middleware boundary)."""
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+        _tenant_context_counter.labels().inc()
+    _logger.debug("spine.tenant_context", extra={"tenant_id": tenant_id})
+
+
+def emit_reasoning_loop(*, tenant_id: str = "", run_id: str = "") -> None:
+    """Emit at the entry of each reasoning-loop stage (lease_acquired boundary)."""
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+        _reasoning_loop_counter.labels().inc()
+    _logger.debug(
+        "spine.reasoning_loop run=%s",
+        run_id[:8] if run_id else "none",
+        extra={"tenant_id": tenant_id},
+    )
+
+
+def emit_capability_handler(
+    *, tool_name: str = "", tenant_id: str = "", run_id: str = ""
+) -> None:
+    """Emit when a capability handler is dispatched (heartbeat-renewal boundary)."""
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+        _capability_handler_counter.labels(tool=tool_name or "unknown").inc()
+    _logger.debug(
+        "spine.capability_handler tool=%s run=%s",
+        tool_name,
+        run_id[:8] if run_id else "none",
+        extra={"tenant_id": tenant_id},
+    )
+
+
+def emit_sync_bridge(*, tenant_id: str = "") -> None:
+    """Emit when the sync→async bridge dispatches a coroutine."""
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+        _sync_bridge_counter.labels().inc()
+    _logger.debug("spine.sync_bridge", extra={"tenant_id": tenant_id})
+
+
+def emit_http_transport(*, tenant_id: str = "", profile_id: str = "") -> None:
+    """Emit when an outbound HTTP request is sent by the LLM transport layer."""
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+        _http_transport_counter.labels(profile=profile_id or "unknown").inc()
+    _logger.debug("spine.http_transport", extra={"tenant_id": tenant_id})
+
+
+def emit_artifact_ledger(*, tenant_id: str = "", run_id: str = "") -> None:
+    """Emit when an artifact is registered in the ArtifactLedger."""
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+        _artifact_ledger_counter.labels().inc()
+    _logger.debug(
+        "spine.artifact_ledger run=%s",
+        run_id[:8] if run_id else "none",
+        extra={"tenant_id": tenant_id},
+    )
+
+
+def emit_event_store(*, tenant_id: str = "", run_id: str = "") -> None:
+    """Emit when an event is successfully persisted to the EventStore."""
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+        _event_store_counter.labels().inc()
+    _logger.debug(
+        "spine.event_store run=%s",
+        run_id[:8] if run_id else "none",
+        extra={"tenant_id": tenant_id},
+    )
+
+
 def emit_stage_skipped(
     run_id: str,
     stage_id: str,
@@ -117,16 +209,7 @@ def emit_stage_skipped(
     reason: str | None = None,
     correlation_id: str | None = None,
 ) -> None:
-    """Emit when a stage is removed from the run plan via a skip directive.
-
-    Args:
-        run_id: Run identifier for log attribution (not a counter label).
-        stage_id: The stage that issued the skip directive.
-        target_stage_id: The stage that was skipped.
-        posture: Active posture name for log attribution.
-        reason: Human-readable reason from the directive, if any.
-        correlation_id: Optional correlation token for cross-event linking.
-    """
+    """Emit when a stage is removed from the run plan via a skip directive."""
     with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
         _stage_skipped_counter.labels(posture=posture or "unknown").inc()
     _logger.debug(
@@ -147,16 +230,7 @@ def emit_stage_inserted(
     reason: str | None = None,
     correlation_id: str | None = None,
 ) -> None:
-    """Emit when a new stage is inserted into the run plan via an insert directive.
-
-    Args:
-        run_id: Run identifier for log attribution (not a counter label).
-        anchor_stage_id: The anchor stage after which the new stage is inserted.
-        new_stage_id: The new stage that was inserted.
-        posture: Active posture name for log attribution.
-        reason: Human-readable reason from the directive, if any.
-        correlation_id: Optional correlation token for cross-event linking.
-    """
+    """Emit when a new stage is inserted into the run plan via an insert directive."""
     with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
         _stage_inserted_counter.labels(posture=posture or "unknown").inc()
     _logger.debug(
@@ -178,17 +252,7 @@ def emit_stage_replanned(
     reason: str | None = None,
     correlation_id: str | None = None,
 ) -> None:
-    """Emit when a skip_to or repeat directive changes the stage traversal plan.
-
-    Args:
-        run_id: Run identifier for log attribution (not a counter label).
-        action: Directive action that triggered the replan (e.g. "skip_to", "repeat").
-        from_stage: The stage that issued the directive.
-        to_stage: The target stage after replanning.
-        posture: Active posture name for log attribution.
-        reason: Human-readable reason from the directive, if any.
-        correlation_id: Optional correlation token for cross-event linking.
-    """
+    """Emit when a skip_to or repeat directive changes the stage traversal plan."""
     with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
         _stage_replanned_counter.labels(
             action=action or "unknown", posture=posture or "unknown"
@@ -205,11 +269,19 @@ def emit_stage_replanned(
 
 
 __all__ = [
+    "emit_artifact_ledger",
+    "emit_capability_handler",
+    "emit_event_store",
     "emit_heartbeat_renewed",
+    "emit_http_transport",
     "emit_llm_call",
+    "emit_reasoning_loop",
+    "emit_run_manager",
     "emit_stage_inserted",
     "emit_stage_replanned",
     "emit_stage_skipped",
+    "emit_sync_bridge",
+    "emit_tenant_context",
     "emit_tool_call",
     "emit_trace_id_propagated",
 ]

@@ -173,6 +173,14 @@ class ArtifactLedger:
                     f.write(json.dumps(artifact.to_dict(), default=str) + "\n")
                     f.flush()
                     os.fsync(f.fileno())
+            # w25-F: spine tap for artifact_ledger layer
+            try:
+                from hi_agent.observability.spine_events import emit_artifact_ledger
+                emit_artifact_ledger(
+                    tenant_id=getattr(artifact, "tenant_id", "") or "",
+                )
+            except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+                pass
 
     def store(self, artifact: Artifact) -> None:
         """Alias for register() — satisfies ArtifactRegistry interface."""

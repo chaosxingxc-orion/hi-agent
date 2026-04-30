@@ -219,6 +219,12 @@ class StageExecutor:
             "stage_started",
             {"run_id": executor.run_id, "stage_id": stage_id},
         )
+        # w25-F: spine tap for reasoning_loop layer
+        try:
+            from hi_agent.observability.spine_events import emit_reasoning_loop
+            emit_reasoning_loop(run_id=executor.run_id)
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+            pass
         executor._persist_snapshot(stage_id=stage_id)
         executor._watchdog_reset()
 

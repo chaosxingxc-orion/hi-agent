@@ -154,6 +154,10 @@ class SyncBridge:
         """
         self._ensure_started()
         assert self._loop is not None  # set before _ready.set()
+        # w25-F: spine tap for sync_bridge layer
+        with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+            from hi_agent.observability.spine_events import emit_sync_bridge
+            emit_sync_bridge()
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return future.result(timeout=timeout)
 

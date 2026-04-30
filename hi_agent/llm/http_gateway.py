@@ -112,7 +112,7 @@ class HttpLLMGateway:
             LLMBudgetExhaustedError: If the configured budget tracker signals exhaustion.
         """
         from hi_agent.observability.fallback import record_llm_request
-        from hi_agent.observability.spine_events import emit_llm_call
+        from hi_agent.observability.spine_events import emit_http_transport, emit_llm_call
         from hi_agent.server.fault_injection import get_fault_injector
 
         get_fault_injector().maybe_raise_llm_timeout_sync()
@@ -123,6 +123,8 @@ class HttpLLMGateway:
             run_id=_run_id_for_event,
         )
         emit_llm_call(tenant_id="", profile_id="")
+        # w25-F: spine tap for http_transport layer
+        emit_http_transport(tenant_id="", profile_id="")
         # Emit llm_call event to EventBus (-> SQLiteEventStore) at call boundary.
         try:
             import datetime as _dt
