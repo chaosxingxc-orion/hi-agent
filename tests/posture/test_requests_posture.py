@@ -21,17 +21,23 @@ from hi_agent.config.posture import Posture
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
 def test_start_run_request_instantiates_under_posture(monkeypatch, posture_name):
-    """StartRunRequest must be instantiable with required fields under all postures."""
+    """StartRunRequest must be instantiable with required fields under all postures.
+
+    Under research/prod the spine field tenant_id is required (Rule 12).
+    Under dev empty tenant_id only emits a warning (back-compat).
+    """
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     from hi_agent.contracts.requests import StartRunRequest
 
     posture = Posture.from_env()
     assert posture == Posture(posture_name)
 
-    req = StartRunRequest(task_contract={"goal": "test"})
+    tenant_id = "" if posture_name == "dev" else "tenant-test"
+    req = StartRunRequest(task_contract={"goal": "test"}, tenant_id=tenant_id)
     assert req.task_contract == {"goal": "test"}
     assert req.task_family == "quick_task"
     assert req.profile_id is None
+    assert req.tenant_id == tenant_id
 
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
@@ -50,14 +56,19 @@ def test_start_run_request_requires_task_contract(monkeypatch, posture_name):
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
 def test_start_run_response_instantiates_under_posture(monkeypatch, posture_name):
-    """StartRunResponse must be instantiable with required fields under all postures."""
+    """StartRunResponse must be instantiable with required fields under all postures.
+
+    Under research/prod the spine field tenant_id is required (Rule 12).
+    """
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     from hi_agent.contracts.requests import StartRunResponse
     from hi_agent.contracts.run import RunState
 
-    resp = StartRunResponse(run_id="run-123")
+    tenant_id = "" if posture_name == "dev" else "tenant-test"
+    resp = StartRunResponse(run_id="run-123", tenant_id=tenant_id)
     assert resp.run_id == "run-123"
     assert resp.status == RunState.CREATED
+    assert resp.tenant_id == tenant_id
 
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])

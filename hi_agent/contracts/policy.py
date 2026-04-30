@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+# scope: process-internal — pure value object (policy descriptor)
 @dataclass(frozen=True)
 class PolicyVersionSet:
     """Policy versions bound to one run context.
@@ -30,6 +31,7 @@ class PolicyVersionSet:
     skill_policy: str = "skill_v1"
 
 
+# scope: process-internal — pure value object (skill descriptor metadata)
 @dataclass(frozen=True)
 class SkillContentSpec:
     """Snapshot of skill content metadata for deterministic replay.

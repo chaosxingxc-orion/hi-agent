@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+# scope: process-internal — pure value object (CLAUDE.md Rule 12 carve-out)
 @dataclass(frozen=True)
 class CTSBudget:
     """Token budget allocation for layered context.
@@ -25,6 +26,7 @@ class CTSBudget:
         return self.l0_raw_tokens + self.l1_summary_tokens + self.l2_index_tokens
 
 
+# scope: process-internal — pure value object (CLAUDE.md Rule 12 carve-out)
 @dataclass(frozen=True)
 class CTSBudgetTemplate:
     """Reusable budget template by task family."""
@@ -33,6 +35,7 @@ class CTSBudgetTemplate:
     budget: CTSBudget
 
 
+# scope: process-internal — pure value object (CLAUDE.md Rule 12 carve-out)
 @dataclass(frozen=True)
 class CTSExplorationBudget:
     """Budget constraints governing the Constrained Trajectory Space.

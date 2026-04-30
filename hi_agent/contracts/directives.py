@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
+# scope: process-internal — directive value object (CLAUDE.md Rule 12 carve-out)
 @dataclass
 class StageDirective:
     """Returned by a replan_hook to signal how the execute() loop should proceed.

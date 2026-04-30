@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+# scope: process-internal — pure value object (CLAUDE.md Rule 12 carve-out)
 @dataclass
 class Provenance:
     """Structured source reference attached to memory entries and capability outputs.

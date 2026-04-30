@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from hi_agent.artifacts.contracts import Artifact
 
 
+# scope: process-internal — pure value object (CLAUDE.md Rule 12 carve-out)
 @dataclass
 class ConfidenceInputs:
     """Generic signals available when scoring an artifact's confidence.

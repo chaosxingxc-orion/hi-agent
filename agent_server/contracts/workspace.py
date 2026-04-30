@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+# scope: process-internal — content-hash value object; carriers hold tenant_id
 @dataclass(frozen=True)
 class ContentHash:
     """SHA-256 content address for an object."""

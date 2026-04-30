@@ -26,6 +26,7 @@ class NodeState(StrEnum):
     FAILED = "failed"
 
 
+# scope: process-internal — pure value object (CLAUDE.md Rule 12 carve-out)
 @dataclass
 class TrajectoryNode:
     """A node in trajectory DAG."""

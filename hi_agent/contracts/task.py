@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+# scope: process-internal — budget value object; parent TaskContract carries spine
 @dataclass
 class TaskBudget:
     """Execution budget limits for a single task run.

@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 
+# scope: process-internal — role descriptor; tenant scope flows through TeamSharedContext/TeamRun
 @dataclass(frozen=True)
 class AgentRole:
     """Declares the identity, capabilities, and memory scope of one agent in a team."""
@@ -108,3 +109,19 @@ class TeamRunSpec:
     replan_policy: dict = field(
         default_factory=dict
     )  # e.g. {"allowed": True, "approval_required_after": 2}
+    tenant_id: str = ""  # scope: spine-required — validated under research/prod posture
+
+    def __post_init__(self) -> None:
+        if self.tenant_id:
+            return
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict:
+            raise ValueError(
+                "TeamRunSpec.tenant_id required under research/prod posture (got empty string)"
+            )
+        warnings.warn(
+            "TeamRunSpec constructed with empty tenant_id; rejected under research/prod posture.",
+            DeprecationWarning,
+            stacklevel=2,
+        )

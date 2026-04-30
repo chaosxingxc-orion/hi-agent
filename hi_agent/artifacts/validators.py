@@ -15,6 +15,7 @@ class _HasPaperId(Protocol):
     paper_id: str
 
 
+# scope: process-internal — pure value object (CLAUDE.md Rule 12 carve-out)
 @dataclass
 class ValidationResult:
     """Result of an artifact validation check."""

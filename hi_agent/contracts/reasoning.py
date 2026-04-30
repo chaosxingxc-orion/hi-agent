@@ -18,6 +18,7 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+# scope: process-internal — step value object; parent ReasoningTrace carries spine
 @dataclass
 class ReasoningStep:
     """A single step in a structured reasoning trace.

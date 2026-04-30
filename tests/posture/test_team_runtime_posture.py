@@ -118,16 +118,21 @@ def test_team_run_requires_tenant_id(monkeypatch, posture_name):
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
 def test_team_run_spec_instantiates_under_posture(monkeypatch, posture_name):
-    """TeamRunSpec must be instantiable with required fields under all postures."""
+    """TeamRunSpec must be instantiable with required fields under all postures.
+
+    Under research/prod the spine field tenant_id is required (Rule 12).
+    """
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     from hi_agent.contracts.team_runtime import TeamRunSpec
 
-    spec = TeamRunSpec(team_id="t1", project_id="p1", profile_id="prof1")
+    tenant_id = "" if posture_name == "dev" else "tenant-abc"
+    spec = TeamRunSpec(team_id="t1", project_id="p1", profile_id="prof1", tenant_id=tenant_id)
     assert spec.team_id == "t1"
     assert spec.project_id == "p1"
     assert spec.profile_id == "prof1"
     assert spec.roles == ()
     assert spec.phases == ()
+    assert spec.tenant_id == tenant_id
 
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
@@ -137,5 +142,9 @@ def test_team_run_spec_with_roles_under_posture(monkeypatch, posture_name):
     from hi_agent.contracts.team_runtime import AgentRole, TeamRunSpec
 
     roles = (AgentRole(role_id="r1", role_name="lead"),)
-    spec = TeamRunSpec(team_id="t1", project_id="p1", profile_id="prof1", roles=roles)
+    tenant_id = "" if posture_name == "dev" else "tenant-abc"
+    spec = TeamRunSpec(
+        team_id="t1", project_id="p1", profile_id="prof1", roles=roles, tenant_id=tenant_id
+    )
     assert len(spec.roles) == 1
+    assert spec.tenant_id == tenant_id

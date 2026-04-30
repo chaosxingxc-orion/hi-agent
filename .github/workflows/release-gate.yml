@@ -134,6 +134,9 @@ jobs:
       - name: Check observability spine completeness (W14-B8)
         run: python scripts/check_observability_spine_completeness.py --json
 
+      - name: Check contract spine completeness (W23-D / Rule 12)
+        run: python scripts/check_contract_spine_completeness.py --json
+
       - name: Check soak evidence (W14-C2)
         run: python scripts/check_soak_evidence.py --json
 

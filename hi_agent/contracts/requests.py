@@ -2,12 +2,36 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from hi_agent.contracts.branch import BranchState
 from hi_agent.contracts.execution_provenance import ExecutionProvenance
 from hi_agent.contracts.run import RunState
+
+_logger = logging.getLogger(__name__)
+
+
+def _validate_tenant_id(obj_name: str, tenant_id: str) -> None:
+    """Posture-aware validator for required tenant_id (Rule 11, Rule 12).
+
+    Under research/prod: raise ValueError on empty tenant_id.
+    Under dev: emit deprecation warning, allow construction.
+    """
+    if tenant_id:
+        return
+    from hi_agent.config.posture import Posture
+
+    if Posture.from_env().is_strict:
+        raise ValueError(
+            f"{obj_name}.tenant_id required under research/prod posture (got empty string)"
+        )
+    _logger.warning(
+        "%s constructed with empty tenant_id; will be rejected under research/prod posture "
+        "(Rule 12 contract spine).",
+        obj_name,
+    )
 
 
 @dataclass(frozen=True)
@@ -18,6 +42,10 @@ class StartRunRequest:
     task_family: str = "quick_task"
     config: dict[str, Any] = field(default_factory=dict)
     profile_id: str | None = None
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
+
+    def __post_init__(self) -> None:
+        _validate_tenant_id("StartRunRequest", self.tenant_id)
 
 
 @dataclass(frozen=True)
@@ -26,6 +54,10 @@ class StartRunResponse:
 
     run_id: str
     status: RunState = RunState.CREATED
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
+
+    def __post_init__(self) -> None:
+        _validate_tenant_id("StartRunResponse", self.tenant_id)
 
 
 @dataclass(frozen=True)
@@ -35,6 +67,10 @@ class SignalRunRequest:
     run_id: str
     signal_type: str
     payload: dict[str, Any] = field(default_factory=dict)
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
+
+    def __post_init__(self) -> None:
+        _validate_tenant_id("SignalRunRequest", self.tenant_id)
 
 
 @dataclass(frozen=True)
@@ -46,6 +82,10 @@ class QueryRunResponse:
     current_stage: str | None = None
     active_branches: list[str] = field(default_factory=list)
     events_count: int = 0
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
+
+    def __post_init__(self) -> None:
+        _validate_tenant_id("QueryRunResponse", self.tenant_id)
 
 
 @dataclass(frozen=True)
@@ -56,6 +96,10 @@ class TraceRuntimeView:
     stage_graph_snapshot: dict[str, Any] = field(default_factory=dict)
     trajectory_snapshot: dict[str, Any] = field(default_factory=dict)
     memory_summary: dict[str, Any] = field(default_factory=dict)
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
+
+    def __post_init__(self) -> None:
+        _validate_tenant_id("TraceRuntimeView", self.tenant_id)
 
 
 @dataclass(frozen=True)
@@ -66,6 +110,10 @@ class OpenBranchRequest:
     stage_id: str
     branch_id: str
     rationale: str = ""
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
+
+    def __post_init__(self) -> None:
+        _validate_tenant_id("OpenBranchRequest", self.tenant_id)
 
 
 @dataclass(frozen=True)
@@ -76,6 +124,10 @@ class BranchStateUpdateRequest:
     branch_id: str
     target_state: BranchState
     failure_code: str | None = None
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
+
+    def __post_init__(self) -> None:
+        _validate_tenant_id("BranchStateUpdateRequest", self.tenant_id)
 
 
 @dataclass(frozen=True)
@@ -103,6 +155,10 @@ class ApprovalRequest:
     run_id: str = ""
     reviewer_id: str = ""
     comment: str = ""
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
+
+    def __post_init__(self) -> None:
+        _validate_tenant_id("ApprovalRequest", self.tenant_id)
 
 
 @dataclass(frozen=True)
@@ -112,6 +168,10 @@ class KernelManifest:
     version: str = "0.1.0"
     supported_substrates: list[str] = field(default_factory=list)
     capabilities: list[str] = field(default_factory=list)
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
+
+    def __post_init__(self) -> None:
+        _validate_tenant_id("KernelManifest", self.tenant_id)
 
 
 @dataclass

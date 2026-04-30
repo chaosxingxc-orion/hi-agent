@@ -18,6 +18,7 @@ CONTRACT_VERSION = "2026-04-17"
 _logger = logging.getLogger(__name__)
 
 
+# scope: process-internal — per-stage provenance value object
 @dataclass(frozen=True)
 class StageProvenance:
     """Per-stage provenance snapshot — HI-W2-001."""
@@ -43,6 +44,7 @@ class StageProvenance:
         }
 
 
+# scope: process-internal — provenance value object aggregated into RunResult (which carries spine)
 @dataclass(frozen=True)
 class ExecutionProvenance:
     contract_version: str
