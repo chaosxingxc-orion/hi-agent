@@ -1,0 +1,213 @@
+{
+  "release_head": "cf9498f",
+  "verified_head": "cf9498f2fb130d5f1cd7df98361f904688b8da37",
+  "check": "soak_evidence",
+  "provenance": "shape_1h",
+  "requested_duration_label": "5m",
+  "requested_duration_seconds": 300,
+  "start_time": "2026-04-30T05:46:04.500711+00:00",
+  "end_time": "2026-04-30T05:51:05.884707+00:00",
+  "duration_seconds": 300.001,
+  "status": "completed",
+  "server_pid": 96356,
+  "server_log_path": "D:\\chao_workspace\\hi-agent\\docs\\verification\\soak-logs\\server-9083-1777527964.log",
+  "runs_submitted": 10,
+  "runs_completed": 10,
+  "runs_failed": 0,
+  "lost_runs": 0,
+  "duplicate_run_ids": 0,
+  "llm_fallback_count": 0,
+  "stage_observed_misses": [],
+  "finished_at_misses": [],
+  "invariants_held": true,
+  "invariant_details": {
+    "no_lost_runs": {
+      "passed": true,
+      "value": 0
+    },
+    "no_duplicates": {
+      "passed": true,
+      "value": 0
+    },
+    "llm_fallback_zero": {
+      "passed": true,
+      "value": 0
+    },
+    "stage_observed_within_30s": {
+      "passed": true,
+      "value": []
+    },
+    "finished_at_populated": {
+      "passed": true,
+      "value": []
+    }
+  },
+  "health_samples": [
+    {
+      "ts": "2026-04-30T05:46:35.897257+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": "2026-04-30T05:47:05.902580+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": "2026-04-30T05:47:35.909698+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": "2026-04-30T05:48:05.913699+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": "2026-04-30T05:48:35.919962+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": "2026-04-30T05:49:05.933803+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": "2026-04-30T05:49:35.939641+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": "2026-04-30T05:50:05.947887+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": "2026-04-30T05:50:35.953381+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    },
+    {
+      "ts": "2026-04-30T05:51:05.962188+00:00",
+      "rss_mb": 0.0,
+      "cpu_pct": 0.0
+    }
+  ],
+  "results": [
+    {
+      "run_index": 0,
+      "run_id": "71760be5-a323-49a5-afc1-58cddc0f1d9d",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:46:06.181103+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.722,
+      "error": null
+    },
+    {
+      "run_index": 1,
+      "run_id": "2bf1dd0b-e6ac-48a1-bcfb-f28fe56c447e",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:46:37.078919+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.845,
+      "error": null
+    },
+    {
+      "run_index": 2,
+      "run_id": "5b53b6a8-449c-46f0-9d53-f9a761a408c6",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:47:07.973057+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.893,
+      "error": null
+    },
+    {
+      "run_index": 3,
+      "run_id": "f11d8f10-7a18-4f53-b9f5-36fe0fc19c5e",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:47:38.748947+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.794,
+      "error": null
+    },
+    {
+      "run_index": 4,
+      "run_id": "11c90a4f-ee21-495c-8bef-965e909016e0",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:48:09.485857+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.738,
+      "error": null
+    },
+    {
+      "run_index": 5,
+      "run_id": "790a8b3d-9975-4eb9-bef1-d9c0c6d39db0",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:48:40.288584+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.757,
+      "error": null
+    },
+    {
+      "run_index": 6,
+      "run_id": "789edc90-d14b-45e2-8ead-d96e1558ced0",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:49:11.290071+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.959,
+      "error": null
+    },
+    {
+      "run_index": 7,
+      "run_id": "2d583e4b-7f05-41d6-8c38-ee2e1e3c66d5",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:49:42.034476+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.82,
+      "error": null
+    },
+    {
+      "run_index": 8,
+      "run_id": "56a955fa-7884-4d68-b689-172540062ef8",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:50:12.777331+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.752,
+      "error": null
+    },
+    {
+      "run_index": 9,
+      "run_id": "3e34f722-bd59-4a3c-bb2b-dcb104f0f88b",
+      "state": "completed",
+      "stage_first_seen_seconds": null,
+      "terminal_stage_count": 5,
+      "finished_at": "2026-04-30T05:50:43.728671+00:00",
+      "poll_count": 2,
+      "duration_seconds": 0.759,
+      "error": null
+    }
+  ],
+  "notes": [
+    "server spawned: pid=96356 log=D:\\chao_workspace\\hi-agent\\docs\\verification\\soak-logs\\server-9083-1777527964.log",
+    "server stopped: exit_code=1"
+  ]
+}

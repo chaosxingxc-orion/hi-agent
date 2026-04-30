@@ -141,6 +141,13 @@ cap_rules:
     description: "Real 24h soak evidence missing or stale"
     requires_real_run_by: "Wave 22"
     lifecycle_note: "Architectural constraint; deferred until platform reaches continuous operational status; not an engineering defect"
+  - condition: soak_24h_pending
+    cap: 80
+    factor: soak_24h_pending
+    scope: [seven_by_twenty_four_operational_readiness]
+    description: "Real 1h soak evidence present with invariants_held; 24h soak still pending (partial_1h credit)"
+    requires_real_run_by: "Wave 25"
+    lifecycle_note: "W24-C partial credit; cap should lift to 'pass' once 24h soak completes"
   - condition: observability_spine_incomplete
     cap: 70
     factor: observability_spine_incomplete

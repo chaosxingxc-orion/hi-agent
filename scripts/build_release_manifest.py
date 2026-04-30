@@ -492,9 +492,20 @@ def _compute_cap(
                         return f"provenance_unknown_or_synthetic: {json_file.name}={matched}"
             return None
         if condition == "soak_24h_missing":
+            # W24-C: partial_1h status grants 1h credit and is handled by the
+            # separate `soak_24h_pending` rule (cap 80). Only fire missing when
+            # status is neither `pass` nor `partial_1h`.
             soak_gate = gates.get("soak_evidence")
             soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"
-            return f"soak_24h_missing: {soak_status}" if soak_status != "pass" else None
+            if soak_status in ("pass", "partial_1h"):
+                return None
+            return f"soak_24h_missing: {soak_status}"
+        if condition == "soak_24h_pending":
+            # W24-C: real 1h soak evidence with invariants_held grants partial
+            # credit — caps 7x24 readiness at 80 (from 65 under missing).
+            soak_gate = gates.get("soak_evidence")
+            soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"
+            return f"soak_24h_pending: {soak_status}" if soak_status == "partial_1h" else None
         if condition == "observability_spine_incomplete":
             spine_gate = gates.get("observability_spine_completeness")
             spine_status = spine_gate.get("status", "unknown") if isinstance(spine_gate, dict) else "unknown"
