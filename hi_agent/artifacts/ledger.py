@@ -18,6 +18,7 @@ from hi_agent.artifacts.metrics import (
     legacy_tenantless_visible_total,
 )
 from hi_agent.observability.metric_counter import Counter
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 _logger = logging.getLogger(__name__)
 _ledger_errors_total = Counter("hi_agent_ledger_errors_total")
@@ -112,8 +113,12 @@ class ArtifactLedger:
                         collector = get_metrics_collector()
                         if collector is not None:
                             collector.increment("hi_agent_artifact_corrupt_line_total")
-                    except Exception:  # rule7-exempt: expiry_wave="Wave 22"
-                        pass
+                    except Exception as exc:
+                        record_silent_degradation(
+                            component="artifacts.ledger.ArtifactLedger._load",
+                            reason="corrupt_line_counter_increment_failed",
+                            exc=exc,
+                        )
 
     def register(self, artifact: Artifact) -> None:
         """Persist artifact to the ledger and update in-memory index.

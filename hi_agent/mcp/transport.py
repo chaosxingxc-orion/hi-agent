@@ -26,6 +26,8 @@ import threading
 import time
 from typing import Any
 
+from hi_agent.observability.silent_degradation import record_silent_degradation
+
 logger = logging.getLogger(__name__)
 
 _REQUEST_TIMEOUT = 30.0  # seconds to wait for a single tool response
@@ -54,8 +56,12 @@ def _bump_closed_fd_counter() -> None:
         _mc = get_metrics_collector()
         if _mc is not None:
             _mc.increment("mcp_transport_closed_fd_total")
-    except Exception:  # rule7-exempt: expiry_wave="Wave 25" replacement_test: hd8-tests
-        pass
+    except Exception as exc:
+        record_silent_degradation(
+            component="mcp.transport._increment_closed_fd_counter",
+            reason="metrics_increment_failed",
+            exc=exc,
+        )
 
 
 class StdioMCPTransport:
@@ -287,8 +293,12 @@ class StdioMCPTransport:
                     self._proc.stdin.close()
                     self._proc.terminate()
                     self._proc.wait(timeout=5)
-                except Exception:  # rule7-exempt: expiry_wave="Wave 22"
-                    pass
+                except Exception as exc:
+                    record_silent_degradation(
+                        component="mcp.transport.StdioMCPTransport.close",
+                        reason="subprocess_terminate_failed",
+                        exc=exc,
+                    )
                 finally:
                     self._proc = None
             threads, self._subprocess_threads = self._subprocess_threads, []
@@ -305,8 +315,12 @@ class StdioMCPTransport:
                     _mc = get_metrics_collector()
                     if _mc is not None:
                         _mc.increment("hi_agent_mcp_thread_join_timeout_total")
-                except Exception:  # rule7-exempt: expiry_wave="Wave 22"
-                    pass
+                except Exception as exc:
+                    record_silent_degradation(
+                        component="mcp.transport.StdioMCPTransport.close",
+                        reason="thread_join_metrics_failed",
+                        exc=exc,
+                    )
 
     # ------------------------------------------------------------------
     # Internal
@@ -323,8 +337,12 @@ class StdioMCPTransport:
                     else:
                         line = raw.rstrip(b"\n").decode("utf-8", errors="replace")
                     buf.append(line)
-            except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
-                pass  # Process closed — exit quietly
+            except Exception as exc:
+                record_silent_degradation(
+                    component="mcp.transport.StdioMCPTransport._start_stderr_reader",
+                    reason="stderr_read_failed",
+                    exc=exc,
+                )
 
         self._stderr_thread = threading.Thread(
             target=_read_stderr,
@@ -406,8 +424,12 @@ class StdioMCPTransport:
                         success=False,
                         error=str(exc),
                     )
-                except Exception:  # rule7-exempt: expiry_wave="Wave 22"
-                    pass
+                except Exception as exc2:
+                    record_silent_degradation(
+                        component="mcp.transport.StdioMCPTransport._ensure_running",
+                        reason="audit_emit_restart_failed",
+                        exc=exc2,
+                    )
             raise MCPTransportError(
                 f"Failed to spawn MCP server command {self._command!r}: {exc}"
             ) from exc
@@ -423,8 +445,12 @@ class StdioMCPTransport:
                     self._restart_attempts,
                     success=True,
                 )
-            except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
-                pass
+            except Exception as exc:
+                record_silent_degradation(
+                    component="mcp.transport.StdioMCPTransport._ensure_running",
+                    reason="audit_emit_success_restart_failed",
+                    exc=exc,
+                )
         self._restart_attempts += 1
         if self._restart_attempts >= _MAX_RESTART_ATTEMPTS:
             self._unavailable = True

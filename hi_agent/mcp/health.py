@@ -8,9 +8,10 @@ provided, the last recorded registry status is returned unchanged.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from typing import Any
+
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +92,20 @@ class MCPHealth:
             try:
                 stderr_tail = self._transport.get_stderr_tail()
             except TypeError:
-                with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
+                try:
                     stderr_tail = self._transport.get_stderr_tail(server_id)
-            except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
-                pass
+                except Exception as exc:
+                    record_silent_degradation(
+                        component="mcp.health.MCPHealth._check_server",
+                        reason="get_stderr_tail_with_server_id_failed",
+                        exc=exc,
+                    )
+            except Exception as exc:
+                record_silent_degradation(
+                    component="mcp.health.MCPHealth._check_server",
+                    reason="get_stderr_tail_failed",
+                    exc=exc,
+                )
 
         error_keywords = ("error", "exception", "traceback", "fatal", "critical")
         has_stderr_errors = False

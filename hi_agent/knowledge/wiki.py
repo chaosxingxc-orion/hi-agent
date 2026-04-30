@@ -14,6 +14,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from hi_agent.observability.silent_degradation import record_silent_degradation
+
 logger = logging.getLogger(__name__)
 
 _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
@@ -220,8 +222,12 @@ class KnowledgeWiki:
                     delta = now - updated
                     if delta.days > 30:
                         issues.append(f"stale: '{page.page_id}' not updated in {delta.days} days")
-                except (ValueError, TypeError):  # rule7-exempt: expiry_wave="Wave 22"
-                    pass
+                except (ValueError, TypeError) as exc:
+                    record_silent_degradation(
+                        component="knowledge.wiki.WikiKnowledgeBase._check_staleness",
+                        reason="staleness_datetime_parse_failed",
+                        exc=exc,
+                    )
 
         return issues
 

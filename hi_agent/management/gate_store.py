@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, ClassVar
 from hi_agent.management.gate_api import GateRecord, GateStatus, InMemoryGateAPI
 from hi_agent.management.gate_context import GateContext
 from hi_agent.management.gate_timeout import GateTimeoutPolicy
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 if TYPE_CHECKING:
     from hi_agent.context.run_execution_context import RunExecutionContext
@@ -48,8 +49,12 @@ def _warn_unscoped_gate_read(
         )
     except ValueError:
         raise
-    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
-        # Posture lookup must never break reads.
+    except Exception as exc:
+        record_silent_degradation(
+            component="management.gate_store._check_tenant_scope",
+            reason="posture_lookup_failed",
+            exc=exc,
+        )
         return
 
 

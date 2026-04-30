@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from hi_agent.llm.protocol import LLMRequest
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 logger = logging.getLogger(__name__)
 
@@ -129,8 +130,12 @@ class AsyncMemoryCompressor:
                 run_id=run_id or "unknown",
                 extra=event_extra,
             )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
-            pass  # metrics must not crash caller — observability is best-effort
+        except Exception as exc:
+            record_silent_degradation(
+                component="memory.async_compressor.AsyncCompressor._emit_degradation_signal",
+                reason="record_fallback_failed",
+                exc=exc,
+            )
 
     async def compress(
         self,

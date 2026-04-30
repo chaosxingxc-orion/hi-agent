@@ -8,7 +8,6 @@ build a StageOrchestratorContext and delegate here.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import time
 from collections.abc import Callable
@@ -16,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 _logger = logging.getLogger(__name__)
 
@@ -220,16 +220,28 @@ class StageOrchestrator:
     def _execute_stage_with_events(self, stage_id: str) -> str | None:
         """Wrap execute_stage_fn with stage_start/stage_complete event publishing."""
         ctx = self._ctx
-        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
+        try:
             ctx.record_event_fn("stage_start", {"stage_name": stage_id})
+        except Exception as exc:
+            record_silent_degradation(
+                component="execution.stage_orchestrator.StageOrchestrator._execute_stage_with_events",
+                reason="record_stage_start_event_failed",
+                exc=exc,
+            )
         result = ctx.execute_stage_fn(stage_id)
-        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
+        try:
             ctx.record_event_fn(
                 "stage_complete",
                 {
                     "stage_name": stage_id,
                     "status": "failed" if result == "failed" else "success",
                 },
+            )
+        except Exception as exc:
+            record_silent_degradation(
+                component="execution.stage_orchestrator.StageOrchestrator._execute_stage_with_events",
+                reason="record_stage_complete_event_failed",
+                exc=exc,
             )
         return result
 

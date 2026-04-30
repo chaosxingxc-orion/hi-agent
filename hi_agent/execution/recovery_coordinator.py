@@ -10,6 +10,7 @@ from typing import Any
 
 from hi_agent.gate_protocol import GatePendingError
 from hi_agent.observability.metric_counter import Counter
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 _logger = logging.getLogger(__name__)
 _recovery_errors_total = Counter("hi_agent_recovery_coordinator_errors_total")
@@ -280,8 +281,12 @@ class RecoveryCoordinator:
                                 self._ctx.context_manager.set_reflection_context(
                                     prior_mem.task_goal or ""
                                 )
-                        except Exception:  # rule7-exempt: expiry_wave="Wave 22"
-                            pass  # best-effort
+                        except Exception as exc:
+                            record_silent_degradation(
+                                component="execution.recovery_coordinator.RecoveryCoordinator._load_prior_reflection",
+                                reason="load_prior_session_failed",
+                                exc=exc,
+                            )
 
                     # Inject reflection prompt into the run context so the next
                     # stage attempt has actionable guidance from the failure.

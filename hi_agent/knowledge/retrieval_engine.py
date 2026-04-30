@@ -32,6 +32,7 @@ from hi_agent.knowledge.wiki import KnowledgeWiki
 from hi_agent.memory.long_term import LongTermMemoryGraph
 from hi_agent.memory.mid_term import MidTermMemoryStore
 from hi_agent.memory.short_term import ShortTermMemoryStore
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 logger = logging.getLogger(__name__)
 
@@ -212,8 +213,12 @@ class RetrievalEngine:
             if self._injection_scanner is None:
                 self._injection_scanner = InjectionScanner()
             self._injection_scanner.scan_and_raise(content, source=source)
-        except ImportError:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
-            pass  # security module not available — skip scan
+        except ImportError as exc:
+            record_silent_degradation(
+                component="knowledge.retrieval_engine.RetrievalEngine._scan_for_injection",
+                reason="injection_scanner_import_failed",
+                exc=exc,
+            )
 
     def build_index(self) -> int:
         """Build TF-IDF index from all knowledge sources. Returns doc count.
