@@ -1,15 +1,15 @@
 {
   "digests": {
-    "agent_server/contracts/__init__.py": "e8ebc8a0fdc0b996cec39abd446021c162e166f24dcdad559a567f23c7554201",
-    "agent_server/contracts/errors.py": "4f9f853511191b00d89518464c3ca64556e053a3f0a4d712952d2f481600aff9",
-    "agent_server/contracts/gate.py": "5a2c457bec502d77e6d8bb1205a12302fc372914cbd28c050970aa7ab9ec90fe",
-    "agent_server/contracts/llm_proxy.py": "c0efd181d1c2464f0a83fbac5faae7227567c9681c4de35d6f364c9c1658b315",
-    "agent_server/contracts/memory.py": "6b408bd04b3a0d3eb233b8a995907d15c7b5731761db8e5fdc910828b2d3b554",
-    "agent_server/contracts/run.py": "b325c6f15cc1b0fd38792d08601da65096240cd1430bd4e2ec01977a7d6cf0e5",
-    "agent_server/contracts/skill.py": "712145796c13b379eda827253451390af86000092afdabfa83bf035ec19370f9",
-    "agent_server/contracts/streaming.py": "a91a869c82e97fac20996568debf0383d65bb9a26297ac33e0db4c1f1d63960f",
-    "agent_server/contracts/tenancy.py": "106ca10fd64524c16d17389e8d0e28c9135e423e4f21842e3c2276ca5d97f4f7",
+    "agent_server/contracts/__init__.py": "9b2a49eda70ae4fbd2540d304693599dd82e9020e2cd7962d706fd7eef2c4ae3",
+    "agent_server/contracts/errors.py": "5ecfb4cfbb93e347581967e636f2e7873a8c66e9d8651cb383b86cc622c11d6b",
+    "agent_server/contracts/gate.py": "93530fa4520dac5706c9ca8af2a0f02c54dd2a9e51d1162406e84bd62b5c3534",
+    "agent_server/contracts/llm_proxy.py": "d05c58711ee4c028c738a3faca6a80dbd94394bad50d90eb01498643f92e12bf",
+    "agent_server/contracts/memory.py": "c2ff512f2e5b930e17824ff7870b2b018d02e874b2f6c8aa62310bd91b0a0f7a",
+    "agent_server/contracts/run.py": "3aa5453e39461d3d718b6fceba62c3a4cc97692b386eb6f2888597d8405b3a9b",
+    "agent_server/contracts/skill.py": "2a705a967b787babac063ce43e002add9aafb04bf9020e8f0e4a2d191b00e095",
+    "agent_server/contracts/streaming.py": "e6eae2f62d4f19c9ab8e3e074c7f74345625aa451bf87679da1bfe31a3f01ebf",
+    "agent_server/contracts/tenancy.py": "c560c7239a4dde951931475239bf581e844c4dda02e43fe2d912f8d0d40b3f92",
     "agent_server/contracts/workspace.py": "202b97f59be44de51c1e847062d1ea5a20349693341f17f11bad0020629b019a"
   },
-  "v1_frozen_head": "224d369fc1439c5faeae3943bffaede4b6211841"
+  "v1_frozen_head": "475fc41bc1c7dc1a726bb97eae8ae2fe891ab22a"
 }
