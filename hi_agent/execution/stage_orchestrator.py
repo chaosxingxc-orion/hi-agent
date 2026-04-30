@@ -255,7 +255,7 @@ class StageOrchestrator:
         return self._run_loop(_traverse())
 
     def run_resume(self) -> Any:
-        """Resume execution: skip already-completed stages."""
+        """Resume execution: skip already-completed stages, then consult replan_hook."""
         ctx = self._ctx
 
         completed_stages: set[str] = set()
@@ -283,6 +283,8 @@ class StageOrchestrator:
 
         def _traverse():
             nonlocal all_completed
+            # Build remaining_stages list: trace_order minus already-completed
+            remaining_stages: list[str] = []
             for stage_id in ctx.stage_graph.trace_order():
                 if stage_id in completed_stages:
                     ctx.emit_observability_fn(
@@ -292,14 +294,87 @@ class StageOrchestrator:
                             "stage_id": stage_id,
                         },
                     )
-                    continue
-                all_completed = False
+                else:
+                    remaining_stages.append(stage_id)
+
+            if not remaining_stages:
+                yield ("finalize", "completed")
+                return
+
+            all_completed = False
+
+            while remaining_stages:
+                stage_id = remaining_stages.pop(0)
                 stage_result = self._execute_stage_with_events(stage_id)
                 if stage_result == "failed":
                     handled = ctx.handle_stage_failure_fn(stage_id, stage_result)
                     if handled == "failed":
                         yield ("finalize", "failed")
                         return
+
+                # Consult replan_hook after each stage, before continuing replay
+                if ctx.replan_hook is not None:
+                    try:
+                        from hi_agent.config.posture import Posture
+                        from hi_agent.contracts.directives import StageDirective
+                        from hi_agent.contracts.exceptions import StageDirectiveError
+
+                        _result_dict = stage_result if isinstance(stage_result, dict) else {}
+                        directive = ctx.replan_hook(stage_id, _result_dict)
+                        if (
+                            directive is not None
+                            and isinstance(directive, StageDirective)
+                            and directive.action != "continue"
+                        ):
+                            _logger.info(
+                                "resume replan_hook directive: %s (reason=%s)",
+                                directive.action,
+                                directive.reason,
+                            )
+                            if directive.action == "skip_to":
+                                _posture = Posture.from_env()
+                                if directive.skip_to in remaining_stages:
+                                    target_idx = remaining_stages.index(directive.skip_to)
+                                    remaining_stages = remaining_stages[target_idx:]
+                                else:
+                                    if _posture.is_strict:
+                                        raise StageDirectiveError(
+                                            f"skip_to {directive.skip_to!r}"
+                                            " not in resume stages"
+                                        )
+                                    _logger.warning(
+                                        "resume skip_to %r ignored (dev posture, unknown stage)",
+                                        directive.skip_to,
+                                    )
+                            elif directive.action == "insert":
+                                _posture = Posture.from_env()
+                                for spec in directive.insert:
+                                    if spec.target_stage_id in remaining_stages:
+                                        anchor_idx = remaining_stages.index(spec.target_stage_id)
+                                        remaining_stages.insert(anchor_idx + 1, spec.new_stage)
+                                    else:
+                                        if _posture.is_strict:
+                                            raise StageDirectiveError(
+                                                "insert anchor"
+                                                f" target_stage_id={spec.target_stage_id!r}"
+                                                " not found in resume stages"
+                                            )
+                                        _logger.warning(
+                                            "resume insert anchor %r not found"
+                                            " (dev posture — appending at tail)",
+                                            spec.target_stage_id,
+                                        )
+                                        remaining_stages.append(spec.new_stage)
+                    except StageDirectiveError:
+                        raise
+                    except Exception as exc:
+                        ctx.log_best_effort_fn(
+                            logging.DEBUG,
+                            "stage_orchestrator.resume_replan_hook_failed",
+                            exc,
+                            run_id=ctx.run_id,
+                        )
+
             yield ("finalize", "completed")
 
         result = self._run_loop(_traverse())
