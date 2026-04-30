@@ -243,7 +243,7 @@ jobs:
 
       - name: check-evidence-identity (W21-AX-D)
         run: python scripts/check_evidence_identity.py --json
-        continue-on-error: true  # not_applicable until T3 reruns
+        continue-on-error: true  # not_applicable until T3 reruns; expiry_wave: Wave 26 — expires when identity check is production-hardened
 
       # --- W22 new gates ---
 
