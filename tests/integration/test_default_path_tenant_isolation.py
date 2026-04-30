@@ -21,11 +21,11 @@ def test_run_tenant_isolation(client):
 
     resp_a = client.post("/runs", json={"goal": "echo A", "profile": "dev"}, headers=headers_a)
     if resp_a.status_code not in (200, 201, 202):
-        pytest.skip(reason="POST /runs not reachable — check payload")  # expiry_wave: Wave 22
+        pytest.skip(reason="POST /runs not reachable — check payload")  # expiry_wave: Wave 26
 
     run_id_a = (resp_a.json().get("run_id") or resp_a.json().get("id") or "")
     if not run_id_a:
-        pytest.skip(reason="no run_id in response")  # expiry_wave: Wave 22
+        pytest.skip(reason="no run_id in response")  # expiry_wave: Wave 26
 
     # Tenant B must not see tenant A's run
     resp_b = client.get(f"/runs/{run_id_a}", headers=headers_b)

@@ -115,6 +115,7 @@ def _build_app(evolver, ctx: TenantContext) -> Starlette:
         "return 403 if calling tenant does not own the skill."
     ),
     strict=False,
+    expiry_wave="Wave 26",
 )
 class TestSkillOptimizeTenantIsolationGap:
     """POST /skills/{skill_id}/optimize cross-tenant denial tests (xfail — W21 gap)."""
