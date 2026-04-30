@@ -38,7 +38,7 @@ def test_ops_incident_runbook_flow_builds_actionable_plan() -> None:
     )
     runbook = build_incident_runbook(report, max_steps=6)
 
-    assert report["severity"] in {"high", "medium"}
+    assert report["severity"] == "high"
     assert runbook["severity"] == report["severity"]
     assert runbook["steps"]
     assert runbook["title"].startswith("hi-agent")

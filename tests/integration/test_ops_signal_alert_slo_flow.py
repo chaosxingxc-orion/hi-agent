@@ -36,6 +36,6 @@ def test_ops_signal_alert_slo_flow_for_pressured_system() -> None:
     assert dashboard["summary"]["badge"] in {"red", "yellow"}
     assert dashboard["metadata"]["env"] == "test"
     assert alerts
-    assert any(row["severity"] in {"warning", "critical"} for row in alerts)
+    assert any(row["severity"] == "critical" for row in alerts)
     assert slo.success_target_met is False
     assert slo.latency_target_met is False
