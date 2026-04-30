@@ -924,7 +924,39 @@ def main() -> int:
             "manifest time prevents GS-8 wave-label drift."
         ),
     )
+    parser.add_argument(
+        "--require-clean-tree",
+        action="store_true",
+        help=(
+            "Refuse to write the manifest if `git status --porcelain` is non-empty. "
+            "Prevents the W23 incident in which untracked spine artifacts in the "
+            "tree caused build_release_manifest to apply a `dirty_worktree` cap "
+            "to the verified score, capping a 94.55-conditional release at 70."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.require_clean_tree and not (args.print_only or args.dry_run):
+        try:
+            import subprocess
+            porcelain = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+        except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+            print(
+                f"--require-clean-tree: failed to run git status: {exc}",
+                file=sys.stderr,
+            )
+            return 2
+        if porcelain.strip():
+            print(
+                "--require-clean-tree: working tree is dirty; refusing to write "
+                "manifest. Commit or stash the following before building:",
+                file=sys.stderr,
+            )
+            print(porcelain, file=sys.stderr)
+            return 2
 
     manifest, all_passed = build_manifest(wave_override=args.wave)
     manifest_json = json.dumps(manifest, indent=2)
