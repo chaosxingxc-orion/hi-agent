@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from hi_agent.server.tenant_context import require_tenant_context
+from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
 _logger = logging.getLogger(__name__)
 
@@ -127,13 +128,14 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
 
 
 async def handle_knowledge_status(request: Request) -> JSONResponse:
-    """Return knowledge system stats."""
+    """Return knowledge system stats (global-readonly, scoped audit)."""
     try:
         ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    tenant_id = ctx.tenant_id  # captured for audit/future per-tenant routing
-    _logger.debug("hi_agent.routes_knowledge: status tenant_id=%r", tenant_id)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="knowledge", op="status"
+    )
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -146,13 +148,14 @@ async def handle_knowledge_status(request: Request) -> JSONResponse:
 
 
 async def handle_knowledge_lint(request: Request) -> JSONResponse:
-    """Run knowledge health check."""
+    """Run knowledge health check (global-readonly, scoped audit)."""
     try:
         ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    tenant_id = ctx.tenant_id  # captured for audit/future per-tenant routing
-    _logger.debug("hi_agent.routes_knowledge: lint tenant_id=%r", tenant_id)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="knowledge", op="lint"
+    )
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:

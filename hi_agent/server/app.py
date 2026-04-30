@@ -512,17 +512,22 @@ from hi_agent.server.routes_memory import (
 
 
 async def handle_skills_list(request: Request) -> JSONResponse:
-    """List all discovered skills with eligibility status."""
-    # TODO(owner=RO, expiry_wave=14): per-tenant skill overlay needed — currently returns global
-    # registry to all tenants. SkillDefinition carries no tenant_id; full per-tenant scoping
-    # requires adding a tenant_id field to SkillDefinition and filtering here. Tracked in
-    # test_skills_cross_tenant.py (xfail). Risk: medium — callers see other tenants' skill names.
+    """List all discovered skills with eligibility status.
+
+    Global-readonly view — every tenant sees the same registry. Per-tenant
+    overlay is W24 work; this handler emits a tenant-scoped audit record for
+    every read so the access trail is observable.
+    """
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_sl
+    from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
     try:
-        _rtc_sl()
+        ctx = _rtc_sl()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="skills", op="list"
+    )
     server: AgentServer = request.app.state.agent_server
     loader = server.skill_loader
     if loader is None:
@@ -555,17 +560,21 @@ async def handle_skills_list(request: Request) -> JSONResponse:
 
 
 async def handle_skills_status(request: Request) -> JSONResponse:
-    """Overall skill system status (counts, top performers)."""
-    # TODO(owner=RO, expiry_wave=14): per-tenant skill overlay needed — currently returns global
-    # stats to all tenants. skill_evolver._observer holds process-wide metrics with no tenant
-    # partitioning; full scoping requires per-tenant observer sharding. Risk: medium — callers
-    # see aggregate metrics across all tenants.
+    """Overall skill system status (counts, top performers).
+
+    Global-readonly aggregate — per-tenant observer sharding is W24 work.
+    Emits a tenant-scoped audit record for every read.
+    """
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_ss
+    from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
     try:
-        _rtc_ss()
+        ctx = _rtc_ss()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="skills", op="status"
+    )
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
     loader = server.skill_loader
@@ -632,13 +641,17 @@ async def handle_skills_evolve(request: Request) -> JSONResponse:
 
 
 async def handle_skill_metrics(request: Request) -> JSONResponse:
-    """Get skill metrics from observer."""
+    """Get skill metrics from observer (global-readonly, scoped audit)."""
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_sm
+    from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
     try:
-        _rtc_sm()
+        ctx = _rtc_sm()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="skills", op="metrics"
+    )
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -657,13 +670,17 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
 
 
 async def handle_skill_versions(request: Request) -> JSONResponse:
-    """List versions with champion/challenger status."""
+    """List versions with champion/challenger status (global-readonly, scoped audit)."""
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_sv
+    from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
     try:
-        _rtc_sv()
+        ctx = _rtc_sv()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="skills", op="versions"
+    )
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver

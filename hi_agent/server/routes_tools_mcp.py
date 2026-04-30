@@ -9,6 +9,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from hi_agent.server.tenant_context import require_tenant_context
+from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_tools_list(request: Request) -> JSONResponse:
-    """Return all registered capabilities as a tool list.
+    """Return all registered capabilities as a tool list (global-readonly, scoped audit).
 
     Response shape::
 
         {"tools": [{"name": "file_read", "description": "...", "parameters": {...}}, ...]}
     """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="tools", op="list"
+    )
     server = request.app.state.agent_server
     try:
         invoker = server._builder.build_invoker()
@@ -187,15 +191,18 @@ async def handle_mcp_tools(request: Request) -> JSONResponse:
 
 
 async def handle_mcp_tools_list(request: Request) -> JSONResponse:
-    """MCP tools/list — enumerate all registered tools with their input schemas.
+    """MCP tools/list — enumerate all registered tools (global-readonly, scoped audit).
 
     Returns an MCP-compatible response:
     {"tools": [{"name": str, "description": str, "inputSchema": {...}}]}
     """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="mcp_tools", op="list"
+    )
     server = request.app.state.agent_server
     mcp_server = getattr(server, "_mcp_server", None)
     if mcp_server is None:
