@@ -68,10 +68,20 @@ def test_illegal_transition_completed_to_running_raises():
         transition(run, "running")
 
 
-def test_illegal_transition_failed_to_completed_raises():
+def test_terminal_to_terminal_is_noop_race(caplog):
+    """Terminal-to-terminal transitions are no-ops (cancellation race).
+
+    When the executor's natural completion races with an external cancel
+    (Rule 8 step 6 cancellation round-trip), the second transition attempt
+    must not raise — terminal states are sticky, but the race is logged at
+    WARNING for operator attribution.
+    """
+    import logging
     run = FakeRun("failed")
-    with pytest.raises(ValueError, match="Illegal state transition"):
-        transition(run, "completed")
+    with caplog.at_level(logging.WARNING, logger="hi_agent.server.run_state_transitions"):
+        transition(run, "completed")  # must not raise
+    assert run.state == "failed"
+    assert any("terminal_race" in r.getMessage() for r in caplog.records)
 
 
 def test_illegal_transition_cancelled_to_running_raises():

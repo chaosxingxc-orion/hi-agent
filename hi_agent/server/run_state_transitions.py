@@ -96,7 +96,7 @@ def transition(
         ValueError: If the transition is not in the legal state graph.
         AttributeError: If *run* has no ``.state`` attribute.
     """
-    current_state = run.state  # type: ignore[attr-defined]  # expiry_wave: Wave 23
+    current_state = run.state  # type: ignore[attr-defined]  # expiry_wave: Wave 26
 
     # Idempotent: same-state transition is a no-op — not an error.
     if current_state == target_state:
@@ -104,6 +104,21 @@ def transition(
             "state_transition.noop run_id=%s state=%s reason=%s",
             getattr(run, "run_id", "?"),
             current_state,
+            reason,
+        )
+        return
+
+    # Terminal-to-terminal race: if a run is already in a terminal state and
+    # the requested target is also terminal, treat as no-op with a WARNING.
+    # Common case: executor's natural completion races with an external cancel
+    # (Rule 8 step 6 cancellation round-trip). Terminal-to-non-terminal is
+    # still a hard error — that would be true state corruption (un-cancel).
+    if current_state in _TERMINAL_STATES and target_state in _TERMINAL_STATES:
+        _logger.warning(
+            "state_transition.terminal_race run_id=%s current=%s target=%s reason=%s",
+            getattr(run, "run_id", "?"),
+            current_state,
+            target_state,
             reason,
         )
         return
@@ -130,7 +145,7 @@ def transition(
         reason,
         idempotent_token,
     )
-    run.state = target_state  # type: ignore[attr-defined]  # expiry_wave: Wave 23
+    run.state = target_state  # type: ignore[attr-defined]  # expiry_wave: Wave 26
 
 
 def is_terminal(state: str) -> bool:
