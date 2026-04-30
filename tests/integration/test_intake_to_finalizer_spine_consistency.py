@@ -181,7 +181,7 @@ def test_run_postmortem_project_id_already_flows_via_contract():
     which is set from task_contract_dict at ManagedRun creation time.
     This test documents that invariant so it does not regress.
     """
-    from hi_agent.evolve.contracts import RunPostmortem
+    from hi_agent.evolve.contracts import RunRetrospective as RunPostmortem
 
     pm = RunPostmortem(
         run_id="run-pm-001",
@@ -239,7 +239,7 @@ def test_spine_consistency_across_all_three_writers(tmp_path):
     store.close()
 
     # --- Writer 3: RunPostmortem (project_id via contract) ---
-    from hi_agent.evolve.contracts import RunPostmortem
+    from hi_agent.evolve.contracts import RunRetrospective as RunPostmortem
 
     pm = RunPostmortem(
         run_id=run.run_id,

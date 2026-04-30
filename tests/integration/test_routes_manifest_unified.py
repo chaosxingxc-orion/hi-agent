@@ -79,4 +79,4 @@ def test_manifest_registered_extension_appears(test_client: TestClient) -> None:
         )
     finally:
         # Clean up: remove the test extension from the global registry.
-        registry._registry.pop("__test_w4b_integration__", None)
+        registry._manifests.pop("__test_w4b_integration__:0.1", None)

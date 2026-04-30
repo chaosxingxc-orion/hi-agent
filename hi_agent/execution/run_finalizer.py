@@ -24,7 +24,7 @@ class RunFinalizerContext:
     contract: Any
     lifecycle: Any
     kernel: Any
-    tenant_id: str  # Rule 12 spine — required; no default
+    tenant_id: str = ""  # Rule 12 spine — validated under research/prod posture
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""

@@ -49,36 +49,24 @@ def test_sequential_asyncio_run_no_loop_errors():
 
 
 @pytest.mark.integration
-def test_sequential_asyncio_run_with_rehydrate_helper():
-    """5 sequential asyncio.run() calls each invoking _rehydrate_runs with a no-op store.
+def test_sequential_asyncio_run_with_rehydrate_helper(monkeypatch):
+    """5 sequential calls to _rehydrate_runs with a minimal AgentServer stub.
 
-    Verifies that the _rehydrate_runs coroutine is safe to call from
-    sequential asyncio.run() contexts without leaking event loop state.
+    Verifies that the synchronous _rehydrate_runs helper is safe to call
+    repeatedly (startup recovery path) without raising or leaking state.
+    Under dev posture with no run_queue wired, it should be a no-op.
     """
-    import asyncio as _aio
+    from hi_agent.server.app import AgentServer, _rehydrate_runs
 
-    from hi_agent.config.posture import Posture
-    from hi_agent.server.app import _rehydrate_runs
-    from hi_agent.server.run_manager import RunManager
+    monkeypatch.setenv("HI_AGENT_ENV", "dev")
+    server = AgentServer(rate_limit_rps=10000)
 
     errors: list[str] = []
 
-    def make_run():
-        manager = RunManager()
-        posture = Posture.DEV  # dev posture → _rehydrate_runs is a no-op
-
-        async def _run():
-            await _rehydrate_runs(run_store=None, run_manager=manager, posture=posture)
-
-        return _run
-
     for i in range(5):
         try:
-            _aio.run(make_run()())
-        except RuntimeError as exc:
-            if "Event loop is closed" in str(exc):
-                errors.append(f"run {i}: {exc}")
-            else:
-                raise
+            _rehydrate_runs(server)
+        except Exception as exc:
+            errors.append(f"run {i}: {exc!r}")
 
-    assert not errors, f"Event loop errors invoking _rehydrate_runs: {errors}"
+    assert not errors, f"Errors invoking _rehydrate_runs: {errors}"

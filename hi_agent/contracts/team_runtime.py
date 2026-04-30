@@ -70,7 +70,7 @@ class TeamRun:
     team_id: str
     project_id: str
     # (agent_role_id, run_id) pairs for each team member
-    tenant_id: str  # Rule 12 spine — required; no default
+    tenant_id: str = ""  # Rule 12 spine — validated in TeamRunRegistry.register()
     member_runs: tuple[tuple[str, str], ...] = ()
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     # Contract spine (Rule 12): persistent records must answer "which tenant".

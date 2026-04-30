@@ -48,7 +48,7 @@ class ReasoningTrace:
 
     run_id: str
     stage_id: str
-    tenant_id: str  # Rule 12 spine — required; no default
+    tenant_id: str = ""  # Rule 12 spine — validated under research/prod posture
     trace_id: str = ""
     steps: list[ReasoningStep] = field(default_factory=list)
 

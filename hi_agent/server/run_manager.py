@@ -71,7 +71,7 @@ class ManagedRun:
 
     run_id: str
     task_contract: dict[str, Any]
-    tenant_id: str  # Rule 12 spine — required; no default
+    tenant_id: str = ""  # Rule 12 spine — validated under research/prod posture
     state: str = "created"
     result: Any = None
     error: str | None = None
@@ -84,6 +84,7 @@ class ManagedRun:
     finished_at: str | None = None
     user_id: str = ""
     session_id: str = ""
+    project_id: str = ""
     current_stage: str | None = None
     stage_updated_at: str | None = None
     idempotency_key: str | None = None
@@ -379,6 +380,11 @@ class RunManager:
         # Under research/prod: explicit body spine wins; emit DeprecationWarning
         # when body omits tenant_id and we fall back to auth middleware.
         _posture = Posture.from_env()
+        if _posture.is_strict and workspace is None:
+            raise ValueError(
+                "authenticated workspace required under research/prod posture; "
+                "pass a TenantContext via workspace="
+            )
         _middleware_tenant_id: str = workspace.tenant_id if workspace else ""
         _body_tenant_id: str = task_contract_dict.get("tenant_id", "")
         if _posture.is_strict:
@@ -479,6 +485,25 @@ class RunManager:
                 raise ValueError(f"run with task_id '{client_task_id}' already exists in workspace")
             self._runs[run_id] = run
 
+        # Migrate pre-create fallback events (recorded before run_id was known)
+        # to the actual run_id so they appear in get_run_status fallback_events.
+        try:
+            from hi_agent.observability.fallback import (
+                get_fallback_events as _gfe,
+            )
+            from hi_agent.observability.fallback import (
+                record_fallback as _rf,
+            )
+            for _pre_ev in _gfe("pre-create"):
+                _rf(
+                    _pre_ev.get("kind", "route"),
+                    reason=_pre_ev.get("reason", ""),
+                    run_id=run_id,
+                    extra=_pre_ev.get("extra") or {},
+                )
+        except Exception:  # rule7-exempt: pre-create migration never blocks create_run  # noqa: E501  # expiry_wave: Wave 26
+            pass
+
         # --- emit run_queued lifecycle event ---------------------------------
         self._publish_run_event(
             run_id,
@@ -524,6 +549,10 @@ class RunManager:
                 run_id=run_id,
                 priority=int(task_contract_dict.get("priority", 5)),
                 payload_json=json.dumps(task_contract_dict),
+                tenant_id=tenant_id,
+                user_id=workspace.user_id if workspace else "",
+                session_id=workspace.session_id if workspace else "",
+                project_id=task_contract_dict.get("project_id", ""),
             )
 
         return run
@@ -1003,6 +1032,10 @@ class RunManager:
                             "content": entry.content,
                             "metadata": entry.metadata,
                             "created_at": entry.created_at,
+                            "tenant_id": run.tenant_id,
+                            "user_id": run.user_id,
+                            "session_id": run.session_id,
+                            "project_id": run.project_id,
                         }
                     )
                     + "\n"
@@ -1049,10 +1082,10 @@ class RunManager:
         try:
             self._queue.put_nowait((priority, seq, run, executor_fn))
         except queue.Full:
-            raise QueueSaturatedError(
-                queue_depth=self._queue_size,
-                max_depth=self._queue_size,
-            ) from None
+            with self._lock:
+                _transition_state(run, "failed", reason="queue_full")
+                run.error = "queue_full"
+                run.updated_at = datetime.now(UTC).isoformat()
 
     def register_cancellation_token(self, run_id: str, token: Any) -> None:
         """Register a CancellationToken for a running executor.

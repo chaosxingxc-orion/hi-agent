@@ -25,9 +25,9 @@ def test_stage_directive_default() -> None:
     """StageDirective() defaults to action='continue'."""
     d = StageDirective()
     assert d.action == "continue"
-    assert d.target_stage_id == ""
-    assert d.new_stage_specs == []
-    assert d.reason == ""
+    assert d.target_stage_id is None
+    assert d.insert == []
+    assert d.reason is None
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ def test_feedback_store_persist_load(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_replan_hook_called() -> None:
+def test_replan_hook_called(fallback_explicit) -> None:
     """replan_hook is invoked after each stage completes."""
     contract = TaskContract(task_id="replan-001", goal="hook test")
     kernel = MockKernel()
@@ -126,7 +126,7 @@ def test_replan_hook_called() -> None:
     assert len(called_stages) > 0
 
 
-def test_replan_hook_skip() -> None:
+def test_replan_hook_skip(fallback_explicit) -> None:
     """replan_hook with action='skip' removes target stage from remaining."""
     contract = TaskContract(task_id="replan-002", goal="skip test")
     kernel = MockKernel()
@@ -159,7 +159,7 @@ def test_replan_hook_skip() -> None:
     assert "S3_evaluate" not in executor.stage_summaries
 
 
-def test_replan_hook_none_action_continues() -> None:
+def test_replan_hook_none_action_continues(fallback_explicit) -> None:
     """replan_hook returning None does not disrupt execution."""
     contract = TaskContract(task_id="replan-003", goal="none hook")
     kernel = MockKernel()
@@ -187,7 +187,7 @@ def test_replan_hook_none_action_continues() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_feedback_store_auto_submit_on_finalize() -> None:
+def test_feedback_store_auto_submit_on_finalize(fallback_explicit) -> None:
     """FeedbackStore receives a neutral record when run completes."""
     contract = TaskContract(task_id="fb-001", goal="feedback auto submit")
     kernel = MockKernel()

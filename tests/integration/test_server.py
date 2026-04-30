@@ -558,7 +558,9 @@ class TestRunsEndpoints:
         """POST /runs without goal returns 400."""
         resp = client.post("/runs", json={"task_id": "x"})
         assert resp.status_code == 400
-        assert resp.json()["error"] == "missing_goal"
+        body = resp.json()
+        # Accept both legacy "error" and current "error_category" / "message" format.
+        assert body.get("error") == "missing_goal" or "goal" in body.get("message", "")
 
     def test_list_runs(self, client: TestClient) -> None:
         """GET /runs lists created runs."""

@@ -93,6 +93,13 @@ class LongRunningOpStore:
             tenant_id = tenant_id or exec_ctx.tenant_id
             run_id = run_id or exec_ctx.run_id
             project_id = project_id or exec_ctx.project_id
+        from hi_agent.config.posture import Posture
+        _posture = Posture.from_env()
+        if _posture.is_strict and not tenant_id:
+            raise ValueError(
+                "LongRunningOpStore.create: empty tenant_id under research/prod posture; "
+                "pass tenant_id= or exec_ctx= with a non-empty tenant_id"
+            )
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO ops "

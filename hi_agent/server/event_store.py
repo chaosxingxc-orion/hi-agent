@@ -25,7 +25,7 @@ class StoredEvent:
     sequence: int  # = RuntimeEvent.commit_offset
     event_type: str
     payload_json: str  # serialized full event (JSON string)
-    tenant_id: str  # Rule 12 spine — required; no default
+    tenant_id: str = ""  # Rule 12 spine — validated under research/prod posture
     user_id: str = "__legacy__"  # workspace owner; "__legacy__" for pre-migration rows
     session_id: str = "__legacy__"  # workspace session; "__legacy__" for pre-migration rows
     trace_id: str = ""

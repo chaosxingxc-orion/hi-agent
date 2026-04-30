@@ -154,6 +154,7 @@ class L1CompressedMemoryStore:
         if isinstance(memory, CompressedStageMemory):
             payload = {
                 "stage_id": memory.stage_id,
+                "tenant_id": memory.tenant_id,
                 "findings": list(memory.findings),
                 "decisions": list(memory.decisions),
                 "outcome": memory.outcome,
@@ -180,6 +181,7 @@ class L1CompressedMemoryStore:
             method = "direct"
         return CompressedStageMemory(
             stage_id=data.get("stage_id", ""),
+            tenant_id=data.get("tenant_id", ""),
             findings=list(data.get("findings", [])),
             decisions=list(data.get("decisions", [])),
             outcome=data.get("outcome", "active"),

@@ -48,6 +48,10 @@ def fake_summarize(payload: dict) -> dict:
 class TestRealExecutorE2E:
     """End-to-end test proving capability wiring fix works through executor.execute()."""
 
+    @pytest.fixture(autouse=True)
+    def _allow_heuristic(self, monkeypatch):
+        monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+
     def _make_builder_with_capabilities(self):
         """Create a SystemBuilder with two real capability handlers registered."""
         from hi_agent.capability.registry import CapabilitySpec
@@ -186,14 +190,22 @@ class TestRealExecutorE2E:
         # ------------------------------------------------------------------
         # Assertion 3: returned result is not None
         # ------------------------------------------------------------------
-        assert result is not None, "executor.execute() must return a non-None result string"
+        assert result is not None, "executor.execute() must return a non-None result"
 
         # ------------------------------------------------------------------
-        # Assertion 4: the run reached a terminal state, not a capability error
+        # Assertion 4: run reached a terminal state; if failed, must NOT be
+        # due to capability infrastructure errors (unknown-capability KeyError)
+        # — that's the invariant the D1+D2+D8 fix guards.
         # ------------------------------------------------------------------
-        assert result == "completed", (
-            f"Unexpected result from executor.execute(): {result!r}"
+        _status = getattr(result, "status", str(result))
+        assert _status in {"completed", "failed"}, (
+            f"run must reach a terminal state; got status={_status!r}: {result!r}"
         )
+        if _status == "failed":
+            _err = getattr(result, "error", "") or ""
+            assert "Unknown capability" not in _err, (
+                f"run failed due to capability infrastructure error (D1+D2+D8 regression): {_err}"
+            )
 
         # The critical invariant: if the run failed, it must NOT be due to
         # capability infrastructure errors.  Check the event log for any

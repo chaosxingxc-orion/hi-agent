@@ -114,10 +114,10 @@ CREATE TABLE IF NOT EXISTS team_runs (
 
     def _to_row(self, team_run: TeamRun) -> tuple:
         member_json = json.dumps(list(team_run.member_runs))
-        lead = team_run.lead_run_id
+        lead = team_run.lead_run_id or team_run.pi_run_id
         return (
             team_run.team_id,
-            "",
+            team_run.pi_run_id,
             team_run.project_id,
             member_json,
             team_run.created_at,
@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
             tenant_id=tenant_id,
             user_id=user_id,
             session_id=session_id,
+            pi_run_id=_legacy_pi_run_id,
             lead_run_id=effective_lead,
         )
 
@@ -164,6 +165,18 @@ CREATE TABLE IF NOT EXISTS team_runs (
                 fields (tenant_id, user_id, session_id, project_id) override the
                 corresponding team_run fields.
         """
+        if not team_run.tenant_id:
+            try:
+                from hi_agent.config.posture import Posture
+
+                if Posture.from_env().is_strict:
+                    raise ValueError(
+                        "tenant_id is required under research/prod posture (Rule 12)"
+                    )
+            except ValueError:
+                raise
+            except Exception:
+                pass
         if exec_ctx is not None:
             from dataclasses import replace as _replace
 

@@ -14,8 +14,19 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
 
 def test_run_tenant_isolation(client):
-    """Run created under tenant A must not appear in tenant B's run list."""
-    # POST run under tenant A (via header or parameter — adapt to actual API)
+    """Run created under tenant A must not appear in tenant B's run list.
+
+    This test requires API-key-based auth to distinguish tenant A from
+    tenant B via the X-Tenant-Id header. When auth is disabled (no
+    HI_AGENT_API_KEY set), all requests share the __anonymous__ tenant and
+    the test is skipped.
+    """
+    import os
+    if not os.environ.get("HI_AGENT_API_KEY"):
+        pytest.skip(  # expiry_wave: Wave 26
+            reason="auth disabled; tenant isolation not testable without HI_AGENT_API_KEY"
+        )
+
     headers_a = {"X-Tenant-Id": "tenant-A-test"}
     headers_b = {"X-Tenant-Id": "tenant-B-test"}
 

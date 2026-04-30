@@ -677,7 +677,7 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
     try:
         from dataclasses import asdict
 
-        metrics = evolver._observer.get_metrics(skill_id)
+        metrics = evolver._observer.get_metrics(skill_id, tenant_id=ctx.tenant_id or None)
         return JSONResponse(asdict(metrics))
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -1707,6 +1707,8 @@ class AgentServer:
         try:
             _backends = build_durable_backends(_data_dir, _posture)
         except RuntimeError as _be:
+            if _posture.is_strict:
+                raise
             logger.warning(
                 "build_durable_backends failed (%s); durable stores unavailable.",
                 _be,

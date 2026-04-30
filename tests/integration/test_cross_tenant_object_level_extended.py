@@ -267,7 +267,6 @@ class TestCrossTenantLongOps:
             external_id="ext-1",
             submitted_at=time.time(),
             tenant_id="tenant-A",
-            user_id="user-a",
         )
 
         routes = [
@@ -290,7 +289,6 @@ class TestCrossTenantLongOps:
             external_id="ext-2",
             submitted_at=time.time(),
             tenant_id="tenant-A",
-            user_id="user-a",
         )
 
         routes = [
