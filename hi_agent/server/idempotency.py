@@ -175,10 +175,14 @@ ON idempotency_records (tenant_id, idempotency_key)
               returned (caller should raise 409).
         """
         if exec_ctx is not None:
-            tenant_id = exec_ctx.tenant_id
-            user_id = exec_ctx.user_id
-            session_id = exec_ctx.session_id
-            project_id = exec_ctx.project_id
+            if exec_ctx.tenant_id:
+                tenant_id = exec_ctx.tenant_id
+            if exec_ctx.user_id:
+                user_id = exec_ctx.user_id
+            if exec_ctx.session_id:
+                session_id = exec_ctx.session_id
+            if exec_ctx.project_id:
+                project_id = exec_ctx.project_id
         now = time.time()
         expires_at = now + ttl_seconds
 
