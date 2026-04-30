@@ -1086,6 +1086,10 @@ class RunManager:
                 _transition_state(run, "failed", reason="queue_full")
                 run.error = "queue_full"
                 run.updated_at = datetime.now(UTC).isoformat()
+            raise QueueSaturatedError(
+                queue_depth=self._queue.qsize(),
+                max_depth=self._queue_size,
+            )
 
     def register_cancellation_token(self, run_id: str, token: Any) -> None:
         """Register a CancellationToken for a running executor.
