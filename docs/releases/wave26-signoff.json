@@ -1,0 +1,22 @@
+{
+  "wave": 26,
+  "manifest_id": "2026-04-30-fe17ef17",
+  "release_head": "fe17ef1753a3ec0804c53af1732adc3adc25d235",
+  "signed_by": "chaosxingxc-orion",
+  "signed_at": "2026-04-30T23:15:00Z",
+  "verified_readiness": 94.55,
+  "seven_by_24_readiness": 65.0,
+  "scope": [
+    "w26-CL3: Stagger 557 expiry_wave Wave 26 markers to Wave 27 (synchronized cliff mitigation)",
+    "w26-F: VOLCES_KEY alias deprecation warning in json_config_loader",
+    "w26-G: Closure of W14/W12 stale TODOs (app.py + ledger.py)",
+    "w26-evidence: T3 at c02e7153 (passed, real, 3/3 runs)",
+    "w26-evidence: clean-env at c02e7153 (8971 pass, 0 fail)"
+  ],
+  "deferred_to_w27": [
+    "CL3 stagger by ownership track (currently all Wave 26 → Wave 27; staggered distribution deferred)",
+    "24h soak (soak_24h_missing cap at 65.0 for 7x24)",
+    "Observability spine completeness (deferred)",
+    "Chaos runtime coupling (deferred)"
+  ]
+}
