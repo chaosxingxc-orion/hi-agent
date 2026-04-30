@@ -11,6 +11,7 @@ from enum import StrEnum
 
 class ErrorCategory(StrEnum):
     SCOPE_REQUIRED = "scope_required"          # project_id / profile_id missing
+    AUTH_REQUIRED = "auth_required"            # missing/empty auth header (HD-5)
     QUEUE_FULL = "queue_full"                  # run queue at capacity
     GATEWAY_UNAVAILABLE = "gateway_unavailable"  # LLM backend not reachable
     IDEMPOTENCY_PENDING = "idempotency_pending"  # same key in-flight

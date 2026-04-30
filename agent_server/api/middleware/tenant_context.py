@@ -6,6 +6,10 @@ instance to ``request.state.tenant_context`` for downstream handlers.
 Handlers MUST read the tenant from request state, never from the request
 body, per R-AS-4. A missing or empty header yields 401 Unauthorized so
 the platform fails closed under research/prod posture.
+
+HD-5 (W24-J5): the 401 response uses the unified error envelope shape
+``{error_category, message, retryable, next_action}`` so callers can
+parse auth errors without string-matching.
 """
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from agent_server.contracts.errors import AuthError
 from agent_server.contracts.tenancy import TenantContext
 
 TENANT_HEADER = "X-Tenant-Id"
@@ -27,15 +32,8 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         tenant_id = request.headers.get(TENANT_HEADER, "").strip()
         if not tenant_id:
-            return JSONResponse(
-                status_code=401,
-                content={
-                    "error": "AuthError",
-                    "detail": (
-                        f"missing or empty {TENANT_HEADER} header"
-                    ),
-                },
-            )
+            err = AuthError(f"missing or empty {TENANT_HEADER} header")
+            return JSONResponse(status_code=err.http_status, content=err.to_envelope())
         request.state.tenant_context = TenantContext(
             tenant_id=tenant_id,
             project_id=request.headers.get(PROJECT_HEADER, "").strip(),
