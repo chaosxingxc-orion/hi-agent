@@ -27,6 +27,7 @@ def build_router(*, manifest_facade: ManifestFacade) -> APIRouter:
             raise ContractError("tenant context missing", detail="middleware")
         return ctx
 
+    # tdd-red-sha: 3bc0a83
     @router.get("/v1/manifest")
     async def get_manifest(request: Request) -> JSONResponse:
         # Tenant context is required to enforce the auth middleware contract;

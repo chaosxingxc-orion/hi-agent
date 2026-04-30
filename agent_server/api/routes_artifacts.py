@@ -38,6 +38,7 @@ def build_router(*, artifact_facade: ArtifactFacade) -> APIRouter:
             raise ContractError("tenant context missing", detail="middleware")
         return ctx
 
+    # tdd-red-sha: 3bc0a83
     @router.get("/v1/runs/{run_id}/artifacts")
     async def list_run_artifacts(
         run_id: str, request: Request
@@ -57,6 +58,7 @@ def build_router(*, artifact_facade: ArtifactFacade) -> APIRouter:
             },
         )
 
+    # tdd-red-sha: 3bc0a83
     @router.get("/v1/artifacts/{artifact_id}")
     async def get_artifact(
         artifact_id: str, request: Request

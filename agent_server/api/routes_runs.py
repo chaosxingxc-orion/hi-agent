@@ -41,6 +41,7 @@ def build_router(*, run_facade: RunFacade) -> APIRouter:
             raise ContractError("tenant context missing", detail="middleware")
         return ctx
 
+    # tdd-red-sha: ddc0f0d
     @router.post("")
     async def post_run(request: Request) -> JSONResponse:
         ctx = _ctx(request)
@@ -65,6 +66,7 @@ def build_router(*, run_facade: RunFacade) -> APIRouter:
             return _error_response(exc)
         return JSONResponse(status_code=200, content=_run_response_to_dict(resp))
 
+    # tdd-red-sha: ddc0f0d
     @router.get("/{run_id}")
     async def get_run(run_id: str, request: Request) -> JSONResponse:
         ctx = _ctx(request)
@@ -74,6 +76,7 @@ def build_router(*, run_facade: RunFacade) -> APIRouter:
             return _error_response(exc)
         return JSONResponse(status_code=200, content=_run_status_to_dict(status))
 
+    # tdd-red-sha: ddc0f0d
     @router.post("/{run_id}/signal")
     async def signal_run(run_id: str, request: Request) -> JSONResponse:
         ctx = _ctx(request)

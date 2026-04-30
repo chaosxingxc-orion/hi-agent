@@ -42,6 +42,7 @@ def build_router(*, event_facade: EventFacade) -> APIRouter:
             raise ContractError("tenant context missing", detail="middleware")
         return ctx
 
+    # tdd-red-sha: 3bc0a83
     @router.post("/{run_id}/cancel")
     async def cancel_run(run_id: str, request: Request) -> JSONResponse:
         ctx = _ctx(request)
@@ -51,6 +52,7 @@ def build_router(*, event_facade: EventFacade) -> APIRouter:
             return _error_response(exc)
         return JSONResponse(status_code=200, content=_status_dict(status))
 
+    # tdd-red-sha: 3bc0a83
     @router.get("/{run_id}/events")
     async def stream_events(run_id: str, request: Request):
         ctx = _ctx(request)
