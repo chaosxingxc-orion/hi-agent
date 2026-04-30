@@ -1,4 +1,20 @@
-"""Integration test: StageExecutor calls middleware_orchestrator.run() twice (pre + post)."""
+"""Unit test: StageExecutor calls middleware_orchestrator.run() twice (pre + post).
+
+This test file is honest about its discipline: it mocks the subsystem under test
+(StageExecutor's collaborators -- kernel, route engine, executor context, acceptance
+policy, middleware orchestrator) with MagicMock trees in order to verify the glue
+logic of `execute_stage()` -- specifically, that `middleware_orchestrator.run()` is
+invoked exactly twice per stage with the correct phase labels, and that exceptions
+in the orchestrator are swallowed without aborting the stage.
+
+Because real components are not wired together here (no real kernel, no real route
+engine, no real executor), this is a *unit* test of glue logic, not an integration
+test. It was previously mislabeled under `tests/integration/` -- a Rule 4 violation
+that this rename closes.
+
+A true integration test of StageExecutor with real collaborators is a follow-up
+item for a later wave (see Wave 23 Track G note).
+"""
 
 from __future__ import annotations
 
