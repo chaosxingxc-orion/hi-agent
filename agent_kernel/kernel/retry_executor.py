@@ -100,7 +100,7 @@ class RetryingExecutorService:
                                 failure_count=attempt + 1,
                                 tripped=False,
                             )
-        raise last_exc  # type: ignore[misc]
+        raise last_exc  # type: ignore[misc]  # expiry_wave: Wave 26
 
     def _compute_delay(self, exc: TransientExecutionError, attempt: int) -> int:
         """Compute one retry delay in milliseconds.

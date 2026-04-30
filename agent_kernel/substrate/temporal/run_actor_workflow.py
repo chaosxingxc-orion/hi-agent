@@ -539,7 +539,7 @@ class RunActorWorkflow:
         # Only mark the signal as seen after the append succeeds; if append
         # fails, the next retry of the same caused_by must be processed.
         if input_value.caused_by:
-            self._seen_signal_tokens.add(signal_token)  # type: ignore[possibly-undefined]
+            self._seen_signal_tokens.add(signal_token)  # type: ignore[possibly-undefined]  # expiry_wave: Wave 26
         await self.process_action_commit(signal_commit)
         # process_action_commit() refreshes _last_projection via catch_up().
         # Avoid awaiting here so query state remains driven by sync-safe cache.

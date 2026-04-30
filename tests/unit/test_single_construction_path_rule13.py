@@ -90,7 +90,7 @@ class TestBuildShortTermStoreRejectsEmptyProfileId:
     def test_positional_call_is_type_error(self, mb) -> None:
         """profile_id is keyword-only; positional call must fail."""
         with pytest.raises(TypeError):
-            mb.build_short_term_store("leaked-profile")  # type: ignore[misc]  expiry_wave: Wave 17
+            mb.build_short_term_store("leaked-profile")  # type: ignore[misc]  expiry_wave: Wave 26
 
 
 class TestBuildMidTermStoreRejectsEmptyProfileId:
@@ -112,4 +112,4 @@ class TestBuildKnowledgeManagerRejectsEmptyProfileId:
 
     def test_positional_profile_id_is_type_error(self, kb) -> None:
         with pytest.raises(TypeError):
-            kb.build_knowledge_manager("leaked-profile")  # type: ignore[misc]  expiry_wave: Wave 17
+            kb.build_knowledge_manager("leaked-profile")  # type: ignore[misc]  expiry_wave: Wave 26

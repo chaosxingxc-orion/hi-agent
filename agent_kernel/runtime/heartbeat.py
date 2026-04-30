@@ -385,7 +385,7 @@ class RunHeartbeatMonitor:
         self,
         gateway: TemporalWorkflowGateway,
         interval_s: float = 30.0,
-    ) -> asyncio.Task:  # type: ignore[type-arg]
+    ) -> asyncio.Task:  # type: ignore[type-arg]  # expiry_wave: Wave 26
         """Start a background asyncio Task that calls ``watchdog_once`` periodically.
 
         The task runs until cancelled (e.g. on worker shutdown).  Cancellation

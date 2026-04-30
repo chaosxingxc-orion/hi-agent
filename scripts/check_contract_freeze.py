@@ -57,8 +57,8 @@ def _is_v1_released() -> bool:
         sys.path.insert(0, str(ROOT / "agent_server" / "config"))
         import importlib.util
         spec = importlib.util.spec_from_file_location("version", VERSION_PY)
-        mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+        mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]  # expiry_wave: Wave 26
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 26
         return bool(getattr(mod, "V1_RELEASED", False))
     except Exception:
         return False

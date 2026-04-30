@@ -123,7 +123,7 @@ def test_pi_c_gate_approve_resumes_run() -> None:
             raise GatePendingError(gate_id=gate_id)
         return original_execute_stage(stage_id)
 
-    executor._execute_stage = gated_stage  # type: ignore[method-assign]  expiry_wave: Wave 17
+    executor._execute_stage = gated_stage  # type: ignore[method-assign]  expiry_wave: Wave 26
 
     with pytest.raises(GatePendingError) as exc_info:
         executor.execute()
@@ -173,7 +173,7 @@ def test_pi_c_gate_backtrack_terminates_run() -> None:
             raise GatePendingError(gate_id=gate_id)
         return original_execute_stage(stage_id)
 
-    executor._execute_stage = gated_stage  # type: ignore[method-assign]  expiry_wave: Wave 17
+    executor._execute_stage = gated_stage  # type: ignore[method-assign]  expiry_wave: Wave 26
 
     with pytest.raises(GatePendingError):
         executor.execute()
@@ -375,7 +375,7 @@ def test_pi_e_gate_and_subrun_in_single_run() -> None:
             raise GatePendingError(gate_id=gate_id)
         return original_execute_stage(stage_id)
 
-    executor._execute_stage = gated_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 17
+    executor._execute_stage = gated_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 26
 
     # --- Phase 1: execute() runs k13_s_sub (PI-D), then hits gate (PI-C) ----
     with pytest.raises(GatePendingError) as exc_info:

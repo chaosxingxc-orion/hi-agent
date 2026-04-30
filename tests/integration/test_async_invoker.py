@@ -205,7 +205,7 @@ def test_runner_exception_protection():
     def exploding_stage(stage_id: str):
         raise RuntimeError("unexpected kaboom")
 
-    executor._execute_stage = exploding_stage  # type: ignore[assignment]  expiry_wave: Wave 17
+    executor._execute_stage = exploding_stage  # type: ignore[assignment]  expiry_wave: Wave 26
 
     result = executor.execute()
     assert result == "failed"

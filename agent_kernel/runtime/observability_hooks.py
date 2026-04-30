@@ -62,9 +62,9 @@ try:
     _PROPAGATOR = _TraceContextPropagator()
 except ImportError:  # pragma: no cover
     _OTEL_AVAILABLE = False
-    _otel_trace = None  # type: ignore[assignment]
-    _NonRecordingSpan = None  # type: ignore[assignment,misc]
-    _PROPAGATOR = None  # type: ignore[assignment]
+    _otel_trace = None  # type: ignore[assignment]  # expiry_wave: Wave 26
+    _NonRecordingSpan = None  # type: ignore[assignment,misc]  # expiry_wave: Wave 26
+    _PROPAGATOR = None  # type: ignore[assignment]  # expiry_wave: Wave 26
 
 
 def _extract_otel_context(trace_context: str | None) -> Any | None:
@@ -1064,12 +1064,14 @@ class OtelObservabilityHook:
 # ---------------------------------------------------------------------------
 
 try:
-    from opentelemetry import metrics as _otel_metrics  # type: ignore[attr-defined]
+    from opentelemetry import (
+        metrics as _otel_metrics,  # type: ignore[attr-defined]  # expiry_wave: Wave 26
+    )
 
     _OTEL_METRICS_AVAILABLE = True
 except ImportError:  # pragma: no cover
     _OTEL_METRICS_AVAILABLE = False
-    _otel_metrics = None  # type: ignore[assignment]
+    _otel_metrics = None  # type: ignore[assignment]  # expiry_wave: Wave 26
 
 
 class MetricsObservabilityHook:

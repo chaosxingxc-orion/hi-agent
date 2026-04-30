@@ -521,7 +521,7 @@ class TestHeartbeatWatchdog:
         class _BrokenMonitor(RunHeartbeatMonitor):
             """Test suite for  BrokenMonitor."""
 
-            async def watchdog_once(self, gateway: Any) -> None:  # type: ignore[override]  expiry_wave: Wave 17
+            async def watchdog_once(self, gateway: Any) -> None:  # type: ignore[override]  expiry_wave: Wave 26
                 """Watchdog once."""
                 raise RuntimeError("simulated scan crash")
 

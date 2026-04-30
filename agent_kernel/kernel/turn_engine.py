@@ -748,7 +748,7 @@ class TurnEngine:
             host_kind=dp.host_kind,
             emitted_events=ctx.emitted_events,
         )
-        ctx._dedupe_available = dedupe_available  # type: ignore[attr-defined]
+        ctx._dedupe_available = dedupe_available  # type: ignore[attr-defined]  # expiry_wave: Wave 26
         if not reservation.accepted:
             ctx.emitted_events.append(TurnStateEvent(state="dispatch_blocked"))
             ctx.result = TurnResult(
@@ -770,9 +770,9 @@ class TurnEngine:
                         outcome="duplicate",
                     )
             return
-        dedupe_available = ctx._dedupe_available  # type: ignore[attr-defined]
+        dedupe_available = ctx._dedupe_available  # type: ignore[attr-defined]  # expiry_wave: Wave 26
         _dedupe_outcome = "degraded" if not dedupe_available else "accepted"
-        ctx._dedupe_outcome = _dedupe_outcome  # type: ignore[attr-defined]
+        ctx._dedupe_outcome = _dedupe_outcome  # type: ignore[attr-defined]  # expiry_wave: Wave 26
         if dedupe_available and legacy_key != ti.dispatch_dedupe_key:
             # Backward compatibility: mirror the new dedupe slot into the
             # historical key shape so pre-policy readers can still resolve the
@@ -794,7 +794,7 @@ class TurnEngine:
                     peer_operation_id=ctx.envelope.peer_operation_id,
                 )
                 if legacy_reservation.accepted:
-                    ctx._legacy_alias_key = legacy_key  # type: ignore[attr-defined]
+                    ctx._legacy_alias_key = legacy_key  # type: ignore[attr-defined]  # expiry_wave: Wave 26
         # mark_dispatched() is no longer called here: _reserve_with_degradation
         # uses reserve_and_dispatch() which atomically combines reservation and
         # dispatch state update, eliminating the non-atomic window (D-M3).
@@ -816,9 +816,9 @@ class TurnEngine:
         assert ctx.envelope is not None
         ti = ctx.turn_identity
         dp = ctx.dispatch_policy
-        dedupe_available: bool = ctx._dedupe_available  # type: ignore[attr-defined]
-        _dedupe_outcome: str = ctx._dedupe_outcome  # type: ignore[attr-defined]
-        legacy_alias_key: str | None = ctx._legacy_alias_key  # type: ignore[attr-defined]
+        dedupe_available: bool = ctx._dedupe_available  # type: ignore[attr-defined]  # expiry_wave: Wave 26
+        _dedupe_outcome: str = ctx._dedupe_outcome  # type: ignore[attr-defined]  # expiry_wave: Wave 26
+        legacy_alias_key: str | None = ctx._legacy_alias_key  # type: ignore[attr-defined]  # expiry_wave: Wave 26
 
         execution_context = _build_execution_context(
             input_value=ctx.input_value,

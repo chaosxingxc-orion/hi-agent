@@ -142,7 +142,7 @@ def _resolve_tracer(provider: Any | None, service_name: str) -> Any:
 
     """
     try:
-        import opentelemetry.trace as otel_trace  # type: ignore[import]
+        import opentelemetry.trace as otel_trace  # type: ignore[import]  # expiry_wave: Wave 26
     except ImportError as exc:
         raise ImportError(
             "opentelemetry-api is required for OTLPRunTraceExporter. "

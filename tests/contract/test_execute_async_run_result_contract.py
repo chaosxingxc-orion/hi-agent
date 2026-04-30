@@ -40,7 +40,7 @@ def _make_executor(contract: TaskContract | None = None) -> RunExecutor:
         policy_versions=PolicyVersionSet(),
     )
     # Swap to async facade so execute_async can call start_run / execute_turn.
-    executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 17
+    executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 26
     return executor
 
 

@@ -312,7 +312,7 @@ class EvaluationMiddleware:
             max_tokens=512,
             metadata={"purpose": self._model_tier, "run_id": run_id},
         )
-        response = self._llm_gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 17
+        response = self._llm_gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 26
         parsed = json.loads(response.content)
 
         raw_score = float(parsed["score"])

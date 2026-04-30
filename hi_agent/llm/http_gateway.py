@@ -494,7 +494,7 @@ class HttpLLMGateway:
                 run_id or "unknown",
                 _obs_exc,
             )
-        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 17
+        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 26
 
     @staticmethod
     def _parse_response(raw: dict[str, Any], model: str) -> LLMResponse:
@@ -743,7 +743,7 @@ class HTTPGateway:
                 if attempt < self._max_retries:
                     delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     await asyncio.sleep(delay)
-        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 17
+        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 26
 
     def supports_model(self, model: str) -> bool:
         """Return ``True``; the HTTP gateway delegates model validation to the provider."""

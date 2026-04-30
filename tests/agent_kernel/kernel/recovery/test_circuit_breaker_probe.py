@@ -44,7 +44,7 @@ async def test_probe_once_resets_open_breaker_when_probe_succeeds() -> None:
         return True
 
     scheduler = CircuitBreakerProbeScheduler(
-        circuit_breaker_store=store,  # type: ignore[arg-type]  expiry_wave: Wave 17
+        circuit_breaker_store=store,  # type: ignore[arg-type]  expiry_wave: Wave 26
         policy=policy,
         probe_fns={"write": _probe},
     )
@@ -67,7 +67,7 @@ async def test_probe_once_skips_when_under_threshold() -> None:
         return True
 
     scheduler = CircuitBreakerProbeScheduler(
-        circuit_breaker_store=store,  # type: ignore[arg-type]  expiry_wave: Wave 17
+        circuit_breaker_store=store,  # type: ignore[arg-type]  expiry_wave: Wave 26
         policy=policy,
         probe_fns={"write": _probe},
     )
@@ -83,7 +83,7 @@ async def test_probe_once_skips_when_no_probe_function_registered() -> None:
     store = _StoreStub(states={"write": (5, time.time() - 60)})
     policy = CircuitBreakerPolicy(threshold=3, half_open_after_ms=1)
     scheduler = CircuitBreakerProbeScheduler(
-        circuit_breaker_store=store,  # type: ignore[arg-type]  expiry_wave: Wave 17
+        circuit_breaker_store=store,  # type: ignore[arg-type]  expiry_wave: Wave 26
         policy=policy,
         probe_fns={},
     )
@@ -103,7 +103,7 @@ async def test_start_returns_same_task_when_already_running() -> None:
         return True
 
     scheduler = CircuitBreakerProbeScheduler(
-        circuit_breaker_store=store,  # type: ignore[arg-type]  expiry_wave: Wave 17
+        circuit_breaker_store=store,  # type: ignore[arg-type]  expiry_wave: Wave 26
         policy=policy,
         probe_fns={"write": _probe},
         interval_s=60.0,

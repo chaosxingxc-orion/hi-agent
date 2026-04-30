@@ -315,7 +315,7 @@ class ExecutionHookManager:
             if inspect.iscoroutinefunction(call_fn):
                 response = await call_fn(ctx.request)
             else:
-                response = call_fn(ctx.request)  # type: ignore[assignment]  expiry_wave: Wave 17
+                response = call_fn(ctx.request)  # type: ignore[assignment]  expiry_wave: Wave 26
         except Exception as exc:
             _hooks_errors_total.inc()
             error = exc
@@ -343,7 +343,7 @@ class ExecutionHookManager:
 
         llm_result = LLMCallResult(
             context=ctx,
-            response=response,  # type: ignore[arg-type]  expiry_wave: Wave 17
+            response=response,  # type: ignore[arg-type]  expiry_wave: Wave 26
             duration_ms=duration_ms,
         )
         return await post_chain.run_post_llm(llm_result)
@@ -379,7 +379,7 @@ class ExecutionHookManager:
             if inspect.iscoroutinefunction(call_fn):
                 result_str = await call_fn(ctx)
             else:
-                result_str = call_fn(ctx)  # type: ignore[assignment]  expiry_wave: Wave 17
+                result_str = call_fn(ctx)  # type: ignore[assignment]  expiry_wave: Wave 26
         except Exception as exc:
             _hooks_errors_total.inc()
             error = exc

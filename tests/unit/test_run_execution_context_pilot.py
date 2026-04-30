@@ -131,4 +131,4 @@ class TestFromManagedRun:
         run = _make_managed_run()
         ctx = RunExecutionContext.from_managed_run(run)
         with pytest.raises((AttributeError, Exception)):
-            ctx.tenant_id = "mutated"  # type: ignore[misc]  expiry_wave: Wave 17
+            ctx.tenant_id = "mutated"  # type: ignore[misc]  expiry_wave: Wave 26

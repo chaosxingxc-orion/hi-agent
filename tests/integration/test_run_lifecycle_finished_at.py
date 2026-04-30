@@ -42,7 +42,7 @@ class TestFinishedAtPopulated:
                 error = None
                 finished_at = None  # deliberately absent on result
                 llm_fallback_count = 0
-                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 17
+                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 26
 
                 def to_dict(self):
                     return {"status": "completed"}
@@ -112,7 +112,7 @@ class TestFinishedAtPopulated:
                 error = None
                 finished_at = None
                 llm_fallback_count = 0
-                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 17
+                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 26
 
                 def to_dict(self):
                     return {}

@@ -188,7 +188,7 @@ class TestConsistencyViolationFrozen:
             detail="x",
         )
         with pytest.raises(FrozenInstanceError):
-            v.kind = "other"  # type: ignore[misc]  expiry_wave: Wave 17
+            v.kind = "other"  # type: ignore[misc]  expiry_wave: Wave 26
 
 
 # ---------------------------------------------------------------------------

@@ -264,7 +264,7 @@ class SkillRegistry:
         """Persist registry to disk as JSON."""
         os.makedirs(self._storage_dir, exist_ok=True)
         path = os.path.join(self._storage_dir, "registry.json")
-        data: list[dict] = []  # type: ignore[type-arg]  expiry_wave: Wave 17
+        data: list[dict] = []  # type: ignore[type-arg]  expiry_wave: Wave 26
         for skill in self._skills.values():
             d = asdict(skill)
             # Convert PromotionRecord dicts are already plain dicts from asdict

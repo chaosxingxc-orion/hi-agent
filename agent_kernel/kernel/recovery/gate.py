@@ -213,7 +213,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
                     comp_effect_class,
                     recovery_input.run_id,
                 )
-                mode = "abort"  # type: ignore[assignment]
+                mode = "abort"  # type: ignore[assignment]  # expiry_wave: Wave 26
                 effective_reason = f"{plan.reason}:no_compensation_handler"
                 effective_compensation_id = None
                 effective_escalation_ref = None
@@ -238,7 +238,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
                             comp_effect_class,
                             exc,
                         )
-                        mode = "human_escalation"  # type: ignore[assignment]
+                        mode = "human_escalation"  # type: ignore[assignment]  # expiry_wave: Wave 26
                         effective_reason = f"{plan.reason}:compensation_exhausted"
                         effective_compensation_id = None
 

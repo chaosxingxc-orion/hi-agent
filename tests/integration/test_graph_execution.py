@@ -73,7 +73,7 @@ def _make_executor_with_stub(
             return "failed"
         return None  # success
 
-    executor._execute_stage = stub_execute_stage  # type: ignore[assignment]  expiry_wave: Wave 17
+    executor._execute_stage = stub_execute_stage  # type: ignore[assignment]  expiry_wave: Wave 26
     return executor, kernel, stages_executed
 
 
@@ -266,7 +266,7 @@ class TestExecuteGraphMultipleSuccessors:
             stages_executed.append(stage_id)
             return None
 
-        executor._execute_stage = stub_execute_stage  # type: ignore[assignment]  expiry_wave: Wave 17
+        executor._execute_stage = stub_execute_stage  # type: ignore[assignment]  expiry_wave: Wave 26
 
         result = executor.execute_graph()
 
@@ -348,7 +348,7 @@ class TestExecuteGraphMaxStepsSafety:
             step_count["n"] += 1
             return None
 
-        executor._execute_stage = always_succeed  # type: ignore[assignment]  expiry_wave: Wave 17
+        executor._execute_stage = always_succeed  # type: ignore[assignment]  expiry_wave: Wave 26
 
         result = executor.execute_graph()
 

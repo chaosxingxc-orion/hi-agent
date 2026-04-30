@@ -92,7 +92,7 @@ def test_async_http_gateway_bridge_has_bounded_timeout(monkeypatch) -> None:
         await asyncio.sleep(60)
         raise AssertionError("should have been cancelled by timeout")
 
-    gw._inner.complete = _hang  # type: ignore[method-assign]  expiry_wave: Wave 17
+    gw._inner.complete = _hang  # type: ignore[method-assign]  expiry_wave: Wave 26
 
     # Drive from inside a running event loop so the bridge path is taken.
     import asyncio

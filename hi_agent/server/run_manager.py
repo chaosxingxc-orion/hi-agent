@@ -144,7 +144,7 @@ class RunManager:
         self._idempotency_store = idempotency_store
         self._run_store = run_store
         self._run_queue = run_queue
-        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: Wave 17
+        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: Wave 26
         # Per-run sequence counters; seeded from storage on first use (restart-safe).
         self._event_seqs: dict[str, int] = {}
         self._event_seq_lock = threading.Lock()
@@ -765,7 +765,7 @@ class RunManager:
                 try:
                     from hi_agent.server.fault_injection import get_fault_injector
                     get_fault_injector().maybe_stall_heartbeat_sync()
-                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 17
+                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 26
                     if renewed:
                         run_for_hb = self._runs.get(run_id)
                         if run_for_hb is not None:

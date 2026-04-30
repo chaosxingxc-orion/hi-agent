@@ -29,7 +29,7 @@ SESSION_HEADER = "X-Session-Id"
 class TenantContextMiddleware(BaseHTTPMiddleware):
     """Inject a TenantContext into request state from request headers."""
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]  # expiry_wave: Wave 26
         tenant_id = request.headers.get(TENANT_HEADER, "").strip()
         if not tenant_id:
             err = AuthError(f"missing or empty {TENANT_HEADER} header")

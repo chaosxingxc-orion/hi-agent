@@ -25,7 +25,7 @@ def _git_short_sha() -> str:
 def _run_library_drill() -> list[dict[str, str]]:
     scenarios: list[dict[str, str]] = []
     try:
-        from hi_agent.server import incident_runbook_commands  # type: ignore  expiry_wave: Wave 17
+        from hi_agent.server import incident_runbook_commands  # type: ignore  expiry_wave: Wave 26
     except ModuleNotFoundError:
         docs = sorted(Path("docs/runbook").glob("*.md"))
         status = "pass" if docs else "fail"

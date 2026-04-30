@@ -11,7 +11,7 @@ def _registry_with_budget(cap_name: str, handler, budget_tokens: int) -> Capabil
     # CapabilitySpec is frozen; we subclass or use object.__setattr__ after construction
     spec = CapabilitySpec(name=cap_name, handler=handler)
     # Bypass frozen to attach budget — this mirrors how descriptor_factory attaches metadata
-    object.__setattr__(spec, "output_budget_tokens", budget_tokens)  # type: ignore[misc]  expiry_wave: Wave 17
+    object.__setattr__(spec, "output_budget_tokens", budget_tokens)  # type: ignore[misc]  expiry_wave: Wave 26
     registry.register(spec)
     return registry
 

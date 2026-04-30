@@ -150,7 +150,7 @@ async def _with_rate_limit_retry(
                 )
                 await asyncio.sleep(delay)
                 backoff *= 2
-    raise last_exc  # type: ignore[misc]
+    raise last_exc  # type: ignore[misc]  # expiry_wave: Wave 26
 
 
 # ---------------------------------------------------------------------------

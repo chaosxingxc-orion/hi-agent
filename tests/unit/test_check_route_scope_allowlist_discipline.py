@@ -127,4 +127,4 @@ def test_allowlist_entry_is_frozen():
 
     entry = mod.NO_SCOPE_ALLOWLIST["handle_health"]
     with pytest.raises((AttributeError, TypeError)):
-        entry.owner = "TAMPERED"  # type: ignore[misc]  expiry_wave: Wave 17
+        entry.owner = "TAMPERED"  # type: ignore[misc]  expiry_wave: Wave 26

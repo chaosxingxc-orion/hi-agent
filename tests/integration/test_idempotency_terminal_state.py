@@ -38,7 +38,7 @@ def _noop_executor(run: ManagedRun):
         error = None
         llm_fallback_count = 0
         finished_at = None
-        fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 17
+        fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 26
 
         def to_dict(self):
             return {"status": "completed"}
@@ -130,7 +130,7 @@ class TestTerminalStateMapping:
                 error = "cancelled"
                 llm_fallback_count = 0
                 finished_at = None
-                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 17
+                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 26
 
                 def to_dict(self):
                     return {"status": "cancelled"}

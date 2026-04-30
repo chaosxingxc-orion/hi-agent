@@ -1051,7 +1051,7 @@ class KernelFacade:
                         "KernelHealthProbe.liveness must be synchronous; got an async method. "
                         "Wrap it in a sync adapter before injecting."
                     )
-                return probe_result()  # type: ignore[no-any-return]
+                return probe_result()  # type: ignore[no-any-return]  # expiry_wave: Wave 26
         return {"status": "ok", "substrate": self._substrate_type}
 
     def get_health_readiness(self) -> dict[str, Any]:
@@ -1084,7 +1084,7 @@ class KernelFacade:
                         "KernelHealthProbe.readiness must be synchronous; got an async method. "
                         "Wrap it in a sync adapter before injecting."
                     )
-                return probe_result()  # type: ignore[no-any-return]
+                return probe_result()  # type: ignore[no-any-return]  # expiry_wave: Wave 26
         return {"status": "ok", "substrate": self._substrate_type}
 
     def register_task(self, descriptor: TaskDescriptor) -> None:
@@ -1221,9 +1221,9 @@ class KernelFacade:
 
         return TraceRuntimeView(
             run_id=run_id,
-            run_state=run_state,  # type: ignore[arg-type]
-            wait_state=wait_state,  # type: ignore[arg-type]
-            review_state=review_state,  # type: ignore[arg-type]
+            run_state=run_state,  # type: ignore[arg-type]  # expiry_wave: Wave 26
+            wait_state=wait_state,  # type: ignore[arg-type]  # expiry_wave: Wave 26
+            review_state=review_state,  # type: ignore[arg-type]  # expiry_wave: Wave 26
             active_stage_id=response.active_stage_id,
             branches=branches,
             policy_versions=response.policy_versions,
@@ -1521,7 +1521,7 @@ class KernelFacade:
         self._touch_run(run_id)
         view = TraceStageView(
             stage_id=stage_id,
-            state="active",  # type: ignore[arg-type]
+            state="active",  # type: ignore[arg-type]  # expiry_wave: Wave 26
             entered_at=datetime.datetime.now(datetime.UTC).isoformat(),
             branch_id=branch_id,
         )
@@ -1631,7 +1631,7 @@ class KernelFacade:
         view = TraceBranchView(
             branch_id=request.branch_id,
             stage_id=request.stage_id,
-            state="active",  # type: ignore[arg-type]
+            state="active",  # type: ignore[arg-type]  # expiry_wave: Wave 26
             opened_at=datetime.datetime.now(datetime.UTC).isoformat(),
             parent_branch_id=request.parent_branch_id,
             proposed_by=request.proposed_by,

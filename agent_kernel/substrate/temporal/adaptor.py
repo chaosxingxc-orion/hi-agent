@@ -270,7 +270,7 @@ class TemporalAdaptor:
 
         """
         if self.worker_failed:
-            raise self._worker_task.exception()  # type: ignore[misc]
+            raise self._worker_task.exception()  # type: ignore[misc]  # expiry_wave: Wave 26
 
     # ------------------------------------------------------------------
     # Internal connection helpers

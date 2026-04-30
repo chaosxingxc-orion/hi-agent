@@ -11,7 +11,7 @@ from hi_agent.server.auth_middleware import AuthMiddleware
 
 def _make_middleware(runtime_mode: str) -> AuthMiddleware:
     """Return an AuthMiddleware with a no-op ASGI app."""
-    return AuthMiddleware(app=lambda *a: None, runtime_mode=runtime_mode)  # type: ignore[arg-type]  expiry_wave: Wave 17
+    return AuthMiddleware(app=lambda *a: None, runtime_mode=runtime_mode)  # type: ignore[arg-type]  expiry_wave: Wave 26
 
 
 class TestAuthPostureOk:

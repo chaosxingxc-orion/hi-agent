@@ -102,7 +102,7 @@ def test_journey_execute_gate_approve() -> None:
             raise GatePendingError(gate_id=_gate_id)
         return original_execute_stage(stage_id)
 
-    executor._execute_stage = patched_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 17
+    executor._execute_stage = patched_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 26
 
     # Step 3: execute() must raise GatePendingError
     with pytest.raises(GatePendingError) as exc_info:
@@ -158,7 +158,7 @@ def test_journey_execute_gate_backtrack() -> None:
             raise GatePendingError(gate_id=_gate_id)
         return original_execute_stage(stage_id)
 
-    executor._execute_stage = patched_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 17
+    executor._execute_stage = patched_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 26
 
     with pytest.raises(GatePendingError):
         executor.execute()
@@ -288,7 +288,7 @@ def test_journey_execute_graph_gate() -> None:
             raise GatePendingError(gate_id=_gate_id)
         return original_execute_stage(stage_id)
 
-    executor._execute_stage = patched_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 17
+    executor._execute_stage = patched_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 26
 
     # execute_graph() must raise GatePendingError, not swallow it
     with pytest.raises(GatePendingError) as exc_info:
@@ -806,7 +806,7 @@ def test_journey_combined_pi_c_pi_d(tmp_path: Path) -> None:
             raise GatePendingError(gate_id=gate_id)
         return original_execute_stage(stage_id)
 
-    executor._execute_stage = gated_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 17
+    executor._execute_stage = gated_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 26
 
     # -------------------------------------------------------------------
     # Phase 1: execute() runs stage_sub (PI-D), stage_flaky (PI-B reflect),
