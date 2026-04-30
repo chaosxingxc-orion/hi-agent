@@ -1,0 +1,42 @@
+{
+  "provenance": "structural",
+  "release_head": "09dd77f",
+  "verified_head": "09dd77f",
+  "generated_at": "2026-04-30T07:43:17.668027+00:00",
+  "run_id": "8da52fc1-5c6e-410e-843c-bad62d225325",
+  "event_count": 6,
+  "event_types": [
+    "run_queued",
+    "run_started",
+    "run_started",
+    "run_finalized",
+    "run_completed",
+    "run_completed"
+  ],
+  "spine_ok": true,
+  "metrics_snapshot": {
+    "hi_agent_events_stored_total": {
+      "_total": 6.0
+    },
+    "hi_agent_events_published_total": {
+      "_total": 4.0
+    },
+    "runs_total": {
+      "status=\"completed\"": 1.0
+    },
+    "hi_agent_runs_completed_total": {
+      "_total": 1.0
+    },
+    "hi_agent_thread_count": {
+      "_total": 2.0
+    }
+  },
+  "failures": [],
+  "status": "pass",
+  "_evidence_meta": {
+    "provenance": "structural",
+    "head_sha": "09dd77fdc71d7a01b5975251c56e89dc17764458",
+    "generated_at": "2026-04-30T07:43:18.530763+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\build_observability_spine_evidence.py"
+  }
+}
