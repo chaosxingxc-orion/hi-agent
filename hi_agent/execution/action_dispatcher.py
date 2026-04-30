@@ -182,12 +182,19 @@ class ActionDispatcher:
                 )
                 try:
                     from hi_agent.observability.spine_events import (
+                        emit_capability_handler,
                         emit_tool_call,
                     )
+                    _tool_name = str(getattr(proposal, "action_kind", "unknown"))
                     emit_tool_call(
-                        tool_name=str(getattr(proposal, "action_kind", "unknown")),
+                        tool_name=_tool_name,
                         tenant_id="",
                         profile_id="",
+                    )
+                    # w25-F: spine tap for capability_handler layer
+                    emit_capability_handler(
+                        tool_name=_tool_name,
+                        run_id=self._ctx.run_id,
                     )
                 except Exception:  # rule7-exempt: expiry_wave="Wave 22"
                     pass

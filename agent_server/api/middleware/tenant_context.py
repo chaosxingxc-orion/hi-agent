@@ -40,4 +40,10 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             profile_id=request.headers.get(PROFILE_HEADER, "").strip(),
             session_id=request.headers.get(SESSION_HEADER, "").strip(),
         )
+        # w25-F: spine tap for tenant_context layer
+        try:
+            from hi_agent.observability.spine_events import emit_tenant_context
+            emit_tenant_context(tenant_id=tenant_id)
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+            pass
         return await call_next(request)

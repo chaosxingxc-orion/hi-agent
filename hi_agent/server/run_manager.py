@@ -487,6 +487,12 @@ class RunManager:
             {"state": "created", "created_at": now},
             run,
         )
+        # w25-F: spine tap for run_manager layer
+        try:
+            from hi_agent.observability.spine_events import emit_run_manager
+            emit_run_manager(tenant_id=tenant_id, run_id=run_id)
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+            pass
 
         # --- persist to run_store if available ------------------------------
         if self._run_store is not None:
