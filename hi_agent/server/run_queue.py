@@ -294,8 +294,9 @@ ON run_queue (tenant_id, user_id, session_id, status)
             result = self._conn.execute(
                 "UPDATE run_queue "
                 "SET lease_expires_at = ?, updated_at = ? "
-                "WHERE run_id = ? AND worker_id = ? AND status = 'leased'",
-                (lease_expires_at, now, run_id, worker_id),
+                "WHERE run_id = ? AND worker_id = ? AND status = 'leased' "
+                "AND lease_expires_at >= ?",
+                (lease_expires_at, now, run_id, worker_id, now),
             )
             self._conn.commit()
         return result.rowcount > 0
