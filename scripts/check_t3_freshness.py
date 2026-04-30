@@ -29,22 +29,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Hot-path patterns — from CLAUDE.md Rule 8
-# ---------------------------------------------------------------------------
-_HOT_PATH_PATTERNS: list[str] = [
-    "hi_agent/llm/**",
-    "hi_agent/runtime/**",
-    "hi_agent/config/cognition_builder.py",
-    "hi_agent/config/json_config_loader.py",
-    "hi_agent/config/builder.py",
-    "hi_agent/runner.py",
-    "hi_agent/runner_stage.py",
-    "hi_agent/runtime_adapter/**",
-    "hi_agent/memory/compressor.py",
-    "hi_agent/server/app.py",
-    "hi_agent/profiles/**",
-]
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts._governance.hot_paths import HOT_PATH_PATTERNS as _HOT_PATH_PATTERNS
 
 
 def _is_hot_path(file_path: str) -> bool:
