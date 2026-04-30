@@ -487,11 +487,10 @@ class HttpLLMGateway:
         except Exception as _obs_exc:
             _gateway_errors_total.inc()
             logger.warning(
-
-                "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
-
+                "llm_fallback: record_fallback self-failure at retries_exhausted; "
+                "run_id=%s exc=%r",
+                run_id or "unknown",
                 _obs_exc,
-
             )
         raise last_exc  # type: ignore[misc]  expiry_wave: Wave 17
 
@@ -654,11 +653,10 @@ class HTTPGateway:
                     except Exception as _obs_exc:
                         _gateway_errors_total.inc()
                         logger.warning(
-
-                            "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
-
+                            "llm_fallback: record_fallback self-failure at failover_chain_failed"
+                            " (inner); run_id=%s exc=%r",
+                            _run_id_for_fallback,
                             _obs_exc,
-
                         )
                     logger.warning(
                         "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
@@ -678,11 +676,10 @@ class HTTPGateway:
             except Exception as _obs_exc:
                 _gateway_errors_total.inc()
                 logger.warning(
-
-                    "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
-
+                    "llm_fallback: record_fallback self-failure at failover_chain_failed"
+                    " (outer); run_id=%s exc=%r",
+                    _run_id_for_fallback,
                     _obs_exc,
-
                 )
             logger.warning("HTTPGateway integration error (%s), using direct path.", exc)
 
