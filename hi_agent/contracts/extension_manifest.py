@@ -174,7 +174,7 @@ class ExtensionManifestMixin:
 
 
 _VALID_MANIFEST_KINDS = frozenset({"plugin", "kernel", "mcp_tool", "knowledge"})
-_VALID_REQUIRED_POSTURES = frozenset({"any", "dev", "research", "strict", "prod"})
+_VALID_REQUIRED_POSTURES = frozenset({"any", "dev", "research", "prod"})
 _VALID_TENANT_SCOPES = frozenset({"global", "tenant", "user", "session"})
 
 
