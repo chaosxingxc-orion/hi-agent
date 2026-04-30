@@ -1,6 +1,6 @@
 # hi-agent Platform Capability Matrix
 
-Last updated: 2026-04-30 (Wave 24 — Honest Manifest Reset + 7×24 Cap Closure + Agent Server MVP)
+Last updated: 2026-05-01 (Wave 25 — in progress)
 
 ---
 

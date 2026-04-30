@@ -1,6 +1,6 @@
 # hi-agent Engineering TODO
 
-Last updated: 2026-04-29 (Wave 20 — Wave-label drift + CL class closures)
+Last updated: 2026-05-01 (Wave 26 — Unified Close-Out in progress; W25 + W26 closing this session)
 
 ## DONE (Wave 1-4, SA-1..SA-8, 2026-04-22/24)
 
@@ -81,32 +81,9 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - [x] **GOV-2** docs/platform-capability-matrix.md migrated to L0–L4 model — commit f768dc4
 - [x] **GOV-3** docs/TODO.md updated — all Wave 9 findings closed — (this commit)
 - [x] **GOV-4** T3 freshness hard CI gate — scripts/check_t3_freshness.py + .github/workflows/claude-rules.yml (already in H1 wave, confirmed active)
-- [x] **GOV-5** Wave 9 delivery notice — `docs/downstream-responses/2026-04-25-wave9-delivery-notice.md` (pending)
+- [x] **GOV-5** Wave 9 delivery notice — `docs/downstream-responses/2026-04-25-wave9-delivery-notice.md`
 
-## PENDING — Phase 2 (deferred from Wave 9)
-
-- P-1 Provenance: `RawMemoryEntry.provenance` field, `CapabilitySpec.source_reference`
-- P-3 Cross-Run Project aggregation: `project_id` scope model design
-- P-5 Confidence scoring: `Artifact.confidence: float` field
-- docs/specs/provenance-spec.md (design draft)
-
-## PENDING — Phase 3 (P-4, P-6, P-7)
-
-- P-4 Dynamic re-planning API: `StageDirective(skip_to, insert_stage)`
-- P-6 KG inference: transitive query + conflict detection on LongTermMemoryGraph (JSON)
-- P-7 Feedback path: `submit_run_feedback()` → EvolveEngine
-
-## OPEN — Wave 10 Candidates (deferred from Wave 9)
-
-- **RO-5 boot path**: Process-kill restart xfail — durable RunQueue not yet wired through `app.py` server boot; full posture-aware boot requires server startup changes
-- **POST /artifacts write API**: Needs CO-5 + TE-3 stable first (now satisfied; Wave 10 P1)
-- **ProjectPostmortem lifecycle integration**: Needs TE-2 durable ledger wired (now satisfied; Wave 10)
-- **Budget multi-level enforcement (project/profile/run/stage)**: Descriptor fields exist; runtime enforcement deferred
-- **Knowledge graph durable backend**: JsonGraphBackend at L1 (tested, not default path)
-- **Self-evolution gated update + rollback**: Needs human-approval design; TE-5 is schema only
-- **ResearchProjectSpec → TeamRunSpec compile reference**: CO-7 introduces TeamRunSpec; downstream compile is research team's
-
-## DONE (Waves 10–18 summary, 2026-04-26–29)
+## DONE (Waves 10–24 summary, 2026-04-26–30)
 
 ### Wave 10 — Platform Spine + Strict Defaults
 - Contract spine (tenant_id across all 5 writers), Rule 7 alarms, GateStore, TeamRunRegistry durable
@@ -130,7 +107,7 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - 7 classes closed; 35-gate infrastructure; check_recurrence_ledger; check_allowlist_discipline
 - verified=72.0 (gate_warn cap)
 
-### Wave 15 — systemic class closure
+### Wave 15 — Systemic Class Closure
 - 8 classes; verified=77.6 (+5.6); noqa migration; type:ignore sweep
 
 ### Wave 16 — Observability Spine + Chaos + Operator Drill
@@ -147,31 +124,112 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - C4: Vocab debt — all 7 expired aliases deleted atomically; allowlists cleared
 - Clean-env: 8707 passed, 0 failures; chaos matrix: 4 passed, 6 skipped, 0 failed
 
-## DONE — Wave 19 (Test Honesty, 2026-04-29)
-- [x] C1: Gate strictness — check_gate_strictness.py all sites resolved (CLOSED Wave 19)
-- [x] C2: Evidence honesty — spine driver observation-based, /ops/drain endpoint (CLOSED Wave 19)
-- [x] C5: Delete conftest global HI_AGENT_ALLOW_HEURISTIC_FALLBACK + convert to fixture (CLOSED Wave 19)
-- [x] C6: tests/posture/ matrix (34 Posture.from_env() callsites) (CLOSED Wave 19)
-- [x] C7: error_categories.py typed exception hierarchy (CLOSED Wave 19)
-- [x] C10: check_doc_truth.py in release-gate; Wave 17/18 written response (CLOSED Wave 19)
-- [x] C11: ledger schema + metric/alert/runbook fields (CLOSED Wave 19)
+### Wave 19 — Test Honesty
+- [x] C1: Gate strictness — check_gate_strictness.py all sites resolved (CLOSED)
+- [x] C2: Evidence honesty — spine driver observation-based, /ops/drain endpoint (CLOSED)
+- [x] C5: Delete conftest global HI_AGENT_ALLOW_HEURISTIC_FALLBACK + convert to fixture (CLOSED)
+- [x] C6: tests/posture/ matrix (34 Posture.from_env() callsites) (CLOSED)
+- [x] C7: error_categories.py typed exception hierarchy (CLOSED)
+- [x] C10: check_doc_truth.py in release-gate; Wave 17/18 written response (CLOSED)
+- [x] C11: ledger schema + metric/alert/runbook fields (CLOSED)
 
-## PENDING — Wave 20 (CL class closures)
-- CL1: Rule 12 Spine — contract spine completeness across all new records
-- CL2: Rule 7 Silent Degradation — every silent-degradation path Countable + Attributable + Inspectable + Gate-asserted
-- CL3: Stale expiry markers — audit and clear all expired allowlist entries; update expiry_wave fields
-- CL4: Rule 5/6 sweep — async resource lifetime + single construction path audit across codebase
-- CL5: Rule 13 maturity — update capability L-level declarations with evidence (SHA + test + manifest + posture)
-- CL6: Manifest hygiene — manifest_id citations consistent; stale intermediates archived
-- CL7: Test honesty — eliminate MagicMock on subsystem-under-test in integration tests
-- CL8: Wave-label drift — update governance docs to wave=20 (THIS COMMIT)
-- CL9: Observability spine wiring — real LLM trace pipeline; event_emitter + typed events; soak evidence
-- CL10: Dimension lifts — update readiness deltas per W19 delivery evidence
+### Wave 20 — CL class closures (partial; CL1–CL10 IN PROGRESS this session)
+- Wave-label drift cleanup (CL8) applied
+- CL1–CL10: IN PROGRESS — closing in W26 Phase 5 Lane I
 
-## PENDING — Wave 21 (Ecosystem Closure)
-- C7b: type:ignore 85→<25; noqa 47→<15
-- C11: all 10 ledger entries to operationally_observable
-- C12: ExtensionRegistry upgrade/rollback, ExperimentStore rollback, StageDirective skip_to
+### Wave 21 — Ecosystem Closure (partial; C7b/C11/C12 IN PROGRESS this session)
+- C7b: type:ignore/noqa burndown: IN PROGRESS — Phase 5 Lane B (target: <25/<15)
+- C11: ledger entries → operationally_observable: IN PROGRESS — Phase 5 Lane D
+- C12: ExtensionRegistry lifecycle: IN PROGRESS — Phase 5 Lane E
+
+### Wave 22 — Contract V1 Freeze
+- V1_RELEASED=True flag in agent_server/config/version.py
+- contract_v1_freeze.json committed
+- docs/platform/agent-server-northbound-contract-v1.md: RELEASED (patched W25)
+
+### Wave 23 — Multistatus + Rule 7 LLM hot-path
+- Multistatus runner + 9 boundary gates; Rule 7 LLM hot-path closure
+- verified=94.55 (manifest: 2026-04-30-a3f4353)
+
+### Wave 24 — Honest Manifest Reset + 7×24 + Agent Server MVP
+- 12 tracks + J-series; memory L1/L2 SQLite; capability per-posture matrix
+- 8 agent_server routes + idempotency middleware + CLI; deployment harness
+- verified=94.55 (manifest: 2026-04-30-09dd77f); 7×24=65.0 (soak/spine/chaos deferred)
+
+### Wave 25 — W25 Close (this session)
+- P-4 StageDirective wiring (PARTIAL: skip_to + insert_stage)
+- Contract V1 markdown patched RELEASED
+- Run manager QueueSaturatedError raise (Rule 7)
+- Integration test guards (offline environment)
+- Chaos matrix 8/8 committed at HEAD 374bce79
+- W24 notice TBDs patched
+- W25 manifest + closure + signoff: IN PROGRESS (Phase 3)
+- Evidence (T3, spine, chaos, drill, 1h soak): IN PROGRESS (Phase 2)
+
+---
+
+## IN PROGRESS — Wave 26 (this session, Phase 5 parallel lanes)
+
+### P-4 Dynamic re-planning (PARTIAL → closing this session)
+- StageDirective wired in run_linear + run_graph + run_resume (W25)
+- Phase 5 Lane M includes remaining integration evidence
+
+### P-7 TierRouter active calibration (deferred Wave 19 → closing this session)
+- ingest_calibration_signal() record-only since Wave 10.4
+- Phase 5 Lane L: wire signal → routing weight influence
+
+### CL1 — Rule 12 Spine completeness (IN PROGRESS — Phase 5 Lane I)
+- Track X 4th store test (test_gate_store_restart_survival.py) included
+
+### CL2 — Rule 7 Silent Degradation full closure (IN PROGRESS — Phase 5 Lane I)
+- All 95 sites: Countable + Attributable + Inspectable + Gate-asserted
+
+### CL3 — Stale expiry markers (IN PROGRESS — Phase 5 Lane I)
+- 557 Wave 26 markers → stagger across W27/W28/W29/W30 by ownership track
+
+### CL4 — Rule 5/6 sweep (IN PROGRESS — Phase 5 Lane I)
+
+### CL5 — Rule 13 maturity (IN PROGRESS — Phase 5 Lane I)
+
+### CL6 — Manifest hygiene (IN PROGRESS — Phase 5 Lane I)
+
+### CL7 — Test honesty (IN PROGRESS — Phase 5 Lane I)
+
+### CL8 — Wave-label drift (IN PROGRESS — Phase 5 Lane I)
+
+### CL9 — Observability spine wiring (IN PROGRESS — Phase 5 Lane I; depends on Lane C)
+
+### CL10 — Dimension lifts (IN PROGRESS — Phase 5 Lane I)
+
+### C7b — type:ignore/noqa burndown (IN PROGRESS — Phase 5 Lane B)
+- Current: 132 type:ignore, 119 noqa (regressed from W21 baseline)
+- Target: <25 type:ignore, <15 noqa
+
+### C8 — RunEventEmitter + 12 typed events (IN PROGRESS — Phase 5 Lane C)
+- W20 PENDING: event_emitter.py + 12 record_* methods
+
+### C11 — 10 ledger entries → operationally_observable (IN PROGRESS — Phase 5 Lane D)
+
+### C12 — Extension lifecycle (IN PROGRESS — Phase 5 Lane E)
+- ExtensionRegistry upgrade/rollback + ExperimentStore rollback + CLI
+
+### Track AA — 3-layer test fills (IN PROGRESS — Phase 5 Lane A)
+- Subsystems: trajectory, orchestrator, state, replay, task_view, failures
+
+### W24 carries (IN PROGRESS — Phase 5 Lanes N/O/P)
+- N: Posture coverage 86%→100% (9 decorator-only sites in artifact validation)
+- O: MCP-tools northbound adapter
+- P: Idempotency on skill register + memory write routes
+
+### Wave 10 carryover (IN PROGRESS — Phase 5 Lane M, time-boxed 4h)
+- RO-5 boot path: Wire durable RunQueue through app.py server boot
+- POST /artifacts write API
+- ProjectPostmortem lifecycle integration
+- Budget multi-level enforcement (deferrable)
+- KG L2 default-on (deferrable)
+- Self-evolution gated update + rollback (deferrable, depends on Lane E)
+
+---
 
 ## WARNING DEBT (low priority)
 
