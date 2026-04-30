@@ -1657,6 +1657,26 @@ class RunExecutor:
 
         RunFinalizer(self._build_finalizer_context())._cancel_pending_subruns(status)
 
+    async def _reap_pending_subruns(self, timeout: float = 5.0) -> None:
+        """Cancel and await all pending subrun futures within *timeout* seconds.
+
+        The synchronous _cancel_pending_subruns() only calls future.cancel()
+        without awaiting, so tasks leak until GC.  This async variant drives
+        each cancelled future to completion (or timeout) so the event loop
+        can release associated resources promptly on runner shutdown.
+
+        Args:
+            timeout: Per-future wall-clock seconds before abandoning the await.
+        """
+        import contextlib
+
+        for _task_id, fut in list(self._pending_subrun_futures.items()):
+            if callable(getattr(fut, "done", None)) and not fut.done():
+                fut.cancel()
+            with contextlib.suppress(asyncio.CancelledError, TimeoutError, Exception):
+                await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
+        self._pending_subrun_futures.clear()
+
     def _finalize_run(self, outcome: str) -> RunResult:
         """Delegate finalization to RunFinalizer (HI-W7-004)."""
         from hi_agent.execution.run_finalizer import RunFinalizer
