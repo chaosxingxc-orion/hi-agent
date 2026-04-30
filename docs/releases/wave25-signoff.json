@@ -1,0 +1,23 @@
+{
+  "wave": 25,
+  "manifest_id": "2026-04-30-0cee9fee",
+  "release_head": "0cee9fee9c3c9881bfa9e65e911d60b13273c3ca",
+  "signoff_sha": "0cee9fee",
+  "signed_at": "2026-04-30T22:14:49Z",
+  "signed_by": "chaosxingxc-orion",
+  "verified_readiness": 94.55,
+  "seven_by_twenty_four": 65.0,
+  "cap_factors": [],
+  "cap_factors_7x24": [
+    "soak_24h_missing",
+    "observability_spine_incomplete",
+    "chaos_non_runtime_coupled"
+  ],
+  "clean_env_sha": "edbca2cc",
+  "clean_env_passed": 8971,
+  "clean_env_failed": 0,
+  "t3_sha": "475fc41b",
+  "t3_status": "passed",
+  "t3_provenance": "real",
+  "notes": "W25 governance + hardening wave. 24h soak deferred to W26."
+}
