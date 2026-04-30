@@ -14,6 +14,17 @@ HOT_PATH_PATTERNS=(
   "hi_agent/memory/compressor.py"
   "hi_agent/server/app.py"
   "hi_agent/profiles/"
+  "agent_server/api/"
+  "agent_server/facade/"
+  "agent_server/cli/"
+  "hi_agent/config/posture.py"
+  "hi_agent/skill/registry.py"
+  "agent_server/contracts/"
+  "agent_server/api/middleware/idempotency.py"
+  "agent_server/api/middleware/tenant_context.py"
+  "hi_agent/server/error_categories.py"
+  "hi_agent/server/recovery.py"
+  "hi_agent/server/auth_middleware.py"
 )
 
 STAGED=$(git diff --cached --name-only)
