@@ -57,7 +57,11 @@ class SkillObservation:
 
 @dataclass
 class SkillMetrics:
-    """Aggregated metrics for a skill version."""
+    """Aggregated metrics for a skill version.
+
+    Wave 24 H1: tenant_id is on the spine so per-tenant skill registries can
+    surface skill-level metrics without crosstenant leakage.
+    """
 
     skill_id: str
     total_executions: int = 0
@@ -70,6 +74,15 @@ class SkillMetrics:
     failure_patterns: list[str] = field(default_factory=list)
     # Per-version breakdown
     version_stats: dict[str, dict] = field(default_factory=dict)
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "SkillMetrics.tenant_id required under research/prod posture"
+            )
 
 
 def make_observation_id() -> str:

@@ -25,13 +25,27 @@ _NEGATION_PAIRS: list[tuple[str, str]] = [
 
 @dataclass
 class RawEventRecord:
-    """Uncompressed event payload captured from runtime."""
+    """Uncompressed event payload captured from runtime.
+
+    Wave 24 H1: tenant_id is part of the spine so the L0 raw event log can
+    be partitioned per-tenant when persisted (the `provenance` ref already
+    points back at the source run, but tenant_id makes per-tenant scans cheap).
+    """
 
     event_type: str
     payload: dict
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     tags: list[str] = field(default_factory=list)
     provenance: Provenance | None = None
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "RawEventRecord.tenant_id required under research/prod posture"
+            )
 
 
 def _payload_text(record: RawEventRecord) -> str:

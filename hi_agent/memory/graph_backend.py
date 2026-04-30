@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 
+# Graph protocol value object — backend impls carry tenant at partition boundary.
+# scope: process-internal — protocol-passed value, scope-neutral by design.
 @dataclass
 class Edge:
     """A directed edge in the knowledge graph."""
@@ -20,6 +22,8 @@ class Edge:
     payload: dict[str, Any]
 
 
+# Graph protocol value object.
+# scope: process-internal — see Edge note above.
 @dataclass
 class Path:
     """A path through the knowledge graph."""
@@ -28,6 +32,8 @@ class Path:
     edges: list[Edge]
 
 
+# Graph protocol value object.
+# scope: process-internal — see Edge note above.
 @dataclass
 class ConflictReport:
     """Report of a detected conflict between two claims."""

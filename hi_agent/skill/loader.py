@@ -36,6 +36,8 @@ from hi_agent.skill.definition import SkillDefinition, _estimate_tokens
 # ---------------------------------------------------------------------------
 
 
+# Token-budget-formatted prompt buffer; one-shot output of a load call.
+# scope: process-internal — spine carried by the caller's tenant context.
 @dataclass
 class SkillPrompt:
     """Token-optimized skill prompt ready for LLM injection."""

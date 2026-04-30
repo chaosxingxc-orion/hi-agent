@@ -24,7 +24,13 @@ from hi_agent.memory.mid_term import DailySummary, MidTermMemoryStore
 
 @dataclass
 class MemoryNode:
-    """A node in the long-term memory graph."""
+    """A node in the long-term memory graph.
+
+    Wave 24 H1: tenant_id is part of the spine so the long-term memory graph
+    can be partitioned per-tenant — see allowlists.yaml W24-deferred entries
+    handle_knowledge_ingest, handle_knowledge_query, handle_knowledge_sync
+    which all depend on this partition.
+    """
 
     node_id: str
     content: str
@@ -35,16 +41,38 @@ class MemoryNode:
     access_count: int = 0
     created_at: str = ""
     updated_at: str = ""
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "MemoryNode.tenant_id required under research/prod posture"
+            )
 
 
 @dataclass
 class MemoryEdge:
-    """A relation between two memory nodes."""
+    """A relation between two memory nodes.
+
+    Wave 24 H1: tenant_id is part of the spine so edges can be partitioned
+    per-tenant, see MemoryNode docstring.
+    """
 
     source_id: str
     target_id: str
     relation_type: str  # "leads_to", "contradicts", "supports", "part_of", "derived_from"
     weight: float = 1.0
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "MemoryEdge.tenant_id required under research/prod posture"
+            )
 
 
 class LongTermMemoryGraph:

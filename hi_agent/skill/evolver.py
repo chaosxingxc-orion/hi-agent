@@ -45,8 +45,19 @@ class SkillAnalysis:
     top_failures: list[str]
     optimization_needed: bool
     suggestions: list[str]
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "SkillAnalysis.tenant_id required under research/prod posture"
+            )
 
 
+# Extracted pattern descriptor produced inside one SkillEvolver call.
+# scope: process-internal — tenant scope flows via RunRetrospective.tenant_id.
 @dataclass
 class SkillPattern:
     """A recurring pattern discovered from observation history."""
@@ -61,6 +72,8 @@ class SkillPattern:
     source_sessions: list[str]
 
 
+# Per-cycle summary of evolve activity; aggregate counters only.
+# scope: process-internal — parent run context carries the spine.
 @dataclass
 class EvolutionReport:
     """Report from a full evolution cycle."""

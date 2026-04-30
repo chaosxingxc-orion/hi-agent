@@ -17,6 +17,8 @@ from hi_agent.memory.l1_compressed import CompressedStageMemory
 logger = logging.getLogger(__name__)
 
 
+# Process-wide aggregate counters for the compressor.
+# scope: process-internal — not associated with any single tenant by design.
 @dataclass
 class CompressionMetrics:
     """Track compression statistics."""

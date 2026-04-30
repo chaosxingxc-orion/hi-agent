@@ -5,6 +5,9 @@ Walks AST of dataclass-decorated classes under:
   - hi_agent/contracts/
   - hi_agent/artifacts/
   - agent_server/contracts/
+  - hi_agent/evolve/
+  - hi_agent/skill/
+  - hi_agent/memory/
   - hi_agent/server/{run_store,idempotency,team_run_registry,event_store}.py
 
 For each @dataclass-decorated class, checks for a tenant_id field declaration.
@@ -13,6 +16,11 @@ immediately above (or as a leading comment in) the class declaration.
 
 Exits 0 on PASS, 1 on FAIL. Emits multistatus JSON when --json is passed and
 scripts/_governance/multistatus.py is importable.
+
+Wave 24 Track H1 expanded scope from {contracts, artifacts,
+agent_server/contracts} to also cover the per-feature spine surfaces (evolve,
+skill, memory) called out in the SA-1 Pattern 8 ledger
+(RIA hi-agent-architecture-improvement-requirements-2026-04-29.md A-02).
 """
 from __future__ import annotations
 
@@ -25,10 +33,16 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Directories to walk recursively for dataclass declarations.
+# Wave 24 Track H1 expanded scope from {contracts, artifacts, agent_server/contracts}
+# to also cover the per-feature spine surfaces called out in the SA-1 Pattern 8
+# ledger (RIA hi-agent-architecture-improvement-requirements-2026-04-29.md A-02).
 SCAN_DIRS = [
     "hi_agent/contracts",
     "hi_agent/artifacts",
     "agent_server/contracts",
+    "hi_agent/evolve",
+    "hi_agent/skill",
+    "hi_agent/memory",
 ]
 
 # Specific files to scan in addition to the directories above.
@@ -117,11 +131,16 @@ def _class_inherits_from_spine_base(
 
 
 def _scan_file(rel_path: str, classes_with_tenant: set[str]) -> list[dict]:
-    """Scan one file; return list of violation dicts."""
+    """Scan one file; return list of violation dicts.
+
+    Reads with ``utf-8-sig`` so files written with a Windows BOM (U+FEFF)
+    do not produce spurious SyntaxError noise; the gate then sees real code
+    classes, not parse-error placeholders.
+    """
     full = REPO_ROOT / rel_path
     if not full.exists():
         return []
-    src = full.read_text(encoding="utf-8")
+    src = full.read_text(encoding="utf-8-sig")
     src_lines = src.splitlines()
     try:
         tree = ast.parse(src, filename=str(full))
@@ -168,7 +187,7 @@ def _collect_classes_with_tenant(files: list[str]) -> set[str]:
         if not full.exists():
             continue
         try:
-            tree = ast.parse(full.read_text(encoding="utf-8"), filename=str(full))
+            tree = ast.parse(full.read_text(encoding="utf-8-sig"), filename=str(full))
         except SyntaxError:
             continue
         for node in ast.walk(tree):

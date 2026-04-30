@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 _fallback_count: int = 0
 
 
+# Transient async-compression output object.
+# scope: process-internal — spine flows via RawEventRecord inputs and RunIndex parent.
 @dataclass
 class CompressionResult:
     """Result of async compression."""

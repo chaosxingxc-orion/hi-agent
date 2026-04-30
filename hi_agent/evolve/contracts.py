@@ -17,14 +17,25 @@ class EvolveChange:
         description: Human-readable description of the proposed change.
         confidence: Confidence score between 0.0 and 1.0.
         evidence_refs: References to supporting evidence (run IDs, etc.).
+        tenant_id: Tenant scope; required under research/prod posture
+            (W24 H1 — proposed changes carry tenant scope so downstream
+            promotion gates can scope acceptance per tenant).
     """
 
-    # scope: process-internal -- transient transformation, not persisted
     change_type: str
     target_id: str
     description: str
     confidence: float
     evidence_refs: list[str] = field(default_factory=list)
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "EvolveChange.tenant_id required under research/prod posture"
+            )
 
 
 @dataclass

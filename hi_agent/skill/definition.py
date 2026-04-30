@@ -153,7 +153,13 @@ def _estimate_tokens(text: str) -> int:
 
 @dataclass
 class SkillDefinition:
-    """A skill loaded from SKILL.md or created programmatically."""
+    """A skill loaded from SKILL.md or created programmatically.
+
+    Wave 24 H1: tenant_id is part of the spine — research/prod construction
+    requires a non-empty tenant_id so per-tenant skill registries can be
+    partitioned downstream (see allowlists.yaml W24-deferred entries
+    handle_skills_evolve / handle_skill_optimize / handle_skill_promote).
+    """
 
     skill_id: str
     name: str
@@ -175,6 +181,15 @@ class SkillDefinition:
     source_path: str = ""
     created_at: str = ""
     updated_at: str = ""
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "SkillDefinition.tenant_id required under research/prod posture"
+            )
 
     # ------------------------------------------------------------------
     # Downstream-compatible aliases (additive, do not rename source fields)

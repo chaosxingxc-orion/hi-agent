@@ -35,6 +35,7 @@ class SkillEvalSummary:
         challenger_version: Challenger version if one exists.
         recommendation: ``"promote"``, ``"keep"``, or ``"insufficient_data"``.
         confidence: Confidence in the recommendation (0.0-1.0).
+        tenant_id: Tenant scope; required under research/prod posture.
     """
 
     skill_id: str
@@ -45,6 +46,15 @@ class SkillEvalSummary:
     challenger_version: str | None = None
     recommendation: str = "insufficient_data"
     confidence: float = 0.0
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "SkillEvalSummary.tenant_id required under research/prod posture"
+            )
 
 
 @dataclass
@@ -55,11 +65,21 @@ class DatasetEvalResult:
         total_runs: Number of postmortems processed.
         skills_evaluated: Per-skill summaries keyed by skill_id.
         promotions_triggered: Skill IDs that were auto-promoted.
+        tenant_id: Tenant scope; required under research/prod posture.
     """
 
     total_runs: int = 0
     skills_evaluated: dict[str, SkillEvalSummary] = field(default_factory=dict)
     promotions_triggered: list[str] = field(default_factory=list)
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "DatasetEvalResult.tenant_id required under research/prod posture"
+            )
 
 
 class DatasetEvaluator:

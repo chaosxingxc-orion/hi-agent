@@ -22,7 +22,12 @@ _logger = logging.getLogger(__name__)
 
 @dataclass
 class ShortTermMemory:
-    """Summary of a single session's interactions."""
+    """Summary of a single session's interactions.
+
+    Wave 24 H1: tenant_id is part of the spine so per-session memory is
+    scoped to its owning tenant; the existing ``session_id`` and ``run_id``
+    do not encode tenant by themselves.
+    """
 
     session_id: str
     run_id: str
@@ -37,6 +42,15 @@ class ShortTermMemory:
     total_tokens_used: int = 0
     total_cost_usd: float = 0.0
     created_at: str = ""
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "ShortTermMemory.tenant_id required under research/prod posture"
+            )
 
     def to_context_string(self, max_tokens: int = 500) -> str:
         """Format as concise string for LLM context injection.

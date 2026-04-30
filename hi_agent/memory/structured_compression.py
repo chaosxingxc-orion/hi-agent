@@ -55,6 +55,10 @@ class StructuredSummary:
     Holds the five canonical fields (Goal / Progress / Decisions /
     ModifiedFiles / NextSteps) together with metadata about *when* and
     *how many messages* were compressed.
+
+    Wave 24 H1: tenant_id is part of the spine — these summaries are
+    injected into per-tenant TaskView context blocks and must be scoped
+    to prevent cross-tenant prompt leakage.
     """
 
     goal: str
@@ -64,6 +68,15 @@ class StructuredSummary:
     next_steps: str
     compressed_at: str  # ISO 8601 timestamp
     source_message_count: int  # Number of messages that were compressed
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "StructuredSummary.tenant_id required under research/prod posture"
+            )
 
     def to_context_block(self) -> str:
         """Return a formatted context block suitable for injection into a TaskView.
@@ -165,6 +178,8 @@ class StructuredSummary:
 # ---------------------------------------------------------------------------
 
 
+# Message-list partitioning value object.
+# scope: process-internal — compressor instance carries tenant for the cycle.
 @dataclass
 class CompressionSection:
     """A partitioned view of a message list.
@@ -276,6 +291,8 @@ class MessagePartitioner:
 # ---------------------------------------------------------------------------
 
 
+# Config knobs for the compressor; process-wide tuning, not per-tenant.
+# scope: process-internal — not associated with any tenant by design.
 @dataclass
 class StructuredCompressorConfig:
     """Configuration knobs for StructuredCompressor."""

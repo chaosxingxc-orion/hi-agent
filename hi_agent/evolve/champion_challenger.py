@@ -17,6 +17,7 @@ class ComparisonResult:
         champion_score: Aggregate score of the champion.
         challenger_score: Aggregate score of the challenger.
         recommendation: Action recommendation.
+        tenant_id: Tenant scope; required under research/prod posture.
     """
 
     scope: str
@@ -26,8 +27,19 @@ class ComparisonResult:
     champion_score: float
     challenger_score: float
     recommendation: str
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "ComparisonResult.tenant_id required under research/prod posture"
+            )
 
 
+# Registry-side bookkeeping; tenant scope flows via ChampionChallenger.
+# scope: process-internal — internal entry held by the enclosing registry instance.
 @dataclass
 class _Entry:
     """Internal entry for a registered champion or challenger."""

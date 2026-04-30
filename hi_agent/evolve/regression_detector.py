@@ -24,6 +24,7 @@ class RegressionReport:
         current_quality: Most recent quality observation.
         runs_in_window: Number of runs in the baseline window.
         recommendation: Action recommendation (no_action, investigate, rollback).
+        tenant_id: Tenant scope; required under research/prod posture.
     """
 
     task_family: str
@@ -34,8 +35,19 @@ class RegressionReport:
     current_quality: float
     runs_in_window: int
     recommendation: str
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "RegressionReport.tenant_id required under research/prod posture"
+            )
 
 
+# Sliding-window bookkeeping inside RegressionDetector.
+# scope: process-internal — internal record; the parent detector carries tenant.
 @dataclass
 class _RunRecord:
     """Internal record for a single run's metrics."""

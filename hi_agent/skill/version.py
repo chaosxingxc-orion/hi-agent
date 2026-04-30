@@ -21,7 +21,11 @@ from hi_agent.skill.observer import SkillMetrics
 
 @dataclass
 class SkillVersionRecord:
-    """A versioned snapshot of a skill's prompt and parameters."""
+    """A versioned snapshot of a skill's prompt and parameters.
+
+    Wave 24 H1: tenant_id is part of the spine so the W24 per-tenant promotion
+    gate (handle_skill_promote) can authorise transitions per-tenant.
+    """
 
     skill_id: str
     version: str
@@ -31,6 +35,15 @@ class SkillVersionRecord:
     is_champion: bool = False
     is_challenger: bool = False
     created_at: str = ""
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "SkillVersionRecord.tenant_id required under research/prod posture"
+            )
 
 
 class SkillVersionManager:

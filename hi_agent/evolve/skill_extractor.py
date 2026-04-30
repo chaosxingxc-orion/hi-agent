@@ -30,6 +30,8 @@ class SkillCandidate:
         confidence: Confidence score (0.0-1.0).
         source_run_ids: Run IDs that contributed evidence for this candidate.
         lifecycle_stage: Current lifecycle stage (candidate, validated, promoted).
+        tenant_id: Tenant scope; required under research/prod posture
+            (W24 H1 — extracted candidates inherit scope from the source runs).
     """
 
     skill_id: str
@@ -41,6 +43,15 @@ class SkillCandidate:
     confidence: float = 0.5
     source_run_ids: list[str] = field(default_factory=list)
     lifecycle_stage: str = "candidate"
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "SkillCandidate.tenant_id required under research/prod posture"
+            )
 
 
 class SkillExtractor:

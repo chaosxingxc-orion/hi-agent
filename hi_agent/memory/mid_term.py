@@ -23,7 +23,11 @@ _logger = logging.getLogger(__name__)
 
 @dataclass
 class DailySummary:
-    """Consolidated summary of a day's work."""
+    """Consolidated summary of a day's work.
+
+    Wave 24 H1: tenant_id is part of the spine so per-tenant daily summaries
+    can be persisted without crosstenant blending.
+    """
 
     date: str  # ISO date "2026-04-07"
     sessions_count: int = 0
@@ -35,6 +39,15 @@ class DailySummary:
     total_tokens: int = 0
     total_cost_usd: float = 0.0
     created_at: str = ""
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "DailySummary.tenant_id required under research/prod posture"
+            )
 
     def to_context_string(self, max_tokens: int = 300) -> str:
         """Format as concise string for LLM context."""

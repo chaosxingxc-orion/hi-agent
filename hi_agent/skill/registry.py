@@ -11,6 +11,8 @@ from hi_agent.evolve.skill_extractor import SkillCandidate
 from hi_agent.skill.validator import SkillValidator
 
 
+# Embedded inside ManagedSkill.promotion_history.
+# scope: process-internal — the parent ManagedSkill carries tenant_id.
 @dataclass
 class PromotionRecord:
     """Record of a lifecycle stage transition."""
@@ -27,6 +29,9 @@ class ManagedSkill:
     """A skill managed through its full lifecycle.
 
     Lifecycle stages: candidate -> provisional -> certified -> deprecated -> retired.
+
+    Wave 24 H1: tenant_id is part of the spine so the per-tenant registry
+    overlay (W24 partition) can scope lifecycle decisions per tenant.
     """
 
     skill_id: str
@@ -47,6 +52,15 @@ class ManagedSkill:
     promotion_history: list[PromotionRecord] = field(default_factory=list)
     created_at: str = ""
     updated_at: str = ""
+    tenant_id: str = ""  # scope: spine-required — enforced under strict posture
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+
+        if Posture.from_env().is_strict and not self.tenant_id:
+            raise ValueError(
+                "ManagedSkill.tenant_id required under research/prod posture"
+            )
 
 
 class SkillRegistry:

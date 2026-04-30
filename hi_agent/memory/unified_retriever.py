@@ -17,6 +17,8 @@ from hi_agent.memory.mid_term import MidTermMemoryStore
 from hi_agent.memory.short_term import ShortTermMemoryStore
 
 
+# Assembled context envelope; one prompt call's rendered output.
+# scope: process-internal — underlying tier records carry the spine.
 @dataclass
 class MemoryContext:
     """Assembled memory context for LLM injection."""
