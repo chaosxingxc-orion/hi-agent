@@ -42,7 +42,8 @@ def _check_unscoped_gate_read(
         )
     except ValueError:
         raise
-    except Exception:
+    except Exception as exc:
+        _logger.warning("gate_api._check_unscoped_gate_read: posture check failed: %s", exc)
         return
 
 

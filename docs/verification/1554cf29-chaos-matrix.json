@@ -1,6 +1,7 @@
 {
   "release_head": "1554cf29",
   "generated_at": "2026-04-30T14:25:21.447258+00:00",
+  "provenance": "runtime_partial",
   "scenarios_total": 8,
   "scenarios_passed": 8,
   "scenarios_skipped": 0,
