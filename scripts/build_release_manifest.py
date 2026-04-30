@@ -603,8 +603,8 @@ def _compute_cap(
                 drill_prov = drill_data.get("provenance", "unknown")
             except Exception:
                 return "operator_drill_missing: evidence unreadable"
-            # Partial-real provenance (W24-G honest tagging): the drill ran, all
-            # invariants held, but a subset of scenarios required PM2/systemd
+            # Partial-real provenance (honest tagging by drill v2): the drill ran,
+            # all invariants held, but a subset of scenarios required PM2/systemd
             # supervision unavailable in dev. Treat as warn-only, not a cap.
             _ACCEPTED_PARTIAL_PROVENANCE = ("simulated_pending_pm2",)
             if drill_passed and drill_prov in _ACCEPTED_PARTIAL_PROVENANCE:
