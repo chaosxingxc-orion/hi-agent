@@ -400,6 +400,10 @@ def _make_contract_i7(profile_id: str = ""):
 class TestI7MemoryLifecycleManagerProfileStores:
     """I-7: MemoryLifecycleManager must use the same profile-scoped stores as the executor."""
 
+    @pytest.fixture(autouse=True)
+    def _allow_heuristic_fallback(self, monkeypatch):
+        monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+
     def test_memory_lifecycle_manager_uses_profile_stores(self, tmp_path):
         """Executor's memory_lifecycle_manager._short points at profiles/proj1/short_term."""
         builder = _make_builder_i7(tmp_path)

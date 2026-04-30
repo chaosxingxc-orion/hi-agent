@@ -146,7 +146,7 @@ def test_expiry_wave_annotation_produces_deferred():
         def tracked_debt():
             try:
                 something()
-            except Exception:  # rule7-exempt: expiry_wave="Wave 21"
+            except Exception:  # rule7-exempt: expiry_wave="Wave 30"
                 pass
     """)
     vs = _violations(src)
