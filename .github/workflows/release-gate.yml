@@ -94,7 +94,7 @@ jobs:
         run: python scripts/check_targeted_default_path.py --json
 
       - name: Check verification artifacts (W14-A1)
-        run: python scripts/check_verification_artifacts.py --json --allow-docs-only-gap
+        run: python scripts/check_verification_artifacts.py --json
 
       - name: Check validate-before-mutate (W14-A1)
         run: python scripts/check_validate_before_mutate.py --json
