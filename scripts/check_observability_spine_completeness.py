@@ -87,15 +87,15 @@ def main() -> int:
     spine_file = _latest_spine_evidence()
     if spine_file is None:
         result = {
-            "status": "deferred",
+            "status": "fail",
             "check": "observability_spine_completeness",
-            "reason": "no spine evidence found in docs/verification/",
+            "reason": "evidence_missing: no spine evidence found in docs/verification/",
         }
         if args.json:
             print(json.dumps(result, indent=2))
         else:
-            print("DEFERRED: no observability spine evidence", file=sys.stderr)
-        return 0  # deferred: no blocking failure, manifest scoring handles score cap
+            print("FAIL: no observability spine evidence", file=sys.stderr)
+        return 1
 
     try:
         data = json.loads(spine_file.read_text(encoding="utf-8"))

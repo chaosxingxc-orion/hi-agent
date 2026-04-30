@@ -24,8 +24,19 @@ V1_RELEASE_NOTICE = ROOT / "docs" / "downstream-responses" / "w25-agent-server-v
 sys.path.insert(0, str(ROOT / "scripts"))
 from _governance.multistatus import GateResult, GateStatus, emit
 
+# V1_RELEASED flag: sourced from agent_server/config/version.py when Track K
+# has landed its V1_RELEASED=True. Falls back to False until that merge occurs,
+# ensuring this worktree remains advisory-only until the flag activates.
+try:
+    sys.path.insert(0, str(ROOT))
+    from agent_server.config.version import V1_RELEASED as _VERSION_V1_RELEASED
+except ImportError:
+    _VERSION_V1_RELEASED = False
+
 
 def is_v1_released() -> bool:
+    if _VERSION_V1_RELEASED:
+        return True
     if not V1_RELEASE_NOTICE.exists():
         return False
     text = V1_RELEASE_NOTICE.read_text(encoding="utf-8")
