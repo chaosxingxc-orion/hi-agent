@@ -27,6 +27,8 @@ from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
 from tests.helpers.kernel_adapter_fixture import MockKernel
 from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
+pytestmark = pytest.mark.usefixtures("fallback_explicit")
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ max-steps safety limit.
 
 from __future__ import annotations
 
+import pytest
 from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
@@ -17,6 +18,14 @@ from hi_agent.runner import RunExecutor
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
+
+pytestmark = pytest.mark.usefixtures("fallback_explicit")
+
+
+@pytest.fixture(autouse=True)
+def _patch_gateway(monkeypatch):
+    from hi_agent.config import cognition_builder as _cb
+    monkeypatch.setattr(_cb.CognitionBuilder, "build_llm_gateway", lambda self: None)
 
 
 def _make_contract(

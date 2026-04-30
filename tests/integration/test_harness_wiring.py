@@ -75,7 +75,7 @@ def test_build_harness_accepts_explicit_invoker() -> None:
     assert harness._invoker is invoker
 
 
-def test_harness_dispatch_does_not_raise_runtime_error(fallback_explicit) -> None:
+def test_harness_dispatch_does_not_raise_runtime_error(fallback_explicit, monkeypatch) -> None:
     """HarnessExecutor.execute() must not raise RuntimeError due to None invoker.
 
     This test dispatches a read-only action through the full harness pipeline.
@@ -83,7 +83,15 @@ def test_harness_dispatch_does_not_raise_runtime_error(fallback_explicit) -> Non
     heuristic-fallback mode (HI_AGENT_ALLOW_HEURISTIC_FALLBACK=1) the handler
     returns a synthetic dict without calling the LLM.
     """
+    # Patch build_llm_gateway to return None so the capability handler goes
+    # directly to heuristic branch without making real network calls.
+    # (llm_config.local.json may contain real keys that cause 120s HTTP timeouts)
+    from hi_agent.config import cognition_builder as _cb
+    monkeypatch.setattr(_cb.CognitionBuilder, "build_llm_gateway", lambda self: None)
     builder = _make_builder()
+    # Clear cached registry singleton so it rebuilds with the patched gateway.
+    if hasattr(builder, "_capability_registry"):
+        builder._capability_registry = None
     harness = builder.build_harness()
 
     spec = _analyze_goal_spec()
