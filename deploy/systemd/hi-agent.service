@@ -1,0 +1,83 @@
+# hi-agent systemd unit
+#
+# Reference deployment template for the operator-shape gate (Rule 8).
+#
+# Install:
+#   sudo install -m 0644 deploy/systemd/hi-agent.service /etc/systemd/system/
+#   sudo install -m 0640 -o hi-agent -g hi-agent deploy/systemd/env.example /etc/hi-agent/env
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now hi-agent
+#
+# Inspect:
+#   systemctl status hi-agent
+#   journalctl -u hi-agent -f
+#
+# Graceful drain:
+#   curl -X POST http://127.0.0.1:8080/ops/drain
+#   sudo systemctl stop hi-agent
+
+[Unit]
+Description=hi-agent runtime server
+Documentation=https://github.com/anthropics/hi-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hi-agent
+Group=hi-agent
+
+# Working directory — repo checkout or installed package root.
+WorkingDirectory=/opt/hi-agent
+
+# Use the system python3 by default. If running inside a virtualenv, replace
+# with /opt/hi-agent/venv/bin/python.
+ExecStart=/usr/bin/python3 -m hi_agent serve --port 8080
+
+# Optional pre-start health probe — uncomment if you want fail-fast on missing
+# config before binding the port.
+# ExecStartPre=/usr/bin/python3 -m hi_agent doctor
+
+# Environment file — populate with HI_AGENT_POSTURE, ARK_API_KEY, etc.
+# The leading `-` makes the file optional so a missing file does not block
+# startup; remove the dash to make it mandatory.
+EnvironmentFile=-/etc/hi-agent/env
+
+# Restart policy.
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+# Graceful shutdown — give the server time to drain in-flight runs. The
+# process catches SIGTERM and calls RunManager.drain() before exiting.
+KillSignal=SIGTERM
+TimeoutStopSec=60
+SendSIGKILL=yes
+
+# Hardening (defaults for a service that owns its own state directory).
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/hi-agent /var/log/hi-agent
+
+# Resource limits — adjust to your traffic profile.
+LimitNOFILE=65536
+MemoryMax=2G
+
+# Standard streams — by default journalctl captures both. Switch to a file
+# sink if your ops team prefers `/var/log/hi-agent/*.log`.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hi-agent
+
+[Install]
+WantedBy=multi-user.target

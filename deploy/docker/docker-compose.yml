@@ -1,0 +1,80 @@
+# docker-compose for a single-host hi-agent deployment.
+#
+# Reference deployment template for the operator-shape gate (Rule 8).
+#
+# Usage:
+#   docker compose -f deploy/docker/docker-compose.yml up -d
+#   docker compose -f deploy/docker/docker-compose.yml logs -f
+#   docker compose -f deploy/docker/docker-compose.yml down
+#
+# Graceful drain (preferred over `down`):
+#   curl -X POST http://127.0.0.1:8080/ops/drain
+#   docker compose -f deploy/docker/docker-compose.yml stop hi-agent
+
+services:
+  hi-agent:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: hi-agent:local
+    container_name: hi-agent
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    # Persistent state. SQLite databases (run store, idempotency, gate store,
+    # event store) live under HI_AGENT_HOME; mount a named volume so they
+    # survive container recreation.
+    volumes:
+      - hi-agent-data:/var/lib/hi-agent
+      - hi-agent-logs:/var/log/hi-agent
+      # Optional: mount a config overlay directory.
+      # - ./config:/etc/hi-agent:ro
+
+    # Environment passthrough — values come from the host shell or an .env
+    # file next to this compose file. Secrets MUST come from a secret store,
+    # never from a committed .env.
+    environment:
+      HI_AGENT_POSTURE: ${HI_AGENT_POSTURE:-dev}
+      HI_AGENT_ENV: ${HI_AGENT_ENV:-dev}
+      HI_AGENT_HOME: /var/lib/hi-agent
+      HI_AGENT_KERNEL_BASE_URL: ${HI_AGENT_KERNEL_BASE_URL:-local}
+      HI_AGENT_KERNEL_MODE: ${HI_AGENT_KERNEL_MODE:-}
+      HI_AGENT_LLM_MODE: ${HI_AGENT_LLM_MODE:-}
+      HI_AGENT_LLM_DEFAULT_PROVIDER: ${HI_AGENT_LLM_DEFAULT_PROVIDER:-openai}
+      HI_AGENT_OPENAI_BASE_URL: ${HI_AGENT_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      HI_AGENT_DEFAULT_MODEL: ${HI_AGENT_DEFAULT_MODEL:-gpt-4o}
+      HI_AGENT_LLM_TIMEOUT_SECONDS: ${HI_AGENT_LLM_TIMEOUT_SECONDS:-120}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ARK_API_KEY: ${ARK_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      HI_AGENT_JWT_SECRET: ${HI_AGENT_JWT_SECRET:-}
+
+    # /health returns 200 once the server is ready. Compose's healthcheck
+    # runs inside the container — we re-declare it here so `compose ps`
+    # shows the live state without depending on the Dockerfile directive.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+    # Allow the server 60s to drain in-flight runs after SIGTERM. Match the
+    # systemd TimeoutStopSec so behavior is consistent across runtimes.
+    stop_grace_period: 60s
+
+    # Resource caps — adjust to your traffic profile.
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+volumes:
+  hi-agent-data:
+  hi-agent-logs:
