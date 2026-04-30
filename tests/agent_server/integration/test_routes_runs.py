@@ -15,13 +15,12 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
-
 from agent_server.api import build_app
 from agent_server.contracts.errors import ConflictError, NotFoundError
 from agent_server.contracts.run import RunRequest, RunResponse, RunStatus
 from agent_server.contracts.tenancy import TenantContext
 from agent_server.facade.run_facade import RunFacade
+from fastapi.testclient import TestClient
 
 
 class _StubBackend:

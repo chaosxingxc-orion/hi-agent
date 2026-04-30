@@ -6,7 +6,6 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-
 from hi_agent.memory.l2_index import RunMemoryIndex, StagePointer
 from hi_agent.memory.l2_store import L2RunMemoryIndexStore
 

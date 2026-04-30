@@ -11,7 +11,6 @@ No MagicMock on the subsystem under test.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import pytest
 from hi_agent.server.tenant_context import (

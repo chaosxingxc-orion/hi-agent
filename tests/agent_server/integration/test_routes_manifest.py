@@ -16,13 +16,12 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
-
 from agent_server.api import build_app
 from agent_server.facade.artifact_facade import ArtifactFacade
 from agent_server.facade.event_facade import EventFacade
 from agent_server.facade.manifest_facade import ManifestFacade
 from agent_server.facade.run_facade import RunFacade
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture()

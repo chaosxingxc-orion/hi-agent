@@ -23,6 +23,7 @@ also pass tenant_id through to the underlying store.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from hi_agent.observability.metric_counter import Counter
@@ -69,12 +70,12 @@ def record_tenant_scoped_access(
             op,
             exc,
         )
-        try:
+        # rule7-exempt: expiry_wave="Wave 26" replacement_test: tenant-scope-audit-error-counter
+        # Counter-of-counter increment is best-effort; alarm bell is the WARNING log above.
+        with contextlib.suppress(Exception):
             _route_tenant_audit_metric_errors_total.labels(
                 resource=resource, op=op
             ).inc()
-        except Exception:  # rule7-exempt: expiry_wave="Wave 26" replacement_test: tenant-scope-audit-error-counter
-            pass  # alarm bell is the WARNING log above; counter-of-counter is best-effort.
         return
 
 

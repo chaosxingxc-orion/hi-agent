@@ -13,7 +13,6 @@ discipline.
 from __future__ import annotations
 
 import pytest
-
 from hi_agent.artifacts.contracts import Artifact
 from hi_agent.artifacts.metrics import (
     legacy_tenantless_denied_total,

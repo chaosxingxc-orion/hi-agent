@@ -15,8 +15,6 @@ import os
 import time
 from pathlib import Path
 
-import pytest
-
 from scripts._governance import manifest_picker
 
 

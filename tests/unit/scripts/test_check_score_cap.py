@@ -9,8 +9,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
@@ -63,7 +61,7 @@ def test_strict_head_defers_when_no_current_head_manifest(tmp_path, monkeypatch,
     assert "current HEAD" in data["reason"]
 
 
-def test_loose_mode_falls_back_to_latest_when_no_current_head_manifest(tmp_path, monkeypatch, capsys):
+def test_loose_mode_falls_back_to_latest_when_no_current_head_manifest(tmp_path, monkeypatch, capsys):  # noqa: E501
     import check_score_cap as mod
 
     _write_manifest(tmp_path, "stale01", "2026-04-28T10:00:00+00:00", verified=75.0)
@@ -71,7 +69,7 @@ def test_loose_mode_falls_back_to_latest_when_no_current_head_manifest(tmp_path,
     monkeypatch.setattr(mod, "VERIF_DIR", tmp_path / "verif")
     monkeypatch.setattr(mod, "NOTICES_DIR", tmp_path / "notices")
     monkeypatch.setattr(mod, "_git_head_full", lambda: "currnt0" + ("0" * 33))
-    rc = mod.main(["--json"])  # no --strict-head
+    mod.main(["--json"])  # no --strict-head
     captured = capsys.readouterr()
     data = json.loads(captured.out)
     assert data["status"] == "pass"
@@ -87,7 +85,7 @@ def test_picks_manifest_for_current_head_when_available(tmp_path, monkeypatch, c
     monkeypatch.setattr(mod, "VERIF_DIR", tmp_path / "verif")
     monkeypatch.setattr(mod, "NOTICES_DIR", tmp_path / "notices")
     monkeypatch.setattr(mod, "_git_head_full", lambda: "currnt0" + ("0" * 33))
-    rc = mod.main(["--strict-head", "--json"])
+    mod.main(["--strict-head", "--json"])
     captured = capsys.readouterr()
     data = json.loads(captured.out)
     assert data["status"] == "pass"

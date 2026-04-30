@@ -6,7 +6,6 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-
 from hi_agent.memory.l1_compressed import CompressedStageMemory
 from hi_agent.memory.l1_store import L1CompressedMemoryStore
 

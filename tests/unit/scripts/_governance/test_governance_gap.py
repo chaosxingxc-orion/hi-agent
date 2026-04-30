@@ -12,8 +12,6 @@ multiple files.
 """
 from __future__ import annotations
 
-import pytest
-
 from scripts._governance import governance_gap
 
 

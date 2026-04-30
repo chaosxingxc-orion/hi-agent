@@ -14,8 +14,6 @@ import os
 import time
 from pathlib import Path
 
-import pytest
-
 from scripts._governance import evidence_picker
 
 
@@ -68,7 +66,7 @@ class TestLatestEvidence:
 
     def test_pattern_filters_correctly(self, tmp_path: Path) -> None:
         _write_evidence(tmp_path, "aaa1", "soak-60m", generated_at="2026-04-28T10:00:00+00:00")
-        _write_evidence(tmp_path, "bbb2", "operator-drill", generated_at="2026-04-28T11:00:00+00:00")
+        _write_evidence(tmp_path, "bbb2", "operator-drill", generated_at="2026-04-28T11:00:00+00:00")  # noqa: E501
         soak = evidence_picker.latest_evidence(tmp_path, "*-soak-*.json")
         drill = evidence_picker.latest_evidence(tmp_path, "*operator-drill*.json")
         assert soak is not None and soak.name.startswith("aaa1-")
@@ -124,7 +122,7 @@ class TestEvidenceForSha:
         original_run = subprocess.run
 
         def reject_git(args, *a, **kw):
-            if args and (args[0] == "git" or (isinstance(args[0], str) and "git" in args[0].lower())):
+            if args and (args[0] == "git" or (isinstance(args[0], str) and "git" in args[0].lower())):  # noqa: E501
                 raise AssertionError(f"evidence_picker must not call git: {args}")
             return original_run(args, *a, **kw)
 

@@ -24,8 +24,6 @@ import pytest
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
 
-from tests._helpers.run_states import SUCCESS_STATES
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

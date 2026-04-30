@@ -14,7 +14,6 @@ from __future__ import annotations
 import pytest
 from hi_agent.config.posture import Posture
 
-
 # ---------------------------------------------------------------------------
 # ReasoningTraceEntry
 # ---------------------------------------------------------------------------

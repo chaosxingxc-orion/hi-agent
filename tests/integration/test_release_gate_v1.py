@@ -20,7 +20,7 @@ def test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 def test_release_gate_returns_200_or_503(test_client):
     resp = test_client.get("/ops/release-gate")
     if resp.status_code == 503:
-        pytest.fail(f"503 from /ops/release-gate — investigate server startup failure")
+        pytest.fail("503 from /ops/release-gate — investigate server startup failure")
     assert resp.status_code == 200
 
 

@@ -11,15 +11,15 @@ default-offline profile (no network, no real LLM, no secrets).
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
-
 from agent_server.api import build_app
 from agent_server.contracts.errors import NotFoundError
 from agent_server.facade.event_facade import EventFacade
 from agent_server.facade.run_facade import RunFacade
+from fastapi.testclient import TestClient
 
 
 class _StubBackend:

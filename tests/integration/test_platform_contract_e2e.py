@@ -32,7 +32,7 @@ from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
 
-from tests._helpers.run_states import SUCCESS_STATES, TERMINAL_STATES
+from tests._helpers.run_states import TERMINAL_STATES
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------

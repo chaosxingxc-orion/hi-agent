@@ -41,5 +41,5 @@ def test_run_lifecycle_completes(client):
         time.sleep(0.5)
 
     assert state_resp is not None, "No state response received"
-    state = state_resp.json().get("state", "unknown") if state_resp.status_code == 200 else "unknown"
+    state = state_resp.json().get("state", "unknown") if state_resp.status_code == 200 else "unknown"  # noqa: E501
     assert state in SUCCESS_STATES, f"Run {run_id} ended in {state!r} instead of success"

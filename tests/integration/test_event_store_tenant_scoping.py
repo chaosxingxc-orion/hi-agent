@@ -7,11 +7,7 @@ research/prod posture; this test pins the behavior.
 """
 from __future__ import annotations
 
-import os
-import tempfile
-
 import pytest
-
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 
 

@@ -868,7 +868,7 @@ def test_journey_combined_pi_c_pi_d(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(
     not __import__('os').getenv('VOLCES_API_KEY'),
-    reason="K-13: PI-C+PI-D combination requires live kernel + LLM (VOLCES_API_KEY) — add to E2E suite when available",
+    reason="K-13: PI-C+PI-D combination requires live kernel + LLM (VOLCES_API_KEY) — add to E2E suite when available",  # noqa: E501
 )
 def test_pi_c_and_pi_d_combined() -> None:
     """Integration test for PI-C (Human Gate) + PI-D (subrun dispatch) in the same run.

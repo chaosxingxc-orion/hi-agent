@@ -83,7 +83,7 @@ _LIFESPAN_DEPENDENT_503_ROUTES: frozenset[str] = frozenset(
 )
 
 
-@pytest.mark.parametrize("method,path", UNTESTED_ROUTES, ids=[f"{m} {p}" for m, p in UNTESTED_ROUTES])
+@pytest.mark.parametrize("method,path", UNTESTED_ROUTES, ids=[f"{m} {p}" for m, p in UNTESTED_ROUTES])  # noqa: E501
 def test_route_smoke_non_5xx(client: TestClient, method: str, path: str) -> None:
     """Route must return non-5xx (server must not crash).
 
@@ -103,7 +103,7 @@ def test_route_smoke_non_5xx(client: TestClient, method: str, path: str) -> None
         .replace("{op_id}", "nonexistent-op-00000000")
         .replace("{session_id}", "nonexistent-session-00000000")
     )
-    body = _BODIES.get(f"{method} {path}", None)
+    body = _BODIES.get(f"{method} {path}")
     if method.upper() in ("POST", "PUT", "PATCH") and body is not None:
         resp = getattr(client, method.lower())(path_filled, json=body)
     else:

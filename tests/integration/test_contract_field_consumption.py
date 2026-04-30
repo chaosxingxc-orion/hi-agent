@@ -20,8 +20,6 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from tests._helpers.run_states import SUCCESS_STATES, TERMINAL_STATES
-
 from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.contracts.requests import RunResult
@@ -33,6 +31,7 @@ from hi_agent.runner import RunExecutor
 from hi_agent.server.app import AgentServer
 from starlette.testclient import TestClient
 
+from tests._helpers.run_states import TERMINAL_STATES
 from tests.helpers.kernel_adapter_fixture import MockKernel
 
 # ---------------------------------------------------------------------------

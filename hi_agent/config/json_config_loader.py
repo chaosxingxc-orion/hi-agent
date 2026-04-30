@@ -92,27 +92,51 @@ def _provider_base_url_envs(provider: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(names))
 
 
-def _resolve_provider_api_key(provider: str, provider_cfg: dict) -> tuple[str, str]:
-    """Resolve provider API key exclusively from config JSON.
+_PROVIDER_API_KEY_ENVS: dict[str, tuple[str, ...]] = {
+    "volces": ("VOLCES_API_KEY", "VOLCE_API_KEY", "VOLCES_KEY"),
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "openai": ("OPENAI_API_KEY",),
+}
 
-    Returns ``(api_key, label)`` where ``label`` is a fixed string identifying
-    the source ("config/llm_config.json").  Under research/prod posture an
-    empty key raises ``ValueError``; under dev posture a warning is emitted.
+
+def _resolve_provider_api_key(provider: str, provider_cfg: dict) -> tuple[str, str]:
+    """Resolve provider API key.
+
+    Order of precedence:
+      1. ``provider_cfg["api_key"]`` from config JSON (incl. local overlay).
+      2. Provider-specific env var (e.g., ``VOLCES_API_KEY``, ``ANTHROPIC_API_KEY``).
+      3. Generic env var ``HI_AGENT_LLM_API_KEY_<PROVIDER>``.
+
+    Returns ``(api_key, label)`` where ``label`` identifies the source.
+    Under research/prod posture an empty key raises ``ValueError``; under
+    dev posture a warning is emitted.
     """
     from hi_agent.config.posture import Posture
 
     api_key = str(provider_cfg.get("api_key", "") or "")
     label = "config/llm_config.json"
+
+    if not api_key:
+        normalized = provider.strip().lower()
+        env_names = list(_PROVIDER_API_KEY_ENVS.get(normalized, ()))
+        env_names.append(f"HI_AGENT_LLM_API_KEY_{normalized.upper()}")
+        for env_name in env_names:
+            value = os.environ.get(env_name, "")
+            if value:
+                api_key = value
+                label = f"env:{env_name}"
+                break
+
     if not api_key:
         posture = Posture.from_env()
         if posture.is_strict:
             raise ValueError(
                 f"api_key required for provider {provider!r} under posture {posture}; "
-                "populate config/llm_config.json"
+                "populate config/llm_config.json or set provider env var"
             )
         _logger.warning(
             "json_config_loader: provider %r has no api_key in config/llm_config.json "
-            "(posture=%s — continuing in dev mode)",
+            "or known env vars (posture=%s — continuing in dev mode)",
             provider,
             posture,
         )

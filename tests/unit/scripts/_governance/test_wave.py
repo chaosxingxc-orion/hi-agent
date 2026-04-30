@@ -10,7 +10,6 @@ class. validate_wave_consistency surfaces any inconsistency.
 from __future__ import annotations
 
 import pytest
-
 from scripts._governance import wave
 
 

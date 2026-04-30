@@ -11,7 +11,7 @@ ROOT = Path(__file__).parents[2]
 
 def _run(script: str, *args: str) -> tuple[int, str]:
     result = subprocess.run(
-        [sys.executable, str(SCRIPTS_DIR / script)] + list(args),
+        [sys.executable, str(SCRIPTS_DIR / script), *args],
         capture_output=True, text=True, cwd=str(ROOT),
     )
     return result.returncode, result.stdout + result.stderr

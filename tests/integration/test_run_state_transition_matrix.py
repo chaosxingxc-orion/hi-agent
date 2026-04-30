@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import pytest
 
-
 # Documented state transitions:
 #   (source_state, target_state, scenario_label)
 # Source: RunState docstring in hi_agent/contracts/run.py
