@@ -19,7 +19,7 @@ import httpx
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, LLMStreamChunk, TokenUsage
 from hi_agent.observability.metric_counter import Counter
-from hi_agent.runtime.async_bridge import AsyncBridgeService
+from hi_agent.runtime.sync_bridge import get_bridge
 
 _gateway_errors_total = Counter("hi_agent_http_gateway_errors_total")
 
@@ -219,25 +219,27 @@ class HttpLLMGateway:
 
             # 2. Route through failover chain if configured.
             if self._failover_chain is not None:
-                import asyncio as _asyncio
-
                 try:
-                    loop = _asyncio.get_event_loop()
-                    if loop.is_running():
-                        # Use shared bridge executor rather than creating a per-call pool.
-                        future = AsyncBridgeService.get_executor().submit(
-                            _asyncio.run, self._failover_chain.complete(request)
-                        )
-                        # P1-7: bound the wait to timeout + retry headroom.
-                        # Without a timeout, a hung downstream LLM pins a worker
-                        # thread indefinitely and leaves the run with
-                        # current_stage=None and 0% CPU.
-                        _bridge_timeout = float(self._timeout) * max(
-                            1, self._max_retries + 1
-                        ) + 10
-                        return future.result(timeout=_bridge_timeout)
-                    else:
-                        return loop.run_until_complete(self._failover_chain.complete(request))
+                    # W23-C: Rule 5 closure. Route the failover chain through
+                    # the durable SyncBridge instead of asyncio.get_event_loop()
+                    # / AsyncBridgeService.submit(asyncio.run, ...). The bridge
+                    # owns one persistent event loop for the process lifetime,
+                    # so any async resource (httpx.AsyncClient connection pool,
+                    # task groups) constructed by the failover chain remains
+                    # valid across subsequent sync gateway calls. Without this,
+                    # the second sync call after an asyncio.run() boundary
+                    # raises "Event loop is closed" (the historical 100%-LLM-
+                    # traffic-failure incident — docs/rules-incident-log.md).
+                    #
+                    # P1-7: bound the wait to timeout + retry headroom so a
+                    # hung downstream LLM cannot pin the bridge thread.
+                    _bridge_timeout = float(self._timeout) * max(
+                        1, self._max_retries + 1
+                    ) + 10
+                    return get_bridge().call_sync(
+                        self._failover_chain.complete(request),
+                        timeout=_bridge_timeout,
+                    )
                 except Exception as exc:
                     try:
                         from hi_agent.observability.fallback import record_fallback
@@ -542,25 +544,39 @@ class HTTPGateway:
         self._failover_chain = failover_chain
         self._cache_injector = cache_injector
         self._budget_tracker = budget_tracker
-        # P1-7: persist timeout so sync callers bridging via AsyncBridgeService
-        # can compute a bounded wall-clock wait.
+        # P1-7: persist timeout so sync callers bridging via SyncBridge can
+        # compute a bounded wall-clock wait.
         self._timeout = float(timeout)
-        # Rule 5: do NOT create AsyncClient in __init__ (sync context).
-        # Lazy-create on first use inside the running event loop so the pool
-        # is bound to one durable loop (DF-18 / A-43).
+        # W23-C: Rule 5 closure. Do NOT create AsyncClient in __init__ (sync
+        # context). The pool MUST be bound to the durable SyncBridge loop —
+        # not whichever loop happens to be running at first call — so that
+        # callers crossing asyncio.run() boundaries reuse the same pool.
+        # Building the client via ``get_bridge().call_sync(_build())`` forces
+        # the pool's owning loop to be the bridge's persistent loop
+        # (DF-18 / A-43; historical "100% LLM traffic failed" incident).
         self._client: httpx.AsyncClient | None = None
 
     def _get_client(self) -> httpx.AsyncClient:
+        """Return the lazily-built AsyncClient bound to the SyncBridge loop.
+
+        Rule 5: AsyncClient is constructed inside a coroutine that runs on
+        the bridge's persistent event loop. Subsequent calls reuse the same
+        pool regardless of which loop the caller's coroutine runs on, as
+        long as that coroutine itself was scheduled via ``get_bridge()``.
+        """
         if self._client is None:
-            self._client = httpx.AsyncClient(
-                base_url=self._base_url,
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                },
-                timeout=httpx.Timeout(self._timeout),
-                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
-            )
+            async def _build() -> httpx.AsyncClient:
+                return httpx.AsyncClient(
+                    base_url=self._base_url,
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=httpx.Timeout(self._timeout),
+                    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+                )
+
+            self._client = get_bridge().call_sync(_build())
         return self._client
 
     # -- AsyncLLMGateway protocol ----------------------------------------------

@@ -251,15 +251,16 @@ class TestRecordFallbackFailureClosure:
             failover_chain=failing_chain,
         )
 
-        # Make the AsyncBridgeService future raise so the inner guard runs.
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("chain exploded")
+        # W23-C: SyncBridge.call_sync replaces AsyncBridgeService.submit. We
+        # inject the chain failure through the bridge.
+        mock_bridge = MagicMock()
+        mock_bridge.call_sync.side_effect = RuntimeError("chain exploded")
 
         # Make record_fallback itself raise so the alarm-bell branch runs.
         with (
             patch(
-                "hi_agent.llm.http_gateway.AsyncBridgeService.get_executor"
-            ) as mock_executor_factory,
+                "hi_agent.llm.http_gateway.get_bridge", return_value=mock_bridge
+            ),
             patch.object(
                 HttpLLMGateway, "_direct_complete", return_value=_make_response()
             ),
@@ -269,10 +270,6 @@ class TestRecordFallbackFailureClosure:
             ),
             caplog.at_level(logging.WARNING, logger="hi_agent.llm.http_gateway"),
         ):
-            mock_pool = MagicMock()
-            mock_pool.submit.return_value = mock_future
-            mock_executor_factory.return_value = mock_pool
-
             result = gateway.complete(request)
 
         # The call must still succeed via the direct fallback path.
@@ -307,13 +304,13 @@ class TestRecordFallbackFailureClosure:
             failover_chain=failing_chain,
         )
 
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("orig chain fail")
+        mock_bridge = MagicMock()
+        mock_bridge.call_sync.side_effect = RuntimeError("orig chain fail")
 
         with (
             patch(
-                "hi_agent.llm.http_gateway.AsyncBridgeService.get_executor"
-            ) as mock_executor_factory,
+                "hi_agent.llm.http_gateway.get_bridge", return_value=mock_bridge
+            ),
             patch.object(
                 HttpLLMGateway, "_direct_complete", return_value=_make_response()
             ),
@@ -323,10 +320,6 @@ class TestRecordFallbackFailureClosure:
             ),
             caplog.at_level(logging.WARNING, logger="hi_agent.llm.http_gateway"),
         ):
-            mock_pool = MagicMock()
-            mock_pool.submit.return_value = mock_future
-            mock_executor_factory.return_value = mock_pool
-
             gateway.complete(request)
 
         # The W23-B WARNING includes both original_reason and recording exc.
@@ -363,24 +356,20 @@ class TestRecordFallbackFailureClosure:
             failover_chain=failing_chain,
         )
 
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("chain bombs")
+        mock_bridge = MagicMock()
+        mock_bridge.call_sync.side_effect = RuntimeError("chain bombs")
 
         expected = _make_response()
         with (
             patch(
-                "hi_agent.llm.http_gateway.AsyncBridgeService.get_executor"
-            ) as mock_executor_factory,
+                "hi_agent.llm.http_gateway.get_bridge", return_value=mock_bridge
+            ),
             patch.object(HttpLLMGateway, "_direct_complete", return_value=expected),
             patch(
                 "hi_agent.observability.fallback.record_fallback",
                 side_effect=RuntimeError("recorder bursts"),
             ),
         ):
-            mock_pool = MagicMock()
-            mock_pool.submit.return_value = mock_future
-            mock_executor_factory.return_value = mock_pool
-
             result = gateway.complete(request)
 
         assert result is expected

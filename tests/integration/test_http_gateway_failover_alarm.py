@@ -54,8 +54,9 @@ class TestSyncFailoverAlarm:
     def test_failover_chain_failure_calls_record_fallback(self) -> None:
         """When FailoverChain.complete raises, record_fallback must be called.
 
-        The sync gateway routes the async failover through AsyncBridgeService;
-        we make that future raise to simulate FailoverChain failure.
+        The sync gateway routes the async failover through SyncBridge
+        (W23-C); we make ``call_sync`` raise to simulate FailoverChain
+        failure.
         """
         run_id = "run-sync-failover-alarm"
         request = _make_request(run_id)
@@ -68,24 +69,20 @@ class TestSyncFailoverAlarm:
             failover_chain=failing_chain,
         )
 
-        # Patch AsyncBridgeService so the sync bridge raises (simulating chain failure)
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("failover chain exploded")
+        # W23-C: SyncBridge.call_sync replaces AsyncBridgeService.submit.
+        mock_bridge = MagicMock()
+        mock_bridge.call_sync.side_effect = RuntimeError("failover chain exploded")
 
         with (
             patch(
-                "hi_agent.llm.http_gateway.AsyncBridgeService.get_executor"
-            ) as mock_executor_factory,
+                "hi_agent.llm.http_gateway.get_bridge", return_value=mock_bridge
+            ),
             patch(
                 "hi_agent.llm.http_gateway.HttpLLMGateway._direct_complete",
                 return_value=direct_response,
             ),
             patch("hi_agent.observability.fallback.record_fallback") as mock_rf,
         ):
-            mock_pool = MagicMock()
-            mock_pool.submit.return_value = mock_future
-            mock_executor_factory.return_value = mock_pool
-
             result = gateway.complete(request)
 
         # The call must succeed (falls through to direct path).
@@ -112,23 +109,19 @@ class TestSyncFailoverAlarm:
             failover_chain=failing_chain,
         )
 
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("failover chain exploded")
+        mock_bridge = MagicMock()
+        mock_bridge.call_sync.side_effect = RuntimeError("failover chain exploded")
 
         with (
             patch(
-                "hi_agent.llm.http_gateway.AsyncBridgeService.get_executor"
-            ) as mock_executor_factory,
+                "hi_agent.llm.http_gateway.get_bridge", return_value=mock_bridge
+            ),
             patch(
                 "hi_agent.llm.http_gateway.HttpLLMGateway._direct_complete",
                 return_value=direct_response,
             ),
             patch("hi_agent.observability.fallback.record_fallback"),
         ):
-            mock_pool = MagicMock()
-            mock_pool.submit.return_value = mock_future
-            mock_executor_factory.return_value = mock_pool
-
             result = gateway.complete(request)
 
         assert result is direct_response
@@ -136,17 +129,17 @@ class TestSyncFailoverAlarm:
     def test_no_fallback_alarm_when_failover_succeeds(self) -> None:
         """record_fallback must NOT be called when FailoverChain.complete succeeds.
 
-        We patch asyncio.get_event_loop to return a mock with is_running()=True
-        so the sync gateway uses the bridge-executor path (future.result()), and
-        patch AsyncBridgeService so the future returns the success response directly.
+        W23-C: SyncBridge.call_sync replaces AsyncBridgeService. Patching
+        ``get_bridge`` to return a stub whose ``call_sync`` yields the
+        success response directly is enough — the failover branch never
+        sees an exception, so ``record_fallback`` is not invoked.
         """
         run_id = "run-sync-failover-ok"
         request = _make_request(run_id)
         success_response = _make_response()
 
         good_chain = MagicMock()
-        mock_future = MagicMock()
-        mock_future.result.return_value = success_response
+        good_chain.complete = AsyncMock(return_value=success_response)
 
         gateway = HttpLLMGateway(
             base_url="https://api.example.com/v1",
@@ -154,20 +147,15 @@ class TestSyncFailoverAlarm:
             failover_chain=good_chain,
         )
 
-        mock_loop = MagicMock()
-        mock_loop.is_running.return_value = True
+        mock_bridge = MagicMock()
+        mock_bridge.call_sync.return_value = success_response
 
         with (
             patch(
-                "hi_agent.llm.http_gateway.AsyncBridgeService.get_executor"
-            ) as mock_executor_factory,
+                "hi_agent.llm.http_gateway.get_bridge", return_value=mock_bridge
+            ),
             patch("hi_agent.observability.fallback.record_fallback") as mock_rf,
-            patch("asyncio.get_event_loop", return_value=mock_loop),
         ):
-            mock_pool = MagicMock()
-            mock_pool.submit.return_value = mock_future
-            mock_executor_factory.return_value = mock_pool
-
             result = gateway.complete(request)
 
         assert result is success_response

@@ -4,10 +4,11 @@ Mechanically enforces the grep-based rules from CLAUDE.md that previously
 relied on author discipline. Exits non-zero if any hard rule is violated.
 
 Hard rules (exit non-zero on violation):
-  * Rule 12    鈥?no ``asyncio.run(...)`` outside entry points
-  * Rule 13    鈥?no inline ``or X(...)`` fallback for shared-state resources
-  * Rule 13    鈥?(scope) builders must not default ``profile_id=""``
-  * Language   鈥?no CJK in LLM-prompt-facing string literals
+  * Rule 5     — no ``asyncio.run(...)`` or ``asyncio.get_event_loop(...)``
+                 outside entry points (W23-C: BLOCKING; was advisory)
+  * Rule 13    — no inline ``or X(...)`` fallback for shared-state resources
+  * Rule 13    — (scope) builders must not default ``profile_id=""``
+  * Language   — no CJK in LLM-prompt-facing string literals
 
 Soft rules (WARN only, exit stays 0):
   * Rule 7     鈥?suspicious ``assert status in (..., "failed", ...)`` in tests
@@ -160,7 +161,25 @@ def _rel(path: Path, repo: Path) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Rule 12 鈥?asyncio.run outside entry points
+# Rule 5 — Async/Sync Resource Lifetime (BLOCKING)
+# --------------------------------------------------------------------------- #
+#
+# Rule 5 — see docs/rules-incident-log.md ("100% downstream LLM traffic failed"
+# incident). Two patterns are forbidden outside entry points:
+#
+#   1. ``asyncio.run(coro)`` — creates a one-shot loop; any async resource
+#      built inside that coro is bound to a loop that closes on return,
+#      so the *next* sync call sees ``RuntimeError: Event loop is closed``.
+#   2. ``asyncio.get_event_loop()`` — Python 3.10+ deprecates calling this
+#      from sync code with no running loop, and using its result for
+#      ``run_until_complete`` reproduces pattern 1's failure mode.
+#
+# Both are now hard fails (BLOCKING). Sync code that needs to drive a
+# coroutine must route through ``hi_agent.runtime.sync_bridge.get_bridge()``
+# — a process-lifetime durable event loop.
+#
+# Async code that genuinely needs the running loop must use
+# ``asyncio.get_running_loop()`` (raises if no loop, surfacing bugs early).
 # --------------------------------------------------------------------------- #
 
 
@@ -183,7 +202,10 @@ def _enclosing_function(tree: ast.AST, lineno: int) -> str | None:
 
 
 def check_rule_12(files: list[Path], repo: Path) -> RuleResult:
-    result = RuleResult("Rule 12", "asyncio.run outside entry points")
+    result = RuleResult(
+        "Rule 5",
+        "asyncio.run / asyncio.get_event_loop outside entry points",
+    )
     for path in files:
         try:
             src = path.read_text(encoding="utf-8")
@@ -197,13 +219,15 @@ def check_rule_12(files: list[Path], repo: Path) -> RuleResult:
             if not isinstance(node, ast.Call):
                 continue
             func = node.func
-            is_asyncio_run = (
+            if not (
                 isinstance(func, ast.Attribute)
-                and func.attr == "run"
                 and isinstance(func.value, ast.Name)
                 and func.value.id == "asyncio"
-            )
-            if not is_asyncio_run:
+            ):
+                continue
+            # Both ``asyncio.run`` and ``asyncio.get_event_loop`` are
+            # forbidden outside entry points (W23-C, Rule 5 BLOCKING).
+            if func.attr not in ("run", "get_event_loop"):
                 continue
             if _is_entrypoint_file(path):
                 continue
@@ -211,8 +235,9 @@ def check_rule_12(files: list[Path], repo: Path) -> RuleResult:
             if enclosing in ENTRYPOINT_FUNC_NAMES:
                 continue
             result.violations.append(
-                f"{_rel(path, repo)}:{node.lineno}: asyncio.run(...) outside "
-                f"entry point (enclosing function: {enclosing or '<module>'})"
+                f"{_rel(path, repo)}:{node.lineno}: asyncio.{func.attr}(...) "
+                f"outside entry point "
+                f"(enclosing function: {enclosing or '<module>'})"
             )
     return result
 

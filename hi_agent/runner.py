@@ -2365,7 +2365,12 @@ async def execute_async(
             )
             _use_stage_executor = _sync_capable or _template_name == "from_stage_graph"
             if _use_stage_executor:
-                loop = asyncio.get_event_loop()
+                # W23-C: Rule 5 — `handler` is an async function, so the
+                # caller's loop is already running. ``get_running_loop()``
+                # returns it without creating a new one (and raises if
+                # somehow invoked outside an async context, which would be
+                # a bug to surface, not paper over).
+                loop = asyncio.get_running_loop()
                 try:
                     result = await loop.run_in_executor(None, executor._execute_stage, node_id)
                 except Exception as _stage_exc:
