@@ -43,13 +43,13 @@ ALLOWLIST: list[dict[str, object]] = [
         "file": "hi_agent/artifacts/contracts.py",
         "line": 193,
         "reason": "lazy DeprecationWarning shim",
-        "expiry_wave": "Wave 12",
+        "expiry_wave": "Wave 27",
     },
     {
         "file": "hi_agent/capability/bundles/__init__.py",
         "line": 32,
         "reason": "lazy DeprecationWarning shim for ResearchBundle (examples layer)",
-        "expiry_wave": "Wave 12",
+        "expiry_wave": "Wave 27",
     },
 ]
 
