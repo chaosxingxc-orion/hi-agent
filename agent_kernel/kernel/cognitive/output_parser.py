@@ -229,7 +229,7 @@ class JSONModeOutputParser:
             )
             return None
 
-        effect_class: EffectClass = effect_class_raw  # type: ignore[assignment]  # expiry_wave: Wave 26
+        effect_class: EffectClass = effect_class_raw  # type: ignore[assignment]  # expiry_wave: Wave 27
 
         input_json: dict[str, Any] | None = item.get("input_json")
         if input_json is not None and not isinstance(input_json, dict):
@@ -238,7 +238,7 @@ class JSONModeOutputParser:
         interaction_target_raw = item.get("interaction_target")
         interaction_target: InteractionTarget | None = None
         if interaction_target_raw in _VALID_INTERACTION_TARGETS:
-            interaction_target = interaction_target_raw  # type: ignore[assignment]  # expiry_wave: Wave 26
+            interaction_target = interaction_target_raw  # type: ignore[assignment]  # expiry_wave: Wave 27
 
         timeout_ms = item.get("timeout_ms")
         if not isinstance(timeout_ms, int) or timeout_ms <= 0:

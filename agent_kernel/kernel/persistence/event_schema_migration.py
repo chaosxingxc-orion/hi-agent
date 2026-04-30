@@ -115,7 +115,7 @@ class EventSchemaMigrator:
         while node != from_version:
             edge = edge_to[node]
             path.append(edge)
-            node = parent[node]  # type: ignore[assignment]  # expiry_wave: Wave 26
+            node = parent[node]  # type: ignore[assignment]  # expiry_wave: Wave 27
         path.reverse()
         return path
 

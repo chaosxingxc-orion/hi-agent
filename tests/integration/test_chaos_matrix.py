@@ -319,7 +319,7 @@ def test_chaos_disk_full_simulation(tmp_path):
 
     # Acceptable outcomes: raises OR succeeds gracefully. Must NOT hang/crash process.
     reached_end_without_hanging = True
-    assert reached_end_without_hanging, "disk_full simulation should have completed or entered recovery"  # noqa: E501  # expiry_wave: Wave 26
+    assert reached_end_without_hanging, "disk_full simulation should have completed or entered recovery"  # noqa: E501  # expiry_wave: Wave 27
 
     passed = True  # reaching here without hang = pass
     _SCENARIO_RESULTS.append(

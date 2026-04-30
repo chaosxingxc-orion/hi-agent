@@ -250,7 +250,7 @@ class TestBranchHeartbeat:
             budget_consumed_ratio=0.3,
         )
         with pytest.raises((FrozenInstanceError, AttributeError)):
-            hb.action_id = "other"  # type: ignore[misc]  expiry_wave: Wave 26
+            hb.action_id = "other"  # type: ignore[misc]  expiry_wave: Wave 27
 
     def test_default_budget_ratio(self) -> None:
         """Verifies default budget ratio."""

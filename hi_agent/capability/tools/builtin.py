@@ -156,7 +156,7 @@ def web_fetch_handler(payload: dict) -> dict:
                     _policy.validate(newurl)
                 except URLPolicyViolation as exc:
                     raise urllib.error.URLError(f"Redirect blocked by URL policy: {exc}") from exc
-                return super().redirect_request(req, fp, code, msg, headers, newurl)  # type: ignore[arg-type]  expiry_wave: Wave 26
+                return super().redirect_request(req, fp, code, msg, headers, newurl)  # type: ignore[arg-type]  expiry_wave: Wave 27
 
         # Build a fresh opener each call so env-var proxy settings are current.
         # ProxyHandler({}) disables system proxy to prevent proxy-based SSRF.

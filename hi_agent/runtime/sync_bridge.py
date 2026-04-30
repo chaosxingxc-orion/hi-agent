@@ -122,7 +122,7 @@ class SyncBridge:
             finally:
                 # Best-effort asyncgen teardown — the loop is terminating
                 # anyway, so we don't care which exception type escapes.
-                with contextlib.suppress(Exception):  # rule7-exempt: expiry_wave="Wave 26" asyncgen teardown on loop close  # noqa: E501
+                with contextlib.suppress(Exception):  # rule7-exempt: expiry_wave="Wave 27" asyncgen teardown on loop close  # noqa: E501
                     loop.run_until_complete(loop.shutdown_asyncgens())
                 loop.close()
 
@@ -155,7 +155,7 @@ class SyncBridge:
         self._ensure_started()
         assert self._loop is not None  # set before _ready.set()
         # w25-F: spine tap for sync_bridge layer
-        with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+        with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 27
             from hi_agent.observability.spine_events import emit_sync_bridge
             emit_sync_bridge()
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)

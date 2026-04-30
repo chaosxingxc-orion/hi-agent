@@ -113,7 +113,7 @@ def _build_app(evolver, ctx: TenantContext) -> Starlette:
         "the calling tenant does not own the skill."
     ),
     strict=False,
-    expiry_wave="Wave 26",
+    expiry_wave="Wave 27",
 )
 class TestSkillPromoteTenantIsolationGap:
     """POST /skills/{skill_id}/promote cross-tenant denial tests (xfail — W21 gap)."""

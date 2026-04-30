@@ -61,7 +61,7 @@ async def handle_run_events_sse(request: Request) -> StreamingResponse | JSONRes
     # Resolve the store attached to the module-level bus (may be None).
     _store: SQLiteEventStore | None = getattr(event_bus, "_event_store", None)
 
-    async def generate():  # type: ignore[return]  expiry_wave: Wave 26
+    async def generate():  # type: ignore[return]  expiry_wave: Wave 27
         # Replay missed events before subscribing to the live queue.
         if since_sequence > 0 and _store is not None:
             missed = _store.list_since(
@@ -87,7 +87,7 @@ async def handle_run_events_sse(request: Request) -> StreamingResponse | JSONRes
                     }
                 )
                 yield f"id: {event.commit_offset}\ndata: {data}\n\n"
-        except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 26"
+        except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 27"
             pass
         finally:
             event_bus.unsubscribe(run_id, q)

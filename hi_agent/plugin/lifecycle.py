@@ -7,5 +7,5 @@ warnings.warn(
     DeprecationWarning,
     stacklevel=2,
 )
-from hi_agent.plugins.lifecycle import *  # noqa: F403  expiry_wave: Wave 26
+from hi_agent.plugins.lifecycle import *  # noqa: F403  expiry_wave: Wave 27
 from hi_agent.plugins.lifecycle import PluginLifecycle  # noqa: F401

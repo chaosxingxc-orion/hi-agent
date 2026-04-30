@@ -148,7 +148,7 @@ class TestRunExecutorFacadeFullRun:
     def _skip_without_kernel(self):
         import os
         if not os.environ.get("HI_AGENT_KERNEL_BASE_URL"):
-            pytest.skip(  # expiry_wave: Wave 26
+            pytest.skip(  # expiry_wave: Wave 27
                 reason="requires agent-kernel URL (HI_AGENT_KERNEL_BASE_URL); "
                 "facade.stop() calls sync_bridge which blocks without a running kernel"
             )

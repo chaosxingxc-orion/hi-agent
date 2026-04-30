@@ -147,7 +147,7 @@ class TestDescriptorFactoryBuildDescriptor:
     def test_descriptor_is_frozen(self) -> None:
         desc = self.factory.build_descriptor(_make_tool("get_item"))
         with pytest.raises(AttributeError):
-            desc.name = "other"  # type: ignore[misc]  expiry_wave: Wave 26
+            desc.name = "other"  # type: ignore[misc]  expiry_wave: Wave 27
 
 
 # ================================================================== #

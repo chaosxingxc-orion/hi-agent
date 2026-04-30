@@ -91,7 +91,7 @@ class TestRegisterTask:
         facade.register_task(d)
         # descriptor should still be intact
         with pytest.raises((AttributeError, TypeError)):
-            d.task_id = "mutated"  # type: ignore[misc]  expiry_wave: Wave 26
+            d.task_id = "mutated"  # type: ignore[misc]  expiry_wave: Wave 27
 
 
 # ---------------------------------------------------------------------------

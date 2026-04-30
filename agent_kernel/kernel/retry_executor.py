@@ -93,14 +93,14 @@ class RetryingExecutorService:
                         isinstance(exc, ServiceOverloadTransientError)
                         and self._observability_hook is not None
                     ):
-                        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block retry executor  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
+                        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block retry executor  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
                             self._observability_hook.on_circuit_breaker_trip(
                                 run_id=getattr(action, "run_id", ""),
                                 effect_class=getattr(action, "effect_class", ""),
                                 failure_count=attempt + 1,
                                 tripped=False,
                             )
-        raise last_exc  # type: ignore[misc]  # expiry_wave: Wave 26
+        raise last_exc  # type: ignore[misc]  # expiry_wave: Wave 27
 
     def _compute_delay(self, exc: TransientExecutionError, attempt: int) -> int:
         """Compute one retry delay in milliseconds.

@@ -101,7 +101,7 @@ def _install_one_shot_gate(
         # interpreted by StageOrchestrator as "not failed".
         return None
 
-    executor._execute_stage = patched  # type: ignore[method-assign]  expiry_wave: Wave 26
+    executor._execute_stage = patched  # type: ignore[method-assign]  expiry_wave: Wave 27
     return visited
 
 

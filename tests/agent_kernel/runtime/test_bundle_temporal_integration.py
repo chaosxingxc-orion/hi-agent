@@ -238,7 +238,7 @@ else:
 async def test_bundle_created_worker_runs_facade_start_signal_query_chain() -> None:
     """Bundle worker should host workflow so facade start/signal/query works end to end."""
     assert WorkflowEnvironment is not None, "Expected non-None result for WorkflowEnvironment"
-    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 26
+    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 27
 
     async with await WorkflowEnvironment.start_time_skipping() as env:
         bundle = AgentKernelRuntimeBundle.build_minimal_complete(
@@ -321,7 +321,7 @@ async def _wait_for_projection(
 async def test_bundle_temporal_precedence_matrix_chain_resolves_to_cancel_and_replay_safe() -> None:
     """Bundle Temporal path should honor precedence and ignore replayed duplicate signal."""
     assert WorkflowEnvironment is not None, "Expected non-None result for WorkflowEnvironment"
-    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 26
+    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 27
 
     async with await WorkflowEnvironment.start_time_skipping() as env:
         bundle = AgentKernelRuntimeBundle.build_minimal_complete(
@@ -485,7 +485,7 @@ async def test_bundle_temporal_precedence_matrix_chain_resolves_to_cancel_and_re
 async def test_bundle_temporal_precedence_handles_race_like_signal_ordering() -> None:
     """Concurrent signals should still converge to cancel by precedence matrix."""
     assert WorkflowEnvironment is not None, "Expected non-None result for WorkflowEnvironment"
-    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 26
+    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 27
 
     async with await WorkflowEnvironment.start_time_skipping() as env:
         bundle = AgentKernelRuntimeBundle.build_minimal_complete(
@@ -596,7 +596,7 @@ async def test_bundle_temporal_precedence_handles_race_like_signal_ordering() ->
 async def test_bundle_temporal_precedence_replay_race_preserves_cancel_terminal_priority() -> None:
     """Replay duplicates and concurrent late signals must never override cancel terminality."""
     assert WorkflowEnvironment is not None, "Expected non-None result for WorkflowEnvironment"
-    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 26
+    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 27
 
     async with await WorkflowEnvironment.start_time_skipping() as env:
         bundle = AgentKernelRuntimeBundle.build_minimal_complete(

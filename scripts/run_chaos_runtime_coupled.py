@@ -169,7 +169,7 @@ def _spawn_server(port: int) -> tuple[subprocess.Popen | None, str]:
     )
 
     # Stash the log handle on the process for shutdown cleanup.
-    proc._chaos_log_fp = log_fp  # type: ignore[attr-defined] # expiry_wave: Wave 26
+    proc._chaos_log_fp = log_fp  # type: ignore[attr-defined] # expiry_wave: Wave 27
     return proc, ""
 
 
@@ -188,17 +188,17 @@ def _stop_server(proc: subprocess.Popen) -> None:
                 log_fp.close()
 
 
-def _load_scenario(path: pathlib.Path):  # type: ignore[no-untyped-def] # expiry_wave: Wave 26
+def _load_scenario(path: pathlib.Path):  # type: ignore[no-untyped-def] # expiry_wave: Wave 27
     """Import a scenario module by file path.  Returns the module or None."""
     spec = importlib.util.spec_from_file_location(path.stem, path)
     if spec is None or spec.loader is None:
         return None
     mod = importlib.util.module_from_spec(spec)
     try:
-        spec.loader.exec_module(mod)  # type: ignore[union-attr] # expiry_wave: Wave 26
+        spec.loader.exec_module(mod)  # type: ignore[union-attr] # expiry_wave: Wave 27
     except Exception as exc:
         # Caller records the failure as a per-scenario skip with reason text.
-        mod._chaos_load_error = str(exc)  # type: ignore[attr-defined] # expiry_wave: Wave 26
+        mod._chaos_load_error = str(exc)  # type: ignore[attr-defined] # expiry_wave: Wave 27
     return mod
 
 
@@ -244,7 +244,7 @@ def _normalise_scenario_result(raw: dict, scenario_name: str) -> dict:
     return out
 
 
-def _run_one_scenario(mod, base_url: str, timeout: float) -> dict:  # type: ignore[no-untyped-def] # expiry_wave: Wave 26
+def _run_one_scenario(mod, base_url: str, timeout: float) -> dict:  # type: ignore[no-untyped-def] # expiry_wave: Wave 27
     """Drive a single scenario module against the live server."""
     name = getattr(mod, "SCENARIO_NAME", mod.__name__)
     load_error = getattr(mod, "_chaos_load_error", None)

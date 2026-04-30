@@ -2,7 +2,7 @@
 """Add expiry_wave annotations to noqa/type:ignore suppressions.
 
 Scans Python files under hi_agent/, scripts/, tests/ and appends
-"  expiry_wave: Wave 26" to suppression lines missing expiry metadata
+"  expiry_wave: Wave 27" to suppression lines missing expiry metadata
 on the same line or immediately preceding line.
 """
 
@@ -15,7 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCAN_DIRS = ("hi_agent", "agent_kernel", "agent_server", "scripts", "tests")
 SUPPRESSION_RE = re.compile(r"#\s*(?:noqa|type:\s*ignore)", re.IGNORECASE)
 EXPIRY_RE = re.compile(r"expiry_wave", re.IGNORECASE)
-APPEND_TEXT = "  expiry_wave: Wave 26"
+APPEND_TEXT = "  expiry_wave: Wave 27"
 
 
 def process_file(path: pathlib.Path) -> tuple[bool, int]:

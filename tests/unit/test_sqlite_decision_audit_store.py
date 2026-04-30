@@ -46,7 +46,7 @@ def test_append_strips_whitespace(store: SqliteDecisionAuditStore) -> None:
 
 def test_append_rejects_non_mapping(store: SqliteDecisionAuditStore) -> None:
     with pytest.raises(TypeError):
-        store.append(["run_id", "stage_id"])  # type: ignore[arg-type]  expiry_wave: Wave 26
+        store.append(["run_id", "stage_id"])  # type: ignore[arg-type]  expiry_wave: Wave 27
 
 
 def test_append_rejects_missing_run_id(store: SqliteDecisionAuditStore) -> None:
@@ -112,7 +112,7 @@ def test_latest_by_stage_scoped_to_run(store: SqliteDecisionAuditStore) -> None:
     store.append({"run_id": "r1", "stage_id": "s1", "seq": 10})
     store.append({"run_id": "r2", "stage_id": "s1", "seq": 20})
 
-    assert store.latest_by_stage("r1", "s1")["seq"] == 10  # type: ignore[index]  expiry_wave: Wave 26
+    assert store.latest_by_stage("r1", "s1")["seq"] == 10  # type: ignore[index]  expiry_wave: Wave 27
     assert store.latest_by_stage("r2", "s1")["seq"] == 20  # type: ignore[index]
 
 

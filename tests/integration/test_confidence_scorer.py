@@ -71,7 +71,7 @@ class TestSubclassOverride:
 
     def test_abstract_cannot_be_instantiated(self):
         with pytest.raises(TypeError):
-            ConfidenceScorer()  # type: ignore[abstract]  expiry_wave: Wave 26
+            ConfidenceScorer()  # type: ignore[abstract]  expiry_wave: Wave 27
 
 
 class TestFinalizeArtifact:

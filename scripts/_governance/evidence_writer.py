@@ -87,7 +87,7 @@ def write_artifact(
             existing = json.loads(path.read_text(encoding="utf-8"))
             if existing.get("_evidence_meta", {}).get("provenance") == "real":
                 raise FileExistsError(
-                    f"write_artifact: {path} already exists with provenance=real and overwrite=False"  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
+                    f"write_artifact: {path} already exists with provenance=real and overwrite=False"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
                 )
         except (json.JSONDecodeError, OSError):
             pass

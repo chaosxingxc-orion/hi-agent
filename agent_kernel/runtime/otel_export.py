@@ -142,7 +142,7 @@ def _resolve_tracer(provider: Any | None, service_name: str) -> Any:
 
     """
     try:
-        import opentelemetry.trace as otel_trace  # type: ignore[import]  # expiry_wave: Wave 26
+        import opentelemetry.trace as otel_trace  # type: ignore[import]  # expiry_wave: Wave 27
     except ImportError as exc:
         raise ImportError(
             "opentelemetry-api is required for OTLPRunTraceExporter. "
@@ -201,5 +201,5 @@ def _iso_to_ns(iso_timestamp: str) -> int | None:
         ts = iso_timestamp.replace("Z", "+00:00")
         dt = datetime.fromisoformat(ts)
         return int(dt.replace(tzinfo=UTC).timestamp() * 1e9)
-    except Exception:  # rule7-exempt: expiry_wave="Wave 26" pylint: disable=broad-exception-caught
+    except Exception:  # rule7-exempt: expiry_wave="Wave 27" pylint: disable=broad-exception-caught
         return None

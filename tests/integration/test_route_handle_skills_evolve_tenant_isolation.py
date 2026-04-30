@@ -114,7 +114,7 @@ def _build_app(evolver, ctx: TenantContext) -> Starlette:
         "Fix in W22: pass tenant_id to evolve_cycle() and restrict evolution scope."
     ),
     strict=False,
-    expiry_wave="Wave 26",
+    expiry_wave="Wave 27",
 )
 class TestSkillsEvolveTenantIsolation:
     """POST /skills/evolve must only evolve the calling tenant's skills (AX-F F1)."""

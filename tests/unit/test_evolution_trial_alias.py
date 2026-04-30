@@ -4,7 +4,7 @@ from __future__ import annotations
 
 def test_evolution_trial_is_canonical():
     """EvolutionTrial imports cleanly."""
-    from hi_agent.evolve.contracts import EvolutionTrial  # noqa: F401  expiry_wave: Wave 26
+    from hi_agent.evolve.contracts import EvolutionTrial  # noqa: F401  expiry_wave: Wave 27
 
 
 def test_evolution_trial_has_tenant_id():

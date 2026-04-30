@@ -17,7 +17,7 @@ def _load_check_secrets():
     if spec is None or spec.loader is None:
         pytest.skip("Cannot load check_secrets module")
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]  expiry_wave: Wave 26
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]  expiry_wave: Wave 27
     return mod
 
 

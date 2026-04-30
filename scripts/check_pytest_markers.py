@@ -23,9 +23,9 @@ try:
     import tomllib  # Python 3.11+
 except ImportError:
     try:
-        import tomli as tomllib  # type: ignore[no-redef]  # expiry_wave: Wave 26
+        import tomli as tomllib  # type: ignore[no-redef]  # expiry_wave: Wave 27
     except ImportError:
-        tomllib = None  # type: ignore[assignment]  # expiry_wave: Wave 26
+        tomllib = None  # type: ignore[assignment]  # expiry_wave: Wave 27
 
 ROOT = Path(__file__).resolve().parent.parent
 TESTS_DIR = ROOT / "tests"
@@ -162,7 +162,7 @@ def main() -> int:
         "status": status,
         "check": "pytest_markers",
         "registered_count": len(registered),
-        "unregistered_markers": {k: v for k, v in unregistered.items()},  # noqa: C416  # expiry_wave: Wave 26  # added: W25 baseline sweep
+        "unregistered_markers": {k: v for k, v in unregistered.items()},  # noqa: C416  # expiry_wave: Wave 27  # added: W25 baseline sweep
         "reason": f"{len(unregistered)} unregistered marker(s)" if unregistered else "",
     }
 

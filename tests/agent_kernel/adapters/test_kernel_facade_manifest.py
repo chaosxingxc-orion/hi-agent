@@ -73,7 +73,7 @@ class TestGetManifest:
         facade = _make_facade()
         manifest = facade.get_manifest()
         with pytest.raises(dataclasses.FrozenInstanceError):
-            manifest.kernel_version = "0.0.0"  # type: ignore[misc]  expiry_wave: Wave 26
+            manifest.kernel_version = "0.0.0"  # type: ignore[misc]  expiry_wave: Wave 27
 
     def test_manifest_is_synchronous(self) -> None:
         """get_manifest must not be a coroutine — platforms call it synchronously."""

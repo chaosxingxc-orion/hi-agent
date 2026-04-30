@@ -67,7 +67,7 @@ def _load_yaml(path: pathlib.Path) -> object:
     input via a regex fallback that can miss enum drift (LB-5).
     """
     try:
-        import yaml  # type: ignore[import-untyped]  expiry_wave: Wave 26
+        import yaml  # type: ignore[import-untyped]  expiry_wave: Wave 27
     except ImportError as exc:
         raise RuntimeError(
             "PyYAML is required for recurrence_ledger validation. "

@@ -93,5 +93,5 @@ class TestMakeSubrunDoneCallback:
 
         assert "id-1" in results
         assert "id-2" in results
-        assert results["id-1"].success is False  # type: ignore[union-attr]  expiry_wave: Wave 26
+        assert results["id-1"].success is False  # type: ignore[union-attr]  expiry_wave: Wave 27
         assert results["id-2"].output == "cancelled"  # type: ignore[union-attr]

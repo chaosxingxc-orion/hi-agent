@@ -96,7 +96,7 @@ def _increment_no_run_scope_counter() -> None:
         collector = get_metrics_collector()
         if collector is not None:
             collector.increment("hi_agent_fallback_no_run_scope_total")
-    except Exception:  # rule7-exempt: expiry_wave="Wave 26" metrics must never crash callers
+    except Exception:  # rule7-exempt: expiry_wave="Wave 27" metrics must never crash callers
         pass
 
 
@@ -180,11 +180,11 @@ def record_fallback(
             # known kinds so that /metrics exposes hi_agent_<kind>_fallback_total.
             named = f"hi_agent_{kind_str}_fallback_total"
             collector.increment(named, labels=labels or None)
-    except Exception:  # rule7-exempt: expiry_wave="Wave 26" metrics must never crash callers
+    except Exception:  # rule7-exempt: expiry_wave="Wave 27" metrics must never crash callers
         pass
 
     # --- 2. Emit a WARNING log carrying run_id / kind / reason / extra. ---
-    with contextlib.suppress(Exception):  # pragma: no cover; rule7-exempt: logging must not crash callers  # noqa: E501  expiry_wave: Wave 26
+    with contextlib.suppress(Exception):  # pragma: no cover; rule7-exempt: logging must not crash callers  # noqa: E501  expiry_wave: Wave 27
         _log.warning(
             "fallback recorded run_id=%s kind=%s reason=%s extra=%s",
             run_id,
@@ -198,7 +198,7 @@ def record_fallback(
     if run_id == "system":
         _increment_no_run_scope_counter()
     else:
-        with contextlib.suppress(Exception):  # pragma: no cover; rule7-exempt: append_fallback_event must not crash  # noqa: E501  expiry_wave: Wave 26
+        with contextlib.suppress(Exception):  # pragma: no cover; rule7-exempt: append_fallback_event must not crash  # noqa: E501  expiry_wave: Wave 27
             append_fallback_event(run_id, event)
 
     # Hint when a caller uses a kind outside the four-kind taxonomy.
@@ -237,7 +237,7 @@ def record_llm_request(
             if tier is not None:
                 labels["tier"] = tier
             collector.increment("hi_agent_llm_requests_total", labels=labels)
-    except Exception:  # rule7-exempt: expiry_wave="Wave 26" metrics must never crash callers
+    except Exception:  # rule7-exempt: expiry_wave="Wave 27" metrics must never crash callers
         pass
 
     # DEBUG only — per-request INFO logs are too noisy in production.

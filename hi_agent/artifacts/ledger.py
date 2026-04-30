@@ -179,7 +179,7 @@ class ArtifactLedger:
                 emit_artifact_ledger(
                     tenant_id=getattr(artifact, "tenant_id", "") or "",
                 )
-            except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 26
+            except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 27
                 pass
 
     def store(self, artifact: Artifact) -> None:
@@ -234,7 +234,7 @@ class ArtifactLedger:
         self, source_ref: str, *, tenant_id: str | None = None
     ) -> list[Artifact]:
         """Return all artifacts referencing the given source ref, filtered by tenant."""
-        # O(n) scan; index deferred. Tracked: ledger_source_ref_linear_scan (expiry Wave 30).  # expiry_wave: Wave 30
+        # O(n) scan; index deferred. Tracked: ledger_source_ref_linear_scan.  # expiry_wave: Wave 30
         results = [a for a in self._store.values() if source_ref in a.source_refs]
         if tenant_id is not None and tenant_id != "":
             results = [a for a in results if self._tenant_visible(a, tenant_id)]
@@ -244,7 +244,7 @@ class ArtifactLedger:
         self, upstream_id: str, *, tenant_id: str | None = None
     ) -> list[Artifact]:
         """Return all artifacts with upstream_id in upstream_artifact_ids, filtered by tenant."""
-        # O(n) scan; index deferred. Tracked: ledger_upstream_linear_scan (expiry Wave 30).  # expiry_wave: Wave 30
+        # O(n) scan; index deferred. Tracked: ledger_upstream_linear_scan.  # expiry_wave: Wave 30
         results = [
             a for a in self._store.values() if upstream_id in a.upstream_artifact_ids
         ]

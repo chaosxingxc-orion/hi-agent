@@ -77,7 +77,7 @@ class TestInMemoryPersistence:
 
     def test_wal_mode(self) -> None:
         cb = CircuitBreaker(db_path=":memory:")
-        row = cb._db.execute("PRAGMA journal_mode").fetchone()  # type: ignore[union-attr]  expiry_wave: Wave 26
+        row = cb._db.execute("PRAGMA journal_mode").fetchone()  # type: ignore[union-attr]  expiry_wave: Wave 27
         # :memory: always returns "memory" for journal_mode, which is fine —
         # the PRAGMA is accepted without error.
         assert row is not None, "Expected non-None result for row"
@@ -86,7 +86,7 @@ class TestInMemoryPersistence:
     def test_failure_persisted(self) -> None:
         cb = CircuitBreaker(failure_threshold=2, db_path=":memory:")
         cb.mark_failure("cap")
-        row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 26
+        row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 27
             "SELECT state, failures FROM circuit_breaker_state WHERE name='cap'"
         ).fetchone()
         assert row is not None, "Expected non-None result for row"
@@ -97,7 +97,7 @@ class TestInMemoryPersistence:
     def test_open_state_persisted(self) -> None:
         cb = CircuitBreaker(failure_threshold=2, db_path=":memory:")
         _trip(cb, "cap")
-        row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 26
+        row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 27
             "SELECT state FROM circuit_breaker_state WHERE name='cap'"
         ).fetchone()
         assert row is not None, "Expected non-None result for row"
@@ -108,7 +108,7 @@ class TestInMemoryPersistence:
         cb = CircuitBreaker(failure_threshold=2, db_path=":memory:")
         _trip(cb, "cap")
         cb.mark_success("cap")
-        row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 26
+        row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 27
             "SELECT state, failures FROM circuit_breaker_state WHERE name='cap'"
         ).fetchone()
         assert row is not None, "Expected non-None result for row"
@@ -127,7 +127,7 @@ class TestInMemoryPersistence:
         _trip(cb, "cap")
         ticks[0] = 6.0
         cb.allow("cap")  # triggers half_open transition
-        row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 26
+        row = cb._db.execute(  # type: ignore[union-attr]  expiry_wave: Wave 27
             "SELECT state FROM circuit_breaker_state WHERE name='cap'"
         ).fetchone()
         assert row is not None, "Expected non-None result for row"
@@ -144,7 +144,7 @@ class TestFilePersistence:
     """Open state loaded on init from persisted storage (file-backed)."""
 
     def test_open_state_survives_restart(self, tmp_path: pytest.TempPathFactory) -> None:
-        db_file = str(tmp_path / "cb.db")  # type: ignore[operator]  expiry_wave: Wave 26
+        db_file = str(tmp_path / "cb.db")  # type: ignore[operator]  expiry_wave: Wave 27
 
         # First instance: trip the breaker
         cb1 = CircuitBreaker(failure_threshold=2, cooldown_seconds=9999.0, db_path=db_file)
@@ -158,7 +158,7 @@ class TestFilePersistence:
         cb2.close()
 
     def test_closed_state_not_reloaded(self, tmp_path: pytest.TempPathFactory) -> None:
-        db_file = str(tmp_path / "cb2.db")  # type: ignore[operator]  expiry_wave: Wave 26
+        db_file = str(tmp_path / "cb2.db")  # type: ignore[operator]  expiry_wave: Wave 27
 
         cb1 = CircuitBreaker(failure_threshold=2, cooldown_seconds=9999.0, db_path=db_file)
         _trip(cb1, "svc")
@@ -173,7 +173,7 @@ class TestFilePersistence:
 
     def test_only_open_loaded_on_init(self, tmp_path: pytest.TempPathFactory) -> None:
         """Verify that only 'open' rows are loaded, not 'closed' or 'half_open'."""
-        db_file = str(tmp_path / "cb3.db")  # type: ignore[operator]  expiry_wave: Wave 26
+        db_file = str(tmp_path / "cb3.db")  # type: ignore[operator]  expiry_wave: Wave 27
 
         # Manually inject a half_open row directly into SQLite
         conn = sqlite3.connect(db_file)
@@ -202,7 +202,7 @@ class TestFilePersistence:
     def test_multiple_named_circuits_survive_restart(
         self, tmp_path: pytest.TempPathFactory
     ) -> None:
-        db_file = str(tmp_path / "cb4.db")  # type: ignore[operator]  expiry_wave: Wave 26
+        db_file = str(tmp_path / "cb4.db")  # type: ignore[operator]  expiry_wave: Wave 27
 
         cb1 = CircuitBreaker(failure_threshold=1, cooldown_seconds=9999.0, db_path=db_file)
         _trip(cb1, "alpha")

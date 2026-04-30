@@ -28,7 +28,7 @@ _WAVE_PATTERN = re.compile(r'"Wave\s+\d+"', re.IGNORECASE)
 _EXCEPTION_COMMENT = re.compile(r"wave-literal-ok", re.IGNORECASE)
 # expiry_wave data fields and pytest skip expiry_wave args are legitimate
 # historical values. GS-9 fix: also exempt comment lines that mention
-# expiry_wave (e.g. "# expiry_wave: Wave 26 — burndown"), and inline
+# expiry_wave (e.g. "# expiry_wave: Wave 27 — burndown"), and inline
 # expiry_wave references inside docstrings or test fixtures (no quotes around
 # the value). Match any of:
 #   expiry_wave: "Wave N"     YAML/dict literal
@@ -88,7 +88,7 @@ def main() -> int:
         print(json.dumps(result, indent=2))
     else:
         for issue in issues:
-            print(f"FAIL {issue['file']}:{issue['line']}: hardcoded wave string 鈥?use current_wave() from _current_wave.py", file=sys.stderr)  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
+            print(f"FAIL {issue['file']}:{issue['line']}: hardcoded wave string 鈥?use current_wave() from _current_wave.py", file=sys.stderr)  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
         if not issues:
             print("PASS: no hardcoded Wave N strings in scripts/")
 

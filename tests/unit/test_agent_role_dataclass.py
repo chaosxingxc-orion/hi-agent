@@ -19,7 +19,7 @@ def test_agent_role_immutable():
     """AgentRole is frozen — mutation raises an error."""
     role = AgentRole(role_id="r1", role_name="pi")
     with pytest.raises((AttributeError, TypeError)):
-        role.role_id = "other"  # type: ignore[misc]  expiry_wave: Wave 26
+        role.role_id = "other"  # type: ignore[misc]  expiry_wave: Wave 27
 
 
 def test_agent_role_custom_fields():
@@ -54,7 +54,7 @@ def test_team_run_immutable():
     """TeamRun is frozen — mutation raises an error."""
     team = TeamRun(team_id="t1", project_id="proj-1", tenant_id="test-tenant")
     with pytest.raises((AttributeError, TypeError)):
-        team.team_id = "other"  # type: ignore[misc]  expiry_wave: Wave 26
+        team.team_id = "other"  # type: ignore[misc]  expiry_wave: Wave 27
 
 
 def test_team_shared_context_defaults():
@@ -70,7 +70,7 @@ def test_team_shared_context_immutable():
     """TeamSharedContext is frozen — mutation raises an error."""
     ctx = TeamSharedContext(team_id="t1", project_id="proj-1", tenant_id="test-tenant")
     with pytest.raises((AttributeError, TypeError)):
-        ctx.project_id = "other"  # type: ignore[misc]  expiry_wave: Wave 26
+        ctx.project_id = "other"  # type: ignore[misc]  expiry_wave: Wave 27
 
 
 def test_team_run_default_empty_members():
