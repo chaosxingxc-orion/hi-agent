@@ -156,10 +156,22 @@ def get_provider_api_key(
     try:
         data = _load_with_local_overlay(path)
     except (json.JSONDecodeError, OSError):
-        return ""
+        data = {}
     providers = data.get("providers", {})
     provider_cfg = providers.get(provider.strip().lower(), {})
-    return str(provider_cfg.get("api_key", "") or "")
+    api_key = str(provider_cfg.get("api_key", "") or "")
+    if api_key:
+        return api_key
+    # Env-var fallback: secrets injected via env (CI / structural gate / direct
+    # operator deploy) take precedence over the empty JSON template field.
+    normalized = provider.strip().lower()
+    env_names = list(_PROVIDER_API_KEY_ENVS.get(normalized, ()))
+    env_names.append(f"HI_AGENT_LLM_API_KEY_{normalized.upper()}")
+    for env_name in env_names:
+        value = os.environ.get(env_name, "")
+        if value:
+            return value
+    return ""
 
 
 def _resolve_provider_base_url(provider: str, provider_cfg: dict) -> str:

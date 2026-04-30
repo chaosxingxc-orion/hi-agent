@@ -26,7 +26,6 @@ pytestmark = pytest.mark.skip(
         "The real concurrency gate requires a live server (Rule 8 step 4). "
         "Re-enable under a dedicated concurrency gate, not in unit/integration suite."
     ),
-    expiry_wave="Wave 22",
 )
 
 

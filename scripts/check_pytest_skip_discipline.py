@@ -30,7 +30,17 @@ _SKIP_PATTERN = re.compile(
     r"@pytest\.mark\.skip(?:if)?\s*\(",
     re.IGNORECASE,
 )
-_EXPIRY_ARG = re.compile(r'expiry_wave\s*=\s*["\']Wave\s*(\d+)', re.IGNORECASE)
+# expiry_wave is recognised in EITHER form:
+#   - kwarg-like: ``expiry_wave="Wave N"``
+#   - comment-like: ``# expiry_wave: Wave N``
+# pytest's Skip marker rejects unknown kwargs at runtime (TypeError), so the
+# comment form is the only safe in-source annotation. The kwarg form is
+# preserved for backward compatibility with `pytest.skip(...)` callable form,
+# where unknown kwargs are silently dropped by the function signature.
+_EXPIRY_ARG = re.compile(
+    r'expiry_wave\s*[=:]\s*["\']?Wave\s*(\d+)',
+    re.IGNORECASE,
+)
 _SKIPIF_PATTERN = re.compile(r"@pytest\.mark\.skipif\s*\(", re.IGNORECASE)
 
 
