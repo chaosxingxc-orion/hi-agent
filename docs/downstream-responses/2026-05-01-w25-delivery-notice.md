@@ -4,6 +4,7 @@ notice-pre-final-commit: true
 
 **Date:** 2026-05-01
 **Wave:** 25
+**Manifest:** TBD-pending-build
 **Status:** pre-final — manifest and final scores will be filled in at manifest-build commit
 
 Functional HEAD: edbca2cc08cc3207ea09473ae36f38e4d6cbfe24
