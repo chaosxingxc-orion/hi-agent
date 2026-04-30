@@ -22,6 +22,9 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
         ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="knowledge", op="ingest"
+    )
     tenant_id = ctx.tenant_id
     server = request.app.state.agent_server
     km = server.knowledge_manager
@@ -63,6 +66,9 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
         ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="knowledge", op="ingest_structured"
+    )
     tenant_id = ctx.tenant_id
     server = request.app.state.agent_server
     km = server.knowledge_manager
@@ -100,6 +106,9 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
         ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="knowledge", op="query"
+    )
     tenant_id = ctx.tenant_id
     server = request.app.state.agent_server
     km = server.knowledge_manager
@@ -178,6 +187,9 @@ async def handle_knowledge_sync(request: Request) -> JSONResponse:
         ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="knowledge", op="sync"
+    )
     tenant_id = ctx.tenant_id  # captured for audit/future per-tenant routing
     _logger.debug(
         "hi_agent.routes_knowledge: sync tenant=%s", hash_tenant_id(tenant_id)

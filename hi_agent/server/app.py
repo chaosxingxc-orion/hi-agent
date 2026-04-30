@@ -619,11 +619,15 @@ async def handle_skills_status(request: Request) -> JSONResponse:
 async def handle_skills_evolve(request: Request) -> JSONResponse:
     """Trigger evolution cycle, return EvolutionReport."""
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_se
+    from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
     try:
-        _rtc_se()
+        ctx = _rtc_se()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="skills", op="evolve"
+    )
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
     if evolver is None:
@@ -715,11 +719,15 @@ async def handle_skill_versions(request: Request) -> JSONResponse:
 async def handle_skill_optimize(request: Request) -> JSONResponse:
     """Trigger prompt optimization for one skill."""
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_so
+    from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
     try:
-        _rtc_so()
+        ctx = _rtc_so()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="skills", op="optimize"
+    )
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -755,11 +763,15 @@ async def handle_skill_optimize(request: Request) -> JSONResponse:
 async def handle_skill_promote(request: Request) -> JSONResponse:
     """Promote challenger to champion."""
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_sp
+    from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
     try:
-        _rtc_sp()
+        ctx = _rtc_sp()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="skills", op="promote"
+    )
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver

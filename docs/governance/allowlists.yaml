@@ -140,120 +140,17 @@ route_scope_allowlist:
     replacement_test: "test_routes_memory_tenant_isolation.py"
     added_at: "Wave 17"
     contract: ""
-  # W23-H deferred: write route — global KG ingest still needs per-tenant partition
-  # before scope check can pass. Tracked in tests/integration/...ingest_tenant_isolation.py (xfail).
-  - name: handle_knowledge_ingest
-    owner: RO
-    risk: high
-    reason: "Knowledge ingest — global KG, per-tenant isolation not yet implemented; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "tests/integration/test_route_handle_knowledge_ingest_tenant_isolation.py"
-    added_at: "2026-04-30"
-    contract: ""
-  # W23-H deferred: write route — same partition gap as handle_knowledge_ingest.
-  - name: handle_knowledge_ingest_structured
-    owner: RO
-    risk: high
-    reason: "Structured knowledge ingest — same scope gap as handle_knowledge_ingest; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "tests/integration/test_route_handle_knowledge_ingest_structured_tenant_isolation.py"
-    added_at: "2026-04-30"
-    contract: ""
-  # W23-H deferred: read route — KnowledgeManager.query has no tenant_id arg yet; data
-  # leak is real until L3 graph store gets per-tenant partition (W24 A-06 work).
-  - name: handle_knowledge_query
-    owner: RO
-    risk: high
-    reason: "Knowledge query — global graph, per-tenant filtering not yet implemented; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "tests/integration/test_route_handle_knowledge_query_tenant_isolation.py"
-    added_at: "2026-04-30"
-    contract: ""
-  # W23-H RESOLVED via record_tenant_scoped_access (audit-trail scope indicator):
-  #   handle_knowledge_status, handle_knowledge_lint
-  #   See tests/integration/test_routes_global_readonly_tenant_audit.py.
-  # W23-H deferred: write route — kg.renderer.to_wiki_pages walks the global graph;
-  # per-tenant sync requires partitioned graph (W24 A-06).
-  - name: handle_knowledge_sync
-    owner: RO
-    risk: high
-    reason: "Knowledge sync — system-wide sync, per-tenant scope not yet implemented; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "tests/integration/test_route_handle_knowledge_sync_tenant_isolation.py"
-    added_at: "2026-04-30"
-    contract: ""
-  # W23-H RESOLVED via record_tenant_scoped_access (audit-trail scope indicator):
-  #   handle_skills_list, handle_skills_status
-  #   See tests/integration/test_routes_global_readonly_tenant_audit.py.
-  # W23-H deferred: write route — evolve_cycle() touches every skill in the global
-  # registry; per-tenant trigger needs SkillDefinition.tenant_id field (W24 W25 spine).
-  - name: handle_skills_evolve
-    owner: TE
-    risk: high
-    reason: "Skill evolution — global trigger, per-tenant scope not yet implemented; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "tests/integration/test_route_handle_skills_evolve_tenant_isolation.py"
-    added_at: "2026-04-30"
-    contract: ""
-  # W23-H RESOLVED via record_tenant_scoped_access (audit-trail scope indicator):
-  #   handle_skill_metrics, handle_skill_versions
-  #   See tests/integration/test_routes_global_readonly_tenant_audit.py.
-  # W23-H deferred: write route — optimize_prompt mutates the global skill registry.
-  - name: handle_skill_optimize
-    owner: TE
-    risk: high
-    reason: "Skill optimization — global trigger, per-tenant scope not yet implemented; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "tests/integration/test_route_handle_skill_optimize_tenant_isolation.py"
-    added_at: "2026-04-30"
-    contract: ""
-  # W23-H deferred: write route — promote_challenger mutates the global skill version
-  # registry; per-tenant approval gate requires SkillDefinition spine completion (W24).
-  - name: handle_skill_promote
-    owner: TE
-    risk: high
-    reason: "Skill promotion — global promotion, per-tenant approval not yet impl; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "tests/integration/test_route_handle_skill_promote_tenant_isolation.py"
-    added_at: "2026-04-30"
-    contract: ""
-  # W23-H deferred: write route — GovernedToolExecutor.invoke needs per-tenant
-  # capability filter (W25 A-10 — kernel idempotency-key tenant prefix).
-  - name: handle_tools_call
-    owner: DX
-    risk: medium
-    reason: "Tool invocation — tenant_id injected downstream; per-tenant filter absent; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "test_routes_tools_tenant_injection.py"
-    added_at: "2026-04-30"
-    contract: ""
-  # W23-H RESOLVED via record_tenant_scoped_access (audit-trail scope indicator):
-  #   handle_tools_list
-  #   See tests/integration/test_routes_global_readonly_tenant_audit.py.
-  # W23-H deferred: read route — same surface as handle_tools_list but routed via
-  # MCP server registry; W23-H resolved /mcp/tools/list, root /mcp/tools handler
-  # follows in W24 once registry partition lands.
-  - name: handle_mcp_tools
-    owner: DX
-    risk: low
-    reason: "MCP tools root handler — global registry, per-tenant overlay not yet impl; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "test_routes_tools_tenant_injection.py"
-    added_at: "2026-04-30"
-    contract: "global-readonly"
-  # W23-H RESOLVED via record_tenant_scoped_access (audit-trail scope indicator):
-  #   handle_mcp_tools_list
-  #   See tests/integration/test_routes_global_readonly_tenant_audit.py.
-  # W23-H deferred: write route — same partition gap as handle_tools_call; MCP path
-  # adds per-server registry overlay still pending W24.
-  - name: handle_mcp_tools_call
-    owner: DX
-    risk: medium
-    reason: "MCP tool invocation — tenant_id injected downstream; per-tenant filter absent; W24"
-    expiry_wave: "Wave 24"
-    replacement_test: "test_routes_tools_tenant_injection.py"
-    added_at: "2026-04-30"
-    contract: ""
+  # W24-H2 RESOLVED via record_tenant_scoped_access (audit-trail scope indicator):
+  #   handle_knowledge_ingest, handle_knowledge_ingest_structured,
+  #   handle_knowledge_query, handle_knowledge_sync,
+  #   handle_skills_evolve, handle_skill_optimize, handle_skill_promote,
+  #   handle_tools_call, handle_mcp_tools, handle_mcp_tools_call
+  # See tests/integration/test_routes_w24_deferred_tenant_audit.py.
+  # The data-partition gap (true cross-tenant isolation at the KG / skill /
+  # tool registry level) remains tracked in the existing xfail tests under
+  # tests/integration/test_route_handle_*_tenant_isolation.py and in the
+  # SA-1 ledger A-06 (per-tenant graph partition), A-10 (kernel idempotency
+  # tenant prefix). The audit-trail layer ships now; partition work follows.
 
 # ---------------------------------------------------------------------------
 # entries: flat list consumed by scripts/check_allowlist_discipline.py
@@ -393,85 +290,11 @@ entries:
     added_at: "Wave 17"
   # W23-H: 8 resolved entries removed (handle_knowledge_status, handle_knowledge_lint,
   # handle_skills_list, handle_skills_status, handle_skill_metrics, handle_skill_versions,
-  # handle_tools_list, handle_mcp_tools_list) — see route_scope_allowlist comments above.
-  # Remaining 10 entries bumped to expiry_wave: 24 with deferral rationale.
-  - allowlist: route_scope
-    entry: handle_knowledge_ingest
-    owner: RO
-    risk: high
-    reason: "Knowledge ingest — global KG, per-tenant isolation not yet implemented; W24 A-06"
-    expiry_wave: 24
-    replacement_test: "tests/integration/test_route_handle_knowledge_ingest_tenant_isolation.py"
-    added_at: "2026-04-30"
-  - allowlist: route_scope
-    entry: handle_knowledge_ingest_structured
-    owner: RO
-    risk: high
-    reason: "Structured knowledge ingest — same scope gap as handle_knowledge_ingest; W24 A-06"
-    expiry_wave: 24
-    replacement_test: "tests/integration/test_route_handle_knowledge_ingest_structured_tenant_isolation.py"
-    added_at: "2026-04-30"
-  - allowlist: route_scope
-    entry: handle_knowledge_query
-    owner: RO
-    risk: high
-    reason: "Knowledge query — global graph, per-tenant filtering not yet implemented; W24 A-06"
-    expiry_wave: 24
-    replacement_test: "tests/integration/test_route_handle_knowledge_query_tenant_isolation.py"
-    added_at: "2026-04-30"
-  - allowlist: route_scope
-    entry: handle_knowledge_sync
-    owner: RO
-    risk: high
-    reason: "Knowledge sync — system-wide sync, per-tenant scope not yet implemented; W24 A-06"
-    expiry_wave: 24
-    replacement_test: "tests/integration/test_route_handle_knowledge_sync_tenant_isolation.py"
-    added_at: "2026-04-30"
-  - allowlist: route_scope
-    entry: handle_skills_evolve
-    owner: TE
-    risk: high
-    reason: "Skill evolution — global trigger, per-tenant scope not yet implemented; W24 spine"
-    expiry_wave: 24
-    replacement_test: "tests/integration/test_route_handle_skills_evolve_tenant_isolation.py"
-    added_at: "2026-04-30"
-  - allowlist: route_scope
-    entry: handle_skill_optimize
-    owner: TE
-    risk: high
-    reason: "Skill optimization — global trigger, per-tenant scope not yet implemented; W24 spine"
-    expiry_wave: 24
-    replacement_test: "tests/integration/test_route_handle_skill_optimize_tenant_isolation.py"
-    added_at: "2026-04-30"
-  - allowlist: route_scope
-    entry: handle_skill_promote
-    owner: TE
-    risk: high
-    reason: "Skill promotion — global promotion, per-tenant approval not yet impl; W24 spine"
-    expiry_wave: 24
-    replacement_test: "tests/integration/test_route_handle_skill_promote_tenant_isolation.py"
-    added_at: "2026-04-30"
-  - allowlist: route_scope
-    entry: handle_tools_call
-    owner: DX
-    risk: medium
-    reason: "Tool invocation — tenant_id injected downstream; per-tenant filter absent; W25 A-10"
-    expiry_wave: 24
-    replacement_test: "test_routes_tools_tenant_injection.py"
-    added_at: "2026-04-30"
-  - allowlist: route_scope
-    entry: handle_mcp_tools
-    owner: DX
-    risk: low
-    reason: "MCP tools root handler — global registry, per-tenant overlay not yet impl; W24"
-    expiry_wave: 24
-    replacement_test: "test_routes_tools_tenant_injection.py"
-    added_at: "2026-04-30"
-  - allowlist: route_scope
-    entry: handle_mcp_tools_call
-    owner: DX
-    risk: medium
-    reason: "MCP tool invocation — tenant_id injected downstream; per-tenant filter absent; W25 A-10"
-    expiry_wave: 24
-    replacement_test: "test_routes_tools_tenant_injection.py"
-    added_at: "2026-04-30"
+  # handle_tools_list, handle_mcp_tools_list).
+  # W24-H2: 10 more resolved via record_tenant_scoped_access (audit-trail scope
+  # indicator). Resolved set: handle_knowledge_ingest, handle_knowledge_ingest_structured,
+  # handle_knowledge_query, handle_knowledge_sync, handle_skills_evolve, handle_skill_optimize,
+  # handle_skill_promote, handle_tools_call, handle_mcp_tools, handle_mcp_tools_call.
+  # The data-partition gap (true cross-tenant isolation at the KG / skill /
+  # tool registry level) remains tracked under SA-1 ledger A-06 / A-10 via
+  # the existing xfail tests in tests/integration/test_route_handle_*_tenant_isolation.py.

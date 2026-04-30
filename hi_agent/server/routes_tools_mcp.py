@@ -65,9 +65,12 @@ async def handle_tools_call(request: Request) -> JSONResponse:
         {"success": bool, "result": {...}}
     """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="tools", op="call"
+    )
     try:
         body = await request.json()
     except (ValueError, json.JSONDecodeError):
@@ -162,9 +165,12 @@ async def handle_mcp_tools(request: Request) -> JSONResponse:
     endpoints return a consistent view.
     """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="mcp_tools", op="root"
+    )
     try:
         server = request.app.state.agent_server
         mcp_srv = getattr(server, "_mcp_server", None)
@@ -227,9 +233,12 @@ async def handle_mcp_tools_call(request: Request) -> JSONResponse:
         {"content": [{"type": "text", "text": str}], "isError": bool}
     """
     try:
-        require_tenant_context()
+        ctx = require_tenant_context()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
+    record_tenant_scoped_access(
+        tenant_id=ctx.tenant_id, resource="mcp_tools", op="call"
+    )
     server = request.app.state.agent_server
     mcp_server = getattr(server, "_mcp_server", None)
     if mcp_server is None:
