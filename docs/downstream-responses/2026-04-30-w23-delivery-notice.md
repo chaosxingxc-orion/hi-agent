@@ -1,16 +1,30 @@
 # W23 Delivery Notice — Multistatus Cap Lift + Northbound Spine Phase 1
 
+> **W24 Track 0 corrigendum (2026-04-30):** The originally-published W23 manifest at
+> `2026-04-30-a3f4353.json` carried `current_verified_readiness=70.0` due to a
+> `dirty_worktree` cap (untracked spine-artifact JSONs in the working tree at
+> manifest-write time). This delivery notice originally headlined `94.55` and was
+> non-compliant with Rule 14 (headline must match manifest). The corrected manifest
+> at `docs/releases/platform-release-manifest-2026-04-30-168e96e.json` (W24 Track 0,
+> built with `--require-clean-tree`) shows `current_verified_readiness=94.55` with
+> no `dirty_worktree` cap, matching the W23 conditional. The substantive W23 work
+> (8 parallel tracks + 3 cleanups) was unaffected — only the manifest-write hygiene
+> was at fault. The prior dirty manifest is archived at
+> `docs/releases/archive/W23/platform-release-manifest-2026-04-30-a3f4353-superseded-by-w24-track0.json`.
+> A wrapper-hardening flag `--require-clean-tree` (commit `8bc47c2`) was added to
+> `scripts/build_release_manifest.py` to prevent recurrence.
+
 **Date:** 2026-04-30
 **Wave:** 23
-**Manifest:** 2026-04-30-6fcac5b
-**Verified readiness:** **94.55** (+14.55 from W22)
+**Manifest:** 2026-04-30-168e96e (corrigendum); originally 2026-04-30-a3f4353
+**Verified readiness:** **94.55** (+14.55 from W22) — as in the corrigendum manifest
 **Raw implementation maturity:** 94.55
 **Conditional readiness after blockers:** 94.55
-**Cap applied:** none — all gates pass
+**Cap applied:** none in corrigendum manifest
 
-Functional HEAD: 6fcac5bded7f
-Notice HEAD: 6fcac5bded7f
-Validated by: scripts/build_release_manifest.py + scripts/verify_clean_env.py (8864 passed) + scripts/run_t3_gate.py (3 real-Volces runs, provenance=real)
+Functional HEAD: 168e96e2e88c (corrigendum); originally 6fcac5bded7f
+Notice HEAD: 168e96e2e88c
+Validated by: scripts/build_release_manifest.py + scripts/verify_clean_env.py (8858 passed at corrigendum HEAD; 8864 at original) + scripts/run_t3_gate.py (3 real-Volces runs, provenance=real)
 
 ---
 
