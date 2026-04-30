@@ -1,0 +1,339 @@
+{
+  "provenance": "real",
+  "release_head": "f673bc4",
+  "verified_head": "f673bc4",
+  "release_head_full": "f673bc4e42d53efc602c6cd9619a58bb89017139",
+  "git_dirty": true,
+  "generated_at": "2026-04-30T05:32:58.707851+00:00",
+  "started_at": "2026-04-30T05:30:46.401243+00:00",
+  "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+  "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+  "final_state": "completed",
+  "layer_count": 12,
+  "coverage": "12/14",
+  "layers": [
+    {
+      "layer": "http_request",
+      "event_type": "http_request",
+      "timestamp": "2026-04-30T05:32:58.695243+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_http_requests_total",
+        "counter_total": 135.0
+      }
+    },
+    {
+      "layer": "middleware",
+      "event_type": "trace_id_propagated",
+      "timestamp": "2026-04-30T05:32:58.695261+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_spine_trace_id_propagated_total",
+        "counter_total": 135.0
+      }
+    },
+    {
+      "layer": "tenant_context",
+      "event_type": "tenant_context_set",
+      "timestamp": "2026-04-30T05:30:46.401243+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "synthesized",
+      "extra": {
+        "derived_from": "stored_event.tenant_id"
+      }
+    },
+    {
+      "layer": "run_manager",
+      "event_type": "run_queued",
+      "timestamp": "2026-04-30T05:30:47.251177+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "event_store",
+      "extra": {
+        "sequence": 0,
+        "tenant_id": "__anonymous__"
+      }
+    },
+    {
+      "layer": "kernel_dispatch",
+      "event_type": "run_started",
+      "timestamp": "2026-04-30T05:30:47.276822+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "event_store",
+      "extra": {
+        "sequence": 2,
+        "tenant_id": "__anonymous__"
+      }
+    },
+    {
+      "layer": "reasoning_loop",
+      "event_type": "lease_acquired",
+      "timestamp": "2026-04-30T05:30:47.276755+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "event_store",
+      "extra": {
+        "sequence": 1,
+        "tenant_id": "__anonymous__"
+      }
+    },
+    {
+      "layer": "capability_handler",
+      "event_type": "heartbeat_renewed",
+      "timestamp": "2026-04-30T05:32:27.278322+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "event_store",
+      "extra": {
+        "sequence": 3,
+        "tenant_id": "__anonymous__"
+      }
+    },
+    {
+      "layer": "sync_bridge",
+      "event_type": "sync_bridge_invoked",
+      "timestamp": "2026-04-30T05:32:58.695296+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_events_published_total",
+        "counter_total": 6.0
+      }
+    },
+    {
+      "layer": "llm_provider_response",
+      "event_type": "run_finalized",
+      "timestamp": "2026-04-30T05:32:58.451551+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "event_store",
+      "extra": {
+        "sequence": 4,
+        "tenant_id": "__anonymous__"
+      }
+    },
+    {
+      "layer": "fallback_recorder",
+      "event_type": "fallback_recorder_snapshot",
+      "timestamp": "2026-04-30T05:32:58.695304+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_llm_fallback_total",
+        "counter_total": 1.0
+      }
+    },
+    {
+      "layer": "artifact_ledger",
+      "event_type": "run_completed",
+      "timestamp": "2026-04-30T05:32:58.451913+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "event_store",
+      "extra": {
+        "sequence": 5,
+        "tenant_id": "__anonymous__"
+      }
+    },
+    {
+      "layer": "event_store",
+      "event_type": "event_stored_total",
+      "timestamp": "2026-04-30T05:32:58.695310+00:00",
+      "run_id": "2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2",
+      "trace_id": "c35da85adedb8b235a6d515e6146ba4e",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_events_stored_total",
+        "counter_total": 83.0
+      }
+    }
+  ],
+  "layers_present": [
+    "http_request",
+    "middleware",
+    "tenant_context",
+    "run_manager",
+    "kernel_dispatch",
+    "reasoning_loop",
+    "capability_handler",
+    "sync_bridge",
+    "llm_provider_response",
+    "fallback_recorder",
+    "artifact_ledger",
+    "event_store"
+  ],
+  "layers_missing": [
+    "llm_gateway",
+    "http_transport"
+  ],
+  "trace_id_consistent": true,
+  "event_count": 12,
+  "event_types": [
+    "http_request",
+    "trace_id_propagated",
+    "tenant_context_set",
+    "run_queued",
+    "run_started",
+    "lease_acquired",
+    "heartbeat_renewed",
+    "sync_bridge_invoked",
+    "run_finalized",
+    "fallback_recorder_snapshot",
+    "run_completed",
+    "event_stored_total"
+  ],
+  "spine_ok": true,
+  "metrics_snapshot": {
+    "hi_agent_events_stored_total": {
+      "_total": 83.0
+    },
+    "hi_agent_http_requests_total": {
+      "method=\"GET\",path=\"/ready\"": 1.0,
+      "method=\"POST\",path=\"/runs\"": 1.0,
+      "method=\"GET\",path=\"/runs/2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2\"": 132.0,
+      "method=\"GET\",path=\"/runs/2ca01bd5-6aec-4e56-8f72-fd8343e3e8c2/events/snapshot\"": 1.0
+    },
+    "hi_agent_spine_trace_id_propagated_total": {
+      "_total": 135.0
+    },
+    "hi_agent_events_published_total": {
+      "_total": 6.0
+    },
+    "hi_agent_llm_requests_total": {
+      "model=\"kimi-k2.6\",provider=\"anthropic\"": 8.0
+    },
+    "hi_agent_spine_tool_call_total": {
+      "profile=\"unknown\",tool=\"analyze_goal\"": 1.0,
+      "profile=\"unknown\",tool=\"search_evidence\"": 1.0,
+      "profile=\"unknown\",tool=\"build_draft\"": 1.0,
+      "profile=\"unknown\",tool=\"synthesize\"": 1.0,
+      "profile=\"unknown\",tool=\"evaluate_acceptance\"": 1.0
+    },
+    "runs_total": {
+      "status=\"completed\"": 1.0
+    },
+    "fallback_llm": {
+      "reason=\"tier_downgrade purpose=evaluation from=light to=medium\"": 1.0
+    },
+    "hi_agent_llm_fallback_total": {
+      "reason=\"tier_downgrade purpose=evaluation from=light to=medium\"": 1.0
+    },
+    "hi_agent_spine_heartbeat_renewed_total": {
+      "_total": 1.0
+    },
+    "fallback_heuristic": {
+      "reason=\"llm_json_parse_error\"": 1.0
+    },
+    "hi_agent_heuristic_fallback_total": {
+      "reason=\"llm_json_parse_error\"": 1.0
+    },
+    "hi_agent_thread_count": {
+      "_total": 3.0
+    },
+    "runs_active": {
+      "_total": 0.0
+    }
+  },
+  "ready_snapshot": {
+    "ready": true,
+    "health": "ok",
+    "execution_mode": "local",
+    "kernel_mode": "local-fsm",
+    "llm_mode": "real",
+    "llm_provider": "volces",
+    "llm_backend": "AnthropicLLMGateway",
+    "models": [
+      {
+        "name": "glm-5.1",
+        "provider": "volces",
+        "tier": "strong",
+        "status": "configured"
+      },
+      {
+        "name": "kimi-k2.6",
+        "provider": "volces",
+        "tier": "medium",
+        "status": "configured"
+      }
+    ],
+    "skills": [],
+    "mcp_servers": [],
+    "plugins": [],
+    "capabilities": [
+      "analyze_goal",
+      "build_draft",
+      "evaluate_acceptance",
+      "file_read",
+      "file_write",
+      "rule15_probe_capability",
+      "search_evidence",
+      "synthesize",
+      "web_fetch"
+    ],
+    "subsystems": {
+      "kernel": {
+        "status": "ok",
+        "mode": "local"
+      },
+      "llm": {
+        "status": "ok",
+        "models": 2
+      },
+      "capabilities": {
+        "status": "ok",
+        "count": 9
+      },
+      "skills": {
+        "status": "ok",
+        "discovered": 0
+      },
+      "mcp": {
+        "status": "ok",
+        "servers": 0,
+        "connected": 0,
+        "registered_only": 0,
+        "transport_status": "not_wired",
+        "capability_mode": "infrastructure_only",
+        "note": "External MCP transport (stdio/SSE/HTTP) not yet implemented. Platform tools are available via /mcp/tools/list as MCP-compatible endpoints. External server registration and forwarding are deferred."
+      },
+      "plugins": {
+        "status": "ok",
+        "count": 0
+      },
+      "durable_backends": {
+        "status": "not_required"
+      }
+    },
+    "evolve_policy": {
+      "mode": "auto",
+      "effective": true,
+      "source": "auto_dev_on"
+    },
+    "runtime_mode": "dev-smoke",
+    "prerequisites": {
+      "mode": "dev \u2014 heuristic fallback active, no external dependencies required",
+      "hint": "Use HI_AGENT_ENV=prod or `serve --prod` to require real credentials."
+    },
+    "auth_posture": "dev_risk_open",
+    "flags": {
+      "ready_to_serve": true,
+      "ready_to_accept_new_runs": true
+    }
+  },
+  "failures": [],
+  "status": "deferred",
+  "_evidence_meta": {
+    "provenance": "real",
+    "head_sha": "65a4bf599cef43e7989e746de1845fc0057bcf2d",
+    "generated_at": "2026-04-30T05:32:58.732725+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\run_observability_spine.py"
+  }
+}
