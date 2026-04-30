@@ -61,7 +61,7 @@ _logger = logging.getLogger(__name__)
 _VALID_KINDS: frozenset[str] = frozenset({"llm", "heuristic", "capability", "route"})
 
 
-# W23-B: Rule 7 closure on the LLM hot path. Two typed counters expose
+# Rule 7 closure on the LLM hot path. Two typed counters expose
 # previously-silent failure modes in :mod:`hi_agent.llm.http_gateway`.
 # ``event_bus_publish_errors_total`` covers EventBus.publish failures on the
 # LLM-call boundary; ``fallback_recording_errors_total`` covers

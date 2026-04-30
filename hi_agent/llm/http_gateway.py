@@ -150,7 +150,7 @@ class HttpLLMGateway:
                 )
             )
         except Exception as _ebus_exc:
-            # W23-B: Rule 7 closure. EventBus.publish failure must not block
+            # Rule 7 closure. EventBus.publish failure must not block
             # the LLM call (the "must not block" intent is preserved), but
             # the failure is now Countable + Attributable + Inspectable per
             # Rule 7's four-prong contract.
@@ -220,7 +220,7 @@ class HttpLLMGateway:
             # 2. Route through failover chain if configured.
             if self._failover_chain is not None:
                 try:
-                    # W23-C: Rule 5 closure. Route the failover chain through
+                    # Rule 5 closure. Route the failover chain through
                     # the durable SyncBridge instead of asyncio.get_event_loop()
                     # / AsyncBridgeService.submit(asyncio.run, ...). The bridge
                     # owns one persistent event loop for the process lifetime,
@@ -252,7 +252,7 @@ class HttpLLMGateway:
                             extra={"exc": str(exc)},
                         )
                     except Exception as _obs_exc:
-                        # W23-B: Rule 7 closure. record_fallback raising must
+                        # Rule 7 closure. record_fallback raising must
                         # not mute the original fallback reason. Counter +
                         # WARNING log carry both the original reason and the
                         # recording exception so the alarm bell rings.
@@ -288,7 +288,7 @@ class HttpLLMGateway:
                     extra={"exc": str(exc)},
                 )
             except Exception as _obs_exc:
-                # W23-B: Rule 7 closure. record_fallback raising must not
+                # Rule 7 closure. record_fallback raising must not
                 # mute the original fallback reason on the outer guard
                 # branch either.
                 from hi_agent.observability.fallback import (
@@ -547,7 +547,7 @@ class HTTPGateway:
         # P1-7: persist timeout so sync callers bridging via SyncBridge can
         # compute a bounded wall-clock wait.
         self._timeout = float(timeout)
-        # W23-C: Rule 5 closure. Do NOT create AsyncClient in __init__ (sync
+        # Rule 5 closure. Do NOT create AsyncClient in __init__ (sync
         # context). The pool MUST be bound to the durable SyncBridge loop —
         # not whichever loop happens to be running at first call — so that
         # callers crossing asyncio.run() boundaries reuse the same pool.

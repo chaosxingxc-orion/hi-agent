@@ -1,4 +1,4 @@
-"""Multistatus gate runner (W23-A).
+"""Multistatus gate runner.
 
 Invokes any gate script that supports the multistatus protocol
 (``--json`` flag emitting a :class:`GateResult` JSON line on stdout) and
@@ -160,7 +160,7 @@ def aggregate(results: list[GateResult]) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Multistatus gate runner (W23-A).",
+        description="Multistatus gate runner.",
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--all", action="store_true", help="Run every registered gate.")

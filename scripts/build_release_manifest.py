@@ -93,7 +93,7 @@ _GATE_SCRIPTS: dict[str, tuple] = {
     "allowlist_discipline":   ("check_allowlist_discipline.py",   True,  []),
     "verification_artifacts": ("check_verification_artifacts.py", True,  ["--allow-docs-only-gap"]),
     "targeted_default_path":  ("check_targeted_default_path.py",  True,  []),
-    # W14-A1: 7 previously absent gates added to registry
+    # 7 previously absent gates added to registry
     # manifest_freshness is intentionally NOT in _GATE_SCRIPTS: it runs
     # BEFORE the new manifest is written, so it would always see the previous
     # committed manifest and fail on any non-docs-only gap.  It runs instead
@@ -302,7 +302,7 @@ def _load_score_caps() -> list[dict[str, Any]]:
 
 
 def _run_multistatus_runner() -> dict[str, Any]:
-    """Invoke the W23-A multistatus runner and return its aggregate dict.
+    """Invoke the  multistatus runner and return its aggregate dict.
 
     Returns an empty dict on failure so callers fall back to "no multistatus
     debt" semantics (defer_count == 0). The runner's exit code already drives
@@ -761,7 +761,7 @@ def _gather_evidence(gates: dict[str, Any]) -> dict[str, Any]:
     clean_env_status = clean_env_gate.get("status", "unknown") if isinstance(clean_env_gate, dict) else "unknown"
     clean_env_summary_available = clean_env_gate.get("summary_available", None) if isinstance(clean_env_gate, dict) else None
 
-    # W23-A: invoke the multistatus runner once and capture the aggregate.
+    # invoke the multistatus runner once and capture the aggregate.
     # The runner reports per-gate PASS/FAIL/WARN/DEFER plus aggregated counts.
     multistatus = _run_multistatus_runner()
     multistatus_pending_count = int(multistatus.get("defer_count", 0))
@@ -891,7 +891,7 @@ def build_manifest(wave_override: str | None = None) -> tuple[dict[str, Any], bo
             "allowlist_total": evidence["allowlist_total"],
             "expired_allowlist_total": evidence["expired_allowlist_total"],
         },
-        # W23-A: aggregate multistatus runner output (PASS/FAIL/WARN/DEFER counts
+        # aggregate multistatus runner output (PASS/FAIL/WARN/DEFER counts
         # plus per-gate detail). The cap rules `multistatus_gates_pending_low/high`
         # in score_caps.yaml consume defer_count.
         "multistatus": evidence.get("multistatus", {}),

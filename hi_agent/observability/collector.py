@@ -201,7 +201,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "KG backend overridden away from posture default (Rule 7 alarm).",
     ),
-    # W23-B: Rule 7 closure on LLM hot path — event-bus publish failures
+    # Rule 7 closure on LLM hot path — event-bus publish failures
     # (labels: gateway, run_id_present). Incremented when the gateway tries
     # to publish an llm_call event to the EventBus and the publish raises.
     # Replaces a previously-silent ``except Exception: pass`` in the
@@ -212,7 +212,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "EventBus.publish raised on LLM-call boundary (Rule 7 alarm; "
         "labels: gateway, run_id_present).",
     ),
-    # W23-B: Rule 7 closure on LLM hot path — record_fallback recording
+    # Rule 7 closure on LLM hot path — record_fallback recording
     # failures (labels: gateway, original_reason). Incremented when the
     # gateway invokes ``record_fallback`` on a fallback branch and the
     # recorder itself raises. Without this counter the original fallback

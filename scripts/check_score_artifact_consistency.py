@@ -18,7 +18,7 @@ Usage::
     # Validate a single file (used by tests):
     python scripts/check_score_artifact_consistency.py <path/to/manifest.json>
 
-    # Multistatus JSON output (W23-A):
+    # Multistatus JSON output:
     python scripts/check_score_artifact_consistency.py --json
 """
 from __future__ import annotations

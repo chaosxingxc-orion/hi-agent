@@ -52,9 +52,9 @@ def test_check_rules_script_runs_on_current_head():
         f"stdout={result.stdout}\nstderr={result.stderr}"
     )
     assert "Rule 6" in result.stdout
-    assert "[PASS] Rule 12" in result.stdout
+    assert "[PASS] Rule 5" in result.stdout
     assert "[PASS] Rule 13" in result.stdout
-    assert "Rule 12" in result.stdout
+    assert "Rule 5" in result.stdout
     assert "OVERALL" in result.stdout
 
 
@@ -77,7 +77,7 @@ def test_check_rules_detects_rule13_inline_fallback(tmp_path):
     assert "InMemoryStore" in result.stdout
 
 
-def test_rule12_entrypoint_allowlist_no_false_positive(tmp_path):
+def test_rule5_entrypoint_allowlist_no_false_positive(tmp_path):
     """asyncio.run inside a function named `main` must NOT be flagged."""
     root = _make_fake_repo(tmp_path)
     (root / "hi_agent" / "clean.py").write_text(
@@ -100,7 +100,7 @@ def test_rule12_entrypoint_allowlist_no_false_positive(tmp_path):
         f"Expected PASS on clean repo; got {result.returncode}\n"
         f"stdout={result.stdout}\nstderr={result.stderr}"
     )
-    assert "[PASS] Rule 12" in result.stdout
+    assert "[PASS] Rule 5" in result.stdout
 
 
 def test_language_rule_flags_cjk_in_prompt_assignment(tmp_path):

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""W23-B governance gate: enforce Rule 7 closure on owned LLM hot-path sites.
+""" governance gate: enforce Rule 7 closure on owned LLM hot-path sites.
 
 This gate verifies that the three Rule 7 closure sites in
 ``hi_agent/llm/http_gateway.py`` (event-bus publish swallow at the
 LLM-call boundary; ``record_fallback`` failure swallow on the inner
 failover branch; ``record_fallback`` failure swallow on the outer guard
-branch) remain closed once W23-B has merged.
+branch) remain closed once  has merged.
 
 Scope is intentionally narrow: only the sites Track B owns. Other
 ``rule7-exempt`` markers across the codebase are governed by
 ``scripts/check_silent_degradation.py``; line 489/642/666 in
 ``http_gateway.py`` are tracked as W24 follow-ups (same pattern, different
-control-flow branches) — they are NOT in W23-B's scope per the Track B
+control-flow branches) — they are NOT in 's scope per the Track B
 specification.
 
 The gate fails-closed if any of the following appear:
@@ -22,7 +22,7 @@ The gate fails-closed if any of the following appear:
   fallback-recording guards inside ``HttpLLMGateway.complete``.
 
 Outputs multistatus JSON via ``scripts/_governance/multistatus.py`` so
-this gate plays well with the W23-A multistatus runner.
+this gate plays well with the  multistatus runner.
 """
 # Status values: pass | fail | not_applicable
 from __future__ import annotations
@@ -33,7 +33,7 @@ import re
 import sys
 from pathlib import Path
 
-# scripts/_governance/multistatus.py is the W23-A canonical exit helper.
+# scripts/_governance/multistatus.py is the  canonical exit helper.
 # Track B reuses it directly; the Track B fallback to plain JSON is no
 # longer needed because multistatus.py is already on disk.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -45,7 +45,7 @@ GATEWAY_PATH = _REPO_ROOT / "hi_agent" / "llm" / "http_gateway.py"
 
 # Owned-site discovery: locate the start of ``HttpLLMGateway.complete``
 # and the start of ``HttpLLMGateway._direct_complete`` (the next method).
-# Anything between those two boundaries is W23-B's owned scope. The
+# Anything between those two boundaries is 's owned scope. The
 # remaining ``Rule 7 violation`` markers in ``_post`` (sync gateway
 # retry-exhausted branch, ~line 489) and in ``HTTPGateway.complete``
 # (async failover/outer guards, ~lines 642/666) are W24 follow-ups.
@@ -182,7 +182,7 @@ def main() -> None:
         strict=args.strict,
         owned_range=[start + 1, end + 1],
         message=(
-            "All three W23-B Rule 7 closure sites in HttpLLMGateway.complete "
+            "All three  Rule 7 closure sites in HttpLLMGateway.complete "
             "remain closed (event-bus publish; inner record_fallback guard; "
             "outer record_fallback guard)."
         ),

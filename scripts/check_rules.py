@@ -5,7 +5,7 @@ relied on author discipline. Exits non-zero if any hard rule is violated.
 
 Hard rules (exit non-zero on violation):
   * Rule 5     — no ``asyncio.run(...)`` or ``asyncio.get_event_loop(...)``
-                 outside entry points (W23-C: BLOCKING; was advisory)
+                 outside entry points (BLOCKING; was advisory)
   * Rule 13    — no inline ``or X(...)`` fallback for shared-state resources
   * Rule 13    — (scope) builders must not default ``profile_id=""``
   * Language   — no CJK in LLM-prompt-facing string literals
@@ -226,7 +226,7 @@ def check_rule_12(files: list[Path], repo: Path) -> RuleResult:
             ):
                 continue
             # Both ``asyncio.run`` and ``asyncio.get_event_loop`` are
-            # forbidden outside entry points (W23-C, Rule 5 BLOCKING).
+            # forbidden outside entry points (, Rule 5 BLOCKING).
             if func.attr not in ("run", "get_event_loop"):
                 continue
             if _is_entrypoint_file(path):

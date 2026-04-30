@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W14-D9: Multi-status gate convention audit.
+"""Multi-status gate convention audit.
 
 Audits scripts/check_*.py to ensure every gate supports at minimum:
   pass | fail | not_applicable | deferred
@@ -41,7 +41,7 @@ _EXCLUDED = frozenset({
 })
 
 _MULTI_STATUS_MARKERS = re.compile(
-    # Legacy markers (W14-D9 vintage) + W23-A multistatus-protocol markers.
+    # Legacy markers (W14-D9 vintage) +  multistatus-protocol markers.
     # Either form is sufficient evidence that a gate supports multi-state output.
     r'"not_applicable"|"deferred"|not_applicable|deferred|'
     r'GateStatus\.|_governance\.multistatus',

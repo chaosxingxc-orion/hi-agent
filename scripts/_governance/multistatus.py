@@ -1,4 +1,4 @@
-"""Multistatus gate protocol (W23-A).
+"""Multistatus gate protocol.
 
 Defines the four-state protocol for governance gate scripts:
 

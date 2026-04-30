@@ -2365,7 +2365,7 @@ async def execute_async(
             )
             _use_stage_executor = _sync_capable or _template_name == "from_stage_graph"
             if _use_stage_executor:
-                # W23-C: Rule 5 — `handler` is an async function, so the
+                # Rule 5 — `handler` is an async function, so the
                 # caller's loop is already running. ``get_running_loop()``
                 # returns it without creating a new one (and raises if
                 # somehow invoked outside an async context, which would be
