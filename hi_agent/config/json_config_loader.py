@@ -45,6 +45,37 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "llm_config.json"
+_LOCAL_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "llm_config.local.json"
+
+
+def _load_with_local_overlay(config_path: Path) -> dict:
+    """Load *config_path*, then deep-merge ``llm_config.local.json`` if present.
+
+    The local file (gitignored) is intended for developer secrets and never
+    committed. ``scripts/inject_provider_key.py`` writes it; this loader
+    reads it. When both files exist, fields in the local file override the
+    base for the same keys (deep merge for dicts).
+    """
+    if not config_path.exists():
+        return {}
+    base = json.loads(config_path.read_text(encoding="utf-8"))
+    if config_path == _DEFAULT_CONFIG_PATH and _LOCAL_CONFIG_PATH.exists():
+        try:
+            overlay = json.loads(_LOCAL_CONFIG_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            _logger.warning("json_config_loader: ignoring malformed local overlay: %s", exc)
+            return base
+
+        def _merge(dst: dict, src: dict) -> dict:
+            for k, v in src.items():
+                if isinstance(v, dict) and isinstance(dst.get(k), dict):
+                    _merge(dst[k], v)
+                else:
+                    dst[k] = v
+            return dst
+
+        return _merge(base, overlay)
+    return base
 
 _PROVIDER_BASE_URL_ENVS = {
     "anthropic": ("ANTHROPIC_BASE_URL", "HI_AGENT_ANTHROPIC_BASE_URL"),
@@ -98,10 +129,8 @@ def get_provider_api_key(
     config file does not exist or the provider has no ``api_key`` field.
     """
     path = Path(config_path)
-    if not path.exists():
-        return ""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = _load_with_local_overlay(path)
     except (json.JSONDecodeError, OSError):
         return ""
     providers = data.get("providers", {})
@@ -146,8 +175,7 @@ def load_from_json_config(
         cfg = TraceConfig()
         return cfg, SystemBuilder(cfg)
 
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    data = _load_with_local_overlay(path)
 
     kwargs: dict = {}
     providers = data.get("providers", {})
@@ -221,8 +249,7 @@ def build_gateway_from_config(
         _logger.warning("build_gateway_from_config: %s not found", path)
         return None
 
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    data = _load_with_local_overlay(path)
 
     default_provider = data.get("default_provider", "anthropic")
     providers = data.get("providers", {})
