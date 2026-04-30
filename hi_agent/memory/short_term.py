@@ -7,7 +7,6 @@ Stored as JSON file, participates in context building.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
@@ -202,8 +201,18 @@ class ShortTermMemoryStore:
                 fh.write(payload)
             os.replace(tmp_path, dest)
         except Exception:
-            with contextlib.suppress(OSError):
+            try:
                 os.unlink(tmp_path)
+            except OSError as _exc:
+                from hi_agent.observability.silent_degradation import (
+                    record_silent_degradation,
+                )
+
+                record_silent_degradation(
+                    component="short_term.persist",
+                    reason="tmp_cleanup_failed",
+                    exc=_exc,
+                )
             raise
         self._manifest_upsert(memory.session_id, memory.created_at, len(payload))
         if self._max_sessions > 0:
@@ -350,8 +359,18 @@ class ShortTermMemoryStore:
                 fh.write(payload)
             os.replace(tmp_path, dest)
         except Exception:
-            with contextlib.suppress(OSError):
+            try:
                 os.unlink(tmp_path)
+            except OSError as _exc:
+                from hi_agent.observability.silent_degradation import (
+                    record_silent_degradation,
+                )
+
+                record_silent_degradation(
+                    component="short_term.persist_reasoning",
+                    reason="tmp_cleanup_failed",
+                    exc=_exc,
+                )
             raise
 
     def load_reasoning_trace(self, run_id: str, stage_id: str) -> Any:

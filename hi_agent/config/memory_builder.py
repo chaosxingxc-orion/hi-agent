@@ -6,7 +6,6 @@ SystemBuilder.build_short_term_store / build_mid_term_store / etc. are now facad
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import os
 from pathlib import Path
@@ -183,8 +182,18 @@ class MemoryBuilder:
                 l3_dir = l3_dir / project_id
             storage_path = str(l3_dir / "graph.json")
             graph = LongTermMemoryGraph(storage_path)  # path already fully scoped
-            with contextlib.suppress(FileNotFoundError, KeyError, ValueError):
+            try:
                 graph.load()
+            except (FileNotFoundError, KeyError, ValueError) as _exc:
+                from hi_agent.observability.silent_degradation import (
+                    record_silent_degradation,
+                )
+
+                record_silent_degradation(
+                    component="memory_builder.load_kg_graph",
+                    reason="kg_load_failed",
+                    exc=_exc,
+                )
         else:
             # Profile-id path: posture-aware dispatch via factory.
             from hi_agent.config.posture import Posture

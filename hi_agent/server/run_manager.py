@@ -6,7 +6,6 @@ Uses threading for concurrent run execution (stdlib only).
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
@@ -1255,9 +1254,20 @@ class RunManager:
         _no_progress_seconds: float | None = None
         _candidates: list[float] = []
         if run.last_heartbeat_at is not None:
-            with contextlib.suppress(ValueError):
+            try:
                 _candidates.append(
                     datetime.fromisoformat(run.last_heartbeat_at).timestamp()
+                )
+            except ValueError as _exc:
+                from hi_agent.observability.silent_degradation import (
+                    record_silent_degradation,
+                )
+
+                record_silent_degradation(
+                    component="run_manager.to_dict",
+                    reason="heartbeat_timestamp_parse_failed",
+                    run_id=run.run_id,
+                    exc=_exc,
                 )
         if _last_event_at_ts is not None:
             _candidates.append(_last_event_at_ts)

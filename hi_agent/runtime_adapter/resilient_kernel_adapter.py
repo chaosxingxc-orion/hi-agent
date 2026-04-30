@@ -194,9 +194,12 @@ class ResilientKernelAdapter:
                 last_exc,
             )
 
-        cause = last_exc or RuntimeError(
-            f"kernel adapter call {method_name!r} failed after {attempts} attempt(s)"
-        )
+        if last_exc is None:
+            raise AssertionError(
+                f"resilient adapter exhausted retries without capturing exception "
+                f"(method={method_name!r}, attempts={attempts})"
+            )
+        cause = last_exc
         # B4: classify exception to FailureCode and emit labeled counter.
         try:
             from hi_agent.failures.taxonomy import FailureCode
