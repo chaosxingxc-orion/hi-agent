@@ -1,0 +1,29 @@
+{
+  "wave": "Wave 24",
+  "manifest_id": "2026-04-30-09dd77f",
+  "release_head": "09dd77f",
+  "signed_off_at": "2026-04-30T15:00:00Z",
+  "captain": "auto-claude",
+  "gates_passed": true,
+  "verified_readiness": 94.55,
+  "raw_implementation_maturity": 94.55,
+  "conditional_readiness_after_blockers": 94.55,
+  "seven_by_twenty_four_operational_readiness": 65.0,
+  "cap": null,
+  "cap_reason": "all gates pass",
+  "multistatus": {"pass": 9, "fail": 0, "warn": 0, "defer": 0},
+  "t3_provenance": "real",
+  "t3_total_duration_s": 494.5,
+  "clean_env_passed": 8943,
+  "delta_from_w23_committed_verified": 24.55,
+  "delta_from_w23_conditional": 0.0,
+  "tracks_landed": ["W24-J1", "W24-J2", "W24-Track0", "W24-A", "W24-B", "W24-C", "W24-D", "W24-E", "W24-F", "W24-G", "W24-H1", "W24-H2", "W24-I-routes", "W24-I-infra", "W24-J3", "W24-J4", "W24-J5", "W24-J6", "W24-J7", "W24-J8", "W24-J9"],
+  "deferred_to_w25": ["I-F (contract v1 RELEASED + blocking freeze)", "real 24h soak", "spine 14/14 layer coverage (currently 12/14)", "chaos 10/10 PASS under research/prod", "drill 5/5 real (no PM2 simulation)", "/ready recursion bug fix"],
+  "df45_attribution_swaps": [
+    {"sha": "3809930", "header": "[W24-A]", "actual": "Track D capability matrix"},
+    {"sha": "814c330", "header": "[W24-D]", "actual": "Track J6 log_redaction"},
+    {"sha": "08c7b93", "header": "[W24-J7]", "actual": "J7 + absorbed I-infra (CLI + idempotency middleware)"},
+    {"sha": "cf9498f", "header": "[W24-J8]", "actual": "J8 fd guard + absorbed Track B chaos"}
+  ],
+  "process_change_for_w25": "parallel-agent dispatch will use git worktree per agent (filesystem isolation) instead of relying on per-agent git add discipline against a shared working tree. The shared-tree pattern is empirically not robust to concurrent staging."
+}
