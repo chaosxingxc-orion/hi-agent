@@ -252,6 +252,17 @@ jobs:
       - name: Rule 7 closure on LLM hot path (W23-B)
         run: python scripts/check_rule7_observability.py --json
 
+      # --- W25-C: Rule 1 / 2 / 9 mechanical enforcement ---
+
+      - name: Check root-cause block (Rule 1)
+        run: python scripts/check_root_cause_block.py --json
+
+      - name: Check surgical changes (Rule 2)
+        run: python scripts/check_surgical_changes.py --json
+
+      - name: Check self-audit completeness (Rule 9)
+        run: python scripts/check_self_audit.py --json
+
       # --- W23-A: multistatus boundary-gate runner ---
       # Replaces the 9 separate W22-A5 / W22-A10 invocations. The runner
       # invokes every boundary gate with --json, parses the multistatus
