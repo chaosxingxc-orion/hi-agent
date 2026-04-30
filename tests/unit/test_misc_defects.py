@@ -509,6 +509,10 @@ def _make_contract_f4(profile_id: str | None = "test"):
 
 
 class TestF4RawMemoryStoreBaseDir:
+    @pytest.fixture(autouse=True)
+    def _allow_heuristic_fallback(self, monkeypatch):
+        monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+
     def test_f4_raw_memory_store_has_base_dir(self, tmp_path):
         """After build_executor(), RunExecutor.raw_memory._base_dir must not be None."""
         builder = _make_builder_f4(tmp_path)
@@ -632,6 +636,10 @@ def _make_contract_g5(profile_id: str | None = None):
 
 
 class TestG5RetrievalEngineStoreIsolation:
+    @pytest.fixture(autouse=True)
+    def _allow_heuristic_fallback(self, monkeypatch):
+        monkeypatch.setenv("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "1")
+
     def test_g5_retrieval_engine_shares_short_term_store_with_executor(self, tmp_path):
         """After build_executor() with a non-empty profile_id, the retrieval engine's
         _short_term._storage_dir must equal the executor's short_term_store._storage_dir.

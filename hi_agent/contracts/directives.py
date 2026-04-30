@@ -39,7 +39,7 @@ class StageDirective(BaseModel):
     # scope: process-internal
     action: Literal["continue", "skip", "repeat", "insert", "skip_to"] = "continue"
     target_stage_id: str | None = None  # for skip / repeat
-    skip_to: str | None = None  # for skip_to action (added W25-M.1)
+    skip_to: str | None = None  # for skip_to action
     insert: list[InsertSpec] = Field(default_factory=list)  # for insert action
     reason: str | None = None
 
