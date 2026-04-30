@@ -110,9 +110,9 @@ def test_build_client_bypasses_environment_proxies():
         client.close()
 
 
-def test_build_parser_defaults_profile_id_to_t3_gate():
+def test_build_parser_defaults_profile_id_to_rule15_volces():
     args = _build_parser().parse_args(["--output", "evidence.json"])
-    assert args.profile_id == "t3_gate"
+    assert args.profile_id == "rule15_volces"
 
 
 def test_build_parser_accepts_custom_profile_id():

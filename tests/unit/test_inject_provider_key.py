@@ -70,7 +70,6 @@ def test_inject_provider_key_script_exists() -> None:
     assert (ROOT / "scripts" / "inject_provider_key.py").exists()
 
 
-def test_inject_volces_key_shim_references_new_script() -> None:
-    """inject_volces_key.py must reference inject_provider_key.py (it's a shim)."""
-    src = (ROOT / "scripts" / "inject_volces_key.py").read_text(encoding="utf-8")
-    assert "inject_provider_key.py" in src or "inject_provider_key" in src
+def test_inject_provider_key_exists() -> None:
+    """inject_provider_key.py must exist (inject_volces_key.py shim was removed W25)."""
+    assert (ROOT / "scripts" / "inject_provider_key.py").exists()
