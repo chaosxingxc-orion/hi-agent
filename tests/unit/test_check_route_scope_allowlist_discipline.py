@@ -108,10 +108,14 @@ def test_handler_membership_check_works_with_dict():
     if mod is None:
         pytest.skip("Cannot import module")
 
-    # Spot-check a few known entries
+    # Spot-check a few known entries. handle_knowledge_ingest was removed in
+    # W24 Track H2 when its tenant scoping was wired (commit ad0b28a); use
+    # another long-standing entry instead.
     assert "handle_health" in mod.NO_SCOPE_ALLOWLIST
     assert "handle_manifest" in mod.NO_SCOPE_ALLOWLIST
-    assert "handle_knowledge_ingest" in mod.NO_SCOPE_ALLOWLIST
+    # `handle_cancel_run` is permanently allowlisted (workspace-scoped ownership
+    # verified inside run_manager) per the entry's `expiry_wave: permanent`.
+    assert "handle_cancel_run" in mod.NO_SCOPE_ALLOWLIST
     assert "__nonexistent_handler__" not in mod.NO_SCOPE_ALLOWLIST
 
 
