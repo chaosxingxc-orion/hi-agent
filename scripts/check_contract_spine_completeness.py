@@ -53,6 +53,13 @@ SCAN_FILES = [
     "hi_agent/server/event_store.py",
 ]
 
+# Glob patterns for additional files to scan (Track I: gate_*.py; Track X: *_store.py).
+SCAN_GLOBS = [
+    "hi_agent/server/gate_*.py",      # Track I — gate persistence classes
+    "hi_agent/**/*_store.py",         # Track X — store persistence classes
+    "hi_agent/**/*store.py",          # Track X — legacy store naming (e.g. events/store.py)
+]
+
 REQUIRED_FIELD = "tenant_id"
 EXEMPT_MARKER = "# scope: process-internal"
 
@@ -217,7 +224,13 @@ def _gather_files() -> list[str]:
     for f in SCAN_FILES:
         if (REPO_ROOT / f).exists():
             files.append(f)
-    return files
+    for glob_pattern in SCAN_GLOBS:
+        for path in sorted(REPO_ROOT.glob(glob_pattern)):
+            if "__pycache__" in path.parts:
+                continue
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            files.append(rel)
+    return sorted(set(files))
 
 
 def _emit_json(status: str, missing: list[dict], scanned: int) -> None:
