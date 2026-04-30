@@ -1,0 +1,15 @@
+{
+  "digests": {
+    "agent_server/contracts/__init__.py": "e8ebc8a0fdc0b996cec39abd446021c162e166f24dcdad559a567f23c7554201",
+    "agent_server/contracts/errors.py": "4f9f853511191b00d89518464c3ca64556e053a3f0a4d712952d2f481600aff9",
+    "agent_server/contracts/gate.py": "5a2c457bec502d77e6d8bb1205a12302fc372914cbd28c050970aa7ab9ec90fe",
+    "agent_server/contracts/llm_proxy.py": "c0efd181d1c2464f0a83fbac5faae7227567c9681c4de35d6f364c9c1658b315",
+    "agent_server/contracts/memory.py": "6b408bd04b3a0d3eb233b8a995907d15c7b5731761db8e5fdc910828b2d3b554",
+    "agent_server/contracts/run.py": "b325c6f15cc1b0fd38792d08601da65096240cd1430bd4e2ec01977a7d6cf0e5",
+    "agent_server/contracts/skill.py": "712145796c13b379eda827253451390af86000092afdabfa83bf035ec19370f9",
+    "agent_server/contracts/streaming.py": "a91a869c82e97fac20996568debf0383d65bb9a26297ac33e0db4c1f1d63960f",
+    "agent_server/contracts/tenancy.py": "106ca10fd64524c16d17389e8d0e28c9135e423e4f21842e3c2276ca5d97f4f7",
+    "agent_server/contracts/workspace.py": "202b97f59be44de51c1e847062d1ea5a20349693341f17f11bad0020629b019a"
+  },
+  "v1_frozen_head": "224d369fc1439c5faeae3943bffaede4b6211841"
+}
