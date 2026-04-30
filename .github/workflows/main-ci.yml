@@ -46,10 +46,20 @@ jobs:
         # (excluding misc_defects) + tests/governance + most of tests/server.
         run: pytest tests/ --ignore=tests/integration --ignore=tests/security --ignore=tests/contract --ignore=tests/e2e --ignore=tests/agent_kernel --ignore=tests/characterization --ignore=tests/runtime_adapter/test_kernel_contract.py --ignore=tests/golden/dev_smoke --ignore=tests/server/test_builder_workspace_paths.py --ignore=tests/server/test_run_finalizer_team_sync.py --ignore=tests/unit/test_misc_defects.py -q --tb=short
       - name: Security tests
+        env:
+          # Contract / security / integration tests run in dev-smoke mode (no
+          # real LLM); enable heuristic fallback so register_trace_capabilities
+          # doesn't reject the missing gateway. The W19 deletion of the global
+          # conftest setdefault was deliberate; CI re-asserts the env here.
+          HI_AGENT_ALLOW_HEURISTIC_FALLBACK: "1"
         run: python -m pytest tests/security/ -q --tb=short
       - name: Contract tests
+        env:
+          HI_AGENT_ALLOW_HEURISTIC_FALLBACK: "1"
         run: python -m pytest tests/contract/ -q --tb=short
       - name: Integration tests
+        env:
+          HI_AGENT_ALLOW_HEURISTIC_FALLBACK: "1"
         run: python -m pytest tests/integration/ -q -m "not live_api and not prod_e2e" --tb=short --timeout=60
       - name: Materialize llm_config.local.json from secret (live-api only)
         if: ${{ env.VOLCES_API_KEY != '' }}
