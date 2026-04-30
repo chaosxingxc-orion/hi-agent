@@ -9,7 +9,6 @@ from hi_agent.context.manager import (
     ContextBudget,
     ContextHealth,
     ContextManager,
-    ContextSnapshot,
 )
 from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
@@ -104,8 +103,14 @@ class TestRunExecutorContextManagerRouting:
 
     def test_cm_fallback_to_session_on_error(self):
         """If CM.prepare_context raises, fall back to session context."""
-        cm = MagicMock(spec=ContextManager)
-        cm.prepare_context.side_effect = RuntimeError("boom")
+
+        class _RaisingContextManager:
+            """Stub collaborator that always raises from prepare_context."""
+
+            def prepare_context(self, *args: Any, **kwargs: Any) -> None:
+                raise RuntimeError("boom")
+
+        cm = _RaisingContextManager()
 
         session = MagicMock()
         session.build_context_for_llm.return_value = {"fallback": True}
@@ -126,18 +131,18 @@ class TestRunExecutorContextManagerRecordResponse:
     """Test record_response called after routing."""
 
     def test_record_response_after_routing(self):
-        cm = MagicMock(spec=ContextManager)
-        cm.prepare_context.return_value = ContextSnapshot(
-            health=ContextHealth.GREEN,
-            utilization_pct=0.3,
-        )
+        cm = ContextManager(budget=ContextBudget(total_window=50_000))
+        # Capture the token list length before execution to detect new calls
+        initial_iterations = len(cm._iteration_tokens)
         executor = _make_executor(context_manager=cm, session=None)
         # Execute triggers routing which calls record_response
         executor.execute()
-        assert cm.record_response.call_count > 0
-        # Verify output_tokens=200 was passed
-        for call in cm.record_response.call_args_list:
-            assert call.kwargs.get("output_tokens") == 200 or call[1].get("output_tokens") == 200
+        # record_response appends to _iteration_tokens; verify at least one call happened
+        assert len(cm._iteration_tokens) > initial_iterations, (
+            "record_response was not called: _iteration_tokens did not grow"
+        )
+        # Verify output_tokens=200 was passed (the routing estimate constant)
+        assert 200 in cm._iteration_tokens
 
 
 class TestRunExecutorContextManagerHistoryEntries:
