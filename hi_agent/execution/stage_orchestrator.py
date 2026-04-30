@@ -87,7 +87,9 @@ class StageOrchestrator:
                 # replan hook
                 if ctx.replan_hook is not None:
                     try:
+                        from hi_agent.config.posture import Posture
                         from hi_agent.contracts.directives import StageDirective
+                        from hi_agent.contracts.exceptions import StageDirectiveError
 
                         _stage_result_dict = stage_result if isinstance(stage_result, dict) else {}
                         directive = ctx.replan_hook(stage_id, _stage_result_dict)
@@ -107,9 +109,42 @@ class StageOrchestrator:
                                 ]
                             elif directive.action == "repeat":
                                 remaining_stages.insert(0, stage_id)
-                            elif directive.action == "insert" and directive.new_stage_specs:
-                                for i, spec in enumerate(directive.new_stage_specs):
-                                    remaining_stages.insert(i, spec.get("stage_id", f"dynamic_{i}"))
+                            elif directive.action == "insert":
+                                _posture = Posture.from_env()
+                                for spec in directive.insert:
+                                    if spec.target_stage_id in remaining_stages:
+                                        anchor_idx = remaining_stages.index(spec.target_stage_id)
+                                        remaining_stages.insert(anchor_idx + 1, spec.new_stage)
+                                    else:
+                                        if _posture.is_strict:
+                                            raise StageDirectiveError(
+                                                "insert anchor"
+                                                f" target_stage_id={spec.target_stage_id!r}"
+                                                " not found in remaining stages"
+                                            )
+                                        _logger.warning(
+                                            "insert anchor %r not found in remaining stages"
+                                            " (dev posture — appending at tail)",
+                                            spec.target_stage_id,
+                                        )
+                                        remaining_stages.append(spec.new_stage)
+                            elif directive.action == "skip_to":
+                                _posture = Posture.from_env()
+                                if directive.skip_to in remaining_stages:
+                                    target_idx = remaining_stages.index(directive.skip_to)
+                                    remaining_stages = remaining_stages[target_idx:]
+                                else:
+                                    if _posture.is_strict:
+                                        raise StageDirectiveError(
+                                            f"skip_to target {directive.skip_to!r}"
+                                            " not in remaining stages"
+                                        )
+                                    _logger.warning(
+                                        "skip_to %r ignored (dev posture, unknown stage)",
+                                        directive.skip_to,
+                                    )
+                    except StageDirectiveError:
+                        raise
                     except Exception as exc:
                         ctx.log_best_effort_fn(
                             logging.DEBUG,
@@ -265,6 +300,8 @@ class StageOrchestrator:
 
     def _run_loop(self, traversal) -> Any:
         """Drive traversal generator; handle GatePendingError + generic exceptions."""
+        from hi_agent.contracts.exceptions import StageDirectiveError
+
         ctx = self._ctx
         try:
             for signal, outcome in traversal:
@@ -272,6 +309,8 @@ class StageOrchestrator:
                     return ctx.finalize_run_fn(outcome)
         except GatePendingError:
             raise  # propagate — gate awaits human input
+        except StageDirectiveError:
+            raise  # propagate — strict posture directive failure must surface
         except Exception as exc:
             ctx.set_executor_attr_fn("_last_exception_msg", str(exc))
             ctx.set_executor_attr_fn("_last_exception_type", type(exc).__name__)
