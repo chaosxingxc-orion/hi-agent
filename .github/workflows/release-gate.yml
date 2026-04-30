@@ -42,7 +42,7 @@ jobs:
       # --- Static analysis ---
 
       - name: Lint (ruff full)
-        run: ruff check hi_agent tests
+        run: ruff check hi_agent agent_kernel agent_server scripts tests
 
       - name: Check CLAUDE.md rules (Rule 6 / 13 AST)
         run: python scripts/check_rules.py --json

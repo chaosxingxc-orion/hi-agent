@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCAN_DIRS = ["hi_agent", "agent_kernel"]
+SCAN_DIRS = ["hi_agent", "agent_kernel", "agent_server"]
 MIN_RULE7_EXEMPT_WAVE = 22
 _METRIC_CALL_RE = re.compile(
     r"\.(?:inc|increment)\(|record_(?:silent_degradation|fallback)\(",
