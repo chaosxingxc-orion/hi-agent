@@ -151,6 +151,20 @@ class CapabilityInvoker:
             ):
                 raise CapabilityUnavailableError(capability_name, probe_result[1])
 
+        # W24-D: posture gate — refuse to dispatch a capability whose descriptor
+        # marks it unavailable for the active posture (e.g. shell_exec under
+        # prod).  CapabilityNotAvailableError is distinct from
+        # CapabilityUnavailableError (env/probe denial) and carries a
+        # structured 400 envelope.  Lazy import: ``hi_agent.config`` re-imports
+        # ``hi_agent.runner`` which imports this module — top-level would cycle.
+        posture_probe_fn = getattr(
+            self.registry, "probe_availability_with_posture", None,
+        )
+        if callable(posture_probe_fn):
+            from hi_agent.config.posture import Posture
+            posture = Posture.from_env().value
+            posture_probe_fn(capability_name, posture=posture)
+
         attempt = 0
         from hi_agent.server.fault_injection import get_fault_injector
         get_fault_injector().maybe_raise_tool_crash_sync(capability_name)

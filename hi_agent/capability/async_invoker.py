@@ -88,6 +88,20 @@ class AsyncCapabilityInvoker:
                 )
 
         spec = self.registry.get(capability_name)
+
+        # W24-D: posture gate — same check the sync invoker performs.  Mirrors
+        # ``CapabilityInvoker.invoke()``; the registry method raises
+        # ``CapabilityNotAvailableError`` (with structured 400 envelope) when
+        # the descriptor's ``available_in_<posture>`` field is False.
+        # Lazy import to avoid the hi_agent.config <-> hi_agent.runner cycle.
+        posture_probe_fn = getattr(
+            self.registry, "probe_availability_with_posture", None,
+        )
+        if callable(posture_probe_fn):
+            from hi_agent.config.posture import Posture
+            posture = Posture.from_env().value
+            posture_probe_fn(capability_name, posture=posture)
+
         attempt = 0
 
         while True:

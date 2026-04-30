@@ -11,6 +11,59 @@ from hi_agent.observability.metric_counter import Counter
 
 _logger = logging.getLogger(__name__)
 _registry_errors_total = Counter("hi_agent_capability_registry_errors_total")
+_capability_posture_denied_total = Counter("hi_agent_capability_posture_denied_total")
+
+
+class CapabilityNotAvailableError(Exception):
+    """Raised when a capability is not available under the active posture.
+
+    Distinct from :class:`hi_agent.capability.invoker.CapabilityUnavailableError`
+    (which signals env-var / availability-probe failure).  This error signals
+    a posture-policy denial: the capability is registered and probe-clean, but
+    its descriptor's ``available_in_<posture>`` field is ``False`` for the
+    posture under which dispatch was attempted (e.g. ``shell_exec`` under
+    ``prod``).
+
+    The error carries a structured 400 envelope (compatible with
+    ``hi_agent.server.error_categories.error_response``) so HTTP boundaries
+    can surface it without string-matching.
+    """
+
+    def __init__(self, capability_name: str, posture: str, reason: str = "") -> None:
+        """Initialize posture-denial details.
+
+        Args:
+            capability_name: The capability that was attempted.
+            posture: The posture under which it was rejected ("dev"/"research"/"prod").
+            reason: Optional human-readable extra detail.
+        """
+        self.capability_name = capability_name
+        self.posture = posture
+        self.reason = reason or (
+            f"capability {capability_name!r} is not available in {posture!r} posture"
+        )
+        super().__init__(self.reason)
+
+    def to_envelope(self) -> dict:
+        """Return a structured error envelope (HTTP 400 mapping).
+
+        Shape matches :func:`hi_agent.server.error_categories.error_response`
+        with ``error_category='invalid_request'`` and ``retryable=False``;
+        downstream callers can flip posture or pick a different capability.
+        """
+        return {
+            "error_category": "invalid_request",
+            "message": self.reason,
+            "retryable": False,
+            "next_action": (
+                f"capability {self.capability_name!r} is not permitted under "
+                f"posture {self.posture!r}; choose a different capability or "
+                "lower the posture if the operator policy allows it"
+            ),
+            "capability_name": self.capability_name,
+            "posture": self.posture,
+        }
+
 
 RiskClass = Literal[
     "read_only", "filesystem_read", "filesystem_write", "network", "shell", "credential"
@@ -156,40 +209,66 @@ class CapabilityRegistry:
 
         return True, ""
 
-    def probe_availability_with_posture(self, name: str, *, posture: str) -> tuple[bool, str]:
-        """Check availability of *name* under the given posture.
+    def probe_availability_with_posture(self, name: str, *, posture: str) -> bool:
+        """Assert *name* is available under *posture*; raise on denial.
 
-        Extends probe_availability() with posture-aware field checks.
+        Extends :meth:`probe_availability` with posture-aware field checks
+        keyed off ``CapabilityDescriptor.available_in_{dev,research,prod}``.
 
         Args:
             name: Capability name.
-            posture: One of "dev", "research", "prod".
+            posture: One of ``"dev"``, ``"research"``, ``"prod"``.
 
         Returns:
-            (True, "") if available under the given posture.
-            (False, reason) if not available.
+            ``True`` if the capability is registered, env-clean, and permitted
+            under *posture*.
+
+        Raises:
+            CapabilityNotAvailableError: When the capability's descriptor has
+                ``available_in_<posture>=False``, when the underlying
+                ``probe_availability`` check fails (env / probe denial), or
+                when the capability is not registered.  The exception carries
+                a structured 400 envelope (``to_envelope()``) for HTTP
+                surfaces.
         """
         ok, reason = self.probe_availability(name)
         if not ok:
-            return ok, reason
+            _capability_posture_denied_total.inc()
+            _logger.warning(
+                "registry.posture_denied name=%s posture=%s reason=%s",
+                name, posture, reason,
+            )
+            raise CapabilityNotAvailableError(name, posture, reason)
 
         spec = self._capabilities.get(name)
         if spec is None:
-            return False, f"capability {name!r} not registered"
+            _capability_posture_denied_total.inc()
+            _logger.warning(
+                "registry.posture_denied name=%s posture=%s reason=not_registered",
+                name, posture,
+            )
+            raise CapabilityNotAvailableError(
+                name, posture, f"capability {name!r} not registered"
+            )
         desc = spec.descriptor
         if desc is None:
-            return True, ""
+            return True
 
         field_map = {
             "dev": "available_in_dev",
             "research": "available_in_research",
             "prod": "available_in_prod",
         }
-        field = field_map.get(posture)
-        if field is not None and not getattr(desc, field, True):
-            return False, f"capability {name!r} not available in {posture!r} posture"
+        field_name = field_map.get(posture)
+        if field_name is not None and not getattr(desc, field_name, True):
+            _capability_posture_denied_total.inc()
+            _logger.warning(
+                "registry.posture_denied name=%s posture=%s reason=descriptor_field_false",
+                name, posture,
+            )
+            raise CapabilityNotAvailableError(name, posture)
 
-        return True, ""
+        return True
 
     def to_extension_manifest_dict(self, name: str) -> dict:
         """Return a dict conforming to the ExtensionManifest shape for *name*.
@@ -197,6 +276,11 @@ class CapabilityRegistry:
         Converts the CapabilityDescriptor registered under *name* into the
         unified extension-manifest dict shape without changing any existing
         interface.  Returns an empty dict if *name* is not registered.
+
+        The ``posture_support`` sub-dict reads each descriptor's
+        ``available_in_{dev,research,prod}`` fields directly — it is NOT a
+        hardcoded ``{dev:True, research:True, prod:True}`` constant.  See
+        Track D of W24 for the rationale and regression test.
         """
         spec = self._capabilities.get(name)
         if spec is None:
