@@ -9,6 +9,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from hi_agent.observability.log_redaction import hash_tenant_id, redact_query
 from hi_agent.server.tenant_context import require_tenant_context
 from hi_agent.server.tenant_scope_audit import record_tenant_scoped_access
 
@@ -42,7 +43,9 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
         )
     tags = body.get("tags", [])
     _logger.debug(
-        "hi_agent.routes_knowledge: ingest tenant_id=%r title=%r", tenant_id, title
+        "hi_agent.routes_knowledge: ingest tenant=%s title=%s",
+        hash_tenant_id(tenant_id),
+        redact_query(title),
     )
     page_id = km.ingest_text(title, content, tags)
     try:
@@ -74,8 +77,8 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
         return JSONResponse({"error": "invalid_json"}, status_code=400)
     facts = body.get("facts", [])
     _logger.debug(
-        "hi_agent.routes_knowledge: ingest_structured tenant_id=%r facts=%d",
-        tenant_id,
+        "hi_agent.routes_knowledge: ingest_structured tenant=%s facts=%d",
+        hash_tenant_id(tenant_id),
         len(facts),
     )
     count = km.ingest_structured(facts)
@@ -114,7 +117,9 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
             status_code=400,
         )
     _logger.debug(
-        "hi_agent.routes_knowledge: query tenant_id=%r q=%r", tenant_id, q
+        "hi_agent.routes_knowledge: query tenant=%s q=%s",
+        hash_tenant_id(tenant_id),
+        redact_query(q),
     )
     context = km.query_for_context(q, budget_tokens=budget)
     result = km.query(q, limit=limit)
@@ -174,7 +179,9 @@ async def handle_knowledge_sync(request: Request) -> JSONResponse:
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
     tenant_id = ctx.tenant_id  # captured for audit/future per-tenant routing
-    _logger.debug("hi_agent.routes_knowledge: sync tenant_id=%r", tenant_id)
+    _logger.debug(
+        "hi_agent.routes_knowledge: sync tenant=%s", hash_tenant_id(tenant_id)
+    )
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
