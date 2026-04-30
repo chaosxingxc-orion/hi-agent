@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from hi_agent.memory.l2_index import RunMemoryIndex, StagePointer
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 
 class L2RunMemoryIndexStore:
@@ -209,11 +210,13 @@ class L2RunMemoryIndexStore:
         index_bytes = bytes(combined[4 : 4 + index_len])
         try:
             data = json.loads(index_bytes.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):  # rule7-exempt: expiry_wave="Wave 26" replacement_test: l2-store-corrupt-index-quarantine  # noqa: E501
-            # Corrupt index blob: treat as missing rather than crash. Quarantine
-            # surfacing is via the broader L2 store invariants (the row exists
-            # in SQLite even when its blob is unreadable), so a separate alarm
-            # bell is a follow-up.
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            # Corrupt index blob: treat as missing rather than crash.
+            record_silent_degradation(
+                component="memory.l2_store.L2RunMemoryIndexStore._decode_index",
+                reason="corrupt_index_blob",
+                exc=exc,
+            )
             return None
         idx = RunMemoryIndex(run_id=data.get("run_id", ""))
         for stage in data.get("stages", []):
