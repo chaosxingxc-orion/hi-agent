@@ -783,7 +783,7 @@ class RunManager:
                                     tenant_id=getattr(run_for_hb, "tenant_id", "") or "",
                                     run_id=run_id,
                                 )
-                            except Exception:  # rule7-exempt: expiry_wave="Wave 22"
+                            except Exception:  # rule7-exempt: expiry_wave="Wave 26"
                                 pass
                     if not renewed:
                         _hb_log.warning(

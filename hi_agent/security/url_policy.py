@@ -74,7 +74,7 @@ class URLPolicy:
     def _check_ip(self, ip_str: str, hostname: str) -> None:
         try:
             addr = ipaddress.ip_address(ip_str)
-        except ValueError:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
+        except ValueError:  # rule7-exempt: expiry_wave="Wave 26" replacement_test: wave22-tests
             return
 
         # Unwrap IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)

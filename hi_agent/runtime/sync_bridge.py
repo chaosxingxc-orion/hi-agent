@@ -122,7 +122,7 @@ class SyncBridge:
             finally:
                 # Best-effort asyncgen teardown — the loop is terminating
                 # anyway, so we don't care which exception type escapes.
-                with contextlib.suppress(Exception):  # rule7-exempt: expiry_wave="Wave 25" asyncgen teardown on loop close  # noqa: E501
+                with contextlib.suppress(Exception):  # rule7-exempt: expiry_wave="Wave 26" asyncgen teardown on loop close  # noqa: E501
                     loop.run_until_complete(loop.shutdown_asyncgens())
                 loop.close()
 

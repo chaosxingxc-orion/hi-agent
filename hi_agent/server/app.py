@@ -1048,7 +1048,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
         tool_count = 0
         mcp_srv = getattr(server, "_mcp_server", None)
         if mcp_srv is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
+            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 26
                 tool_count = len(mcp_srv.list_tools().get("tools", []))
         # Derive transport status from a real health probe, not merely from
         # whether the transport object exists.  A server whose subprocess fails
@@ -1550,7 +1550,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
     _builder_auth = getattr(agent_server, "_builder", None)
     _readiness_auth: dict = {}
     if _builder_auth is not None:
-        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
+        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 26
             _readiness_auth = _builder_auth.readiness()
     _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
     app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)

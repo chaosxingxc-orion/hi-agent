@@ -63,7 +63,9 @@ def build_router(*, event_facade: EventFacade) -> APIRouter:
         async def _generator():
             try:
                 events_iter = event_facade.iter_events(ctx, run_id)
-            except ContractError:
+            except ContractError as exc:
+                # Emit a final error SSE chunk so client knows stream ended abnormally.
+                yield render_sse_chunk({"event": "error", "data": {"code": exc.http_status}})
                 return
             for event in events_iter:
                 yield render_sse_chunk(event)

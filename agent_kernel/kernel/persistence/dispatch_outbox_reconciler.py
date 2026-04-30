@@ -511,7 +511,7 @@ class ScheduledOutboxReconciler:
         )
         self._last_result = summary
         if total_found > 0 and self._observability_hook is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave="Wave 22"
+            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave="Wave 26"
                 self._observability_hook.on_recovery_triggered(
                     run_id="kernel",
                     reason_code="outbox_inconsistency_detected",
@@ -530,7 +530,7 @@ class ScheduledOutboxReconciler:
                 while True:
                     await asyncio.sleep(self._interval_s)
                     await self.reconcile_once()
-            except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 22"
+            except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 26"
                 return
 
         self._task = asyncio.get_running_loop().create_task(_loop(), name="outbox_reconciler")

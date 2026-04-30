@@ -68,7 +68,7 @@ class RecoveryAlarm:
             collector = get_metrics_collector()
             if collector is not None:
                 collector.increment("hi_agent_recovery_reenqueue_disabled_total")
-        except Exception:  # rule7-exempt: expiry_wave="Wave 22" metrics must never crash callers
+        except Exception:  # rule7-exempt: expiry_wave="Wave 26" metrics must never crash callers
             pass
 
         # Rule 7 (2): Attributable — WARNING log with run_id + tenant_id + trigger reason.

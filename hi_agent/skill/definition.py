@@ -84,7 +84,7 @@ def _parse_yaml_value(raw: str) -> str | int | float | bool | list[str]:
         if "." in val:
             return float(val)
         return int(val)
-    except ValueError:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
+    except ValueError:  # rule7-exempt: expiry_wave="Wave 26" replacement_test: wave22-tests
         pass
 
     # Plain string - strip quotes

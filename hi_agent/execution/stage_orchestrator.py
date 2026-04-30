@@ -112,7 +112,7 @@ class StageOrchestrator:
                                 remaining_stages = [
                                     s for s in remaining_stages if s != directive.target_stage_id
                                 ]
-                                with contextlib.suppress(Exception):
+                                try:
                                     emit_stage_skipped(
                                         ctx.run_id,
                                         stage_id,
@@ -120,9 +120,15 @@ class StageOrchestrator:
                                         posture=Posture.from_env().name,
                                         reason=directive.reason,
                                     )
+                                except Exception as _emit_exc:
+                                    record_silent_degradation(
+                                        component="stage_orchestrator.run_linear.emit_stage_skipped",
+                                        reason="spine_emit_failed",
+                                        exc=_emit_exc,
+                                    )
                             elif directive.action == "repeat":
                                 remaining_stages.insert(0, stage_id)
-                                with contextlib.suppress(Exception):
+                                try:
                                     emit_stage_replanned(
                                         ctx.run_id,
                                         "repeat",
@@ -131,19 +137,31 @@ class StageOrchestrator:
                                         posture=Posture.from_env().name,
                                         reason=directive.reason,
                                     )
+                                except Exception as _emit_exc:
+                                    record_silent_degradation(
+                                        component="stage_orchestrator.run_linear.emit_stage_replanned",
+                                        reason="spine_emit_failed",
+                                        exc=_emit_exc,
+                                    )
                             elif directive.action == "insert":
                                 _posture = Posture.from_env()
                                 for spec in directive.insert:
                                     if spec.target_stage_id in remaining_stages:
                                         anchor_idx = remaining_stages.index(spec.target_stage_id)
                                         remaining_stages.insert(anchor_idx + 1, spec.new_stage)
-                                        with contextlib.suppress(Exception):
+                                        try:
                                             emit_stage_inserted(
                                                 ctx.run_id,
                                                 spec.target_stage_id,
                                                 spec.new_stage,
                                                 posture=_posture.name,
                                                 reason=directive.reason,
+                                            )
+                                        except Exception as _emit_exc:
+                                            record_silent_degradation(
+                                                component="stage_orchestrator.run_linear.emit_stage_inserted",
+                                                reason="spine_emit_failed",
+                                                exc=_emit_exc,
                                             )
                                     else:
                                         if _posture.is_strict:
@@ -158,7 +176,7 @@ class StageOrchestrator:
                                             spec.target_stage_id,
                                         )
                                         remaining_stages.append(spec.new_stage)
-                                        with contextlib.suppress(Exception):
+                                        try:
                                             emit_stage_inserted(
                                                 ctx.run_id,
                                                 spec.target_stage_id,
@@ -166,12 +184,18 @@ class StageOrchestrator:
                                                 posture=_posture.name,
                                                 reason=directive.reason,
                                             )
+                                        except Exception as _emit_exc:
+                                            record_silent_degradation(
+                                                component="stage_orchestrator.run_linear.emit_stage_inserted_tail",
+                                                reason="spine_emit_failed",
+                                                exc=_emit_exc,
+                                            )
                             elif directive.action == "skip_to":
                                 _posture = Posture.from_env()
                                 if directive.skip_to in remaining_stages:
                                     target_idx = remaining_stages.index(directive.skip_to)
                                     remaining_stages = remaining_stages[target_idx:]
-                                    with contextlib.suppress(Exception):
+                                    try:
                                         emit_stage_replanned(
                                             ctx.run_id,
                                             "skip_to",
@@ -179,6 +203,12 @@ class StageOrchestrator:
                                             directive.skip_to,
                                             posture=_posture.name,
                                             reason=directive.reason,
+                                        )
+                                    except Exception as _emit_exc:
+                                        record_silent_degradation(
+                                            component="stage_orchestrator.run_linear.emit_stage_replanned_skip_to",
+                                            reason="spine_emit_failed",
+                                            exc=_emit_exc,
                                         )
                                 else:
                                     if _posture.is_strict:
@@ -251,7 +281,7 @@ class StageOrchestrator:
                             if directive.action == "skip_to":
                                 _posture = Posture.from_env()
                                 if directive.skip_to in ctx.stage_graph.transitions:
-                                    with contextlib.suppress(Exception):
+                                    try:
                                         emit_stage_replanned(
                                             ctx.run_id,
                                             "skip_to",
@@ -259,6 +289,12 @@ class StageOrchestrator:
                                             directive.skip_to,
                                             posture=_posture.name,
                                             reason=directive.reason,
+                                        )
+                                    except Exception as _emit_exc:
+                                        record_silent_degradation(
+                                            component="stage_orchestrator.run_graph.emit_stage_replanned",
+                                            reason="spine_emit_failed",
+                                            exc=_emit_exc,
                                         )
                                     current_stage = directive.skip_to
                                     continue
@@ -274,13 +310,19 @@ class StageOrchestrator:
                                         spec.new_stage,
                                         current_stage,
                                     )
-                                    with contextlib.suppress(Exception):
+                                    try:
                                         emit_stage_inserted(
                                             ctx.run_id,
                                             current_stage,
                                             spec.new_stage,
                                             posture=Posture.from_env().name,
                                             reason=directive.reason,
+                                        )
+                                    except Exception as _emit_exc:
+                                        record_silent_degradation(
+                                            component="stage_orchestrator.run_graph.emit_stage_inserted",
+                                            reason="spine_emit_failed",
+                                            exc=_emit_exc,
                                         )
                                     # Full in-line injection deferred to M.5; log intent now
                             elif directive.action == "skip":
@@ -295,13 +337,19 @@ class StageOrchestrator:
                                     )
                                     # Mark the next stage as completed to skip it
                                     completed_stages.add(next_natural)
-                                    with contextlib.suppress(Exception):
+                                    try:
                                         emit_stage_skipped(
                                             ctx.run_id,
                                             current_stage,
                                             next_natural,
                                             posture=Posture.from_env().name,
                                             reason=directive.reason,
+                                        )
+                                    except Exception as _emit_exc:
+                                        record_silent_degradation(
+                                            component="stage_orchestrator.run_graph.emit_stage_skipped",
+                                            reason="spine_emit_failed",
+                                            exc=_emit_exc,
                                         )
                             # "repeat" not naturally supported in graph mode
                     except StageDirectiveError:
@@ -408,7 +456,7 @@ class StageOrchestrator:
                                 if directive.skip_to in remaining_stages:
                                     target_idx = remaining_stages.index(directive.skip_to)
                                     remaining_stages = remaining_stages[target_idx:]
-                                    with contextlib.suppress(Exception):
+                                    try:
                                         emit_stage_replanned(
                                             ctx.run_id,
                                             "skip_to",
@@ -416,6 +464,12 @@ class StageOrchestrator:
                                             directive.skip_to,
                                             posture=_posture.name,
                                             reason=directive.reason,
+                                        )
+                                    except Exception as _emit_exc:
+                                        record_silent_degradation(
+                                            component="stage_orchestrator.run_resume.emit_stage_replanned",
+                                            reason="spine_emit_failed",
+                                            exc=_emit_exc,
                                         )
                                 else:
                                     if _posture.is_strict:
@@ -433,13 +487,19 @@ class StageOrchestrator:
                                     if spec.target_stage_id in remaining_stages:
                                         anchor_idx = remaining_stages.index(spec.target_stage_id)
                                         remaining_stages.insert(anchor_idx + 1, spec.new_stage)
-                                        with contextlib.suppress(Exception):
+                                        try:
                                             emit_stage_inserted(
                                                 ctx.run_id,
                                                 spec.target_stage_id,
                                                 spec.new_stage,
                                                 posture=_posture.name,
                                                 reason=directive.reason,
+                                            )
+                                        except Exception as _emit_exc:
+                                            record_silent_degradation(
+                                                component="stage_orchestrator.run_resume.emit_stage_inserted",
+                                                reason="spine_emit_failed",
+                                                exc=_emit_exc,
                                             )
                                     else:
                                         if _posture.is_strict:
@@ -454,13 +514,19 @@ class StageOrchestrator:
                                             spec.target_stage_id,
                                         )
                                         remaining_stages.append(spec.new_stage)
-                                        with contextlib.suppress(Exception):
+                                        try:
                                             emit_stage_inserted(
                                                 ctx.run_id,
                                                 spec.target_stage_id,
                                                 spec.new_stage,
                                                 posture=_posture.name,
                                                 reason=directive.reason,
+                                            )
+                                        except Exception as _emit_exc:
+                                            record_silent_degradation(
+                                                component="stage_orchestrator.run_resume.emit_stage_inserted_tail",
+                                                reason="spine_emit_failed",
+                                                exc=_emit_exc,
                                             )
                     except StageDirectiveError:
                         raise
