@@ -11,8 +11,10 @@ Per R-AS-8 facade modules must stay <=200 LOC.
 from __future__ import annotations
 
 import hashlib
-import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+
+from hi_agent.config.posture import Posture
 
 from agent_server.contracts.errors import ContractError, NotFoundError
 from agent_server.contracts.tenancy import TenantContext
@@ -25,12 +27,6 @@ class ArtifactIntegrityError(ContractError):
     """Stored content does not match the recorded content_hash."""
 
     http_status = 409
-
-
-def _is_strict_posture() -> bool:
-    """Return True iff HI_AGENT_POSTURE is research or prod."""
-    posture = os.environ.get("HI_AGENT_POSTURE", "dev").strip().lower()
-    return posture in {"research", "prod"}
 
 
 def _sha256_hex(data: bytes) -> str:
@@ -56,7 +52,7 @@ class ArtifactFacade:
             tenant_id=ctx.tenant_id, run_id=run_id
         )
         out: list[dict[str, Any]] = []
-        strict = _is_strict_posture()
+        strict = Posture.from_env().is_strict
         for rec in records:
             owner = (rec.get("tenant_id") or "").strip()
             if strict and not owner:
@@ -72,7 +68,7 @@ class ArtifactFacade:
             tenant_id=ctx.tenant_id, artifact_id=artifact_id
         )
         owner = (record.get("tenant_id") or "").strip()
-        if _is_strict_posture():
+        if Posture.from_env().is_strict:
             if not owner:
                 # HD-4: orphan records → 404 under strict posture.
                 raise NotFoundError(

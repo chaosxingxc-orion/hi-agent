@@ -25,6 +25,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from hi_agent.config.posture import Posture
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -193,7 +194,7 @@ def register_idempotency_middleware(
     app,
     *,
     facade: IdempotencyFacade,
-    strict: bool = False,
+    strict: bool | None = None,
 ) -> None:
     """Attach IdempotencyMiddleware to ``app``.
 
@@ -201,11 +202,16 @@ def register_idempotency_middleware(
     ``agent_server/api/__init__.py``) can call it without depending on
     middleware-internal types. The order is: tenant middleware first
     (validates X-Tenant-Id), then idempotency middleware (consumes it).
+
+    ``strict`` defaults to ``Posture.from_env().is_strict`` when ``None``,
+    so research/prod deployments automatically enforce idempotency keys
+    without callers needing to set it explicitly (Rule 11).
     """
+    effective_strict = Posture.from_env().is_strict if strict is None else strict
     app.add_middleware(
         IdempotencyMiddleware,
         facade=facade,
-        strict=strict,
+        strict=effective_strict,
     )
 
 

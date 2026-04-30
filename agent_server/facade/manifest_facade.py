@@ -12,9 +12,13 @@ Per R-AS-8 facade modules must stay <=200 LOC.
 """
 from __future__ import annotations
 
-from typing import Any, Callable
+import logging
+from collections.abc import Callable
+from typing import Any
 
 from agent_server import AGENT_SERVER_API_VERSION
+
+_logger = logging.getLogger(__name__)
 
 CapabilityMatrixFn = Callable[[], list[dict[str, Any]]]
 
@@ -73,8 +77,12 @@ class ManifestFacade:
                     "capabilities": caps,
                     "posture_matrix_provenance": "capability_registry",
                 }
-            except Exception:  # noqa: BLE001 - downgrade to hardcoded
-                pass
+            except Exception as exc:
+                _logger.warning(
+                    "manifest_facade: capability_matrix_callable failed, "
+                    "falling back to hardcoded matrix: %s",
+                    exc,
+                )
         return {
             "api_version": AGENT_SERVER_API_VERSION,
             "capabilities": [dict(cap) for cap in _HARDCODED_MATRIX],
