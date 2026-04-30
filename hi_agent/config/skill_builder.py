@@ -6,7 +6,6 @@ SystemBuilder.build_skill_* methods are now facades to SkillBuilder.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from typing import Any
 
@@ -152,8 +151,18 @@ class SkillBuilder:
         from hi_agent.skill.version import SkillVersionManager
 
         mgr = SkillVersionManager(storage_dir=self._config.skill_storage_dir + "/versions")
-        with contextlib.suppress(FileNotFoundError, KeyError, ValueError):
+        try:
             mgr.load()
+        except (FileNotFoundError, KeyError, ValueError) as _exc:
+            from hi_agent.observability.silent_degradation import (
+                record_silent_degradation,
+            )
+
+            record_silent_degradation(
+                component="skill_builder.load_version_manager",
+                reason="skill_version_load_failed",
+                exc=_exc,
+            )
         return mgr
 
     def build_skill_evolver(self, llm_gateway: Any = None) -> Any:

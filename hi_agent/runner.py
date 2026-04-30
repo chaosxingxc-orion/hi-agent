@@ -2442,8 +2442,17 @@ async def execute_async(
                 run_id=run_id,
                 extra={"exc": str(_fin_exc)},
             )
-        except Exception:
-            pass
+        except Exception as _rec_exc:
+            from hi_agent.observability.silent_degradation import (
+                record_silent_degradation,
+            )
+
+            record_silent_degradation(
+                component="runner._record_fallback_self_failure",
+                reason="fallback_record_failed",
+                run_id=run_id,
+                exc=_rec_exc,
+            )
         _logger.warning("execute_async: _finalize_run failed: %s", _fin_exc)
 
     if _run_result is not None:
