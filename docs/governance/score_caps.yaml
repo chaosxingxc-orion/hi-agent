@@ -160,3 +160,28 @@ cap_rules:
     factor: expired_allowlist_accepted
     scope: [architecture_readiness, current_verified_readiness]
     description: "Expired allowlist still accepted by gate"
+
+  # ── Multistatus boundary-gate cap (W23-A) ─────────────────────────────────
+  #
+  # Rule 14 / W23-A: replaces the old `multistatus_gates_deferred` cap (which
+  # held verified at 80 whenever ANY of the 9 boundary gates were single-path
+  # advisory). The new rule is parameterized by the `defer_count` reported by
+  # `scripts/_governance/multistatus_runner.py --all --json`:
+  #
+  #   defer_count == 0      → no cap (multistatus rule does not match)
+  #   defer_count in 1..3   → cap 92  (some debt, ship-ok)
+  #   defer_count >= 4      → cap 80  (significant debt; same as old behaviour)
+  #
+  # `build_release_manifest.py` reads `defer_count` from a fresh runner
+  # invocation; the cap is applied only when defer_count >= 1. A FAIL among
+  # those gates is still ship-blocking via the existing `gate_fail` rule.
+  - condition: multistatus_gates_pending_high
+    cap: 80
+    factor: multistatus_pending_high
+    scope: [current_verified_readiness, architecture_readiness]
+    description: "≥4 boundary multistatus gates still in DEFER (debt high; cap 80)"
+  - condition: multistatus_gates_pending_low
+    cap: 92
+    factor: multistatus_pending_low
+    scope: [current_verified_readiness, architecture_readiness]
+    description: "1–3 boundary multistatus gates still in DEFER (debt low; cap 92)"

@@ -4,10 +4,11 @@
 Checks that every release manifest in docs/releases/ satisfies the three-way
 SHA agreement:
 
-  1. ``manifest_id`` field contains the same 7-character SHA prefix as ``release_head``
-  2. The manifest filename contains that same SHA prefix
+  1. ``manifest_id`` field contains the same 7-character SHA prefix as
+     ``release_head``.
+  2. The manifest filename contains that same SHA prefix.
 
-Exit code 0 = all consistent; 1 = one or more violations found.
+Exit code 0 = PASS; 1 = FAIL.
 
 Usage::
 
@@ -17,7 +18,7 @@ Usage::
     # Validate a single file (used by tests):
     python scripts/check_score_artifact_consistency.py <path/to/manifest.json>
 
-    # JSON output for build_release_manifest gate integration:
+    # Multistatus JSON output (W23-A):
     python scripts/check_score_artifact_consistency.py --json
 """
 from __future__ import annotations
@@ -29,6 +30,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RELEASES_DIR = ROOT / "docs" / "releases"
+
+sys.path.insert(0, str(ROOT / "scripts"))
+from _governance.multistatus import GateResult, GateStatus, emit
 
 
 def _load_json(path: Path) -> dict | None:
@@ -54,24 +58,18 @@ def validate_manifest_file(filepath: str) -> None:
     manifest_id: str = str(data.get("manifest_id") or "").strip()
 
     if not release_head:
-        raise ValueError(
-            f"{path.name}: 'release_head' field is missing or empty"
-        )
+        raise ValueError(f"{path.name}: 'release_head' field is missing or empty")
     if not manifest_id:
-        raise ValueError(
-            f"{path.name}: 'manifest_id' field is missing or empty"
-        )
+        raise ValueError(f"{path.name}: 'manifest_id' field is missing or empty")
 
     rh7 = release_head[:7].lower()
 
-    # Check 1: manifest_id must contain the release_head SHA prefix.
     if rh7 not in manifest_id.lower():
         raise ValueError(
             f"SHA mismatch in {path.name}: "
             f"release_head prefix {rh7!r} not found in manifest_id={manifest_id!r}"
         )
 
-    # Check 2: filename must contain the release_head SHA prefix.
     if rh7 not in path.name.lower():
         raise ValueError(
             f"SHA mismatch in {path.name}: "
@@ -80,7 +78,6 @@ def validate_manifest_file(filepath: str) -> None:
 
 
 def _is_archive(path: Path) -> bool:
-    """Return True if path is under an archive subdirectory."""
     return "archive" in path.parts
 
 
@@ -91,10 +88,6 @@ def check_all_manifests(releases_dir: Path) -> list[str]:
     """
     if not releases_dir.exists():
         return []
-
-    # Only check top-level manifests (not archived ones) — archived manifests
-    # may have date mismatches in filename vs manifest_id that were corrected
-    # in later waves; those are known and expected.
     manifest_files = [
         f
         for f in releases_dir.glob("*.json")
@@ -102,15 +95,53 @@ def check_all_manifests(releases_dir: Path) -> list[str]:
         and "manifest" in f.name.lower()
         and not f.stem.endswith("-provenance")
     ]
-
     violations: list[str] = []
     for mf in sorted(manifest_files):
         try:
             validate_manifest_file(str(mf))
         except ValueError as exc:
             violations.append(str(exc))
-
     return violations
+
+
+def _evaluate_single(filepath: str) -> GateResult:
+    try:
+        validate_manifest_file(filepath)
+        return GateResult(
+            status=GateStatus.PASS,
+            gate_name="score_artifact_consistency",
+            reason=f"{Path(filepath).name} is self-consistent",
+            evidence={"file": filepath},
+        )
+    except ValueError as exc:
+        return GateResult(
+            status=GateStatus.FAIL,
+            gate_name="score_artifact_consistency",
+            reason=str(exc),
+            evidence={"file": filepath},
+        )
+
+
+def _evaluate_all() -> GateResult:
+    violations = check_all_manifests(RELEASES_DIR)
+    if violations:
+        return GateResult(
+            status=GateStatus.FAIL,
+            gate_name="score_artifact_consistency",
+            reason=f"{len(violations)} manifest(s) inconsistent",
+            evidence={"violations": violations},
+        )
+    manifest_files = list(RELEASES_DIR.glob("*.json")) if RELEASES_DIR.exists() else []
+    manifest_count = sum(
+        1 for f in manifest_files
+        if "manifest" in f.name.lower() and not f.stem.endswith("-provenance")
+    )
+    return GateResult(
+        status=GateStatus.PASS,
+        gate_name="score_artifact_consistency",
+        reason=f"{manifest_count} manifest file(s) self-consistent",
+        evidence={"manifests_checked": manifest_count},
+    )
 
 
 def main() -> int:
@@ -129,72 +160,29 @@ def main() -> int:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Emit machine-readable JSON output.",
+        help="Emit multistatus JSON output.",
     )
     args = parser.parse_args()
 
-    if args.manifest_file:
-        # Single-file mode (used by tests and manual invocation).
-        try:
-            validate_manifest_file(args.manifest_file)
-            msg = {
-                "status": "pass",
-                "check": "score_artifact_consistency",
-                "file": args.manifest_file,
-            }
-            if args.json:
-                print(json.dumps(msg, indent=2))
-            else:
-                print(f"PASS: {args.manifest_file} is self-consistent")
-            return 0
-        except ValueError as exc:
-            msg = {
-                "status": "fail",
-                "check": "score_artifact_consistency",
-                "file": args.manifest_file,
-                "reason": str(exc),
-            }
-            if args.json:
-                print(json.dumps(msg, indent=2))
-            else:
-                print(f"FAIL: {exc}", file=sys.stderr)
-            return 1
-
-    # Scan-all mode (CI).
-    violations = check_all_manifests(RELEASES_DIR)
-    if violations:
-        result = {
-            "status": "fail",
-            "check": "score_artifact_consistency",
-            "violations_found": len(violations),
-            "violations": violations,
-        }
-        if args.json:
-            print(json.dumps(result, indent=2))
-        else:
-            print(
-                f"FAIL: {len(violations)} score artifact consistency violation(s):",
-                file=sys.stderr,
-            )
-            for v in violations:
-                print(f"  {v}", file=sys.stderr)
-        return 1
-
-    manifest_files = list(RELEASES_DIR.glob("*.json"))
-    manifest_count = sum(
-        1 for f in manifest_files
-        if "manifest" in f.name.lower() and not f.stem.endswith("-provenance")
+    result = (
+        _evaluate_single(args.manifest_file)
+        if args.manifest_file
+        else _evaluate_all()
     )
-    result = {
-        "status": "pass",
-        "check": "score_artifact_consistency",
-        "manifests_checked": manifest_count,
-    }
+
     if args.json:
-        print(json.dumps(result, indent=2))
+        emit(result)
+
+    if result.status is GateStatus.PASS:
+        print(f"PASS: {result.reason}")
+        return 0
+    if args.manifest_file:
+        print(f"FAIL: {result.reason}", file=sys.stderr)
     else:
-        print(f"PASS: {manifest_count} manifest file(s) self-consistent")
-    return 0
+        print(f"FAIL: {result.reason}:", file=sys.stderr)
+        for v in result.evidence.get("violations", []):
+            print(f"  {v}", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":

@@ -301,12 +301,45 @@ def _load_score_caps() -> list[dict[str, Any]]:
         return []
 
 
+def _run_multistatus_runner() -> dict[str, Any]:
+    """Invoke the W23-A multistatus runner and return its aggregate dict.
+
+    Returns an empty dict on failure so callers fall back to "no multistatus
+    debt" semantics (defer_count == 0). The runner's exit code already drives
+    `gate_fail` independently via the per-gate scripts wired into the workflow.
+    """
+    runner_path = SCRIPTS / "_governance" / "multistatus_runner.py"
+    if not runner_path.exists():
+        return {}
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "scripts._governance.multistatus_runner",
+             "--all", "--json", "--timeout", "60"],
+            capture_output=True, text=True, timeout=180, cwd=str(ROOT),
+        )
+    except Exception:
+        return {}
+    out = (proc.stdout or "").strip()
+    if not out:
+        return {}
+    try:
+        # Last JSON line wins (allow logging on earlier lines).
+        for line in reversed(out.splitlines()):
+            line = line.strip()
+            if line.startswith("{") and line.endswith("}"):
+                return json.loads(line)
+    except Exception:
+        return {}
+    return {}
+
+
 def _compute_cap(
     gates: dict[str, Any],
     *,
     is_dirty: bool = False,
     t3_stale: bool = False,
     expired_allowlist: int = 0,
+    multistatus_pending_count: int = 0,
     tier: str = "current_verified_readiness",
 ) -> tuple[float | None, str, list[str]]:
     """Return (cap_value, cap_reason, cap_factors) based on gate statuses and registry rules.
@@ -478,6 +511,16 @@ def _compute_cap(
                 if t3_provenance in ("structural", "shape_verified")
                 else None
             )
+        if condition == "multistatus_gates_pending_low":
+            # 1–3 boundary multistatus gates still in DEFER (cap 92).
+            if 1 <= multistatus_pending_count <= 3:
+                return f"multistatus_pending_low: defer_count={multistatus_pending_count}"
+            return None
+        if condition == "multistatus_gates_pending_high":
+            # 4+ boundary multistatus gates still in DEFER (cap 80).
+            if multistatus_pending_count >= 4:
+                return f"multistatus_pending_high: defer_count={multistatus_pending_count}"
+            return None
         if condition == "expired_allowlist_accepted_as_pass":
             return (
                 f"expired_allowlist_accepted_as_pass: {expired_allowlist}"
@@ -646,16 +689,28 @@ def _compute_cap(
     return lowest_cap, "; ".join(matched_factors), matched_factors
 
 
-def _compute_conditional(raw: float, gates: dict[str, Any], *, is_dirty: bool = False) -> float:
+def _compute_conditional(
+    raw: float,
+    gates: dict[str, Any],
+    *,
+    is_dirty: bool = False,
+    multistatus_pending_count: int = 0,
+) -> float:
     """Score if blocker-class caps (head_mismatch, expired_allowlist) were cleared."""
     # Only remove blocker-class caps, not informational ones like t3_deferred
-    _, _, factors = _compute_cap(gates, is_dirty=is_dirty)
+    _, _, factors = _compute_cap(
+        gates, is_dirty=is_dirty,
+        multistatus_pending_count=multistatus_pending_count,
+    )
     blocker_factors = {"head_mismatch", "dirty_worktree", "expired_allowlist"}
     non_blocker = [f for f in factors if not any(b in f for b in blocker_factors)]
     if not non_blocker:
         return raw
     # Still capped by non-blocker factors
-    _, _, factors_all = _compute_cap(gates, is_dirty=False)
+    _, _, factors_all = _compute_cap(
+        gates, is_dirty=False,
+        multistatus_pending_count=multistatus_pending_count,
+    )
     cap_val = 100.0
     cap_rules = _load_score_caps()
     for rule in cap_rules:
@@ -706,6 +761,11 @@ def _gather_evidence(gates: dict[str, Any]) -> dict[str, Any]:
     clean_env_status = clean_env_gate.get("status", "unknown") if isinstance(clean_env_gate, dict) else "unknown"
     clean_env_summary_available = clean_env_gate.get("summary_available", None) if isinstance(clean_env_gate, dict) else None
 
+    # W23-A: invoke the multistatus runner once and capture the aggregate.
+    # The runner reports per-gate PASS/FAIL/WARN/DEFER plus aggregated counts.
+    multistatus = _run_multistatus_runner()
+    multistatus_pending_count = int(multistatus.get("defer_count", 0))
+
     return {
         "dirty": dirty,
         "t3_status": t3_status,
@@ -715,6 +775,8 @@ def _gather_evidence(gates: dict[str, Any]) -> dict[str, Any]:
         "expired_allowlist_total": expired_allowlist_total,
         "clean_env_status": clean_env_status,
         "clean_env_summary_available": clean_env_summary_available,
+        "multistatus": multistatus,
+        "multistatus_pending_count": multistatus_pending_count,
     }
 
 
@@ -727,6 +789,7 @@ def _compute_score(gates: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
     dirty = evidence["dirty"]
     t3_stale = evidence["t3_stale"]
     expired_allowlist_total = evidence["expired_allowlist_total"]
+    multistatus_pending_count = int(evidence.get("multistatus_pending_count", 0))
 
     dimensions = _load_weights()
     raw = _compute_raw(dimensions) if dimensions else 0.0
@@ -736,6 +799,7 @@ def _compute_score(gates: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
         is_dirty=dirty,
         t3_stale=t3_stale,
         expired_allowlist=expired_allowlist_total,
+        multistatus_pending_count=multistatus_pending_count,
         tier="current_verified_readiness",
     )
     verified = round(min(raw, cap), 2) if cap is not None else raw
@@ -745,6 +809,7 @@ def _compute_score(gates: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
         is_dirty=dirty,
         t3_stale=t3_stale,
         expired_allowlist=expired_allowlist_total,
+        multistatus_pending_count=multistatus_pending_count,
         tier="seven_by_twenty_four_operational_readiness",
     )
     seven_by_twenty_four = round(min(raw, cap_7x24), 2) if cap_7x24 is not None else raw
@@ -756,13 +821,15 @@ def _compute_score(gates: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
         "current_verified_readiness": verified,
         "seven_by_twenty_four_operational_readiness": seven_by_twenty_four,
         "conditional_readiness_after_blockers": _compute_conditional(
-            raw, gates, is_dirty=dirty
+            raw, gates, is_dirty=dirty,
+            multistatus_pending_count=multistatus_pending_count,
         ),
         "cap": cap,
         "cap_reason": cap_reason,
         "cap_factors": cap_factors,
         "cap_7x24": cap_7x24,
         "cap_factors_7x24": cap_factors_7x24,
+        "multistatus_pending_count": multistatus_pending_count,
         "weights_version": "2",
     }
 
@@ -824,6 +891,11 @@ def build_manifest(wave_override: str | None = None) -> tuple[dict[str, Any], bo
             "allowlist_total": evidence["allowlist_total"],
             "expired_allowlist_total": evidence["expired_allowlist_total"],
         },
+        # W23-A: aggregate multistatus runner output (PASS/FAIL/WARN/DEFER counts
+        # plus per-gate detail). The cap rules `multistatus_gates_pending_low/high`
+        # in score_caps.yaml consume defer_count.
+        "multistatus": evidence.get("multistatus", {}),
+        "multistatus_pending_count": int(evidence.get("multistatus_pending_count", 0)),
         "captains": _load_captains_sha(),
     }
 

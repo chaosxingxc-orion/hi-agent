@@ -41,7 +41,10 @@ _EXCLUDED = frozenset({
 })
 
 _MULTI_STATUS_MARKERS = re.compile(
-    r'"not_applicable"|"deferred"|not_applicable|deferred',
+    # Legacy markers (W14-D9 vintage) + W23-A multistatus-protocol markers.
+    # Either form is sufficient evidence that a gate supports multi-state output.
+    r'"not_applicable"|"deferred"|not_applicable|deferred|'
+    r'GateStatus\.|_governance\.multistatus',
     re.IGNORECASE,
 )
 
