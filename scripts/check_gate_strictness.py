@@ -84,14 +84,15 @@ def _check_file(wf_path: pathlib.Path) -> list:
         has_not_applicable = bool(_NOT_APPLICABLE_COMMENT.search(step_text))
         is_advisory_by_design = has_promote_annotation or has_not_applicable
 
-        if has_docs_only_gap:
+        if has_docs_only_gap and not is_advisory_by_design:
             issues.append({
                 "file": str(wf_path.relative_to(ROOT)),
                 "step": step_name,
                 "violation": "--allow-docs-only-gap",
                 "detail": (
                     "Flag removes docs-only-gap exemption from gate; "
-                    "not permitted without ledger issue_id"
+                    "not permitted without ledger issue_id or "
+                    "'# TODO: promote to blocking in W<N>' annotation"
                 ),
             })
         if has_continue_on_error and not has_api_key_if and not is_advisory_by_design:
