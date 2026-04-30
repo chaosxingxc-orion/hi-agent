@@ -1,0 +1,190 @@
+{
+  "schema_version": "1",
+  "check": "chaos_runtime_coupling",
+  "provenance": "runtime_partial",
+  "runtime_coupled": true,
+  "head": "475fc41b",
+  "head_sha_full": "475fc41bc1c7dc1a726bb97eae8ae2fe891ab22a",
+  "port": 9082,
+  "scenarios_total": 10,
+  "scenarios_executed": 9,
+  "scenarios_skipped": 1,
+  "scenarios_failed": 6,
+  "all_passed": false,
+  "status": "fail",
+  "scenarios": [
+    {
+      "name": "worker_kill_during_run",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 0.12,
+      "notes": "cancel_code=200, terminal=cancelled, health_after=ok",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    },
+    {
+      "name": "restart_after_unfinished",
+      "passed": true,
+      "skipped": true,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 85.35,
+      "notes": "skipped: run did not reach terminal within timeout; state=timeout. Requires HI_AGENT_FAULT_DLQ_POISON=1 on the server process.",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false,
+      "reason": "run did not reach terminal within timeout; state=timeout. Requires HI_AGENT_FAULT_DLQ_POISON=1 on the server process."
+    },
+    {
+      "name": "db_lock_busy",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 25.06,
+      "notes": "all 3 concurrent runs reached terminal via cancel (cancel-under-contention handled correctly)",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    },
+    {
+      "name": "queue_unavailable",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 0.55,
+      "notes": "submitted=18, rejections=2; queue saturation handled",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    },
+    {
+      "name": "llm_timeout",
+      "passed": false,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": false,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": false,
+        "operator_visible_signal": false
+      },
+      "duration_s": 0.01,
+      "notes": "could not submit run",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false
+    },
+    {
+      "name": "tool_mcp_crash",
+      "passed": false,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": false,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": false,
+        "operator_visible_signal": false
+      },
+      "duration_s": 0.01,
+      "notes": "could not submit tool-run",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false
+    },
+    {
+      "name": "disk_full_artifact_write",
+      "passed": false,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": false,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": false,
+        "operator_visible_signal": false
+      },
+      "duration_s": 0.01,
+      "notes": "could not submit artifact-run",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false
+    },
+    {
+      "name": "lease_heartbeat_stall",
+      "passed": false,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": false,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": false,
+        "operator_visible_signal": false
+      },
+      "duration_s": 0.02,
+      "notes": "could not submit run",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    },
+    {
+      "name": "clock_skew_stale_lease",
+      "passed": false,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": false,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": false,
+        "operator_visible_signal": false
+      },
+      "duration_s": 0.0,
+      "notes": "could not submit run",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false
+    },
+    {
+      "name": "graceful_drain_active_work",
+      "passed": false,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": false,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": false,
+        "operator_visible_signal": false
+      },
+      "duration_s": 0.01,
+      "notes": "could not submit run",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    }
+  ],
+  "server_started": true,
+  "server_log_path": "D:\\chao_workspace\\hi-agent\\docs\\verification\\chaos-server-9082.log",
+  "command": "python scripts/run_chaos_runtime_coupled.py",
+  "generated_at": "2026-04-30T20:22:58.459207+00:00",
+  "start_ts": "2026-04-30T20:21:06.215287+00:00",
+  "finish_ts": "2026-04-30T20:22:58.459207+00:00",
+  "_evidence_meta": {
+    "provenance": "structural",
+    "head_sha": "475fc41bc1c7dc1a726bb97eae8ae2fe891ab22a",
+    "generated_at": "2026-04-30T20:22:58.481671+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\run_chaos_runtime_coupled.py"
+  }
+}

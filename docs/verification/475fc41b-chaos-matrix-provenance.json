@@ -1,0 +1,7 @@
+{
+  "artifact_path": "docs\\verification\\475fc41b-chaos-matrix.json",
+  "provenance": "structural",
+  "head_sha": "475fc41bc1c7dc1a726bb97eae8ae2fe891ab22a",
+  "generated_at": "2026-04-30T20:22:58.481671+00:00",
+  "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\run_chaos_runtime_coupled.py"
+}
