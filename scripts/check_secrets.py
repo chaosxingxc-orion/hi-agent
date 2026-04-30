@@ -46,9 +46,12 @@ _PLACEHOLDERS = {
     "<api_key>", "your-key-here", "xxx", "placeholder", "example", "replace-me",
     "sk-...", "",
 }
-# config/llm_config.json is intentionally committed with a dev key for T3 gate testing.
-# The user is aware of this and will rotate the key after each T3 run (per project memory).
-_SKIP_JSON_CONFIG_PATHS = {"config/llm_config.json", "config\\llm_config.json"}
+# NOTE (W24-J1, 2026-04-30): Previously llm_config.json was skipped because a dev
+# Volces key was committed in plaintext. That was a security defect (HD-1). The
+# skip is removed; llm_config.json is now scanned like any other config file. The
+# api_key fields must be empty strings or env-var placeholders. Real keys live
+# only in llm_config.local.json (gitignored).
+_SKIP_JSON_CONFIG_PATHS: set[str] = set()
 # Code expression prefixes: values starting with these are code, not secrets.
 _CODE_EXPR_STARTS = (
     "self.", "cls.", "get_", "load_", "build_", "os.", "env.", "config.",
