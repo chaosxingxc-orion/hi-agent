@@ -27,8 +27,8 @@ def main() -> None:
         reverse=True,
     )
     if not notices:
-        result = {"check": "self_audit", "status": "pass", "reason": "no_notices_found"}
-        print(json.dumps(result) if as_json else "PASS: no delivery notices found")
+        result = {"check": "self_audit", "status": "not_applicable", "reason": "no_notices_found"}
+        print(json.dumps(result) if as_json else "NOT_APPLICABLE: no delivery notices found")
         sys.exit(0)
 
     latest = Path(notices[0])

@@ -44,8 +44,18 @@ def main() -> None:
     p.add_argument("--json", dest="as_json", action="store_true")
     args = p.parse_args()
 
+    commits = list(_commits_in_range(args.base, args.head))
+    if not commits:
+        result = {  # not_applicable: no commits in range to audit
+            "check": "root_cause_block", "status": "not_applicable",
+            "reason": "no_commits_in_range",
+        }
+        if args.as_json:
+            print(json.dumps(result, indent=2))
+        sys.exit(0)
+
     missing: list[dict] = []
-    for sha, subj in _commits_in_range(args.base, args.head):
+    for sha, subj in commits:
         if any(subj.startswith(pre) for pre in SKIP_PREFIXES):
             continue
         body = _commit_body(sha)

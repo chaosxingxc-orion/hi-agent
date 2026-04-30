@@ -86,13 +86,17 @@ def main():
     notice_path, notice_text = _load_latest_notice(manifest_wave=manifest_wave)
 
     if manifest is None:
-        result = {"check": "notice_score_match", "status": "pass", "reason": "no_manifest_yet"}
-        print(json.dumps(result) if as_json else "PASS: no manifest")
+        result = {  # not_applicable: no manifest to compare against yet
+            "check": "notice_score_match", "status": "not_applicable", "reason": "no_manifest_yet",
+        }
+        print(json.dumps(result) if as_json else "NOT_APPLICABLE: no manifest")
         sys.exit(0)
 
     if notice_text is None:
-        result = {"check": "notice_score_match", "status": "pass", "reason": "no_notice_yet"}
-        print(json.dumps(result) if as_json else "PASS: no notice")
+        result = {  # not_applicable: no notice to compare against yet
+            "check": "notice_score_match", "status": "not_applicable", "reason": "no_notice_yet",
+        }
+        print(json.dumps(result) if as_json else "NOT_APPLICABLE: no notice")
         sys.exit(0)
 
     # Extract manifest scores -- prefer scorecard sub-dict if present (canonical location)
