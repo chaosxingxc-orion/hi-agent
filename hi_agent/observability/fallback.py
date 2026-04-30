@@ -60,6 +60,21 @@ _logger = logging.getLogger(__name__)
 # the fix can be traced.
 _VALID_KINDS: frozenset[str] = frozenset({"llm", "heuristic", "capability", "route"})
 
+
+# W23-B: Rule 7 closure on the LLM hot path. Two typed counters expose
+# previously-silent failure modes in :mod:`hi_agent.llm.http_gateway`.
+# ``event_bus_publish_errors_total`` covers EventBus.publish failures on the
+# LLM-call boundary; ``fallback_recording_errors_total`` covers
+# ``record_fallback`` itself raising inside the gateway fallback branch.
+# Both follow Rule 7's four-prong contract — the counters here are the
+# Countable prong; the Attributable prong is a WARNING log at the call
+# site; the Inspectable prong is a fallback_events append at the call
+# site; the Gate-asserted prong is ``scripts/check_rule7_observability.py``.
+from hi_agent.observability.metric_counter import Counter
+
+event_bus_publish_errors_total: Counter = Counter("hi_agent_event_bus_publish_errors_total")
+fallback_recording_errors_total: Counter = Counter("hi_agent_fallback_recording_errors_total")
+
 # Process-local registry of per-run fallback events.  Populated by
 # record_fallback() and drained by run finalization into RunResult.
 _EVENTS_LOCK = threading.Lock()

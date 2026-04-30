@@ -238,31 +238,36 @@ jobs:
 
       # --- W22 new gates ---
 
-      - name: Score artifact self-consistency (W22-A10)
-        run: python scripts/check_score_artifact_consistency.py --json
+      # --- W23 new gates ---
 
-      # --- W22-A5: agent_server/ boundary rule gates (R-AS-1..8) ---
+      - name: Rule 7 closure on LLM hot path (W23-B)
+        run: python scripts/check_rule7_observability.py --json
 
-      - name: No reverse imports hi_agent→agent_server (R-AS-1)
-        run: python scripts/check_no_reverse_imports.py
+      # --- W23-A: multistatus boundary-gate runner ---
+      # Replaces the 9 separate W22-A5 / W22-A10 invocations. The runner
+      # invokes every boundary gate with --json, parses the multistatus
+      # output, fails the job if any gate returns FAIL, and emits an
+      # aggregated summary (pass/fail/warn/defer counts + per-gate detail).
+      # build_release_manifest.py re-runs the runner to compute the
+      # multistatus_pending_count cap factor.
+      #
+      # Covers: contract_freeze (R-AS-3), contracts_purity (R-AS-7),
+      # facade_loc (R-AS-8), no_domain_types (R-AS-2), no_reverse_imports
+      # (R-AS-1), route_tenant_context (R-AS-4), tdd_evidence (R-AS-5),
+      # state_transition_centralization, score_artifact_consistency (W22-A10).
 
-      - name: No forbidden domain types in contracts/ (R-AS-2)
-        run: python scripts/check_no_domain_types.py
+      - name: Multistatus boundary gates (W23-A)
+        id: multistatus-runner
+        run: |
+          python -m scripts._governance.multistatus_runner --all --json | tee multistatus-results.json
 
-      - name: Contract freeze after v1 release (R-AS-3)
-        run: python scripts/check_contract_freeze.py
-
-      - name: Route handlers reference TenantContext (R-AS-4)
-        run: python scripts/check_route_tenant_context.py
-
-      - name: Route handlers have tdd-red-sha annotation (R-AS-5)
-        run: python scripts/check_tdd_evidence.py
-
-      - name: Contracts import stdlib only (R-AS-7)
-        run: python scripts/check_contracts_purity.py
-
-      - name: Facade modules within 200 LOC (R-AS-8)
-        run: python scripts/check_facade_loc.py
+      - name: Upload multistatus runner results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multistatus-results-${{ github.sha }}
+          path: multistatus-results.json
+          retention-days: 90
 
       # --- Release manifest ---
 

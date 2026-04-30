@@ -149,8 +149,34 @@ class HttpLLMGateway:
                     },
                 )
             )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
-            pass  # must not block LLM call; event bus unavailable is non-fatal
+        except Exception as _ebus_exc:
+            # W23-B: Rule 7 closure. EventBus.publish failure must not block
+            # the LLM call (the "must not block" intent is preserved), but
+            # the failure is now Countable + Attributable + Inspectable per
+            # Rule 7's four-prong contract.
+            from hi_agent.observability.fallback import (
+                append_fallback_event,
+                event_bus_publish_errors_total,
+            )
+
+            event_bus_publish_errors_total.labels(
+                gateway="HttpLLMGateway",
+                run_id_present=str(_run_id_for_event is not None).lower(),
+            ).inc()
+            logger.warning(
+                "event_bus_publish_failed run_id=%s exc=%r",
+                _run_id_for_event,
+                _ebus_exc,
+            )
+            if _run_id_for_event:
+                append_fallback_event(
+                    _run_id_for_event,
+                    {
+                        "kind": "llm",
+                        "reason": "event_bus_publish_failed",
+                        "extra": {"exc": str(_ebus_exc)},
+                    },
+                )
 
         if self._budget_tracker is not None:
             self._budget_tracker.check()
@@ -224,13 +250,25 @@ class HttpLLMGateway:
                             extra={"exc": str(exc)},
                         )
                     except Exception as _obs_exc:
+                        # W23-B: Rule 7 closure. record_fallback raising must
+                        # not mute the original fallback reason. Counter +
+                        # WARNING log carry both the original reason and the
+                        # recording exception so the alarm bell rings.
+                        from hi_agent.observability.fallback import (
+                            fallback_recording_errors_total,
+                        )
+
                         _gateway_errors_total.inc()
+                        fallback_recording_errors_total.labels(
+                            gateway="HttpLLMGateway",
+                            original_reason="failover_chain_failed",
+                        ).inc()
                         logger.warning(
-
-                            "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
-
+                            "fallback_recording_failed gateway=HttpLLMGateway "
+                            "original_reason=failover_chain_failed original_exc=%r "
+                            "recording_exc=%r",
+                            exc,
                             _obs_exc,
-
                         )
                     logger.warning(
                         "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
@@ -248,13 +286,24 @@ class HttpLLMGateway:
                     extra={"exc": str(exc)},
                 )
             except Exception as _obs_exc:
+                # W23-B: Rule 7 closure. record_fallback raising must not
+                # mute the original fallback reason on the outer guard
+                # branch either.
+                from hi_agent.observability.fallback import (
+                    fallback_recording_errors_total,
+                )
+
                 _gateway_errors_total.inc()
+                fallback_recording_errors_total.labels(
+                    gateway="HttpLLMGateway",
+                    original_reason="failover_chain_failed",
+                ).inc()
                 logger.warning(
-
-                    "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
-
+                    "fallback_recording_failed gateway=HttpLLMGateway "
+                    "original_reason=failover_chain_failed original_exc=%r "
+                    "recording_exc=%r",
+                    exc,
                     _obs_exc,
-
                 )
             logger.warning("http_gateway integration error (%s), using direct path.", exc)
 
