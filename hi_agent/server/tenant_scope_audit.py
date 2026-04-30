@@ -32,6 +32,9 @@ _logger = logging.getLogger(__name__)
 _route_tenant_scoped_access_total: Counter = Counter(
     "hi_agent_route_tenant_scoped_access_total"
 )
+_route_tenant_audit_metric_errors_total: Counter = Counter(
+    "hi_agent_route_tenant_audit_metric_errors_total"
+)
 
 
 def record_tenant_scoped_access(
@@ -58,8 +61,20 @@ def record_tenant_scoped_access(
         _route_tenant_scoped_access_total.labels(
             resource=resource, op=op, tenant_id=tenant_id
         ).inc()
-    except Exception:
-        # Counter increment is best-effort; never block the route on metrics.
+    except Exception as exc:
+        _logger.warning(
+            "tenant_scoped_access_metric_failed tenant_id=%r resource=%r op=%r exc=%r",
+            tenant_id,
+            resource,
+            op,
+            exc,
+        )
+        try:
+            _route_tenant_audit_metric_errors_total.labels(
+                resource=resource, op=op
+            ).inc()
+        except Exception:  # rule7-exempt: expiry_wave="Wave 26" replacement_test: tenant-scope-audit-error-counter
+            pass  # alarm bell is the WARNING log above; counter-of-counter is best-effort.
         return
 
 

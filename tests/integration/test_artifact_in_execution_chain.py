@@ -82,7 +82,7 @@ class TestInvokeViaHarnessArtifactIds:
     """_invoke_via_harness must include artifact_ids in its return dict."""
 
     @pytest.mark.skip(
-        expiry_wave="Wave 23",
+        expiry_wave="Wave 24",
         reason=(
             "H1-Track4: test wires MagicMock(spec=HarnessExecutor) as "
             "executor.harness_executor — the mock returns a canned ActionResult "
@@ -144,7 +144,7 @@ class TestInvokeViaHarnessArtifactIds:
         assert result["artifact_ids"] == ["art-001", "art-002"]
 
     @pytest.mark.skip(
-        expiry_wave="Wave 23",
+        expiry_wave="Wave 24",
         reason=(
             "H1-Track4: same as above — MagicMock(spec=HarnessExecutor) as SUT "
             "collaborator. Skipped until rewritten with real harness."

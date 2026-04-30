@@ -388,7 +388,7 @@ class RunManager:
             else:
                 warnings.warn(
                     "body spine required under posture research; falling back to auth middleware. "
-                    "This fallback will be removed in Wave 23 (removed if no callers found).",
+                    "This fallback will be removed in Wave 24 (removed if no callers found).",
                     DeprecationWarning,
                     stacklevel=2,
                 )

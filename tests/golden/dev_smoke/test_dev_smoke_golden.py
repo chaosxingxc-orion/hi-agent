@@ -17,7 +17,7 @@ class TestDevSmokeGoldenPath:
             "== 'completed' would be a lie. Rule 4 honesty: skip until real-LLM E2E "
             "gate (Rule 8) covers this path."
         ),
-        expiry_wave="Wave 23",
+        expiry_wave="Wave 24",
     )
     def test_executor_completes_with_heuristic_fallback(self):
         """build_executor() + execute() completes without real LLM."""
