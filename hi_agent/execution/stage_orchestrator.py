@@ -181,6 +181,67 @@ class StageOrchestrator:
                         yield ("finalize", "failed")
                         return
                 completed_stages.add(current_stage)
+
+                # Consult replan_hook between node executions
+                if ctx.replan_hook is not None:
+                    try:
+                        from hi_agent.config.posture import Posture
+                        from hi_agent.contracts.directives import StageDirective
+                        from hi_agent.contracts.exceptions import StageDirectiveError
+
+                        _result_dict = result if isinstance(result, dict) else {}
+                        directive = ctx.replan_hook(current_stage, _result_dict)
+                        if (
+                            directive is not None
+                            and isinstance(directive, StageDirective)
+                            and directive.action != "continue"
+                        ):
+                            _logger.info(
+                                "graph replan_hook directive: %s (reason=%s)",
+                                directive.action,
+                                directive.reason,
+                            )
+                            if directive.action == "skip_to":
+                                _posture = Posture.from_env()
+                                if directive.skip_to in ctx.stage_graph.transitions:
+                                    current_stage = directive.skip_to
+                                    continue
+                                elif _posture.is_strict:
+                                    raise StageDirectiveError(
+                                        f"skip_to {directive.skip_to!r} not in graph nodes"
+                                    )
+                                # dev posture — ignore and continue normally
+                            elif directive.action == "insert":
+                                for spec in directive.insert:
+                                    _logger.info(
+                                        "graph_directive: inserting stage %r after %r",
+                                        spec.new_stage,
+                                        current_stage,
+                                    )
+                                    # Full in-line injection deferred to M.5; log intent now
+                            elif directive.action == "skip":
+                                # Skip the next natural successor
+                                successors = ctx.stage_graph.successors(current_stage)
+                                candidates = successors - completed_stages
+                                if candidates:
+                                    next_natural = (
+                                        next(iter(candidates))
+                                        if len(candidates) == 1
+                                        else self._select_next_stage(candidates)
+                                    )
+                                    # Mark the next stage as completed to skip it
+                                    completed_stages.add(next_natural)
+                            # "repeat" not naturally supported in graph mode
+                    except StageDirectiveError:
+                        raise
+                    except Exception as exc:
+                        ctx.log_best_effort_fn(
+                            logging.DEBUG,
+                            "stage_orchestrator.graph_replan_hook_failed",
+                            exc,
+                            run_id=ctx.run_id,
+                        )
+
                 successors = ctx.stage_graph.successors(current_stage)
                 candidates = successors - completed_stages
                 if not candidates:
