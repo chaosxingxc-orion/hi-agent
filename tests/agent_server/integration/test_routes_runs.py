@@ -118,8 +118,17 @@ def test_post_runs_missing_tenant_header_returns_401(client: TestClient) -> None
     body = {"profile_id": "default", "goal": "x", "idempotency_key": "i-01"}
     resp = client.post("/v1/runs", json=body)  # no header
     assert resp.status_code == 401
-    assert "tenant" in resp.json().get("error", "").lower() or \
-           "tenant" in resp.json().get("detail", "").lower()
+    payload = resp.json()
+    # W24-J5 unified envelope: {error_category, message, retryable, next_action}.
+    # Older shape ({error, detail}) is no longer emitted; either form is
+    # accepted here so legacy clients still parse cleanly during the
+    # migration window.
+    assert payload.get("error_category") == "auth_required"
+    text = " ".join(
+        str(payload.get(k, ""))
+        for k in ("message", "next_action", "error", "detail")
+    ).lower()
+    assert "tenant" in text
 
 
 def test_post_runs_missing_idempotency_key_returns_400(client: TestClient) -> None:
