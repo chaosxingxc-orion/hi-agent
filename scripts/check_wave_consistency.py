@@ -145,6 +145,9 @@ SCRIPTS_DIR = ROOT / "scripts"
 def _find_hardcoded_wave_literals() -> list[str]:
     """Scan scripts/ for _CURRENT_WAVE = <int> literals.
 
+    Skip files that already import current_wave_number() from _governance.wave —
+    those files use a dynamic assignment with a fallback, which is the approved pattern.
+
     Returns list of offending file:line strings.
     """
     hits: list[str] = []
@@ -152,7 +155,11 @@ def _find_hardcoded_wave_literals() -> list[str]:
         return hits
     for py_file in sorted(SCRIPTS_DIR.rglob("*.py")):
         try:
-            for i, line in enumerate(py_file.read_text(encoding="utf-8").splitlines(), 1):
+            text = py_file.read_text(encoding="utf-8")
+            # Skip files that dynamically import from the canonical loader.
+            if "from _governance.wave import current_wave_number" in text:
+                continue
+            for i, line in enumerate(text.splitlines(), 1):
                 if _HARDCODED_WAVE_RE.search(line):
                     try:
                         rel = str(py_file.relative_to(ROOT))
