@@ -1,12 +1,23 @@
-"""Tests for AsyncKernelFacadeAdapter protocol compliance.
+"""Unit tests for AsyncKernelFacadeAdapter delegation logic (HD-9 / W24-J9).
 
-H1-Track4: The _make_adapter() helper patches KernelFacadeAdapter with a
-MagicMock, meaning every delegation assertion in this file verifies that
-AsyncKernelFacadeAdapter calls the mock's methods — not that the real
-KernelFacadeAdapter + KernelFacade stack behaves correctly end-to-end.
-Per Rule 4 integration-test honesty (zero mocks on the subsystem under test),
-these should be rewritten to wire a real KernelFacadeAdapter against a test
-KernelFacade stub, or moved to unit-test tier.  Skipped until rewritten.
+This is a **unit test** — the helper ``_make_adapter()`` patches
+``KernelFacadeAdapter`` with a MagicMock and asserts that the async wrapper
+delegates correctly to the sync underlying. That is legitimate Rule 4
+behaviour for the unit tier (the unit under test is the *delegation logic*
+of ``AsyncKernelFacadeAdapter``; the patched ``KernelFacadeAdapter`` is its
+external dependency, not the subject).
+
+This file used to live under ``tests/integration/`` and was tagged
+``@pytest.mark.skip(...)`` per the H1-Track4 integration-test-honesty audit
+because mocking the subsystem under test inside an integration test is a
+Rule 4 violation. W24-J9 takes option (b) from the plan: move to the unit
+tier with an honest label so Rule 4 is satisfied at the integration tier
+and the assertions can be unskipped here.
+
+A future track may add a separate integration-tier test that wires a real
+``KernelFacadeAdapter`` against an in-process ``KernelFacade`` stub; until
+then, integration-tier coverage of the async delegation lives in the live
+e2e suite.
 """
 
 from __future__ import annotations
@@ -15,15 +26,8 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from hi_agent.runtime_adapter.async_kernel_facade_adapter import AsyncKernelFacadeAdapter
-
-pytestmark = pytest.mark.skip(
-    reason=(
-        "H1-Track4: _make_adapter() patches KernelFacadeAdapter with MagicMock — "
-        "delegation assertions verify mock call-through, not real adapter behaviour. "
-        "Rule 4 integration honesty: rewrite to use real KernelFacadeAdapter or "
-        "move to unit-test tier with explicit 'unit test' label."
-    )
+from hi_agent.runtime_adapter.async_kernel_facade_adapter import (
+    AsyncKernelFacadeAdapter,
 )
 
 # ---------------------------------------------------------------------------
