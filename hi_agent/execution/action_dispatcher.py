@@ -9,6 +9,7 @@ from typing import Any
 
 from hi_agent.contracts import deterministic_id
 from hi_agent.gate_protocol import GatePendingError
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 _logger = logging.getLogger(__name__)
 
@@ -189,8 +190,12 @@ class ActionDispatcher:
                         tenant_id="",
                         profile_id="",
                     )
-                except Exception:  # rule7-exempt: expiry_wave="Wave 22"
-                    pass
+                except Exception as exc:
+                    record_silent_degradation(
+                        component="execution.action_dispatcher.ActionDispatcher._dispatch",
+                        reason="audit_emit_tool_call_failed",
+                        exc=exc,
+                    )
 
             try:
                 # Fix-4: route through ExecutionHookManager (pre/post tool hooks)
