@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W16-H3 / W17-E3 / W24-G: Operator drill driver.
+"""W16-H3 / W17-E3 / Operator drill driver.
 
 Executes operator-drill actions against a running hi-agent server and records
 results as a machine-readable evidence artifact.
@@ -9,7 +9,7 @@ Two versions are supported:
   --version 1 (default, legacy): 10 smoke-style operator actions; emits
       ``docs/verification/<sha>-operator-drill.json`` with schema_version=1.
 
-  --version 2 (W24-G, RIA H-11):  5 real-fault scenarios — stuck_run,
+  --version 2 (, RIA H-11):  5 real-fault scenarios — stuck_run,
       provider_outage, db_contention, restart_mid_run, slo_burn — emitted to
       ``docs/verification/<sha>-operator-drill-v2.json`` with schema_version=2.
       v2 closes the ``operator_drill_missing`` capability factor.
@@ -237,7 +237,7 @@ def main() -> int:
         type=int,
         default=1,
         choices=(1, 2),
-        help="Drill version: 1=legacy 10-action smoke (default), 2=W24-G real-fault scenarios.",
+        help="Drill version: 1=legacy 10-action smoke (default), 2= real-fault scenarios.",
     )
     args = parser.parse_args()
 

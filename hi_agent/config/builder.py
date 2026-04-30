@@ -859,7 +859,7 @@ class SystemBuilder:
         )
 
     def _build_l1_store(self) -> Any:
-        """Build L1 compressed-memory store (W24-E / RIA A-07).
+        """Build L1 compressed-memory store ( / RIA A-07).
 
         Posture-aware (Rule 11):
         - dev: in-memory SQLite (``:memory:``) — survives in-process only.
@@ -882,7 +882,7 @@ class SystemBuilder:
         return self._l1_store
 
     def _build_l2_store(self) -> Any:
-        """Build L2 run-memory-index store (W24-E / RIA A-07).
+        """Build L2 run-memory-index store ( / RIA A-07).
 
         Posture-aware (Rule 11):
         - dev: in-memory SQLite (``:memory:``) — survives in-process only.

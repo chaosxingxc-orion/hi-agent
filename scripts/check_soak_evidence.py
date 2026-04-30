@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W14-C2/W24-C: Soak evidence gate.
+"""W14-C2/Soak evidence gate.
 
 Reads the latest soak evidence from docs/verification/*-soak-*.json or
 docs/delivery/*-soak-*.json. Status semantics:

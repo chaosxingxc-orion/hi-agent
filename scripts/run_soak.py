@@ -1,4 +1,4 @@
-"""W24-C: Soak harness with --duration 1h|24h flag.
+"""Soak harness with --duration 1h|24h flag.
 
 Single entry point for soak runs. Spawns a long-lived `python -m hi_agent serve`
 subprocess on the configured port, fires 1 run / 30s for the requested duration,

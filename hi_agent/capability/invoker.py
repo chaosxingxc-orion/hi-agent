@@ -151,7 +151,7 @@ class CapabilityInvoker:
             ):
                 raise CapabilityUnavailableError(capability_name, probe_result[1])
 
-        # W24-D: posture gate — refuse to dispatch a capability whose descriptor
+        # posture gate — refuse to dispatch a capability whose descriptor
         # marks it unavailable for the active posture (e.g. shell_exec under
         # prod).  CapabilityNotAvailableError is distinct from
         # CapabilityUnavailableError (env/probe denial) and carries a

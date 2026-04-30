@@ -140,7 +140,7 @@ def _spawn_server(port: int) -> tuple[subprocess.Popen | None, str]:
     # capabilities/artifacts wired, the run completes via heuristic
     # fallback and the fault path is not exercised — so we let those
     # scenarios skip honestly rather than hard-fail.  Better partial-real
-    # than fake-full-real (W24-B contract).
+    # than fake-full-real ( contract).
     env = os.environ.copy()
     for key, value in _ENV_DEFAULTS.items():
         env.setdefault(key, value)
@@ -203,7 +203,7 @@ def _load_scenario(path: pathlib.Path):  # type: ignore[no-untyped-def]
 
 
 def _normalise_scenario_result(raw: dict, scenario_name: str) -> dict:
-    """Project a raw scenario dict into the W24-B evidence shape.
+    """Project a raw scenario dict into the  evidence shape.
 
     Each entry must carry: name, passed, invariants_held, duration_s.
     Skipped scenarios additionally carry skipped=true and reason.
@@ -215,7 +215,7 @@ def _normalise_scenario_result(raw: dict, scenario_name: str) -> dict:
     skip_reason = raw.get("skip_reason", "") or notes if skipped else ""
 
     assertions = raw.get("assertions", {})
-    # Map legacy assertion fields → W24-B invariants.
+    # Map legacy assertion fields →  invariants.
     invariants_held = {
         "no_lost_runs": assertions.get("accepted_runs_lost", 0) == 0,
         "no_duplicates": (
@@ -455,7 +455,7 @@ def main() -> int:
                     )
             else:
                 # Server is up; drive each scenario sequentially.  Sharing the
-                # process across scenarios is the W24-B invariant: cross-
+                # process across scenarios is the  invariant: cross-
                 # scenario runtime state (queue, store, watchdog) is exercised
                 # end-to-end.
                 for sf in scenario_files:
@@ -564,7 +564,7 @@ def main() -> int:
     from _governance.evidence_writer import write_artifact
 
     # write_artifact requires either provenance='real' or degraded=True for
-    # any other value.  "runtime" / "runtime_partial" are W24-B vocab that the
+    # any other value.  "runtime" / "runtime_partial" are  vocab that the
     # consumer (check_chaos_runtime_coupling.py) is updated to accept; for
     # the writer they are non-real → degraded=True.
     write_artifact(

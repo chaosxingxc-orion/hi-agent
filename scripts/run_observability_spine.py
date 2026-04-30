@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W24-A: Real-LLM observability spine evidence builder.
+"""Real-LLM observability spine evidence builder.
 
 Replaces the structural spine evidence (build_observability_spine_evidence.py)
 with end-to-end real-LLM trace evidence joining (trace_id, run_id) across
@@ -183,7 +183,7 @@ def _drive_one_run(client: httpx.Client, profile_id: str, poll_timeout_s: float)
     create = client.post(
         "/runs",
         json={
-            "goal": "W24-A observability spine probe (real LLM)",
+            "goal": " observability spine probe (real LLM)",
             "profile_id": profile_id,
             "project_id": "w24a_spine",
         },
@@ -373,7 +373,7 @@ def _inject_volces_key() -> tuple[bool, str | None]:
     (no env-var override, no llm_config.local.json merge). The pre-existing
     inject_provider_key.py writes to llm_config.local.json which the loader
     does not read. We work around that here without touching files outside
-    the W24-A owner scope, restoring the file unconditionally on exit.
+    the  owner scope, restoring the file unconditionally on exit.
     """
     key = os.environ.get("VOLCES_API_KEY", "").strip()
     if not key:
@@ -407,7 +407,7 @@ def _restore_key(original: str | None) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="W24-A real-LLM observability spine")
+    p = argparse.ArgumentParser(description=" real-LLM observability spine")
     p.add_argument("--port", type=int, default=9081)
     p.add_argument("--real-llm", action="store_true",
                    help="Inject VOLCES_API_KEY and use real provider; "

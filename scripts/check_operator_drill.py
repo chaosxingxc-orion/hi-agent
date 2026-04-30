@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""W16-H4 / W24-G: Operator drill evidence gate.
+"""W16-H4 / Operator drill evidence gate.
 
 Reads the latest operator-drill evidence from docs/verification/ and emits a
 multistatus result.
@@ -168,7 +168,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # W24-G: prefer v2 evidence when any is present.
+    # prefer v2 evidence when any is present.
     v2_result = _check_v2(args)
     if v2_result is not None:
         exit_code, result = v2_result

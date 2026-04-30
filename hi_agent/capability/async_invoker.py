@@ -89,7 +89,7 @@ class AsyncCapabilityInvoker:
 
         spec = self.registry.get(capability_name)
 
-        # W24-D: posture gate — same check the sync invoker performs.  Mirrors
+        # posture gate — same check the sync invoker performs.  Mirrors
         # ``CapabilityInvoker.invoke()``; the registry method raises
         # ``CapabilityNotAvailableError`` (with structured 400 envelope) when
         # the descriptor's ``available_in_<posture>`` field is False.

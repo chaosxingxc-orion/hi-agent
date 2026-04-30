@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""W14-B8 / W24-A: Observability spine completeness gate.
+"""W14-B8 / Observability spine completeness gate.
 
 Reads the latest spine evidence from docs/verification/*-observability-spine.json.
 
-Exit semantics (per W24-A plan §Risks — partial-credit allowed):
+Exit semantics (per  plan §Risks — partial-credit allowed):
   - PASS     : provenance=="real" AND layer_count>=14 AND trace_id_consistent
   - DEFER    : provenance=="real" AND 8<=layer_count<14, OR no evidence file.
                (Acceptable per plan: partial coverage still beats structural.)
@@ -56,7 +56,7 @@ def _latest_spine_evidence() -> pathlib.Path | None:
 def _layers_present(data: dict) -> list[str]:
     """Extract the list of present layer names from evidence.
 
-    Newer (W24-A) format: ``layers_present`` is a list of layer-slot names.
+    Newer format: ``layers_present`` is a list of layer-slot names.
     Older (W14) format: ``layers`` is a list of event_type strings.
     """
     layers_present = data.get("layers_present")
@@ -72,7 +72,7 @@ def _layers_present(data: dict) -> list[str]:
 
 def _is_consistent_correlation(data: dict) -> bool:
     """Return True iff the evidence claims trace_id_consistent."""
-    # New W24-A flag.
+    # New  flag.
     if "trace_id_consistent" in data:
         return bool(data["trace_id_consistent"])
     # Older evidence: presence of trace_id is the proxy.
