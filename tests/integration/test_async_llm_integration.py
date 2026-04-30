@@ -103,10 +103,16 @@ async def test_http_gateway_complete(monkeypatch):
         def json(self):
             return mock_raw
 
-    async def mock_post(url, json=None, **kwargs):
-        return MockHTTPResponse()
+    class _FakeAsyncClient:
+        """Fake httpx.AsyncClient for HTTPGateway._get_client() patching."""
 
-    monkeypatch.setattr(gateway._client, "post", mock_post)
+        async def post(self, url, json=None, **kwargs):
+            return MockHTTPResponse()
+
+        async def aclose(self):
+            pass
+
+    monkeypatch.setattr(gateway, "_get_client", lambda: _FakeAsyncClient())
 
     request = LLMRequest(
         messages=[{"role": "user", "content": "hi"}],
