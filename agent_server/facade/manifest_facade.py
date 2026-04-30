@@ -12,7 +12,8 @@ Per R-AS-8 facade modules must stay <=200 LOC.
 """
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from agent_server import AGENT_SERVER_API_VERSION
 
@@ -73,7 +74,7 @@ class ManifestFacade:
                     "capabilities": caps,
                     "posture_matrix_provenance": "capability_registry",
                 }
-            except Exception:  # noqa: BLE001 - downgrade to hardcoded
+            except Exception:
                 pass
         return {
             "api_version": AGENT_SERVER_API_VERSION,

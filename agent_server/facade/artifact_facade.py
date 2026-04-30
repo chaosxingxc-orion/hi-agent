@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import hashlib
 import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from agent_server.contracts.errors import ContractError, NotFoundError
 from agent_server.contracts.tenancy import TenantContext

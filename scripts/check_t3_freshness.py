@@ -243,10 +243,10 @@ def main(argv: list[str] | None = None) -> int:
                 "delivery_file": delivery_file.name,
                 "verified_head": gate_sha_prov,
                 "provenance": provenance,
-                "reason": f"provenance:{provenance} rejected for T3 freshness — requires real or shape_verified",
+                "reason": f"provenance:{provenance} rejected for T3 freshness — requires real or shape_verified",  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
             }))
         else:
-            print(f"T3-WARN: {delivery_file.name} has provenance:{provenance} — not accepted as T3 evidence")
+            print(f"T3-WARN: {delivery_file.name} has provenance:{provenance} — not accepted as T3 evidence")  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
         return 0  # deferred with cap, not hard fail
 
     # If the delivery record explicitly marks this T3 as deferred, propagate that

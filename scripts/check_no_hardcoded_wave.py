@@ -88,7 +88,7 @@ def main() -> int:
         print(json.dumps(result, indent=2))
     else:
         for issue in issues:
-            print(f"FAIL {issue['file']}:{issue['line']}: hardcoded wave string 鈥?use current_wave() from _current_wave.py", file=sys.stderr)
+            print(f"FAIL {issue['file']}:{issue['line']}: hardcoded wave string 鈥?use current_wave() from _current_wave.py", file=sys.stderr)  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
         if not issues:
             print("PASS: no hardcoded Wave N strings in scripts/")
 

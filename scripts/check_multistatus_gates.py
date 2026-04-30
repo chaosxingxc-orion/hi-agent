@@ -80,14 +80,14 @@ def main() -> int:
         "single_path_gates": len(single_path_gates),
         "single_path_gate_list": single_path_gates,
         "multi_status_gate_list": multi_status_gates,
-        "reason": "multi-status adoption in progress; not_applicable conversion pending" if single_path_gates else "",
+        "reason": "multi-status adoption in progress; not_applicable conversion pending" if single_path_gates else "",  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
     }
 
     if args.json:
         print(json.dumps(result, indent=2))
     else:
         if single_path_gates:
-            print(f"DEFERRED: {len(single_path_gates)} gates still single-path (conversion pending)", file=sys.stderr)
+            print(f"DEFERRED: {len(single_path_gates)} gates still single-path (conversion pending)", file=sys.stderr)  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
         else:
             print(f"PASS: all {len(multi_status_gates)} gate scripts support multi-status")
 

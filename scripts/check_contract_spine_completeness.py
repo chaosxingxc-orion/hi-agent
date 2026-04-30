@@ -229,7 +229,9 @@ def _emit_json(status: str, missing: list[dict], scanned: int) -> None:
         "missing": missing,
     }
     try:
-        from scripts._governance.multistatus import emit_and_exit  # type: ignore # expiry_wave: Wave 26
+        from scripts._governance.multistatus import (
+            emit_and_exit,  # type: ignore # expiry_wave: Wave 26
+        )
     except Exception:
         print(json.dumps(payload, indent=2))
         sys.exit(0 if status == "pass" else 1)

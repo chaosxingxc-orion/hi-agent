@@ -8,7 +8,8 @@ Per R-AS-8 facade modules must stay <=200 LOC.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable
+from typing import Any
 
 from agent_server.contracts.errors import ContractError
 from agent_server.contracts.run import RunStatus
@@ -100,4 +101,4 @@ def render_sse_chunk(event: dict[str, Any]) -> str:
 
 # Re-exported here so route handlers don't have to know it lives in
 # the contracts module — keeps the facade as the only intermediary.
-__all__ = ["EventFacade", "ContractError", "render_sse_chunk"]
+__all__ = ["ContractError", "EventFacade", "render_sse_chunk"]

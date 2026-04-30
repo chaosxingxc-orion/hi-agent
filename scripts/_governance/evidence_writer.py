@@ -8,8 +8,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -66,7 +65,7 @@ def write_artifact(
             generator_script = "unknown"
 
     head_sha = _get_head_sha()
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
 
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,7 +87,7 @@ def write_artifact(
             existing = json.loads(path.read_text(encoding="utf-8"))
             if existing.get("_evidence_meta", {}).get("provenance") == "real":
                 raise FileExistsError(
-                    f"write_artifact: {path} already exists with provenance=real and overwrite=False"
+                    f"write_artifact: {path} already exists with provenance=real and overwrite=False"  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
                 )
         except (json.JSONDecodeError, OSError):
             pass
