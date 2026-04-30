@@ -54,9 +54,11 @@ SCAN_FILES = [
 ]
 
 # Glob patterns resolved against REPO_ROOT; matches auto-enroll without
-# requiring a SCAN_FILES edit (e.g. future hi_agent/server/gate_*.py modules).
+# requiring a SCAN_FILES edit (Track I: gate_*.py; Track X: *_store.py).
 SCAN_GLOBS = [
-    "hi_agent/server/gate_*.py",
+    "hi_agent/server/gate_*.py",      # Track I — gate persistence classes
+    "hi_agent/**/*_store.py",         # Track X — store persistence classes
+    "hi_agent/**/*store.py",          # Track X — legacy store naming (e.g. events/store.py)
 ]
 
 
@@ -69,8 +71,6 @@ def _enumerate_scan_files(repo: Path) -> list[str]:
     for glob_pattern in SCAN_GLOBS:
         files.extend(repo.glob(glob_pattern))
     return sorted({p.relative_to(repo).as_posix() for p in files if p.exists()})
-
-
 REQUIRED_FIELD = "tenant_id"
 EXEMPT_MARKER = "# scope: process-internal"
 

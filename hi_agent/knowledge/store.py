@@ -10,6 +10,7 @@ from typing import Any
 from hi_agent.knowledge.entry import KnowledgeEntry
 
 
+# scope: process-internal — in-memory only; not persisted or transmitted across tenants
 @dataclass(frozen=True)
 class KnowledgeRecord:
     """Stored knowledge item."""
