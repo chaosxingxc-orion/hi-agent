@@ -325,6 +325,16 @@ async def handle_ready(request: Request) -> JSONResponse:
 
             builder = SystemBuilder(config=getattr(server, "_config", None))
         snapshot = builder.readiness()
+    except RecursionError:
+        _health_check_errors_total.labels(check_name="readiness").inc()
+        logger.warning(
+            "health check readiness failed with recursion",
+            extra={"check_name": "readiness", "error": "capability_serialization_overflow"},
+        )
+        return JSONResponse(
+            status_code=503,
+            content={"error": "capability_serialization_overflow"},
+        )
     except Exception as exc:
         _health_check_errors_total.labels(check_name="readiness").inc()
         logger.warning(

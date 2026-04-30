@@ -320,11 +320,20 @@ class SystemBuilder:
                     )
 
                     _env_rbt = _os_rbt.environ.get("HI_AGENT_ENV", "dev").lower()
-                    try:
-                        _readiness_rbt = self.readiness()
-                    except Exception:
-                        _builder_errors_total.inc()
-                        _readiness_rbt = {}
+                    # Infer llm_mode and kernel_mode directly to avoid calling
+                    # self.readiness() here, which would recurse back through
+                    # build_invoker() → build_capability_registry() → self.readiness().
+                    _llm_mode_rbt = "real" if gateway is not None else "heuristic"
+                    _kernel_base_url_rbt = getattr(self._config, "kernel_base_url", "") or ""
+                    _kernel_mode_rbt = (
+                        "http"
+                        if _kernel_base_url_rbt.lower() not in ("", "local")
+                        else "local-fsm"
+                    )
+                    _readiness_rbt = {
+                        "llm_mode": _llm_mode_rbt,
+                        "kernel_mode": _kernel_mode_rbt,
+                    }
                     _profile_rbt = _rrm_rbt(_env_rbt, _readiness_rbt)
                     register_builtin_tools(registry, profile=_profile_rbt)
                     # Load config-driven custom tools (tools.json from resolved config dir).
