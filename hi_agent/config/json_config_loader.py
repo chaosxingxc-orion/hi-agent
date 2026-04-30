@@ -123,11 +123,18 @@ def _resolve_provider_api_key(provider: str, provider_cfg: dict) -> tuple[str, s
         normalized = provider.strip().lower()
         env_names = list(_PROVIDER_API_KEY_ENVS.get(normalized, ()))
         env_names.append(f"HI_AGENT_LLM_API_KEY_{normalized.upper()}")
+        _canonical = env_names[0] if env_names else None
         for env_name in env_names:
             value = os.environ.get(env_name, "")
             if value:
                 api_key = value
                 label = f"env:{env_name}"
+                if env_name != _canonical and _canonical:
+                    logging.getLogger(__name__).warning(
+                        "Deprecated env alias %r used for provider %r; "
+                        "rename to %r (alias removal scheduled for Wave 28)",
+                        env_name, provider, _canonical,
+                    )
                 break
 
     if not api_key:
