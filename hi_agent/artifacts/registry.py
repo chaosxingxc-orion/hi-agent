@@ -160,15 +160,61 @@ class ArtifactRegistry:
 
         self._store[artifact.artifact_id] = artifact
 
+    def _tenant_match(self, art: Artifact, tenant_id: str) -> bool:
+        """HD-4: posture-aware tenant filter.
+
+        Under research/prod posture, an artifact matches *only* when its
+        ``tenant_id`` exactly equals the requested ``tenant_id`` — a legacy
+        tenantless artifact (tenant_id == "") is excluded so it cannot leak
+        across tenants. The denial is countable via
+        :data:`legacy_tenantless_denied_total` and emits a WARNING.
+
+        Under dev posture, the legacy lenient match is retained so that
+        existing pre-CO-5 corpora keep working; the admission is countable
+        via :data:`legacy_tenantless_visible_total` and emits a debug log.
+        """
+        from hi_agent.artifacts.metrics import (
+            legacy_tenantless_denied_total,
+            legacy_tenantless_visible_total,
+        )
+        from hi_agent.config.posture import Posture
+
+        art_tenant = getattr(art, "tenant_id", "")
+        posture = Posture.from_env()
+        if art_tenant in ("", None) and tenant_id != "":
+            # legacy tenantless path — observable under both postures
+            if posture.is_strict:
+                legacy_tenantless_denied_total.inc(posture.value)
+                _logger.warning(
+                    "ArtifactRegistry: denying access to legacy tenantless "
+                    "artifact %r for tenant_id=%r under %s posture (HD-4)",
+                    getattr(art, "artifact_id", "<no-id>"),
+                    tenant_id,
+                    posture.value,
+                )
+                return False
+            legacy_tenantless_visible_total.inc(posture.value)
+            _logger.debug(
+                "ArtifactRegistry: admitting legacy tenantless artifact %r "
+                "to tenant_id=%r under %s posture (HD-4)",
+                getattr(art, "artifact_id", "<no-id>"),
+                tenant_id,
+                posture.value,
+            )
+            return True
+        if posture.is_strict:
+            return art_tenant == tenant_id and tenant_id != ""
+        return art_tenant in ("", None, tenant_id)
+
     def get(self, artifact_id: str, tenant_id: str | None = None) -> Artifact | None:
         """Retrieve an artifact by ID, optionally filtered by tenant."""
         artifact = self._store.get(artifact_id)
         if artifact is None:
             return None
-        if tenant_id is not None and tenant_id != "":
-            art_tenant = getattr(artifact, "tenant_id", "")
-            if art_tenant not in ("", None, tenant_id):
-                return None  # not owned by this tenant
+        if tenant_id is not None and tenant_id != "" and not self._tenant_match(
+            artifact, tenant_id
+        ):
+            return None  # not owned by this tenant
         return artifact
 
     def query(
@@ -181,10 +227,7 @@ class ArtifactRegistry:
         """Query artifacts with optional type, producer, and tenant filters."""
         results = list(self._store.values())
         if tenant_id is not None and tenant_id != "":
-            results = [
-                a for a in results
-                if getattr(a, "tenant_id", "") in ("", None, tenant_id)
-            ]
+            results = [a for a in results if self._tenant_match(a, tenant_id)]
         if artifact_type is not None:
             results = [a for a in results if a.artifact_type == artifact_type]
         if producer_action_id is not None:
@@ -197,10 +240,7 @@ class ArtifactRegistry:
         """Return all artifacts that reference the given source artifact ID."""
         results = [a for a in self._store.values() if source_ref in a.source_refs]
         if tenant_id is not None and tenant_id != "":
-            results = [
-                a for a in results
-                if getattr(a, "tenant_id", "") in ("", None, tenant_id)
-            ]
+            results = [a for a in results if self._tenant_match(a, tenant_id)]
         return results
 
     def query_by_upstream(
@@ -211,20 +251,14 @@ class ArtifactRegistry:
             a for a in self._store.values() if upstream_id in a.upstream_artifact_ids
         ]
         if tenant_id is not None and tenant_id != "":
-            results = [
-                a for a in results
-                if getattr(a, "tenant_id", "") in ("", None, tenant_id)
-            ]
+            results = [a for a in results if self._tenant_match(a, tenant_id)]
         return results
 
     def all(self, tenant_id: str | None = None) -> list[Artifact]:
         """Return all stored artifacts, optionally filtered by tenant."""
         if tenant_id is None or tenant_id == "":
             return list(self._store.values())
-        return [
-            a for a in self._store.values()
-            if getattr(a, "tenant_id", "") in ("", None, tenant_id)
-        ]
+        return [a for a in self._store.values() if self._tenant_match(a, tenant_id)]
 
     def count(self, tenant_id: str | None = None) -> int:
         """Return the number of stored artifacts, optionally filtered by tenant."""
