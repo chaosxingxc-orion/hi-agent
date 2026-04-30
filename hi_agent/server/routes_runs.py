@@ -277,7 +277,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
     if _project_missing:
         extra_headers["X-Hi-Agent-Warning"] = "project_id-missing"
     return JSONResponse(
-        manager.to_dict(run), status_code=201, headers=extra_headers  # type: ignore[arg-type]  expiry_wave: Wave 22 replacement_test: tests/unit/test_routes_runs_rule7.py::test_error_exempt
+        manager.to_dict(run), status_code=201, headers=extra_headers  # type: ignore[arg-type]  expiry_wave: Wave 26 replacement_test: tests/unit/test_routes_runs_rule7.py::test_error_exempt
     )
 
 
