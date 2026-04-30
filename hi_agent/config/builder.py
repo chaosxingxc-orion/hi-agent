@@ -858,6 +858,52 @@ class SystemBuilder:
             compression_model="glm-5.1",
         )
 
+    def _build_l1_store(self) -> Any:
+        """Build L1 compressed-memory store (W24-E / RIA A-07).
+
+        Posture-aware (Rule 11):
+        - dev: in-memory SQLite (``:memory:``) — survives in-process only.
+        - research/prod: file-backed SQLite under
+          ``{episodic_storage_dir.parent}/memory/L1/l1_compressed.sqlite``.
+
+        Cached on the builder so all callers share one connection (Rule 6).
+        """
+        from hi_agent.config.posture import Posture
+        from hi_agent.memory.l1_store import L1CompressedMemoryStore
+
+        if getattr(self, "_l1_store", None) is not None:
+            return self._l1_store
+        if Posture.from_env().is_strict:
+            base = Path(self._config.episodic_storage_dir).parent / "memory" / "L1"
+            db_path: str | Path = base / "l1_compressed.sqlite"
+        else:
+            db_path = ":memory:"
+        self._l1_store = L1CompressedMemoryStore(db_path=db_path)
+        return self._l1_store
+
+    def _build_l2_store(self) -> Any:
+        """Build L2 run-memory-index store (W24-E / RIA A-07).
+
+        Posture-aware (Rule 11):
+        - dev: in-memory SQLite (``:memory:``) — survives in-process only.
+        - research/prod: file-backed SQLite under
+          ``{episodic_storage_dir.parent}/memory/L2/l2_run_index.sqlite``.
+
+        Cached on the builder so all callers share one connection (Rule 6).
+        """
+        from hi_agent.config.posture import Posture
+        from hi_agent.memory.l2_store import L2RunMemoryIndexStore
+
+        if getattr(self, "_l2_store", None) is not None:
+            return self._l2_store
+        if Posture.from_env().is_strict:
+            base = Path(self._config.episodic_storage_dir).parent / "memory" / "L2"
+            db_path: str | Path = base / "l2_run_index.sqlite"
+        else:
+            db_path = ":memory:"
+        self._l2_store = L2RunMemoryIndexStore(db_path=db_path)
+        return self._l2_store
+
     def build_profile_registry(self) -> Any:
         """Build or return the platform ProfileRegistry singleton.
 
