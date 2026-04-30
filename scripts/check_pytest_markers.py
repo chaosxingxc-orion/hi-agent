@@ -162,7 +162,7 @@ def main() -> int:
         "status": status,
         "check": "pytest_markers",
         "registered_count": len(registered),
-        "unregistered_markers": {k: v for k, v in unregistered.items()},
+        "unregistered_markers": {k: v for k, v in unregistered.items()},  # noqa: C416  # expiry_wave: Wave 26  # added: W25 baseline sweep
         "reason": f"{len(unregistered)} unregistered marker(s)" if unregistered else "",
     }
 

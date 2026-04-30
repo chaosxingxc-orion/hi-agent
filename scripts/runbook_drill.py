@@ -29,7 +29,7 @@ def _run_library_drill() -> list[dict[str, str]]:
     except ModuleNotFoundError:
         docs = sorted(Path("docs/runbook").glob("*.md"))
         status = "pass" if docs else "fail"
-        detail = f"found {len(docs)} runbook file(s) under docs/runbook" if docs else "no .md files found under docs/runbook"
+        detail = f"found {len(docs)} runbook file(s) under docs/runbook" if docs else "no .md files found under docs/runbook"  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
         scenarios.append(
             {
                 "name": "docs_existence_drill",

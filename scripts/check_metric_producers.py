@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCAN_DIRS = ["hi_agent", "agent_kernel"]
+SCAN_DIRS = ["hi_agent", "agent_kernel", "agent_server"]
 
 
 def _load_metric_names() -> list[str]:

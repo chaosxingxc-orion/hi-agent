@@ -31,7 +31,7 @@ _VALID_LEVELS = frozenset({
 # Match closure rows like: | P0-1 | ... | CLOSED | level: verified_at_release_head |
 # Named group 'row_id' captures the first cell so header rows can be filtered out.
 _CLOSURE_PATTERN = re.compile(
-    r"\|\s*(?P<row_id>(?:P\d+-\d+|DF-\d+|[A-Z0-9-]+))\s*\|[^|]*\|[^|]*(?:CLOSED|IN PROGRESS|OPEN)[^|]*\|([^|]*)\|",
+    r"\|\s*(?P<row_id>(?:P\d+-\d+|DF-\d+|[A-Z0-9-]+))\s*\|[^|]*\|[^|]*(?:CLOSED|IN PROGRESS|OPEN)[^|]*\|([^|]*)\|",  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
     re.IGNORECASE,
 )
 _LEVEL_PATTERN = re.compile(r"level:\s*(\S+)", re.IGNORECASE)
@@ -44,7 +44,7 @@ _HEADER_IDS = frozenset({
 
 
 _CLOSURE_LEVEL_ENUM = re.compile(
-    r"level:\s*(?:" + "|".join(re.escape(l) for l in _VALID_LEVELS) + r")",
+    r"level:\s*(?:" + "|".join(re.escape(l) for l in _VALID_LEVELS) + r")",  # noqa: E741  # expiry_wave: Wave 26  # added: W25 baseline sweep
     re.IGNORECASE,
 )
 
@@ -56,7 +56,7 @@ def _is_wave14_plus_notice(path: pathlib.Path, text: str) -> bool:
     if m and int(m.group(1)) >= 14:
         return True
     # Check if the notice explicitly uses the closure-level enum (opted-in to new taxonomy)
-    if _CLOSURE_LEVEL_ENUM.search(text):
+    if _CLOSURE_LEVEL_ENUM.search(text):  # noqa: SIM103  # expiry_wave: Wave 26  # added: W25 baseline sweep
         return True
     return False
 

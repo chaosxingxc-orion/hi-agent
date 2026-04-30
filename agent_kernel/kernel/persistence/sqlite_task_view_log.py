@@ -35,7 +35,7 @@ class SQLiteTaskViewLog:
     def close(self) -> None:
         """Close the SQLite connection after checkpointing the WAL file."""
         with self._lock:
-            with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown
+            with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             self._conn.close()
 
@@ -71,7 +71,7 @@ class SQLiteTaskViewLog:
                 )
                 self._conn.commit()
             except Exception:
-                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
                     self._conn.rollback()
                 raise
 
@@ -125,7 +125,7 @@ class SQLiteTaskViewLog:
                 )
                 self._conn.commit()
             except Exception:
-                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
                     self._conn.rollback()
                 raise
 

@@ -146,7 +146,7 @@ def check_file_split(
         if _LEGACY_ANNOTATION in line_text:
             continue
 
-        # 鈹€鈹€ existing checks 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+        # 鈹€鈹€ existing checks 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
         if isinstance(node, ast.Attribute):
             if node.attr in _HARD_BAN_IDENTIFIERS:
                 _report_hard(lineno, f".{node.attr}", "research vocab (hard-ban)")
@@ -171,7 +171,7 @@ def check_file_split(
             elif cls_name in _SOFT_BAN_IDENTIFIERS:
                 _report_soft(lineno, f"{cls_name}()")
 
-        # 鈹€鈹€ new checks 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+        # 鈹€鈹€ new checks 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
 
         # FunctionDef.name / AsyncFunctionDef.name
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -183,7 +183,7 @@ def check_file_split(
         # ClassDef.name
         if isinstance(node, ast.ClassDef):
             if node.name in _HARD_BAN_IDENTIFIERS:
-                _report_hard(lineno, f"class {node.name}", "class name 鈥?research vocab (hard-ban)")
+                _report_hard(lineno, f"class {node.name}", "class name 鈥?research vocab (hard-ban)")  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
             elif node.name in _SOFT_BAN_IDENTIFIERS:
                 _report_soft(lineno, f"class {node.name}")
 

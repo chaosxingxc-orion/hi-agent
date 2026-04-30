@@ -31,7 +31,7 @@ _EXPIRY = re.compile(
     re.IGNORECASE,
 )
 
-_SCAN_DIRS = ["hi_agent", "scripts", "tests"]
+_SCAN_DIRS = ["hi_agent", "agent_kernel", "agent_server", "scripts", "tests"]
 _EXEMPT_FILES = {
     pathlib.Path("hi_agent/artifacts/registry.py"),
     pathlib.Path("hi_agent/runtime/sync_bridge.py"),

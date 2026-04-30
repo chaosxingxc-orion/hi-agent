@@ -76,8 +76,8 @@ def _scan_file(path: pathlib.Path, current_wave: int) -> list[dict]:
                     "file": str(path.relative_to(ROOT)),
                     "line": i,
                     "content": line.strip()[:120],
-                    "issue": f"pytest.mark.skip has stale expiry_wave (Wave {wave_num} <= current Wave {current_wave}); "
-                             "resolve: remove skip (Rule A), update to Wave N+1 (Rule B), or convert to condition-bounded skip (Rule C)",
+                    "issue": f"pytest.mark.skip has stale expiry_wave (Wave {wave_num} <= current Wave {current_wave}); "  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
+                             "resolve: remove skip (Rule A), update to Wave N+1 (Rule B), or convert to condition-bounded skip (Rule C)",  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
                 })
         else:
             # No expiry_wave — only acceptable for condition-bounded skipif
@@ -88,7 +88,7 @@ def _scan_file(path: pathlib.Path, current_wave: int) -> list[dict]:
                     "file": str(path.relative_to(ROOT)),
                     "line": i,
                     "content": line.strip()[:120],
-                    "issue": "pytest.mark.skip (unconditional) missing expiry_wave argument; add expiry_wave or convert to condition-bounded skipif",
+                    "issue": "pytest.mark.skip (unconditional) missing expiry_wave argument; add expiry_wave or convert to condition-bounded skipif",  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
                 })
     return issues
 
@@ -132,20 +132,20 @@ def main() -> int:
         "current_wave": current_wave,
         "skips_with_stale_or_missing_expiry": len(all_issues),
         "issues": all_issues,
-        "reason": f"found {len(all_issues)} skip(s) with stale or missing expiry_wave (current wave: {current_wave})" if all_issues else "",
+        "reason": f"found {len(all_issues)} skip(s) with stale or missing expiry_wave (current wave: {current_wave})" if all_issues else "",  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
     }
 
     if args.json:
         print(json.dumps(result, indent=2))
     else:
         if all_issues:
-            print(f"FAIL: {len(all_issues)} skip(s) with stale/missing expiry_wave (current Wave {current_wave})", file=sys.stderr)
+            print(f"FAIL: {len(all_issues)} skip(s) with stale/missing expiry_wave (current Wave {current_wave})", file=sys.stderr)  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
             for issue in all_issues[:20]:
                 print(f"  {issue['file']}:{issue['line']}: {issue['issue']}", file=sys.stderr)
             if len(all_issues) > 20:
                 print(f"  ... and {len(all_issues) - 20} more", file=sys.stderr)
         else:
-            print(f"PASS: all pytest.mark.skip decorators are compliant (current Wave {current_wave})")
+            print(f"PASS: all pytest.mark.skip decorators are compliant (current Wave {current_wave})")  # noqa: E501  # expiry_wave: Wave 26  # added: W25 baseline sweep
 
     return 1 if status == "fail" else 0
 

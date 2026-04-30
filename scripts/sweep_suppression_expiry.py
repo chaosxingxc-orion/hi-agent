@@ -12,7 +12,7 @@ import pathlib
 import re
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SCAN_DIRS = ("hi_agent", "scripts", "tests")
+SCAN_DIRS = ("hi_agent", "agent_kernel", "agent_server", "scripts", "tests")
 SUPPRESSION_RE = re.compile(r"#\s*(?:noqa|type:\s*ignore)", re.IGNORECASE)
 EXPIRY_RE = re.compile(r"expiry_wave", re.IGNORECASE)
 APPEND_TEXT = "  expiry_wave: Wave 17"
