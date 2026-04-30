@@ -1,0 +1,7 @@
+{
+  "artifact_path": "docs\\verification\\04f8c91-chaos-runtime.json",
+  "provenance": "structural",
+  "head_sha": "814c33085e4294e0fbac74ba50f8f5469c6117d9",
+  "generated_at": "2026-04-30T05:37:26.115897+00:00",
+  "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\run_chaos_runtime_coupled.py"
+}

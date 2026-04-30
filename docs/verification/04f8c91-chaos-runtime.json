@@ -1,0 +1,191 @@
+{
+  "schema_version": "1",
+  "check": "chaos_runtime_coupling",
+  "provenance": "runtime_partial",
+  "runtime_coupled": true,
+  "head": "814c330",
+  "head_sha_full": "814c33085e4294e0fbac74ba50f8f5469c6117d9",
+  "port": 9082,
+  "scenarios_total": 10,
+  "scenarios_executed": 8,
+  "scenarios_skipped": 2,
+  "scenarios_failed": 0,
+  "all_passed": true,
+  "status": "pass",
+  "scenarios": [
+    {
+      "name": "worker_kill_during_run",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 0.13,
+      "notes": "cancel_code=200, terminal=cancelled, health_after=ok",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    },
+    {
+      "name": "restart_after_unfinished",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 1.6,
+      "notes": "run reached terminal state: completed (fault_active=False, runtime_coupled=True)",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false
+    },
+    {
+      "name": "db_lock_busy",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 3.18,
+      "notes": "all 3 concurrent runs reached terminal",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    },
+    {
+      "name": "queue_unavailable",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 0.81,
+      "notes": "submitted=20, rejections=0; queue saturation handled",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    },
+    {
+      "name": "llm_timeout",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 20.07,
+      "notes": "run reached terminal=completed in 20.07s (well under timeout=90.0s \u2014 LLM timeout resilience verified, fault_active=False)",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false
+    },
+    {
+      "name": "tool_mcp_crash",
+      "passed": true,
+      "skipped": true,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 1.59,
+      "notes": "skipped: run completed with state=completed; no tool was invoked or fault was not triggered (HI_AGENT_FAULT_TOOL_CRASH may not be set)",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false,
+      "reason": "run completed with state=completed; no tool was invoked or fault was not triggered (HI_AGENT_FAULT_TOOL_CRASH may not be set)"
+    },
+    {
+      "name": "disk_full_artifact_write",
+      "passed": true,
+      "skipped": true,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 1.64,
+      "notes": "skipped: HI_AGENT_FAULT_DISK_FULL not set; run ended with state=completed (no disk-full fault injected)",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false,
+      "reason": "HI_AGENT_FAULT_DISK_FULL not set; run ended with state=completed (no disk-full fault injected)"
+    },
+    {
+      "name": "lease_heartbeat_stall",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 1.61,
+      "notes": "run reached terminal=completed after heartbeat stall (fault_active=False)",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    },
+    {
+      "name": "clock_skew_stale_lease",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 2.1,
+      "notes": "run reached terminal: completed (clock skew resilience verified, fault_active=False)",
+      "scenario_provenance": "structural",
+      "scenario_runtime_coupled": false
+    },
+    {
+      "name": "graceful_drain_active_work",
+      "passed": true,
+      "skipped": false,
+      "invariants_held": {
+        "no_lost_runs": true,
+        "no_duplicates": true,
+        "no_regressions": true,
+        "no_unclassified_failures": true,
+        "operator_visible_signal": true
+      },
+      "duration_s": 1.34,
+      "notes": "drain_code=200, run reached terminal: completed",
+      "scenario_provenance": "real",
+      "scenario_runtime_coupled": true
+    }
+  ],
+  "server_started": true,
+  "server_log_path": "D:\\chao_workspace\\hi-agent\\docs\\verification\\chaos-server-9082.log",
+  "command": "python scripts/run_chaos_runtime_coupled.py",
+  "generated_at": "2026-04-30T05:37:26.056413+00:00",
+  "start_ts": "2026-04-30T05:36:50.395611+00:00",
+  "finish_ts": "2026-04-30T05:37:26.056413+00:00",
+  "_evidence_meta": {
+    "provenance": "structural",
+    "head_sha": "814c33085e4294e0fbac74ba50f8f5469c6117d9",
+    "generated_at": "2026-04-30T05:37:26.115897+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\run_chaos_runtime_coupled.py"
+  }
+}

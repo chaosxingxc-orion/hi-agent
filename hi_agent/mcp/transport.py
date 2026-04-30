@@ -37,6 +37,27 @@ class MCPTransportError(Exception):
     """Raised when MCP transport fails to invoke a tool."""
 
 
+class TransportClosedError(MCPTransportError):
+    """HD-8: stdin / process is unavailable for writes.
+
+    Distinguished from generic ``MCPTransportError`` so callers can
+    differentiate "subprocess closed our pipe" (recoverable via restart)
+    from "subprocess returned a JSON-RPC error" (a real protocol failure).
+    """
+
+
+def _bump_closed_fd_counter() -> None:
+    """Increment ``mcp_transport_closed_fd_total`` (Rule 7 alarm bell)."""
+    try:
+        from hi_agent.observability.collector import get_metrics_collector
+
+        _mc = get_metrics_collector()
+        if _mc is not None:
+            _mc.increment("mcp_transport_closed_fd_total")
+    except Exception:  # rule7-exempt: expiry_wave="Wave 25" replacement_test: hd8-tests
+        pass
+
+
 class StdioMCPTransport:
     """JSON-RPC 2.0 transport for MCP servers running as subprocesses.
 
@@ -98,10 +119,29 @@ class StdioMCPTransport:
                 "params": {"name": tool_name, "arguments": payload},
             }
             line = json.dumps(request, ensure_ascii=False) + "\n"
+            # HD-8: explicit fd-closure guard. The lazy spawn in
+            # ``_ensure_running`` may have left ``stdin`` closed if the
+            # subprocess died between calls — write() would otherwise raise
+            # a confusing OSError that masks the root cause. We compare
+            # ``closed`` to ``True`` so a MagicMock test double (whose
+            # ``closed`` attribute is itself a MagicMock — truthy by
+            # default) does not accidentally trip the guard.
+            stdin_handle = self._proc.stdin if self._proc is not None else None
+            if (
+                self._proc is None
+                or stdin_handle is None
+                or getattr(stdin_handle, "closed", False) is True
+            ):
+                _bump_closed_fd_counter()
+                self._proc = None
+                raise TransportClosedError(
+                    f"MCP server {server_id!r} stdin closed before write (HD-8)."
+                )
             try:
                 self._proc.stdin.write(line)
                 self._proc.stdin.flush()
             except OSError as exc:
+                _bump_closed_fd_counter()
                 self._proc = None
                 raise MCPTransportError(
                     f"Failed to write to MCP server {server_id!r}: {exc}"
@@ -132,12 +172,25 @@ class StdioMCPTransport:
                 },
             }
             line = json.dumps(request, ensure_ascii=False) + "\n"
+            # HD-8: same fd-closure guard as ``invoke``. ping() returns
+            # False instead of raising because health probes treat
+            # transport closure as "unreachable", not as a fatal error.
+            stdin_handle = self._proc.stdin if self._proc is not None else None
+            if (
+                self._proc is None
+                or stdin_handle is None
+                or getattr(stdin_handle, "closed", False) is True
+            ):
+                _bump_closed_fd_counter()
+                self._proc = None
+                return False
             try:
                 self._proc.stdin.write(line)
                 self._proc.stdin.flush()
                 self._read_response("ping", request_id)
                 return True
             except (MCPTransportError, OSError):
+                _bump_closed_fd_counter()
                 self._proc = None
                 return False
 
