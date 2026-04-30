@@ -333,7 +333,7 @@ def test_8_post_runs_creates_session_when_absent(shared_manager, ctx_a, session_
     sid = resp.headers.get("x-session-id") or resp.headers.get("X-Session-Id")
     assert sid is not None and len(sid) > 0
     # Session must exist in the store
-    assert session_store.get(sid) is not None
+    assert session_store.get_unsafe(sid) is not None
 
 
 # ---------------------------------------------------------------------------

@@ -383,7 +383,9 @@ class TestCrossTenantSessions:
                 f"Expected 404 cross-tenant archive; got {resp.status_code}: {resp.text}"
             )
         # And confirm Tenant A's session was NOT archived.
-        rec = store.get(sid_a)
+        # get_unsafe is the admin-only escape hatch; this assertion verifies
+        # persisted state across tenants from the test harness perspective.
+        rec = store.get_unsafe(sid_a)
         assert rec is not None
         assert rec.status == "active", "Tenant A's session was wrongly archived"
 

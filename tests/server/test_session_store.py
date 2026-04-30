@@ -13,7 +13,7 @@ def store(tmp_path):
 
 def test_create_and_get(store):
     sid = store.create(tenant_id="t1", user_id="u1", team_id="eng")
-    rec = store.get(sid)
+    rec = store.get_unsafe(sid)
     assert rec is not None
     assert rec.session_id == sid
     assert rec.tenant_id == "t1"
@@ -22,7 +22,7 @@ def test_create_and_get(store):
 
 
 def test_get_nonexistent_returns_none(store):
-    assert store.get("does-not-exist") is None
+    assert store.get_unsafe("does-not-exist") is None
 
 
 def test_validate_ownership_true(store):
@@ -48,7 +48,7 @@ def test_list_active(store):
 def test_archive(store):
     sid = store.create(tenant_id="t1", user_id="u1")
     store.archive(sid, tenant_id="t1", user_id="u1")
-    rec = store.get(sid)
+    rec = store.get_unsafe(sid)
     assert rec.status == "archived"
 
 

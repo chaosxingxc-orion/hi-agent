@@ -99,7 +99,7 @@ def test_patch_session_archive(store, manager):
     client = TestClient(app)
     resp = client.patch(f"/sessions/{sid}", json={"status": "archived"})
     assert resp.status_code == 200
-    rec = store.get(sid)
+    rec = store.get_unsafe(sid)
     assert rec.status == "archived"
 
 

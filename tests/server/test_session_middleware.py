@@ -72,7 +72,7 @@ def test_post_runs_auto_creates_session(store):
     assert resp.status_code == 200
     assert "x-session-id" in resp.headers
     sid = resp.headers["x-session-id"]
-    assert store.get(sid) is not None
+    assert store.get_unsafe(sid) is not None
 
 
 def test_post_runs_uses_existing_session(store):

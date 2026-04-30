@@ -112,8 +112,15 @@ class SessionStore:
             self._cx().commit()
         return sid
 
-    def get(self, session_id: str) -> SessionRecord | None:
-        """Retrieve a session by ID.
+    def get_unsafe(self, session_id: str) -> SessionRecord | None:
+        """Retrieve a session by ID without tenant scoping.
+
+        # scope: process-internal -- admin only
+
+        DO NOT use this on a tenant-facing code path. It returns the session
+        regardless of which tenant owns it, which can leak existence
+        information across tenants. Public callers MUST use
+        :meth:`get_for_tenant` instead.
 
         Args:
             session_id: Session identifier.
@@ -127,6 +134,35 @@ class SessionStore:
                 "SELECT session_id, tenant_id, user_id, team_id, name, status, "
                 "created_at, archived_at FROM sessions WHERE session_id = ?",
                 (session_id,),
+            )
+            .fetchone()
+        )
+        return self._row(row) if row else None
+
+    def get_for_tenant(
+        self, session_id: str, tenant_id: str
+    ) -> SessionRecord | None:
+        """Retrieve a session by ID, scoped to a single tenant.
+
+        Returns ``None`` both when the session does not exist and when it
+        exists in a different tenant. Callers MUST NOT distinguish between
+        these two cases — doing so would reveal cross-tenant existence.
+
+        Args:
+            session_id: Session identifier.
+            tenant_id: Tenant identifier the caller's request is scoped to.
+
+        Returns:
+            SessionRecord if a session with this id exists in ``tenant_id``,
+            None otherwise (including when the id exists in another tenant).
+        """
+        row = (
+            self._cx()
+            .execute(
+                "SELECT session_id, tenant_id, user_id, team_id, name, status, "
+                "created_at, archived_at FROM sessions "
+                "WHERE session_id = ? AND tenant_id = ?",
+                (session_id, tenant_id),
             )
             .fetchone()
         )
