@@ -1,0 +1,25 @@
+{
+  "wave": "Wave 23",
+  "manifest_id": "2026-04-30-a3f4353",
+  "release_head": "a3f4353d5663",
+  "signed_off_at": "2026-04-30T11:00:00Z",
+  "captain": "auto-claude",
+  "gates_passed": true,
+  "verified_readiness": 94.55,
+  "raw_implementation_maturity": 94.55,
+  "conditional_readiness_after_blockers": 94.55,
+  "seven_by_twenty_four_operational_readiness": 65.0,
+  "cap": null,
+  "cap_reason": "all gates pass",
+  "multistatus": {"pass": 9, "fail": 0, "warn": 0, "defer": 0},
+  "t3_provenance": "real",
+  "clean_env_passed": 8864,
+  "delta_from_w22": 14.55,
+  "tracks_landed": ["W23-A", "W23-B", "W23-C", "W23-D", "W23-E", "W23-F", "W23-G", "W23-H"],
+  "cleanup_commits": ["W23-cleanup", "W23-cleanup2", "W23-cleanup3"],
+  "df45_recurrence": {
+    "incident": "Track B content committed under Track G commit message during parallel agent dispatch (commit 8154170)",
+    "code_correctness": "preserved; no follow-up needed",
+    "process_change_for_w24": "subagent prompts must enumerate explicit git add paths and verify staged diff equals owned-file list before commit"
+  }
+}
