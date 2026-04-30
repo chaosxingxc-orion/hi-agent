@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from hi_agent.llm.protocol import LLMGateway
 
 from hi_agent.observability.metric_counter import Counter
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 logger = logging.getLogger(__name__)
 _defaults_errors_total = Counter("hi_agent_capability_defaults_errors_total")
@@ -158,8 +159,12 @@ def make_llm_capability_handler(
                     "stage_id": stage_id,
                 },
             )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
-            pass
+        except Exception as exc:
+            record_silent_degradation(
+                component="capability.defaults.make_llm_capability_handler",
+                reason="record_fallback_failed",
+                exc=exc,
+            )
 
         return {
             "success": True,

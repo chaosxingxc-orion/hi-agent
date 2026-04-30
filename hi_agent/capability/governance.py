@@ -6,7 +6,6 @@ through GovernedToolExecutor before reaching CapabilityInvoker.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import logging
@@ -24,6 +23,7 @@ if TYPE_CHECKING:
     from hi_agent.capability.registry import CapabilityRegistry
 
 from hi_agent.observability.metric_counter import Counter
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 _logger = logging.getLogger(__name__)
 _governance_errors_total = Counter("hi_agent_capability_governance_errors_total")
@@ -393,7 +393,7 @@ class GovernedToolExecutor:
             else "unknown"
         )
         # Audit must never block execution.
-        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
+        try:
             self._audit_store.record_tool_call(
                 capability_name=capability_name,
                 principal=principal,
@@ -405,4 +405,10 @@ class GovernedToolExecutor:
                 risk_class=risk_class,
                 result_status=result_status,
                 duration_ms=duration_ms,
+            )
+        except Exception as exc:
+            record_silent_degradation(
+                component="capability.governance.CapabilityGovernor._record_audit",
+                reason="audit_store_record_tool_call_failed",
+                exc=exc,
             )
