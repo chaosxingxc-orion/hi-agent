@@ -56,7 +56,7 @@ async def handle_ops_run_full(request: Request) -> JSONResponse:
     events: list[dict] = []
     if event_store is not None and hasattr(event_store, "get_events"):
         try:
-            events = event_store.get_events(run_id, offset=0, limit=50)
+            events = event_store.get_events(run_id, tenant_id=workspace, offset=0, limit=50)
         except Exception as exc:
             logger.warning("handle_ops_run_full: get_events failed for %s: %s", run_id, exc)
 
@@ -127,7 +127,7 @@ async def handle_ops_run_diagnose(request: Request) -> JSONResponse:
     events: list[dict] = []
     if event_store is not None and hasattr(event_store, "get_events"):
         try:
-            events = event_store.get_events(run_id, offset=0, limit=10)
+            events = event_store.get_events(run_id, tenant_id=workspace, offset=0, limit=10)
         except Exception as exc:
             logger.warning("handle_ops_run_diagnose: get_events failed for %s: %s", run_id, exc)
 

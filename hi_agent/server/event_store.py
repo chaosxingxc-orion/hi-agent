@@ -220,49 +220,103 @@ class SQLiteEventStore:
             rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_event(r) for r in rows]
 
+    def _get_events_rows(
+        self,
+        run_id: str,
+        tenant_id_filter: str | None,
+        offset: int,
+        limit: int,
+    ) -> list[dict]:
+        """Inner SQL helper. Bypasses posture enforcement; callers gate."""
+        if tenant_id_filter:
+            query = (
+                "SELECT event_id, run_id, sequence, event_type, payload_json, "
+                "tenant_id, user_id, session_id, trace_id, created_at "
+                "FROM run_events WHERE run_id = ? AND tenant_id = ? "
+                "ORDER BY id ASC LIMIT ? OFFSET ?"
+            )
+            params: tuple = (run_id, tenant_id_filter, limit, offset)
+        else:
+            query = (
+                "SELECT event_id, run_id, sequence, event_type, payload_json, "
+                "tenant_id, user_id, session_id, trace_id, created_at "
+                "FROM run_events WHERE run_id = ? ORDER BY id ASC LIMIT ? OFFSET ?"
+            )
+            params = (run_id, limit, offset)
+        with self._lock:
+            rows = self._conn.execute(query, params).fetchall()
+        return [
+            {
+                "event_id": row[0],
+                "run_id": row[1],
+                "sequence": row[2],
+                "event_type": row[3],
+                "payload_json": row[4],
+                "tenant_id": row[5],
+                "user_id": row[6],
+                "session_id": row[7],
+                "trace_id": row[8],
+                "created_at": row[9],
+            }
+            for row in rows
+        ]
+
     def get_events(
         self,
         run_id: str,
+        *,
+        tenant_id: str | None = None,
         offset: int = 0,
         limit: int = 100,
     ) -> list[dict]:
-        """Return paginated events for *run_id* as plain dicts.
+        """Return paginated events for *run_id* filtered by *tenant_id*.
 
-        Ordered by ascending row id (insertion order).  Suitable for
-        non-SSE snapshot replay via the ``GET /runs/{run_id}/events`` endpoint.
+        Suitable for the non-SSE snapshot replay via the
+        ``GET /runs/{run_id}/events`` endpoint and for any other tenant-scoped
+        consumer.
 
         Args:
             run_id: Run identifier.
+            tenant_id: REQUIRED under research/prod posture. When provided,
+                the SQL adds ``AND tenant_id = ?`` so only events the caller's
+                tenant is allowed to see are returned. Routes always pass
+                ``ctx.tenant_id`` from ``TenantContext``. Internal admin
+                callers that legitimately need cross-tenant access must use
+                :meth:`get_events_unsafe` instead.
             offset: Number of rows to skip (0-based).
             limit: Maximum number of rows to return.
 
         Returns:
             List of dicts with keys matching StoredEvent fields.
+
+        Raises:
+            ValueError: When ``tenant_id`` is None or empty under research/
+                prod posture (HD-2 closure).
         """
-        query = (
-            "SELECT event_id, run_id, sequence, event_type, payload_json, "
-            "tenant_id, user_id, session_id, trace_id, created_at "
-            "FROM run_events WHERE run_id = ? ORDER BY id ASC LIMIT ? OFFSET ?"
-        )
-        with self._lock:
-            rows = self._conn.execute(query, (run_id, limit, offset)).fetchall()
-        result = []
-        for row in rows:
-            result.append(
-                {
-                    "event_id": row[0],
-                    "run_id": row[1],
-                    "sequence": row[2],
-                    "event_type": row[3],
-                    "payload_json": row[4],
-                    "tenant_id": row[5],
-                    "user_id": row[6],
-                    "session_id": row[7],
-                    "trace_id": row[8],
-                    "created_at": row[9],
-                }
+        from hi_agent.config.posture import Posture
+
+        if not tenant_id and Posture.from_env().is_strict:
+            raise ValueError(
+                "EventStore.get_events requires tenant_id under research/prod "
+                "posture; pass tenant_id=ctx.tenant_id from TenantContext, or "
+                "use get_events_unsafe() with explicit process-internal scope."
             )
-        return result
+        return self._get_events_rows(run_id, tenant_id, offset, limit)
+
+    def get_events_unsafe(  # scope: process-internal -- admin only
+        self,
+        run_id: str,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> list[dict]:
+        """Cross-tenant version of :meth:`get_events` for admin-only callers.
+
+        Use only from process-internal admin paths that legitimately need to
+        see events across tenant boundaries (e.g. operator drill harnesses).
+        Routes and request-handling code MUST use :meth:`get_events` and pass
+        ``tenant_id``.
+        """
+        return self._get_events_rows(run_id, None, offset, limit)
 
     def max_sequence(self, run_id: str) -> int:
         """Return the highest stored sequence for run_id, or -1 if none.

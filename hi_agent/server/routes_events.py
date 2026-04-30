@@ -136,5 +136,5 @@ async def handle_run_events_snapshot(request: Request) -> JSONResponse:
             {"run_id": run_id, "events": [], "count": 0, "note": "event_store_not_configured"}
         )
 
-    events = _store.get_events(run_id, offset=since, limit=limit)
+    events = _store.get_events(run_id, tenant_id=ctx.tenant_id, offset=since, limit=limit)
     return JSONResponse({"run_id": run_id, "events": events, "count": len(events)})
