@@ -1,5 +1,7 @@
 # Wave 27 Delivery Notice
 
+notice-pre-final-commit: true
+
 **Date:** 2026-05-01
 **Branch:** wave-25-integration
 **Manifest:** `docs/releases/platform-release-manifest-2026-05-01-4ba286bc.json`
