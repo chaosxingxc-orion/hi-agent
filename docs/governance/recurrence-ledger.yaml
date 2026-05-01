@@ -27,9 +27,9 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/58394d6-release-identity.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_manifest_freshness_violations_total"
-    alert_rule: "hi_agent_manifest_freshness_violations_total > 0 for 5m"
+    alert_rule: "hi_agent_manifest_freshness_violations_alert"
     runbook_path: "docs/runbooks/manifest-stale.md"
 
   - issue_id: P0-2
@@ -49,9 +49,9 @@ entries:
     owner: DX
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/58394d6-default-offline-clean-env.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_clean_env_freshness_failures_total"
-    alert_rule: "hi_agent_clean_env_freshness_failures_total > 0 for 5m"
+    alert_rule: "hi_agent_clean_env_freshness_failures_alert"
     runbook_path: "docs/runbooks/clean-env-not-final-head.md"
 
   - issue_id: P0-3
@@ -72,9 +72,9 @@ entries:
     owner: TE
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/58394d6-observability-spine.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_observability_spine_structural_total"
-    alert_rule: "hi_agent_observability_spine_structural_total > 0 for 5m"
+    alert_rule: "hi_agent_observability_spine_structural_alert"
     runbook_path: "docs/runbooks/observability-spine-structural.md"
 
   - issue_id: P0-4
@@ -91,13 +91,17 @@ entries:
     code_fix: "Wave16-Track-D: soak harness updated to sample server PID; pilot run at 360m with provenance:pilot_run"
     regression_test: "scripts/check_soak_evidence.py --json (status=pilot acceptable; cap_7x24=65 enforced by score_caps.yaml)"
     release_gate: "release-gate.yml step: Check soak evidence (W14-C2)"
-    process_change: "CLAUDE.md Rule 8: operator-shape gate; 7x24 declared as architectural posture not engineering requirement"
+    process_change: >
+      CLAUDE.md Rule 8: operator-shape gate; 7x24 declared as architectural posture not engineering
+      requirement. W27 DEFERRAL (user decision 2026-05-01): 24h soak NOT run in Wave 27.
+      soak_24h_missing cap remains at 65; 7x24 score stays at 65 this wave. Target: Wave 28+.
+      Soak is the binding constraint. Spine and chaos evidence captured in W27 for future clearance.
     owner: TE
-    expiry_or_followup: "2026-07-01"
+    expiry_or_followup: "2026-07-15"
     evidence_artifact: "docs/verification/58394d6-soak-pilot-360m.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_soak_evidence_age_hours"
-    alert_rule: "hi_agent_soak_evidence_age_hours > 168"
+    alert_rule: "hi_agent_soak_evidence_stale_alert"
     runbook_path: "docs/runbooks/soak-evidence-stale.md"
 
   - issue_id: P0-5
@@ -118,9 +122,9 @@ entries:
     owner: TE
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/58394d6-runtime-chaos.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_chaos_not_runtime_coupled_total"
-    alert_rule: "hi_agent_chaos_not_runtime_coupled_total > 0 for 5m"
+    alert_rule: "hi_agent_chaos_not_runtime_coupled_alert"
     runbook_path: "docs/runbooks/chaos-no-runtime-coupling.md"
 
   - issue_id: P0-6
@@ -141,9 +145,9 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/releases/2026-04-28-58394d6.json"
-    current_closure_level: verified_at_release_head
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_score_cap_overstatement_total"
-    alert_rule: "hi_agent_score_cap_overstatement_total > 0 for 5m"
+    alert_rule: "hi_agent_score_cap_overstatement_alert"
     runbook_path: "docs/runbooks/score-cap-overstates-readiness.md"
 
   - issue_id: S4-10
@@ -163,9 +167,9 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/governance/release-captain-checklist.md"
-    current_closure_level: verified_at_release_head
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_missing_owner_tag_total"
-    alert_rule: "hi_agent_missing_owner_tag_total > 0 for 1m"
+    alert_rule: "hi_agent_missing_owner_tag_alert"
     runbook_path: "docs/runbooks/ownership-accountability-weak.md"
 
   - issue_id: W17-A
@@ -186,9 +190,9 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "scripts/check_doc_consistency.py, scripts/check_verification_artifacts.py (diff W17 vs W16)"
-    current_closure_level: component_exists
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_release_gate_continue_on_error_total"
-    alert_rule: "hi_agent_release_gate_continue_on_error_total > 0 for 1m"
+    alert_rule: "hi_agent_release_gate_weakening_alert"
     runbook_path: "docs/runbooks/release-gate-weakening.md"
 
   - issue_id: W17-B
@@ -209,9 +213,9 @@ entries:
     owner: RO
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "tests/security/test_run_store_tenant_required.py"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_cross_tenant_allowlist_expiry_total"
-    alert_rule: "hi_agent_cross_tenant_allowlist_expiry_total > 0 for 5m"
+    alert_rule: "hi_agent_cross_tenant_footgun_alert"
     runbook_path: "docs/runbooks/cross-tenant-primitive-footgun.md"
 
   - issue_id: W17-C
@@ -232,7 +236,7 @@ entries:
     owner: TE
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "tests/conftest.py, scripts/check_conftest_fallback_scope.py"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_test_theatre_detected_total"
-    alert_rule: "hi_agent_test_theatre_detected_total > 0 for 5m"
+    alert_rule: "hi_agent_test_theatre_alert"
     runbook_path: "docs/runbooks/test-theatre-passing-via-fallback.md"

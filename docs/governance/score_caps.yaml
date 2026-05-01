@@ -139,8 +139,8 @@ cap_rules:
     factor: soak_24h_missing
     scope: [seven_by_twenty_four_operational_readiness]
     description: "Real 24h soak evidence missing or stale"
-    requires_real_run_by: "Wave 22"
-    lifecycle_note: "Architectural constraint; deferred until platform reaches continuous operational status; not an engineering defect"
+    requires_real_run_by: "Wave 28"
+    lifecycle_note: "Explicitly deferred to Wave 28+ by user decision 2026-05-01. Cap value stays at 65; no partial credit claimed in W27. Spine (18a) and chaos (18b) evidence captured in W27 for future clearance; soak is the binding constraint."
   - condition: soak_24h_pending
     cap: 80
     factor: soak_24h_pending
