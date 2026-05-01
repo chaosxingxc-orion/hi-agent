@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+*$py.class
 *.egg-info/
 dist/
 build/
@@ -23,3 +25,12 @@ hi-agent-w25-*
 .episodes/
 memory/
 .ruff_*.json
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+docs/.tmp/
+docs/.scratch/
