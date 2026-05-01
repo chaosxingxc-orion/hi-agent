@@ -64,12 +64,29 @@ Middleware: Perception(light) → Control(medium) → Execution(dynamic) → Eva
 | `hi_agent/failures/` | FailureCode (11 codes, re-exported from agent-kernel TraceFailureCode), FailureCollector, ProgressWatchdog |
 | `hi_agent/state_machine/` | Generic StateMachine + 6 TRACE definitions |
 
+### Northbound API Facade (agent_server)
+
+Detail: [`agent_server/ARCHITECTURE.md`](../agent_server/ARCHITECTURE.md)
+
+| Module | Description |
+|--------|-------------|
+| `agent_server/contracts/` | Frozen v1 northbound schemas: `RunRequest`, `RunResponse`, `TenantContext`, `ContractError`, etc. |
+| `agent_server/facade/` | `RunFacade`, `EventFacade`, `ArtifactFacade`, `ManifestFacade`, `IdempotencyFacade` — translate contract types to hi_agent callables |
+| `agent_server/api/routes_runs.py` | `POST /v1/runs`, `GET /v1/runs/{id}`, `POST /v1/runs/{id}/signal` |
+| `agent_server/api/routes_runs_extended.py` | `POST /v1/runs/{id}/cancel`, `GET /v1/runs/{id}/events` (SSE) |
+| `agent_server/api/routes_artifacts.py` | `GET/POST /v1/artifacts`, `GET /v1/runs/{id}/artifacts` |
+| `agent_server/api/routes_gates.py` | `POST /v1/gates/{id}/decide` |
+| `agent_server/api/routes_manifest.py` | `GET /v1/manifest` |
+| `agent_server/api/routes_skills_memory.py` | `POST /v1/skills`, `POST /v1/memory/write` |
+| `agent_server/api/routes_mcp_tools.py` | `GET /v1/mcp/tools`, `POST /v1/mcp/tools/{name}` |
+| `agent_server/api/middleware/` | `TenantContextMiddleware` + `IdempotencyMiddleware` |
+| `agent_server/cli/` | `serve`, `run`, `cancel`, `tail-events` subcommands |
+
 ### Infrastructure
 | Module | Description |
 |--------|-------------|
 | `hi_agent/server/` | HTTP API (20+ endpoints), EventBus, SSE streaming, RunManager, DreamScheduler |
 
-> Northbound contract (agent_server v1): see [docs/platform/agent-server-northbound-contract-v1.md](../platform/agent-server-northbound-contract-v1.md)
 | `hi_agent/runtime_adapter/` | 22-method RuntimeAdapter protocol; KernelFacadeAdapter (sync); AsyncKernelFacadeAdapter; ResilientKernelAdapter (retry + circuit breaker) |
 | `hi_agent/capability/` | CapabilityRegistry; CapabilityInvoker (timeout+retry); AsyncCapabilityInvoker; CircuitBreaker |
 | `hi_agent/observability/` | MetricsCollector, tracing, notifications |
@@ -94,6 +111,17 @@ Middleware: Perception(light) → Control(medium) → Execution(dynamic) → Eva
 | **Feedback** | Optimization signals from results, evaluations, and experiments |
 
 ---
+
+## Wave 27 Module Additions
+
+| Module | Purpose |
+|---|---|
+| `agent_server/` | Northbound API facade: versioned HTTP contract (v1 frozen), TDD-driven route handlers, 5 facades, idempotency + tenant middleware |
+| `hi_agent/observability/event_emitter.py` | `RunEventEmitter` with 12 typed `record_*` methods for structured run event observability |
+| `hi_agent/llm/tier_router.py` (extended) | `ingest_calibration_signal()` — active calibration that updates routing weights from quality signals |
+| `hi_agent/evolve/postmortem.py` | `ProjectPostmortem` lifecycle integration with `on_project_completed` hook |
+| `hi_agent/observability/alerts.py` | Alert wiring for recurrence-ledger operationally_observable entries |
+| `hi_agent/artifacts/registry.py` (extended) | POST write-path for artifact creation via `agent_server` route |
 
 ## Wave 9 Module Additions
 
