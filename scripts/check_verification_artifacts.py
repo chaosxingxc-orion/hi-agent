@@ -103,6 +103,7 @@ def _check_artifacts(allow_docs_only_gap: bool = False) -> tuple[list[str], list
                 or data.get("verified_head")
                 or data.get("head_sha")
                 or data.get("sha")
+                or data.get("head")
                 or ""
             )
             if not artifact_head:
