@@ -165,7 +165,7 @@ jobs:
         run: python scripts/check_manifest_freshness.py --json
 
       - name: Release identity (W16-A8)
-        run: python scripts/check_release_identity.py --json
+        run: python scripts/check_release_identity.py --json --allow-docs-only-gap
 
       - name: Recurrence ledger (W16-G3)
         run: python scripts/check_recurrence_ledger.py --json

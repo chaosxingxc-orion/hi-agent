@@ -2,9 +2,9 @@
 
 **Date:** 2026-05-01
 **Branch:** wave-25-integration
-**Manifest:** `docs/releases/platform-release-manifest-2026-05-01-9ef827db.json`
-**Release HEAD:** `9ef827db085d` (manifest verified)
-**Current Notice HEAD:** `a26a1cf5` (docs/archive only — docs-only gap from manifest head)
+**Manifest:** `docs/releases/platform-release-manifest-2026-05-01-4ba286bc.json`
+Functional HEAD: 4ba286bca5b83e906e47ed982884d5f3328f56d9
+**Notice HEAD:** 4ba286bca5b8 (docs-only commits follow: clean-env evidence + manifest + architecture docs)
 
 ---
 
