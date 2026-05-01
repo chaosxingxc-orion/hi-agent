@@ -86,10 +86,16 @@ def _latest_notice_head() -> tuple[str, str]:
 
 
 def _sha_match(a: str, b: str) -> bool:
+    """Return True when a and b refer to the same commit.
+
+    Uses the full length of the shorter string — NO artificial 12-char cap.
+    For two 40-char SHAs this requires exact equality.  For a short filename-
+    embedded SHA vs a full 40-char SHA (GS-11) it compares the full short SHA.
+    """
     if not a or not b:
         return False
-    short_len = min(len(a), len(b), 12)
-    return a[:short_len] == b[:short_len]
+    compare_len = min(len(a), len(b))
+    return a[:compare_len] == b[:compare_len]
 
 
 def main() -> int:

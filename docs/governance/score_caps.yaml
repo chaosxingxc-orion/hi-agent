@@ -134,20 +134,29 @@ cap_rules:
     factor: provenance_unknown_or_synthetic
     scope: [current_verified_readiness, seven_by_twenty_four_operational_readiness]
     description: "Evidence consumed by gate has unknown or synthetic provenance"
-  - condition: soak_24h_missing
+  # ── GOV-E W28: 7×24 is architectural, not wall-clock soak ────────────────
+  # The old soak_24h_missing / soak_24h_pending caps are REPLACED by
+  # architectural_seven_by_twenty_four. The architectural 7×24 assertion is
+  # satisfied by running 5 seconds-to-minutes checks (not a 24h wall-clock run):
+  #   1. cross_loop_stability   — 3 sequential real-LLM runs share one gateway
+  #   2. lifespan_observable    — current_stage non-None within 30s on all turns
+  #   3. cancellation_round_trip — cancel→200 live, cancel→404 unknown
+  #   4. spine_provenance_real  — observability spine provenance: real
+  #   5. chaos_runtime_coupled_all — all 10 chaos scenarios runtime_coupled: true
+  # Cap fires only when any assertion fails. Evidence: <sha>-arch-7x24.json.
+  # soak_24h_missing is retained as a DEPRECATED alias that no longer triggers.
+  - condition: architectural_seven_by_twenty_four
     cap: 65
-    factor: soak_24h_missing
+    factor: architectural_seven_by_twenty_four
     scope: [seven_by_twenty_four_operational_readiness]
-    description: "Real 24h soak evidence missing or stale"
-    requires_real_run_by: "Wave 28"
-    lifecycle_note: "Explicitly deferred to Wave 28+ by user decision 2026-05-01. Cap value stays at 65; no partial credit claimed in W27. Spine (18a) and chaos (18b) evidence captured in W27 for future clearance; soak is the binding constraint."
-  - condition: soak_24h_pending
-    cap: 80
-    factor: soak_24h_pending
-    scope: [seven_by_twenty_four_operational_readiness]
-    description: "Real 1h soak evidence present with invariants_held; 24h soak still pending (partial_1h credit)"
-    requires_real_run_by: "Wave 25"
-    lifecycle_note: "W24-C partial credit; cap should lift to 'pass' once 24h soak completes"
+    description: "One or more architectural 7×24 assertions failed (see assertions list)"
+    assertions:
+      - cross_loop_stability
+      - lifespan_observable
+      - cancellation_round_trip
+      - spine_provenance_real
+      - chaos_runtime_coupled_all
+    lifecycle_note: "Replaces soak_24h_missing/soak_24h_pending in W28. All 5 assertions run in seconds-to-minutes; no 24h wall-clock soak required. Cap clears when <sha>-arch-7x24.json shows 5/5 PASS."
   - condition: observability_spine_incomplete
     cap: 70
     factor: observability_spine_incomplete

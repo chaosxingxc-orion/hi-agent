@@ -290,6 +290,14 @@ jobs:
           path: multistatus-results.json
           retention-days: 90
 
+      # --- W28 new gates (GOV-C) ---
+
+      - name: Check closure levels (Rule 15 / W28-GOV-C)
+        run: python scripts/check_closure_levels.py --json
+
+      - name: Check manifest budget (Rule 14 / W28-GOV-C)
+        run: python scripts/check_manifest_budget.py --json
+
       # --- W25 new gates ---
 
       - name: Check notice/manifest score honesty (Rule 14, W25-N)
