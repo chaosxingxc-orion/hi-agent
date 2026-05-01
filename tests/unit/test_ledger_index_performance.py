@@ -1,8 +1,6 @@
 """Unit tests for ArtifactLedger O(1) index on source_ref and upstream lookups."""
 from __future__ import annotations
 
-import pytest
-
 from hi_agent.artifacts.contracts import Artifact
 from hi_agent.artifacts.ledger import ArtifactLedger
 

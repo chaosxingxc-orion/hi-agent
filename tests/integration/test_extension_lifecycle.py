@@ -16,7 +16,6 @@ import sys
 from datetime import UTC, datetime
 
 import pytest
-
 from hi_agent.contracts.extension_manifest import ExtensionRegistry
 from hi_agent.evolve.contracts import EvolutionTrial
 from hi_agent.evolve.experiment_store import InMemoryExperimentStore

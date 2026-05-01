@@ -20,3 +20,6 @@ config/llm_config.local.json
 docs/delivery/soak-run-stdout.log
 docs/verification/soak-logs/
 hi-agent-w25-*
+.episodes/
+memory/
+.ruff_*.json

@@ -82,7 +82,7 @@ def test_high_quality_signals_downgrade_tier():
 
 
 def test_medium_quality_signals_no_change():
-    """Signals with quality in neutral range (0.60–0.88) leave routing unchanged."""
+    """Signals with quality in neutral range (0.60-0.88) leave routing unchanged."""
     router = _make_router()
     initial = router.get_tier_for_purpose("control")
     for i in range(5):
