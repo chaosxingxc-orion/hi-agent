@@ -3,6 +3,7 @@
 > **Architecture hierarchy**
 > - L0 system boundary: this file
 > - L1 hi-agent detail: [`hi_agent/ARCHITECTURE.md`](hi_agent/ARCHITECTURE.md)
+> - L1 agent-server detail: [`agent_server/ARCHITECTURE.md`](agent_server/ARCHITECTURE.md)
 > - L1 agent-kernel detail: [`agent_kernel/ARCHITECTURE.md`](agent_kernel/ARCHITECTURE.md)
 
 ---
@@ -11,6 +12,7 @@
 
 ```text
 hi-agent repository
+  ├─ agent_server/    — versioned northbound API facade (stable HTTP contract for downstream)
   ├─ hi_agent/        — agent brain (orchestration, cognition, memory, skills)
   ├─ agent_kernel/    — durable runtime substrate (inlined; was external git dep)
   └─ agent-core       — reusable capability modules (integrated into hi_agent/)
@@ -27,8 +29,27 @@ External dependencies:
 
 | Package | Role |
 |---------|------|
+| `agent_server` | Versioned northbound facade: stable HTTP API for downstream teams; enforces platform/business-layer boundary; contract-frozen at v1 |
 | `hi_agent` | Agent brain: task understanding, route decisions, execution orchestration, memory/knowledge/skills, continuous evolution |
 | `agent_kernel` | Durable runtime: run lifecycle, event-fact log, idempotency, six-authority governance, failure recovery |
+
+### agent_server — subsystems
+
+| Module | Responsibility |
+|--------|---------------|
+| `contracts/` | Frozen v1 northbound schemas: `RunRequest`, `RunResponse`, `TenantContext`, etc. (digest-frozen at v1 release) |
+| `facade/` | Adapters from contract types to `hi_agent` callables: `RunFacade`, `EventFacade`, `ArtifactFacade`, `ManifestFacade`, `IdempotencyFacade` |
+| `api/routes_runs.py` | `POST /v1/runs`, `GET /v1/runs/{id}`, `POST /v1/runs/{id}/signal` |
+| `api/routes_runs_extended.py` | `POST /v1/runs/{id}/cancel`, `GET /v1/runs/{id}/events` (SSE) |
+| `api/routes_artifacts.py` | `GET/POST /v1/artifacts`, `GET /v1/runs/{id}/artifacts` |
+| `api/routes_gates.py` | `POST /v1/gates/{id}/decide` |
+| `api/routes_manifest.py` | `GET /v1/manifest` |
+| `api/routes_skills_memory.py` | `POST /v1/skills`, `POST /v1/memory/write` |
+| `api/routes_mcp_tools.py` | `GET /v1/mcp/tools`, `POST /v1/mcp/tools/{name}` |
+| `api/middleware/` | `TenantContextMiddleware` (inject tenant_id) + `IdempotencyMiddleware` (request dedup) |
+| `cli/` | CLI entry point: `serve`, `run`, `cancel`, `tail-events` |
+
+Detail: [`agent_server/ARCHITECTURE.md`](agent_server/ARCHITECTURE.md)
 
 ### hi_agent — subsystems
 
@@ -144,7 +165,7 @@ All LLM parameters flow through `config/llm_config.json` (gitignored; copy from 
 
 ---
 
-## Platform Contract (Wave 9)
+## Platform Contract (Wave 27)
 
 ### Posture System
 
@@ -176,7 +197,9 @@ All LLM parameters flow through `config/llm_config.json` (gitignored; copy from 
 | L3 | production default | research/prod default-on, migration + observability |
 | L4 | ecosystem ready | third-party can register/extend/upgrade/rollback without source |
 
-Wave 9 contracts: `TeamRunSpec` (`hi_agent/contracts/team_runtime.py`), `ReasoningTrace` (`hi_agent/contracts/reasoning_trace.py`), canonical `CapabilityDescriptor` (`hi_agent/capability/registry.py`), `ArtifactLedger` quarantine (`hi_agent/artifacts/ledger.py`).
+Wave 27 additions: `agent_server/` northbound facade (v1 contract freeze), `RunEventEmitter` + 12 typed events (`hi_agent/observability/event_emitter.py`), `TierRouter` active calibration (`hi_agent/llm/tier_router.py`), `ProjectPostmortem` lifecycle (`hi_agent/evolve/postmortem.py`), SSH backend retirement, stagger of 557 Wave 27 markers to W28+.
+
+Earlier contracts: `TeamRunSpec` (`hi_agent/contracts/team_runtime.py`), `ReasoningTrace` (`hi_agent/contracts/reasoning_trace.py`), canonical `CapabilityDescriptor` (`hi_agent/capability/registry.py`), `ArtifactLedger` quarantine (`hi_agent/artifacts/ledger.py`).
 
 ---
 
@@ -188,6 +211,6 @@ python -m pytest tests/integration/test_live_llm_api.py -m live_api -v       # l
 python -m ruff check hi_agent/ agent_kernel/                                  # lint
 ```
 
-Current baseline: **4,100 passed (unit+integration, Wave 9)** (2026-04-25, offline suite excluding live API and prod E2E; all xfail/xpass stubs deleted).
+Current baseline: **9,091 passed (unit+integration, Wave 27)** (2026-05-01, default-offline profile; 7 skipped, 0 failed).
 
 Live API test suite (`@pytest.mark.live_api`): 33 tests × 5 scenarios (smoke, multi-turn, code generation, state isolation, latency) parameterized over all 8 Volces Ark models. Auto-skipped when `VOLCE_API_KEY` is absent; config loaded from `config/llm_config.json` (gitignored) — copy from `config/llm_config.example.json`.

@@ -3,7 +3,7 @@
 `hi-agent` 是基于 **TRACE**（Task → Route → Act → Capture → Evolve）框架构建的企业级智能体系统。  
 负责任务理解、路由决策、能力执行、记忆沉淀与持续进化；底层持久化运行时由内联的 `agent_kernel/` 承载。
 
-*最后更新：2026-04-25（Wave 9）*
+*最后更新：2026-05-01（Wave 27）*
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 仓库 / 包 | 职责 | 位置 |
 |-----------|------|------|
+| `agent_server/` | 北向 API Facade：版本化 HTTP 合约（v1 冻结），供下游业务层直接对接 | 本仓库 |
 | `hi_agent/` | 智能体大脑：策略、路由、执行、记忆/知识/技能、持续进化 | 本仓库 |
 | `agent_kernel/` | Durable runtime：run 生命周期、事件事实、幂等与恢复治理 | 本仓库（已内联，2026-04-19） |
 | `agent-core` | 通用能力模块：工具、检索、MCP 等 | 集成到 hi_agent/ |
@@ -21,11 +22,13 @@
 
 | 层 | 组件 | 文件 | 职责 |
 |----|------|------|------|
+| 北向 Facade | agent_server | `agent_server/api/`, `facade/`, `contracts/` | 版本化 HTTP API（/v1/runs, /v1/artifacts 等）、合约冻结、租户隔离 |
 | API 入口 | HTTP Server / RunManager | `hi_agent/server/app.py` | 接收请求、管理 run 生命周期 |
 | 执行层 | RunExecutor / StageOrchestrator | `hi_agent/runner.py`, `execution/` | 阶段遍历（线性/图/恢复）、治理门禁 |
-| LLM 层 | TierAwareLLMGateway / FailoverChain | `hi_agent/llm/` | 分层路由（strong/medium/light）、凭证轮转、流式输出 |
+| LLM 层 | TierAwareLLMGateway / FailoverChain | `hi_agent/llm/` | 分层路由（strong/medium/light）、主动校准、流式输出 |
 | 认知系统 | Memory / Knowledge / Skill | `hi_agent/memory/`, `knowledge/`, `skill/` | 三层记忆、四层检索、技能进化 |
-| 进化引擎 | EvolveEngine | `hi_agent/evolve/` | Postmortem → 技能提取 → A/B 检验 |
+| 进化引擎 | EvolveEngine / Postmortem | `hi_agent/evolve/` | Postmortem → 技能提取 → A/B 检验 |
+| 可观测性 | RunEventEmitter + 12 typed events | `hi_agent/observability/event_emitter.py` | 结构化运行事件流、指标可观测 |
 | Durable Runtime | agent_kernel | `agent_kernel/` | EventLog、幂等、恢复治理、HTTP 服务 |
 
 完整架构图：[ARCHITECTURE.md](ARCHITECTURE.md)
@@ -55,12 +58,13 @@
 ## 目录结构
 
 ```text
+agent_server/      # 北向 API Facade（HTTP 合约 v1、路由处理器、CLI）
 hi_agent/          # 智能体大脑（策略、路由、执行、认知、进化）
 agent_kernel/      # Durable runtime（EventLog、幂等、恢复、HTTP）
 config/            # llm_config.json（本地，gitignored）+ llm_config.example.json
-tests/             # 4100+ 测试（unit / integration / e2e / security / perf）
+tests/             # 9091+ 测试（unit / integration / e2e / security / perf / posture）
 docs/              # 架构参考、规格、runbook、sprint 文档、delivery 记录
-scripts/           # verify_llm.py、e2e_verify.sh 等验证脚本
+scripts/           # verify_llm.py、e2e_verify.sh、governance 检查脚本
 ```
 
 详细模块说明：[ARCHITECTURE.md](ARCHITECTURE.md)
@@ -143,15 +147,38 @@ python -m hi_agent resume --checkpoint checkpoint_run-001.json
 
 ## API 核心端点
 
+### 北向 API（agent_server — v1 合约冻结）
+
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| `/v1/runs` | POST | 提交任务（idempotency_key 必填） |
+| `/v1/runs/{id}` | GET | 查询 run 状态 |
+| `/v1/runs/{id}/signal` | POST | 发送控制信号 |
+| `/v1/runs/{id}/cancel` | POST | 取消 run（已知 id→200，未知 id→404） |
+| `/v1/runs/{id}/events` | GET | SSE 实时事件流 |
+| `/v1/runs/{id}/artifacts` | GET | 列出 run 产出物 |
+| `/v1/artifacts/{id}` | GET | 获取单个 artifact |
+| `/v1/artifacts` | POST | 写入 artifact |
+| `/v1/gates/{id}/decide` | POST | 人工门控决策 |
+| `/v1/manifest` | GET | 系统能力清单 |
+| `/v1/skills` | POST | 注册技能 |
+| `/v1/memory/write` | POST | 写入智能体记忆 |
+| `/v1/mcp/tools` | GET | 列出 MCP 工具 |
+| `/v1/mcp/tools/{name}` | POST | 调用 MCP 工具 |
+
+### 内部 API（hi_agent/server — 运行时管理）
+
 | 端点 | 方法 | 功能 |
 |------|------|------|
 | `/runs` | POST | 提交任务（支持 TaskContract 全部字段） |
 | `/runs/{id}` | GET | 查询 run 状态（含 `current_stage`、`stage_updated_at`） |
-| `/runs/{id}/cancel` | POST | 取消 run（已知 id→200，未知 id→404） |
-| `/runs/{id}/events` | GET | SSE 实时事件流（stage_start/complete/RunStarted） |
+| `/runs/{id}/cancel` | POST | 取消 run |
+| `/runs/{id}/events` | GET | SSE 实时事件流 |
 | `/ready` | GET | 平台就绪检查（200=ready，503=not ready） |
-
-Wave 9：所有 `/runs` 错误响应均包含 `{error_category, message, retryable, next_action}`。
+| `/health` | GET | 子系统健康状态 |
+| `/diagnostics` | GET | 部署自检 |
+| `/doctor` | GET | 结构化诊断报告 |
+| `/metrics` | GET | Prometheus 指标 |
 
 完整端点文档：[docs/api-reference.md](docs/api-reference.md)
 
@@ -273,7 +300,7 @@ python -m ruff check hi_agent agent_kernel tests scripts
 
 # 全量离线测试
 python -m pytest tests/ -q --ignore=tests/integration/test_live_llm_api.py
-# 4100 passed（Wave 9，2026-04-25）
+# 9091 passed（Wave 27，2026-05-01）
 
 # Live API 测试（需 config/llm_config.json 配置 volces.api_key）
 python -m pytest tests/integration/test_live_llm_api.py -m live_api -v
@@ -292,11 +319,11 @@ python -c "import hi_agent; import agent_kernel"
 ## 参考文档
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — L0 系统边界（含组件角色、集成点、LLM 配置）
+- [agent_server/ARCHITECTURE.md](./agent_server/ARCHITECTURE.md) — L1 agent-server 北向 Facade 详细架构
 - [hi_agent/ARCHITECTURE.md](./hi_agent/ARCHITECTURE.md) — L1 hi-agent 详细架构
 - [agent_kernel/ARCHITECTURE.md](./agent_kernel/ARCHITECTURE.md) — L1 agent-kernel 详细架构
 - [docs/quickstart-research-profile.md](docs/quickstart-research-profile.md) — 30 分钟研究环境快速开始
 - [docs/posture-reference.md](docs/posture-reference.md) — dev/research/prod 姿态参考
 - [docs/api-reference.md](docs/api-reference.md) — HTTP API 端点与错误分类完整文档
-- [docs/downstream-responses/2026-04-25-wave9-delivery-notice.md](docs/downstream-responses/2026-04-25-wave9-delivery-notice.md) — Wave 9 交付通知
+- [docs/downstream-responses/2026-05-01-w27-delivery-notice.md](docs/downstream-responses/2026-05-01-w27-delivery-notice.md) — Wave 27 交付通知
 - [docs/runbook/](./docs/runbook/) — deploy、verify、rollback、incident runbook
-- [docs/migration/contract-changes-2026-04-17.md](./docs/migration/contract-changes-2026-04-17.md) — 执行来源 + manifest + RBAC 变更通知
