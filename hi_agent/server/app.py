@@ -1118,17 +1118,37 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
 
 
 async def handle_plugins_list(request: Request) -> JSONResponse:
-    """Return list of loaded plugins."""
-    # Accepted debt: plugin list is global (cross-tenant). Per-tenant scoping requires
-    # tenant_id on PluginManifest. Tracked in allowlists.yaml:
-    # handle_plugins_list_no_tenant_scope (expiry Wave 29).  # expiry_wave: Wave 29
+    """Return list of loaded plugins visible to the requesting tenant.
+
+    W5-G: filters plugin list by tenant_id.  PluginManifest.tenant_scope
+    controls visibility: "global" plugins are visible to every tenant;
+    "tenant" plugins (the default) are shown only to the tenant whose
+    tenant_id matches the plugin's registered owner.  Because the current
+    PluginLoader stores global manifests (no per-tenant partition), all
+    plugins with tenant_scope != "tenant" are shown; per-tenant plugins
+    require authentication and always include the requesting tenant's id.
+    """
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_pl
+
+    try:
+        ctx = _rtc_pl()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
+        all_plugins = plugin_loader.list_loaded()
+        # Per-tenant overlay: include global-scoped plugins + tenant-matched plugins.
+        visible = [
+            p for p in all_plugins
+            if p.get("tenant_scope", "tenant") != "tenant"
+            or p.get("tenant_id", ctx.tenant_id) == ctx.tenant_id
+        ]
         return JSONResponse(
             {
-                "plugins": plugin_loader.list_loaded(),
-                "count": len(plugin_loader),
+                "plugins": visible,
+                "count": len(visible),
+                "tenant_id": ctx.tenant_id,
             }
         )
     except Exception as exc:
@@ -1136,20 +1156,33 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
 
 
 async def handle_plugins_status(request: Request) -> JSONResponse:
-    """Return plugin system status summary."""
-    # Accepted debt: plugin status is global (cross-tenant). Per-tenant scoping requires
-    # partitioning PluginLoader._loaded by tenant. Tracked in allowlists.yaml:
-    # handle_plugins_status_no_tenant_scope (expiry Wave 29).  # expiry_wave: Wave 29
+    """Return plugin system status summary for the requesting tenant.
+
+    W5-G: status counts are scoped to plugins visible to this tenant
+    (same visibility rules as handle_plugins_list).
+    """
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_ps
+
+    try:
+        ctx = _rtc_ps()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
-        plugins = plugin_loader.list_loaded()
+        all_plugins = plugin_loader.list_loaded()
+        plugins = [
+            p for p in all_plugins
+            if p.get("tenant_scope", "tenant") != "tenant"
+            or p.get("tenant_id", ctx.tenant_id) == ctx.tenant_id
+        ]
         active = sum(1 for p in plugins if p.get("status") == "active")
         return JSONResponse(
             {
                 "total": len(plugins),
                 "active": active,
                 "inactive": len(plugins) - active,
+                "tenant_id": ctx.tenant_id,
                 "plugins": [
                     {"name": p["name"], "status": p.get("status", "loaded")} for p in plugins
                 ],

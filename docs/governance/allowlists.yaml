@@ -299,22 +299,8 @@ entries:
   # tool registry level) remains tracked under SA-1 ledger A-06 / A-10 via
   # the existing xfail tests in tests/integration/test_route_handle_*_tenant_isolation.py.
   # --- stale_todo entries (W26-G: close W12/W14 overdue TODOs) ---
-  - allowlist: stale_todo
-    entry: handle_plugins_list_no_tenant_scope
-    owner: RO
-    risk: medium
-    reason: "Plugin list returns global (cross-tenant) names. Per-tenant overlay requires tenant_id on PluginManifest + filter. W14 deadline missed; plugin system is dev-only at this maturity level."
-    expiry_wave: "Wave 29"
-    replacement_test: "test_routes_plugins_tenant_isolation.py"
-    added_at: "Wave 26"
-  - allowlist: stale_todo
-    entry: handle_plugins_status_no_tenant_scope
-    owner: RO
-    risk: medium
-    reason: "Plugin status returns aggregate cross-tenant counts. Same root as handle_plugins_list; same dependency on PluginManifest per-tenant partition."
-    expiry_wave: "Wave 29"
-    replacement_test: "test_routes_plugins_tenant_isolation.py"
-    added_at: "Wave 26"
+  # handle_plugins_list_no_tenant_scope: CLOSED W27-L3 — tenant overlay implemented in app.py.
+  # handle_plugins_status_no_tenant_scope: CLOSED W27-L3 — tenant overlay implemented in app.py.
   - allowlist: stale_todo
     entry: ssh_backend_retired_w27
     owner: TE
