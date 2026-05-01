@@ -165,6 +165,11 @@ jobs:
         run: python scripts/check_manifest_freshness.py --json
 
       - name: Release identity (W16-A8)
+        # TODO: promote to blocking in W28 once manifest commit is atomic at release HEAD.
+        # Manifest is generated at the functional commit but committed in a docs-only
+        # follow-on; --allow-docs-only-gap is the right exemption (same as verification
+        # artifacts check above). Promotion target: W28 when CI generates+commits manifest
+        # in a single atomic step.
         run: python scripts/check_release_identity.py --json --allow-docs-only-gap
 
       - name: Recurrence ledger (W16-G3)
