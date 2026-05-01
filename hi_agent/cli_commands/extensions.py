@@ -131,6 +131,61 @@ def run_inspect(args) -> None:
         sys.exit(1)
 
 
+def run_upgrade(args) -> None:
+    """Upgrade a registered extension to a new version.
+
+    Wires to ExtensionRegistry.upgrade().  The new version must already be
+    registered; this is a placeholder that reports the intended operation.
+
+    Args:
+        args: Parsed CLI arguments with name and version fields.
+    """
+    from hi_agent.contracts.extension_manifest import get_extension_registry
+
+    name: str = args.name
+    version: str = args.version
+    registry = get_extension_registry()
+
+    current = registry.lookup(name)
+    if current is None:
+        print(f"error: extension {name!r} is not registered", file=sys.stderr)
+        sys.exit(1)
+
+    current_version = getattr(current, "version", "?")
+    print(
+        f"upgrade: {name!r} {current_version!r} -> {version!r} "
+        "(wire a new manifest via registry.upgrade() to complete)"
+    )
+
+
+def run_rollback(args) -> None:
+    """Roll back a registered extension to its previous version.
+
+    Wires to ExtensionRegistry.rollback().
+
+    Args:
+        args: Parsed CLI arguments with name field.
+    """
+    from hi_agent.contracts.extension_manifest import get_extension_registry
+
+    name: str = args.name
+    registry = get_extension_registry()
+
+    try:
+        registry.rollback(name)
+    except KeyError as exc:
+        _ext_errors_total.inc()
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:
+        _ext_errors_total.inc()
+        logger.warning("extensions.rollback_error error=%s", exc)
+        print(f"error: rollback failed — {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"rollback: {name!r} rolled back to previous version")
+
+
 def run_validate(args) -> None:
     """Validate a manifest JSON file against ExtensionRegistry rules.
 
@@ -256,6 +311,19 @@ def build_extensions_parser(subparsers) -> None:
         "Defaults to HI_AGENT_POSTURE env var.",
     )
 
+    # upgrade
+    upgrade_parser = ext_sub.add_parser(
+        "upgrade", help="Upgrade a registered extension to a new version"
+    )
+    upgrade_parser.add_argument("name", help="Extension name to upgrade")
+    upgrade_parser.add_argument("version", help="New version string")
+
+    # rollback
+    rollback_parser = ext_sub.add_parser(
+        "rollback", help="Roll back a registered extension to its previous version"
+    )
+    rollback_parser.add_argument("name", help="Extension name to roll back")
+
 
 def run_extensions(args) -> None:
     """Dispatch extensions subcommands."""
@@ -266,8 +334,15 @@ def run_extensions(args) -> None:
         run_inspect(args)
     elif action == "validate":
         run_validate(args)
+    elif action == "upgrade":
+        run_upgrade(args)
+    elif action == "rollback":
+        run_rollback(args)
     else:
-        print("Usage: hi-agent extensions [list|inspect|validate]", file=sys.stderr)
+        print(
+            "Usage: hi-agent extensions [list|inspect|validate|upgrade|rollback]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 

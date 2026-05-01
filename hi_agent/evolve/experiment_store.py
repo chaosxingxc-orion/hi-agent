@@ -33,6 +33,22 @@ class ExperimentStore(Protocol):
         """Return trial by ID, or None if not found."""
         ...
 
+    def rollback(self, experiment_id: str) -> None:
+        """Mark a running or paused experiment as rolled_back.
+
+        Args:
+            experiment_id: ID of the experiment to roll back.
+
+        Raises:
+            KeyError: If the experiment is not found.
+            ValueError: If the experiment is already in a terminal state
+                (completed, aborted, or rolled_back).
+        """
+        ...
+
+
+_TERMINAL_STATUSES: frozenset[str] = frozenset({"completed", "aborted", "rolled_back"})
+
 
 class InMemoryExperimentStore:
     """In-memory ExperimentStore for dev posture.
@@ -71,6 +87,30 @@ class InMemoryExperimentStore:
 
     def get_experiment(self, experiment_id: str) -> EvolutionTrial | None:
         return self._records.get(experiment_id)
+
+    def rollback(self, experiment_id: str) -> None:
+        record = self._records.get(experiment_id)
+        if record is None:
+            raise KeyError(
+                f"InMemoryExperimentStore.rollback: experiment {experiment_id!r} not found"
+            )
+        if record.status in _TERMINAL_STATUSES:
+            raise ValueError(
+                f"InMemoryExperimentStore.rollback: experiment {experiment_id!r} is already "
+                f"in terminal state {record.status!r}; cannot roll back"
+            )
+        self._records[experiment_id] = EvolutionTrial(
+            experiment_id=record.experiment_id,
+            capability_name=record.capability_name,
+            baseline_version=record.baseline_version,
+            candidate_version=record.candidate_version,
+            metric_name=record.metric_name,
+            started_at=record.started_at,
+            status="rolled_back",
+            tenant_id=record.tenant_id,
+            project_id=record.project_id,
+            run_id=record.run_id,
+        )
 
 
 _CREATE_TABLE = """
@@ -206,6 +246,26 @@ class SqliteExperimentStore:
         if row is None:
             return None
         return _row_to_experiment(row)
+
+    def rollback(self, experiment_id: str) -> None:
+        record = self.get_experiment(experiment_id)
+        if record is None:
+            raise KeyError(
+                f"SqliteExperimentStore.rollback: experiment {experiment_id!r} not found"
+            )
+        if record.status in _TERMINAL_STATUSES:
+            raise ValueError(
+                f"SqliteExperimentStore.rollback: experiment {experiment_id!r} is already "
+                f"in terminal state {record.status!r}; cannot roll back"
+            )
+        now = datetime.now(UTC).isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE evolution_experiments SET status = ?, updated_at = ? "
+                "WHERE experiment_id = ?",
+                ("rolled_back", now, experiment_id),
+            )
+            conn.commit()
 
 
 def make_experiment_store(posture: object, data_dir: str) -> ExperimentStore:
