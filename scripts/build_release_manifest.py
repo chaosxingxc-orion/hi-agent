@@ -681,6 +681,26 @@ def _compute_cap(
                     if sha_part not in file_stem:
                         return f"score_artifact_inconsistent: {sf.name} manifest_id={manifest_id} not in filename"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             return None
+        if condition == "architectural_seven_by_twenty_four":
+            # Cap fires when arch-7x24 evidence is absent or any assertion fails.
+            # Evidence produced by scripts/run_arch_7x24.py at final HEAD.
+            arch_files = sorted(
+                (ROOT / "docs" / "verification").glob("*arch-7x24.json"),
+                key=lambda p: p.stat().st_mtime,
+            )
+            if not arch_files:
+                return "architectural_seven_by_twenty_four: no evidence file found"
+            try:
+                arch_data = json.loads(arch_files[-1].read_text(encoding="utf-8"))
+            except Exception:
+                return "architectural_seven_by_twenty_four: evidence unreadable"
+            assertions = arch_data.get("assertions", {})
+            if not assertions:
+                return "architectural_seven_by_twenty_four: no assertions in evidence"
+            failing = [k for k, v in assertions.items() if v != "PASS"]
+            if failing:
+                return f"architectural_seven_by_twenty_four: failing={', '.join(sorted(failing))}"
+            return None
         return None
 
     matched_factors: list[str] = []
