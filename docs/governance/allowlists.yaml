@@ -331,3 +331,11 @@ entries:
     expiry_wave: "Wave 30"
     replacement_test: "test_ledger_upstream_index_performance.py"
     added_at: "Wave 26"
+  - allowlist: stale_todo
+    entry: ssh_backend_retired_w27
+    owner: TE
+    risk: low
+    reason: "SSHBackend stub retired in W27 per Rule 2 simplicity: 4 NotImplementedError stubs deleted, no in-tree consumer since W10. SSH execution out of scope until real demand arises."
+    expiry_wave: "permanent"
+    replacement_test: "n/a — capability not in scope this release"
+    added_at: "Wave 27"

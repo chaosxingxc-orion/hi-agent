@@ -18,16 +18,6 @@ class TestExperimentBackendProtocol:
         for method in required:
             assert hasattr(backend, method), f"LocalBackend missing method: {method}"
 
-    def test_ssh_backend_implements_protocol(self):
-        """SSHBackend must satisfy ExperimentBackend protocol."""
-        from hi_agent.operations.backend.ssh import SSHBackend
-
-        required = ["submit", "status", "fetch_artifacts", "cancel"]
-        backend = SSHBackend(host="localhost", user="test", work_dir="/tmp")
-        for method in required:
-            assert hasattr(backend, method), f"SSHBackend missing method: {method}"
-
-
 class TestLocalBackend:
     @pytest.fixture
     def backend(self, tmp_path):
@@ -104,16 +94,6 @@ class TestLocalBackend:
     def test_status_unknown_for_nonexistent_ext_id(self, backend):
         """Unknown external_id must return 'unknown'."""
         assert backend.status("does-not-exist") == "unknown"
-
-
-class TestSSHBackendStub:
-    def test_ssh_backend_submit_raises_not_configured(self):
-        """SSHBackend stub must raise when called without real SSH setup."""
-        from hi_agent.operations.backend.ssh import SSHBackend
-
-        backend = SSHBackend(host="localhost", user="test", work_dir="/tmp")
-        with pytest.raises((NotImplementedError, RuntimeError, Exception)):
-            backend.submit({"command": "echo hi"})
 
 
 class TestBackendIntegrationWithCoordinator:
