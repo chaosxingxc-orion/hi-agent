@@ -98,7 +98,7 @@ class GraphExecutor:
         if terminal_ids:
             all_done = all(
                 self.graph.get_node(tid) is not None
-                and self.graph.get_node(tid).state  # type: ignore[union-attr]  expiry_wave: Wave 28
+                and self.graph.get_node(tid).state  # type: ignore[union-attr]  expiry_wave: Wave 29
                 in (NodeState.COMPLETED, NodeState.SKIPPED, NodeState.FAILED)
                 for tid in terminal_ids
             )

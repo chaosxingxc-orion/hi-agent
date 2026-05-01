@@ -106,7 +106,7 @@ ON idempotency_records (tenant_id, idempotency_key)
         cols = {row[1] for row in cx.execute("PRAGMA table_info(idempotency_records)")}
         if "project_id" not in cols:
             cx.execute(
-                "ALTER TABLE idempotency_records ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"  # migration compat: legacy rows get empty string  # noqa: E501  # expiry_wave: Wave 28
+                "ALTER TABLE idempotency_records ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"  # migration compat: legacy rows get empty string  # noqa: E501  # expiry_wave: Wave 29
             )
         if "user_id" not in cols:
             cx.execute(

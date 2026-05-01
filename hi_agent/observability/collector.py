@@ -836,7 +836,7 @@ class MetricsCollector:
         self.gauge_set("hi_agent_thread_count", float(_threading.active_count()))
         if _sys.platform != "win32":
             try:
-                import psutil  # type: ignore[import-untyped]  # expiry_wave: Wave 28
+                import psutil  # type: ignore[import-untyped]  # expiry_wave: Wave 29
                 self.gauge_set("hi_agent_open_fd_count", float(psutil.Process().num_fds()))
             except Exception as exc:
                 _logger.warning("collector.sample_process_metrics: psutil fd count failed: %s", exc)

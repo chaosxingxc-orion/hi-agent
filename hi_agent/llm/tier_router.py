@@ -263,11 +263,11 @@ class TierRouter:
         target_tier = self._resolve_tier(
             purpose,
             complexity,
-            kwargs.get("budget_remaining_usd"),  # type: ignore[arg-type]  expiry_wave: Wave 28
-            kwargs.get("skill_confidence"),  # type: ignore[arg-type]  expiry_wave: Wave 28  # scope: complex-union-resolution — dict.get returns Any; typed kwarg overloads pending
+            kwargs.get("budget_remaining_usd"),  # type: ignore[arg-type]  expiry_wave: Wave 29
+            kwargs.get("skill_confidence"),  # type: ignore[arg-type]  expiry_wave: Wave 29  # scope: complex-union-resolution — dict.get returns Any; typed kwarg overloads pending
         )
-        required_caps: list[str] | None = kwargs.get("required_capabilities")  # type: ignore[assignment]  expiry_wave: Wave 28
-        min_ctx: int = kwargs.get("min_context_window", 0)  # type: ignore[assignment]  expiry_wave: Wave 28  # scope: complex-union-resolution — dict.get returns Any; typed kwarg overloads pending
+        required_caps: list[str] | None = kwargs.get("required_capabilities")  # type: ignore[assignment]  expiry_wave: Wave 29
+        min_ctx: int = kwargs.get("min_context_window", 0)  # type: ignore[assignment]  expiry_wave: Wave 29  # scope: complex-union-resolution — dict.get returns Any; typed kwarg overloads pending
 
         # Try target tier
         model = self._find_in_tier(target_tier, required_caps, min_ctx)
@@ -533,7 +533,7 @@ class TierAwareLLMGateway:
                     run_id=meta.get("run_id") or "unknown",
                 )
 
-        return self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 28
+        return self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 29
 
     def stream(self, request: object) -> Iterator[object]:
         """Stream response chunks with tier-based model selection.
@@ -584,7 +584,7 @@ class TierAwareLLMGateway:
             yield from inner_stream(request)
         else:
             # Fallback: single-chunk yield from complete()
-            resp = self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 28
+            resp = self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 29
             yield LLMStreamChunk(
                 delta=getattr(resp, "content", ""),
                 finish_reason=getattr(resp, "finish_reason", "stop"),
@@ -641,8 +641,8 @@ class TierAwareLLMGateway:
                     run_id=meta.get("run_id") or "unknown",
                 )
 
-        return await self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 28
+        return await self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 29
 
     def supports_model(self, model: str) -> bool:
         """Delegate to inner gateway."""
-        return self._inner.supports_model(model)  # type: ignore[union-attr]  expiry_wave: Wave 28
+        return self._inner.supports_model(model)  # type: ignore[union-attr]  expiry_wave: Wave 29

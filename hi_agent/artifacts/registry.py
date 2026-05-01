@@ -91,7 +91,7 @@ class ArtifactRegistry:
             for field in ("tenant_id", "user_id", "session_id", "project_id", "run_id"):
                 if field not in kwargs and getattr(exec_ctx, field, ""):
                     kwargs[field] = getattr(exec_ctx, field)
-        artifact = Artifact(artifact_type=artifact_type, **kwargs)  # type: ignore[arg-type]  expiry_wave: Wave 28  # scope: complex-union-resolution — **kwargs spread over optional fields; mypy can't verify complete coverage
+        artifact = Artifact(artifact_type=artifact_type, **kwargs)  # type: ignore[arg-type]  expiry_wave: Wave 29  # scope: complex-union-resolution — **kwargs spread over optional fields; mypy can't verify complete coverage
         # A-11: when caller did not pin artifact_id and the type is
         # content-addressable, derive id from hash before storing so subsequent
         # idempotent registrations of the same content map to the same id.

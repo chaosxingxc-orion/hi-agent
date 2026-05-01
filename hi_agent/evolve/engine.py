@@ -388,7 +388,7 @@ class EvolveEngine:
             ]
             if routing_changes:
                 try:
-                    route_engine.apply_evolve_changes(routing_changes)  # type: ignore[union-attr]  expiry_wave: Wave 28
+                    route_engine.apply_evolve_changes(routing_changes)  # type: ignore[union-attr]  expiry_wave: Wave 29
                     _logger.info(
                         "batch_evolve.route_changes_applied scope=%s count=%d",
                         change_scope,

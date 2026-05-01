@@ -341,7 +341,7 @@ class KernelFacadeAdapter:
             BranchStateUpdateRequest(
                 run_id=normalized_run,
                 branch_id=normalized_branch,
-                new_state=normalized_state,  # type: ignore[arg-type]  expiry_wave: Wave 28
+                new_state=normalized_state,  # type: ignore[arg-type]  expiry_wave: Wave 29
                 failure_code=failure_val,
                 reason=reason,
             ),
@@ -373,12 +373,12 @@ class KernelFacadeAdapter:
             "open_human_gate",
             KernelHumanGateRequest(
                 gate_ref=self._non_empty(request.gate_ref, "gate_ref"),
-                gate_type=self._non_empty(request.gate_type, "gate_type"),  # type: ignore[arg-type]  expiry_wave: Wave 28
+                gate_type=self._non_empty(request.gate_type, "gate_type"),  # type: ignore[arg-type]  expiry_wave: Wave 29
                 run_id=self._non_empty(request.run_id, "run_id"),
                 trigger_reason=str(
                     context.get("trigger_reason") or context.get("reason") or "human_gate_requested"
                 ),
-                trigger_source=str(context.get("trigger_source") or "system"),  # type: ignore[arg-type]  expiry_wave: Wave 28
+                trigger_source=str(context.get("trigger_source") or "system"),  # type: ignore[arg-type]  expiry_wave: Wave 29
                 stage_id=context.get("stage_id"),
                 branch_id=context.get("branch_id"),
                 artifact_ref=context.get("artifact_ref"),

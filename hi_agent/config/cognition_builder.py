@@ -230,12 +230,12 @@ class CognitionBuilder:
                         with self._lock:
                             if self._llm_budget_tracker is None:
                                 self._llm_budget_tracker = self._build_llm_budget_tracker()
-                            self._llm_gateway = gw  # type: ignore[assignment]  expiry_wave: Wave 28
+                            self._llm_gateway = gw  # type: ignore[assignment]  expiry_wave: Wave 29
                             # Mirror the env-var path: expose _tier_router on the builder
                             # so that downstream consumers (e.g. _build_delegation_manager)
                             # can reach the router without accessing a private attribute of gw.
                             if self._tier_router is None and hasattr(gw, "_tier_router"):
-                                self._tier_router = gw._tier_router  # type: ignore[union-attr]  expiry_wave: Wave 28
+                                self._tier_router = gw._tier_router  # type: ignore[union-attr]  expiry_wave: Wave 29
                         _logger.info(
                             "build_llm_gateway: activated from llm_config.json (provider=%r)",
                             _dp,
@@ -275,7 +275,7 @@ class CognitionBuilder:
                     if self._llm_budget_tracker is None:
                         self._llm_budget_tracker = self._build_llm_budget_tracker()
                     if provider == "anthropic":
-                        from hi_agent.llm.protocol import LLMGateway  # noqa: F401  expiry_wave: Wave 28
+                        from hi_agent.llm.protocol import LLMGateway  # noqa: F401  expiry_wave: Wave 29
 
                         raw_gateway: LLMGateway = AnthropicLLMGateway(
                             api_key_env=env_var,
@@ -334,7 +334,7 @@ class CognitionBuilder:
                         self._config, "startup_cost_history", None
                     )
                     self._wire_cost_optimizer(tier_router, startup_history)
-                    self._llm_gateway = TierAwareLLMGateway(raw_gateway, tier_router, registry)  # type: ignore[assignment]  expiry_wave: Wave 28
+                    self._llm_gateway = TierAwareLLMGateway(raw_gateway, tier_router, registry)  # type: ignore[assignment]  expiry_wave: Wave 29
                     return self._llm_gateway
 
         is_prod = os.environ.get("HI_AGENT_ENV", "dev").lower() == "prod"

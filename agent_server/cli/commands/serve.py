@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 
-def register(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]  # expiry_wave: Wave 28
+def register(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]  # expiry_wave: Wave 29
     parser = subparsers.add_parser(
         "serve",
         help="Boot the agent_server ASGI app (delegates to python -m hi_agent serve).",

@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 
 
-def register(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]  # expiry_wave: Wave 28
+def register(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]  # expiry_wave: Wave 29
     parser = subparsers.add_parser(
         "run",
         help="POST a run request to /v1/runs.",
