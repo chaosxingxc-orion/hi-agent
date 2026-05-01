@@ -75,7 +75,7 @@ class ExtensionManifest(Protocol):
 
     Enforcement fields:
         required_posture: Minimum posture required to enable this extension.
-            "any" | "dev" | "strict" | "prod"  ("research" is deprecated; Wave 28 removal)
+            "any" | "dev" | "strict" | "prod"  ("research" is deprecated; Wave 29 removal)
         tenant_scope: Isolation scope of this extension.
             "global" | "tenant" | "user" | "session"
         dangerous_capabilities: List of dangerous capability tags, e.g.
@@ -92,7 +92,7 @@ class ExtensionManifest(Protocol):
     posture_support: dict[str, bool]
 
     # -- Enforcement fields --
-    required_posture: str  # "any" | "dev" | "strict" | "prod"  ("research" deprecated Wave 28)
+    required_posture: str  # "any" | "dev" | "strict" | "prod"  ("research" deprecated Wave 29)
     tenant_scope: str  # "global" | "tenant" | "user" | "session"
     dangerous_capabilities: list[str]  # e.g. ["filesystem_write", "network_egress"]
     config_schema: dict | None  # JSON Schema for config; None = no config required
@@ -145,7 +145,7 @@ class ExtensionManifestMixin:
         # Deprecation: "research" is a legacy alias for "strict"; map it and warn.
         if rp == "research":
             warnings.warn(
-                "required_posture='research' is deprecated and will be removed in Wave 28. "
+                "required_posture='research' is deprecated and will be removed in Wave 29. "
                 "Use 'strict' instead.",
                 DeprecationWarning,
                 stacklevel=2,

@@ -3,11 +3,11 @@ import warnings
 
 warnings.warn(
     "hi_agent.plugin.manifest is deprecated; use hi_agent.plugins.manifest instead. "
-    "This shim will be removed in Wave 28.",
+    "This shim will be removed in Wave 29.",
     DeprecationWarning,
     stacklevel=2,
 )
-from hi_agent.plugins.manifest import *  # noqa: F403  expiry_wave: Wave 28
+from hi_agent.plugins.manifest import *  # noqa: F403  expiry_wave: Wave 29
 from hi_agent.plugins.manifest import (
-    PluginManifest,  # noqa: F401  expiry_wave: Wave 28  # scope: legacy-compatibility — re-export shim for backward compat
+    PluginManifest,  # noqa: F401  expiry_wave: Wave 29  # scope: legacy-compatibility — re-export shim for backward compat
 )

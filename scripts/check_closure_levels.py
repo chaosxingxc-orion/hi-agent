@@ -33,7 +33,7 @@ _VALID_LEVELS = frozenset({
     "in_progress",
     "deferred",
 })
-# Legacy Rule 13 levels used in notices before Wave 12 introduced Rule 15 taxonomy.
+# Legacy Rule 13 levels (l0–l4) from pre-Rule-15 closure notices.
 _LEGACY_LEVELS = frozenset({"l0", "l1", "l2", "l3", "l4"})
 
 

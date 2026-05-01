@@ -94,7 +94,7 @@ jobs:
         run: python scripts/check_targeted_default_path.py --json
 
       - name: Check verification artifacts (W14-A1)
-        # TODO: promote to blocking in W26 once verify-on-functional-HEAD lands.
+        # TODO: promote to blocking in W29 once verify-on-functional-HEAD lands.
         # The release-gate workflow runs against `git rev-parse HEAD`, which is
         # always one commit past any locally-committed artifact (the artifact-
         # commit itself moves HEAD). --allow-docs-only-gap accepts artifacts
@@ -165,11 +165,11 @@ jobs:
         run: python scripts/check_manifest_freshness.py --json
 
       - name: Release identity (W16-A8)
-        # TODO: promote to blocking in W28 once manifest commit is atomic at release HEAD.
+        # TODO: promote to blocking in W29 once manifest commit is atomic at release HEAD.
         # Manifest is generated at the functional commit but committed in a docs-only
         # follow-on; --allow-docs-only-gap is the right exemption (same as verification
-        # artifacts check above). Promotion target: W28 when CI generates+commits manifest
-        # in a single atomic step.
+        # artifacts check above). Promotion target: W29 when CI generates+commits manifest
+        # in a single atomic step. Tracked in recurrence-ledger.yaml as W28-E.
         run: python scripts/check_release_identity.py --json --allow-docs-only-gap
 
       - name: Recurrence ledger (W16-G3)

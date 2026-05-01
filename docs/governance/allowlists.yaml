@@ -5,7 +5,7 @@
 # risk: low | medium | high
 
 schema_version: "1"
-current_wave: 27
+current_wave: 28
 
 # ---------------------------------------------------------------------------
 # route_scope_allowlist: loaded by scripts/check_route_scope.py
