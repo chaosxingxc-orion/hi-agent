@@ -264,10 +264,10 @@ class TierRouter:
             purpose,
             complexity,
             kwargs.get("budget_remaining_usd"),  # type: ignore[arg-type]  expiry_wave: Wave 28
-            kwargs.get("skill_confidence"),  # type: ignore[arg-type]
+            kwargs.get("skill_confidence"),  # type: ignore[arg-type]  expiry_wave: Wave 28  # scope: complex-union-resolution — dict.get returns Any; typed kwarg overloads pending
         )
         required_caps: list[str] | None = kwargs.get("required_capabilities")  # type: ignore[assignment]  expiry_wave: Wave 28
-        min_ctx: int = kwargs.get("min_context_window", 0)  # type: ignore[assignment]
+        min_ctx: int = kwargs.get("min_context_window", 0)  # type: ignore[assignment]  expiry_wave: Wave 28  # scope: complex-union-resolution — dict.get returns Any; typed kwarg overloads pending
 
         # Try target tier
         model = self._find_in_tier(target_tier, required_caps, min_ctx)

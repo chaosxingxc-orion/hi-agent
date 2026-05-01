@@ -11,7 +11,7 @@ import urllib.parse
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 
 
-class URLPolicyViolation(Exception):  # noqa: N818 - public API keeps the established name.
+class URLPolicyViolation(Exception):  # noqa: N818  # scope: legacy-compatibility — public API name established before N818; rename would break callers
     """Raised when a URL fails security policy."""
 
 

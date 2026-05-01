@@ -129,7 +129,7 @@ class PostmortemEngine:
     """
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._db_path)  # type: ignore[arg-type]
+        conn = sqlite3.connect(str(self._db_path))
         conn.execute("PRAGMA journal_mode=WAL")
         return conn
 

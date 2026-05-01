@@ -12,4 +12,6 @@ warnings.warn(
     stacklevel=2,
 )
 from hi_agent.plugins import *  # noqa: F403  expiry_wave: Wave 28
-from hi_agent.plugins import __all__  # noqa: F401
+from hi_agent.plugins import (
+    __all__,  # noqa: F401  expiry_wave: Wave 28  # scope: legacy-compatibility — re-export shim for backward compat; removed in Wave 27
+)

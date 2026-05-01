@@ -265,7 +265,7 @@ class StageExecutor:
             # TierAwareLLMGateway can apply budget-driven tier downgrade.
             if not hasattr(executor, "_llm_metadata"):
                 executor._llm_metadata = {}  # type: ignore[attr-defined]  expiry_wave: Wave 28
-            executor._llm_metadata["budget_remaining"] = self.budget_guard.remaining_fraction  # type: ignore[attr-defined]
+            executor._llm_metadata["budget_remaining"] = self.budget_guard.remaining_fraction  # type: ignore[attr-defined]  expiry_wave: Wave 28  # scope: dynamic-attribute — _llm_metadata set dynamically on executor; typed field pending
 
         # --- Auto-compress before routing (lazy compaction) ---
         if self.auto_compress is not None and executor.session is not None:

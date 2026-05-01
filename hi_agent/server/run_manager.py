@@ -1023,7 +1023,7 @@ class RunManager:
             )
             engine = self._postmortem_engine
             if hasattr(engine, "on_project_completed"):
-                engine.on_project_completed(run.project_id, retro)  # type: ignore[union-attr]
+                engine.on_project_completed(run.project_id, retro)  # type: ignore[union-attr]  expiry_wave: Wave 28  # scope: complex-union-resolution — hasattr guard narrows type but mypy can't infer it
         except Exception as exc:
             logger.warning(
                 "_notify_postmortem_engine: failed for run_id=%s project_id=%s: %s",

@@ -18,7 +18,7 @@ from enum import Enum
 from typing import Any
 
 
-class FallbackPolicy(str, Enum):  # noqa: UP042 - preserve existing str(EnumMember) behaviour.
+class FallbackPolicy(str, Enum):  # noqa: UP042  # scope: legacy-compatibility — str(EnumMember) behaviour used by downstream serialization
     """Behaviour when a bound capability is unavailable at runtime."""
 
     FAIL = "fail"  # Fail the stage with an explicit error

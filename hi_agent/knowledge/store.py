@@ -212,7 +212,7 @@ class InMemoryKnowledgeStore:
         """
         records = self.all_records()
         by_source: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: Wave 28
-        tag_dist: dict[str, int] = Counter()  # type: ignore[assignment]
+        tag_dist: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: Wave 28  # scope: complex-union-resolution — Counter is dict[Any,int]; stub gap
         for rec in records:
             by_source[rec.source] += 1
             for tag in rec.tags:

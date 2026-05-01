@@ -69,7 +69,7 @@ class AsyncHTTPGateway:
             max_retries=max_retries,
             retry_base_seconds=retry_base_seconds,
             failover_chain=failover_chain,  # type: ignore[arg-type]  expiry_wave: Wave 28
-            cache_injector=cache_injector,  # type: ignore[arg-type]
+            cache_injector=cache_injector,  # type: ignore[arg-type]  expiry_wave: Wave 28  # scope: third-party-stub-gap — Optional[PromptCacheInjector] vs None union
             budget_tracker=budget_tracker,  # type: ignore[arg-type]  expiry_wave: Wave 28
         )
         self._retry_base = retry_base_seconds
