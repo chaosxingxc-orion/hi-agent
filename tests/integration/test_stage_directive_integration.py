@@ -13,12 +13,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from hi_agent.contracts.directives import InsertSpec, StageDirective
 from hi_agent.execution.stage_orchestrator import StageOrchestrator, StageOrchestratorContext
 from hi_agent.trajectory.stage_graph import StageGraph
-
 
 # ---------------------------------------------------------------------------
 # Helpers: build a real StageGraph and a minimal context

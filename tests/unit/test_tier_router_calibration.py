@@ -6,11 +6,11 @@ from unittest.mock import MagicMock
 
 from hi_agent.llm.registry import ModelRegistry, ModelTier
 from hi_agent.llm.tier_router import (
-    TierRouter,
     _CALIBRATION_MIN_SAMPLES,
     _CALIBRATION_WINDOW,
     _QUALITY_DOWNGRADE_THRESHOLD,
     _QUALITY_UPGRADE_THRESHOLD,
+    TierRouter,
 )
 
 
@@ -62,7 +62,7 @@ class TestIngestSignalStorage:
 
     def test_window_capped(self):
         router = _router()
-        for i in range(_CALIBRATION_WINDOW + 5):
+        for _i in range(_CALIBRATION_WINDOW + 5):
             router.ingest_calibration_signal(_fake_signal("light", 0.5))
         assert len(router._calibration_stats["light"]) == _CALIBRATION_WINDOW
 
@@ -72,7 +72,7 @@ class TestUpgradeCalibration:
         router = _router()
         router.set_tier("perception", ModelTier.LIGHT)
         # Insufficient samples: no change
-        for i in range(_CALIBRATION_MIN_SAMPLES - 1):
+        for _i in range(_CALIBRATION_MIN_SAMPLES - 1):
             router.ingest_calibration_signal(_fake_signal(ModelTier.LIGHT, 0.1))
         assert router.get_tier_for_purpose("perception") == ModelTier.LIGHT
         # Exactly min_samples: triggers upgrade
@@ -114,7 +114,7 @@ class TestDowngradeCalibration:
     def test_downgrade_fires_after_min_samples(self):
         router = _router()
         router.set_tier("routing", ModelTier.STRONG)
-        for i in range(_CALIBRATION_MIN_SAMPLES - 1):
+        for _i in range(_CALIBRATION_MIN_SAMPLES - 1):
             router.ingest_calibration_signal(_fake_signal(ModelTier.STRONG, 0.99))
         assert router.get_tier_for_purpose("routing") == ModelTier.STRONG
         router.ingest_calibration_signal(_fake_signal(ModelTier.STRONG, 0.99))
