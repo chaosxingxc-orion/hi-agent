@@ -103,31 +103,28 @@ ALERT_RULES: list[LedgerAlertRule] = [
         runbook="docs/runbooks/ownership-accountability-weak.md",
         issue_id="S4-10",
     ),
-    # W17-A: release gate continue-on-error weakening
     LedgerAlertRule(
         name="hi_agent_release_gate_weakening_alert",
         metric="hi_agent_release_gate_continue_on_error_total",
         condition="counter > 0 for 1m",
         severity="critical",
         runbook="docs/runbooks/release-gate-weakening.md",
-        issue_id="W17-A",
+        issue_id="RLG-1",
     ),
-    # W17-B: cross-tenant primitive footgun (allowlist expiry)
     LedgerAlertRule(
         name="hi_agent_cross_tenant_footgun_alert",
         metric="hi_agent_cross_tenant_allowlist_expiry_total",
         condition="counter > 0 for 5m",
         severity="critical",
         runbook="docs/runbooks/cross-tenant-primitive-footgun.md",
-        issue_id="W17-B",
+        issue_id="RLG-2",
     ),
-    # W17-C: test theatre detected (heuristic fallback scope violation)
     LedgerAlertRule(
         name="hi_agent_test_theatre_alert",
         metric="hi_agent_test_theatre_detected_total",
         condition="counter > 0 for 5m",
         severity="warning",
         runbook="docs/runbooks/test-theatre-passing-via-fallback.md",
-        issue_id="W17-C",
+        issue_id="RLG-3",
     ),
 ]

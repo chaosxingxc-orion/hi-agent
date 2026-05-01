@@ -764,7 +764,7 @@ class RunManager:
                     json.dumps(self.to_dict(run)),
                     terminal_state=_terminal,
                 )
-            # W10-M.3: notify PostmortemEngine when a project-scoped run is terminal.
+            # Notify PostmortemEngine when a project-scoped run is terminal.
             if self._postmortem_engine is not None and run.project_id:
                 self._notify_postmortem_engine(run)
 
@@ -999,12 +999,12 @@ class RunManager:
                     json.dumps(self.to_dict(run)),
                     terminal_state=_terminal,
                 )
-            # W10-M.3: notify PostmortemEngine when a project-scoped run is terminal.
+            # Notify PostmortemEngine when a project-scoped run is terminal.
             if self._postmortem_engine is not None and run.project_id:
                 self._notify_postmortem_engine(run)
 
     def _notify_postmortem_engine(self, run: ManagedRun) -> None:
-        """W10-M.3: Call PostmortemEngine.on_project_completed for project-scoped runs.
+        """Call PostmortemEngine.on_project_completed for project-scoped runs.
 
         Builds a minimal ProjectRetrospective from the terminal run and
         delegates to the injected PostmortemEngine.  Never propagates

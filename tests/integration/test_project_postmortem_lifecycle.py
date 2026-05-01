@@ -27,7 +27,7 @@ def _run_sync(manager: RunManager, project_id: str) -> str:
     run = manager.create_run({"task_id": "t1", "project_id": project_id})
     event = threading.Event()
 
-    def executor(r):  # noqa: ANN001, ANN202
+    def executor(r):  # expiry_wave: Wave 28
         event.set()
         return None
 

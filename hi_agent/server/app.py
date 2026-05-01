@@ -1120,13 +1120,9 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
 async def handle_plugins_list(request: Request) -> JSONResponse:
     """Return list of loaded plugins visible to the requesting tenant.
 
-    W5-G: filters plugin list by tenant_id.  PluginManifest.tenant_scope
-    controls visibility: "global" plugins are visible to every tenant;
-    "tenant" plugins (the default) are shown only to the tenant whose
-    tenant_id matches the plugin's registered owner.  Because the current
-    PluginLoader stores global manifests (no per-tenant partition), all
-    plugins with tenant_scope != "tenant" are shown; per-tenant plugins
-    require authentication and always include the requesting tenant's id.
+    Plugin visibility: global-scoped plugins (tenant_scope != 'tenant') are
+    visible to every tenant; per-tenant plugins require the requesting
+    tenant's id to match the plugin's registered owner.
     """
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_pl
 
@@ -1142,7 +1138,7 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
         visible = [
             p for p in all_plugins
             if p.get("tenant_scope", "tenant") != "tenant"
-            or p.get("tenant_id", ctx.tenant_id) == ctx.tenant_id
+            or ctx.tenant_id == p.get("tenant_id", ctx.tenant_id)
         ]
         return JSONResponse(
             {
@@ -1158,7 +1154,7 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
 async def handle_plugins_status(request: Request) -> JSONResponse:
     """Return plugin system status summary for the requesting tenant.
 
-    W5-G: status counts are scoped to plugins visible to this tenant
+    Status counts are scoped to plugins visible to this tenant
     (same visibility rules as handle_plugins_list).
     """
     from hi_agent.server.tenant_context import require_tenant_context as _rtc_ps
@@ -1174,7 +1170,7 @@ async def handle_plugins_status(request: Request) -> JSONResponse:
         plugins = [
             p for p in all_plugins
             if p.get("tenant_scope", "tenant") != "tenant"
-            or p.get("tenant_id", ctx.tenant_id) == ctx.tenant_id
+            or ctx.tenant_id == p.get("tenant_id", ctx.tenant_id)
         ]
         active = sum(1 for p in plugins if p.get("status") == "active")
         return JSONResponse(

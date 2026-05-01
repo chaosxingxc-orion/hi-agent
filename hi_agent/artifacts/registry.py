@@ -275,7 +275,7 @@ class ArtifactRegistry:
     ) -> str:
         """Create and store a new artifact; return its artifact_id.
 
-        This is the write path for the POST /v1/artifacts route (W10-M.2).
+        Write path for POST /v1/artifacts.
         Rule 12: tenant_id and run_id are required and stamped on the record.
         """
         if not tenant_id:

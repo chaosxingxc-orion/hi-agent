@@ -14,7 +14,7 @@ import pytest
 _SKIP_REASON = "Requires operator-shape (PM2 + real LLM). prod_e2e profile. expiry_wave: Wave 28"
 
 
-@pytest.mark.skip(reason=_SKIP_REASON)
+@pytest.mark.skip(reason=_SKIP_REASON)  # expiry_wave: Wave 28
 def test_e2e_trajectory_graph_drives_stages() -> None:
     """Trajectory graph built from a TaskContract drives stage execution end-to-end.
 
@@ -28,7 +28,7 @@ def test_e2e_trajectory_graph_drives_stages() -> None:
     raise NotImplementedError("Requires prod_e2e operator shape")
 
 
-@pytest.mark.skip(reason=_SKIP_REASON)
+@pytest.mark.skip(reason=_SKIP_REASON)  # expiry_wave: Wave 28
 def test_e2e_trajectory_backtrack_recovery() -> None:
     """A TrajectoryGraph with a backtrack edge recovers and reaches COMPLETED.
 
@@ -40,7 +40,7 @@ def test_e2e_trajectory_backtrack_recovery() -> None:
     raise NotImplementedError("Requires prod_e2e operator shape")
 
 
-@pytest.mark.skip(reason=_SKIP_REASON)
+@pytest.mark.skip(reason=_SKIP_REASON)  # expiry_wave: Wave 28
 def test_e2e_replay_restores_completed_run() -> None:
     """ReplayEngine reconstructs a successful run from its event stream.
 
@@ -52,7 +52,7 @@ def test_e2e_replay_restores_completed_run() -> None:
     raise NotImplementedError("Requires prod_e2e operator shape")
 
 
-@pytest.mark.skip(reason=_SKIP_REASON)
+@pytest.mark.skip(reason=_SKIP_REASON)  # expiry_wave: Wave 28
 def test_e2e_replay_from_jsonl_roundtrip() -> None:
     """Events persisted to JSONL by ReplayRecorder reproduce the same ReplayReport.
 

@@ -20,7 +20,7 @@ from hi_agent.evolve.contracts import ProjectRetrospective
 logger = logging.getLogger(__name__)
 
 
-class PostmortemEngine:
+class PostmortemEngine:  # scope: process-internal — injected into RunManager, not in app.py
     """Lifecycle engine for ProjectRetrospective records.
 
     on_project_completed() creates and stores a ProjectRetrospective from
