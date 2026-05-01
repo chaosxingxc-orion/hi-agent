@@ -28,12 +28,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
-
 from agent_server.api import build_app
 from agent_server.contracts.errors import NotFoundError
 from agent_server.facade.run_facade import RunFacade
-
+from fastapi.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Minimal stub backend so build_app's required run_facade is satisfied.
@@ -292,7 +290,7 @@ def test_post_memory_write_response_contains_all_envelope_fields(
 
 
 @pytest.mark.integration
-def test_post_memory_write_default_tier_is_L0(client: TestClient) -> None:
+def test_post_memory_write_default_tier_is_l0(client: TestClient) -> None:
     """When tier is omitted the handler defaults to L0."""
     body = {"key": "auto-tier-key", "value": "some-value"}
     resp = client.post("/v1/memory/write", json=body, headers=_headers())

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import pathlib
 import subprocess
-import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 _SCAN_DIRS = ["hi_agent", "agent_kernel", "agent_server"]
@@ -63,7 +62,10 @@ def main() -> None:
         else:
             f.write("No zero-inbound candidates found.\n")
         f.write("\n## Proposed Deletions\n\n")
-        f.write("None proposed in W28. All candidates require manual verification before deletion.\n")
+        f.write(
+            "None proposed in W28. All candidates require manual verification"
+            " before deletion.\n"
+        )
         f.write("Formal deletion of confirmed dead code deferred to W29.\n")
 
     print(f"Written: {out_path}")

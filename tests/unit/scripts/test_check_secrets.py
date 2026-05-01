@@ -45,15 +45,15 @@ def test_check_releases_file_exists() -> None:
 def test_uuid_in_api_key_context_flagged(tmp_path: Path) -> None:
     """'Rotate Volces API key <uuid>' in a releases JSON is flagged."""
     mod = _load_module()
-    check_fn = getattr(mod, "check_releases_file")
+    check_fn = mod.check_releases_file
     f = tmp_path / "signoff.json"
     f.write_text(
         json.dumps({"reminder": "Rotate Volces API key f103e564-61c5-462c-9d4a-95ec035c56f0 NOW"}),
         encoding="utf-8",
     )
-    getattr(mod, "findings").clear()
+    mod.findings.clear()
     check_fn(f)
-    findings = getattr(mod, "findings")
+    findings = mod.findings
     assert any(item["kind"] == "uuid_in_secret_context" for item in findings), (
         "UUID adjacent to 'API key' must be flagged"
     )
@@ -62,68 +62,68 @@ def test_uuid_in_api_key_context_flagged(tmp_path: Path) -> None:
 def test_volces_provider_uuid_flagged(tmp_path: Path) -> None:
     """UUID alongside 'volces' keyword is flagged."""
     mod = _load_module()
-    check_fn = getattr(mod, "check_releases_file")
+    check_fn = mod.check_releases_file
     f = tmp_path / "evidence.json"
     f.write_text(
         '{"note": "volces provider key f103e564-61c5-462c-9d4a-95ec035c56f0"}',
         encoding="utf-8",
     )
-    getattr(mod, "findings").clear()
+    mod.findings.clear()
     check_fn(f)
-    assert any(item["kind"] == "uuid_in_secret_context" for item in getattr(mod, "findings"))
+    assert any(item["kind"] == "uuid_in_secret_context" for item in mod.findings)
 
 
 def test_run_id_uuid_not_flagged(tmp_path: Path) -> None:
     """UUID in a run_id field (no secret-adjacent keyword) is NOT flagged."""
     mod = _load_module()
-    check_fn = getattr(mod, "check_releases_file")
+    check_fn = mod.check_releases_file
     f = tmp_path / "run_evidence.json"
     f.write_text(
         json.dumps({"run_id": "f103e564-61c5-462c-9d4a-95ec035c56f0"}),
         encoding="utf-8",
     )
-    getattr(mod, "findings").clear()
+    mod.findings.clear()
     check_fn(f)
-    assert not getattr(mod, "findings"), "run_id UUID must not be flagged"
+    assert not mod.findings, "run_id UUID must not be flagged"
 
 
 def test_redacted_placeholder_not_flagged(tmp_path: Path) -> None:
     """After redaction, <rotated-and-redacted> placeholder produces no findings."""
     mod = _load_module()
-    check_fn = getattr(mod, "check_releases_file")
+    check_fn = mod.check_releases_file
     f = tmp_path / "signoff.json"
     f.write_text(
         json.dumps({"reminder": "Rotate Volces API key <rotated-and-redacted> NOW"}),
         encoding="utf-8",
     )
-    getattr(mod, "findings").clear()
+    mod.findings.clear()
     check_fn(f)
-    assert not getattr(mod, "findings"), "Redacted placeholder must not trigger findings"
+    assert not mod.findings, "Redacted placeholder must not trigger findings"
 
 
 def test_sha_not_uuid_not_flagged(tmp_path: Path) -> None:
     """A 40-char hex SHA (not UUID format) is not flagged even with key context."""
     mod = _load_module()
-    check_fn = getattr(mod, "check_releases_file")
+    check_fn = mod.check_releases_file
     f = tmp_path / "manifest.json"
     f.write_text(
         '{"secret_head": "d4acba2fd6cdf7ff69a82ac30cb7b021e802c704"}',
         encoding="utf-8",
     )
-    getattr(mod, "findings").clear()
+    mod.findings.clear()
     check_fn(f)
-    assert not getattr(mod, "findings"), "40-char SHA is not UUID format and must not be flagged"
+    assert not mod.findings, "40-char SHA is not UUID format and must not be flagged"
 
 
 def test_wave27_signoff_clean_after_redaction() -> None:
     """The actual wave27-signoff.json must pass after the W28 redaction."""
     mod = _load_module()
-    check_fn = getattr(mod, "check_releases_file")
+    check_fn = mod.check_releases_file
     signoff = REPO_ROOT / "docs" / "releases" / "wave27-signoff.json"
     if not signoff.exists():
         pytest.skip("wave27-signoff.json not found")
-    getattr(mod, "findings").clear()
+    mod.findings.clear()
     check_fn(signoff)
-    assert not getattr(mod, "findings"), (
+    assert not mod.findings, (
         "wave27-signoff.json must have no UUID findings after W28 redaction"
     )
