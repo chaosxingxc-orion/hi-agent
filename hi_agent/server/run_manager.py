@@ -116,6 +116,7 @@ class RunManager:
         run_store: SQLiteRunStore | None = None,
         run_queue: RunQueue | None = None,
         event_store: object | None = None,
+        postmortem_engine: object | None = None,
     ) -> None:
         """Initialize the run manager.
 
@@ -137,6 +138,9 @@ class RunManager:
             event_store: Optional SQLiteEventStore.  When provided,
                 ``to_dict`` reads the most recent event offset and timestamp
                 for liveness reporting.
+            postmortem_engine: Optional PostmortemEngine.  When provided,
+                ``on_project_completed`` is called after every terminal run
+                that carries a non-empty ``project_id``.
         """
         self._runs: dict[str, ManagedRun] = {}
         self._lock = threading.Lock()
@@ -146,6 +150,7 @@ class RunManager:
         self._run_store = run_store
         self._run_queue = run_queue
         self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: Wave 28
+        self._postmortem_engine: object | None = postmortem_engine
         # Per-run sequence counters; seeded from storage on first use (restart-safe).
         self._event_seqs: dict[str, int] = {}
         self._event_seq_lock = threading.Lock()
@@ -457,6 +462,7 @@ class RunManager:
             tenant_id=workspace.tenant_id if workspace else "",
             user_id=workspace.user_id if workspace else "",
             session_id=workspace.session_id if workspace else "",
+            project_id=task_contract_dict.get("project_id", ""),
             idempotency_key=idempotency_key,
             outcome="created",
             trace_id=_tc.trace_id if _tc is not None else "",
@@ -758,6 +764,9 @@ class RunManager:
                     json.dumps(self.to_dict(run)),
                     terminal_state=_terminal,
                 )
+            # W10-M.3: notify PostmortemEngine when a project-scoped run is terminal.
+            if self._postmortem_engine is not None and run.project_id:
+                self._notify_postmortem_engine(run)
 
     def _execute_run_durable(
         self,
@@ -990,6 +999,39 @@ class RunManager:
                     json.dumps(self.to_dict(run)),
                     terminal_state=_terminal,
                 )
+            # W10-M.3: notify PostmortemEngine when a project-scoped run is terminal.
+            if self._postmortem_engine is not None and run.project_id:
+                self._notify_postmortem_engine(run)
+
+    def _notify_postmortem_engine(self, run: ManagedRun) -> None:
+        """W10-M.3: Call PostmortemEngine.on_project_completed for project-scoped runs.
+
+        Builds a minimal ProjectRetrospective from the terminal run and
+        delegates to the injected PostmortemEngine.  Never propagates
+        exceptions — postmortem recording must not interrupt run lifecycle.
+
+        Args:
+            run: The terminal ManagedRun carrying a non-empty project_id.
+        """
+        try:
+            from hi_agent.evolve.contracts import ProjectRetrospective
+
+            retro = ProjectRetrospective(
+                project_id=run.project_id,
+                run_ids=[run.run_id],
+                tenant_id=run.tenant_id,
+            )
+            engine = self._postmortem_engine
+            if hasattr(engine, "on_project_completed"):
+                engine.on_project_completed(run.project_id, retro)  # type: ignore[union-attr]
+        except Exception as exc:
+            logger.warning(
+                "_notify_postmortem_engine: failed for run_id=%s project_id=%s: %s",
+                run.run_id,
+                run.project_id,
+                exc,
+                exc_info=True,
+            )
 
     @staticmethod
     def _write_trace_stub(run: ManagedRun) -> None:
