@@ -1,216 +1,379 @@
-# ARCHITECTURE: System Overview (L0)
+# Architecture: hi-agent Platform (arc42)
 
-> **Architecture hierarchy**
+> **Document hierarchy**
 > - L0 system boundary: this file
-> - L1 hi-agent detail: [`hi_agent/ARCHITECTURE.md`](hi_agent/ARCHITECTURE.md)
-> - L1 agent-server detail: [`agent_server/ARCHITECTURE.md`](agent_server/ARCHITECTURE.md)
-> - L1 agent-kernel detail: [`agent_kernel/ARCHITECTURE.md`](agent_kernel/ARCHITECTURE.md)
+> - L1 hi-agent detail: `hi_agent/ARCHITECTURE.md`
+> - L1 agent-server detail: `agent_server/ARCHITECTURE.md`
+> - L1 agent-kernel detail: `agent_kernel/ARCHITECTURE.md`
+> - Stable codebase facts: `docs/architecture-reference.md`
 
 ---
 
-## System Boundary
+## 1. Introduction and Goals
 
-```text
-hi-agent repository
-  ├─ agent_server/    — versioned northbound API facade (stable HTTP contract for downstream)
-  ├─ hi_agent/        — agent brain (orchestration, cognition, memory, skills)
-  ├─ agent_kernel/    — durable runtime substrate (inlined; was external git dep)
-  └─ agent-core       — reusable capability modules (integrated into hi_agent/)
+hi-agent is a **platform-layer** agent execution system. It is not a business application.
+Its purpose is to provide the research team's intelligence applications with a stable,
+versioned, operationally observable API surface for running long-lived autonomous agents.
+
+**Primary goals:**
+
+1. Expose a frozen northbound HTTP contract (`agent_server/`, v1) that downstream teams can
+   depend on across platform upgrades.
+2. Execute TRACE (Task -> Route -> Act -> Capture -> Evolve) runs durably, with restart
+   survival, cancellation, and per-run observability.
+3. Enforce a hard platform/business boundary so research-team business logic never leaks
+   into the platform kernel.
+4. Provide posture-aware defaults (`dev` permissive, `research`/`prod` fail-closed) so the
+   same codebase runs safely across local development, research, and production deployments.
+
+**Quality requirements (binding):** See Section 10.
+
+---
+
+## 2. Constraints
+
+| Constraint | Source |
+|---|---|
+| Python 3.12+ | `pyproject.toml` |
+| FastAPI/Starlette for HTTP | `pyproject.toml` dependencies |
+| No business logic in `hi_agent/` or `agent_kernel/` | CLAUDE.md G1 gate |
+| `agent_server/` routes must not import from `hi_agent.*` directly | R-AS-1 rule |
+| v1 contract is digest-frozen after release; breaking changes require `v2/` sub-package | CLAUDE.md AS-CO track |
+| Every new route handler requires `# tdd-red-sha: <sha>` annotation | CLAUDE.md R-AS-5 |
+| `asyncio.run(` outside entry points is forbidden; sync callers use `sync_bridge` | CLAUDE.md Rule 5 |
+| Inline fallbacks of the shape `x or DefaultX()` are forbidden | CLAUDE.md Rule 6 |
+| SQLite for default persistence; PostgreSQL optional via `asyncpg` | `pyproject.toml` optional deps |
+
+---
+
+## 3. System Context
+
+```mermaid
+flowchart LR
+    DS["Research Intelligence App\n(downstream team)"]
+    AS["agent_server\nnorthbound facade\nPORT 8000"]
+    HA["hi_agent\nagent brain"]
+    AK["agent_kernel\nexecution substrate"]
+    LLM["LLM Providers\nAnthropic / OpenAI\nVolces Ark"]
+    DB[(SQLite / PostgreSQL)]
+    MCP["MCP Tool Servers\n(plugin-registered)"]
+
+    DS -->|"HTTP /v1/runs\n/v1/artifacts\n/v1/gates\n/v1/skills\n/v1/memory\n/v1/mcp/tools"| AS
+    AS -->|facade calls| HA
+    HA -->|KernelFacade\nor HTTP RPC| AK
+    HA -->|"chat completions\n(OpenAI-compatible)"| LLM
+    AK -->|read/write| DB
+    HA -->|stdio transport| MCP
 ```
 
-External dependencies:
-- **LLM providers**: Anthropic Claude, OpenAI, Volces Ark (doubao / minimax / glm / deepseek / kimi) — configured via `config/llm_config.json`
-- **Workflow substrate**: Local FSM (default) or Temporal (optional)
-- **Storage**: SQLite (default) or PostgreSQL (optional)
+**Downstream** uses only the `agent_server` HTTP API. Direct access to `hi_agent` or
+`agent_kernel` endpoints is not a supported integration pattern.
 
 ---
 
-## Component Roles
+## 4. Solution Strategy
 
-| Package | Role |
-|---------|------|
-| `agent_server` | Versioned northbound facade: stable HTTP API for downstream teams; enforces platform/business-layer boundary; contract-frozen at v1 |
-| `hi_agent` | Agent brain: task understanding, route decisions, execution orchestration, memory/knowledge/skills, continuous evolution |
-| `agent_kernel` | Durable runtime: run lifecycle, event-fact log, idempotency, six-authority governance, failure recovery |
-
-### agent_server — subsystems
-
-| Module | Responsibility |
-|--------|---------------|
-| `contracts/` | Frozen v1 northbound schemas: `RunRequest`, `RunResponse`, `TenantContext`, etc. (digest-frozen at v1 release) |
-| `facade/` | Adapters from contract types to `hi_agent` callables: `RunFacade`, `EventFacade`, `ArtifactFacade`, `ManifestFacade`, `IdempotencyFacade` |
-| `api/routes_runs.py` | `POST /v1/runs`, `GET /v1/runs/{id}`, `POST /v1/runs/{id}/signal` |
-| `api/routes_runs_extended.py` | `POST /v1/runs/{id}/cancel`, `GET /v1/runs/{id}/events` (SSE) |
-| `api/routes_artifacts.py` | `GET/POST /v1/artifacts`, `GET /v1/runs/{id}/artifacts` |
-| `api/routes_gates.py` | `POST /v1/gates/{id}/decide` |
-| `api/routes_manifest.py` | `GET /v1/manifest` |
-| `api/routes_skills_memory.py` | `POST /v1/skills`, `POST /v1/memory/write` |
-| `api/routes_mcp_tools.py` | `GET /v1/mcp/tools`, `POST /v1/mcp/tools/{name}` |
-| `api/middleware/` | `TenantContextMiddleware` (inject tenant_id) + `IdempotencyMiddleware` (request dedup) |
-| `cli/` | CLI entry point: `serve`, `run`, `cancel`, `tail-events` |
-
-Detail: [`agent_server/ARCHITECTURE.md`](agent_server/ARCHITECTURE.md)
-
-### hi_agent — subsystems
-
-| Module | Responsibility |
-|--------|---------------|
-| `runner.py` / `execution/` | RunExecutor: linear, DAG, async execution modes; gate blocking; reflection injection |
-| `middleware/` | 4-phase pipeline: Perception → Control → Execution → Evaluation |
-| `route_engine/` | Rule / LLM / Hybrid / Skill-aware routing; DecisionAuditStore |
-| `task_mgmt/` | AsyncTaskScheduler, BudgetGuard, RestartPolicyEngine, ReflectionOrchestrator |
-| `context/` | ContextManager (7-section budget, 4 thresholds, compression chain) |
-| `memory/` | L0 Raw → L1 STM → L2 MidTerm (Dream) → L3 LongTerm (graph) |
-| `knowledge/` | Wiki, knowledge graph, four-layer retrieval (grep→BM25→graph→embedding) |
-| `skill/` | SkillLoader, SkillVersionManager (A/B), SkillEvolver |
-| `harness/` | Dual-dimension governance, PermissionGate, EvidenceStore |
-| `llm/` | LLMGateway, TierRouter, ModelRegistry, budget tracker; HttpLLMGateway for OpenAI-compatible endpoints |
-| `server/` | HTTP API (20+ endpoints), EventBus, SSE streaming, RunManager, DreamScheduler |
-| `runtime_adapter/` | 22-method RuntimeAdapter protocol; KernelFacadeAdapter (sync); AsyncKernelFacadeAdapter; ResilientKernelAdapter |
-
-### agent_kernel — subsystems
-
-| Module | Responsibility |
-|--------|---------------|
-| `adapters/facade/` | `KernelFacade` — sole legal platform entry point |
-| `kernel/` | Six authorities: RuntimeEventLog, DecisionProjection, DispatchAdmission, ExecutorService, RecoveryGate, DedupeStore |
-| `kernel/cognitive/` | LLMGateway (Anthropic, OpenAI), ScriptRuntime |
-| `kernel/persistence/` | SQLite and PostgreSQL backends for event log, dedupe store, projection cache |
-| `kernel/recovery/` | Circuit breaker, compensation registry, reflection-and-retry |
-| `runtime/` | AgentKernelRuntimeBundle — component assembly and observability |
-| `substrate/` | LocalFSMAdaptor (default) / TemporalAdaptor (optional) |
-| `service/` | HTTP API server (Starlette), auth middleware; source of truth for all kernel endpoint definitions |
+| Decision | Rationale |
+|---|---|
+| Three-package structure in one repo | Clear ownership boundaries; `agent_kernel` inlined from external dep on 2026-04-19 for atomic versioning |
+| Frozen v1 contract in `agent_server/contracts/` | Downstream teams must not be broken by internal refactors |
+| Posture enum (`dev`/`research`/`prod`) read from env | Enables the same binary to run permissively in dev and fail-closed in production without code changes |
+| Async-first core; sync bridge for sync-facing callers | Avoids cross-loop async resource lifetime bugs (Rule 5) |
+| TierRouter with active calibration | Routes LLM calls to appropriate model tier based on quality signals; avoids expensive models for lightweight steps |
+| Four-layer retrieval (grep -> BM25 -> graph -> embedding) | Cost-efficient retrieval without requiring embedding infrastructure for all queries |
+| Rule 8 operator-shape gate before any delivery | Prevents "passes tests but fails in production" class of defects |
 
 ---
 
-## Integration Point
+## 5. Building Block View
 
-`hi_agent` calls `agent_kernel` exclusively through two layers:
+```mermaid
+flowchart TB
+    subgraph agent_server["agent_server — northbound facade"]
+        MW["TenantContextMiddleware\nIdempotencyMiddleware"]
+        RT["Route handlers\n/v1/runs /v1/artifacts\n/v1/gates /v1/skills\n/v1/memory /v1/mcp/tools"]
+        FA["Facades\nRunFacade EventFacade\nArtifactFacade ManifestFacade\nIdempotencyFacade"]
+        CO["Frozen contracts v1\nRunRequest RunResponse\nTenantContext ContractError"]
+        CLI2["CLI\nserve run cancel tail-events"]
+    end
 
-```python
-# High-level: KernelFacade (direct in-process)
-from agent_kernel.adapters.facade.kernel_facade import KernelFacade
+    subgraph hi_agent["hi_agent — agent brain"]
+        RUN["runner.py\nRunExecutor\nexecute / execute_graph\nexecute_async / resume"]
+        LLM2["llm/\nLLMGateway TierRouter\nModelSelector FailoverChain\nBudgetTracker"]
+        MEM["memory/\nL0 Raw L1 STM\nL2 Dream L3 LongTerm"]
+        KNW["knowledge/\nWiki KnowledgeGraph\nFourLayerRetrieval"]
+        SKL["skill/\nSkillLoader\nSkillVersionManager\nSkillEvolver A/B"]
+        EVO["evolve/\nPostmortemEngine\nExperimentStore\nChampionChallenger"]
+        OBS["observability/\nRunEventEmitter\n12 typed events\nPrometheus metrics"]
+        CFG["config/\nTraceConfig Posture\nSystemBuilder builders"]
+        SRV["server/\nRunManager DreamScheduler\nEventBus SSE RunStore"]
+        RTA["runtime_adapter/\nRuntimeAdapter protocol\nKernelFacadeAdapter\nResilientKernelAdapter"]
+    end
 
-# HTTP: KernelFacadeAdapter (when kernel runs as a separate service)
-from hi_agent.runtime_adapter.kernel_facade_adapter import KernelFacadeAdapter
+    subgraph agent_kernel["agent_kernel — execution substrate"]
+        KF["adapters/facade/\nKernelFacade\n(sole legal entry point)"]
+        KRN["kernel/\nsix authorities\nevent log idempotency\ntask manager recovery"]
+        PER["kernel/persistence/\nSQLite PostgreSQL\nevent log dedupe projection"]
+        SUB["substrate/\nLocalFSMAdaptor\nTemporalAdaptor (optional)"]
+        SVC["service/\nHTTP server (Starlette)\nauth middleware"]
+    end
+
+    subgraph providers["LLM Providers"]
+        ANT["Anthropic Claude"]
+        OAI["OpenAI-compatible\nVolces Ark"]
+    end
+
+    RT --> FA
+    FA --> RUN
+    FA --> SRV
+    RUN --> LLM2
+    RUN --> MEM
+    RUN --> KNW
+    RUN --> SKL
+    RUN --> EVO
+    RUN --> OBS
+    SRV --> RTA
+    RTA --> KF
+    KF --> KRN
+    KRN --> PER
+    KRN --> SUB
+    LLM2 --> ANT
+    LLM2 --> OAI
 ```
 
-**Contract lock (Rule 7):** `agent_kernel/service/http_server.py` is the single authority for all endpoint definitions. `hi_agent/runtime_adapter/kernel_facade_client.py` is the single HTTP client. Both files must be audited together on every change; a side-by-side path/method table is required in every PR touching either file.
-
 ---
 
-## Execution Modes
+## 6. Runtime View
 
-| Mode | Entry | Description |
-|------|-------|-------------|
-| Linear | `RunExecutor.execute()` | Sequential stage execution |
-| DAG | `RunExecutor.execute_graph()` | Graph traversal with backtrack |
-| Async | `RunExecutor.execute_async()` | Full asyncio concurrent execution |
+The following sequence shows the happy-path flow for `POST /v1/runs`.
 
----
+```mermaid
+sequenceDiagram
+    participant C as Downstream Client
+    participant MW as TenantContextMiddleware
+    participant RH as routes_runs.py
+    participant RF as RunFacade
+    participant SRV as server/RunManager
+    participant RUN as runner.py (RunExecutor)
+    participant LLM as llm/TierRouter+Gateway
+    participant KRN as agent_kernel (KernelFacade)
+    participant OBS as observability/RunEventEmitter
 
-## Deployment Configuration (runtime_mode)
+    C->>MW: POST /v1/runs {goal, profile_id, project_id}
+    MW->>MW: inject TenantContext into request.state
+    MW->>RH: forward request
+    RH->>RF: run_facade.start(ctx, RunRequest)
+    RF->>SRV: enqueue run
+    SRV-->>RF: run_id, state=queued
+    RF-->>RH: RunResponse {run_id, state}
+    RH-->>C: 200 {run_id, state=queued}
 
-`runtime_mode` is derived by `hi_agent/server/runtime_mode_resolver.py` from `HI_AGENT_ENV` plus the live readiness snapshot; all downstream checks (`/ready`, `/manifest`, `/diagnostics`, auth middleware posture) converge on this single function.
+    Note over SRV,RUN: Background execution
 
-| runtime_mode | Trigger | kernel routing | LLM | Heuristic fallback |
-|--------------|---------|----------------|-----|---------------------|
-| `dev-smoke`  | default (no env) | in-process LocalFSM | heuristic if API key absent | allowed |
-| `local-real` | `HI_AGENT_LLM_MODE=real` + `HI_AGENT_KERNEL_MODE=http` | LocalFSM or HTTP client | real LLM | allowed |
-| `prod-real`  | `HI_AGENT_ENV=prod` | HTTP client (when `HI_AGENT_KERNEL_BASE_URL` is set) or LocalFSM (warned) | real LLM required | **disabled**, fail-fast 503 |
+    SRV->>RUN: execute(task_contract)
+    RUN->>KRN: emit run_started event
+    KRN-->>RUN: ack
+    RUN->>OBS: record_stage_entered(S1)
+    loop TRACE stages S1 -> S5
+        RUN->>LLM: chat_completion(task_view)
+        LLM-->>RUN: LLMResponse
+        RUN->>KRN: emit action_dispatched event
+        RUN->>OBS: record_action_executed
+    end
+    RUN->>KRN: emit run_completed event
+    RUN->>OBS: record_run_terminal(state=done)
+    SRV->>SRV: update run state=done
 
-### Canonical env surface (authoritative list: [`docs/deployment-env-matrix.md`](docs/deployment-env-matrix.md))
-
-Every `HI_AGENT_*` field on `TraceConfig` is populated by `TraceConfig.from_env()`. The `AgentServer()` no-config path calls this automatically, so deploy-time env bindings take effect without a config file.
-
-Critical names for prod deploys:
-
-| Variable | Code site | Effect |
-|----------|-----------|--------|
-| `HI_AGENT_ENV=prod` | `server/app.py`, `server/runtime_mode_resolver.py` | Enables prod-real posture and P1-6 fail-fast executor build |
-| `HI_AGENT_KERNEL_BASE_URL=http://…` | `config/runtime_builder.py` → `KernelFacadeClient` | Routes all kernel RPC to the detached agent-kernel service. Empty or `"local"` keeps in-process LocalFSM |
-| `HI_AGENT_OPENAI_BASE_URL=https://…/v2` | `llm/http_gateway.py` | Gateway issues `POST {base_url}/chat/completions` (absolute path preserves `/v2` and other non-`/v1` segments — P0-3 fix) |
-| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | providers | Presence flips dev-smoke clamp off and satisfies prod `platform_not_ready` gate |
-
-Explicitly **unsupported** aliases (silently ignored — don't set these): `KERNEL_BASE_URL` (missing prefix), `HI_AGENT_KERNEL_URL` (legacy; only `/doctor` has a fallback), `OPENAI_BASE_URL`, `MODEL`.
-
-### Deploy verification endpoints
-
-| Endpoint | Guarantee |
-|----------|-----------|
-| `GET /diagnostics` | Compact fingerprint of the env/config that hi-agent actually resolved — always 200, never a gate. First check after deploy. |
-| `GET /doctor` | Structured `DoctorReport`; in prod performs a real HTTP probe against `HI_AGENT_KERNEL_BASE_URL`. 503 = blocking issue. |
-| `GET /health` | Per-subsystem status. `kernel_adapter.status` is `lazy` until first run; `configured_base_url` reflects deploy env binding. |
-| `GET /ready` | 200 when ready for traffic, 503 otherwise. |
-
-A Rule-8 smoke matrix ([`.github/workflows/smoke.yml`](.github/workflows/smoke.yml)) pins the 04-21 incident as a regression anchor: the `prod-no-credentials` row must return 503 on `POST /runs` — a regression that lets it return 201+stuck fails CI.
-
----
-
-## LLM Provider Configuration
-
-All LLM parameters flow through `config/llm_config.json` (gitignored; copy from `config/llm_config.example.json`):
-
-```json
-{
-  "providers": {
-    "anthropic": { "api_key": "...", "api_format": "anthropic" },
-    "openai":    { "api_key": "...", "api_format": "openai" },
-    "volces":    { "api_key": "...", "base_url": "...", "all_models": ["doubao-seed-2.0-code", ...] }
-  }
-}
+    C->>RH: GET /v1/runs/{run_id}
+    RH->>RF: run_facade.status(ctx, run_id)
+    RF->>SRV: get_status(run_id)
+    SRV-->>RF: RunStatus {state=done, current_stage}
+    RF-->>RH: RunStatusResponse
+    RH-->>C: 200 {state=done, finished_at}
 ```
 
-`tests/conftest.py` loads this file at session start to populate env vars (`VOLCE_API_KEY`, `VOLCE_BASE_URL`) for live API tests.
+**Cancellation contract:** `POST /v1/runs/{id}/cancel` on a known live run returns 200 and
+drives the run to a terminal state. On an unknown run ID it returns 404 (not 200).
 
 ---
 
-## Platform Contract (Wave 27)
+## 7. Deployment View
 
-### Posture System
+```mermaid
+flowchart LR
+    subgraph host["Host (Linux / Windows)"]
+        PM2["PM2 / systemd\nprocess supervisor"]
+        subgraph proc["agent-server process"]
+            ASRV["agent_server\nuvicorn :8000"]
+            BRAIN["hi_agent runtime"]
+            KERN["agent_kernel\n(in-process LocalFSM\nor HTTP client)"]
+        end
+        subgraph data["Data directories"]
+            SQLDB[(SQLite\nrun_store / event_log)]
+            CDIR["config/\nllm_config.json\nprofiles/ tools.json"]
+        end
+    end
+    EXT["LLM Provider\n(external network)"]
+    DS2["Downstream\nResearch App"]
 
-`HI_AGENT_POSTURE={dev,research,prod}` (default `dev`) controls fail-closed vs permissive defaults. Code: `hi_agent/config/posture.py::Posture.from_env()`.
+    PM2 -->|"supervises"| proc
+    DS2 -->|"HTTP :8000\n/v1/*"| ASRV
+    ASRV --> BRAIN
+    BRAIN --> KERN
+    KERN --> SQLDB
+    BRAIN --> CDIR
+    BRAIN -->|"HTTPS"| EXT
+```
 
-| Posture | project_id | queue backend | schema validation | idempotency scope |
-|---|---|---|---|---|
-| `dev` | warn-only | in-memory allowed | warn + skip | body tenant_id |
-| `research` | 400 required | SQLite file | ValueError | authenticated TenantContext |
-| `prod` | 400 required | SQLite file | ValueError | authenticated TenantContext |
-
-### Owner Tracks
-
-| Track | Owns | Rule |
-|---|---|---|
-| CO | API/artifact/capability/profile schemas, posture | Any public-dataclass/schema/posture change = CO; include contract-version bump |
-| RO | Execution, state machines, persistence boundaries | In-memory state under research/prod = defect; durable-store changes need restart test |
-| DX | Developer journey: first contact → upgrade | No L2 without documented quickstart, doctor-check, and structured error category |
-| TE | Artifacts, evidence, provenance, evolution | Every silent-degradation path: Countable + Attributable + Inspectable + Gate-asserted |
-| GOV | CLAUDE.md, capability matrix, CI, delivery docs | Capability matrix = single source of truth; delivery notice, TODO, matrix agree at every push |
-
-### Capability Maturity (L0–L4)
-
-| Level | Name | Criterion |
-|---|---|---|
-| L0 | demo code | happy path only, no stable contract |
-| L1 | tested component | unit/integration tests exist, not default path |
-| L2 | public contract | schema/API/state machine stable, docs + full tests |
-| L3 | production default | research/prod default-on, migration + observability |
-| L4 | ecosystem ready | third-party can register/extend/upgrade/rollback without source |
-
-Wave 27 additions: `agent_server/` northbound facade (v1 contract freeze), `RunEventEmitter` + 12 typed events (`hi_agent/observability/event_emitter.py`), `TierRouter` active calibration (`hi_agent/llm/tier_router.py`), `ProjectPostmortem` lifecycle (`hi_agent/evolve/postmortem.py`), SSH backend retirement, stagger of 557 Wave 27 markers to W28+.
-
-Earlier contracts: `TeamRunSpec` (`hi_agent/contracts/team_runtime.py`), `ReasoningTrace` (`hi_agent/contracts/reasoning_trace.py`), canonical `CapabilityDescriptor` (`hi_agent/capability/registry.py`), `ArtifactLedger` quarantine (`hi_agent/artifacts/ledger.py`).
-
----
-
-## Quality Gate
+**Standard startup:**
 
 ```bash
-python -m pytest tests/ -q --ignore=tests/integration/test_live_llm_api.py   # full offline suite
-python -m pytest tests/integration/test_live_llm_api.py -m live_api -v       # live API (33 tests, 8 models)
-python -m ruff check hi_agent/ agent_kernel/                                  # lint
+# 1. Install
+pip install -e ".[llm]"
+
+# 2. Configure
+export HI_AGENT_POSTURE=research
+export HI_AGENT_LLM_MODE=real
+export OPENAI_API_KEY=<key>
+
+# 3. Serve (foreground)
+agent-server serve --host 0.0.0.0 --port 8000
+
+# 4. Serve under PM2 (production)
+pm2 start "agent-server serve" --name hi-agent
 ```
 
-Current baseline: **9,091 passed (unit+integration, Wave 27)** (2026-05-01, default-offline profile; 7 skipped, 0 failed).
+**Runtime modes:**
 
-Live API test suite (`@pytest.mark.live_api`): 33 tests × 5 scenarios (smoke, multi-turn, code generation, state isolation, latency) parameterized over all 8 Volces Ark models. Auto-skipped when `VOLCE_API_KEY` is absent; config loaded from `config/llm_config.json` (gitignored) — copy from `config/llm_config.example.json`.
+| `HI_AGENT_ENV` | `HI_AGENT_LLM_MODE` | Mode | kernel | LLM fallback |
+|---|---|---|---|---|
+| `dev` (default) | `heuristic` | dev-smoke | in-process LocalFSM | allowed |
+| `dev` | `real` | local-real | LocalFSM or HTTP | allowed |
+| `prod` | `real` | prod-real | HTTP client (requires `HI_AGENT_KERNEL_BASE_URL`) | **disabled**, 503 |
+
+**Readiness endpoints:**
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /ready` | 200 when ready for traffic, 503 otherwise |
+| `GET /health` | Per-subsystem status |
+| `GET /diagnostics` | Compact fingerprint of resolved env/config (always 200) |
+| `GET /metrics` | Prometheus metrics |
+
+---
+
+## 8. Cross-Cutting Concepts
+
+### Logging
+
+All log output uses Python `logging` with structured fields. Every fallback branch emits at
+`WARNING` or higher with `run_id` and trigger reason (Rule 7). Silent `except: pass` blocks
+are forbidden; every catch either re-raises, logs at `WARNING+`, or converts to a typed
+failure.
+
+### Error Handling
+
+The northbound API uses typed `ContractError` exceptions that map to HTTP status codes.
+Internal failures surface through `FailureCode` (11 codes, re-exported from
+`agent_kernel.kernel`). Every silent-degradation path must be Countable (Prometheus counter),
+Attributable (`WARNING+` log), Inspectable (`fallback_events` in run metadata), and
+Gate-asserted (Rule 8 ship gate).
+
+### Posture
+
+`HI_AGENT_POSTURE={dev,research,prod}` (default `dev`) is read by `hi_agent/config/posture.py
+::Posture.from_env()` at every enforcement call site. `dev` is permissive; `research` and
+`prod` are fail-closed: `project_id` required on every run, persistence must be durable,
+schema validation raises on error.
+
+### Security
+
+- Tenant isolation is enforced by `TenantContextMiddleware` in `agent_server`; route handlers
+  read `request.state.tenant_context` and never the request body for identity.
+- RBAC and JWT validation live in `hi_agent/auth/`.
+- Workspace isolation uses a `(tenant_id, user_id, session_id)` three-dimensional key; path
+  traversal is blocked in `hi_agent/server/workspace_path.py`.
+- `shell=True` subprocess calls are forbidden (Rule 3 security boundary check).
+
+### Async/Sync Boundary
+
+The codebase is async-first. Sync-facing callers route through
+`hi_agent.runtime.sync_bridge` (persistent loop on a dedicated thread, marshalled via
+`asyncio.run_coroutine_threadsafe`). Direct `asyncio.run(` outside entry points (`__main__`,
+CLI, test) is a rule violation enforced by `scripts/check_rules.py`.
+
+### Idempotency
+
+`agent_server` middleware deduplicates requests by `idempotency_key`. The underlying store is
+`agent_server/facade/idempotency_facade.py` backed by `hi_agent/server/idempotency.py`.
+
+---
+
+## 9. Architecture Decisions
+
+| Decision | Wave | Rationale |
+|---|---|---|
+| Inline `agent_kernel` into the repo | W5 (2026-04-19) | Atomic versioning; eliminates git-submodule coordination overhead |
+| Introduce `agent_server` as a separate northbound package | W11 | Hard platform/business boundary; frozen v1 contract independent of internal refactors |
+| Freeze v1 contract with digest check | W24 | Downstream must not be broken by platform upgrades; breaking changes require `v2/` sub-package |
+| Three-posture system (`dev`/`research`/`prod`) | W9 | Single binary deployable safely in all environments; Rule 11 |
+| TierRouter with active calibration signals | W27 | Dynamic routing adapts to quality feedback without manual tuning (P-6 closed) |
+| `RunEventEmitter` with 12 typed event methods | W27 | Structured observability spine for runs; replaces ad-hoc log scraping |
+| Reject Neo4j in favour of SQLite-backed KG | W10 | JSON-backed L3 covers all graph operations at current scale; Neo4j adds service dependency |
+| Rule 8 operator-shape gate mandatory before delivery | W12 | Prevents green-pytest-but-broken-in-prod class of failures |
+
+---
+
+## 10. Quality Requirements
+
+| Quality attribute | Target | Enforcement |
+|---|---|---|
+| Test pass rate | 9,091+ offline tests, 0 failures | `default-offline` CI profile; `scripts/verify_clean_env.py` |
+| Verified readiness | 94.55 (Wave 27) | Release manifest + `scripts/build_release_manifest.py` |
+| 7x24 operational readiness | 65.0 (W27); target 85+ after W28 soak | Rule 8 gate evidence in `docs/delivery/` |
+| T3 invariance | Gate valid only at recorded SHA; hot-path commits invalidate until re-run | `scripts/check_manifest_freshness.py` |
+| LLM fallback count | 0 for all T3 runs | Rule 8 step 3; `llm_fallback_count == 0` asserted |
+| Cancellation round-trip | known-id: 200+terminal; unknown-id: 404 | Rule 8 step 6; `tests/integration/` |
+| `current_stage` visibility | non-`None` within 30s on non-terminal run | Rule 8 step 5 |
+| Lint | ruff exits 0; no `# noqa` without `expiry_wave` annotation | `scripts/check_rules.py`; CI |
+| Contract spine | every persistent record carries `tenant_id` | `scripts/check_contract_spine_completeness.py` |
+| Posture coverage | 100% (all validation sites posture-aware) | posture coverage gate; W27 Lane 5 |
+
+---
+
+## 11. Risks and Technical Debt
+
+| Item | Risk | Status | W28 Target |
+|---|---|---|---|
+| 24h soak missing | 7x24 capped at 65.0 | DEFERRED by user decision 2026-05-01 | Run soak; target 7x24 >= 85 |
+| Observability spine provenance | `structural` evidence only, not `real` | DEFERRED | Real run with provenance=real |
+| Chaos runtime coupling | 2 scenarios not runtime-coupled | DEFERRED | Couple remaining 2 SKIP scenarios |
+| Score ceiling at 94.55 | Bounded by capability matrix weights, not gate failures | Information only | W28+ with dimension lifts |
+| `HI_AGENT_KERNEL_BASE_URL` required in prod | Missing env var causes silent LocalFSM fallback | Documented; `/doctor` warns | No change planned |
+
+---
+
+## 12. Glossary
+
+| Term | Definition |
+|---|---|
+| TRACE | Task -> Route -> Act -> Capture -> Evolve; the five-phase run execution model |
+| Run | A single durable execution entity, identified by `run_id`; survives process restart |
+| Stage | A named phase within a run's TRACE lifecycle (S1 through S5) |
+| StageDirective | A runtime instruction that modifies stage execution: `skip_to`, `insert_stage`, `replan` |
+| Task | A formal contract (13 fields) capturing goal, constraints, and budget for a run |
+| Task View | The minimal sufficient context rebuilt before each LLM call; avoids full context window usage |
+| Branch | A logical trajectory within the exploration space; used in DAG execution mode |
+| TierRouter | Routes LLM calls to `strong`/`medium`/`light` model tiers based on active calibration signals |
+| FailoverChain | Ordered sequence of LLM providers; falls back on error, emits `hi_agent_llm_fallback_total` counter |
+| Memory | Three-tier agent experience store: L0 Raw -> L1 STM -> L2 Dream -> L3 LongTerm graph |
+| Knowledge | Stable facts: wiki + knowledge graph + four-layer retrieval (grep -> BM25 -> graph -> embedding) |
+| Skill | A reusable process unit with a 5-stage lifecycle and A/B version management |
+| Posture | Execution safety level: `dev` (permissive) / `research` (fail-closed) / `prod` (strictest) |
+| TenantContext | Authenticated identity context injected by middleware; carries `tenant_id`, `user_id`, `project_id` |
+| KernelFacade | The sole legal entry point into `agent_kernel`; enforces the platform contract |
+| GatePendingError | Exception raised when a run reaches a human-gate checkpoint and must wait for a `/v1/gates/{id}/decide` call |
+| RunEventEmitter | Structured observability component with 12 typed `record_*` methods for run lifecycle events |
+| Operator-shape gate | Rule 8 requirement: the artifact must pass a full PM2/real-LLM/N>=3 run validation before delivery |
+| Docs-only gap | Every commit between manifest HEAD and current HEAD modifies only `docs/**` (excluding governance configs) |
+| T3 invariance | A gate pass is valid only at the SHA it was recorded; hot-path commits invalidate it |
