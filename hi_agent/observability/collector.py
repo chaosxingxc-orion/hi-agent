@@ -126,6 +126,12 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "MCP stderr-reader threads that did not exit within 5s on close() (Rule 7 alarm).",
     ),
+    # HD-8 / Rule 7: closed FD detected on MCP transport invoke (alarm bell).
+    "mcp_transport_closed_fd_total": _MetricDef(
+        "mcp_transport_closed_fd_total",
+        "counter",
+        "MCP transport invocations rejected because stdin FD was already closed (Rule 7 alarm).",
+    ),
     # B4: per-failure-code counter (labels: failure_code).
     "hi_agent_failure_total": _MetricDef(
         "hi_agent_failure_total",
