@@ -140,7 +140,7 @@ def main() -> int:
     violations = []
     # GS-11: manifest filename SHA must equal manifest content release_head SHA.
     # A renamed-but-not-regenerated manifest (or vice versa) is a corrupt artifact.
-    if manifest_filename_sha and manifest_head and not _sha_match(manifest_filename_sha, manifest_head):  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+    if manifest_filename_sha and manifest_head and not _sha_match(manifest_filename_sha, manifest_head):  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         violations.append(
             f"manifest filename SHA {manifest_filename_sha[:12]} != manifest content "
             f"release_head {manifest_head[:12]} ({manifest_name})"

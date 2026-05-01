@@ -24,10 +24,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-_OWNER_TRAILER = re.compile(r"^Owner:\s*(CO|RO|DX|TE|GOV|AS-CO|AS-RO)\s*$", re.IGNORECASE | re.MULTILINE)  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+_OWNER_TRAILER = re.compile(r"^Owner:\s*(CO|RO|DX|TE|GOV|AS-CO|AS-RO)\s*$", re.IGNORECASE | re.MULTILINE)  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
 _SUBJECT_PREFIX = re.compile(r"^\[(co|ro|dx|te|gov|as-co|as-ro)-W\d+-\w+\]", re.IGNORECASE)
 _MERGE_COMMIT = re.compile(r"^Merge\s+", re.IGNORECASE)
-_CONVENTIONAL = re.compile(r"^(gov|fix|chore|docs|feat|refactor|test|ci|build)(\([^)]*\))?:", re.IGNORECASE)  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+_CONVENTIONAL = re.compile(r"^(gov|fix|chore|docs|feat|refactor|test|ci|build)(\([^)]*\))?:", re.IGNORECASE)  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
 
 
 def _get_recent_commits(n: int) -> list[dict]:
@@ -35,7 +35,7 @@ def _get_recent_commits(n: int) -> list[dict]:
     try:
         result = subprocess.run(
             ["git", "log", f"--max-count={n * 2}", "--format=%H%n%s%n%b%n---END---"],
-            capture_output=True, text=True, timeout=15, cwd=ROOT, encoding="utf-8", errors="replace",  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            capture_output=True, text=True, timeout=15, cwd=ROOT, encoding="utf-8", errors="replace",  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         )
         if result.returncode != 0:
             return []
@@ -74,7 +74,7 @@ def _has_owner_tag(commit: dict) -> bool:
         return True
 
     # Owner: trailer in body
-    if _OWNER_TRAILER.search(full):  # noqa: SIM103  # expiry_wave: Wave 27  # added: W25 baseline sweep
+    if _OWNER_TRAILER.search(full):  # noqa: SIM103  # expiry_wave: Wave 30  # added: W25 baseline sweep
         return True
 
     return False

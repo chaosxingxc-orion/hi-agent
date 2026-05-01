@@ -109,7 +109,7 @@ class TestReflectionExhaustionEscalation:
         )
 
         # _fallback_decision is called when reasoning loop returns no actions.
-        decision = gate._fallback_decision(recovery_input, "test:reason")  # type: ignore[attr-defined]  expiry_wave: Wave 27
+        decision = gate._fallback_decision(recovery_input, "test:reason")  # type: ignore[attr-defined]  expiry_wave: Wave 29
         assert decision.mode == "human_escalation"
         assert "escalated" in decision.reason
 
@@ -143,7 +143,7 @@ class TestReflectionExhaustionEscalation:
             projection=projection,
         )
 
-        decision = gate._fallback_decision(recovery_input, "test:reason")  # type: ignore[attr-defined]  expiry_wave: Wave 27
+        decision = gate._fallback_decision(recovery_input, "test:reason")  # type: ignore[attr-defined]  expiry_wave: Wave 29
         assert decision.mode == "abort"
         assert "aborted" in decision.reason
 
@@ -174,7 +174,7 @@ class TestReflectionExhaustionEscalation:
 
         gate = PlannedRecoveryGateService(
             reflection_policy=policy,
-            reasoning_loop=_StubLoop(),  # type: ignore[arg-type]  expiry_wave: Wave 27
+            reasoning_loop=_StubLoop(),  # type: ignore[arg-type]  expiry_wave: Wave 29
             reflection_builder=_StubBuilder(),  # type: ignore[arg-type]
         )
 
@@ -194,7 +194,7 @@ class TestReflectionExhaustionEscalation:
         )
 
         # _should_reflect should return False (rounds exhausted).
-        result = gate._should_reflect(recovery_input, "abort")  # type: ignore[attr-defined]  expiry_wave: Wave 27
+        result = gate._should_reflect(recovery_input, "abort")  # type: ignore[attr-defined]  expiry_wave: Wave 29
         assert result is False
 
     def test_should_reflect_true_below_max_rounds(self) -> None:
@@ -228,7 +228,7 @@ class TestReflectionExhaustionEscalation:
 
         gate = PlannedRecoveryGateService(
             reflection_policy=policy,
-            reasoning_loop=_StubLoop(),  # type: ignore[arg-type]  expiry_wave: Wave 27
+            reasoning_loop=_StubLoop(),  # type: ignore[arg-type]  expiry_wave: Wave 29
             reflection_builder=_StubBuilder(),  # type: ignore[arg-type]
         )
 
@@ -247,7 +247,7 @@ class TestReflectionExhaustionEscalation:
             reflection_round=2,  # < max_rounds=5
         )
 
-        result = gate._should_reflect(recovery_input, "abort")  # type: ignore[attr-defined]  expiry_wave: Wave 27
+        result = gate._should_reflect(recovery_input, "abort")  # type: ignore[attr-defined]  expiry_wave: Wave 29
         assert result is True
 
 

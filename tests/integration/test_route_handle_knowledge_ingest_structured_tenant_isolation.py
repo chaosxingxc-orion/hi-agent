@@ -108,7 +108,7 @@ def _build_app(km, ctx: TenantContext) -> Starlette:
         "Fix in W22: tag each fact with tenant_id and filter by tenant on reads."
     ),
     strict=False,
-    expiry_wave="Wave 27",
+    expiry_wave="Wave 29",
 )
 class TestKnowledgeIngestStructuredTenantIsolation:
     """POST /knowledge/ingest-structured must isolate facts by tenant (AX-F F1)."""

@@ -74,7 +74,7 @@ class CircuitBreaker:  # scope: process-internal
                 name, state_str, opened_at, failures = row
                 self._states[name] = CircuitState(
                     failures=failures,
-                    status=state_str,  # type: ignore[arg-type]  expiry_wave: Wave 27
+                    status=state_str,  # type: ignore[arg-type]  expiry_wave: Wave 28
                     opened_at=opened_at,
                 )
 

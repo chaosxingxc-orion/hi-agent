@@ -177,7 +177,7 @@ async def handle_mcp_tools(request: Request) -> JSONResponse:
         if mcp_srv is not None:
             try:
                 return JSONResponse(mcp_srv.list_tools())
-            except Exception:  # rule7-exempt: expiry_wave="Wave 27" replacement_test: wave22-tests
+            except Exception:  # rule7-exempt: expiry_wave="Wave 28" replacement_test: wave22-tests
                 pass
         # Fallback: registry-based listing
         mcp_reg = server.mcp_registry

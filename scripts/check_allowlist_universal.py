@@ -47,11 +47,11 @@ def _parse_allowlists_yaml() -> list[dict]:
     current: dict | None = None
     for line in text.splitlines():
         stripped = line.strip()
-        if stripped.startswith("- id:") or stripped.startswith("- symbol:") or stripped.startswith("- path:"):  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+        if stripped.startswith("- id:") or stripped.startswith("- symbol:") or stripped.startswith("- path:"):  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             if current:
                 entries.append(current)
             field = stripped.split(":", 1)
-            current = {"_key": field[1].strip() if len(field) > 1 else "", "_source": "allowlists.yaml"}  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            current = {"_key": field[1].strip() if len(field) > 1 else "", "_source": "allowlists.yaml"}  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         elif current is not None and ":" in stripped and not stripped.startswith("#"):
             key, _, val = stripped.partition(":")
             current[key.strip()] = val.strip().strip('"\'')
@@ -64,7 +64,7 @@ def _check_in_code_allowlists() -> list[dict]:
     """Scan check_*.py for ALLOWLIST patterns and check for expiry comments."""
     issues = []
     scripts_dir = ROOT / "scripts"
-    pattern = re.compile(  # noqa: F841  # expiry_wave: Wave 27  # added: W25 baseline sweep
+    pattern = re.compile(  # noqa: F841  # expiry_wave: Wave 30  # added: W25 baseline sweep
         r'^\s*["\']([^"\']+)["\'],?\s*#\s*(.*)$',
         re.MULTILINE,
     )
@@ -86,7 +86,7 @@ def _check_in_code_allowlists() -> list[dict]:
                 if not expiry_pattern.search(comment):
                     # Only flag if the entry looks like a real allowlist item (not a comment)
                     stripped = line.strip()
-                    if stripped and not stripped.startswith("#") and '"""' not in stripped:  # noqa: SIM102  # expiry_wave: Wave 27  # added: W25 baseline sweep
+                    if stripped and not stripped.startswith("#") and '"""' not in stripped:  # noqa: SIM102  # expiry_wave: Wave 30  # added: W25 baseline sweep
                         if re.search(r'["\'][\w./]+["\']', stripped):
                             issues.append({
                                 "_source": f"{script.name}:{i}",
@@ -159,7 +159,7 @@ def main() -> int:
         print(json.dumps(result, indent=2))
     else:
         for issue in all_issues:
-            print(f"{'FAIL' if issue in expired else 'FAIL'}: {issue}", file=sys.stderr)  # noqa: RUF034  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            print(f"{'FAIL' if issue in expired else 'FAIL'}: {issue}", file=sys.stderr)  # noqa: RUF034  # expiry_wave: Wave 30  # added: W25 baseline sweep
         if not all_issues:
             print(f"PASS: {len(yaml_entries)} allowlist entries checked, all valid and unexpired")
 

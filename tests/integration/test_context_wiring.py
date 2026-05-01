@@ -75,7 +75,7 @@ class TestRunExecutorContextManagerRouting:
     def test_cm_sets_context_provider(self):
         cm = ContextManager(budget=ContextBudget(total_window=50_000))
         engine = RuleRouteEngine()
-        engine._context_provider = None  # type: ignore  expiry_wave: Wave 27
+        engine._context_provider = None  # type: ignore  expiry_wave: Wave 29
         _ = _make_executor(
             context_manager=cm,
             route_engine=engine,
@@ -91,7 +91,7 @@ class TestRunExecutorContextManagerRouting:
         cm = ContextManager(budget=ContextBudget(total_window=50_000))
         cm.add_history_entry(role="user", content="hello world")
         engine = RuleRouteEngine()
-        engine._context_provider = None  # type: ignore  expiry_wave: Wave 27
+        engine._context_provider = None  # type: ignore  expiry_wave: Wave 29
         _make_executor(
             context_manager=cm,
             route_engine=engine,
@@ -116,7 +116,7 @@ class TestRunExecutorContextManagerRouting:
         session.build_context_for_llm.return_value = {"fallback": True}
 
         engine = RuleRouteEngine()
-        engine._context_provider = None  # type: ignore  expiry_wave: Wave 27
+        engine._context_provider = None  # type: ignore  expiry_wave: Wave 29
         _ = _make_executor(
             context_manager=cm,
             route_engine=engine,
@@ -207,7 +207,7 @@ class TestRunExecutorBackwardCompat:
         session.current_stage = ""
         session.l1_summaries = {}
         engine = RuleRouteEngine()
-        engine._context_provider = None  # type: ignore  expiry_wave: Wave 27
+        engine._context_provider = None  # type: ignore  expiry_wave: Wave 29
         _ = _make_executor(
             context_manager=None,
             route_engine=engine,
@@ -277,7 +277,7 @@ class TestAPIContextHealth:
         def mock_send_json(status: int, body: dict) -> None:
             sent.append((status, body))
 
-        handler._send_json = mock_send_json  # type: ignore  expiry_wave: Wave 27
+        handler._send_json = mock_send_json  # type: ignore  expiry_wave: Wave 29
         handler._handle_context_health()
         assert sent[0][0] == 503
 
@@ -298,7 +298,7 @@ class TestAPIContextHealth:
         def mock_send_json(status: int, body: dict) -> None:
             sent.append((status, body))
 
-        handler._send_json = mock_send_json  # type: ignore  expiry_wave: Wave 27
+        handler._send_json = mock_send_json  # type: ignore  expiry_wave: Wave 29
         handler._handle_context_health()
         assert sent[0][0] == 200
         body = sent[0][1]

@@ -40,7 +40,7 @@ def _http_client() -> KernelFacadeClient:
 
 
 def _captured_request(mock_open: object) -> object:
-    return mock_open.call_args[0][0]  # type: ignore[union-attr]  expiry_wave: Wave 27
+    return mock_open.call_args[0][0]  # type: ignore[union-attr]  expiry_wave: Wave 29
 
 
 # ---------------------------------------------------------------------------

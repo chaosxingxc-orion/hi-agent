@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI gate: every registered CapabilityDescriptor must have an explicit maturity_level (Rule 13 / CL5)."""  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+"""CI gate: every registered CapabilityDescriptor must have an explicit maturity_level (Rule 13 / CL5)."""  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
 from __future__ import annotations
 
 import argparse
@@ -44,7 +44,7 @@ def find_descriptor_instantiations(path: str) -> list[tuple[int, str | None]]:
             maturity = None
             for kw in node.keywords:
                 if kw.arg == "maturity_level":
-                    if isinstance(kw.value, ast.Constant):  # noqa: SIM108  # expiry_wave: Wave 27  # added: W25 baseline sweep
+                    if isinstance(kw.value, ast.Constant):  # noqa: SIM108  # expiry_wave: Wave 30  # added: W25 baseline sweep
                         maturity = kw.value.value
                     else:
                         maturity = "<dynamic>"
@@ -83,11 +83,11 @@ def main() -> int:
                 continue
             if maturity is None:
                 violations.append(
-                    f"{registry_file}:{lineno}: CapabilityDescriptor instantiation missing maturity_level"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+                    f"{registry_file}:{lineno}: CapabilityDescriptor instantiation missing maturity_level"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 )
             elif maturity not in VALID_LEVELS:
                 violations.append(
-                    f"{registry_file}:{lineno}: maturity_level={maturity!r} not in {sorted(VALID_LEVELS)}"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+                    f"{registry_file}:{lineno}: maturity_level={maturity!r} not in {sorted(VALID_LEVELS)}"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 )
 
     if violations:
@@ -101,7 +101,7 @@ def main() -> int:
         for f in REGISTRY_FILES
         if Path(f).exists()
     )
-    print(f"PASS: capability maturity check ({total} CapabilityDescriptor instantiation(s) verified)")  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+    print(f"PASS: capability maturity check ({total} CapabilityDescriptor instantiation(s) verified)")  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
     return 0
 
 

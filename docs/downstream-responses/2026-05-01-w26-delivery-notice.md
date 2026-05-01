@@ -43,7 +43,7 @@ Cap factors (7×24): `soak_24h_missing` (deferred), `observability_spine_incompl
 
 **Closure level:** `verified_at_release_head`
 
-The 557 `expiry_wave: Wave 26` suppressions that created a synchronized cliff have been bumped to `expiry_wave: Wave 27` across all source, test, and script files. Unblocks `noqa_discipline`, `silent_degradation`, and `pytest_skip_discipline` gates.
+The 557 `expiry_wave: Wave 26` suppressions that created a synchronized cliff have been bumped to `expiry_wave: Wave 30` across all source, test, and script files. Unblocks `noqa_discipline`, `silent_degradation`, and `pytest_skip_discipline` gates.
 
 Three-part closure:
 1. **Code fix:** commit `c02e7153` — mass bump `expiry_wave: Wave 26 → Wave 27` in 287 files

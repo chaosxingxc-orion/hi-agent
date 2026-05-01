@@ -59,10 +59,10 @@ def build_durable_backends(
     from hi_agent.evolve.feedback_store import FeedbackStore
     from hi_agent.management.gate_store import SQLiteGateStore
     from hi_agent.memory.l1_store import (
-        L1CompressedMemoryStore,  # noqa: F401  # wired via SystemBuilder # expiry_wave: Wave 27
+        L1CompressedMemoryStore,  # noqa: F401  # wired via SystemBuilder # expiry_wave: Wave 28
     )
     from hi_agent.memory.l2_store import (
-        L2RunMemoryIndexStore,  # noqa: F401  # wired via SystemBuilder # expiry_wave: Wave 27
+        L2RunMemoryIndexStore,  # noqa: F401  # wired via SystemBuilder # expiry_wave: Wave 28
     )
     from hi_agent.route_engine.decision_audit_store import SqliteDecisionAuditStore
     from hi_agent.server.event_store import SQLiteEventStore

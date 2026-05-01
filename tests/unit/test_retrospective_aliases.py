@@ -4,7 +4,7 @@ from __future__ import annotations
 
 def test_run_retrospective_is_canonical():
     """RunRetrospective imports cleanly."""
-    from hi_agent.evolve.contracts import RunRetrospective  # noqa: F401  expiry_wave: Wave 27
+    from hi_agent.evolve.contracts import RunRetrospective  # noqa: F401  expiry_wave: Wave 29
 
 
 def test_project_retrospective_has_outcome_assessments():

@@ -168,7 +168,7 @@ def _make_restart_policy(on_exhausted: str, max_attempts: int = 3):
 
     return TaskRestartPolicy(
         max_attempts=max_attempts,
-        on_exhausted=on_exhausted,  # type: ignore[arg-type]  expiry_wave: Wave 27
+        on_exhausted=on_exhausted,  # type: ignore[arg-type]  expiry_wave: Wave 29
     )
 
 

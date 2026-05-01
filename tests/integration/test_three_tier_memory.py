@@ -426,10 +426,10 @@ class TestLongTermMemoryGraph:
 
     def test_record_access(self, lt_graph: LongTermMemoryGraph) -> None:
         lt_graph.add_node(MemoryNode(node_id="n1", content="a"))
-        assert lt_graph.get_node("n1").access_count == 0  # type: ignore[union-attr]  expiry_wave: Wave 27
+        assert lt_graph.get_node("n1").access_count == 0  # type: ignore[union-attr]  expiry_wave: Wave 29
         lt_graph.record_access("n1")
         lt_graph.record_access("n1")
-        assert lt_graph.get_node("n1").access_count == 2  # type: ignore[union-attr]  expiry_wave: Wave 27
+        assert lt_graph.get_node("n1").access_count == 2  # type: ignore[union-attr]  expiry_wave: Wave 29
 
     def test_node_and_edge_count(self, lt_graph: LongTermMemoryGraph) -> None:
         assert lt_graph.node_count() == 0

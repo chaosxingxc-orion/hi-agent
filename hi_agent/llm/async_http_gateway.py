@@ -68,9 +68,9 @@ class AsyncHTTPGateway:
             default_model=default_model,
             max_retries=max_retries,
             retry_base_seconds=retry_base_seconds,
-            failover_chain=failover_chain,  # type: ignore[arg-type]  expiry_wave: Wave 27
+            failover_chain=failover_chain,  # type: ignore[arg-type]  expiry_wave: Wave 28
             cache_injector=cache_injector,  # type: ignore[arg-type]
-            budget_tracker=budget_tracker,  # type: ignore[arg-type]  expiry_wave: Wave 27
+            budget_tracker=budget_tracker,  # type: ignore[arg-type]  expiry_wave: Wave 28
         )
         self._retry_base = retry_base_seconds
         self._max_retries = max_retries
@@ -142,4 +142,4 @@ class AsyncHTTPGateway:
                 "attempts": self._max_retries,
             },
         )
-        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 27
+        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 28

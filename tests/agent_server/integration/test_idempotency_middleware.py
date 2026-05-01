@@ -251,7 +251,7 @@ def test_5xx_releases_slot_for_retry(tmp_path: Path) -> None:
             raise RuntimeError("transient")
         return original_start(**kwargs)
 
-    backend.start_run = flaky_start  # type: ignore[assignment] # expiry_wave: Wave 27
+    backend.start_run = flaky_start  # type: ignore[assignment] # expiry_wave: Wave 29
     app = _build_app(backend, tmp_path / "idem_retry.db", strict=False)
     client = TestClient(app, raise_server_exceptions=False)
     body = {"profile_id": "default", "goal": "retry", "idempotency_key": "k-retry"}

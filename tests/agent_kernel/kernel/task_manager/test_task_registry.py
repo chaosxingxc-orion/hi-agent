@@ -29,7 +29,7 @@ def _make_descriptor(
     return TaskDescriptor(
         task_id=task_id,
         session_id=session_id,
-        task_kind=task_kind,  # type: ignore[arg-type]  expiry_wave: Wave 27
+        task_kind=task_kind,  # type: ignore[arg-type]  expiry_wave: Wave 29
         goal_description=goal,
         restart_policy=TaskRestartPolicy(
             max_attempts=max_attempts,

@@ -80,10 +80,10 @@ class AuditStore:
             risk_class=risk_class,
             source=source,
             argument_digest=argument_digest,
-            decision=decision,  # type: ignore[arg-type]  expiry_wave: Wave 27
+            decision=decision,  # type: ignore[arg-type]  expiry_wave: Wave 28
             denial_reason=reason if decision != "allow" else None,
             approval_id=approval_id,
-            result_status=result_status,  # type: ignore[arg-type]  expiry_wave: Wave 27
+            result_status=result_status,  # type: ignore[arg-type]  expiry_wave: Wave 28
             duration_ms=duration_ms,
             timestamp=now,
         )

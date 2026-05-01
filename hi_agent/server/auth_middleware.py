@@ -69,7 +69,7 @@ def _verify_jwt(token: str, secret: str, audience: str) -> dict[str, Any] | None
     """Decode and VERIFY a JWT using the provided secret."""
     try:
         return pyjwt.decode(token, secret, algorithms=["HS256"], audience=audience)
-    except pyjwt.PyJWTError:  # rule7-exempt: expiry_wave="Wave 27" replacement_test: wave22-tests
+    except pyjwt.PyJWTError:  # rule7-exempt: expiry_wave="Wave 28" replacement_test: wave22-tests
         return None
 
 
@@ -89,7 +89,7 @@ def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
     try:
         decoded = base64.urlsafe_b64decode(payload_b64)
         return json.loads(decoded)
-    except Exception:  # rule7-exempt: expiry_wave="Wave 27" replacement_test: wave22-tests
+    except Exception:  # rule7-exempt: expiry_wave="Wave 28" replacement_test: wave22-tests
         return None
 
 
@@ -265,7 +265,7 @@ class AuthMiddleware:
             try:
                 validated = validate_jwt_claims(claims, audience=self._audience)
                 return str(validated.get("role", "read"))
-            except JWTValidationError:  # rule7-exempt: expiry_wave="Wave 27"
+            except JWTValidationError:  # rule7-exempt: expiry_wave="Wave 28"
                 return None
 
         # No JWT secret configured.
@@ -283,7 +283,7 @@ class AuthMiddleware:
             try:
                 validated = validate_jwt_claims(claims, audience=self._audience)
                 return str(validated.get("role", "read"))
-            except JWTValidationError:  # rule7-exempt: expiry_wave="Wave 27"
+            except JWTValidationError:  # rule7-exempt: expiry_wave="Wave 28"
                 return None
         else:
             _logger.warning(

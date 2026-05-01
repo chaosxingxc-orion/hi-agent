@@ -98,7 +98,7 @@ def _parse_retry_after(response: Any) -> float | None:
         return None
     try:
         return float(raw)
-    except (TypeError, ValueError):  # rule7-exempt: expiry_wave="Wave 27"
+    except (TypeError, ValueError):  # rule7-exempt: expiry_wave="Wave 28"
         return None
 
 
@@ -150,7 +150,7 @@ async def _with_rate_limit_retry(
                 )
                 await asyncio.sleep(delay)
                 backoff *= 2
-    raise last_exc  # type: ignore[misc]  # expiry_wave: Wave 27
+    raise last_exc  # type: ignore[misc]  # expiry_wave: Wave 28
 
 
 # ---------------------------------------------------------------------------

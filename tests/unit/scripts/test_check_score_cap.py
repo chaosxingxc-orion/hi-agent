@@ -61,7 +61,7 @@ def test_strict_head_defers_when_no_current_head_manifest(tmp_path, monkeypatch,
     assert "current HEAD" in data["reason"]
 
 
-def test_loose_mode_falls_back_to_latest_when_no_current_head_manifest(tmp_path, monkeypatch, capsys):  # noqa: E501  # expiry_wave: Wave 27
+def test_loose_mode_falls_back_to_latest_when_no_current_head_manifest(tmp_path, monkeypatch, capsys):  # noqa: E501  # expiry_wave: Wave 29
     import check_score_cap as mod
 
     _write_manifest(tmp_path, "stale01", "2026-04-28T10:00:00+00:00", verified=75.0)

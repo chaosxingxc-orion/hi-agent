@@ -349,7 +349,7 @@ class TestExecuteAsyncOutcomes:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         executor = _executor(builder, "char-async-completed")
-        executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 27
+        executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 29
         finalize = _quiet_lifecycle(monkeypatch, executor)
         calls = _stage_behavior(monkeypatch, executor, None)
 
@@ -374,7 +374,7 @@ class TestExecuteAsyncOutcomes:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         executor = _executor(builder, "char-async-failed-return")
-        executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 27
+        executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 29
         finalize = _quiet_lifecycle(monkeypatch, executor)
         calls = _stage_behavior(monkeypatch, executor, "failed")
 
@@ -399,7 +399,7 @@ class TestExecuteAsyncOutcomes:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         executor = _executor(builder, "char-async-exception")
-        executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 27
+        executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 29
         finalize = _quiet_lifecycle(monkeypatch, executor)
         calls = _stage_behavior(monkeypatch, executor, RuntimeError("async exploded"))
 

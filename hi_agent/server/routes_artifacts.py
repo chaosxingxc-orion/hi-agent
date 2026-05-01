@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def _get_artifact_store(request: Request) -> ArtifactStore | None:
     """Return the artifact store from server state, or None if unavailable."""
     server: Any = request.app.state.agent_server
-    return getattr(server, "artifact_registry", None)  # type: ignore[return-value]  expiry_wave: Wave 27
+    return getattr(server, "artifact_registry", None)  # type: ignore[return-value]  expiry_wave: Wave 28
 
 
 async def handle_list_artifacts(request: Request) -> JSONResponse:

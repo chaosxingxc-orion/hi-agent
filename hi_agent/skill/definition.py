@@ -84,7 +84,7 @@ def _parse_yaml_value(raw: str) -> str | int | float | bool | list[str]:
         if "." in val:
             return float(val)
         return int(val)
-    except ValueError:  # rule7-exempt: expiry_wave="Wave 27" replacement_test: wave22-tests
+    except ValueError:  # rule7-exempt: expiry_wave="Wave 28" replacement_test: wave22-tests
         pass
 
     # Plain string - strip quotes
@@ -297,14 +297,14 @@ class SkillDefinition:
         def _float(key: str, default: float) -> float:
             v = meta.get(key, default)
             try:
-                return float(v)  # type: ignore[arg-type]  expiry_wave: Wave 27
+                return float(v)  # type: ignore[arg-type]  expiry_wave: Wave 28
             except (ValueError, TypeError):
                 return default
 
         def _int(key: str, default: int) -> int:
             v = meta.get(key, default)
             try:
-                return int(v)  # type: ignore[arg-type]  expiry_wave: Wave 27
+                return int(v)  # type: ignore[arg-type]  expiry_wave: Wave 28
             except (ValueError, TypeError):
                 return default
 

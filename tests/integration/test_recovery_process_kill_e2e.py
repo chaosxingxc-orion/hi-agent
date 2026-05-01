@@ -82,7 +82,7 @@ def _poll_run_state(base_url: str, run_id: str, timeout: float = 30.0) -> str | 
 @pytest.mark.xfail(
     reason="Requires Linux CI with subprocess server management and real DB path wiring.",
     strict=False,
-    expiry_wave="Wave 27",
+    expiry_wave="Wave 29",
 )
 def test_run_survives_server_restart(tmp_path):
     """A run started on server A reaches terminal state after server A is killed
@@ -186,7 +186,7 @@ def test_run_survives_server_restart(tmp_path):
 @pytest.mark.xfail(
     reason="Requires Linux CI with subprocess server management.",
     strict=False,
-    expiry_wave="Wave 27",
+    expiry_wave="Wave 29",
 )
 def test_adoption_token_prevents_double_execute_across_restarts(tmp_path):
     """When two recovery passes race (simulated by two processes sharing the same DB),

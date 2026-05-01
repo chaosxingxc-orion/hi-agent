@@ -71,7 +71,7 @@ def record_tenant_scoped_access(
             exc,
         )
         # Counter-of-counter increment is best-effort; alarm bell is the WARNING log above.
-        with contextlib.suppress(Exception):  # rule7-exempt: expiry_wave="Wave 27" replacement_test: tenant-scope-audit-error-counter # noqa: E501
+        with contextlib.suppress(Exception):  # rule7-exempt: expiry_wave="Wave 28" replacement_test: tenant-scope-audit-error-counter # noqa: E501
             _route_tenant_audit_metric_errors_total.labels(
                 resource=resource, op=op
             ).inc()

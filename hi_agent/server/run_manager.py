@@ -145,7 +145,7 @@ class RunManager:
         self._idempotency_store = idempotency_store
         self._run_store = run_store
         self._run_queue = run_queue
-        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: Wave 27
+        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: Wave 28
         # Per-run sequence counters; seeded from storage on first use (restart-safe).
         self._event_seqs: dict[str, int] = {}
         self._event_seq_lock = threading.Lock()
@@ -501,7 +501,7 @@ class RunManager:
                     run_id=run_id,
                     extra=_pre_ev.get("extra") or {},
                 )
-        except Exception:  # rule7-exempt: pre-create migration never blocks create_run  # noqa: E501  # expiry_wave: Wave 27
+        except Exception:  # rule7-exempt: pre-create migration never blocks create_run  # noqa: E501  # expiry_wave: Wave 28
             pass
 
         # --- emit run_queued lifecycle event ---------------------------------
@@ -515,7 +515,7 @@ class RunManager:
         try:
             from hi_agent.observability.spine_events import emit_run_manager
             emit_run_manager(tenant_id=tenant_id, run_id=run_id)
-        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 27
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
             pass
 
         # --- persist to run_store if available ------------------------------
@@ -794,7 +794,7 @@ class RunManager:
                 try:
                     from hi_agent.server.fault_injection import get_fault_injector
                     get_fault_injector().maybe_stall_heartbeat_sync()
-                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 27
+                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 28
                     if renewed:
                         run_for_hb = self._runs.get(run_id)
                         if run_for_hb is not None:
@@ -812,7 +812,7 @@ class RunManager:
                                     tenant_id=getattr(run_for_hb, "tenant_id", "") or "",
                                     run_id=run_id,
                                 )
-                            except Exception:  # rule7-exempt: expiry_wave="Wave 27"
+                            except Exception:  # rule7-exempt: expiry_wave="Wave 28"
                                 pass
                     if not renewed:
                         _hb_log.warning(

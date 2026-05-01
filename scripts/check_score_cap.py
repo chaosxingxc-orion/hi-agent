@@ -110,7 +110,7 @@ def _check_notice_score_claims(verified: float) -> list[str]:
         for m in score_pattern.finditer(text):
             claimed = float(m.group(1))
             if claimed > notice_verified + 0.5:  # allow 0.5 rounding tolerance
-                issues.append(f"{f.name}: claims {claimed:.1f} > manifest verified {notice_verified:.1f}")  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+                issues.append(f"{f.name}: claims {claimed:.1f} > manifest verified {notice_verified:.1f}")  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
     return issues
 
 
@@ -202,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(result, indent=2))
     else:
-        print(f"{'PASS' if status == 'pass' else 'FAIL'}: verified={verified:.1f} cap={cap} factors={cap_factors}")  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+        print(f"{'PASS' if status == 'pass' else 'FAIL'}: verified={verified:.1f} cap={cap} factors={cap_factors}")  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         for issue in issues:
             print(f"  ISSUE: {issue}", file=sys.stderr)
 

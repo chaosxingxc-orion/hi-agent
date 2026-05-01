@@ -160,7 +160,7 @@ class ControlMiddleware:
             max_tokens=2048,
             metadata={"purpose": self._model_tier, "run_id": run_id},
         )
-        response = self._llm_gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 27
+        response = self._llm_gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 28
         raw = response.content.strip()
 
         # Strip markdown fences if present

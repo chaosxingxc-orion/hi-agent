@@ -167,7 +167,7 @@ def _scan_file_b1(path: pathlib.Path) -> list[dict]:
         if spec is None or spec.loader is None:
             return []
         mod = _ilu.module_from_spec(spec)
-        spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 27
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 30
         raw = mod.scan_file(path)
         # Normalise: ensure each entry has required keys
         out = []

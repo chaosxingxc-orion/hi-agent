@@ -29,7 +29,7 @@ class ExtensionDisallowedError(Exception):
         self.reasons: list[str] = reasons if reasons is not None else []
 
 
-class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 27
+class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 28
     """Raised when a dangerous extension requires human gate approval to enable."""
 
     def __init__(self, name: str, version: str, dangerous_capabilities: list[str]) -> None:
@@ -46,7 +46,7 @@ class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818  e
         )
 
 
-class ExtensionTenantScopeRequired(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 27
+class ExtensionTenantScopeRequired(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 28
     """Raised when enabling an extension with tenant_scope requires a non-empty tenant_id."""
 
     def __init__(self, name: str, version: str, tenant_scope: str) -> None:
@@ -348,7 +348,7 @@ class ExtensionRegistry:
     # Enable gate
     # ------------------------------------------------------------------
 
-    def enable(self, name: str, version: str, posture: Posture | None = None, *, tenant_id: str = "") -> None:  # noqa: E501  expiry_wave: Wave 27
+    def enable(self, name: str, version: str, posture: Posture | None = None, *, tenant_id: str = "") -> None:  # noqa: E501  expiry_wave: Wave 28
         """Fail-closed gate: check production_eligibility before enabling.
 
         Args:

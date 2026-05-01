@@ -121,7 +121,7 @@ class FileBackedConsistencyJournal:
 
         try:
             payload = json.loads(stripped)
-        except json.JSONDecodeError:  # rule7-exempt: expiry_wave="Wave 27"
+        except json.JSONDecodeError:  # rule7-exempt: expiry_wave="Wave 28"
             return None
 
         if not isinstance(payload, dict):

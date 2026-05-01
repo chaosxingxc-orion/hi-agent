@@ -120,7 +120,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             _mc = _gmc()
             if _mc is not None:
                 _mc.increment("hi_agent_request_too_large_total", labels={"field": "task"})
-        except Exception:  # rule7-exempt: expiry_wave="Wave 27" replacement_test: wave22-tests
+        except Exception:  # rule7-exempt: expiry_wave="Wave 28" replacement_test: wave22-tests
             pass
         return JSONResponse({"error": "task field exceeds 32KB limit"}, status_code=413)
     _context_val = body.get("context", "")
@@ -130,7 +130,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             _mc = _gmc()
             if _mc is not None:
                 _mc.increment("hi_agent_request_too_large_total", labels={"field": "context"})
-        except Exception:  # rule7-exempt: expiry_wave="Wave 27" replacement_test: wave22-tests
+        except Exception:  # rule7-exempt: expiry_wave="Wave 28" replacement_test: wave22-tests
             pass
         return JSONResponse({"error": "context field exceeds 64KB limit"}, status_code=413)
     # --- end J1 size limits -------------------------------------------------
@@ -182,7 +182,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             try:
                 snapshot_body = json.loads(managed_run.response_snapshot)
                 return JSONResponse(snapshot_body, status_code=200)
-            except (ValueError, json.JSONDecodeError):  # rule7-exempt: expiry_wave="Wave 27"
+            except (ValueError, json.JSONDecodeError):  # rule7-exempt: expiry_wave="Wave 28"
                 pass
         # Original run is still in-flight — return pending notice.
         return JSONResponse(
@@ -199,7 +199,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
     # Register run in RunContextManager so /runs/active reflects live runs.
     rcm = getattr(server, "run_context_manager", None)
     if rcm is not None:
-        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 27
+        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 28
             rcm.get_or_create(run_id)
 
     # If the server has an executor factory, start the run immediately.
@@ -220,7 +220,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             # prod mode). Return 503 so integrators can act on it, not a raw 500.
             logger.warning("handle_create_run: executor_factory failed — %s", exc)
             # Clean up the run we registered above
-            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 27
+            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 28
                 manager.get_run(run_id)  # no-op, just guard
             return JSONResponse(
                 {
@@ -252,7 +252,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
             finally:
                 # Remove from active registry on completion or failure.
                 if rcm is not None:
-                    with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 27
+                    with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 28
                         rcm.remove(run_id)
 
         try:
@@ -277,7 +277,7 @@ async def handle_create_run(request: Request) -> JSONResponse:
     if _project_missing:
         extra_headers["X-Hi-Agent-Warning"] = "project_id-missing"
     return JSONResponse(
-        manager.to_dict(run), status_code=201, headers=extra_headers  # type: ignore[arg-type]  expiry_wave: Wave 27 replacement_test: tests/unit/test_routes_runs_rule7.py::test_error_exempt
+        manager.to_dict(run), status_code=201, headers=extra_headers  # type: ignore[arg-type]  expiry_wave: Wave 28 replacement_test: tests/unit/test_routes_runs_rule7.py::test_error_exempt
     )
 
 
@@ -638,7 +638,7 @@ async def handle_reasoning_trace(request: Request) -> JSONResponse:
             for line in f:
                 line = line.strip()
                 if line:
-                    with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 27
+                    with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 28
                         entries.append(json.loads(line))
     except Exception as exc:
         logger.warning("handle_reasoning_trace: failed to read trace file %s: %s", trace_file, exc)

@@ -16,7 +16,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio  # noqa: F401 - ensures the plugin is imported  expiry_wave: Wave 27
+import pytest_asyncio  # noqa: F401 - ensures the plugin is imported  expiry_wave: Wave 29
 from hi_agent.llm import LLMResponse, TokenUsage
 from hi_agent.memory.structured_compression import (
     MessagePartitioner,
@@ -47,7 +47,7 @@ def _sample_summary(
     goal: str = "Sample goal",
     progress: str = "Done A",
     decisions: str = "Chose X",
-    modified_files: list[str] | None = _SENTINEL,  # type: ignore[assignment]  expiry_wave: Wave 27
+    modified_files: list[str] | None = _SENTINEL,  # type: ignore[assignment]  expiry_wave: Wave 29
     next_steps: str = "Do B",
     source_message_count: int = 5,
 ) -> StructuredSummary:
@@ -57,7 +57,7 @@ def _sample_summary(
         goal=goal,
         progress=progress,
         decisions=decisions,
-        modified_files=list(modified_files),  # type: ignore[arg-type]  expiry_wave: Wave 27
+        modified_files=list(modified_files),  # type: ignore[arg-type]  expiry_wave: Wave 29
         next_steps=next_steps,
         compressed_at="2026-04-10T00:00:00+00:00",
         source_message_count=source_message_count,

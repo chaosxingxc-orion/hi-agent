@@ -98,7 +98,7 @@ _GATE_SCRIPTS: dict[str, tuple] = {
     # BEFORE the new manifest is written, so it would always see the previous
     # committed manifest and fail on any non-docs-only gap.  It runs instead
     # as a separate CI step in release-gate.yml, after the manifest is committed.
-    "clean_env":                  ("verify_clean_env.py",                 False, ["--profile", "default-offline"], 360),  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+    "clean_env":                  ("verify_clean_env.py",                 False, ["--profile", "default-offline"], 360),  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
     "validate_before_mutate":     ("check_validate_before_mutate.py",     True,  []),
     "select_completeness":        ("check_select_completeness.py",        True,  []),
     "silent_degradation":         ("check_silent_degradation.py",         True,  []),
@@ -176,7 +176,7 @@ def _is_dirty() -> bool:
     return result.returncode != 0
 
 
-def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] | None = None, timeout: int = 120) -> dict[str, Any]:  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] | None = None, timeout: int = 120) -> dict[str, Any]:  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
     """Run a governance script and return a gate result dict."""
     script_path = SCRIPTS / script
     if not script_path.exists():
@@ -496,7 +496,7 @@ def _compute_cap(
             # separate `soak_24h_pending` rule (cap 80). Only fire missing when
             # status is neither `pass` nor `partial_1h`.
             soak_gate = gates.get("soak_evidence")
-            soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             if soak_status in ("pass", "partial_1h"):
                 return None
             return f"soak_24h_missing: {soak_status}"
@@ -504,15 +504,15 @@ def _compute_cap(
             # real 1h soak evidence with invariants_held grants partial
             # credit — caps 7x24 readiness at 80 (from 65 under missing).
             soak_gate = gates.get("soak_evidence")
-            soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             return f"soak_24h_pending: {soak_status}" if soak_status == "partial_1h" else None
         if condition == "observability_spine_incomplete":
             spine_gate = gates.get("observability_spine_completeness")
-            spine_status = spine_gate.get("status", "unknown") if isinstance(spine_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
-            return f"observability_spine_incomplete: {spine_status}" if spine_status != "pass" else None  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            spine_status = spine_gate.get("status", "unknown") if isinstance(spine_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+            return f"observability_spine_incomplete: {spine_status}" if spine_status != "pass" else None  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         if condition == "chaos_non_runtime_coupled":
             chaos_gate = gates.get("chaos_runtime_coupling")
-            chaos_status = chaos_gate.get("status", "unknown") if isinstance(chaos_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            chaos_status = chaos_gate.get("status", "unknown") if isinstance(chaos_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             return f"chaos_non_runtime_coupled: {chaos_status}" if chaos_status != "pass" else None
         if condition == "t3_shape_verified":
             t3_gate = gates.get("t3_freshness")
@@ -523,7 +523,7 @@ def _compute_cap(
                 else None
             )
         if condition == "multistatus_gates_pending_low":
-            # 1-3 boundary multistatus gates still in DEFER (cap 92).  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            # 1-3 boundary multistatus gates still in DEFER (cap 92).  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             if 1 <= multistatus_pending_count <= 3:
                 return f"multistatus_pending_low: defer_count={multistatus_pending_count}"
             return None
@@ -541,7 +541,7 @@ def _compute_cap(
         if condition == "notice_inconsistency":
             # Fails when check_doc_consistency or check_release_identity reports fail
             doc_gate = gates.get("doc_consistency", {})
-            doc_status = doc_gate.get("status", "unknown") if isinstance(doc_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            doc_status = doc_gate.get("status", "unknown") if isinstance(doc_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             id_gate = gates.get("release_identity", {})
             id_status = id_gate.get("status", "unknown") if isinstance(id_gate, dict) else "unknown"
             if doc_status == "fail":
@@ -584,7 +584,7 @@ def _compute_cap(
                 # Track the most recent artifact head for the error message
                 if not best_ce_head or ce_head > best_ce_head:
                     best_ce_head = ce_head
-            return f"clean_env_not_final_head: evidence={best_ce_head[:12]} HEAD={current_head[:12]}"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            return f"clean_env_not_final_head: evidence={best_ce_head[:12]} HEAD={current_head[:12]}"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         if condition == "operator_drill_missing":
             # Fails when no operator-drill evidence exists for the current HEAD
             # Exclude -provenance.json sidecars; they have no all_passed field.
@@ -606,7 +606,7 @@ def _compute_cap(
             # Partial-real provenance (honest tagging by drill v2): the drill ran,
             # all invariants held, but a subset of scenarios required PM2/systemd
             # supervision unavailable in dev. Treat as warn-only, not a cap.
-            _ACCEPTED_PARTIAL_PROVENANCE = ("simulated_pending_pm2",)  # noqa: N806  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            _ACCEPTED_PARTIAL_PROVENANCE = ("simulated_pending_pm2",)  # noqa: N806  # expiry_wave: Wave 30  # added: W25 baseline sweep
             if drill_passed and drill_prov in _ACCEPTED_PARTIAL_PROVENANCE:
                 return None
             if drill_prov != "real" or not drill_passed:
@@ -619,7 +619,7 @@ def _compute_cap(
         if condition == "verification_artifact_missing_at_head":
             va_gate = gates.get("verification_artifacts", {})
             va_status = va_gate.get("status", "unknown") if isinstance(va_gate, dict) else "unknown"
-            has_current = va_gate.get("has_current_head", True) if isinstance(va_gate, dict) else True  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            has_current = va_gate.get("has_current_head", True) if isinstance(va_gate, dict) else True  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             if va_status == "fail" or not has_current:
                 return f"verification_artifact_missing_at_head: {va_status}"
             return None
@@ -648,7 +648,7 @@ def _compute_cap(
                 # Governance-only commits since the artifact are not a gap
                 if _evidence_gov_gap(ce_head, current_head):
                     return None
-            return f"clean_env_artifact_missing_at_head: no artifact matches HEAD={current_head[:12]}"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+            return f"clean_env_artifact_missing_at_head: no artifact matches HEAD={current_head[:12]}"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         if condition == "score_artifact_inconsistent":
             # Only check score-cap artifacts that are at the CURRENT HEAD.
             # Historical artifacts at intermediate commits will naturally have manifest_ids
@@ -679,7 +679,7 @@ def _compute_cap(
                 if manifest_id and manifest_id not in file_stem:
                     sha_part = manifest_id.split("-")[-1] if "-" in manifest_id else manifest_id
                     if sha_part not in file_stem:
-                        return f"score_artifact_inconsistent: {sf.name} manifest_id={manifest_id} not in filename"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+                        return f"score_artifact_inconsistent: {sf.name} manifest_id={manifest_id} not in filename"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             return None
         return None
 
@@ -771,12 +771,12 @@ def _gather_evidence(gates: dict[str, Any]) -> dict[str, Any]:
     t3_stale = t3_status not in ("pass", "fresh_at_head")
 
     route_scope_gate = gates.get("route_scope", {})
-    allowlist_total = route_scope_gate.get("allowlist_total", 0) if isinstance(route_scope_gate, dict) else 0  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
-    expired_allowlist_total = route_scope_gate.get("expired_allowlist_total", 0) if isinstance(route_scope_gate, dict) else 0  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+    allowlist_total = route_scope_gate.get("allowlist_total", 0) if isinstance(route_scope_gate, dict) else 0  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+    expired_allowlist_total = route_scope_gate.get("expired_allowlist_total", 0) if isinstance(route_scope_gate, dict) else 0  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
 
     clean_env_gate = gates.get("clean_env", {})
-    clean_env_status = clean_env_gate.get("status", "unknown") if isinstance(clean_env_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
-    clean_env_summary_available = clean_env_gate.get("summary_available", None) if isinstance(clean_env_gate, dict) else None  # noqa: E501  # expiry_wave: Wave 27  # added: W25 baseline sweep
+    clean_env_status = clean_env_gate.get("status", "unknown") if isinstance(clean_env_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+    clean_env_summary_available = clean_env_gate.get("summary_available", None) if isinstance(clean_env_gate, dict) else None  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
 
     # invoke the multistatus runner once and capture the aggregate.
     # The runner reports per-gate PASS/FAIL/WARN/DEFER plus aggregated counts.

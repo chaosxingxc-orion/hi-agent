@@ -48,7 +48,7 @@ def test_cmd_ops_build_runbook_returns_steps() -> None:
 def test_cmd_ops_build_report_validates_input_types() -> None:
     """Invalid input types should raise deterministic TypeError."""
     with pytest.raises(TypeError):
-        cmd_ops_build_report(  # type: ignore[arg-type]  expiry_wave: Wave 27
+        cmd_ops_build_report(  # type: ignore[arg-type]  expiry_wave: Wave 29
             readiness=[],
             signals={},
             alerts=[],
@@ -56,4 +56,4 @@ def test_cmd_ops_build_report_validates_input_types() -> None:
             now_ts=1.0,
         )
     with pytest.raises(TypeError):
-        cmd_ops_build_runbook([])  # type: ignore[arg-type]  expiry_wave: Wave 27
+        cmd_ops_build_runbook([])  # type: ignore[arg-type]  expiry_wave: Wave 29

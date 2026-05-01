@@ -37,7 +37,7 @@ def _load_current_wave() -> int | None:
     if not LEDGER_PATH.exists():
         return None
     try:
-        import yaml  # type: ignore[import-untyped]  # expiry_wave: Wave 27
+        import yaml  # type: ignore[import-untyped]  # expiry_wave: Wave 30
 
         data = yaml.safe_load(LEDGER_PATH.read_text(encoding="utf-8"))
         if isinstance(data, dict):

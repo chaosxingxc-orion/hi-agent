@@ -268,7 +268,7 @@ class TestCLIRun:
 class TestServerRoundTrip:
     """Full round-trip: create server, POST /runs, verify run executes."""
 
-    @pytest.mark.skip(  # expiry_wave: Wave 27
+    @pytest.mark.skip(  # expiry_wave: Wave 29
         reason=(
             "H1-Track4: assertion accepts 'running' as a valid terminal state, "
             "meaning the test passes even when execution has not completed. "

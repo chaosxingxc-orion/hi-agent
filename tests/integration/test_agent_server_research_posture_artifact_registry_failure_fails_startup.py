@@ -40,7 +40,7 @@ def test_research_posture_artifact_registry_failure_raises(monkeypatch) -> None:
         def __init__(self, *a, **kw):
             raise ValueError("simulated ledger storage failure")
 
-    monkeypatch.setattr(_al_mod, "ArtifactLedger", _BrokenLedger)  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 27
+    monkeypatch.setattr(_al_mod, "ArtifactLedger", _BrokenLedger)  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 29
     try:
         builder = _make_builder()
         with pytest.raises(ValueError, match="simulated ledger storage failure"):
@@ -65,7 +65,7 @@ def test_dev_posture_artifact_registry_failure_returns_none(monkeypatch) -> None
         def __init__(self, *a, **kw):
             raise ValueError("simulated ledger storage failure")
 
-    monkeypatch.setattr(_al_mod, "ArtifactLedger", _BrokenLedger)  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 27
+    monkeypatch.setattr(_al_mod, "ArtifactLedger", _BrokenLedger)  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 29
     try:
         builder = _make_builder()
         result = builder.build_artifact_registry()
