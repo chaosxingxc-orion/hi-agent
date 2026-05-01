@@ -316,22 +316,6 @@ entries:
     replacement_test: "test_routes_plugins_tenant_isolation.py"
     added_at: "Wave 26"
   - allowlist: stale_todo
-    entry: ledger_source_ref_linear_scan
-    owner: TE
-    risk: low
-    reason: "query_by_source_ref does O(n) scan. W12 indexing deferred; correctness unaffected. Performance acceptable at current artifact counts (<10k)."
-    expiry_wave: "Wave 30"
-    replacement_test: "test_ledger_source_ref_index_performance.py"
-    added_at: "Wave 26"
-  - allowlist: stale_todo
-    entry: ledger_upstream_linear_scan
-    owner: TE
-    risk: low
-    reason: "query_by_upstream does O(n) scan. W12 indexing deferred; correctness unaffected. Performance acceptable at current artifact counts (<10k)."
-    expiry_wave: "Wave 30"
-    replacement_test: "test_ledger_upstream_index_performance.py"
-    added_at: "Wave 26"
-  - allowlist: stale_todo
     entry: ssh_backend_retired_w27
     owner: TE
     risk: low
