@@ -33,7 +33,7 @@ _VALID_LEVELS = frozenset({
     "in_progress",
     "deferred",
 })
-# Legacy Rule 13 levels (l0–l4) from pre-Rule-15 closure notices.
+# Legacy Rule 13 levels (l0-l4) from pre-Rule-15 closure notices.
 _LEGACY_LEVELS = frozenset({"l0", "l1", "l2", "l3", "l4"})
 
 

@@ -201,7 +201,7 @@ class SkillObserver:
                     method,
                     skill_id,
                 )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 28" replacement_test: wave22-tests
+        except Exception:  # rule7-exempt: expiry_wave="Wave 29" replacement_test: wave22-tests
             # Posture lookup must never break reads.
             return
 

@@ -749,7 +749,7 @@ def _parse_finite_float(raw_value: str) -> float | None:
     """Parse a finite float from text and returns ``None`` on failure."""
     try:
         parsed_value = float(raw_value)
-    except ValueError:  # rule7-exempt: expiry_wave="Wave 28" replacement_test: wave22-tests
+    except ValueError:  # rule7-exempt: expiry_wave="Wave 29" replacement_test: wave22-tests
         return None
     if not math.isfinite(parsed_value):
         return None

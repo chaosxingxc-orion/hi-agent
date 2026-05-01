@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""W14-C2 / GOV-E W28: Architectural 7×24 readiness gate.
+"""W14-C2 / GOV-E W28: Architectural 7x24 readiness gate.
 
-Reformed in W28: 7×24 readiness is an architectural property, not a wall-clock
+Reformed in W28: 7x24 readiness is an architectural property, not a wall-clock
 soak. Checks for docs/verification/<sha>-arch-7x24.json evidence with all 5
 architectural assertions PASS.
 
@@ -79,7 +79,7 @@ def _emit(args: argparse.Namespace, payload: dict, *, exit_code: int) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Architectural 7×24 readiness gate.")
+    parser = argparse.ArgumentParser(description="Architectural 7x24 readiness gate.")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -125,7 +125,7 @@ def main() -> int:
             {
                 "check": "soak_evidence",
                 "status": "pass",
-                "reason": "all 5 architectural 7×24 assertions PASS",
+                "reason": "all 5 architectural 7x24 assertions PASS",
                 "evidence_file": evidence_file.name,
                 "assertions": assertions,
             },

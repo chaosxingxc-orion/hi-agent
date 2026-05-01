@@ -29,7 +29,7 @@ class Counter:
                 value=amount,
                 labels=self._label_values or None,
             )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 28" replacement_test: wave22-tests
+        except Exception:  # rule7-exempt: expiry_wave="Wave 29" replacement_test: wave22-tests
             return
 
 

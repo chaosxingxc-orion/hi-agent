@@ -130,7 +130,7 @@ class ReasoningLoop:
         )
         _infer_latency_ms = (time.monotonic_ns() - _infer_start_ns) // 1_000_000
         if self._observability_hook is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block inference path  # noqa: E501  # expiry_wave: Wave 28  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block inference path  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
                 self._observability_hook.on_llm_call(
                     run_id=run_id,
                     model_ref=inference_config.model_ref,

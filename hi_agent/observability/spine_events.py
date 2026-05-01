@@ -61,7 +61,7 @@ def emit_llm_call(*, tenant_id: str = "", profile_id: str = "") -> None:
         tenant_id: Tenant identifier for log attribution (not a counter label).
         profile_id: Profile/tier for counter label attribution.
     """
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _llm_call_counter.labels(profile=profile_id or "unknown").inc()
     _logger.debug("spine.llm_call", extra={"tenant_id": tenant_id})
 
@@ -76,7 +76,7 @@ def emit_tool_call(
         tenant_id: Tenant identifier for log attribution (not a counter label).
         profile_id: Profile/tier for counter label attribution.
     """
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _tool_call_counter.labels(
             tool=tool_name or "unknown",
             profile=profile_id or "unknown",
@@ -94,7 +94,7 @@ def emit_heartbeat_renewed(*, tenant_id: str = "", run_id: str = "") -> None:
         tenant_id: Tenant identifier for log attribution.
         run_id: Run identifier for log attribution (not a counter label).
     """
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _heartbeat_counter.labels().inc()
     _logger.debug(
         "spine.heartbeat_renewed run=%s",
@@ -113,7 +113,7 @@ def emit_trace_id_propagated(*, trace_id: str = "", tenant_id: str = "") -> None
         trace_id: The trace_id that was extracted or minted.
         tenant_id: Tenant identifier for log attribution (not a counter label).
     """
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _trace_id_counter.labels().inc()
     _logger.debug(
         "spine.trace_id_propagated trace=%s",
@@ -124,7 +124,7 @@ def emit_trace_id_propagated(*, trace_id: str = "", tenant_id: str = "") -> None
 
 def emit_run_manager(*, tenant_id: str = "", run_id: str = "") -> None:
     """Emit when a run is enqueued by RunManager (run_queued lifecycle boundary)."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _run_manager_counter.labels().inc()
     _logger.debug(
         "spine.run_manager run=%s",
@@ -135,14 +135,14 @@ def emit_run_manager(*, tenant_id: str = "", run_id: str = "") -> None:
 
 def emit_tenant_context(*, tenant_id: str = "") -> None:
     """Emit when per-request tenant context is resolved (middleware boundary)."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _tenant_context_counter.labels().inc()
     _logger.debug("spine.tenant_context", extra={"tenant_id": tenant_id})
 
 
 def emit_reasoning_loop(*, tenant_id: str = "", run_id: str = "") -> None:
     """Emit at the entry of each reasoning-loop stage (lease_acquired boundary)."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _reasoning_loop_counter.labels().inc()
     _logger.debug(
         "spine.reasoning_loop run=%s",
@@ -155,7 +155,7 @@ def emit_capability_handler(
     *, tool_name: str = "", tenant_id: str = "", run_id: str = ""
 ) -> None:
     """Emit when a capability handler is dispatched (heartbeat-renewal boundary)."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _capability_handler_counter.labels(tool=tool_name or "unknown").inc()
     _logger.debug(
         "spine.capability_handler tool=%s run=%s",
@@ -167,21 +167,21 @@ def emit_capability_handler(
 
 def emit_sync_bridge(*, tenant_id: str = "") -> None:
     """Emit when the sync→async bridge dispatches a coroutine."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _sync_bridge_counter.labels().inc()
     _logger.debug("spine.sync_bridge", extra={"tenant_id": tenant_id})
 
 
 def emit_http_transport(*, tenant_id: str = "", profile_id: str = "") -> None:
     """Emit when an outbound HTTP request is sent by the LLM transport layer."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _http_transport_counter.labels(profile=profile_id or "unknown").inc()
     _logger.debug("spine.http_transport", extra={"tenant_id": tenant_id})
 
 
 def emit_artifact_ledger(*, tenant_id: str = "", run_id: str = "") -> None:
     """Emit when an artifact is registered in the ArtifactLedger."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _artifact_ledger_counter.labels().inc()
     _logger.debug(
         "spine.artifact_ledger run=%s",
@@ -192,7 +192,7 @@ def emit_artifact_ledger(*, tenant_id: str = "", run_id: str = "") -> None:
 
 def emit_event_store(*, tenant_id: str = "", run_id: str = "") -> None:
     """Emit when an event is successfully persisted to the EventStore."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _event_store_counter.labels().inc()
     _logger.debug(
         "spine.event_store run=%s",
@@ -210,7 +210,7 @@ def emit_stage_skipped(
     correlation_id: str | None = None,
 ) -> None:
     """Emit when a stage is removed from the run plan via a skip directive."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _stage_skipped_counter.labels(posture=posture or "unknown").inc()
     _logger.debug(
         "spine.stage_skipped run=%s stage=%s target=%s reason=%s",
@@ -231,7 +231,7 @@ def emit_stage_inserted(
     correlation_id: str | None = None,
 ) -> None:
     """Emit when a new stage is inserted into the run plan via an insert directive."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _stage_inserted_counter.labels(posture=posture or "unknown").inc()
     _logger.debug(
         "spine.stage_inserted run=%s anchor=%s new=%s reason=%s",
@@ -253,7 +253,7 @@ def emit_stage_replanned(
     correlation_id: str | None = None,
 ) -> None:
     """Emit when a skip_to or repeat directive changes the stage traversal plan."""
-    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+    with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
         _stage_replanned_counter.labels(
             action=action or "unknown", posture=posture or "unknown"
         ).inc()

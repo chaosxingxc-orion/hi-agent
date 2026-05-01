@@ -183,7 +183,7 @@ class ArtifactLedger:
                 emit_artifact_ledger(
                     tenant_id=getattr(artifact, "tenant_id", "") or "",
                 )
-            except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 28
+            except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
                 pass
 
     def store(self, artifact: Artifact) -> None:

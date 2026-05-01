@@ -114,7 +114,7 @@ class SQLiteDecisionDeduper:
         crashed connection can still be closed cleanly.
         """
         with self._lock:
-            with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 28  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             self._conn.close()
 
