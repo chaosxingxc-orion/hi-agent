@@ -1,0 +1,7 @@
+{
+  "artifact_path": "docs\\delivery\\2026-05-01-ddb0e4d1-rule15-volces.json",
+  "provenance": "real",
+  "head_sha": "82cc94b7666c34d9d65a011d85a0be34b00f5d73",
+  "generated_at": "2026-05-01T03:27:12.842708+00:00",
+  "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\run_t3_gate.py"
+}
