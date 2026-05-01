@@ -9,5 +9,5 @@ warnings.warn(
 )
 from hi_agent.plugins.manifest import *  # noqa: F403  expiry_wave: Wave 28
 from hi_agent.plugins.manifest import (
-    PluginManifest,  # noqa: F401  expiry_wave: Wave 28  # scope: legacy-compatibility — re-export shim for backward compat; removed in Wave 27
+    PluginManifest,  # noqa: F401  expiry_wave: Wave 28  # scope: legacy-compatibility — re-export shim for backward compat
 )
