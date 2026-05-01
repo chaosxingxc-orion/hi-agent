@@ -1,7 +1,7 @@
 {
   "manifest_id": "2026-05-01-4ba286bc",
   "schema_version": "1",
-  "generated_at": "2026-05-01T07:18:51.801323+00:00",
+  "generated_at": "2026-05-01T07:20:43.740443+00:00",
   "release_head": "4ba286bca5b83e906e47ed982884d5f3328f56d9",
   "git": {
     "head_sha": "4ba286bca5b83e906e47ed982884d5f3328f56d9",
@@ -179,11 +179,11 @@
     },
     "targeted_default_path": {
       "status": "pass",
-      "raw_stdout": "........................s............................................... [ 43%]\n........................................................................ [ 87%]\n.....................                                                    [100%]\n164 passed, 1 skipped in 110.28s (0:01:50)\n{\"check\": \"targeted_default_path\", \"status\": \"pass\", \"returncode\": 0, \"test_files\": [\"tests/integration/test_run_lease_heartbeat.py\", \"tests/integration/test_run_progress_events.py\", \"tests/integration/test_run_livene"
+      "raw_stdout": "........................s............................................... [ 43%]\n........................................................................ [ 87%]\n.....................                                                    [100%]\n164 passed, 1 skipped in 110.11s (0:01:50)\n{\"check\": \"targeted_default_path\", \"status\": \"pass\", \"returncode\": 0, \"test_files\": [\"tests/integration/test_run_lease_heartbeat.py\", \"tests/integration/test_run_progress_events.py\", \"tests/integration/test_run_livene"
     },
     "clean_env": {
       "status": "pass",
-      "summary": "profile  : default-offline\nbasetemp : C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_v4v69ron\ncache_dir: C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_lh44_4iv\nmarkers  : -m not live_api and not external_llm and not network and not requires_secret and not windows_unsafe\ncommand  : C:\\Python314\\python.exe -m pytest --basetemp=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_v4v69ron --override-ini=cache_dir=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_lh44_4iv --json-report --json-repo"
+      "summary": "profile  : default-offline\nbasetemp : C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_leivwmwr\ncache_dir: C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_10u9ja7g\nmarkers  : -m not live_api and not external_llm and not network and not requires_secret and not windows_unsafe\ncommand  : C:\\Python314\\python.exe -m pytest --basetemp=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_leivwmwr --override-ini=cache_dir=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_10u9ja7g --json-report --json-repo"
     },
     "validate_before_mutate": {
       "check": "validate_before_mutate",
@@ -192,7 +192,7 @@
       "counts": {
         "sites_checked": 13
       },
-      "head": "4ba286bc"
+      "head": "99116482"
     },
     "select_completeness": {
       "check": "select_completeness",
@@ -201,7 +201,7 @@
       "counts": {
         "fields_checked": 26
       },
-      "head": "4ba286bc"
+      "head": "99116482"
     },
     "silent_degradation": {
       "check": "silent_degradation",
@@ -1029,7 +1029,7 @@
       "status": "pass",
       "check": "evidence_provenance",
       "provenance": "real",
-      "generated_at": "2026-05-01T07:18:33.725728+00:00",
+      "generated_at": "2026-05-01T07:20:27.773303+00:00",
       "artifacts_checked": 631,
       "issues_found": 0,
       "issues": [],
@@ -4438,9 +4438,9 @@
       {
         "gate": "score_artifact_consistency",
         "status": "PASS",
-        "reason": "0 manifest file(s) self-consistent",
+        "reason": "1 manifest file(s) self-consistent",
         "evidence": {
-          "manifests_checked": 0
+          "manifests_checked": 1
         },
         "expiry_wave": null
       },
