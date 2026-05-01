@@ -1,4 +1,4 @@
-"""Artifact facade — list + get with HD-4 closure (W24 Track I-B).
+"""Artifact facade — list + get + register with HD-4 closure (W24 Track I-B).
 
 Under research/prod posture the facade refuses to surface artifacts whose
 stored ``tenant_id`` is empty (HD-4 closure: 404, not "owned by everyone").
@@ -21,6 +21,7 @@ from agent_server.contracts.tenancy import TenantContext
 
 ListArtifactsFn = Callable[..., list[dict[str, Any]]]
 GetArtifactFn = Callable[..., dict[str, Any]]
+RegisterArtifactFn = Callable[..., str]
 
 
 class ArtifactIntegrityError(ContractError):
@@ -34,16 +35,18 @@ def _sha256_hex(data: bytes) -> str:
 
 
 class ArtifactFacade:
-    """Adapter for /v1/runs/{id}/artifacts and /v1/artifacts/{id}."""
+    """Adapter for /v1/runs/{id}/artifacts, /v1/artifacts/{id}, and POST /v1/artifacts."""
 
     def __init__(
         self,
         *,
         list_artifacts: ListArtifactsFn,
         get_artifact: GetArtifactFn,
+        register_artifact: RegisterArtifactFn | None = None,
     ) -> None:
         self._list_artifacts = list_artifacts
         self._get_artifact = get_artifact
+        self._register_artifact = register_artifact
 
     def list_for_run(
         self, ctx: TenantContext, run_id: str
@@ -78,6 +81,37 @@ class ArtifactFacade:
                 )
             self._verify_integrity(record, ctx.tenant_id)
         return _to_metadata_dict(record)
+
+    def register(
+        self,
+        ctx: TenantContext,
+        *,
+        run_id: str,
+        artifact_type: str,
+        content: Any,
+        metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Register a new artifact and return {artifact_id, created_at}.
+
+        Raises :class:`ContractError` (HTTP 400) if the backing callable is
+        not configured, or if the underlying callable raises.
+        """
+        if self._register_artifact is None:
+            err = ContractError(
+                "artifact write not configured",
+                tenant_id=ctx.tenant_id,
+                detail="register_artifact callable not injected",
+            )
+            err.http_status = 400
+            raise err
+        artifact_id = self._register_artifact(
+            tenant_id=ctx.tenant_id,
+            run_id=run_id,
+            artifact_type=artifact_type,
+            content=content,
+            metadata=metadata,
+        )
+        return {"artifact_id": artifact_id}
 
     def _verify_integrity(
         self, record: dict[str, Any], tenant_id: str

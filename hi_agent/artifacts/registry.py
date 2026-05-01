@@ -264,6 +264,33 @@ class ArtifactRegistry:
         """Return the number of stored artifacts, optionally filtered by tenant."""
         return len(self.all(tenant_id=tenant_id))
 
+    def register_artifact(
+        self,
+        *,
+        tenant_id: str,
+        run_id: str,
+        artifact_type: str,
+        content: object,
+        metadata: dict,
+    ) -> str:
+        """Create and store a new artifact; return its artifact_id.
+
+        This is the write path for the POST /v1/artifacts route (W10-M.2).
+        Rule 12: tenant_id and run_id are required and stamped on the record.
+        """
+        if not tenant_id:
+            raise ValueError("register_artifact requires a non-empty tenant_id")
+        if not run_id:
+            raise ValueError("register_artifact requires a non-empty run_id")
+        artifact = self.create(
+            artifact_type=artifact_type,
+            content=content,
+            metadata=dict(metadata),
+            tenant_id=tenant_id,
+            run_id=run_id,
+        )
+        return artifact.artifact_id
+
     def clear(self) -> None:
         """Remove all artifacts."""
         self._store.clear()
