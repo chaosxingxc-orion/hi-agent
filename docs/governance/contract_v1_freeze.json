@@ -9,7 +9,7 @@
     "agent_server/contracts/skill.py": "2a705a967b787babac063ce43e002add9aafb04bf9020e8f0e4a2d191b00e095",
     "agent_server/contracts/streaming.py": "e6eae2f62d4f19c9ab8e3e074c7f74345625aa451bf87679da1bfe31a3f01ebf",
     "agent_server/contracts/tenancy.py": "c560c7239a4dde951931475239bf581e844c4dda02e43fe2d912f8d0d40b3f92",
-    "agent_server/contracts/workspace.py": "202b97f59be44de51c1e847062d1ea5a20349693341f17f11bad0020629b019a"
+    "agent_server/contracts/workspace.py": "e8731edca89e0e175cba96a82b26e985204f882e353be93200ec9d6c2e37c3b0"
   },
-  "v1_frozen_head": "475fc41bc1c7dc1a726bb97eae8ae2fe891ab22a"
+  "v1_frozen_head": "8c6e22f1a48547e48dae6265456317eef1a49c6f"
 }
