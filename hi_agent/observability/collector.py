@@ -984,6 +984,19 @@ class MetricsCollector:
                     self._alert_callback(alert)
         return fired
 
+    def get_counter(self, metric_name: str, labels: dict[str, str] | None = None) -> int:
+        """Return the integer sum of a named counter (across all label buckets).
+
+        If ``labels`` is provided, returns only the value for that label set.
+        Returns 0 if the metric has not been recorded.
+        """
+        with self._lock:
+            bucket = self._counters.get(metric_name, {})
+            if labels is not None:
+                lk = _labels_key(labels)
+                return int(bucket.get(lk, 0))
+            return int(sum(bucket.values())) if bucket else 0
+
     def get_alert_history(self) -> list[Alert]:
         """Return all previously fired alerts."""
         with self._lock:

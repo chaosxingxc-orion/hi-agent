@@ -41,6 +41,7 @@ def test_script_exits_zero_with_bundle(tmp_path: Path) -> None:
         [
             sys.executable,
             str(ROOT / "scripts" / "verify_clean_env.py"),
+            "--profile", "custom",
             "--bundle",
             str(bundle_file),
             "--no-fail-fast-env-check",
@@ -68,6 +69,7 @@ def test_json_report_written_with_required_fields(tmp_path: Path) -> None:
         [
             sys.executable,
             str(ROOT / "scripts" / "verify_clean_env.py"),
+            "--profile", "custom",
             "--bundle",
             str(bundle_file),
             "--json-report",
@@ -104,6 +106,7 @@ def test_json_report_passed_gte_one(tmp_path: Path) -> None:
         [
             sys.executable,
             str(ROOT / "scripts" / "verify_clean_env.py"),
+            "--profile", "custom",
             "--bundle",
             str(bundle_file),
             "--json-report",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 import time
@@ -9,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 from hi_agent.server.app import AgentServer
-from hi_agent.server.run_manager import ManagedRun, RunManager
+from hi_agent.server.run_manager import ManagedRun, QueueSaturatedError, RunManager
 from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
@@ -274,11 +275,12 @@ class TestRunManagerQueue:
             return "ok"
 
         ids = []
-        # Fill semaphore (1) + queue (2) = 3 accepted, 4th should be rejected.
+        # Fill semaphore (1) + queue (2) = 3 accepted, 4th+ raises QueueSaturatedError.
         for i in range(5):
             rid = mgr.create_run({"task_id": f"qf-{i}", "goal": "test"}).run_id
             ids.append(rid)
-            mgr.start_run(rid, blocking_executor)
+            with contextlib.suppress(QueueSaturatedError):
+                mgr.start_run(rid, blocking_executor)
 
         # At least one should be queue_full (immediate rejection).
         errors = {rid: mgr.get_run(rid).error for rid in ids}  # type: ignore[union-attr]  expiry_wave: Wave 29

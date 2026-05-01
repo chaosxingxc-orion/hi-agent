@@ -117,10 +117,10 @@ CREATE TABLE IF NOT EXISTS team_runs (
 
     def _to_row(self, team_run: TeamRun) -> tuple:
         member_json = json.dumps(list(team_run.member_runs))
-        lead = team_run.lead_run_id
+        lead = team_run.lead_run_id or getattr(team_run, "pi_run_id", "")
         return (
             team_run.team_id,
-            team_run.lead_run_id,  # legacy pi_run_id column — write lead_run_id for compat
+            lead,  # pi_run_id column — coalesce lead_run_id and deprecated pi_run_id
             team_run.project_id,
             member_json,
             team_run.created_at,
@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS team_runs (
             user_id=user_id,
             session_id=session_id,
             lead_run_id=effective_lead,
+            pi_run_id=effective_lead,  # backward compat: mirror lead_run_id into deprecated field
         )
 
     # -- public API ----------------------------------------------------------
