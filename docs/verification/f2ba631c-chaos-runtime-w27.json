@@ -1,0 +1,25 @@
+{
+  "check": "chaos_runtime_coupling",
+  "wave": 27,
+  "generated_at": "2026-05-01T00:00:00+00:00",
+  "head": "f2ba631c",
+  "provenance": "structural",
+  "scenarios_total": 10,
+  "scenarios_pass": 8,
+  "scenarios_skip": 2,
+  "scenarios_xfail": 0,
+  "script_output": {
+    "status": "deferred",
+    "check": "chaos_runtime_coupling",
+    "scenarios_checked": 10,
+    "provenance": "runtime_partial",
+    "all_passed": true,
+    "issues": [],
+    "deferrals": [
+      "provenance=runtime_partial; 2 scenarios skipped: tool_mcp_crash, disk_full_artifact_write"
+    ],
+    "evidence_path": "docs/verification/04f8c91-chaos-runtime.json"
+  },
+  "status": "structural_evidence_captured_w27",
+  "note": "Real runtime-coupled chaos evidence requires full operator-shape environment. Structural coverage documented here for W27. SKIP scenarios under research/prod posture targeted for W28+."
+}

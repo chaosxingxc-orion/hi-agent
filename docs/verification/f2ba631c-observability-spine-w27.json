@@ -1,0 +1,22 @@
+{
+  "check": "observability_spine_completeness",
+  "wave": 27,
+  "generated_at": "2026-05-01T00:00:00+00:00",
+  "head": "f2ba631c",
+  "provenance": "structural",
+  "layers_defined": 15,
+  "layers_tested": 5,
+  "script_output": {
+    "status": "deferred",
+    "check": "observability_spine_completeness",
+    "provenance": "structural",
+    "spine_file": "475fc41b-observability-spine.json",
+    "layer_count": 5,
+    "coverage": "5/14",
+    "reason": "provenance='structural'; real spine run required for pass"
+  },
+  "spine_events_module": "hi_agent/observability/spine_events.py",
+  "event_emitter_module": "hi_agent/observability/event_emitter.py",
+  "status": "structural_evidence_captured_w27",
+  "note": "Real E2E spine evidence requires 24h soak; deferred to W28+. Structural evidence captured in W27 as precursor. New: RunEventEmitter (12 typed events) added in w27-L2 provides additional observability coverage."
+}
