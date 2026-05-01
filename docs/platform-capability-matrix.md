@@ -1,6 +1,6 @@
 # hi-agent Platform Capability Matrix
 
-Last updated: 2026-05-01 (Wave 25 — in progress)
+Last updated: 2026-05-01 (Wave 27 — in progress)
 
 ---
 
@@ -325,17 +325,31 @@ Active docs use L0–L4 exclusively (Rule 13, Wave 9+). Mapping from retired lab
 
 ---
 
-## Core Capability Summary (Wave 24 current)
+## Wave 27 Additions (2026-05-01)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| TierRouter active calibration (P-7) | L3 | CO+RO | `tests/unit/test_tier_router_calibration.py` (19 tests) + `tests/integration/test_tier_router_ingest_calibration.py` (8 tests); commit `984d3a2d` | P-7 — ingest_calibration_signal → routing weight feedback loop; rule-7 WARNING on tier upgrade |
+| RunEventEmitter (C8) | L3 | TE | `tests/unit/test_run_event_emitter.py`; commit `c2b8523d` | C8 — 12 typed run lifecycle events; Rule 7 four-prong (counter+log+inspectable+gate-asserted) |
+| ExtensionRegistry upgrade/rollback + CLI (C12) | L4 | TE | `tests/integration/test_extension_lifecycle.py`; commit `326a0e1e` | C12 — third-party upgrade/rollback without source access; CLI subcommands |
+| ProjectPostmortem lifecycle wired (W10-M.3) | L3 | TE | `tests/integration/test_project_postmortem_lifecycle.py` (unit+runner spine tests); commit `c7de81f3` | W10-M.3 — PostmortemEngine.on_project_completed() wired; durable under research/prod; tenant_id carried |
+| POST /artifacts write API (W10-M.2) | L3 | TE+AS-RO | `tests/integration/test_routes_artifacts_write.py` (257 tests); commit `a16c47ad` | W10-M.2 — workspace-scoped tenant isolation; ArtifactRegistry.register_artifact() wired |
+| Ledger entries operationally_observable (C11) | L3 | GOV+TE | `tests/integration/test_ledger_alerts.py`; commit `f2ba631c` | C11 — 10 recurrence-ledger entries at operationally_observable; metric+alert+runbook fields |
+| GateStore restart survival (CL1) | L3 | CO+RO | `tests/integration/test_gate_store_restart_survival.py` | CL1 — Track X 4th store; close-reopen survival + tenant_id preserved |
+
+---
+
+## Core Capability Summary (Wave 27 current)
 
 | Dimension | L-Level | Notes |
 |---|---|---|
 | Execution Engine (TRACE) | L3 | Stable since Wave 10.2; cross-loop stress passing; R5/R8 gates green |
 | Memory Infrastructure | L3 | L1CompressedMemoryStore + L2RunMemoryIndexStore SQLite-backed (Track E, W24); tenant_id NOT NULL; restart-survival test; wired under research/prod; dev posture remains in-memory |
-| Capability Plugin System | L3-L4 | ExtensionRegistry with enforcement fields; posture-aware enable gate; per-posture matrix wired (Track D, W24); shell_exec prod-blocked observably |
+| Capability Plugin System | L4 | ExtensionRegistry upgrade/rollback + CLI (W27 C12); posture-aware enable gate; per-posture matrix wired; shell_exec prod-blocked |
 | Knowledge Graph | L3 | SQLite backend default under research/prod (Wave 10.5) |
 | Planning / Multi-stage | L2-L3 | TRACE static; dynamic re-planning (P-4) PARTIAL in W25 Track M |
-| Artifact / Evidence | L3 | ArtifactLedger durable; provenance fields; tenant-first query; content-addressed identity (W23 Track E) |
-| Evolution / Feedback | L2-L3 | ExperimentStore durable; EvolveEngine wired; auto-calibration deferred |
+| Artifact / Evidence | L3 | ArtifactLedger durable; provenance fields; tenant-first query; content-addressed identity; POST /artifacts write API (W27 L15) |
+| Evolution / Feedback | L3 | PostmortemEngine wired (W27 L16); ExperimentStore durable; EvolveEngine; TierRouter active calibration (W27 L4) |
 | Cross-Run / Northbound | L3 | 8 northbound routes (3 W23 + 5 W24); idempotency middleware; agent-server CLI; v1 contract freeze deferred to W25 |
-| Observability | L3 | 14 fallback counters; real spine 12/14 layers (Track A, W24); chaos 8/10 PASS |
+| Observability | L3 | RunEventEmitter 12 typed events (W27 L2); 10 ledger entries operationally_observable (W27 L9); 14 fallback counters; real spine 12/14 layers |
 | Governance (gates) | L3 | 35 blocking CI gates; recurrence ledger; release captain protocol |

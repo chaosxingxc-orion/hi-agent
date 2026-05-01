@@ -1,6 +1,6 @@
 # hi-agent Engineering TODO
 
-Last updated: 2026-05-01 (Wave 26 — Unified Close-Out in progress; W25 + W26 closing this session)
+Last updated: 2026-05-01 (Wave 27 — in progress; W25 + W26 closed)
 
 ## DONE (Wave 1-4, SA-1..SA-8, 2026-04-22/24)
 
@@ -168,7 +168,7 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 
 ---
 
-## IN PROGRESS — Wave 26 (this session, Phase 5 parallel lanes)
+## IN PROGRESS — Wave 27 (this session, Phase 5 parallel lanes)
 
 ### P-4 Dynamic re-planning (PARTIAL → closing this session)
 - StageDirective wired in run_linear + run_graph + run_resume (W25)
