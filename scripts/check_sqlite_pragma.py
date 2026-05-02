@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="SQLite WAL pragma gate.")
     parser.add_argument("--strict", action="store_true",
                         help="Treat absent input as fail rather than not_applicable")
+    parser.add_argument("--json", action="store_true", dest="json_output")
     args = parser.parse_args(argv)
 
     missing_files = [f for f in _CHECKED_FILES if not (ROOT / f).exists()]
