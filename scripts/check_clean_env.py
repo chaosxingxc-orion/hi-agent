@@ -36,23 +36,56 @@ def _get_head_sha() -> str:
     return ""
 
 
-_GOV_INFRA_DIRS = frozenset({"docs/", "scripts/", ".github/"})
+_GOV_INFRA_DIRS = frozenset({"docs/", "scripts/", ".github/", "tests/governance/"})
+
+
+def _is_gov_infra_path(path: str) -> bool:
+    """Return True if a single file path is governance/infrastructure-only.
+
+    Includes ``_GOV_INFRA_DIRS`` prefixes plus root-level Markdown files
+    (README.md, ARCHITECTURE.md, CLAUDE.md, etc.) — these are documentation,
+    not runtime, so changes don't invalidate clean-env evidence.
+    """
+    if any(path.startswith(p) for p in _GOV_INFRA_DIRS):
+        return True
+    # Root-level Markdown files: ARCHITECTURE.md, README.md, CLAUDE.md, etc.
+    if "/" not in path and path.endswith(".md"):
+        return True
+    # Module-level ARCHITECTURE.md (e.g. hi_agent/ARCHITECTURE.md)
+    if path.endswith("/ARCHITECTURE.md"):
+        return True
+    return False
 
 
 def _is_gov_infra_commit(sha: str) -> bool:
-    """Return True if every file changed in commit ``sha`` is under a gov-infra prefix."""
+    """Return True if every file changed in commit ``sha`` is under a gov-infra prefix.
+
+    For merge commits we use ``--first-parent`` so the diff matches what an
+    end-of-PR review would see. The walk in ``_find_functional_head`` then
+    descends correctly through the PR's history without being foiled by the
+    aggregated merge diff at the tip.
+    """
     try:
+        # Detect merge commits: a commit with >1 parent. For merges, classify
+        # using the second-parent (PR head) instead of the aggregate merge
+        # diff -- otherwise GitHub's PR merge commit always shows the full
+        # cumulative PR diff against main, defeating the gov-infra check.
+        parents = subprocess.run(
+            ["git", "rev-list", "--parents", "-n1", sha],
+            capture_output=True, text=True, timeout=10, cwd=str(ROOT),
+        )
+        target_sha = sha
+        if parents.returncode == 0:
+            tokens = parents.stdout.strip().split()
+            if len(tokens) > 2:  # merge commit: [sha, parent1, parent2, ...]
+                target_sha = tokens[2]
         r = subprocess.run(
-            ["git", "diff-tree", "--no-commit-id", "-r", "--name-only", sha],
+            ["git", "diff-tree", "--no-commit-id", "-r", "--name-only", target_sha],
             capture_output=True, text=True, timeout=15, cwd=str(ROOT),
         )
         if r.returncode != 0 or not r.stdout.strip():
             return False
-        files = r.stdout.strip().splitlines()
-        return all(
-            any(f.replace("\\", "/").startswith(d) for d in _GOV_INFRA_DIRS)
-            for f in files
-        )
+        return all(_is_gov_infra_path(line.strip()) for line in r.stdout.splitlines() if line.strip())
     except Exception:
         return False
 
