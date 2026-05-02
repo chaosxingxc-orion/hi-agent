@@ -1,12 +1,20 @@
 """W19-A3: Scope-aware gate_warn / gate_fail / gate_missing tests.
 
-Verifies that architectural-constraint gates (soak_evidence,
-observability_spine_completeness, chaos_runtime_coupling) are excluded from
+Verifies that architectural-constraint gates
+(observability_spine_completeness, chaos_runtime_coupling) are excluded from
 cap_factors when computing current_verified_readiness, while genuine
 engineering gates (pytest_skip_discipline, multistatus_gates) are NOT excluded.
 
-This prevents double-counting: the 7x24 architectural deferral should only
-affect seven_by_twenty_four_operational_readiness, never current_verified_readiness.
+W31-L (L-12'/L-13' correction): `soak_evidence` is REMOVED from
+_ARCH_CONSTRAINT_GATES. After W28 retired the wall-clock-soak cap on 7x24,
+the verified tier had no soak signal at all. The L-12'/L-13' fix
+re-introduces soak as a verified-tier signal: a real FAIL on soak now
+contributes to gate_fail on current_verified_readiness, AND a separate
+soak_evidence_not_real cap rule fires when no soak evidence exists at HEAD.
+
+This prevents double-counting for the remaining two architectural gates:
+their deferral should only affect seven_by_twenty_four_operational_readiness,
+never current_verified_readiness.
 """
 from __future__ import annotations
 
@@ -55,7 +63,11 @@ def _make_gates(**overrides: str) -> dict:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("gate_key", [
-    "soak_evidence",
+    # W31-L (L-12'): soak_evidence is REMOVED from this list. The L-12' fix
+    # makes soak a verified-tier signal: a real FAIL on soak DOES affect
+    # current_verified_readiness via gate_fail. Only the two remaining
+    # architectural gates (observability spine and chaos runtime coupling)
+    # are excluded from gate_warn on the verified tier.
     "observability_spine_completeness",
     "chaos_runtime_coupling",
 ])
@@ -229,10 +241,13 @@ def test_multistatus_gates_deferred_still_caps_verified() -> None:
 # ---------------------------------------------------------------------------
 
 def test_arch_constraint_gates_set_is_correct() -> None:
-    """_ARCH_CONSTRAINT_GATES must contain the three expected gate keys and
-    nothing else, so future additions require a deliberate code change.
+    """_ARCH_CONSTRAINT_GATES must contain exactly the expected gate keys.
+
+    W31-L (L-12' correction): soak_evidence was REMOVED from the set.
+    The verified tier now sees a soak FAIL via gate_fail, and a separate
+    soak_evidence_not_real cap rule covers the missing/non-real case.
     """
-    expected = {"soak_evidence", "observability_spine_completeness", "chaos_runtime_coupling"}
+    expected = {"observability_spine_completeness", "chaos_runtime_coupling"}
     assert expected == _ARCH_CONSTRAINT_GATES, (
         f"_ARCH_CONSTRAINT_GATES changed unexpectedly. "
         f"Expected {expected}, got {_ARCH_CONSTRAINT_GATES}"
