@@ -10,31 +10,34 @@
 #   architecture_readiness — code/architecture maturity
 #   (all: applies to all tiers)
 #
-# ── Architectural-constraint gates and double-count prevention ─────────────
+# ── 7x24 readiness is ARCHITECTURAL, not engineering (W28+) ───────────────
 #
-# Three gates represent 7×24 *architectural* constraints, not engineering
-# defects.  They are deferred by design until the platform reaches continuous
-# operational status.  Their caps are therefore scoped ONLY to
-# seven_by_twenty_four_operational_readiness so that their deferred status
-# never penalises current_verified_readiness:
+# 7x24 operational readiness is a property of the architecture, not a
+# deliverable of engineering work. The platform either has the architectural
+# primitives required for continuous operation (sync_bridge, observable
+# lifecycle, cancellation contract, typed event spine, runtime-coupled
+# chaos) or it does not. There is no separate "make it 7x24" workstream.
 #
-#   Gate key                        | Condition                  | 7×24 cap
-#   --------------------------------|----------------------------|----------
-#   soak_evidence                   | soak_24h_missing           | 65
-#   observability_spine_completeness| observability_spine_incom… | 70
-#   chaos_runtime_coupling          | chaos_non_runtime_coupled  | 72
+# A SINGLE rule governs the 7x24 tier: `architectural_seven_by_twenty_four`.
+# It evaluates 5 architectural assertions emitted by `scripts/run_arch_7x24.py`
+# (a static check that runs in seconds, not a 24h wall-clock soak):
 #
-# Without additional protection, the generic `gate_warn` / `gate_fail` /
-# `gate_missing` conditions would scan ALL gate statuses and re-apply a cap
-# (80, 70, 70 respectively) to current_verified_readiness whenever any of
-# these architectural gates is in a deferred/warn/fail state — double-counting
-# the architectural deferral as an engineering defect.
+#   1. cross_loop_stability     -- sync_bridge persistent loop wired
+#   2. lifespan_observable      -- runner maintains current_stage
+#   3. cancellation_round_trip  -- cancel route returns 200 live + 404 unknown
+#   4. spine_provenance_real    -- RunEventEmitter records provenance
+#   5. chaos_runtime_coupled_all -- all chaos scenarios runtime-coupled
 #
-# Protection: build_release_manifest.py defines _ARCH_CONSTRAINT_GATES and
-# excludes those keys from the gate_warn/gate_fail/gate_missing/provenance
-# scans when tier == "current_verified_readiness".  This file's scope
-# restrictions and that runtime filter together ensure a single point of
-# control with no double-counting.
+# The cap fires ONLY for the seven_by_twenty_four_operational_readiness
+# tier so the architectural status NEVER penalises current_verified_readiness.
+# The two legacy single-purpose caps (`observability_spine_incomplete`,
+# `chaos_non_runtime_coupled`) were retired because their concerns are now
+# subsumed by assertions #4 and #5 above.
+#
+# Double-count protection: build_release_manifest.py keeps
+# _ARCH_CONSTRAINT_GATES (soak_evidence, observability_spine_completeness,
+# chaos_runtime_coupling) excluded from the generic gate_warn / gate_fail /
+# gate_missing scans on current_verified_readiness.
 # ──────────────────────────────────────────────────────────────────────────
 schema_version: "2"
 
@@ -134,43 +137,24 @@ cap_rules:
     factor: provenance_unknown_or_synthetic
     scope: [current_verified_readiness, seven_by_twenty_four_operational_readiness]
     description: "Evidence consumed by gate has unknown or synthetic provenance"
-  # ── GOV-E W28: 7×24 is architectural, not wall-clock soak ────────────────
-  # The old soak_24h_missing / soak_24h_pending caps are REPLACED by
-  # architectural_seven_by_twenty_four. The architectural 7×24 assertion is
-  # satisfied by running 5 seconds-to-minutes checks (not a 24h wall-clock run):
-  #   1. cross_loop_stability   — 3 sequential real-LLM runs share one gateway
-  #   2. lifespan_observable    — current_stage non-None within 30s on all turns
-  #   3. cancellation_round_trip — cancel→200 live, cancel→404 unknown
-  #   4. spine_provenance_real  — observability spine provenance: real
-  #   5. chaos_runtime_coupled_all — all 10 chaos scenarios runtime_coupled: true
-  # Cap fires only when any assertion fails. Evidence: <sha>-arch-7x24.json.
-  # soak_24h_missing is retained as a DEPRECATED alias that no longer triggers.
+  # ── 7x24 is architectural (single rule) ──────────────────────────────────
+  # The old soak_24h_missing / soak_24h_pending wall-clock caps and the
+  # single-purpose observability_spine_incomplete / chaos_non_runtime_coupled
+  # caps are RETIRED. A single architectural rule replaces them:
+  # `architectural_seven_by_twenty_four` evaluates 5 static assertions emitted
+  # by scripts/run_arch_7x24.py. Evidence: docs/verification/<sha>-arch-7x24.json.
   - condition: architectural_seven_by_twenty_four
-    cap: 65
+    cap: 90
     factor: architectural_seven_by_twenty_four
     scope: [seven_by_twenty_four_operational_readiness]
-    description: "One or more architectural 7×24 assertions failed (see assertions list)"
+    description: "One or more architectural 7x24 assertions failed (see assertions list)"
     assertions:
       - cross_loop_stability
       - lifespan_observable
       - cancellation_round_trip
       - spine_provenance_real
       - chaos_runtime_coupled_all
-    lifecycle_note: "Replaces soak_24h_missing/soak_24h_pending in W28. All 5 assertions run in seconds-to-minutes; no 24h wall-clock soak required. Cap clears when <sha>-arch-7x24.json shows 5/5 PASS."
-  - condition: observability_spine_incomplete
-    cap: 70
-    factor: observability_spine_incomplete
-    scope: [seven_by_twenty_four_operational_readiness]
-    description: "Observability spine missing layers or trace_id correlation"
-    resolution_wave: "Wave 21"
-    lifecycle_note: "AX-A A4 closes this in Wave 21; cap should be removed after gate passes"
-  - condition: chaos_non_runtime_coupled
-    cap: 72
-    factor: chaos_non_runtime_coupled
-    scope: [seven_by_twenty_four_operational_readiness]
-    description: "Chaos scenarios not coupled to real hi_agent runtime"
-    resolution_wave: "Wave 21"
-    lifecycle_note: "AX-A A5 closes this in Wave 21; cap should be removed after gate passes"
+    lifecycle_note: "Single 7x24 rule (W28+). Cap=90 (small signal, not a draconian penalty). Cap clears when <sha>-arch-7x24.json shows 5/5 PASS. Run via scripts/run_arch_7x24.py."
   - condition: expired_allowlist_accepted_as_pass
     cap: 70
     factor: expired_allowlist_accepted

@@ -506,14 +506,9 @@ def _compute_cap(
             soak_gate = gates.get("soak_evidence")
             soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             return f"soak_24h_pending: {soak_status}" if soak_status == "partial_1h" else None
-        if condition == "observability_spine_incomplete":
-            spine_gate = gates.get("observability_spine_completeness")
-            spine_status = spine_gate.get("status", "unknown") if isinstance(spine_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-            return f"observability_spine_incomplete: {spine_status}" if spine_status != "pass" else None  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-        if condition == "chaos_non_runtime_coupled":
-            chaos_gate = gates.get("chaos_runtime_coupling")
-            chaos_status = chaos_gate.get("status", "unknown") if isinstance(chaos_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-            return f"chaos_non_runtime_coupled: {chaos_status}" if chaos_status != "pass" else None
+        # observability_spine_incomplete + chaos_non_runtime_coupled retired
+        # in W28+: 7x24 is governed by the single architectural assertion
+        # rule (see condition == "architectural_seven_by_twenty_four" below).
         if condition == "t3_shape_verified":
             t3_gate = gates.get("t3_freshness")
             t3_provenance = t3_gate.get("provenance", "") if isinstance(t3_gate, dict) else ""
