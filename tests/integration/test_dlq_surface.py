@@ -131,17 +131,23 @@ def test_get_ops_dlq_endpoint(_app_client: TestClient) -> None:
 
 
 def test_requeue_endpoint(_app_client: TestClient) -> None:
-    """Dead-letter a run via RunQueue directly, then requeue via HTTP endpoint."""
+    """Dead-letter a run via RunQueue directly, then requeue via HTTP endpoint.
+
+    W31, T-1' note: when no API key is configured, AuthMiddleware injects an
+    ``__anonymous__`` TenantContext. The HTTP scope only sees rows owned by
+    that tenant, so the test fixture registers the row under that tenant.
+    """
     server = _app_client.app.state.agent_server
     run_queue = server._run_queue
     assert run_queue is not None, "run_queue must be wired"
 
-    run_queue.enqueue("http-dlq-run", tenant_id="tenant-x")
+    # Register under __anonymous__ to match the dev fallback scope.
+    run_queue.enqueue("http-dlq-run", tenant_id="__anonymous__")
     run_queue.dead_letter(
         run_id="http-dlq-run",
         reason="test_requeue",
         original_state="leased",
-        tenant_id="tenant-x",
+        tenant_id="__anonymous__",
     )
 
     # Verify it shows up via GET.
