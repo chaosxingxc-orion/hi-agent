@@ -116,7 +116,12 @@ def main() -> int:
         )
 
     assertions = data.get("assertions", {})
-    failed = [k for k in _REQUIRED_ASSERTIONS if assertions.get(k) != "pass"]
+    # scripts/run_arch_7x24.py emits assertion values as "PASS"/"FAIL" (the
+    # natural status convention). Normalise to lowercase before comparing.
+    failed = [
+        k for k in _REQUIRED_ASSERTIONS
+        if str(assertions.get(k, "")).lower() != "pass"
+    ]
     all_pass = len(failed) == 0
 
     if all_pass:
