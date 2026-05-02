@@ -195,8 +195,27 @@ class KnowledgeManager:
 
     # ------------------------------------------------------------------ Query
 
-    def query(self, query: str, limit: int = 10) -> KnowledgeResult:
-        """Search across wiki, graph, and user knowledge."""
+    def query(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        tenant_id: str | None = None,
+    ) -> KnowledgeResult:
+        """Search across wiki, graph, and user knowledge.
+
+        Tenant scope (W31, T-2'): callers MUST provide ``tenant_id`` so the
+        manager can scope reads. Under research/prod posture, missing
+        ``tenant_id`` raises :class:`~hi_agent.errors.categories.TenantScopeError`
+        — silent cross-tenant reads are forbidden. Under dev posture a missing
+        value emits a WARNING log (back-compat).
+
+        Note: the underlying wiki/graph stores do not yet filter by
+        ``tenant_id`` (tracked separately as a store-level concern). Manager
+        signature acceptance is the prerequisite for a follow-up store-level
+        partitioning change.
+        """
+        self._require_tenant_for_read(tenant_id, op="query")
         wiki_pages = self._wiki.search(query, limit=limit)
         graph_nodes = self._graph.search(query, limit=limit)
         user_context = self._user_store.to_context_string()
@@ -208,21 +227,40 @@ class KnowledgeManager:
             total_results=len(wiki_pages) + len(graph_nodes),
         )
 
-    def query_for_context(self, query: str, budget_tokens: int = 1500) -> str:
-        """Query and format results for direct LLM context injection."""
-        result = self.query(query)
+    def query_for_context(
+        self,
+        query: str,
+        budget_tokens: int = 1500,
+        *,
+        tenant_id: str | None = None,
+    ) -> str:
+        """Query and format results for direct LLM context injection.
+
+        Tenant scope: see :meth:`query`. Strict posture requires ``tenant_id``.
+        """
+        self._require_tenant_for_read(tenant_id, op="query_for_context")
+        # Pass tenant_id through so the inner query() call also enforces.
+        result = self.query(query, tenant_id=tenant_id)
         return result.to_context_string(max_tokens=budget_tokens)
 
     # ------------------------------------------------------------------ Maintenance
 
-    def lint(self) -> list[str]:
-        """Run health checks across all knowledge sources."""
+    def lint(self, *, tenant_id: str | None = None) -> list[str]:
+        """Run health checks across all knowledge sources.
+
+        Tenant scope: see :meth:`query`. Strict posture requires ``tenant_id``.
+        """
+        self._require_tenant_for_read(tenant_id, op="lint")
         issues: list[str] = []
         issues.extend(self._wiki.lint())
         return issues
 
-    def get_stats(self) -> dict[str, Any]:
-        """Return stats: page count, node count, edge count, user prefs count."""
+    def get_stats(self, *, tenant_id: str | None = None) -> dict[str, Any]:
+        """Return stats: page count, node count, edge count, user prefs count.
+
+        Tenant scope: see :meth:`query`. Strict posture requires ``tenant_id``.
+        """
+        self._require_tenant_for_read(tenant_id, op="get_stats")
         profile = self._user_store.get_profile()
         return {
             "wiki_pages": len(self._wiki.list_pages()),
@@ -231,6 +269,29 @@ class KnowledgeManager:
             "user_preferences": len(profile.preferences),
             "user_expertise_areas": len(profile.expertise),
         }
+
+    @staticmethod
+    def _require_tenant_for_read(tenant_id: str | None, *, op: str) -> None:
+        """Validate tenant_id presence according to current posture (W31).
+
+        Under research/prod posture, raise TenantScopeError if missing.
+        Under dev posture, log a WARNING and proceed (back-compat).
+        """
+        import logging
+
+        from hi_agent.config.posture import Posture
+        from hi_agent.errors.categories import TenantScopeError
+
+        if tenant_id and tenant_id.strip():
+            return
+        posture = Posture.from_env()
+        msg = (
+            f"KnowledgeManager.{op}: tenant_id is missing or empty; "
+            "cross-tenant reads are forbidden under research/prod posture."
+        )
+        if posture.is_strict:
+            raise TenantScopeError(msg)
+        logging.getLogger(__name__).warning(msg)
 
 
 def _slugify(text: str) -> str:

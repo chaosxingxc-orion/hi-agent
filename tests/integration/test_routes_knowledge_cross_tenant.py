@@ -66,7 +66,10 @@ class _FakeKnowledgeResult:
 
 
 class _FakeKnowledgeManager:
-    """Minimal knowledge manager stub."""
+    """Minimal knowledge manager stub.
+
+    W31, T-2'/T-3': accepts tenant_id kwarg on read methods (signature change).
+    """
 
     def ingest_text(self, title, content, tags):
         return "page-001"
@@ -74,16 +77,16 @@ class _FakeKnowledgeManager:
     def ingest_structured(self, facts):
         return len(facts)
 
-    def query_for_context(self, q, budget_tokens=1500):
+    def query_for_context(self, q, budget_tokens=1500, *, tenant_id=None, **_):
         return ""
 
-    def query(self, q, limit=10):
+    def query(self, q, limit=10, *, tenant_id=None, **_):
         return _FakeKnowledgeResult()
 
-    def get_stats(self):
+    def get_stats(self, *, tenant_id=None, **_):
         return {"pages": 0, "nodes": 0}
 
-    def lint(self):
+    def lint(self, *, tenant_id=None, **_):
         return []
 
     @property

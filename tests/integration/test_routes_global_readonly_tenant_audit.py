@@ -101,10 +101,12 @@ def audit_calls(monkeypatch):
 
 
 class _FakeKM:
-    def get_stats(self) -> dict[str, Any]:
+    """W31, T-2'/T-3': accepts tenant_id kwarg on read methods."""
+
+    def get_stats(self, *, tenant_id: str | None = None) -> dict[str, Any]:
         return {"pages": 0, "nodes": 0}
 
-    def lint(self) -> list[str]:
+    def lint(self, *, tenant_id: str | None = None) -> list[str]:
         return []
 
 

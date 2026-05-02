@@ -101,7 +101,12 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
 
 
 async def handle_knowledge_query(request: Request) -> JSONResponse:
-    """Query knowledge across all sources."""
+    """Query knowledge across all sources, scoped to caller's tenant.
+
+    W31 T-2': tenant_id is plumbed through km.query/query_for_context so the
+    manager can fail-closed under strict posture instead of returning
+    cross-tenant data.
+    """
     try:
         ctx = require_tenant_context()
     except RuntimeError:
@@ -130,8 +135,8 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
         hash_tenant_id(tenant_id),
         redact_query(q),
     )
-    context = km.query_for_context(q, budget_tokens=budget)
-    result = km.query(q, limit=limit)
+    context = km.query_for_context(q, budget_tokens=budget, tenant_id=tenant_id)
+    result = km.query(q, limit=limit, tenant_id=tenant_id)
     return JSONResponse(
         {
             "query": q,
@@ -142,7 +147,12 @@ async def handle_knowledge_query(request: Request) -> JSONResponse:
 
 
 async def handle_knowledge_status(request: Request) -> JSONResponse:
-    """Return knowledge system stats (global-readonly, scoped audit)."""
+    """Return knowledge system stats, scoped to caller's tenant.
+
+    W31 T-3': tenant_id is plumbed through km.get_stats so the manager can
+    fail-closed under strict posture instead of returning cross-tenant
+    aggregates.
+    """
     try:
         ctx = require_tenant_context()
     except RuntimeError:
@@ -150,6 +160,7 @@ async def handle_knowledge_status(request: Request) -> JSONResponse:
     record_tenant_scoped_access(
         tenant_id=ctx.tenant_id, resource="knowledge", op="status"
     )
+    tenant_id = ctx.tenant_id
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -157,12 +168,16 @@ async def handle_knowledge_status(request: Request) -> JSONResponse:
             {"error": "knowledge_not_configured"},
             status_code=503,
         )
-    stats = km.get_stats()
+    stats = km.get_stats(tenant_id=tenant_id)
     return JSONResponse(stats)
 
 
 async def handle_knowledge_lint(request: Request) -> JSONResponse:
-    """Run knowledge health check (global-readonly, scoped audit)."""
+    """Run knowledge health check, scoped to caller's tenant.
+
+    W31 T-3': tenant_id is plumbed through km.lint so the manager can
+    fail-closed under strict posture instead of running across tenants.
+    """
     try:
         ctx = require_tenant_context()
     except RuntimeError:
@@ -170,6 +185,7 @@ async def handle_knowledge_lint(request: Request) -> JSONResponse:
     record_tenant_scoped_access(
         tenant_id=ctx.tenant_id, resource="knowledge", op="lint"
     )
+    tenant_id = ctx.tenant_id
     server = request.app.state.agent_server
     km = server.knowledge_manager
     if km is None:
@@ -177,7 +193,7 @@ async def handle_knowledge_lint(request: Request) -> JSONResponse:
             {"error": "knowledge_not_configured"},
             status_code=503,
         )
-    issues = km.lint()
+    issues = km.lint(tenant_id=tenant_id)
     return JSONResponse({"issues": issues, "count": len(issues)})
 
 
