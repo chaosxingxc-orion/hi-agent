@@ -92,7 +92,7 @@ def _is_gov_infra_commit(sha: str) -> bool:
         return False
 
 
-def _walk_gov_infra_history(head_sha: str, max_depth: int = 20) -> list[str]:
+def _walk_gov_infra_history(head_sha: str, max_depth: int = 50) -> list[str]:
     """Return the list of SHAs reachable from head while every step is gov-infra.
 
     Stops at the first non-gov-infra commit (which is *included* in the result
