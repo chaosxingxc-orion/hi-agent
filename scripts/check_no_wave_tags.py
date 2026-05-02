@@ -23,6 +23,8 @@ ROOT = Path(__file__).parent.parent
 # Does NOT match: WaveProcessor or other identifiers using "Wave" as a prefix.
 _WAVE_PATTERN = re.compile(r"Wave\s+\d+\.\d+|W\d+-[A-Z]\b")
 _LEGACY_ANNOTATION = "# legacy:"
+_WAVE_LITERAL_OK = "wave-literal-ok"
+_EXPIRY_WAVE = "expiry_wave"
 
 # CI governance scripts that legitimately contain wave-number strings as data
 # (allowlist entries, expiry tracking). These are not sprint-label violations.
@@ -35,10 +37,46 @@ _EXCLUDED_SCRIPTS = frozenset({
 
 
 def _scan_file(path: Path) -> list[str]:
+    """Scan path for wave-tag *identifiers*; narrative comments and docstrings exempt.
+
+    W31-D D-2': narrative comments documenting *why* a wave-N change was made
+    (e.g. ``# W31-N (N.5): when allowlist_enabled is False ...``) are
+    archaeological documentation, not enforcement strings. The pure-comment
+    and docstring-interior heuristic mirrors tests/unit/test_no_wave_tags_in_source.py.
+    """
     violations = []
+    in_docstring = False
+    docstring_quote: str | None = None
     for i, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-        if _WAVE_PATTERN.search(line) and _LEGACY_ANNOTATION not in line:
-            violations.append(f"  {path.relative_to(ROOT)}:{i}: {line.strip()}")
+        for quote in ('"""', "'''"):
+            count = line.count(quote)
+            if count == 0:
+                continue
+            if not in_docstring and count >= 2:
+                continue
+            if in_docstring and docstring_quote == quote:
+                in_docstring = False
+                docstring_quote = None
+            elif not in_docstring:
+                in_docstring = True
+                docstring_quote = quote
+
+        if not _WAVE_PATTERN.search(line):
+            continue
+        if _LEGACY_ANNOTATION in line:
+            continue
+        if _WAVE_LITERAL_OK in line:
+            continue
+        if _EXPIRY_WAVE in line:
+            continue
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            continue
+        if in_docstring:
+            continue
+        if stripped.startswith('"""') or stripped.startswith("'''"):
+            continue
+        violations.append(f"  {path.relative_to(ROOT)}:{i}: {line.strip()}")
     return violations
 
 
