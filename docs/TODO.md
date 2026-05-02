@@ -32,7 +32,7 @@ Last updated: 2026-05-03 (Wave 30 closed; Wave 31 in progress)
 
 Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2026-04-25.md` and H1 review:
 
-### Contract Owner (CO) track — CLOSED
+### Contract Owner (CO) track — CLOSED (level: verified_at_release_head)
 
 - [x] **F5/CO-1** Posture enum (dev/research/prod) — `hi_agent/config/posture.py`; `test_posture.py` (32 tests); commit b35af2c
 - [x] **F1/CO-2** project_id posture-required (research/prod → 400, dev → warning header) — `routes_runs.py`; `test_project_id_posture.py`
@@ -44,7 +44,7 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - [x] **F8/CO-8** Profile jsonschema validation fail-closed under research/prod — `profiles/loader.py` + `profiles/schema.json`; `test_profile_loader_schema.py` (6 tests)
 - [x] **CO-9** Structured HTTP error categories at /runs boundary — `server/error_categories.py`; `test_run_error_envelope.py` (3 tests)
 
-### Runtime Owner (RO) track — CLOSED
+### Runtime Owner (RO) track — CLOSED (level: verified_at_release_head)
 
 - [x] **F3/RO-1** IdempotencyStore auth-scoped (tenant from workspace, not body) — `idempotency.py`; `test_idempotency_auth_scope.py`
 - [x] **RO-2** Idempotency record binds project_id/user_id/session_id — `idempotency.py`
@@ -56,7 +56,7 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - [x] **DF-51/RO-8** finished_at populated on all terminal paths — `run_manager.py`; `test_run_lifecycle_finished_at.py`
 - [x] **DF-52/RO-9** Idempotency atomic insert (UNIQUE-constraint race fix) — `idempotency.py`; `test_idempotency_concurrency.py`
 
-### Developer Experience (DX) track — CLOSED
+### Developer Experience (DX) track — CLOSED (level: verified_at_release_head)
 
 - [x] **F7/DX-1** hi-agent init --posture CLI scaffolds config dir — `cli.py` + `cli_commands/init.py`; `test_cli_init.py`
 - [x] **F17/DX-2** docs/quickstart-research-profile.md (30-min first run guide) — `docs/quickstart-research-profile.md`
@@ -67,7 +67,7 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - [x] **DX-7** docs/posture-reference.md (posture defaults per capability) — `docs/posture-reference.md`
 - [x] **DF-53/DX-8** HI_AGENT_RUN_MANAGER_CAPACITY documented in api-reference.md
 
-### Trust & Evolution (TE) track — CLOSED
+### Trust & Evolution (TE) track — CLOSED (level: verified_at_release_head)
 
 - [x] **F10/TE-1** ArtifactLedger corrupt-line quarantine + metric + WARNING — `artifacts/ledger.py`; `test_artifact_ledger_corruption.py`
 - [x] **TE-2** ArtifactLedger posture-default durable — `artifacts/registry.py`; `test_ledger_posture_default.py`
@@ -75,7 +75,7 @@ Expert findings F1–F18 from `hi-agent-engineering-leadership-hardening-guide-2
 - [x] **F14/TE-4** Fallback per-kind Prometheus Counters (Rule 7 four-prong) — `observability/fallback.py`; `test_fallback_counters.py`
 - [x] **TE-5** ReasoningTrace schema + write hook + deferred query route — `contracts/reasoning_trace.py`; `test_reasoning_trace_schema.py`
 
-### Governance (GOV) track — CLOSED
+### Governance (GOV) track — CLOSED (level: verified_at_release_head)
 
 - [x] **GOV-1** CLAUDE.md restructured — Ownership Tracks, R11/R12/R13, G4 gate, owner-track table — commit f768dc4
 - [x] **GOV-2** docs/platform-capability-matrix.md migrated to L0–L4 model — commit f768dc4
