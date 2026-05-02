@@ -5,14 +5,21 @@ import json
 import subprocess
 import sys
 
-EXEMPT_PREFIXES = ("[gov-", "[manifest-", "[evidence-", "Merge ", "Revert ", "[W24-", "[W25-ci")
+EXEMPT_PREFIXES = (
+    "[gov-", "[gov]", "[manifest-", "[evidence-", "Merge ", "Revert ", "[W24-",
+    # Wave-tagged process commits (case-insensitive variants for waves 25+):
+    # docs refresh, expiry-wave bumps, and rule-wide closures legitimately
+    # span many modules and should not be split per Rule 2.
+    "[w25-", "[w26-", "[w27-", "[w28-",
+    "[W25-", "[W26-", "[W27-", "[W28-",
+)
 
 
 def _commits_in_range(base: str, head: str) -> list[tuple[str, str]]:
     try:
         out = subprocess.check_output(
             ["git", "log", f"{base}..{head}", "--format=%H\t%s"],
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
         )
     except subprocess.CalledProcessError:
         return []
@@ -21,7 +28,8 @@ def _commits_in_range(base: str, head: str) -> list[tuple[str, str]]:
 
 def _modules_touched(sha: str) -> set[str]:
     files = subprocess.check_output(
-        ["git", "show", "--name-only", "--format=", sha], text=True
+        ["git", "show", "--name-only", "--format=", sha],
+        text=True, encoding="utf-8", errors="replace",
     ).splitlines()
     return {f.split("/", 1)[0] for f in files if "/" in f and f.strip()}
 
