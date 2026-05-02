@@ -22,7 +22,7 @@ from typing import Any
 from hi_agent.config.posture import Posture
 from hi_agent.context.run_execution_context import RunExecutionContext
 from hi_agent.contracts.run import RunState
-from hi_agent.errors.categories import RunQueueFullError
+from hi_agent.contracts.errors import RunQueueFullError
 from hi_agent.observability.metric_counter import Counter
 from hi_agent.observability.trace_context import TraceContextManager as _TraceCtxMgr
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
@@ -408,7 +408,7 @@ class RunManager:
             else:
                 # T-12' (W31): no body tenant_id, no middleware tenant_id —
                 # do NOT silently coerce to "default". Fail-closed per Rule 11.
-                from hi_agent.errors.categories import TenantScopeError
+                from hi_agent.contracts.errors import TenantScopeError
 
                 raise TenantScopeError(
                     "RunManager.create_run: tenant_id is required under "

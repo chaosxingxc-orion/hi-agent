@@ -282,7 +282,7 @@ class KnowledgeManager:
         import logging
 
         from hi_agent.config.posture import Posture
-        from hi_agent.errors.categories import TenantScopeError
+        from hi_agent.contracts.errors import TenantScopeError
 
         if tenant_id and tenant_id.strip():
             return

@@ -271,7 +271,7 @@ class TestKnowledgeManagerSignature:
     def test_query_strict_posture_requires_tenant_id(self, monkeypatch):
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
         km = self._make_manager()
-        from hi_agent.errors.categories import TenantScopeError
+        from hi_agent.contracts.errors import TenantScopeError
 
         with pytest.raises(TenantScopeError):
             km.query("hello", limit=5, tenant_id=None)
@@ -285,7 +285,7 @@ class TestKnowledgeManagerSignature:
     def test_get_stats_strict_posture_requires_tenant_id(self, monkeypatch):
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
         km = self._make_manager()
-        from hi_agent.errors.categories import TenantScopeError
+        from hi_agent.contracts.errors import TenantScopeError
 
         with pytest.raises(TenantScopeError):
             km.get_stats(tenant_id=None)
@@ -299,7 +299,7 @@ class TestKnowledgeManagerSignature:
     def test_lint_strict_posture_requires_tenant_id(self, monkeypatch):
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
         km = self._make_manager()
-        from hi_agent.errors.categories import TenantScopeError
+        from hi_agent.contracts.errors import TenantScopeError
 
         with pytest.raises(TenantScopeError):
             km.lint(tenant_id=None)
@@ -313,7 +313,7 @@ class TestKnowledgeManagerSignature:
     def test_query_for_context_strict_posture_requires_tenant_id(self, monkeypatch):
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
         km = self._make_manager()
-        from hi_agent.errors.categories import TenantScopeError
+        from hi_agent.contracts.errors import TenantScopeError
 
         with pytest.raises(TenantScopeError):
             km.query_for_context("hello", tenant_id=None)
