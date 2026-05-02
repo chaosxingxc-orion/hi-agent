@@ -6,7 +6,7 @@ No MagicMock on the subsystem under test.
 
 from __future__ import annotations
 
-from hi_agent.ops.diagnostics import build_doctor_report
+from hi_agent.operator_tools.diagnostics import build_doctor_report
 
 
 class _MinimalBuilder:

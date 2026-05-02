@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from hi_agent.ops.release_gate import GateResult, ReleaseGateReport, build_release_gate_report
+from hi_agent.operator_tools.release_gate import GateResult, ReleaseGateReport, build_release_gate_report
 
 
 def _make_builder(env="dev"):
@@ -36,7 +36,7 @@ def test_mcp_health_gate_fails_on_unhealthy_server():
     from unittest.mock import patch
 
     builder = _make_builder()
-    with patch("hi_agent.ops.release_gate.MCPHealth") as mock_health_cls:
+    with patch("hi_agent.operator_tools.release_gate.MCPHealth") as mock_health_cls:
         mock_health = mock_health_cls.return_value
         mock_health.check_all.return_value = {"srv1": "unhealthy"}
         mock_mcp_reg = MagicMock()
@@ -52,7 +52,7 @@ def test_mcp_health_gate_passes_with_degraded_server():
     from unittest.mock import patch
 
     builder = _make_builder()
-    with patch("hi_agent.ops.release_gate.MCPHealth") as mock_health_cls:
+    with patch("hi_agent.operator_tools.release_gate.MCPHealth") as mock_health_cls:
         mock_health = mock_health_cls.return_value
         mock_health.check_all.return_value = {"srv1": "degraded"}
         mock_mcp_reg = MagicMock()

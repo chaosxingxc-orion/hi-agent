@@ -1,42 +1,11 @@
-from __future__ import annotations
+"""DEPRECATED — use ``hi_agent.operator_tools.doctor_report`` instead.
 
-from dataclasses import dataclass, field
-from typing import Literal
+Re-export shim retained until Wave 34 so callers using
+``from hi_agent.ops.doctor_report import ...`` keep working.
+"""
 
-
-@dataclass
-class DoctorIssue:
-    subsystem: str
-    code: str
-    severity: Literal["blocking", "warning", "info"]
-    message: str
-    fix: str
-    verify: str  # shell command to verify fix
-
-    def to_dict(self) -> dict:
-        return {
-            "subsystem": self.subsystem,
-            "code": self.code,
-            "severity": self.severity,
-            "message": self.message,
-            "fix": self.fix,
-            "verify": self.verify,
-        }
-
-
-@dataclass
-class DoctorReport:
-    status: Literal["ready", "degraded", "error"]
-    blocking: list[DoctorIssue] = field(default_factory=list)
-    warnings: list[DoctorIssue] = field(default_factory=list)
-    info: list[DoctorIssue] = field(default_factory=list)
-    next_steps: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        return {
-            "status": self.status,
-            "blocking": [i.to_dict() for i in self.blocking],
-            "warnings": [i.to_dict() for i in self.warnings],
-            "info": [i.to_dict() for i in self.info],
-            "next_steps": self.next_steps,
-        }
+from hi_agent.operator_tools.doctor_report import *  # noqa: F401, F403  # expiry_wave: Wave 34
+from hi_agent.operator_tools.doctor_report import (  # noqa: F401  # expiry_wave: Wave 34
+    DoctorIssue,
+    DoctorReport,
+)

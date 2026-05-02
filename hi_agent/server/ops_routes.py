@@ -9,8 +9,8 @@ import os
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from hi_agent.ops.diagnostics import build_doctor_report
-from hi_agent.ops.release_gate import build_release_gate_report
+from hi_agent.operator_tools.diagnostics import build_doctor_report
+from hi_agent.operator_tools.release_gate import build_release_gate_report
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@
 import os
 from unittest.mock import MagicMock
 
-from hi_agent.ops.diagnostics import build_doctor_report
+from hi_agent.operator_tools.diagnostics import build_doctor_report
 
 
 def _make_builder(env="dev", evolve_mode="auto"):

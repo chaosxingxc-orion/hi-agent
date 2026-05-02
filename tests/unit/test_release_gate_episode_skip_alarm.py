@@ -22,7 +22,7 @@ def test_record_fallback_called_on_corrupt_json(tmp_path: Path) -> None:
     corrupt_file = ep_dir / "bad-episode.json"
     corrupt_file.write_text("NOT VALID JSON {{{", encoding="utf-8")
 
-    from hi_agent.ops.release_gate import check_prod_e2e_recent
+    from hi_agent.operator_tools.release_gate import check_prod_e2e_recent
 
     with mock.patch(_RF_PATH) as mock_rf:
         check_prod_e2e_recent(max_age_hours=48, episodic_dir=str(ep_dir))
@@ -51,7 +51,7 @@ def test_record_fallback_called_on_invalid_timestamp(tmp_path: Path) -> None:
     }
     (ep_dir / "ts-bad.json").write_text(json.dumps(episode), encoding="utf-8")
 
-    from hi_agent.ops.release_gate import check_prod_e2e_recent
+    from hi_agent.operator_tools.release_gate import check_prod_e2e_recent
 
     with mock.patch(_RF_PATH) as mock_rf:
         check_prod_e2e_recent(max_age_hours=48, episodic_dir=str(ep_dir))
@@ -80,7 +80,7 @@ def test_no_record_fallback_on_valid_episode(tmp_path: Path) -> None:
     }
     (ep_dir / "good.json").write_text(json.dumps(episode), encoding="utf-8")
 
-    from hi_agent.ops.release_gate import check_prod_e2e_recent
+    from hi_agent.operator_tools.release_gate import check_prod_e2e_recent
 
     with mock.patch(_RF_PATH) as mock_rf:
         check_prod_e2e_recent(max_age_hours=48, episodic_dir=str(ep_dir))

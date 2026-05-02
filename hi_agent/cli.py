@@ -546,7 +546,7 @@ def _cmd_extensions(args) -> None:
 def _run_doctor(args) -> None:
     """Run hi-agent doctor diagnostic."""
     from hi_agent.config.builder import SystemBuilder
-    from hi_agent.ops.diagnostics import build_doctor_report
+    from hi_agent.operator_tools.diagnostics import build_doctor_report
 
     builder = SystemBuilder()
     report = build_doctor_report(builder)

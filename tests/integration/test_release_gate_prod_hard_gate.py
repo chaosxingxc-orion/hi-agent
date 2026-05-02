@@ -4,7 +4,7 @@ import datetime
 import json
 from pathlib import Path
 
-from hi_agent.ops.release_gate import ProdE2EResult, check_prod_e2e_recent
+from hi_agent.operator_tools.release_gate import ProdE2EResult, check_prod_e2e_recent
 
 
 def _iso_z(ts: datetime.datetime) -> str:
