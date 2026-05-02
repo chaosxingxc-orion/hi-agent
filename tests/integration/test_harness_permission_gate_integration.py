@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from hi_agent.harness.contracts import ActionSpec, ActionState
-from hi_agent.harness.evidence_store import EvidenceStore
-from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine
-from hi_agent.harness.permission_rules import (
+from hi_agent.runtime.harness.contracts import ActionSpec, ActionState
+from hi_agent.runtime.harness.evidence_store import EvidenceStore
+from hi_agent.runtime.harness.executor import HarnessExecutor
+from hi_agent.runtime.harness.governance import GovernanceEngine
+from hi_agent.runtime.harness.permission_rules import (
     DenialCounter,
     PermissionAction,
     PermissionDecision,

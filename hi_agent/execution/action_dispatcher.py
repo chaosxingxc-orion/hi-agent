@@ -274,7 +274,7 @@ class ActionDispatcher:
         Returns:
             Dict in the format the runner expects from capability invocation.
         """
-        from hi_agent.harness.contracts import ActionSpec, ActionState, SideEffectClass
+        from hi_agent.runtime.harness.contracts import ActionSpec, ActionState, SideEffectClass
 
         spec = ActionSpec(
             action_id=deterministic_id(

@@ -18,9 +18,9 @@ from hi_agent.events import EventEmitter
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.failures.collector import FailureCollector
 from hi_agent.failures.watchdog import ProgressWatchdog
-from hi_agent.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
-from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine
+from hi_agent.runtime.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
+from hi_agent.runtime.harness.executor import HarnessExecutor
+from hi_agent.runtime.harness.governance import GovernanceEngine
 from hi_agent.llm.protocol import LLMGateway
 from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.episode_builder import EpisodeBuilder

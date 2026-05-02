@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import pytest
-from hi_agent.harness.contracts import (
+from hi_agent.runtime.harness.contracts import (
     ActionSpec,
     ActionState,
     EffectClass,
     EvidenceRecord,
     SideEffectClass,
 )
-from hi_agent.harness.evidence_store import EvidenceStore
-from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine
+from hi_agent.runtime.harness.evidence_store import EvidenceStore
+from hi_agent.runtime.harness.executor import HarnessExecutor
+from hi_agent.runtime.harness.governance import GovernanceEngine
 
 # ---------------------------------------------------------------------------
 # Helpers

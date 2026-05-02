@@ -1,10 +1,12 @@
-"""Runtime adapter package."""
+"""Runtime adapter package — kernel facade adapter spine.
 
-from agent_kernel.testing import (
-    InMemoryDedupeStore,
-    InMemoryKernelRuntimeEventLog,
-    StaticRecoveryGateService,
-)
+This is the seam between hi_agent and agent_kernel. It re-exports the
+production kernel contract surface (FAILURE_GATE_MAP, Action, RuntimeEvent,
+TaskAttempt, …) and the adapter implementations. Test fixtures
+(``InMemoryDedupeStore``, ``InMemoryKernelRuntimeEventLog``,
+``StaticRecoveryGateService``) live in :mod:`hi_agent.testing` instead of
+here so production callers do not pull in test-only primitives.
+"""
 
 from agent_kernel.kernel import (
     FAILURE_GATE_MAP,
@@ -81,8 +83,6 @@ __all__ = [
     "FileBackedConsistencyJournal",
     "IllegalStateTransitionError",
     "InMemoryConsistencyJournal",
-    "InMemoryDedupeStore",
-    "InMemoryKernelRuntimeEventLog",
     "KernelFacadeAdapter",
     "KernelFacadeClient",
     "ReconcileLoop",
@@ -93,7 +93,6 @@ __all__ = [
     "RuntimeAdapterError",
     "RuntimeEvent",
     "SideEffectClass",
-    "StaticRecoveryGateService",
     "SubstrateHealthChecker",
     "SubstrateHealthReport",
     "SubstrateNetworkState",

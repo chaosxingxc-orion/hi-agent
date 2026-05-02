@@ -1,32 +1,16 @@
-"""Harness subsystem — unified action governance and execution."""
+"""DEPRECATED — use ``hi_agent.runtime.harness`` instead. Removed in W34.
 
-from hi_agent.harness.contracts import (
-    ActionResult,
-    ActionSpec,
-    ActionState,
-    EffectClass,
-    EvidenceRecord,
-    SideEffectClass,
-)
-from hi_agent.harness.evidence_store import (
-    EvidenceStore,
-    EvidenceStoreProtocol,
-    SqliteEvidenceStore,
-)
-from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine, RetryPolicy
+This shim was added when the harness subsystem was moved from
+``hi_agent.harness`` into ``hi_agent.runtime.harness`` so the runtime helper
+namespace is unified (sync_bridge, profile_runtime, cancellation, harness).
+"""
 
-__all__ = [
-    "ActionResult",
-    "ActionSpec",
-    "ActionState",
-    "EffectClass",
-    "EvidenceRecord",
-    "EvidenceStore",
-    "EvidenceStoreProtocol",
-    "GovernanceEngine",
-    "HarnessExecutor",
-    "RetryPolicy",
-    "SideEffectClass",
-    "SqliteEvidenceStore",
-]
+import warnings
+
+warnings.warn(
+    "hi_agent.harness is deprecated; use hi_agent.runtime.harness",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from hi_agent.runtime.harness import *  # noqa: F401, F403, E402  # expiry_wave: Wave 34

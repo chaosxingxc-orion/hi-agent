@@ -17,8 +17,8 @@ from hi_agent.contracts import CTSExplorationBudget
 from hi_agent.contracts.memory import StageSummary
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
-from hi_agent.harness.contracts import ActionResult, ActionSpec, ActionState
-from hi_agent.harness.executor import HarnessExecutor
+from hi_agent.runtime.harness.contracts import ActionResult, ActionSpec, ActionState
+from hi_agent.runtime.harness.executor import HarnessExecutor
 from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.route_engine.acceptance import AcceptancePolicy

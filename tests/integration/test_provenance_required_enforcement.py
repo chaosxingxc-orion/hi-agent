@@ -11,10 +11,10 @@ from __future__ import annotations
 from agent_kernel.kernel.contracts import SideEffectClass
 from hi_agent.capability.invoker import CapabilityInvoker
 from hi_agent.capability.registry import CapabilityDescriptor, CapabilityRegistry, CapabilitySpec
-from hi_agent.harness.contracts import ActionSpec
-from hi_agent.harness.evidence_store import EvidenceStore
-from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine
+from hi_agent.runtime.harness.contracts import ActionSpec
+from hi_agent.runtime.harness.evidence_store import EvidenceStore
+from hi_agent.runtime.harness.executor import HarnessExecutor
+from hi_agent.runtime.harness.governance import GovernanceEngine
 
 
 def _make_executor(

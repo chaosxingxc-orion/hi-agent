@@ -8,8 +8,8 @@ from hi_agent.capability import (
     CircuitBreaker,
 )
 from hi_agent.capability.adapters.descriptor_factory import CapabilityDescriptor
-from hi_agent.harness.contracts import EffectClass
-from hi_agent.harness.governance import GovernanceEngine
+from hi_agent.runtime.harness.contracts import EffectClass
+from hi_agent.runtime.harness.governance import GovernanceEngine
 
 
 def _invoker_with_capability(

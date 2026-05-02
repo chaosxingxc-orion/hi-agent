@@ -15,9 +15,9 @@ from hi_agent.observability.metric_counter import Counter
 _plane_errors_total = Counter("hi_agent_capability_plane_builder_errors_total")
 
 from hi_agent.config.trace_config import TraceConfig
-from hi_agent.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
-from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine
+from hi_agent.runtime.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
+from hi_agent.runtime.harness.executor import HarnessExecutor
+from hi_agent.runtime.harness.governance import GovernanceEngine
 
 logger = logging.getLogger(__name__)
 

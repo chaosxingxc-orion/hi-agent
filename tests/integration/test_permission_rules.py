@@ -7,7 +7,7 @@ and the default safe rule set.
 
 from __future__ import annotations
 
-from hi_agent.harness.permission_rules import (
+from hi_agent.runtime.harness.permission_rules import (
     DenialCounter,
     DenialRecord,
     PermissionAction,

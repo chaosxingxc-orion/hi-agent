@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from hi_agent.config.builder import SystemBuilder
 from hi_agent.config.trace_config import TraceConfig
-from hi_agent.harness.contracts import ActionSpec, EffectClass, SideEffectClass
+from hi_agent.runtime.harness.contracts import ActionSpec, EffectClass, SideEffectClass
 
 # ---------------------------------------------------------------------------
 # Helpers

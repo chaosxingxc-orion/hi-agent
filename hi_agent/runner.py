@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from hi_agent.evolve.feedback_store import FeedbackStore
     from hi_agent.failures.collector import FailureCollector
     from hi_agent.failures.watchdog import ProgressWatchdog
-    from hi_agent.harness.executor import HarnessExecutor
+    from hi_agent.runtime.harness.executor import HarnessExecutor
     from hi_agent.memory.episode_builder import EpisodeBuilder
     from hi_agent.memory.episodic import EpisodicMemoryStore
     from hi_agent.memory.short_term import ShortTermMemoryStore

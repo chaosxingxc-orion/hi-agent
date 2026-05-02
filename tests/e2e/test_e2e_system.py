@@ -29,15 +29,15 @@ from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
 from hi_agent.failures.collector import FailureCollector
 from hi_agent.failures.watchdog import ProgressWatchdog
-from hi_agent.harness.contracts import (
+from hi_agent.runtime.harness.contracts import (
     ActionSpec,
     ActionState,
     EffectClass,
     SideEffectClass,
 )
-from hi_agent.harness.evidence_store import EvidenceStore
-from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine
+from hi_agent.runtime.harness.evidence_store import EvidenceStore
+from hi_agent.runtime.harness.executor import HarnessExecutor
+from hi_agent.runtime.harness.governance import GovernanceEngine
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore

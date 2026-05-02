@@ -11,9 +11,9 @@ import pytest
 from hi_agent.config.knowledge_builder import KnowledgeBuilder
 from hi_agent.config.memory_builder import MemoryBuilder
 from hi_agent.config.trace_config import TraceConfig
-from hi_agent.harness.evidence_store import EvidenceStore
-from hi_agent.harness.executor import HarnessExecutor
-from hi_agent.harness.governance import GovernanceEngine
+from hi_agent.runtime.harness.evidence_store import EvidenceStore
+from hi_agent.runtime.harness.executor import HarnessExecutor
+from hi_agent.runtime.harness.governance import GovernanceEngine
 from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 from hi_agent.knowledge.user_knowledge import UserKnowledgeStore
 from hi_agent.memory.long_term import LongTermMemoryGraph

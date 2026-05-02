@@ -91,9 +91,9 @@ class TestOutputToArtifactAdapter:
 
 class TestHarnessExecutorArtifactRegistry:
     def test_harness_stores_artifacts_on_execute(self):
-        from hi_agent.harness.contracts import ActionSpec
-        from hi_agent.harness.executor import HarnessExecutor
-        from hi_agent.harness.governance import GovernanceEngine
+        from hi_agent.runtime.harness.contracts import ActionSpec
+        from hi_agent.runtime.harness.executor import HarnessExecutor
+        from hi_agent.runtime.harness.governance import GovernanceEngine
 
         registry = ArtifactRegistry()
         output = {"url": "http://example.com", "title": "Test", "snippet": "snip"}
@@ -103,7 +103,7 @@ class TestHarnessExecutorArtifactRegistry:
             def invoke(self, name, payload):
                 return output
 
-        from hi_agent.harness.evidence_store import EvidenceStore
+        from hi_agent.runtime.harness.evidence_store import EvidenceStore
 
         harness = HarnessExecutor(
             governance=GovernanceEngine(),
@@ -126,15 +126,15 @@ class TestHarnessExecutorArtifactRegistry:
 
     def test_harness_without_registry_still_works(self):
         """HarnessExecutor works normally without artifact_registry."""
-        from hi_agent.harness.contracts import ActionSpec
-        from hi_agent.harness.executor import HarnessExecutor
-        from hi_agent.harness.governance import GovernanceEngine
+        from hi_agent.runtime.harness.contracts import ActionSpec
+        from hi_agent.runtime.harness.executor import HarnessExecutor
+        from hi_agent.runtime.harness.governance import GovernanceEngine
 
         class MockInvoker:
             def invoke(self, name, payload):
                 return {"output": "result"}
 
-        from hi_agent.harness.evidence_store import EvidenceStore
+        from hi_agent.runtime.harness.evidence_store import EvidenceStore
 
         harness = HarnessExecutor(
             governance=GovernanceEngine(),

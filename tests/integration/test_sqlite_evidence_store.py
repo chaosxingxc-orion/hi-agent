@@ -5,8 +5,8 @@ from __future__ import annotations
 import threading
 
 import pytest
-from hi_agent.harness.contracts import EvidenceRecord
-from hi_agent.harness.evidence_store import (
+from hi_agent.runtime.harness.contracts import EvidenceRecord
+from hi_agent.runtime.harness.evidence_store import (
     EvidenceStoreProtocol,
     SqliteEvidenceStore,
 )
