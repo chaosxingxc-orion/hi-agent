@@ -314,6 +314,16 @@ jobs:
       - name: Check notice/manifest score honesty (Rule 14, W25-N)
         run: python scripts/check_notice_score_match.py --json
 
+      # --- W29 new gates ---
+      # Closes the W28 root cause: notices marked `notice-pre-final-commit: true`
+      # were published before the final commit existed, so manifest.release_head
+      # and HEAD inevitably diverged. Per Rule 14 the notice ships in the final
+      # atomic commit (manifest + notice + signoff). This gate fails when the
+      # latest active notice still carries the escape-hatch marker.
+
+      - name: Check notice pre-final-commit clean (Rule 14, W29)
+        run: python scripts/check_notice_pre_final_commit_clean.py --json
+
       # --- Release manifest ---
 
       - name: Build release manifest

@@ -6,7 +6,7 @@
 # Placeholder values carry expiry: Wave 22 for operationalization.
 
 schema_version: "1"
-current_wave: 28
+current_wave: 29
 
 entries:
   - issue_id: P0-1
@@ -398,3 +398,32 @@ entries:
     metric_name: "hi_agent_inline_fallback_count"
     alert_rule: "hi_agent_inline_fallback_alert"
     runbook_path: "docs/runbooks/mypy-ignore-burndown.md"
+
+  - issue_id: P0-W28
+    defect_class: notice_pre_final_commit_escape_hatch
+    named_instance: "Wave 28 notice declares notice-pre-final-commit:true and Functional HEAD 9e607a65 while main HEAD after PR#17 merge is 24742d7d; manifest file release_head also 9e607a65 -- mismatch caps verified at 50 per Rule 14, but the misaligned notice claimed verified=94.55"
+    peer_instances_audited:
+      - "Wave 27 notice carried the same notice-pre-final-commit:true marker"
+      - "Wave 10.2 introduced the marker as a temporary escape hatch"
+      - "W28 archive contains 18 superseded manifests on wave-25-integration -- evidence the cycle was not just one slip"
+    root_cause: >
+      The check_doc_consistency.py E1a check permits a notice to skip
+      HEAD-equality validation when the notice carries notice-pre-final-commit:true.
+      This was introduced as a temporary escape hatch in W10.2 and never closed,
+      so subsequent waves used it to publish notices before the final commit.
+      The manifest is generated against the pre-final HEAD; subsequent commits
+      (CI fixes, GOV redactions, the PR merge commit itself) advance HEAD
+      without re-generating the manifest, leaving release_head stale. PR
+      merge to main creates an additional drift because GitHub merge commits
+      have a different SHA from the PR tip.
+    code_fix: "W29: scripts/check_notice_pre_final_commit_clean.py NEW; W27 + W28 notices marked Status:superseded; Wave 28 stale manifest moved to docs/releases/archive/W28/"
+    regression_test: "scripts/check_notice_pre_final_commit_clean.py --json (fails when latest active notice carries notice-pre-final-commit:true)"
+    release_gate: "release-gate.yml step: Check notice pre-final-commit clean (Rule 14, W29)"
+    process_change: "CLAUDE.md Rule 14 explicit ordering: closure notice ships in the FINAL atomic commit (manifest+notice+signoff); fast-forward-only push so PR-merge does not advance HEAD past manifest.release_head"
+    owner: GOV
+    expiry_or_followup: "2026-06-02"
+    evidence_artifact: "docs/downstream-responses/2026-05-02-w29-delivery-notice.md"
+    current_closure_level: verified_at_release_head
+    metric_name: "hi_agent_notice_pre_final_commit_violations_total"
+    alert_rule: "hi_agent_notice_pre_final_commit_violations_alert"
+    runbook_path: "docs/runbooks/manifest-stale.md"

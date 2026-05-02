@@ -2,10 +2,19 @@
 
 **Date:** 2026-05-02
 **Branch:** wave-25-integration
-Status: SHIP
-**Manifest:** `docs/releases/platform-release-manifest-2026-05-02-9e607a65.json`
+Status: superseded
+**Manifest:** `docs/releases/archive/W28/platform-release-manifest-2026-05-02-9e607a65.json`
 Functional HEAD: 9e607a6560609912ffff2c0fd155bb9b18833ed0
 notice-pre-final-commit: true
+
+> **W29 supersession note:** Per Rule 14 release-identity audit, this notice
+> was published before the final commit existed (`notice-pre-final-commit:
+> true`) and the manifest's `release_head=9e607a65` did not match `main`'s
+> actual HEAD `24742d7d` after PR #17 merged. The "verified 94.55" claim is
+> therefore not authoritative under Rule 14. Superseded by the Wave 29
+> delivery notice (`2026-05-02-w29-delivery-notice.md`), which captures the
+> verified score AT the manifest's release HEAD via a single atomic commit.
+> Retained here for audit trail.
 
 ---
 

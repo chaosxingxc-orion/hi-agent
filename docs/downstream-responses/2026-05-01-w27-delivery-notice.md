@@ -1,6 +1,12 @@
 # Wave 27 Delivery Notice
 
+Status: superseded
 notice-pre-final-commit: true
+
+> **W29 supersession note:** This notice was published with the
+> `notice-pre-final-commit: true` escape hatch and is superseded by the
+> Wave 29 delivery notice (`2026-05-02-w29-delivery-notice.md`), which
+> ships in the final atomic commit per Rule 14. Retained for audit trail.
 
 **Date:** 2026-05-01
 **Branch:** wave-25-integration
