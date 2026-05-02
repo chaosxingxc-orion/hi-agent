@@ -141,17 +141,39 @@ def test_except_reraise_not_detected():
 # Extra: expiry_wave annotation produces 'deferred' status
 # ---------------------------------------------------------------------------
 def test_expiry_wave_annotation_produces_deferred():
-    """'rule7-exempt: expiry_wave=...' must produce status=deferred, not fail."""
+    """'rule7-exempt: expiry_wave=Wave N' must produce status=deferred, not fail.
+
+    Uses a far-future wave number so the test is stable across wave bumps.
+    The W30 paperwork-removal made `expiry_wave="permanent"` legitimate
+    (no violation emitted), which is verified separately below.
+    """
     src = textwrap.dedent("""\
         def tracked_debt():
+            try:
+                something()
+            except Exception:  # rule7-exempt: expiry_wave="Wave 99"
+                pass
+    """)
+    vs = _violations(src)
+    assert len(vs) == 1, f"Expected 1 deferred violation, got: {vs}"
+    assert vs[0]["status"] == "deferred"
+
+
+def test_expiry_wave_permanent_produces_no_violation():
+    """'rule7-exempt: expiry_wave=permanent' must produce no violations.
+
+    Permanent annotations declare intentionally-permanent technical debt
+    per Rule 17. Added in W30 to terminate the wave-bump cycle.
+    """
+    src = textwrap.dedent("""\
+        def permanently_accepted():
             try:
                 something()
             except Exception:  # rule7-exempt: expiry_wave="permanent"
                 pass
     """)
     vs = _violations(src)
-    assert len(vs) == 1, f"Expected 1 deferred violation, got: {vs}"
-    assert vs[0]["status"] == "deferred"
+    assert vs == [], f"Expected no violations for permanent, got: {vs}"
 
 
 # ---------------------------------------------------------------------------
