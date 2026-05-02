@@ -849,12 +849,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         default=False,
         help=(
-            "W31-L (L-15') strict Rule-8 step-5 mode. When set, only "
-            "polling_ok counts toward the stage-observation invariant; "
-            "terminal_stages_ok alone fails the invariant. Required for "
-            "L.2 (real 1h soak). Per Rule 8 step-5, current_stage non-None "
-            "within 30s is the hard requirement; the post-hoc "
-            "result.stages[] field is only a structural signal."
+            "Strict Rule-8 step-5 mode. When set, only polling_ok counts "
+            "toward the stage-observation invariant; terminal_stages_ok "
+            "alone fails the invariant. Required for real long-running "
+            "soaks. Per Rule 8 step-5, current_stage non-None within 30s "
+            "is the hard requirement; the post-hoc result.stages[] field "
+            "is only a structural signal."
         ),
     )
     parser.add_argument(
@@ -1054,14 +1054,23 @@ def main(argv: list[str] | None = None) -> int:
             run_index_counter[0] += 1
             return i
 
-    def _worker_loop(worker_id: int, tenant_id: str, project_id: str) -> None:
-        """One worker submits POST /runs sequentially for its (tenant, project) slot.
+    def _worker_loop(worker_id: int) -> None:
+        """One worker submits POST /runs cycling through ALL (tenant, project)
+        pairs per submission so every pair gets exercised regardless of the
+        concurrency vs |pairs| ratio.
 
         Workers are paced by --run-interval-seconds. With N workers, the
         aggregate submission rate is approximately N / run_interval_seconds.
+        Each worker uses a separate offset into workload_pairs so concurrent
+        submissions span distinct tenants when possible.
         """
+        local_pair_idx = worker_id % len(workload_pairs)
         while time.monotonic() < deadline and not workers_stop.is_set():
             ri = _next_run_index()
+            tenant_id, project_id = workload_pairs[
+                local_pair_idx % len(workload_pairs)
+            ]
+            local_pair_idx += 1
             idem_key = f"w31-soak-{tenant_id}-{project_id}-{ri}"
             r = _submit_run(
                 base_url,
@@ -1181,15 +1190,15 @@ def main(argv: list[str] | None = None) -> int:
         f"sigterm_after={args.mid_soak_sigterm_after}min"
     )
 
-    # Spawn workers — round-robin (tenant, project) assignment.
+    # Spawn workers — each cycles through ALL (tenant, project) pairs, so
+    # every pair is exercised regardless of the concurrency vs |pairs| ratio.
     worker_threads: list[threading.Thread] = []
     for w in range(args.concurrency):
-        tid, pid = workload_pairs[w % len(workload_pairs)]
         th = threading.Thread(
             target=_worker_loop,
-            args=(w, tid, pid),
+            args=(w,),
             daemon=True,
-            name=f"soak-worker-{w}-{tid}-{pid}",
+            name=f"soak-worker-{w}",
         )
         th.start()
         worker_threads.append(th)

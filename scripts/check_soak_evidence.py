@@ -91,9 +91,9 @@ def main() -> int:
         action="store_true",
         default=False,
         help=(
-            "W31-L (L-1'): When set, 'deferred' (no arch-7x24 evidence found "
-            "for current HEAD) exits 1 instead of 0. CI uses --strict so a "
-            "missing evidence at HEAD is a hard FAIL, not a silent advisory."
+            "When set, 'deferred' (no arch-7x24 evidence found for current "
+            "HEAD) exits 1 instead of 0. CI uses --strict so a missing "
+            "evidence at HEAD is a hard FAIL, not a silent advisory."
         ),
     )
     args = parser.parse_args()
