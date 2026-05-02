@@ -36,7 +36,7 @@ Active docs use L0–L4 exclusively (Rule 13, Wave 9+). Mapping from retired lab
 | Research workspace model | L0 | ResearchProjectSpec deferred Wave 10; TeamRunSpec available as platform-neutral alternative | - | - | - |
 | Ops and release governance | L2 | Posture enum (CO-1/R11); G1-G4 intake gates; doctor posture checks (DX-3); T3 CI gate (GOV-4); capability matrix L0–L4 (GOV-2) | test_posture.py, test_doctor_posture_checks.py | GET /health, GET /manifest | dev ✓ research ✓ |
 | Human gate lifecycle | L2 | GatePendingError + continue_from_gate + SQLiteGateStore | tests/integration/test_dangerous_capability*.py | POST /runs/{id}/signal | dev ✓ research ✓ |
-| LLM tier routing | L1 | TierRouter + TierAwareLLMGateway; calibration signal ingest record-only | tests/unit/test_evolve_policy_resolution.py | - | dev only |
+| LLM tier routing | L3 | TierRouter + TierAwareLLMGateway with active calibration (W27 L4 — `984d3a2d`); ingest_calibration_signal → routing weight feedback loop; rule-7 WARNING on tier upgrade | tests/unit/test_tier_router_calibration.py (19 tests), tests/integration/test_tier_router_ingest_calibration.py (8 tests) | - | dev ✓ research ✓ prod ✓ |
 | Error contract | L2 | Structured error categories at /runs boundary (CO-9): {error_category, message, retryable, next_action}; catalog in docs/api-reference.md | test_run_error_envelope.py | POST /runs | dev ✓ research ✓ |
 | Developer Experience (DX) | L2 | hi-agent init CLI (DX-1); quickstart doc (DX-2); posture-aware doctor (DX-3); full manifest surface (DX-4); profile path redaction (DX-5); posture-reference.md (DX-7) | test_cli_init.py, test_doctor_posture_checks.py, test_manifest_full_descriptor_surface.py | - | dev ✓ research ✓ |
 
@@ -329,7 +329,7 @@ Active docs use L0–L4 exclusively (Rule 13, Wave 9+). Mapping from retired lab
 
 | Capability | Level | Owner | Evidence | Rule / Class |
 |---|---|---|---|---|
-| TierRouter active calibration (P-7) | L3 | CO+RO | `tests/unit/test_tier_router_calibration.py` (19 tests) + `tests/integration/test_tier_router_ingest_calibration.py` (8 tests); commit `984d3a2d` | P-7 — ingest_calibration_signal → routing weight feedback loop; rule-7 WARNING on tier upgrade |
+| TierRouter active calibration (P-6) | L3 | CO+RO | `tests/unit/test_tier_router_calibration.py` (19 tests) + `tests/integration/test_tier_router_ingest_calibration.py` (8 tests); commit `984d3a2d` | P-6 — ingest_calibration_signal → routing weight feedback loop; rule-7 WARNING on tier upgrade |
 | RunEventEmitter (C8) | L3 | TE | `tests/unit/test_run_event_emitter.py`; commit `c2b8523d` | C8 — 12 typed run lifecycle events; Rule 7 four-prong (counter+log+inspectable+gate-asserted) |
 | ExtensionRegistry upgrade/rollback + CLI (C12) | L4 | TE | `tests/integration/test_extension_lifecycle.py`; commit `326a0e1e` | C12 — third-party upgrade/rollback without source access; CLI subcommands |
 | ProjectPostmortem lifecycle wired (W10-M.3) | L3 | TE | `tests/integration/test_project_postmortem_lifecycle.py` (unit+runner spine tests); commit `c7de81f3` | W10-M.3 — PostmortemEngine.on_project_completed() wired; durable under research/prod; tenant_id carried |
