@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+# W31 T-24' decision: value object passed to L3 store which carries tenant_id; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class KnowledgeItem:
     """A single retrievable knowledge item at a specific granularity."""

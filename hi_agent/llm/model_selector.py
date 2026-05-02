@@ -13,6 +13,8 @@ from hi_agent.llm.registry import ModelRegistry, ModelTier, RegisteredModel
 from hi_agent.llm.tier_router import _TIER_ORDER, TierRouter, _tier_index
 
 
+# W31 T-24' decision: in-process selection wrapper; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class SelectionResult:
     """Result of a model selection decision."""

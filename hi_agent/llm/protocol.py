@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
+# W31 T-24' decision: in-process counter wrapper; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class TokenUsage:
     """Token consumption counters for a single LLM call."""
@@ -16,6 +18,8 @@ class TokenUsage:
     total_tokens: int = 0
 
 
+# W31 T-24' decision: in-process request envelope; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class LLMRequest:
     """Structured request to LLM Gateway.
@@ -46,6 +50,8 @@ class LLMRequest:
     thinking_budget: int | None = None
 
 
+# W31 T-24' decision: in-process response envelope; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class LLMResponse:
     """Structured response from LLM Gateway.
@@ -69,6 +75,8 @@ class LLMResponse:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+# W31 T-24' decision: in-process streaming chunk; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class LLMStreamChunk:
     """A single chunk from a streaming LLM response.

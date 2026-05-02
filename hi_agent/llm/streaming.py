@@ -33,6 +33,8 @@ _STALE_STREAM_TIMEOUT = 90.0
 # ---------------------------------------------------------------------------
 
 
+# W31 T-24' decision: in-process streaming delta; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class StreamDelta:
     """A single delta event from a streaming LLM response.

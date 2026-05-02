@@ -11,6 +11,8 @@ from hi_agent.management.reconcile_runtime import (
 )
 
 
+# W31 T-24' decision: in-process snapshot; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class ReconcileMetricsSnapshot:
     """Compact reconcile metrics view for status/reporting surfaces."""

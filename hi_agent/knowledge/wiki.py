@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
 
+# W31 T-24' decision: value object — wiki write carries tenant_id at the store row; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class WikiPage:
     """A single knowledge page in the wiki."""

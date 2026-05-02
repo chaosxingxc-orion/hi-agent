@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 
+# W31 T-24' decision: value object — wiki user profile; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class UserProfile:
     """User knowledge profile."""

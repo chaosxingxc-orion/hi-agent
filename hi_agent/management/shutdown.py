@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from threading import Thread
 
 
+# W31 T-24' decision: in-process shutdown error; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class ShutdownHookError:
     """Captured error metadata for one hook."""
@@ -16,6 +18,8 @@ class ShutdownHookError:
     error_message: str
 
 
+# W31 T-24' decision: in-process shutdown hook result; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class ShutdownHookResult:
     """Execution result for one hook."""
@@ -26,6 +30,8 @@ class ShutdownHookResult:
     error: ShutdownHookError | None = None
 
 
+# W31 T-24' decision: in-process shutdown result; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class ShutdownResult:
     """Aggregated shutdown execution summary."""
@@ -39,6 +45,8 @@ class ShutdownResult:
     errors: list[ShutdownHookError]
 
 
+# W31 T-24' decision: in-process shutdown manager; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class ShutdownManager:
     """Manage shutdown hooks in deterministic order."""

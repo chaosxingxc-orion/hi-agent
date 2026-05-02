@@ -14,6 +14,8 @@ from hi_agent.management.reconcile_supervisor import (
 )
 
 
+# W31 T-24' decision: in-process runtime snapshot; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class ReconcileRuntimeStatus:
     """Snapshot of reconcile runtime operational state."""

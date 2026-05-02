@@ -16,6 +16,8 @@ class GateTimeoutPolicy(StrEnum):
     ESCALATE = "escalate"
 
 
+# W31 T-24' decision: in-process timeout result; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class GateTimeoutResult:
     """Resolved timeout outcome."""

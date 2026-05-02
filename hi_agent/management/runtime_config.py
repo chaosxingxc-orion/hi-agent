@@ -9,6 +9,8 @@ from time import time
 from hi_agent.management.config_history import ConfigHistory, ConfigHistoryEntry
 
 
+# W31 T-24' decision: in-process config snapshot; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class RuntimeConfigSnapshot:
     """Snapshot returned after a runtime config patch."""

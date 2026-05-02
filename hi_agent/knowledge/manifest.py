@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from hi_agent.contracts.extension_manifest import ExtensionManifestMixin
 
 
+# W31 T-24' decision: platform manifest; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class KnowledgeManifest(ExtensionManifestMixin):
     """Unified manifest descriptor for a knowledge backend.

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+# W31 T-24' decision: value object — KG row carries tenant_id; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class KnowledgeEntry:
     """A typed knowledge item for the knowledge store.

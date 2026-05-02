@@ -12,6 +12,8 @@ from typing import Literal
 CircuitStatus = Literal["closed", "open", "half_open"]
 
 
+# W31 T-24' decision: in-process metrics; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class CircuitState:
     """Circuit state metrics for one capability."""

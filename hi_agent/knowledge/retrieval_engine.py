@@ -37,6 +37,8 @@ from hi_agent.observability.silent_degradation import record_silent_degradation
 logger = logging.getLogger(__name__)
 
 
+# W31 T-24' decision: in-process query response wrapper; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class RetrievalResult:
     """Result of a four-layer retrieval pipeline."""

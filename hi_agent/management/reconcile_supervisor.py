@@ -17,6 +17,8 @@ class _JournalLike(Protocol):
         """Return a snapshot list of backlog issues."""
 
 
+# W31 T-24' decision: in-process report; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class ReconcileSupervisorReport:
     """Deterministic execution report for manual or periodic reconcile triggers."""

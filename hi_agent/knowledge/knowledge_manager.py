@@ -18,6 +18,8 @@ from hi_agent.knowledge.wiki import KnowledgeWiki, WikiPage
 from hi_agent.memory.long_term import LongTermMemoryGraph, MemoryNode
 
 
+# W31 T-24' decision: in-process query response wrapper; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class KnowledgeResult:
     """Unified query result from all knowledge sources."""

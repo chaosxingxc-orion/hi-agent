@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import Protocol
 
 
+# W31 T-24' decision: in-process health snapshot; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class HealthReport:
     """Service health report."""
@@ -14,6 +16,8 @@ class HealthReport:
     details: dict[str, str]
 
 
+# W31 T-24' decision: in-process readiness snapshot; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class ReadinessReport:
     """Service readiness report."""
@@ -23,6 +27,8 @@ class ReadinessReport:
     recent_error_count: int
 
 
+# W31 T-24' decision: in-process op-readiness snapshot; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class OperationalReadinessReport:
     """Operational readiness report with reconcile signal coverage."""

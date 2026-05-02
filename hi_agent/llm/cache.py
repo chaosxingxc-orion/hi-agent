@@ -34,6 +34,8 @@ class CacheControlBlock(TypedDict):
 # ---------------------------------------------------------------------------
 
 
+# W31 T-24' decision: in-process cache stats; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class CacheAwareTokenUsage:
     """Token usage extended with Anthropic prompt-caching fields.
@@ -78,6 +80,8 @@ class CacheAwareTokenUsage:
         return self.cache_read_tokens / max(self.prompt_tokens, 1)
 
 
+# W31 T-24' decision: platform cache config; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class PromptCacheConfig:
     """Configuration for :class:`PromptCacheInjector`.
@@ -96,6 +100,8 @@ class PromptCacheConfig:
     min_cacheable_tokens: int = 1024
 
 
+# W31 T-24' decision: in-process cache stats; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class PromptCacheStats:
     """Cumulative statistics across multiple requests.

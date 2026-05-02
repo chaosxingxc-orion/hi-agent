@@ -67,6 +67,8 @@ class GateStatus(StrEnum):
     REMEDIATED = "remediated"
 
 
+# W31 T-24' decision: in-process gate snapshot — DB row carries tenant_id; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class GateRecord:
     """Stored gate state snapshot."""

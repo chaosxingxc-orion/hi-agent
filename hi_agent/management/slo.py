@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# W31 T-24' decision: in-process SLO snapshot; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class SLOSnapshot:
     """Minimal SLO snapshot for run success and latency targets."""
@@ -72,6 +74,8 @@ def build_slo_snapshot(
     )
 
 
+# W31 T-24' decision: in-process SLO violation; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class SLOViolation:
     """A single SLO violation event emitted by :class:`SLOMonitor`."""

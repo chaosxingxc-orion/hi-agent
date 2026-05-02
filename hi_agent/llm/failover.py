@@ -170,6 +170,8 @@ def classify_http_error(status_code: int, response_body: str) -> FailoverReason:
 # ---------------------------------------------------------------------------
 
 
+# W31 T-24' decision: platform credential metadata; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class CredentialEntry:
     """A single API credential with cooldown state.
@@ -267,6 +269,8 @@ class CredentialPool:
 # ---------------------------------------------------------------------------
 
 
+# W31 T-24' decision: platform retry policy; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class RetryPolicy:
     """Exponential back-off policy for the failover chain.

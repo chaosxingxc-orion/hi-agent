@@ -35,6 +35,8 @@ def _tier_index(tier: str) -> int:
         return 1  # default to medium
 
 
+# W31 T-24' decision: platform tier policy; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class TierMapping:
     """Maps a purpose to a default model tier."""

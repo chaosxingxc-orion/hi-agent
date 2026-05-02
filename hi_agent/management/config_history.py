@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+# W31 T-24' decision: in-process config snapshot; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class ConfigHistoryEntry:
     """A single immutable runtime config change entry."""

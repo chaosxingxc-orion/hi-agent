@@ -10,11 +10,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-# scope: process-internal -- platform MCP servers are tenant-agnostic
-# (W31 T-7' decision).  An MCP server endpoint (a stdio process or HTTP URL)
-# is registered once at the platform level and shared across all tenants;
-# per-tenant restriction or proxying lives above this layer (in route
-# handlers / policy gates / posture flags), not on the registry row.
+# W31 T-7' decision: platform MCP servers are tenant-agnostic.  An MCP server
+# endpoint (a stdio process or HTTP URL) is registered once at the platform
+# level and shared across all tenants; per-tenant restriction or proxying lives
+# above this layer (route handlers / policy gates / posture flags), not on the
+# registry row.
+# scope: process-internal
 @dataclass
 class MCPServerEntry:
     """Registered MCP server metadata."""

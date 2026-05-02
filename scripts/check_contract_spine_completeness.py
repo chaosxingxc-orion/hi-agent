@@ -36,6 +36,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Wave 24 Track H1 expanded scope from {contracts, artifacts, agent_server/contracts}
 # to also cover the per-feature spine surfaces called out in the SA-1 Pattern 8
 # ledger (RIA hi-agent-architecture-improvement-requirements-2026-04-29.md A-02).
+# W31 T-24' added capability/, mcp/, knowledge/, llm/, and management/ so
+# previously unscanned dataclasses (CapabilitySpec, MCPServerEntry, KG nodes,
+# LLM gateway records, OpsSnapshot rows) are now under the contract-spine
+# completeness gate.  Findings are either fixed (tenant_id added) or marked
+# `# scope: process-internal` with an explicit rationale.
 SCAN_DIRS = [
     "hi_agent/contracts",
     "hi_agent/artifacts",
@@ -43,6 +48,11 @@ SCAN_DIRS = [
     "hi_agent/evolve",
     "hi_agent/skill",
     "hi_agent/memory",
+    "hi_agent/capability",
+    "hi_agent/mcp",
+    "hi_agent/knowledge",
+    "hi_agent/llm",
+    "hi_agent/management",
 ]
 
 # Specific files to scan in addition to the directories above.

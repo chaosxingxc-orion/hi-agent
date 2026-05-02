@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import Any
 
 
+# W31 T-24' decision: in-process advisor result; tenant-agnostic.
+# scope: process-internal
 @dataclass(frozen=True)
 class CapacityRecommendation:
     """Actionable capacity recommendation item."""

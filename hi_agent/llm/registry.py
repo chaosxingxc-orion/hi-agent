@@ -19,6 +19,8 @@ class ModelTier:
     LIGHT = "light"  # Simple tasks, formatting, checking
 
 
+# W31 T-24' decision: platform model registry; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class RegisteredModel:
     """A model registered with the gateway."""

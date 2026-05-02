@@ -31,6 +31,8 @@ _governance_errors_total = Counter("hi_agent_capability_governance_errors_total"
 _SENSITIVE_ARG_FIELDS = frozenset({"password", "secret", "token", "key"})
 
 
+# W31 T-24' decision: in-process gate result; tenant-agnostic.
+# scope: process-internal
 @dataclass
 class GovernanceDecision:
     decision: Literal["allow", "deny", "approval_required"]

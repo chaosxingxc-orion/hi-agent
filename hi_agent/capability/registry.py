@@ -70,9 +70,10 @@ RiskClass = Literal[
 ]
 
 
-# scope: process-internal -- platform-level capability metadata; tenant-agnostic
-# (W31 T-6' decision).  Risk and posture matrices apply to every tenant equally;
-# per-tenant overrides live above this layer.
+# W31 T-6' decision: platform-level capability metadata; tenant-agnostic.
+# Risk and posture matrices apply to every tenant equally; per-tenant overrides
+# live above this layer.
+# scope: process-internal
 @dataclass(frozen=True)
 class CapabilityDescriptor:
     """Machine-readable risk metadata for a capability.
@@ -118,11 +119,11 @@ class CapabilityDescriptor:
     available_in_prod: bool = True
 
 
-# scope: process-internal -- platform capabilities are tenant-agnostic; per-capability
-# per-tenant overlays are a future enhancement (W31 T-6' decision).  CapabilitySpec
-# describes a platform-level capability that any tenant can invoke; ownership and
-# per-tenant overrides live above this layer (in the route / policy gates), not on
-# the registry row itself.
+# W31 T-6' decision: platform capabilities are tenant-agnostic; per-capability
+# per-tenant overlays are a future enhancement.  CapabilitySpec describes a
+# platform-level capability that any tenant can invoke; ownership and per-tenant
+# overrides live above this layer (route / policy gates), not on the registry row.
+# scope: process-internal
 @dataclass(frozen=True)
 class CapabilitySpec:
     """Capability metadata and callable entrypoint."""
