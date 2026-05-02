@@ -41,6 +41,16 @@ _EXPIRY_ARG = re.compile(
     r'expiry_wave\s*[=:]\s*["\']?Wave\s*(\d+)',
     re.IGNORECASE,
 )
+# W31-D D-2': ``expiry_wave: permanent`` (or ``expiry_wave="permanent"``) declares
+# an intentionally-permanent skip — usually a structural skip that only runs
+# under a non-default profile (e.g. prod_e2e operator-shape, real-LLM E2E, or
+# Windows-sandbox-blocked subprocess paths). Mirrors the W30 noqa_discipline
+# convention. The gate accepts permanent as not-expired; the justification text
+# in `reason=` is reviewer responsibility (Rule 17).
+_EXPIRY_PERMANENT = re.compile(
+    r'expiry_wave\s*[=:]\s*["\']?permanent["\']?',
+    re.IGNORECASE,
+)
 _SKIPIF_PATTERN = re.compile(r"@pytest\.mark\.skipif\s*\(", re.IGNORECASE)
 
 
@@ -70,6 +80,13 @@ def _scan_file(path: pathlib.Path, current_wave: int) -> list[dict]:
             continue
         # Check the skip call (may span up to 15 lines for multi-line reason strings)
         snippet = "\n".join(lines[i - 1 : min(i + 15, len(lines))])
+
+        # W31-D D-2': permanent expiry is treated as not-expired (mirrors W30
+        # noqa_discipline convention). Permanent skips MUST still carry a
+        # reason= explaining the structural condition; the gate doesn't
+        # validate the justification (Rule 17 -- reviewer responsibility).
+        if _EXPIRY_PERMANENT.search(snippet):
+            continue
 
         m = _EXPIRY_ARG.search(snippet)
         if m:

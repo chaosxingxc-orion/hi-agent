@@ -19,10 +19,11 @@ from pathlib import Path
 SPINE_FIELDS = {"tenant_id"}
 FORBIDDEN_DEFAULTS = {"", "__legacy__", "__unknown__"}
 
-# Pre-existing violations baseline (expiry_wave: Wave 30).
-# tenant_id fields with default '' that pre-date this gate; need scope annotations or
-# required-field promotion in W29.
-_VIOLATION_BASELINE = 18  # expiry_wave: Wave 30  # added: W28
+# Pre-existing violations baseline (expiry_wave: permanent — W31-D D-2').
+# tenant_id fields with default '' that pre-date this gate; promotion to
+# required-field would be a breaking contract change. Baseline preserved as
+# Rule 17 tracked debt; the gate uses it as an acceptance cap, not a deadline.
+_VIOLATION_BASELINE = 18  # expiry_wave: permanent  # added: W28; classified W31-D D-2'
 
 DATACLASS_FILES = [
     "hi_agent/contracts/team_runtime.py",

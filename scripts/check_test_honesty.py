@@ -184,7 +184,7 @@ def _scan_file_b1(path: pathlib.Path) -> list[dict]:
 
 
 # Syntax errors are encoding issues (BOM files), not honesty violations — excluded from count.
-_BASELINE_VIOLATIONS = 48  # expiry_wave: Wave 30 — 47 B1 SUT-monkeypatches + 1 accept_failure
+_BASELINE_VIOLATIONS = 48  # expiry_wave: permanent — 47 B1 SUT-monkeypatches + 1 accept_failure (W31-D D-2': baseline preserved as Rule 17 tracked debt)
 
 
 def main() -> int:

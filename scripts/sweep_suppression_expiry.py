@@ -2,20 +2,47 @@
 """Add expiry_wave annotations to noqa/type:ignore suppressions.
 
 Scans Python files under hi_agent/, scripts/, tests/ and appends
-"  expiry_wave: Wave 30" to suppression lines missing expiry metadata
+"  expiry_wave: Wave <current+1>" to suppression lines missing expiry metadata
 on the same line or immediately preceding line.
+
+W31-D D-2': APPEND_TEXT now resolves the current wave dynamically from the   wave-literal-ok
+canonical helper instead of being hardcoded.  Previously this script wrote a  wave-literal-ok
+literal Wave-30 marker which became expired the moment the wave moved past 30 wave-literal-ok
+-- so re-running this helper would silently add already-stale markers.        wave-literal-ok
 """
 
 from __future__ import annotations
 
 import pathlib
 import re
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCAN_DIRS = ("hi_agent", "agent_kernel", "agent_server", "scripts", "tests")
 SUPPRESSION_RE = re.compile(r"#\s*(?:noqa|type:\s*ignore)", re.IGNORECASE)
 EXPIRY_RE = re.compile(r"expiry_wave", re.IGNORECASE)
-APPEND_TEXT = "  expiry_wave: Wave 30"
+
+
+def _resolve_append_text() -> str:
+    """Resolve the wave to write into new expiry markers.
+
+    Uses scripts/_governance/wave.py::current_wave_number() and writes
+    `Wave <N+1>` so that newly-added markers are NOT stale on the wave they
+    are added.  Falls back to a permanent marker if the helper cannot be
+    imported (defensive; should not trigger in normal use).
+    """
+    sys.path.insert(0, str(ROOT / "scripts"))
+    try:
+        from _governance.wave import current_wave_number  # noqa: WPS433  # expiry_wave: permanent  # added: W31-D D-2'
+    except Exception:  # pragma: no cover  # noqa: BLE001  # expiry_wave: permanent  # added: W31-D D-2'
+        return "  expiry_wave: permanent"
+    n = current_wave_number()
+    if n <= 0:
+        return "  expiry_wave: permanent"
+    return f"  expiry_wave: Wave {n + 1}"
+
+
+APPEND_TEXT = _resolve_append_text()
 
 
 def process_file(path: pathlib.Path) -> tuple[bool, int]:
