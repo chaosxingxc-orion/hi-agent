@@ -24,18 +24,41 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ALLOWLISTS_YAML = ROOT / "docs" / "governance" / "allowlists.yaml"
+# Kept for backwards reference; the canonical reader is _governance.wave.
 CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
+
+# W31-D D-3' fix: delegate wave reading to the canonical helper instead of the
+# previous regex-only path that silently fell back to "Wave 14". The old
+# fallback was the source of the manifest field
+# `gates.allowlist_universal.current_wave: "Wave 14"` even on Wave 30 manifests
+# because the regex `Wave\s+(\d+)` did not match the bare-integer file format
+# ("31\n") so the function returned the hardcoded 14 fallback every time.
+sys.path.insert(0, str(ROOT / "scripts"))
+try:
+    from _governance.wave import current_wave_number as _governance_current_wave_number
+except Exception:  # pragma: no cover  # noqa: BLE001  # expiry_wave: permanent  # added: W31-D D-3'
+    _governance_current_wave_number = None  # type: ignore[assignment]
 
 _REQUIRED_FIELDS = frozenset({"owner", "risk", "reason", "expiry_wave"})
 
 
 def _current_wave_number() -> int:
+    """Return the current wave number.
+
+    Source of truth: scripts/_governance/wave.py (which reads
+    docs/current-wave.txt — bare-integer format). Falls back to a parser of
+    docs/current-wave.txt only if the canonical helper cannot be imported.
+    """
+    if _governance_current_wave_number is not None:
+        return _governance_current_wave_number()
+    # Defensive fallback (canonical helper missing): parse the file directly
+    # using the bare-integer format as well as the older "Wave N" form.
     if CURRENT_WAVE_FILE.exists():
         text = CURRENT_WAVE_FILE.read_text(encoding="utf-8").strip()
-        m = re.match(r"Wave\s+(\d+)", text, re.IGNORECASE)
+        m = re.match(r"(?:Wave\s+)?(\d+)", text, re.IGNORECASE)
         if m:
             return int(m.group(1))
-    return 14
+    return 0
 
 
 def _parse_allowlists_yaml() -> list[dict]:
