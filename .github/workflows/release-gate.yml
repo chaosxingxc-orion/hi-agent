@@ -156,6 +156,12 @@ jobs:
       - name: Check T3 evidence freshness (Rule 8)
         run: python scripts/check_t3_freshness.py
 
+      # Untracked-artifacts check must run before check_score_cap, which writes
+      # <ci-merge-sha>-score-cap.json to docs/verification/ as a side effect.
+      # Those files use the CI merge-commit SHA so cannot be pre-committed.
+      - name: Untracked release artifacts (W17-B13)
+        run: python scripts/check_untracked_release_artifacts.py --json
+
       - name: Check score cap (W14-A7)
         run: python scripts/check_score_cap.py --json
 
@@ -185,9 +191,6 @@ jobs:
 
       - name: Wave label consistency (W17-B11)
         run: python scripts/check_wave_consistency.py --json
-
-      - name: Untracked release artifacts (W17-B13)
-        run: python scripts/check_untracked_release_artifacts.py --json
 
       - name: Manifest rewrite budget (W17-B19)
         run: python scripts/check_manifest_rewrite_budget.py --json
