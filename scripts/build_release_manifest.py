@@ -98,7 +98,13 @@ _GATE_SCRIPTS: dict[str, tuple] = {
     # BEFORE the new manifest is written, so it would always see the previous
     # committed manifest and fail on any non-docs-only gap.  It runs instead
     # as a separate CI step in release-gate.yml, after the manifest is committed.
-    "clean_env":                  ("verify_clean_env.py",                 False, ["--profile", "default-offline"], 360),  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+    # clean_env switched W28: was verify_clean_env.py (re-runs the entire
+    # pytest suite at every manifest build = ~5 min per CI run, duplicates
+    # the test (3.12) job, and surfaces no diagnostic on failure). Now uses
+    # check_clean_env.py which validates committed evidence under
+    # docs/verification/<sha>-default-offline-clean-env.json. Test execution
+    # itself remains covered by the test (3.12) job.
+    "clean_env":                  ("check_clean_env.py",                  True,  [], 60),
     "validate_before_mutate":     ("check_validate_before_mutate.py",     True,  []),
     "select_completeness":        ("check_select_completeness.py",        True,  []),
     "silent_degradation":         ("check_silent_degradation.py",         True,  []),
