@@ -1,31 +1,16 @@
-"""Skill runtime strategy layer for the hi_agent platform.
+"""DEPRECATED — use ``hi_agent.skill_runtime`` instead. Removed in W34.
 
-Exports all strategy-layer skill Protocols from hi_agent.skills.contracts.
-The concrete factory implementation (DefaultSkillRuntimeFactory) is available
-from hi_agent.skills.runtime_factory to avoid circular initialization.
-
-DTO contracts (SkillRequest, SkillResult, SkillDefinition) remain in
-agent_kernel.skills.contracts.
+This shim was added in Wave 31 (W31-H.1) when ``hi_agent.skills`` was renamed
+to ``hi_agent.skill_runtime`` to distinguish lifecycle (``hi_agent.skill``)
+from runtime strategy (``hi_agent.skill_runtime``).
 """
 
-from hi_agent.skills.contracts import (
-    LocalSkillRuntimeFactory,
-    ManagedSkillRuntime,
-    RemoteSkillGatewayFactory,
-    SkillRegistry,
-    SkillResolver,
-    SkillRuntime,
-    SkillRuntimeFactory,
-    SkillRuntimeHostFactory,
+import warnings
+
+warnings.warn(
+    "hi_agent.skills is deprecated; use hi_agent.skill_runtime",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
-__all__ = [
-    "LocalSkillRuntimeFactory",
-    "ManagedSkillRuntime",
-    "RemoteSkillGatewayFactory",
-    "SkillRegistry",
-    "SkillResolver",
-    "SkillRuntime",
-    "SkillRuntimeFactory",
-    "SkillRuntimeHostFactory",
-]
+from hi_agent.skill_runtime import *  # noqa: F401, F403, E402  # expiry_wave: Wave 34

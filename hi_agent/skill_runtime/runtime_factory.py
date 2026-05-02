@@ -11,7 +11,7 @@ from agent_kernel.skills.contracts import (
     SkillRuntimeHost,
 )
 
-from hi_agent.skills.contracts import (
+from hi_agent.skill_runtime.contracts import (
     LocalSkillRuntimeFactory,
     RemoteSkillGatewayFactory,
     SkillRuntime,

@@ -1,15 +1,22 @@
 ﻿#!/usr/bin/env python3
-"""W14-A7: Score-cap gate 鈥?surfaces cap_factors from the latest manifest.
+"""W14-A7: Score-cap gate - surfaces cap_factors from the latest manifest.
 
 Reads the most-recent manifest from docs/releases/ and fails when:
   - manifest is missing
   - cap_factors is non-empty and includes a blocker-class factor
   - any downstream notice or changelog asserts a score higher than current_verified_readiness
+  - W31-L (W31-G1 paired-evidence rule): a cap_factor present in the previous
+    wave's manifest is RETIRED in the current manifest WITHOUT a paired
+    `provenance: real` evidence artifact at
+    `docs/verification/<head>-<factor>.json`. Cap retirement that is not
+    accompanied by measured-evidence is the W28-readiness-redefinition pattern
+    (verified=94.55 with no paired soak evidence). The paired-evidence rule
+    blocks that recurrence at gate-time.
 
 Emits <sha>-score-cap.json to docs/verification/.
 
 Exit 0: pass or deferred-with-reason.
-Exit 1: fail (blocker cap or assertion mismatch).
+Exit 1: fail (blocker cap, assertion mismatch, or unpaired cap retirement).
 """
 from __future__ import annotations
 
@@ -86,6 +93,143 @@ def _manifest_verified_for_notice(text: str, default_verified: float) -> float:
     return default_verified
 
 
+def _all_manifests_sorted_by_wave() -> list[dict[str, object]]:
+    """Return all manifests (root + archived) sorted ascending by wave then generated_at.
+
+    Walks ``docs/releases/`` and ``docs/releases/archive/W*/`` to find every
+    historical manifest. Used by the W31-L paired-evidence rule to compare
+    "previous wave" cap_factors against "current" cap_factors.
+    """
+    manifests: list[dict[str, object]] = []
+    # Active manifests in docs/releases/
+    for p in RELEASES_DIR.glob("platform-release-manifest-*.json"):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        data["_path"] = str(p)
+        manifests.append(data)
+    # Archived manifests
+    archive_root = RELEASES_DIR / "archive"
+    if archive_root.exists():
+        for wave_dir in archive_root.glob("W*"):
+            for p in wave_dir.glob("platform-release-manifest-*.json"):
+                try:
+                    data = json.loads(p.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+                if not isinstance(data, dict):
+                    continue
+                data["_path"] = str(p)
+                manifests.append(data)
+    # Sort by (wave_int, generated_at). Wave is a string field; coerce to int.
+    def _wave_int(m: dict) -> int:
+        try:
+            return int(str(m.get("wave", "0")))
+        except (TypeError, ValueError):
+            return 0
+    manifests.sort(key=lambda m: (_wave_int(m), str(m.get("generated_at", ""))))
+    return manifests
+
+
+def _previous_wave_manifest(current: dict) -> dict | None:
+    """Find the most-recent manifest at a strictly-smaller wave than ``current``.
+
+    Returns ``None`` if no earlier manifest exists.
+    """
+    try:
+        cur_wave = int(str(current.get("wave", "0")))
+    except (TypeError, ValueError):
+        return None
+    earlier = [
+        m for m in _all_manifests_sorted_by_wave()
+        if (lambda w: w is not None and w < cur_wave)(
+            int(str(m.get("wave", "0"))) if str(m.get("wave", "")).isdigit() else None
+        )
+    ]
+    return earlier[-1] if earlier else None
+
+
+def _factor_basename(factor: str) -> str:
+    """Strip trailing ': ...' descriptor from a cap_factor for filename keying.
+
+    Cap factors look like 'architectural_seven_by_twenty_four: failing=...' or
+    just 'gate_fail'. The filename only uses the bare factor name before ':'.
+    """
+    return factor.split(":", 1)[0].strip()
+
+
+def _check_paired_evidence(
+    *,
+    previous_manifest: dict | None,
+    current_manifest: dict,
+    current_head: str,
+) -> list[str]:
+    """W31-L (W31-G1) paired-evidence rule.
+
+    For every cap factor that appears in ``previous_manifest`` but NOT in
+    ``current_manifest`` (i.e. retired between waves), require a paired
+    ``provenance: real`` evidence artifact at
+    ``docs/verification/<short-head>-<factor>.json``. Returns a list of
+    structured failure reasons (empty list = pass).
+
+    The rule blocks the W28 metric-redefinition pattern: in W28 the
+    wall-clock-soak cap was retired without a paired real soak evidence
+    artifact, and verified jumped 65 -> 94.55 with no offsetting engineering
+    evidence. This rule fails closed when that pattern recurs.
+    """
+    if previous_manifest is None:
+        return []
+    prev_sc = previous_manifest.get("scorecard", {}) if isinstance(previous_manifest, dict) else {}
+    cur_sc = current_manifest.get("scorecard", {}) if isinstance(current_manifest, dict) else {}
+    prev_factors_raw = prev_sc.get("cap_factors", []) or []
+    cur_factors_raw = cur_sc.get("cap_factors", []) or []
+    prev_factors = {_factor_basename(str(f)) for f in prev_factors_raw if str(f)}
+    cur_factors = {_factor_basename(str(f)) for f in cur_factors_raw if str(f)}
+    retired = prev_factors - cur_factors
+    if not retired:
+        return []
+    issues: list[str] = []
+    short = (current_head or "")[:8] if current_head else ""
+    short7 = (current_head or "")[:7] if current_head else ""
+    for factor in sorted(retired):
+        # Look for paired evidence: <short>-<factor>.json or <short7>-<factor>.json
+        candidates = []
+        if short:
+            candidates.append(VERIF_DIR / f"{short}-{factor}.json")
+        if short7 and short7 != short:
+            candidates.append(VERIF_DIR / f"{short7}-{factor}.json")
+        existing = [c for c in candidates if c.exists()]
+        if not existing:
+            issues.append(
+                f"unpaired_cap_retirement: factor={factor!r} retired between "
+                f"W{previous_manifest.get('wave', '?')} -> "
+                f"W{current_manifest.get('wave', '?')} but no paired evidence at "
+                f"docs/verification/{short}-{factor}.json"
+            )
+            continue
+        # Validate provenance: real
+        evidence_file = existing[0]
+        try:
+            ev = json.loads(evidence_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            issues.append(
+                f"unpaired_cap_retirement: factor={factor!r} evidence "
+                f"{evidence_file.name} unreadable: {exc}"
+            )
+            continue
+        prov = ev.get("provenance")
+        if prov != "real":
+            issues.append(
+                f"unpaired_cap_retirement: factor={factor!r} evidence "
+                f"{evidence_file.name} has provenance={prov!r}, "
+                f"required provenance:real"
+            )
+    return issues
+
+
 def _check_notice_score_claims(verified: float) -> list[str]:
     """Return list of notices that claim a verified score higher than current_verified_readiness.
 
@@ -155,7 +299,16 @@ def main(argv: list[str] | None = None) -> int:
     cap_reason = sc.get("cap_reason", "")
 
     score_claim_issues = _check_notice_score_claims(verified)
-    issues = score_claim_issues
+    # W31-L (W31-G1) paired-evidence rule: cap retirement between waves must
+    # carry a paired `provenance: real` evidence artifact at
+    # docs/verification/<head>-<factor>.json.
+    previous_manifest = _previous_wave_manifest(manifest)
+    paired_evidence_issues = _check_paired_evidence(
+        previous_manifest=previous_manifest,
+        current_manifest=manifest,
+        current_head=str(manifest.get("release_head", "")),
+    )
+    issues = score_claim_issues + paired_evidence_issues
 
     status = "pass" if not issues else "fail"
 
@@ -171,6 +324,10 @@ def main(argv: list[str] | None = None) -> int:
         "cap_reason": cap_reason,
         "cap_factors": cap_factors,
         "score_claim_issues": score_claim_issues,
+        "paired_evidence_issues": paired_evidence_issues,
+        "previous_wave_manifest_id": (
+            previous_manifest.get("manifest_id", "") if previous_manifest else ""
+        ),
         "status": status,
     }
 
