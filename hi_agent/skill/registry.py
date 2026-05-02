@@ -222,43 +222,105 @@ class SkillRegistry:
         skill.updated_at = now
         return skill
 
-    def get(self, skill_id: str) -> ManagedSkill | None:
-        """Look up a skill by ID.
+    def get(self, skill_id: str, tenant_id: str | None = None) -> ManagedSkill | None:
+        """Look up a skill by ID, scoped to *tenant_id* under strict posture.
+
+        W31 (T-5'): under research/prod posture an unscoped ``get`` raises
+        ``ValueError`` because it would otherwise expose any tenant's skill
+        to any caller.  Under dev posture an unscoped lookup logs a WARNING
+        and returns the skill regardless of its tenant_id (legacy compat).
+
+        Args:
+            skill_id: The skill identifier to look up.
+            tenant_id: Owning tenant.  When ``None`` and posture is strict,
+                raises ValueError.  When provided, skills owned by a different
+                tenant are returned as ``None`` (object-level 404 semantics).
 
         Returns:
-            The ManagedSkill or None if not found.
+            The ManagedSkill or ``None`` if not found / cross-tenant.
         """
-        return self._skills.get(skill_id)
+        self._enforce_tenant_scope("get", tenant_id)
+        skill = self._skills.get(skill_id)
+        if skill is None:
+            return None
+        if tenant_id is not None and skill.tenant_id != tenant_id:
+            return None
+        return skill
 
-    def list_by_stage(self, stage: str) -> list[ManagedSkill]:
-        """List all skills at a given lifecycle stage."""
-        return [s for s in self._skills.values() if s.lifecycle_stage == stage]
+    def list_by_stage(
+        self, stage: str, tenant_id: str | None = None
+    ) -> list[ManagedSkill]:
+        """List all skills at a given lifecycle stage, scoped to *tenant_id*.
 
-    def list_certified(self) -> list[ManagedSkill]:
-        """List all certified skills."""
-        return self.list_by_stage("certified")
+        W31 (T-5'): under research/prod posture ``tenant_id`` is required.
+        """
+        self._enforce_tenant_scope("list_by_stage", tenant_id)
+        rows = [s for s in self._skills.values() if s.lifecycle_stage == stage]
+        if tenant_id is not None:
+            rows = [s for s in rows if s.tenant_id == tenant_id]
+        return rows
 
-    def list_applicable(self, task_family: str, stage_id: str) -> list[ManagedSkill]:
-        """Find certified skills applicable to given context.
+    def list_certified(self, tenant_id: str | None = None) -> list[ManagedSkill]:
+        """List all certified skills, scoped to *tenant_id* (W31 T-5')."""
+        return self.list_by_stage("certified", tenant_id=tenant_id)
+
+    def list_applicable(
+        self,
+        task_family: str,
+        stage_id: str,
+        tenant_id: str | None = None,
+    ) -> list[ManagedSkill]:
+        """Find certified skills applicable to given context, scoped by tenant.
 
         A skill is applicable if its applicability_scope matches the
         task_family (exact match or wildcard ``"*"``).
 
+        W31 (T-5'): under research/prod posture ``tenant_id`` is required so
+        the matcher cannot pull a skill from another tenant's registry into
+        the current run's plan.
+
         Args:
             task_family: The task family to match against.
             stage_id: The current stage (reserved for future filtering).
+            tenant_id: Owning tenant; required under strict posture.
 
         Returns:
             List of applicable certified skills, sorted by evidence_count
             descending.
         """
         results: list[ManagedSkill] = []
-        for skill in self.list_certified():
+        for skill in self.list_certified(tenant_id=tenant_id):
             scope = skill.applicability_scope
             if scope == "*" or scope == task_family:
                 results.append(skill)
         results.sort(key=lambda s: s.evidence_count, reverse=True)
         return results
+
+    def _enforce_tenant_scope(self, method: str, tenant_id: str | None) -> None:
+        """Raise under strict posture when *tenant_id* is missing.
+
+        Under dev posture an unscoped read logs a WARNING but is permitted
+        (legacy callers continue to work).  Under research/prod the call must
+        be tenant-scoped or the read is a defect.
+        """
+        if tenant_id is not None:
+            return
+        from hi_agent.config.posture import Posture
+
+        posture = Posture.from_env()
+        if posture.is_strict:
+            raise ValueError(
+                f"SkillRegistry.{method} requires tenant_id under "
+                f"{posture.value} posture (Rule 12 / W31 T-5'); "
+                "unscoped reads expose every tenant's skills."
+            )
+        import logging as _logging
+
+        _logging.getLogger(__name__).warning(
+            "SkillRegistry.%s called without tenant_id under dev posture; "
+            "result includes every tenant's skills (W31 T-5').",
+            method,
+        )
 
     def save(self) -> None:
         """Persist registry to disk as JSON."""
