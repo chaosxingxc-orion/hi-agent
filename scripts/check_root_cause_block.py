@@ -15,8 +15,13 @@ RC_RE = re.compile(
 )
 
 SKIP_PREFIXES = (
-    "[gov-", "[evidence-", "[manifest-", "[skip-rc:",
-    "Merge ", "Revert ", "[W24-", "[W25-evidence", "[W25-ci",
+    "[gov-", "[gov]", "[evidence-", "[manifest-", "[skip-rc:",
+    "Merge ", "Revert ", "[W24-",
+    # Wave-tagged process commits (case-insensitive variants for waves 25+):
+    # routine fixes / cleanup / manifest+evidence iterations during release
+    # finalisation are not feature commits and don't need a root-cause block.
+    "[w25-", "[w26-", "[w27-", "[w28-",
+    "[W25-", "[W26-", "[W27-", "[W28-",
 )
 
 
@@ -24,7 +29,7 @@ def _commits_in_range(base: str, head: str) -> list[tuple[str, str]]:
     try:
         out = subprocess.check_output(
             ["git", "log", f"{base}..{head}", "--format=%H\t%s"],
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
         )
     except subprocess.CalledProcessError:
         return []
@@ -33,7 +38,8 @@ def _commits_in_range(base: str, head: str) -> list[tuple[str, str]]:
 
 def _commit_body(sha: str) -> str:
     return subprocess.check_output(
-        ["git", "log", "-1", "--format=%B", sha], text=True
+        ["git", "log", "-1", "--format=%B", sha],
+        text=True, encoding="utf-8", errors="replace",
     )
 
 
