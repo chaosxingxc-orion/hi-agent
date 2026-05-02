@@ -67,7 +67,7 @@ def _latest_delivery_notice() -> Path | None:
     """Return the most-recently-modified delivery notice under docs/downstream-responses/."""
     candidates = sorted(
         DOCS.glob("downstream-responses/*delivery-notice*.md"),
-        key=lambda p: p.stat().st_mtime,
+        key=lambda p: (p.stat().st_mtime, p.name),
     )
     return candidates[-1] if candidates else None
 
