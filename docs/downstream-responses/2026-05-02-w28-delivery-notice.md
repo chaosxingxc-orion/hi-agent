@@ -2,8 +2,8 @@
 
 **Date:** 2026-05-02
 **Branch:** wave-25-integration
-**Manifest:** `docs/releases/platform-release-manifest-2026-05-02-91689572.json`
-Functional HEAD: 91689572848127bc410731d1367cea726e20ce50
+**Manifest:** `docs/releases/platform-release-manifest-2026-05-02-69314724.json`
+Functional HEAD: 6931472427bedf7393379b458b3d8846db02ee4f
 notice-pre-final-commit: true
 
 ---
@@ -67,7 +67,7 @@ notice-pre-final-commit: true
 ### GOV-E — Architectural 7×24 reform (soak cap removed, single arch rule)
 - **Status:** CLOSED — `operationally_observable`
 - **Code fix:** `scripts/run_arch_7x24.py` NEW (static 5-assertion check); `score_caps.yaml` retired `observability_spine_incomplete` and `chaos_non_runtime_coupled` caps (subsumed); `architectural_seven_by_twenty_four` cap reduced from 65 to 90; `build_release_manifest.py` removed legacy condition handlers.
-- **Gate evidence:** `docs/verification/975a8b0-arch-7x24.json` shows 5/5 PASS at HEAD; manifest 2026-05-02-91689572 shows `seven_by_twenty_four_operational_readiness=94.55` with `cap_factors_7x24=[]`.
+- **Gate evidence:** `docs/verification/975a8b0-arch-7x24.json` shows 5/5 PASS at HEAD; manifest 2026-05-02-69314724 shows `seven_by_twenty_four_operational_readiness=94.55` with `cap_factors_7x24=[]`.
 - **Process change:** 7×24 readiness is now an architectural property, not engineering work. Maintainers run `python scripts/run_arch_7x24.py` (~2s) to refresh evidence at any HEAD; no live runtime soak required.
 
 ### CI Fixes (W28)
