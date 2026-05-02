@@ -1,0 +1,4535 @@
+{
+  "manifest_id": "2026-05-02-d05ed45f",
+  "schema_version": "1",
+  "generated_at": "2026-05-02T03:52:04.686931+00:00",
+  "release_head": "d05ed45f8c61b3195ce091390cc056c7da8cd8f6",
+  "git": {
+    "head_sha": "d05ed45f8c61b3195ce091390cc056c7da8cd8f6",
+    "short_sha": "d05ed45f",
+    "is_dirty": false
+  },
+  "wave": "Wave 28",
+  "wave_source": "cli",
+  "gates": {
+    "layering": {
+      "check": "layering",
+      "status": "pass",
+      "violations": [],
+      "allowlisted": [
+        {
+          "file": "hi_agent/capability/bundles/__init__.py",
+          "line": 32,
+          "module": "examples",
+          "reason": "lazy DeprecationWarning shim for ResearchBundle (examples layer)",
+          "expiry_wave": "Wave 29"
+        }
+      ],
+      "head": "d05ed45f"
+    },
+    "vocab": {
+      "check": "no_research_vocab",
+      "status": "pass",
+      "violations": [],
+      "hard_violations": [],
+      "soft_violations": [],
+      "migration_guide_violations": [],
+      "head": "d05ed45f"
+    },
+    "route_scope": {
+      "check": "route_scope",
+      "status": "pass",
+      "allowlist_total": 16,
+      "allowlist_expired": 0,
+      "expiring_this_wave": 0,
+      "violations": [],
+      "head": "d05ed45f"
+    },
+    "expired_waivers": {
+      "check": "expired_waivers",
+      "status": "pass",
+      "current_wave": "28",
+      "violations": [],
+      "head": "d05ed45f"
+    },
+    "doc_canonical": {
+      "check": "doc_canonical",
+      "status": "pass",
+      "phantoms": [],
+      "stale": []
+    },
+    "doc_consistency": {
+      "check": "doc_consistency",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "notices_checked": 18
+      },
+      "head": "d05ed45f"
+    },
+    "wave_tags": {
+      "check": "no_wave_tags",
+      "status": "pass",
+      "violations": [],
+      "head": "d05ed45f"
+    },
+    "rule6_warnings": {
+      "check": "rules",
+      "status": "pass",
+      "violations": [],
+      "hard_pass": true,
+      "rule13_warnings": {
+        "count": 0,
+        "sites": []
+      },
+      "head": "d05ed45f"
+    },
+    "t3_freshness": {
+      "check": "t3_freshness",
+      "status": "pass",
+      "verified_head": "77051fff67900ae27464d5373c8b5ec1c27c0b9a",
+      "reason": "5 file(s) changed, none on hot path"
+    },
+    "boundary": {
+      "check": "boundary",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "total": 0
+      },
+      "head": "d05ed45f"
+    },
+    "deprecated_api": {
+      "check": "deprecated_field_usage",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "total": 0
+      },
+      "head": "d05ed45f"
+    },
+    "durable_wiring": {
+      "check": "durable_wiring",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "classes_checked": 11
+      },
+      "head": "d05ed45f",
+      "runtime_probe": {
+        "SQLiteEventStore": "pass",
+        "SQLiteRunStore": "pass",
+        "IdempotencyStore": "pass"
+      },
+      "probe_failures": []
+    },
+    "metrics_cardinality": {
+      "check": "metrics_cardinality",
+      "status": "pass",
+      "violations": [],
+      "metrics_checked": 107
+    },
+    "slo_health": {
+      "status": "pass",
+      "check": "slo_health",
+      "passed": 4,
+      "failed": 0,
+      "endpoints": [
+        {
+          "endpoint": "/ops/slo",
+          "status": "pass",
+          "code": 200
+        },
+        {
+          "endpoint": "/ops/alerts",
+          "status": "pass",
+          "code": 200
+        },
+        {
+          "endpoint": "/ops/runbook",
+          "status": "pass",
+          "code": 200
+        },
+        {
+          "endpoint": "/ops/dashboard",
+          "status": "pass",
+          "code": 200
+        }
+      ],
+      "reason": ""
+    },
+    "allowlist_discipline": {
+      "check": "allowlist_discipline",
+      "status": "pass",
+      "total": 17,
+      "expired_total": 0,
+      "missing_fields_total": 0,
+      "invalid_risk_total": 0,
+      "failures": []
+    },
+    "verification_artifacts": {
+      "check": "verification_artifacts",
+      "status": "pass",
+      "has_current_head": true,
+      "current_files": [
+        "docs\\verification\\403e02d0-default-offline-clean-env.json",
+        "docs\\verification\\403e02d0-observability-spine-provenance.json",
+        "docs\\verification\\403e02d0-observability-spine.json",
+        "docs\\delivery\\2026-05-02-77051ff-t3-volces-provenance.json",
+        "docs\\delivery\\2026-05-02-77051ff-t3-volces.json"
+      ],
+      "checked_count": 625
+    },
+    "targeted_default_path": {
+      "status": "pass",
+      "raw_stdout": "........................s............................................... [ 43%]\n........................................................................ [ 87%]\n.....................                                                    [100%]\n164 passed, 1 skipped in 107.79s (0:01:47)\n{\"check\": \"targeted_default_path\", \"status\": \"pass\", \"returncode\": 0, \"test_files\": [\"tests/integration/test_run_lease_heartbeat.py\", \"tests/integration/test_run_progress_events.py\", \"tests/integration/test_run_livene"
+    },
+    "clean_env": {
+      "status": "pass",
+      "summary": "profile  : default-offline\nbasetemp : C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_o1b1on9h\ncache_dir: C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_8hzshlaf\nmarkers  : -m not live_api and not external_llm and not network and not requires_secret and not windows_unsafe\ncommand  : C:\\Python314\\python.exe -m pytest --basetemp=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_o1b1on9h --override-ini=cache_dir=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_8hzshlaf --json-report --json-repo"
+    },
+    "validate_before_mutate": {
+      "check": "validate_before_mutate",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "sites_checked": 13
+      },
+      "head": "d05ed45f"
+    },
+    "select_completeness": {
+      "check": "select_completeness",
+      "status": "pass",
+      "violations": [],
+      "counts": {
+        "fields_checked": 26
+      },
+      "head": "d05ed45f"
+    },
+    "silent_degradation": {
+      "check": "silent_degradation",
+      "status": "pass",
+      "hidden_violations_detected": true,
+      "total_violations": 144,
+      "fail_violations": 0,
+      "deferred_violations": 144,
+      "violation_count": 144,
+      "violations": [
+        {
+          "file": "hi_agent\\artifacts\\ledger.py",
+          "line": 186,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\config\\knowledge_builder.py",
+          "line": 41,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except (FileNotFoundError, KeyError, ValueError):  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "hi_agent\\observability\\fallback.py",
+          "line": 99,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" metrics must never crash callers"
+        },
+        {
+          "file": "hi_agent\\observability\\fallback.py",
+          "line": 183,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" metrics must never crash callers"
+        },
+        {
+          "file": "hi_agent\\observability\\fallback.py",
+          "line": 187,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # pragma: no cover; rule7-exempt: logging must not crash callers  # noqa: E501  expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\fallback.py",
+          "line": 201,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # pragma: no cover; rule7-exempt: append_fallback_event must not crash  # noqa: E501  expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\fallback.py",
+          "line": 240,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" metrics must never crash callers"
+        },
+        {
+          "file": "hi_agent\\observability\\metric_counter.py",
+          "line": 32,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 64,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 79,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 97,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 116,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 127,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 138,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 145,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 158,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 170,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 177,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 184,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 195,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 213,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 234,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\observability\\spine_events.py",
+          "line": 256,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 163,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 190,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 212,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 237,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 249,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\ops\\diagnostics.py",
+          "line": 271,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\runner_stage.py",
+          "line": 226,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\runtime\\sync_bridge.py",
+          "line": 125,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: expiry_wave=\"Wave 29\" asyncgen teardown on loop close  # noqa: E501"
+        },
+        {
+          "file": "hi_agent\\runtime\\sync_bridge.py",
+          "line": 158,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\runtime_adapter\\consistency.py",
+          "line": 124,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except json.JSONDecodeError:  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "hi_agent\\runtime_adapter\\kernel_facade_client.py",
+          "line": 511,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except ImportError:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\runtime_adapter\\resilient_kernel_adapter.py",
+          "line": 220,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\security\\url_policy.py",
+          "line": 77,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except ValueError:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\app.py",
+          "line": 1051,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\app.py",
+          "line": 1580,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\auth_middleware.py",
+          "line": 72,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except pyjwt.PyJWTError:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\auth_middleware.py",
+          "line": 92,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\auth_middleware.py",
+          "line": 268,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except JWTValidationError:  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "hi_agent\\server\\auth_middleware.py",
+          "line": 286,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except JWTValidationError:  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "hi_agent\\server\\event_store.py",
+          "line": 158,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\event_store.py",
+          "line": 164,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\recovery.py",
+          "line": 71,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" metrics must never crash callers"
+        },
+        {
+          "file": "hi_agent\\server\\routes_events.py",
+          "line": 90,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_knowledge.py",
+          "line": 58,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\routes_knowledge.py",
+          "line": 95,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\routes_manifest.py",
+          "line": 384,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\routes_ops.py",
+          "line": 44,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\routes_ops.py",
+          "line": 87,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 123,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 133,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 185,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except (ValueError, json.JSONDecodeError):  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 202,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 223,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 255,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\routes_runs.py",
+          "line": 641,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\routes_tools_mcp.py",
+          "line": 180,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\server\\run_manager.py",
+          "line": 510,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: pre-create migration never blocks create_run  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\run_manager.py",
+          "line": 524,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29"
+        },
+        {
+          "file": "hi_agent\\server\\run_manager.py",
+          "line": 824,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "hi_agent\\server\\sse_routes.py",
+          "line": 53,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "hi_agent\\server\\tenant_scope_audit.py",
+          "line": 74,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: tenant-scope-audit-error-counter # noqa: E501"
+        },
+        {
+          "file": "hi_agent\\skill\\definition.py",
+          "line": 87,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except ValueError:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "hi_agent\\skill\\observer.py",
+          "line": 204,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except Exception:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "agent_kernel\\kernel\\cognitive\\llm_gateway.py",
+          "line": 101,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except (TypeError, ValueError):  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "agent_kernel\\kernel\\cognitive\\script_runtime.py",
+          "line": 307,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: process teardown after kill; wait must not raise  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\cognitive\\script_runtime.py",
+          "line": 437,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\cognitive\\script_runtime_subprocess.py",
+          "line": 135,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: process teardown after kill; wait must not raise  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\minimal_runtime.py",
+          "line": 752,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except ValueError:  # rule7-exempt: expiry_wave=\"Wave 29\" replacement_test: wave22-tests"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\dispatch_outbox_reconciler.py",
+          "line": 514,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\dispatch_outbox_reconciler.py",
+          "line": 533,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_colocated_bundle.py",
+          "line": 82,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_colocated_bundle.py",
+          "line": 320,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_colocated_bundle.py",
+          "line": 367,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_colocated_bundle.py",
+          "line": 415,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_colocated_bundle.py",
+          "line": 461,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_colocated_bundle.py",
+          "line": 525,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_colocated_bundle.py",
+          "line": 650,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_decision_deduper.py",
+          "line": 117,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_dedupe_store.py",
+          "line": 79,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_dedupe_store.py",
+          "line": 170,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_dedupe_store.py",
+          "line": 228,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_dedupe_store.py",
+          "line": 264,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_dedupe_store.py",
+          "line": 297,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_dedupe_store.py",
+          "line": 327,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_pool.py",
+          "line": 48,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: connection close on pool teardown; best-effort  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_pool.py",
+          "line": 86,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_pool.py",
+          "line": 88,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite connection close on shutdown; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_pool.py",
+          "line": 96,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite connection close on pool drain; best-effort  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_recovery_outcome_store.py",
+          "line": 65,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_task_view_log.py",
+          "line": 38,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_task_view_log.py",
+          "line": 74,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_task_view_log.py",
+          "line": 128,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\persistence\\sqlite_turn_intent_log.py",
+          "line": 85,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\reasoning_loop.py",
+          "line": 133,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block inference path  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\recovery\\circuit_breaker_probe.py",
+          "line": 52,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "except asyncio.CancelledError:  # rule7-exempt: expiry_wave=\"Wave 29\""
+        },
+        {
+          "file": "agent_kernel\\kernel\\recovery\\compensation_registry.py",
+          "line": 348,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on compensation error path; must not mask original  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        },
+        {
+          "file": "agent_kernel\\kernel\\recovery\\gate.py",
+          "line": 340,
+          "exc_type": "rule7-exempt",
+          "status": "deferred",
+          "pattern": "rule7_annotation",
+          "text": "with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep"
+        }
+      ]
+    },
+    "metric_producers": {
+      "check": "metric_producers",
+      "status": "pass",
+      "total_metrics": 107,
+      "orphan_count": 0,
+      "orphans": []
+    },
+    "downstream_response_format": {
+      "status": "pass",
+      "summary": "OK check_downstream_response_format"
+    },
+    "evidence_provenance": {
+      "status": "pass",
+      "check": "evidence_provenance",
+      "provenance": "real",
+      "generated_at": "2026-05-02T03:51:58.925136+00:00",
+      "artifacts_checked": 642,
+      "issues_found": 0,
+      "issues": [],
+      "script_source_issues": [],
+      "summary": [
+        {
+          "path": "docs\\verification\\0074102-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0074102-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0074102-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0276580-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0276580-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0276580-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0276580-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0315976-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0315976-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\04f8c91-chaos-runtime-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\04f8c91-chaos-runtime.json",
+          "check": "chaos_runtime_coupling",
+          "provenance": "runtime_partial"
+        },
+        {
+          "path": "docs\\verification\\06daf82-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\06daf82-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\08048ed-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\08048ed-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\08048ed-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\08048ed-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\08048ed-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\08048ed-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\09dd77f-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\09dd77f-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0a721be-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0a721be-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0a721be-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0a721be-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0a721be-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\0a721be-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\0ab8b26-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0ab8b26-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\0ab8b26-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0ab8b26-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0b81085-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0b81085-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0cd4dc3-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0cd4dc3-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\0de89b3-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\0e9fc864-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\0e9fc864-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\109943c-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\109943c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\11df7d6-operator-drill-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\11df7d6-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\1241545-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1241545-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\13f904e-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\13f904e-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\13f904e-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\13f904e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1479b7b-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1479b7b-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1479b7b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1554cf29-chaos-matrix.json",
+          "check": "",
+          "provenance": "runtime_partial"
+        },
+        {
+          "path": "docs\\verification\\1554cf29-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1554cf29-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\168e96e-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\168e96e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\178cabc-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\178cabc-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\18a69e2-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\18a69e2-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1932f3d-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1932f3d-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\1a53b26-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\1bf5222-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1bf5222-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1bf5222-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\1bf5222-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\1d78056-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\1d78056-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\1d78056-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1d78056-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1e38eddd-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\1e38eddd-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\224d369-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\224d369-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\22ba9a1-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\22ba9a1-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\22ba9a1-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2445f85-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2445f85-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2445f85-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2445f85-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2445f85-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2445f85-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2445f85-operator-drill-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2445f85-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2445f85-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\2445f85-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-0m-provenance.json",
+          "check": "",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-0m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-60m-provenance.json",
+          "check": "",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-60m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-62m-provenance.json",
+          "check": "",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-62m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-63m-provenance.json",
+          "check": "",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-63m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-69m-provenance.json",
+          "check": "",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-69m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-70m-provenance.json",
+          "check": "",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-70m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-9m-provenance.json",
+          "check": "",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\24ca7fa-soak-9m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\252500e-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252500e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252500e-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\252500e-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\252b7a2-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2655bf4-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2c66e3b-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2c66e3b-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2c66e3b-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2c66e3b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\2d57a2b-phase6-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2d57a2b-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\2ec9c7d-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\2ec9c7d-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\374bce79-chaos-matrix.json",
+          "check": "",
+          "provenance": "runtime_partial"
+        },
+        {
+          "path": "docs\\verification\\399082d-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\399082d-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\3a69b06-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\3a69b06-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\3b47799-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\3b47799-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\3d46066-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\3d46066-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\3d46066-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\3d46066-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\403e02d0-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\403e02d0-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\403e02d0-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\40fa13c-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\40fa13c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\4590857-phase6-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\4590857-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\465e82da-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\475fc41b-chaos-matrix-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\475fc41b-chaos-matrix.json",
+          "check": "chaos_runtime_coupling",
+          "provenance": "runtime_partial"
+        },
+        {
+          "path": "docs\\verification\\475fc41b-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\475fc41b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\475fc41b-operator-drill-v2.json",
+          "check": "operator_drill",
+          "provenance": "simulated_pending_pm2"
+        },
+        {
+          "path": "docs\\verification\\475fc41b-soak-shape-60m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_1h"
+        },
+        {
+          "path": "docs\\verification\\48ae8d1-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\48ae8d1-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\4ba286bc-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\4ba286bc-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\4c93c50-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\4c93c50-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\4c93c50-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\4c93c50-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\4d40c30-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\4d40c30-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\4d40c30-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\53867d5-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\53867d5-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\53867d5-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\53867d5-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\545f7f26-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\545f7f26-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\546d82c-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\54706b9-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\54706b9-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\54ace43-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\54ace43-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\56857e9-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\56857e9-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\56857e9-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\56857e9-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\56857e9-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\56857e9-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\56857e9-operator-drill-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\56857e9-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\56857e9-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\56857e9-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\5794a0e-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\57cbc5e-phase6-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\57cbc5e-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\58394d6-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\58394d6-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\59e37be-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\59e37be-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\59e37be-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\59e37be-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\59e37be-operator-drill-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\59e37be-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5e9c852-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5e9c852-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-operator-drill-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-operator-drill.json",
+          "check": "operator_drill",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\5f5d2b9-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\61b1829-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\61b1829-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\61b1829-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\61b1829-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\61b1829-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\61b1829-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\668a069-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\668a069-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\668a069-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\668a069-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\691a974-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\691a974-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\698b99a-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\698b99a-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ac41b4-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ac41b4-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ac41b4-soak-dry-1m-provenance.json",
+          "check": "",
+          "provenance": "dry_run"
+        },
+        {
+          "path": "docs\\verification\\6ac41b4-soak-dry-1m.json",
+          "check": "",
+          "provenance": "dry_run"
+        },
+        {
+          "path": "docs\\verification\\6ddcd2b-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ddcd2b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ddcd2b-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\6ddcd2b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\6e11eea-chaos-matrix-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6e11eea-chaos-matrix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\6ea0c50-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\6ea1204-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\6ea1204-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\6fcac5b-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6fcac5b-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\6fcac5b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\73867a4-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\73867a4-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\73867a4-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\73867a4-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\73867a4-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\73867a4-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\76cd6bf-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\76cd6bf-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\772b8a0-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\772b8a0-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\778738a-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "manifest_self_reference"
+        },
+        {
+          "path": "docs\\verification\\778738a-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "manifest_self_reference"
+        },
+        {
+          "path": "docs\\verification\\778738a-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\778738a-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\78117d2-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\78117d2-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7838a1b-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\7838a1b-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\7838a1b-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7838a1b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7838a1b-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\7838a1b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\7d8fe45-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7d8fe45-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7d8fe45-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7d8fe45-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7d8fe45-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\7d8fe45-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\7e232d5-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7e232d5-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7e232d5-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7e232d5-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7e232d5-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\7e232d5-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\7f1c95c-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\7f1c95c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8070887-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8070887-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8070887-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\814c330-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\814c330-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8265208-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8265208-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\82cc94b7-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\82cc94b7-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8384de8-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8384de8-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\87447666-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\87447666-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\88960cc-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\88960cc-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\88960cc-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\88960cc-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8d1727f-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8d1727f-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8d1727f-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\8d1727f-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\8e1a0c15-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8ee9690-phase6-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8ee9690-phase6-gate.json",
+          "check": "verification_artifacts_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fbfd27-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\8fc0f80-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\90976ae-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\90976ae-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\94bcc2c-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\94bcc2c-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\94bcc2c-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\94bcc2c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\96b67e8-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\96b67e8-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9b60c7ad-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9b60c7ad-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9b60c7ad-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ed019c-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ed019c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\9ef41ff-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\9ef827db-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9ef827db-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9fc204c-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\9fc204c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\a1bfa88-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\a2b129d-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a2b129d-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a3f4353-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a3f4353-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a5890530-chaos-matrix.json",
+          "check": "",
+          "provenance": "runtime_partial"
+        },
+        {
+          "path": "docs\\verification\\a5890530-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a5890530-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a8fffaf-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\a8fffaf-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\a8fffaf-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a8fffaf-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a9209ef5-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\a9209ef5-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ae82126f-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ae82126f-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ae82126f-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\b06bb8b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\b0d6302-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b0d6302-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b0d6302-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5ba0c2a-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5ba0c2a-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\b5f8272-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\b7add94-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b7add94-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b7add94-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\b7add94-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\b9341541-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\b9341541-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ba656a2-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ba656a2-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bb81ed8-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bb81ed8-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bbb34bf-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bbb34bf-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bbc0c47-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bbc0c47-default-offline-clean-env.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bbc0c47-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bbc0c47-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\be56b43-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\be56b43-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\be64d73-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\be64d73-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bebc54a-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bebc54a-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\bebc54a-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bebc54a-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\bebc54a-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\bebc54a-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\c02e40d-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\c02e7153-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c463459-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c463459-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c4d161f-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c4d161f-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c580522-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c580522-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c580522-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c580522-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c6ee398-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\c6ee398-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\c6ee398-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\c6ee398-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-chaos-matrix-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-chaos-matrix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-dry-0s-provenance.json",
+          "check": "",
+          "provenance": "dry_run"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-dry-0s.json",
+          "check": "",
+          "provenance": "dry_run"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cb19a35-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cd1ee70-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cd1ee70-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cd1ee70-runtime-chaos-provenance.json",
+          "check": "",
+          "provenance": "degraded"
+        },
+        {
+          "path": "docs\\verification\\cd1ee70-runtime-chaos.json",
+          "check": "chaos_runtime_coupling",
+          "provenance": "degraded"
+        },
+        {
+          "path": "docs\\verification\\cdc1374-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cdc1374-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cf2fcdb-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cf2fcdb-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\cf9498f-soak-shape-5m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_1h"
+        },
+        {
+          "path": "docs\\verification\\d05ed45f-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d05ed45f-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d17ec96-operator-drill-v2.json",
+          "check": "operator_drill",
+          "provenance": "simulated_pending_pm2"
+        },
+        {
+          "path": "docs\\verification\\d4acba2f-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d4acba2f-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\d7e949e-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\d899f2b-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d899f2b-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\d899f2b-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\d899f2b-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\db3bfa4-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\db3bfa4-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\db607fe-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\db607fe-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\db607fe-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\dd0aad2-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\dd0aad2-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\dd0aad2-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\dd0aad2-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\dd0aad2-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\dd0aad2-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\ddd8104-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ddd8104-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e3853e34-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e3853e34-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e3853e34-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e59a883-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\e59a883-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\e59a883-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e59a883-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e59a883-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\e59a883-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\e5b5183-chaos-matrix-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e5b5183-chaos-matrix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e946f6d-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\e946f6d-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\eb69e6f-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\eb69e6f-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ebbeded5-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ebbeded5-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ec7229a-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ec7229a-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ecb2c60-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\ecb2c60-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\ecb2c60-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ecb2c60-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ed1744d-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ed1744d-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ed69a62-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ed69a62-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\edbca2cc-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\ef8ed3c-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\f2ba631c-chaos-runtime-w27.json",
+          "check": "chaos_runtime_coupling",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f2ba631c-observability-spine-w27.json",
+          "check": "observability_spine_completeness",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f461870-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f461870-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-score-cap-provenance.json",
+          "check": "",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-score-cap.json",
+          "check": "score_cap",
+          "provenance": "derived"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-soak-61m-provenance.json",
+          "check": "",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\f4c5fb1-soak-61m.json",
+          "check": "soak_evidence",
+          "provenance": "shape_verified"
+        },
+        {
+          "path": "docs\\verification\\f5a5f2a-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f5a5f2a-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f673bc4-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\f673bc4-observability-spine.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\f7b3208-default-offline-clean-env-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f7b3208-default-offline-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f7b3208-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\f7b3208-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fd6386e-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fd6386e-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fd6386e-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fd6386e-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-manifest-gate-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-manifest-gate.json",
+          "check": "manifest_build_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-score-cap-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\fe7b1cb-score-cap.json",
+          "check": "score_cap",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\verification\\unknown-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\unknown-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-extended-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-extended-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-post-df38-revert-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-post-df38-revert.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df35-compressor-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df35-compressor.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df35-skill-extractor-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df35-skill-extractor.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df371-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df371.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df39-postmortem-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df39-postmortem.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df39-signal-sweep-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-df39-signal-sweep.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-final-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-final.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-structural.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-volces-post-wave5-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-volces-post-wave5.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-22-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-23-rule15-structural-post-fix-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-23-rule15-structural-post-fix.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-23-rule15-structural-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-23-rule15-structural.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-5ac208e-rule15-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-5ac208e-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-5dceabf-rule15-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-5dceabf-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-8c5395b-rule15-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-8c5395b-rule15-volces-v2-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-8c5395b-rule15-volces-v2.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-24-8c5395b-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-25-5f57ff3-rule15-volces-v3-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-25-5f57ff3-rule15-volces-v3.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-25-fa98c7b-rule15-volces-v4-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-25-fa98c7b-rule15-volces-v4.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-234e9fbf7ddd5e5fccef02ba6180b82ecc9ce296-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-234e9fbf7ddd5e5fccef02ba6180b82ecc9ce296-clean-env.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-3b9980594e887a6ce4a733f93b27724f58c00708-clean-env-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-3b9980594e887a6ce4a733f93b27724f58c00708-clean-env.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-a3e7bed-rule15-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-26-a3e7bed-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-4590857-rule15-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-4590857-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-9968603-t3-volces-deferred-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-9968603-t3-volces-deferred.json",
+          "check": "t3_freshness",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-bbc0c47-rule15-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-bbc0c47-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-fd6386e-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-27-fd6386e-t3-volces.json",
+          "check": "t3_gate",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-28-4b055bf-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-28-4b055bf-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-28-b954790-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-28-b954790-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-39be0c1-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-39be0c1-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-45c7674-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-45c7674-t3-volces.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-7f1c95c-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-7f1c95c-t3-volces.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-8ea2dc0-clean-env-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-8ea2dc0-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-96f03b9-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-96f03b9-t3-volces.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-9ed019c-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-9ed019c-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-b97f0a8-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-b97f0a8-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-c4d161f-clean-env-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-c4d161f-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-c5b0149-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-c5b0149-t3-volces.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-e46395d-clean-env-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-29-e46395d-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-159b304-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-159b304-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-18a69e2-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-465e82da-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-465e82da-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-4d40c30-clean-env.json",
+          "check": "clean_env",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-6fcac5b-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-6fcac5b-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-c02e7153-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-c02e7153-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-ec7229a-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-04-30-ec7229a-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-05-01-475fc41b-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-05-01-475fc41b-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-05-01-ddb0e4d1-rule15-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-05-01-ddb0e4d1-rule15-volces.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-05-02-77051ff-t3-volces-provenance.json",
+          "check": "",
+          "provenance": "real"
+        },
+        {
+          "path": "docs\\delivery\\2026-05-02-77051ff-t3-volces.json",
+          "check": "",
+          "provenance": "real"
+        }
+      ]
+    },
+    "allowlist_universal": {
+      "status": "pass",
+      "check": "allowlist_universal",
+      "current_wave": "Wave 14",
+      "entries_checked": 0,
+      "missing_field_issues": [],
+      "expired_issues": [],
+      "total_issues": 0
+    },
+    "noqa_discipline": {
+      "status": "pass",
+      "check": "noqa_discipline",
+      "current_wave": 28,
+      "suppressions_without_expiry_or_expired": 0,
+      "issues": [],
+      "reason": ""
+    },
+    "pytest_skip_discipline": {
+      "status": "pass",
+      "check": "pytest_skip_discipline",
+      "current_wave": 28,
+      "skips_with_stale_or_missing_expiry": 0,
+      "issues": [],
+      "reason": ""
+    },
+    "closure_taxonomy": {
+      "status": "pass",
+      "check": "closure_taxonomy",
+      "notices_checked": 35,
+      "issues": []
+    },
+    "multistatus_gates": {
+      "status": "pass",
+      "check": "multistatus_gates",
+      "multi_status_gates": 76,
+      "single_path_gates": 0,
+      "single_path_gate_list": [],
+      "multi_status_gate_list": [
+        "check_agent_kernel_pin.py",
+        "check_allowlist_discipline.py",
+        "check_allowlist_universal.py",
+        "check_async_init_resources.py",
+        "check_boundary.py",
+        "check_capability_maturity.py",
+        "check_chaos_runtime_coupling.py",
+        "check_clean_env.py",
+        "check_closure_levels.py",
+        "check_closure_taxonomy.py",
+        "check_conftest_fallback_scope.py",
+        "check_contract_freeze.py",
+        "check_contract_spine_completeness.py",
+        "check_contracts_purity.py",
+        "check_deprecated_field_usage.py",
+        "check_doc_canonical_symbols.py",
+        "check_doc_consistency.py",
+        "check_doc_truth.py",
+        "check_downstream_response_format.py",
+        "check_durable_wiring.py",
+        "check_evidence_identity.py",
+        "check_evidence_provenance.py",
+        "check_expired_waivers.py",
+        "check_facade_loc.py",
+        "check_gate_strictness.py",
+        "check_layering.py",
+        "check_manifest_budget.py",
+        "check_manifest_freshness.py",
+        "check_manifest_rewrite_budget.py",
+        "check_metric_producers.py",
+        "check_metrics_cardinality.py",
+        "check_multistatus_gates.py",
+        "check_no_domain_types.py",
+        "check_no_hardcoded_wave.py",
+        "check_no_research_vocab.py",
+        "check_no_reverse_imports.py",
+        "check_no_wave_tags.py",
+        "check_noqa_discipline.py",
+        "check_notice_score_match.py",
+        "check_observability_spine_completeness.py",
+        "check_operator_drill.py",
+        "check_owner_tag.py",
+        "check_posture_coverage.py",
+        "check_pytest_markers.py",
+        "check_pytest_skip_discipline.py",
+        "check_recurrence_ledger.py",
+        "check_release_identity.py",
+        "check_root_cause_block.py",
+        "check_route_coverage.py",
+        "check_route_scope.py",
+        "check_route_tenant_context.py",
+        "check_rule7_observability.py",
+        "check_rules.py",
+        "check_score_artifact_consistency.py",
+        "check_score_cap.py",
+        "check_secrets.py",
+        "check_select_completeness.py",
+        "check_self_audit.py",
+        "check_silent_degradation.py",
+        "check_slo_health.py",
+        "check_soak_evidence.py",
+        "check_spine_completeness.py",
+        "check_sqlite_pragma.py",
+        "check_state_transition_centralization.py",
+        "check_state_transition_coverage.py",
+        "check_surgical_changes.py",
+        "check_t3_evidence.py",
+        "check_t3_freshness.py",
+        "check_targeted_default_path.py",
+        "check_tdd_evidence.py",
+        "check_test_honesty.py",
+        "check_untracked_release_artifacts.py",
+        "check_vacuous_asserts.py",
+        "check_validate_before_mutate.py",
+        "check_verification_artifacts.py",
+        "check_wave_consistency.py"
+      ],
+      "reason": ""
+    },
+    "observability_spine_completeness": {
+      "status": "deferred",
+      "check": "observability_spine_completeness",
+      "provenance": "structural",
+      "spine_file": "d05ed45f-observability-spine.json",
+      "layer_count": 14,
+      "coverage": "14/14",
+      "reason": "provenance='structural'; real spine run required for pass"
+    },
+    "soak_evidence": {
+      "check": "soak_evidence",
+      "status": "deferred",
+      "reason": "no arch-7x24 evidence found; run scripts/run_arch_7x24.py to produce <sha>-arch-7x24.json",
+      "assertions_required": [
+        "cross_loop_stability",
+        "lifespan_observable",
+        "cancellation_round_trip",
+        "spine_provenance_real",
+        "chaos_runtime_coupled_all"
+      ]
+    },
+    "chaos_runtime_coupling": {
+      "status": "deferred",
+      "check": "chaos_runtime_coupling",
+      "scenarios_checked": 10,
+      "provenance": "runtime_partial",
+      "all_passed": true,
+      "issues": [],
+      "deferrals": [
+        "provenance=runtime_partial; 2 scenarios skipped: tool_mcp_crash, disk_full_artifact_write"
+      ],
+      "evidence_path": "D:\\chao_workspace\\hi-agent\\docs\\verification\\04f8c91-chaos-runtime.json"
+    },
+    "no_hardcoded_wave": {
+      "status": "pass",
+      "check": "no_hardcoded_wave",
+      "issues_found": 0,
+      "issues": []
+    }
+  },
+  "scorecard": {
+    "raw": 94.55,
+    "verified": 94.55,
+    "raw_implementation_maturity": 94.55,
+    "current_verified_readiness": 94.55,
+    "seven_by_twenty_four_operational_readiness": 65.0,
+    "conditional_readiness_after_blockers": 94.55,
+    "cap": null,
+    "cap_reason": "all gates pass",
+    "cap_factors": [],
+    "cap_7x24": 65.0,
+    "cap_factors_7x24": [
+      "architectural_seven_by_twenty_four: no evidence file found",
+      "observability_spine_incomplete: deferred",
+      "chaos_non_runtime_coupled: deferred"
+    ],
+    "multistatus_pending_count": 0,
+    "weights_version": "2"
+  },
+  "t3": {
+    "status": "pass",
+    "verified_head": "77051fff67900ae27464d5373c8b5ec1c27c0b9a"
+  },
+  "clean_env": {
+    "profile": "default-offline",
+    "status": "pass",
+    "summary_available": null
+  },
+  "route_scope": {
+    "allowlist_total": 16,
+    "expired_allowlist_total": 0
+  },
+  "multistatus": {
+    "results": [
+      {
+        "gate": "contract_freeze",
+        "status": "PASS",
+        "reason": "all 10 contract files match snapshot (frozen at 8c6e22f1)",
+        "evidence": {
+          "v1_frozen_head": "8c6e22f1a48547e48dae6265456317eef1a49c6f",
+          "files_checked": 10,
+          "violations": []
+        },
+        "expiry_wave": null
+      },
+      {
+        "gate": "contracts_purity",
+        "status": "PASS",
+        "reason": "agent_server/contracts/ uses only stdlib imports",
+        "evidence": {
+          "files_scanned": 10
+        },
+        "expiry_wave": null
+      },
+      {
+        "gate": "facade_loc",
+        "status": "PASS",
+        "reason": "all facade modules within 200 LOC limit",
+        "evidence": {
+          "files_scanned": 5,
+          "max_loc": 200
+        },
+        "expiry_wave": null
+      },
+      {
+        "gate": "no_domain_types",
+        "status": "PASS",
+        "reason": "no forbidden domain types in agent_server/contracts/",
+        "evidence": {
+          "files_scanned": 10
+        },
+        "expiry_wave": null
+      },
+      {
+        "gate": "no_reverse_imports",
+        "status": "PASS",
+        "reason": "no reverse imports from hi_agent/ into agent_server",
+        "evidence": {
+          "files_scanned": 457
+        },
+        "expiry_wave": null
+      },
+      {
+        "gate": "route_tenant_context",
+        "status": "PASS",
+        "reason": "all 7 route file(s) reference TenantContext",
+        "evidence": {
+          "route_files": 7
+        },
+        "expiry_wave": null
+      },
+      {
+        "gate": "score_artifact_consistency",
+        "status": "PASS",
+        "reason": "0 manifest file(s) self-consistent",
+        "evidence": {
+          "manifests_checked": 0
+        },
+        "expiry_wave": null
+      },
+      {
+        "gate": "state_transition_centralization",
+        "status": "PASS",
+        "reason": "no direct run.state assignments outside run_state_transitions.py",
+        "evidence": {
+          "files_scanned": 2651
+        },
+        "expiry_wave": null
+      },
+      {
+        "gate": "tdd_evidence",
+        "status": "PASS",
+        "reason": "all 7 route file(s) have tdd-red-sha annotation",
+        "evidence": {
+          "route_files": 7
+        },
+        "expiry_wave": null
+      }
+    ],
+    "pass_count": 9,
+    "fail_count": 0,
+    "warn_count": 0,
+    "defer_count": 0
+  },
+  "multistatus_pending_count": 0,
+  "captains": "270cf97705346507"
+}
