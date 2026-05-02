@@ -37,7 +37,7 @@ CONTRACT_DOC = ROOT / "docs" / "platform" / "agent-server-northbound-contract-v1
 ROUTES_DIR = ROOT / "agent_server" / "api"
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from _governance.multistatus import GateResult, GateStatus, emit  # noqa: E402
+from _governance.multistatus import GateResult, GateStatus, emit  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
 
 _DECORATOR_PATTERN = re.compile(r"^\s*@router\.(get|post|put|delete|patch)\((.+)\)")
 # Route table rows look like:

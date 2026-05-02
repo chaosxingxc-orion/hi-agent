@@ -35,7 +35,7 @@ FACADE_DIR = ROOT / "agent_server" / "facade"
 EXEMPT_FILES = frozenset({"agent_server/bootstrap.py"})
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from _governance.multistatus import GateResult, GateStatus, emit  # noqa: E402
+from _governance.multistatus import GateResult, GateStatus, emit  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
 
 _FROM_HI_AGENT_PATTERN = re.compile(r"^\s*from\s+hi_agent\.")
 _SEAM_ANNOTATION = re.compile(r"#\s*r-as-1-seam\s*:\s*(.+)$")

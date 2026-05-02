@@ -82,7 +82,7 @@ def _scan_file(path: pathlib.Path, current_wave: int) -> list[dict]:
         snippet = "\n".join(lines[i - 1 : min(i + 15, len(lines))])
 
         # W31-D D-2': permanent expiry is treated as not-expired (mirrors W30
-        # noqa_discipline convention). Permanent skips MUST still carry a
+        # noqa_discipline convention). Permanent skips MUST still carry a  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
         # reason= explaining the structural condition; the gate doesn't
         # validate the justification (Rule 17 -- reviewer responsibility).
         if _EXPIRY_PERMANENT.search(snippet):

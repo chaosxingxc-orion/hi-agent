@@ -22,7 +22,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import check_layering as gate  # noqa: E402
+import check_layering as gate  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
 
 
 def _make_pkg(parent: Path, name: str, source: str) -> Path:

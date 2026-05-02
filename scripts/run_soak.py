@@ -1173,7 +1173,7 @@ def main(argv: list[str] | None = None) -> int:
         import contextlib as _ctxlib
 
         with _ctxlib.suppress(Exception):
-            sampler._pid = new_server.pid  # type: ignore[attr-defined]
+            sampler._pid = new_server.pid  # type: ignore[attr-defined]  # expiry_wave: permanent  # added: W31-L L.2 SIGTERM restart re-binds sampler to new server PID
         if not ready:
             print(
                 "[soak] mid-soak SIGTERM: respawn FAILED to become ready; "

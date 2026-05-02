@@ -24,8 +24,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-import check_documented_routes as gate  # noqa: E402
-from _governance.multistatus import GateStatus  # noqa: E402
+import check_documented_routes as gate  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
+from _governance.multistatus import GateStatus  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
 
 
 def _make_doc(tmp_path: Path, released: list[tuple[str, str]], backlog: list[tuple[str, str]]) -> Path:
