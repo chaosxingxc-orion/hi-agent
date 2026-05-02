@@ -12,6 +12,8 @@ build/
 venv/
 .env
 .hi_agent/
+.hi_agent_soak_*/
+.tmp_smoke/
 .checkpoint/
 .claude/
 external/
