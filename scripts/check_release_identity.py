@@ -65,19 +65,34 @@ def _latest_manifest_head() -> tuple[str, str, str]:
     return release_head, path.name, filename_sha
 
 
+_WAVE_NUMBER_RE = re.compile(r"-w(?:ave)?(\d+)(?:[.-]|-delivery-notice)", re.IGNORECASE)
+
+
+def _wave_sort_key(path: pathlib.Path) -> tuple[int, str]:
+    """Wave-number-derived sort key (W30 fix; replaces mtime ordering).
+
+    Filename-based parsing is deterministic and immune to `git checkout`,
+    `touch`, and local edits. Files without a parseable wave number sort
+    to the front (treated as oldest).
+    """
+    m = _WAVE_NUMBER_RE.search(path.name)
+    return (int(m.group(1)) if m else -1, path.name)
+
+
 def _latest_notice_head() -> tuple[str, str]:
     """Return (functional_head, notice_filename) for the latest non-draft notice.
 
-    Sorted by (mtime, name) ascending — last is latest. The reverse iteration
-    skips superseded/draft notices. LB-2 fix: explicit name tiebreaker (the
-    legacy code's reverse-iteration was fragile when two notices shared mtime).
+    Sorted by (wave_number, name) ascending -- last is latest. The reverse
+    iteration skips superseded/draft notices. Wave-number sorting (W30) is
+    deterministic; the prior mtime-based ordering broke under file-system
+    operations like `git checkout`, `touch`, or local edits.
     """
-    notices = sorted(NOTICES_DIR.glob("*.md"), key=lambda p: (p.stat().st_mtime, p.name))
+    notices = sorted(NOTICES_DIR.glob("*.md"), key=_wave_sort_key)
     if not notices:
         return "", ""
     for notice in reversed(notices):
         text = notice.read_text(encoding="utf-8", errors="replace")
-        if re.search(r"Status:\s*(?:superseded|draft)", text, re.IGNORECASE):
+        if re.search(r"^Status:\s*(?:superseded|draft)\b", text, re.IGNORECASE | re.MULTILINE):
             continue
         m = re.search(r"Functional\s+HEAD:\s*([0-9a-f]{7,40})", text, re.IGNORECASE)
         if m:

@@ -29,17 +29,29 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 NOTICES_DIR = ROOT / "docs" / "downstream-responses"
 
-_SUPERSEDED_RE = re.compile(r"Status:\s*(?:superseded|draft)", re.IGNORECASE)
+_SUPERSEDED_RE = re.compile(
+    r"^Status:\s*(?:superseded|draft)\b",
+    re.IGNORECASE | re.MULTILINE,
+)
 _MARKER_RE = re.compile(r"^notice-pre-final-commit:\s*true\b", re.MULTILINE)
+_WAVE_NUMBER_RE = re.compile(r"-w(?:ave)?(\d+)(?:[.-]|-delivery-notice)", re.IGNORECASE)
+
+
+def _wave_sort_key(path: pathlib.Path) -> tuple[int, str]:
+    """Sort key: (wave_number, name). Higher wave = later in ascending sort.
+
+    Wave-number sorting is deterministic (filename-derived) and immune to
+    `git checkout`, `touch`, and local edits, unlike mtime ordering. Files
+    without a parseable wave number sort to the front (treated as oldest).
+    """
+    m = _WAVE_NUMBER_RE.search(path.name)
+    return (int(m.group(1)) if m else -1, path.name)
 
 
 def _latest_active_notice() -> tuple[pathlib.Path, str] | None:
     if not NOTICES_DIR.is_dir():
         return None
-    notices = sorted(
-        NOTICES_DIR.glob("*.md"),
-        key=lambda p: (p.stat().st_mtime, p.name),
-    )
+    notices = sorted(NOTICES_DIR.glob("*.md"), key=_wave_sort_key)
     for notice in reversed(notices):
         text = notice.read_text(encoding="utf-8", errors="replace")
         if _SUPERSEDED_RE.search(text):
