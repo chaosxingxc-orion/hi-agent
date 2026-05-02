@@ -112,6 +112,13 @@ Detail: [`agent_server/ARCHITECTURE.md`](../agent_server/ARCHITECTURE.md)
 
 ---
 
+## Wave 28 Module Additions
+
+| Module | Purpose |
+|---|---|
+| `scripts/run_arch_7x24.py` | Static 5-assertion architectural verification of 7x24 readiness — runs in seconds, replaces 24h wall-clock soak. Output: `docs/verification/<sha>-arch-7x24.json` |
+| `docs/governance/score_caps.yaml` (refactored) | Single `architectural_seven_by_twenty_four` rule for the 7x24 tier; legacy `observability_spine_incomplete` and `chaos_non_runtime_coupled` caps retired |
+
 ## Wave 27 Module Additions
 
 | Module | Purpose |
