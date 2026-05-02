@@ -1,7 +1,7 @@
 {
   "manifest_id": "2026-05-02-3cf58984",
   "schema_version": "1",
-  "generated_at": "2026-05-02T05:11:11.418068+00:00",
+  "generated_at": "2026-05-02T05:15:35.760794+00:00",
   "release_head": "3cf58984478bb77ef3545af91a9bc02b08ea8dc7",
   "git": {
     "head_sha": "3cf58984478bb77ef3545af91a9bc02b08ea8dc7",
@@ -176,6 +176,8 @@
         "docs\\verification\\3b460b48-default-offline-clean-env.json",
         "docs\\verification\\3b460b48-observability-spine-provenance.json",
         "docs\\verification\\3b460b48-observability-spine.json",
+        "docs\\verification\\3cf58984-observability-spine-provenance.json",
+        "docs\\verification\\3cf58984-observability-spine.json",
         "docs\\verification\\403e02d0-default-offline-clean-env.json",
         "docs\\verification\\403e02d0-observability-spine-provenance.json",
         "docs\\verification\\403e02d0-observability-spine.json",
@@ -189,17 +191,18 @@
         "docs\\delivery\\2026-05-02-77051ff-t3-volces-provenance.json",
         "docs\\delivery\\2026-05-02-77051ff-t3-volces.json",
         "docs\\releases\\platform-release-manifest-2026-05-02-295401c8.json",
+        "docs\\releases\\platform-release-manifest-2026-05-02-3cf58984.json",
         "docs\\releases\\platform-release-manifest-2026-05-02-d05ed45f.json"
       ],
-      "checked_count": 639
+      "checked_count": 642
     },
     "targeted_default_path": {
       "status": "pass",
-      "raw_stdout": "........................s............................................... [ 43%]\n........................................................................ [ 87%]\n.....................                                                    [100%]\n164 passed, 1 skipped in 109.07s (0:01:49)\n{\"check\": \"targeted_default_path\", \"status\": \"pass\", \"returncode\": 0, \"test_files\": [\"tests/integration/test_run_lease_heartbeat.py\", \"tests/integration/test_run_progress_events.py\", \"tests/integration/test_run_livene"
+      "raw_stdout": "........................s............................................... [ 43%]\n........................................................................ [ 87%]\n.....................                                                    [100%]\n164 passed, 1 skipped in 110.28s (0:01:50)\n{\"check\": \"targeted_default_path\", \"status\": \"pass\", \"returncode\": 0, \"test_files\": [\"tests/integration/test_run_lease_heartbeat.py\", \"tests/integration/test_run_progress_events.py\", \"tests/integration/test_run_livene"
     },
     "clean_env": {
       "status": "pass",
-      "summary": "profile  : default-offline\nbasetemp : C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_tp0q40rp\ncache_dir: C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_43zgp821\nmarkers  : -m not live_api and not external_llm and not network and not requires_secret and not windows_unsafe\ncommand  : C:\\Python314\\python.exe -m pytest --basetemp=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_tp0q40rp --override-ini=cache_dir=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_43zgp821 --json-report --json-repo"
+      "summary": "profile  : default-offline\nbasetemp : C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_ixqlgvgx\ncache_dir: C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_8pvwwati\nmarkers  : -m not live_api and not external_llm and not network and not requires_secret and not windows_unsafe\ncommand  : C:\\Python314\\python.exe -m pytest --basetemp=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_pytest_ixqlgvgx --override-ini=cache_dir=C:\\Users\\35686\\AppData\\Local\\Temp\\hi_agent_cache_8pvwwati --json-report --json-repo"
     },
     "validate_before_mutate": {
       "check": "validate_before_mutate",
@@ -208,7 +211,7 @@
       "counts": {
         "sites_checked": 13
       },
-      "head": "3cf58984"
+      "head": "ddff4483"
     },
     "select_completeness": {
       "check": "select_completeness",
@@ -217,7 +220,7 @@
       "counts": {
         "fields_checked": 26
       },
-      "head": "3cf58984"
+      "head": "ddff4483"
     },
     "silent_degradation": {
       "check": "silent_degradation",
@@ -1045,8 +1048,8 @@
       "status": "pass",
       "check": "evidence_provenance",
       "provenance": "real",
-      "generated_at": "2026-05-02T05:11:05.362076+00:00",
-      "artifacts_checked": 654,
+      "generated_at": "2026-05-02T05:15:29.721939+00:00",
+      "artifacts_checked": 656,
       "issues_found": 0,
       "issues": [],
       "script_source_issues": [],
@@ -3507,6 +3510,16 @@
           "provenance": "structural"
         },
         {
+          "path": "docs\\verification\\ddff4483-observability-spine-provenance.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
+          "path": "docs\\verification\\ddff4483-observability-spine.json",
+          "check": "",
+          "provenance": "structural"
+        },
+        {
           "path": "docs\\verification\\e3853e34-default-offline-clean-env.json",
           "check": "clean_env",
           "provenance": "structural"
@@ -4444,7 +4457,7 @@
       "status": "deferred",
       "check": "observability_spine_completeness",
       "provenance": "structural",
-      "spine_file": "3cf58984-observability-spine.json",
+      "spine_file": "ddff4483-observability-spine.json",
       "layer_count": 14,
       "coverage": "14/14",
       "reason": "provenance='structural'; real spine run required for pass"
@@ -4482,16 +4495,14 @@
   },
   "scorecard": {
     "raw": 94.55,
-    "verified": 55.0,
+    "verified": 94.55,
     "raw_implementation_maturity": 94.55,
-    "current_verified_readiness": 55.0,
+    "current_verified_readiness": 94.55,
     "seven_by_twenty_four_operational_readiness": 65.0,
     "conditional_readiness_after_blockers": 94.55,
-    "cap": 55.0,
-    "cap_reason": "head_mismatch: manifest=295401c8235b HEAD=3cf58984478b",
-    "cap_factors": [
-      "head_mismatch: manifest=295401c8235b HEAD=3cf58984478b"
-    ],
+    "cap": null,
+    "cap_reason": "all gates pass",
+    "cap_factors": [],
     "cap_7x24": 65.0,
     "cap_factors_7x24": [
       "architectural_seven_by_twenty_four: no evidence file found",
@@ -4576,9 +4587,9 @@
       {
         "gate": "score_artifact_consistency",
         "status": "PASS",
-        "reason": "2 manifest file(s) self-consistent",
+        "reason": "3 manifest file(s) self-consistent",
         "evidence": {
-          "manifests_checked": 2
+          "manifests_checked": 3
         },
         "expiry_wave": null
       },
