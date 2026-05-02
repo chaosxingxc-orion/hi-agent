@@ -28,11 +28,11 @@ ALLOWLISTS_YAML = ROOT / "docs" / "governance" / "allowlists.yaml"
 CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 
 # W31-D D-3' fix: delegate wave reading to the canonical helper instead of the
-# previous regex-only path that silently fell back to "Wave 14". The old
-# fallback was the source of the manifest field
-# `gates.allowlist_universal.current_wave: "Wave 14"` even on Wave 30 manifests
-# because the regex `Wave\s+(\d+)` did not match the bare-integer file format
-# ("31\n") so the function returned the hardcoded 14 fallback every time.
+# previous regex-only path that silently fell back to "Wave 14".  wave-literal-ok
+# The old fallback was the source of the manifest field                             wave-literal-ok
+# `gates.allowlist_universal.current_wave: "Wave 14"` on Wave 30 manifests          wave-literal-ok
+# because the regex `Wave\s+(\d+)` did not match the bare-integer file format       wave-literal-ok
+# ("31\n") so the function returned the hardcoded 14 fallback every time.           wave-literal-ok
 sys.path.insert(0, str(ROOT / "scripts"))
 try:
     from _governance.wave import current_wave_number as _governance_current_wave_number
