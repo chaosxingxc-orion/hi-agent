@@ -2,6 +2,7 @@
 
 **Date:** 2026-05-02
 **Branch:** wave-25-integration
+**Status:** SHIP
 **Manifest:** `docs/releases/platform-release-manifest-2026-05-02-1dc24913.json`
 Functional HEAD: 1dc2491324bf15a3e809679d10c53fef83fc8fff
 notice-pre-final-commit: true
