@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hi_agent.profile.manager import ProfileDirectoryManager
+from hi_agent.profiles.directory import ProfileDirectoryManager
 
 
 class TestProfileDirectoryManager:

@@ -1,84 +1,13 @@
-"""Profile directory isolation under HI_AGENT_HOME."""
+"""DEPRECATED — use ``hi_agent.profiles.directory`` instead. Removed in W34.
 
-from __future__ import annotations
+This shim re-exports ``ProfileDirectoryManager`` and ``GLOBAL_PROFILE_ID``
+from their new home in :mod:`hi_agent.profiles.directory` so callers using
+``from hi_agent.profile.manager import ...`` keep working until W34.
+"""
 
-import logging
-import os
-from pathlib import Path
+from hi_agent.profiles.directory import (  # noqa: F401  # expiry_wave: Wave 34
+    GLOBAL_PROFILE_ID,
+    ProfileDirectoryManager,
+)
 
-_logger = logging.getLogger(__name__)
-
-# G-1: Canonical identifier for the cross-project global profile.
-# Multiple project profiles can declare cross_profile_read=["hi_agent_global/..."]
-# to access shared L3 memory, global skills, and other global artifacts.
-GLOBAL_PROFILE_ID = "hi_agent_global"
-
-
-class ProfileDirectoryManager:
-    """Resolves profile-scoped file paths under HI_AGENT_HOME.
-
-    Priority order:
-    1. Explicit constructor path
-    2. HI_AGENT_HOME env var
-    3. Default: ~/.hi_agent
-    """
-
-    def __init__(self, home_dir: str | None = None) -> None:
-        if home_dir is not None:
-            self._home = Path(home_dir).expanduser().resolve()
-        else:
-            env_home = os.environ.get("HI_AGENT_HOME")
-            if env_home:
-                self._home = Path(env_home).expanduser().resolve()
-            else:
-                self._home = Path.home() / ".hi_agent"
-
-    @property
-    def home(self) -> Path:
-        """Return the resolved home directory path."""
-        return self._home
-
-    def profile_dir(self, profile_id: str) -> Path:
-        """Return <home>/profiles/<profile_id>/ (created if absent)."""
-        path = self._home / "profiles" / profile_id
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    def episodic_dir(self, profile_id: str = "") -> Path:
-        """Return <home>/episodes/<profile_id>/ or <home>/episodes/."""
-        if not profile_id:
-            _logger.warning(
-                "ProfileDirectoryManager.episodic_dir: called with empty profile_id — "
-                "this may indicate a missing scope; use explicit profile_id in production."
-            )
-        path = self._home / "episodes" / profile_id if profile_id else self._home / "episodes"
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    def checkpoint_dir(self) -> Path:
-        """Return <home>/checkpoints/."""
-        path = self._home / "checkpoints"
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    def audit_dir(self) -> Path:
-        """Return <home>/audit/ (for audit events JSONL)."""
-        path = self._home / "audit"
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    # ------------------------------------------------------------------
-    # G-1: Global profile paths (cross-project shared data)
-    # ------------------------------------------------------------------
-
-    def get_global_profile_path(self) -> Path:
-        """Return <home>/hi_agent_global/ (not auto-created)."""
-        return self._home / GLOBAL_PROFILE_ID
-
-    def get_global_memory_l3(self) -> Path:
-        """Return <home>/hi_agent_global/memory/l3/ (not auto-created)."""
-        return self.get_global_profile_path() / "memory" / "l3"
-
-    def get_global_skills(self) -> Path:
-        """Return <home>/hi_agent_global/skills/ (not auto-created)."""
-        return self.get_global_profile_path() / "skills"
+__all__ = ["GLOBAL_PROFILE_ID", "ProfileDirectoryManager"]

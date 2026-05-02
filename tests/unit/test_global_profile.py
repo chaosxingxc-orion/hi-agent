@@ -2,13 +2,13 @@
 
 
 def test_global_profile_constant():
-    from hi_agent.profile.manager import GLOBAL_PROFILE_ID
+    from hi_agent.profiles.directory import GLOBAL_PROFILE_ID
 
     assert GLOBAL_PROFILE_ID == "hi_agent_global"
 
 
 def test_get_global_profile_path(tmp_path):
-    from hi_agent.profile.manager import GLOBAL_PROFILE_ID, ProfileDirectoryManager
+    from hi_agent.profiles.directory import GLOBAL_PROFILE_ID, ProfileDirectoryManager
 
     mgr = ProfileDirectoryManager(home_dir=str(tmp_path))
     path = mgr.get_global_profile_path()
@@ -16,7 +16,7 @@ def test_get_global_profile_path(tmp_path):
 
 
 def test_get_global_memory_l3(tmp_path):
-    from hi_agent.profile.manager import ProfileDirectoryManager
+    from hi_agent.profiles.directory import ProfileDirectoryManager
 
     mgr = ProfileDirectoryManager(home_dir=str(tmp_path))
     path = mgr.get_global_memory_l3()
@@ -24,7 +24,7 @@ def test_get_global_memory_l3(tmp_path):
 
 
 def test_get_global_skills(tmp_path):
-    from hi_agent.profile.manager import ProfileDirectoryManager
+    from hi_agent.profiles.directory import ProfileDirectoryManager
 
     mgr = ProfileDirectoryManager(home_dir=str(tmp_path))
     path = mgr.get_global_skills()
@@ -67,7 +67,7 @@ def test_project_cannot_read_sibling_profile():
 
 def test_global_profile_path_not_auto_created(tmp_path):
     """get_global_profile_path() returns path without auto-creating directory."""
-    from hi_agent.profile.manager import ProfileDirectoryManager
+    from hi_agent.profiles.directory import ProfileDirectoryManager
 
     mgr = ProfileDirectoryManager(home_dir=str(tmp_path))
     path = mgr.get_global_profile_path()

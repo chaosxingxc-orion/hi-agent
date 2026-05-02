@@ -1,7 +1,7 @@
 """DEPRECATED — use ``hi_agent.skill_runtime`` instead. Removed in W34.
 
-This shim was added in Wave 31 (W31-H.1) when ``hi_agent.skills`` was renamed
-to ``hi_agent.skill_runtime`` to distinguish lifecycle (``hi_agent.skill``)
+This shim was added when ``hi_agent.skills`` was renamed to
+``hi_agent.skill_runtime`` to distinguish lifecycle (``hi_agent.skill``)
 from runtime strategy (``hi_agent.skill_runtime``).
 """
 

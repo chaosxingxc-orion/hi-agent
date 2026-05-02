@@ -33,7 +33,7 @@ class ProfileAwareConfigStack:
     """
 
     def __init__(self, home_dir: str | None = None, profile_id: str = "") -> None:
-        from hi_agent.profile.manager import ProfileDirectoryManager
+        from hi_agent.profiles.directory import ProfileDirectoryManager
 
         if not profile_id:
             logger.warning(

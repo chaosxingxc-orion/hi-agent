@@ -8,10 +8,10 @@ Exports all strategy-layer skill Protocols from
 DTO contracts (``SkillRequest``, ``SkillResult``, ``SkillDefinition``) remain in
 :mod:`agent_kernel.skills.contracts`.
 
-This package was renamed from ``hi_agent.skills`` in Wave 31 (W31-H.1) to
-distinguish lifecycle (``hi_agent.skill``) from runtime strategy
-(``hi_agent.skill_runtime``). The legacy ``hi_agent.skills`` import path still
-works via a deprecation shim and will be removed in Wave 34.
+This package was renamed from ``hi_agent.skills`` to distinguish lifecycle
+(``hi_agent.skill``) from runtime strategy (``hi_agent.skill_runtime``).
+The legacy ``hi_agent.skills`` import path still works via a deprecation
+shim and will be removed in Wave 34.
 """
 
 from hi_agent.skill_runtime.contracts import (

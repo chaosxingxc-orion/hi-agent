@@ -1,5 +1,20 @@
-"""Profile management for hi-agent."""
+"""DEPRECATED — use ``hi_agent.profiles`` instead. Removed in W34.
 
-from hi_agent.profile.manager import ProfileDirectoryManager
+This shim was added when ``hi_agent.profile.manager`` was merged into
+``hi_agent.profiles.directory``; ``profiles`` is the canonical package.
+"""
 
-__all__ = ["ProfileDirectoryManager"]
+import warnings
+
+warnings.warn(
+    "hi_agent.profile is deprecated; use hi_agent.profiles",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from hi_agent.profiles.directory import (  # noqa: E402, F401  # expiry_wave: Wave 34
+    GLOBAL_PROFILE_ID,
+    ProfileDirectoryManager,
+)
+
+__all__ = ["GLOBAL_PROFILE_ID", "ProfileDirectoryManager"]

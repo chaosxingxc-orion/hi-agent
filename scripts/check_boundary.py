@@ -7,7 +7,7 @@ B-1 (reverse import): No agent_kernel/**/*.py may import from hi_agent.
 B-2 (adapter bypass): No hi_agent/**/*.py outside hi_agent/runtime_adapter/**
     may import from agent_kernel, except hi_agent/testing/** may import from
     agent_kernel.testing, hi_agent/skill_runtime/** may import agent_kernel DTOs
-    (kernel public surface; renamed from hi_agent/skills/ in W31-H.1), and
+    (kernel public surface; renamed from hi_agent/skills/), and
     hi_agent/task_mgmt/** may import from
     agent_kernel.kernel.task_manager.contracts (task management DTOs; direct
     import avoids circular import through runtime_adapter during executor build).
@@ -164,7 +164,7 @@ def check_b2(hi_agent_dir: Path) -> list[str]:
     """B-2: hi_agent files outside runtime_adapter may not import agent_kernel,
     except:
     - hi_agent/testing may import agent_kernel.testing
-    - hi_agent/skill_runtime (renamed from hi_agent/skills in W31-H.1) may
+    - hi_agent/skill_runtime (renamed from hi_agent/skills) may
       import agent_kernel DTOs (public kernel surface)
     - hi_agent/task_mgmt may import agent_kernel.kernel.task_manager.contracts
       (task management DTOs; avoids circular import through runtime_adapter)
