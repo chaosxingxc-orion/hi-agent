@@ -5,7 +5,7 @@
 > - L1 hi-agent detail: this file
 > - L1 agent-kernel detail: [`../agent_kernel/ARCHITECTURE.md`](../agent_kernel/ARCHITECTURE.md)
 
-> Last updated: 2026-04-25 (Wave 9 — platform contract hardening). Full sprint history in git log.
+> Last updated: 2026-05-02 (Wave 28 — 7×24 architectural reform; verified=94.55, 7×24=94.55). Full sprint history in git log.
 
 本文档描述 `hi-agent` 当前代码实现（as-is），涵盖分层架构视图、接口关系、使用关系、时序图与数据流图。  
 所有图表均基于代码实际实现，与工程实现严格对齐。

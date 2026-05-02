@@ -77,14 +77,14 @@ agent-server tail-events <run_id>
 pytest -m "not live_api and not network and not requires_secret"
 ```
 
-Current baseline: 9,091 passed (Wave 27, default-offline profile, 2026-05-01).
+Current baseline: 9,135 passed (Wave 28, default-offline profile, 2026-05-02).
 
 ---
 
 ## Project Status
 
-Current wave: **28**. Verified readiness: **94.55**. 7x24 operational readiness: **65.0**
-(24h soak deferred to W28 by explicit decision).
+Current wave: **28**. Verified readiness: **94.55**. 7x24 operational readiness: **94.55**
+(architectural 5-assertion check; no wall-clock soak required, see CLAUDE.md Rule 8).
 
 | Capability | Level | Notes |
 |---|---|---|

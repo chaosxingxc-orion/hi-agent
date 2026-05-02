@@ -6,7 +6,7 @@
 > - L1 agent-server detail: this file
 > - L1 agent-kernel detail: [`../agent_kernel/ARCHITECTURE.md`](../agent_kernel/ARCHITECTURE.md)
 >
-> Last updated: 2026-05-01 (Wave 27)
+> Last updated: 2026-05-02 (Wave 28)
 
 This document describes the `agent_server` package — the versioned northbound API facade that downstream business-layer applications use to interact with the hi-agent platform.
 
@@ -339,3 +339,101 @@ Every new route handler commit must include a `# tdd-red-sha: <sha>` annotation 
 | `scripts/check_tdd_evidence.py` | Every route handler has a `# tdd-red-sha:` annotation (R-AS-5) |
 | `scripts/check_layering.py` | No `hi_agent.*` imports in `agent_server/api/` (R-AS-1) |
 | `scripts/check_facade_loc.py` | Each facade module ≤200 LOC (R-AS-8) |
+
+---
+
+## 14. Deployment View
+
+```mermaid
+flowchart LR
+  subgraph Client["Downstream Client Process"]
+    SDK["Research App SDK / curl / agent-server CLI"]
+  end
+  subgraph Server["agent-server Process (uvicorn)"]
+    PORT[":8000"]
+    APP["FastAPI app instance"]
+    MIDS["TenantContextMiddleware<br/>+ IdempotencyMiddleware"]
+    ROUTES["7 Routers<br/>routes_runs / runs_extended / artifacts /<br/>gates / manifest / skills_memory / mcp_tools"]
+  end
+  subgraph Backend["hi_agent Runtime (in-process or HTTP)"]
+    RUN["RunManager"]
+    ART["ArtifactRegistry"]
+    EVT["EventBus + RunEventEmitter"]
+  end
+  subgraph Persistence["Durable State"]
+    SQL[("SQLite / PostgreSQL<br/>run_store · event_log<br/>idempotency · artifacts")]
+  end
+
+  SDK -->|"HTTP /v1/*<br/>+ Idempotency-Key<br/>+ Authorization"| PORT
+  PORT --> APP
+  APP --> MIDS
+  MIDS --> ROUTES
+  ROUTES --> RUN
+  ROUTES --> ART
+  ROUTES --> EVT
+  RUN --> SQL
+  ART --> SQL
+  EVT --> SQL
+```
+
+**Standard startup:**
+
+```bash
+# Foreground
+agent-server serve --host 0.0.0.0 --port 8000
+
+# PM2 (recommended for production)
+pm2 start "agent-server serve --host 0.0.0.0 --port 8000" --name hi-agent
+
+# systemd (Linux production)
+systemctl start hi-agent.service
+```
+
+**Posture-aware behaviour:**
+
+| `HI_AGENT_POSTURE` | Tenant context | Idempotency-Key | Project ID |
+|--------------------|----------------|-----------------|------------|
+| `dev` | optional, defaults to `tenant_dev` | optional | optional |
+| `research` | required (raises 401 if missing) | required for write routes | required on `/v1/runs` |
+| `prod` | required + JWT validation | required for write routes | required on `/v1/runs` |
+
+---
+
+## 15. Quality Requirements
+
+| Quality attribute | Target | Enforcement |
+|-------------------|--------|-------------|
+| v1 contract stability | 0 breaking changes after release | `scripts/check_contract_freeze.py` (digest snapshot) |
+| Layering integrity | No `hi_agent.*` import in `agent_server/api/` | `scripts/check_layering.py` |
+| Test discipline | Every new route handler has TDD evidence | `scripts/check_tdd_evidence.py` |
+| Facade conciseness | ≤200 LOC per facade module | `scripts/check_facade_loc.py` |
+| Tenant isolation | `TenantContext` resolved by middleware exclusively | `scripts/check_route_scope.py` |
+| Idempotency safety | Same `Idempotency-Key` + tenant returns identical response | unit + integration tests under `tests/integration/test_idempotency_*.py` |
+| Cancellation contract | `POST /cancel` -> 200 live, 404 unknown | covered by `scripts/run_arch_7x24.py` assertion #3 |
+
+---
+
+## 16. Risks and Technical Debt
+
+| Item | Status | Mitigation |
+|------|--------|-----------|
+| MCP integration is stub | `agent_server/mcp/` carries placeholder routes | Wave 28+ work; no production caller depends on it |
+| Streaming SSE backpressure | Long-running runs may emit > buffer size | `_generator()` cooperates with event loop via `await asyncio.sleep(0)`; downstream sets `X-Accel-Buffering: no` |
+| Idempotency cache TTL | Unbounded growth without TTL pruner | `IdempotencyFacade` accepts a `prune_after_seconds` argument; ops sets via env in research/prod |
+| Workspace path traversal | User-controlled `workspace_id` could escape | `agent_server/workspace/` validates and `hi_agent/server/workspace_path.py` enforces; covered by security tests |
+
+---
+
+## 17. Glossary
+
+| Term | Definition |
+|------|-----------|
+| Northbound | Direction *toward* downstream consumers; the public API surface that downstream apps depend on |
+| Southbound | Direction *toward* `hi_agent` runtime; internal to this repo |
+| Facade | A thin adapter that translates contract types to `hi_agent` callables; injected via constructor for testability |
+| Contract | A frozen v1 schema in `agent_server/contracts/`; breaking changes require a `v2/` sub-package |
+| `TenantContext` | Authenticated identity injected by middleware into `request.state`; carries `tenant_id`, `user_id`, `project_id` |
+| `Idempotency-Key` | Client-provided header that scopes a write to "exactly once per tenant"; cached by middleware |
+| ContractError | Typed error hierarchy with `http_status`; subclasses include `NotFoundError(404)`, `ConflictError(409)`, `RateLimitedError(429)` |
+| Route handler | FastAPI endpoint function; invoked by middleware after tenant + idempotency resolution |
+| TDD-red-sha | Annotation on every new route handler pointing to the commit SHA where the failing test was first written (R-AS-5) |
