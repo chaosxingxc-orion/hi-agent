@@ -10,12 +10,13 @@ import pytest
 class TestDevSmokeGoldenPath:
     """Full execution path with heuristic fallback (no API keys required)."""
 
-    @pytest.mark.skip(  # expiry_wave: Wave 30
+    @pytest.mark.skip(  # expiry_wave: permanent
         reason=(
             "H1-Track4: dev_smoke golden is heuristic-mode only; heuristic executor "
             "may return 'failed' or 'reflected' instead of 'completed', so asserting "
-            "== 'completed' would be a lie. Rule 4 honesty: skip until real-LLM E2E "
-            "gate (Rule 8) covers this path."
+            "== 'completed' would be a lie. Rule 4 honesty: structurally-permanent "
+            "skip until real-LLM E2E gate (Rule 8) covers this path "
+            "(W31-D D-2': structurally permanent in default-offline)."
         ),
     )
     def test_executor_completes_with_heuristic_fallback(self):
