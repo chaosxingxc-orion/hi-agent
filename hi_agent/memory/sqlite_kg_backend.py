@@ -5,6 +5,12 @@ under research/prod posture (Rule 11 — Posture-Aware Defaults).
 
 Schema carries tenant_id, profile_id, project_id on every node and edge row
 (Rule 12 — Contract Spine Completeness).
+
+W31 (T-4'): every read query filters by ``tenant_id`` in addition to
+``profile_id+project_id``.  Cross-tenant rows are no longer leaked when two
+tenants share a profile.  Pre-W31 rows where ``tenant_id`` was empty are
+auto-mapped to the legacy bucket ``__pre_w31_legacy__`` on construction so
+existing repos do not break.
 """
 
 from __future__ import annotations
@@ -18,6 +24,10 @@ from typing import Any, ClassVar
 
 from hi_agent.memory.graph_backend import ConflictReport, Edge
 from hi_agent.memory.graph_backend import Path as GPath
+
+# Bucket assigned to rows that existed before W31 added tenant_id WHERE filters.
+# New repos never see this value; only pre-W31 SQLite files do.
+_LEGACY_TENANT_ID = "__pre_w31_legacy__"
 
 
 class SqliteKnowledgeGraphBackend:
@@ -35,7 +45,10 @@ class SqliteKnowledgeGraphBackend:
         data_dir: Directory where the SQLite file is written.
         profile_id: Profile scope; required (Rule 6).
         project_id: Optional project scope.
-        tenant_id: Optional tenant scope stored on every row.
+        tenant_id: Tenant scope used as a WHERE filter on every read.  Required
+            under research/prod posture (raises ValueError if empty); under
+            dev posture an empty tenant_id is auto-mapped to the legacy bucket
+            with a WARNING (so pre-W31 callers continue to work).
     """
 
     _DDL = """
@@ -76,6 +89,31 @@ class SqliteKnowledgeGraphBackend:
                 "SqliteKnowledgeGraphBackend requires profile_id; "
                 "empty profile_id would create an unscoped store (Rule 6 / Rule 12)."
             )
+        # W31 (T-4'): tenant_id is required so every read filter has a value.
+        # Under dev posture an empty tenant_id is permitted but auto-mapped to
+        # the legacy bucket with a WARNING (so pre-W31 callers continue to work
+        # while new strict callers must be explicit).  Under research/prod
+        # posture an empty tenant_id raises ValueError because cross-tenant
+        # leakage would otherwise be silent.
+        if not tenant_id:
+            from hi_agent.config.posture import Posture
+
+            posture = Posture.from_env()
+            if posture.is_strict:
+                raise ValueError(
+                    "SqliteKnowledgeGraphBackend requires tenant_id under "
+                    f"{posture.value} posture; empty tenant_id would read across "
+                    "tenants (Rule 12 / W31 T-4'). Pass tenant_id= explicitly."
+                )
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning(
+                "SqliteKnowledgeGraphBackend: tenant_id is empty under dev posture; "
+                "all reads/writes will be scoped to %r (W31 T-4').",
+                _LEGACY_TENANT_ID,
+            )
+            tenant_id = _LEGACY_TENANT_ID
+
         self._profile_id = profile_id
         self._project_id = project_id
         self._tenant_id = tenant_id
@@ -91,6 +129,7 @@ class SqliteKnowledgeGraphBackend:
         self._con.executescript(self._DDL)
         self._con.commit()
         self._migrate()
+        self._migrate_legacy_tenant_id()
 
     def _migrate(self) -> None:
         """Add missing spine columns if upgrading from an older schema."""
@@ -103,6 +142,26 @@ class SqliteKnowledgeGraphBackend:
                 with contextlib.suppress(sqlite3.OperationalError):
                     self._con.execute(stmt)
         self._con.commit()
+
+    def _migrate_legacy_tenant_id(self) -> None:
+        """W31 T-4' migration: pre-W31 rows with empty tenant_id are mapped to legacy bucket.
+
+        Idempotent: only rewrites rows that have ``tenant_id IS NULL`` or
+        ``tenant_id = ''``.  Rows already populated are untouched.  This is a
+        no-op on fresh repos because new writes always populate tenant_id.
+        """
+        with self._lock:
+            self._con.execute(
+                "UPDATE kg_nodes SET tenant_id = ? "
+                "WHERE tenant_id IS NULL OR tenant_id = ''",
+                (_LEGACY_TENANT_ID,),
+            )
+            self._con.execute(
+                "UPDATE kg_edges SET tenant_id = ? "
+                "WHERE tenant_id IS NULL OR tenant_id = ''",
+                (_LEGACY_TENANT_ID,),
+            )
+            self._con.commit()
 
     # ------------------------------------------------------------------
     # KnowledgeGraphBackend protocol implementation
@@ -158,7 +217,7 @@ class SqliteKnowledgeGraphBackend:
     def query_relation(
         self, node_id: str, relation: str, direction: str
     ) -> list[Edge]:
-        """Return edges matching the given relation from/to node_id."""
+        """Return edges matching the given relation from/to node_id (W31 tenant_id filtered)."""
         results: list[Edge] = []
         with self._lock:
             if direction in ("out", "both"):
@@ -167,8 +226,12 @@ class SqliteKnowledgeGraphBackend:
                     SELECT src, dst, relation, payload FROM kg_edges
                     WHERE src=? AND relation=?
                           AND profile_id=? AND project_id=?
+                          AND tenant_id=?
                     """,
-                    (node_id, relation, self._profile_id, self._project_id),
+                    (
+                        node_id, relation,
+                        self._profile_id, self._project_id, self._tenant_id,
+                    ),
                 ).fetchall()
                 for row in rows:
                     results.append(
@@ -185,8 +248,12 @@ class SqliteKnowledgeGraphBackend:
                     SELECT src, dst, relation, payload FROM kg_edges
                     WHERE dst=? AND relation=?
                           AND profile_id=? AND project_id=?
+                          AND tenant_id=?
                     """,
-                    (node_id, relation, self._profile_id, self._project_id),
+                    (
+                        node_id, relation,
+                        self._profile_id, self._project_id, self._tenant_id,
+                    ),
                 ).fetchall()
                 for row in rows:
                     results.append(
@@ -202,7 +269,7 @@ class SqliteKnowledgeGraphBackend:
     def transitive_query(
         self, start: str, relation: str, max_depth: int
     ) -> list[GPath]:
-        """Return all paths reachable from *start* via *relation* up to *max_depth* hops."""
+        """Return paths reachable from *start* (W31 tenant_id filtered)."""
         visited: set[str] = set()
         frontier = [start]
         paths: list[GPath] = []
@@ -217,8 +284,12 @@ class SqliteKnowledgeGraphBackend:
                         SELECT src, dst, relation, payload FROM kg_edges
                         WHERE src=? AND relation=?
                               AND profile_id=? AND project_id=?
+                              AND tenant_id=?
                         """,
-                        (node_id, relation, self._profile_id, self._project_id),
+                        (
+                            node_id, relation,
+                            self._profile_id, self._project_id, self._tenant_id,
+                        ),
                     ).fetchall()
                     for row in rows:
                         dst = row[1]
@@ -244,7 +315,7 @@ class SqliteKnowledgeGraphBackend:
     def detect_conflict(
         self, claim_a: str, claim_b: str
     ) -> ConflictReport | None:
-        """Check whether claim_a and claim_b have a 'contradicts' edge."""
+        """Check whether claim_a and claim_b have a 'contradicts' edge (W31 tenant_id filtered)."""
         with self._lock:
             row = self._con.execute(
                 """
@@ -252,12 +323,13 @@ class SqliteKnowledgeGraphBackend:
                 WHERE relation='contradicts'
                   AND ((src=? AND dst=?) OR (src=? AND dst=?))
                   AND profile_id=? AND project_id=?
+                  AND tenant_id=?
                 LIMIT 1
                 """,
                 (
                     claim_a, claim_b,
                     claim_b, claim_a,
-                    self._profile_id, self._project_id,
+                    self._profile_id, self._project_id, self._tenant_id,
                 ),
             ).fetchone()
         if row is None:
@@ -273,15 +345,17 @@ class SqliteKnowledgeGraphBackend:
         )
 
     def export_visualization(self, format: str) -> str:
-        """Export the graph as JSON (graphml / cytoscape)."""
+        """Export the graph as JSON (graphml / cytoscape) (W31 tenant_id filtered)."""
         with self._lock:
             node_rows = self._con.execute(
-                "SELECT node_id, payload FROM kg_nodes WHERE profile_id=? AND project_id=?",
-                (self._profile_id, self._project_id),
+                "SELECT node_id, payload FROM kg_nodes "
+                "WHERE profile_id=? AND project_id=? AND tenant_id=?",
+                (self._profile_id, self._project_id, self._tenant_id),
             ).fetchall()
             edge_rows = self._con.execute(
-                "SELECT src, dst, relation FROM kg_edges WHERE profile_id=? AND project_id=?",
-                (self._profile_id, self._project_id),
+                "SELECT src, dst, relation FROM kg_edges "
+                "WHERE profile_id=? AND project_id=? AND tenant_id=?",
+                (self._profile_id, self._project_id, self._tenant_id),
             ).fetchall()
         nodes = [
             {"id": row[0], **json.loads(row[1])} for row in node_rows
@@ -299,20 +373,22 @@ class SqliteKnowledgeGraphBackend:
     # ------------------------------------------------------------------
 
     def node_count(self) -> int:
-        """Return the number of nodes in this profile/project scope."""
+        """Return the number of nodes in this tenant/profile/project scope."""
         with self._lock:
             row = self._con.execute(
-                "SELECT COUNT(*) FROM kg_nodes WHERE profile_id=? AND project_id=?",
-                (self._profile_id, self._project_id),
+                "SELECT COUNT(*) FROM kg_nodes "
+                "WHERE profile_id=? AND project_id=? AND tenant_id=?",
+                (self._profile_id, self._project_id, self._tenant_id),
             ).fetchone()
         return row[0] if row else 0
 
     def edge_count(self) -> int:
-        """Return the number of edges in this profile/project scope."""
+        """Return the number of edges in this tenant/profile/project scope."""
         with self._lock:
             row = self._con.execute(
-                "SELECT COUNT(*) FROM kg_edges WHERE profile_id=? AND project_id=?",
-                (self._profile_id, self._project_id),
+                "SELECT COUNT(*) FROM kg_edges "
+                "WHERE profile_id=? AND project_id=? AND tenant_id=?",
+                (self._profile_id, self._project_id, self._tenant_id),
             ).fetchone()
         return row[0] if row else 0
 
@@ -339,8 +415,9 @@ class SqliteKnowledgeGraphBackend:
         keywords = query.lower().split()
         with self._lock:
             rows = self._con.execute(
-                "SELECT node_id, payload FROM kg_nodes WHERE profile_id=? AND project_id=?",
-                (self._profile_id, self._project_id),
+                "SELECT node_id, payload FROM kg_nodes "
+                "WHERE profile_id=? AND project_id=? AND tenant_id=?",
+                (self._profile_id, self._project_id, self._tenant_id),
             ).fetchall()
         scored: list[tuple[int, MemoryNode]] = []
         for node_id, payload_str in rows:
