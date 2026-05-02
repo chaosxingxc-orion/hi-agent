@@ -923,8 +923,13 @@ def build_manifest(wave_override: str | None = None) -> tuple[dict[str, Any], bo
         "captains": _load_captains_sha(),
     }
 
+    # all_passed: pass + deferred are both acceptable (deferred is the
+    # explicit "architecturally-deferred-by-design" status for the arch
+    # constraint gates per CLAUDE.md Rule 8 W28-GOV-E).  fail / missing /
+    # error remain blocking.
+    accepted = {"pass", "deferred"}
     all_passed = all(
-        v.get("status") == "pass"
+        v.get("status") in accepted
         for v in gates.values()
         if isinstance(v, dict)
     )
