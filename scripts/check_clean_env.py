@@ -98,6 +98,11 @@ def _walk_gov_infra_history(head_sha: str, max_depth: int = 50) -> list[str]:
     Stops at the first non-gov-infra commit (which is *included* in the result
     so it can serve as the functional head). Bounded by ``max_depth`` to avoid
     runaway walks.
+
+    Merge-commit handling: GitHub Actions creates a merge commit for PR CI
+    where the first parent is the base (main) and the second parent is the
+    PR head. We follow the PR head, not the base, so the walk descends
+    through the PR's own commits instead of veering into main.
     """
     sha = head_sha
     walked: list[str] = []
@@ -105,13 +110,17 @@ def _walk_gov_infra_history(head_sha: str, max_depth: int = 50) -> list[str]:
         walked.append(sha)
         if not _is_gov_infra_commit(sha):
             return walked  # functional commit reached
-        parent_result = subprocess.run(
-            ["git", "rev-parse", f"{sha}^"],
+        parents_result = subprocess.run(
+            ["git", "rev-list", "--parents", "-n1", sha],
             capture_output=True, text=True, timeout=10, cwd=str(ROOT),
         )
-        if parent_result.returncode != 0:
+        if parents_result.returncode != 0:
             break
-        sha = parent_result.stdout.strip()
+        tokens = parents_result.stdout.strip().split()
+        if len(tokens) < 2:  # root commit (no parents)
+            break
+        # Merge commit: [sha, first_parent, second_parent, ...] -> follow PR head.
+        sha = tokens[2] if len(tokens) > 2 else tokens[1]
     return walked
 
 
