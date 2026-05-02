@@ -387,8 +387,17 @@ def _compute_invariants(
     results: list[dict],
     llm_fallback_count: int,
     stage_observation_window_seconds: float = 30.0,
+    require_polling_observation: bool = False,
 ) -> dict:
-    """Compute invariants_held + per-invariant pass/fail map."""
+    """Compute invariants_held + per-invariant pass/fail map.
+
+    W31-L (L-15' fix): when ``require_polling_observation`` is True, only
+    polling_ok counts toward the stage-observation invariant. The
+    post-hoc ``result.stages[]`` is a structural signal and cannot
+    substitute for the Rule-8 step-5 hard requirement that
+    ``current_stage`` is non-None within 30s on every turn during
+    polling. L.2 (real soak) MUST be invoked with this flag.
+    """
     submitted = len(results)
     terminal = sum(1 for r in results if r.get("state") in _TERMINAL_STATES)
     timeout_or_exc = sum(
@@ -403,13 +412,20 @@ def _compute_invariants(
     ids = [r.get("run_id") for r in results if r.get("run_id")]
     duplicates = len(ids) - len(set(ids))
 
-    # Stage observed within window. Two signals satisfy the invariant:
+    # Stage observed within window.
+    #
+    # Default (lenient) mode — two signals satisfy the invariant:
     #   1. current_stage was non-None within the observation window during polling
     #      (the original Rule-8 check, only reliable when stages take >0.5s each)
     #   2. result.stages[] is non-empty at terminal (reliable for runs that
     #      finished too fast for polling to catch a transient current_stage,
     #      common under dev-smoke fast mode)
     # If neither signal fires, the run is a stage_miss.
+    #
+    # Strict mode (W31-L L-15' fix; require_polling_observation=True) —
+    # ONLY signal 1 counts. terminal_stages_ok alone fails the invariant.
+    # Per Rule 8 step-5, current_stage non-None within 30s is the hard
+    # requirement; result.stages[] is only a structural signal.
     stage_misses: list[int] = []
     for r in results:
         if r.get("state") not in _TERMINAL_STATES:
@@ -417,8 +433,16 @@ def _compute_invariants(
         sfs = r.get("stage_first_seen_seconds")
         polling_ok = sfs is not None and sfs <= stage_observation_window_seconds
         terminal_stages_ok = (r.get("terminal_stage_count") or 0) > 0
-        if not polling_ok and not terminal_stages_ok:
-            stage_misses.append(r.get("run_index", -1))
+        if require_polling_observation:
+            # Strict mode: polling MUST observe a stage. Post-hoc
+            # terminal_stage_count is a structural signal; insufficient
+            # by itself for Rule-8 step-5 compliance.
+            if not polling_ok:
+                stage_misses.append(r.get("run_index", -1))
+        else:
+            # Lenient (default) mode: either signal satisfies the invariant.
+            if not polling_ok and not terminal_stages_ok:
+                stage_misses.append(r.get("run_index", -1))
 
     # finished_at populated on every terminal.
     finished_at_misses = [
@@ -603,6 +627,19 @@ def main(argv: list[str] | None = None) -> int:
         "--out-dir", type=str, default=None,
         help="Output directory for evidence (default: docs/verification/).",
     )
+    parser.add_argument(
+        "--require-polling-observation",
+        action="store_true",
+        default=False,
+        help=(
+            "W31-L (L-15') strict Rule-8 step-5 mode. When set, only "
+            "polling_ok counts toward the stage-observation invariant; "
+            "terminal_stages_ok alone fails the invariant. Required for "
+            "L.2 (real 1h soak). Per Rule 8 step-5, current_stage non-None "
+            "within 30s is the hard requirement; the post-hoc "
+            "result.stages[] field is only a structural signal."
+        ),
+    )
     args = parser.parse_args(argv)
 
     duration_seconds = _parse_duration(args.duration)
@@ -735,7 +772,11 @@ def main(argv: list[str] | None = None) -> int:
         rc = server.stop()
         notes.append(f"server stopped: exit_code={rc}")
 
-    invariants = _compute_invariants(results, llm_fallback_count)
+    invariants = _compute_invariants(
+        results,
+        llm_fallback_count,
+        require_polling_observation=args.require_polling_observation,
+    )
 
     out_path = _write_evidence(
         sha=sha,
