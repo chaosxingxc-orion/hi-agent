@@ -1,7 +1,7 @@
 {
   "wave": 31,
-  "release_head": "bd8bc2c2f72b46a91d1b83c4c53fc2719e6631cf",
-  "manifest_id": "2026-05-02-bd8bc2c2",
+  "release_head": "953d36cb01b234d80344db1cdb83c95c1abdaef0",
+  "manifest_id": "2026-05-02-953d36cb",
   "signed_at": "2026-05-03T20:55:00Z",
   "signed_by": "platform-team",
   "status": "SHIP",
@@ -23,7 +23,7 @@
     "gate_fail: doc_consistency (resolved by this notice)",
     "gate_fail: evidence_provenance (3 historical W27 artifacts; documented in W28 erratum)"
   ],
-  "manifest_rewrite_count": 1,
+  "manifest_rewrite_count": 2,
   "rule_14_strict": {
     "release_head_equals_head": true,
     "is_dirty": false,

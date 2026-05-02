@@ -3,8 +3,8 @@
 **Date:** 2026-05-03
 **Wave:** 31
 Status: SHIP (with one tracked open item: real wall-clock soak in flight per W31-L1; cap holds at `soak_evidence_not_real`=75 until evidence completes)
-Manifest: 2026-05-02-bd8bc2c2
-Functional HEAD: bd8bc2c2f72b46a91d1b83c4c53fc2719e6631cf
+Manifest: 2026-05-02-953d36cb
+Functional HEAD: 953d36cb01b234d80344db1cdb83c95c1abdaef0
 
 > **Cross-wave context:** Wave 31 closes the six structural blockers RIA team raised in `hi-agent-wave31-blocker-closure-requirements-2026-05-02.md` (M1 directive, supersedes 04-29 / 04-30 open items). The directive's 14 acceptance IDs (W31-N1..N4, W31-L1..L2 + W31-G1, W31-D1..D3, W31-T1, W31-H1..H3) are the explicit ship gates; this wave closes 13 of them and tracks W31-L1 (real ≥4h soak) as in-flight. Beyond the directive, deep-scan agents surfaced **91 hidden findings** across the same five categories (13 N + 15 L + 27 T + 16 H + 20 D); this wave closes 80+ of those and tracks the remainder under expiry_wave: Wave 33. Per Rule 14, this notice does NOT modify any prior wave's notice.
 
@@ -138,7 +138,7 @@ Carried items have `expiry_wave: Wave 33` markers + recurrence-ledger entries.
 
 ## Manifest Rewrite Budget (Rule 14)
 
-W31 manifest count in root: 1. No intermediate manifests archived this wave. Budget: 1/3 used.
+W31 manifest count in root: 1 (`2026-05-02-953d36cb`). 1 intermediate manifest archived to `docs/releases/archive/W31/platform-release-manifest-2026-05-03-bd8bc2c2.json` after the post-atomic-close `[W31-F]` allowlists.yaml bump invalidated the bd8bc2c2 manifest's freshness. Budget: 2/3 used.
 
 ---
 
