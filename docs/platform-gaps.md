@@ -1,6 +1,6 @@
 # hi-agent Platform Gaps — Response to Research Roadmap 2026-04-16
 
-**Last updated**: 2026-05-02 (Wave 28 — governance truth-restoration; P-4 FULL unchanged; P-1..P-7 status unchanged from W27)
+**Last updated**: 2026-05-03 (Wave 31 in progress; P-1..P-7 status frozen at W30 close)
 **Source**: research/docs/hi-agent-strategic-roadmap-2026-04-16.md
 **Contact**: hi-agent platform team
 
@@ -16,13 +16,13 @@ hi-agent is the **capability platform layer**. The research team is the **busine
 
 | Gap | Research Priority | hi-agent Status | Latest Action | Target Phase |
 |---|---|---|---|---|
-| **P-1** Provenance standard — `RawMemoryEntry.provenance` field, `CapabilitySpec.source_reference` contract | HIGH | **CLOSED (Wave 10.2)** | project_id posture-required (CO-2, Wave 9); contract spine completeness enforced under research/prod (Wave 10.2); GateStore/TeamRunRegistry/FeedbackStore/RunQueue all carry tenant/user/session/project fields (L3). | Phase 2 ✓ |
-| **P-2** Reasoning trace storage — structured side-channel for stage LLM reasoning steps | HIGH | **CLOSED (Wave 9/TE-5)** | ReasoningTrace schema + write hook delivered Wave 9 (TE-5). Route `GET /runs/{id}/reasoning-trace` deferred to L2; schema + evidence hook at L1. Downstream can consume via artifact ledger. | Phase 2 ✓ |
-| **P-3** Cross-Run Project aggregation — `project_id` scope alongside `profile_id`; memory spanning multiple runs | HIGH | **CLOSED (Wave 10.2)** | project_id first-class in RunRecord (CO-4, Wave 9); posture-required under research/prod (CO-2); cross-run project query wired (list_runs_by_project, Wave 10.2). | Phase 2 ✓ |
-| **P-4** Dynamic re-planning API — `StageDirective(skip_to, insert_stage)` mid-run plan mutation | MEDIUM | **PARTIAL (Wave 25)** | StageDirective(skip_to, insert_stage with target_stage_id) wired in run_linear + run_graph + run_resume with posture-aware fail-closed; 15 unit + 6 integration tests planned; 3 spine event kinds (stage_skipped/inserted/replanned) (W25 Track M.1-M.5) | Phase 3 → L3 production-default |
-| **P-5** Confidence scoring contract — `Artifact.confidence: float`, `evidence_count` fields | MEDIUM | **CLOSED (Wave 9)** | ArtifactLedger durable (TE-2, Wave 9); evidence_count/content_hash/producer fields on Artifact (CO-5, Wave 9); idempotency replay returns byte-identical snapshot (H1-Track1). | Phase 2 ✓ |
-| **P-6** Knowledge Graph inference layer — transitive queries, conflict detection on `LongTermMemoryGraph` | MEDIUM | **CLOSED (Wave 10.5)** | SqliteKnowledgeGraphBackend deployed as default under research/prod (Wave 10.5); posture-aware factory; upsert_node/upsert_edge/query_relation/transitive_query/detect_conflict supported. Neo4j permanently declined. | Phase 3 ✓ |
-| **P-7** Feedback integration path — `submit_run_feedback()` API wired to `EvolveEngine`/`HybridRouteEngine` | MEDIUM | **PARTIAL (Wave 10.4)** | ExperimentStore durable (Wave 10.4, L2); EvolveEngine writes EvolutionExperiment on proposals; auto-calibration (routing influence) deferred to Wave 19. | Phase 3 partial |
+| **P-1** Provenance standard — `RawMemoryEntry.provenance` field, `CapabilitySpec.source_reference` contract | HIGH | **L3** (per W30 notice) | project_id posture-required (CO-2, Wave 9); contract spine completeness enforced under research/prod (Wave 10.2); GateStore/TeamRunRegistry/FeedbackStore/RunQueue all carry tenant/user/session/project fields. | Phase 2 ✓ |
+| **P-2** Reasoning trace storage — structured side-channel for stage LLM reasoning steps | HIGH | **L2** (per W30 notice) | ReasoningTrace schema + write hook delivered Wave 9 (TE-5). Route `GET /runs/{id}/reasoning-trace` deferred to L2; schema + evidence hook at L1. Downstream can consume via artifact ledger. | Phase 2 ✓ |
+| **P-3** Cross-Run Project aggregation — `project_id` scope alongside `profile_id`; memory spanning multiple runs | HIGH | **L2** (per W30 notice) | project_id first-class in RunRecord (CO-4, Wave 9); posture-required under research/prod (CO-2); cross-run project query wired (list_runs_by_project, Wave 10.2). | Phase 2 ✓ |
+| **P-4** Dynamic re-planning API — `StageDirective(skip_to, insert_stage)` mid-run plan mutation | MEDIUM | **FULL** (per W30 notice — manifest 2026-05-02-aa073e12) | StageDirective(skip_to, insert_stage with target_stage_id) wired in run_linear + run_graph + run_resume with posture-aware fail-closed; 3 spine event kinds (stage_skipped/inserted/replanned). FULL closure recorded against W30 manifest `2026-05-02-aa073e12` (Functional HEAD aa073e129cb0ae9939034eeff29971df3d2b6e33). | Phase 3 ✓ |
+| **P-5** Confidence scoring contract — `Artifact.confidence: float`, `evidence_count` fields | MEDIUM | **L2** (per W30 notice) | ArtifactLedger durable (TE-2, Wave 9); evidence_count/content_hash/producer fields on Artifact (CO-5, Wave 9); idempotency replay returns byte-identical snapshot (H1-Track1). | Phase 2 ✓ |
+| **P-6** Knowledge Graph inference layer — transitive queries, conflict detection on `LongTermMemoryGraph` | MEDIUM | **L3** (per W30 notice) | SqliteKnowledgeGraphBackend deployed as default under research/prod (Wave 10.5); posture-aware factory; upsert_node/upsert_edge/query_relation/transitive_query/detect_conflict supported. Neo4j permanently declined. | Phase 3 ✓ |
+| **P-7** Feedback integration path — `submit_run_feedback()` API wired to `EvolveEngine`/`HybridRouteEngine` | MEDIUM | **L0 unchanged (deferred per RIA W31 directive §6 — calibration quality is post-integration)** | ExperimentStore durable (Wave 10.4, L2); EvolveEngine writes EvolutionExperiment on proposals; active calibration deferred per RIA W31 directive §6 — calibration quality is post-integration. | Phase 3 deferred |
 
 ---
 

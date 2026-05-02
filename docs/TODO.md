@@ -1,6 +1,6 @@
 # hi-agent Engineering TODO
 
-Last updated: 2026-05-01 (Wave 27 — in progress; W25 + W26 closed)
+Last updated: 2026-05-03 (Wave 30 closed; Wave 31 in progress)
 
 ## DONE (Wave 1-4, SA-1..SA-8, 2026-04-22/24)
 
