@@ -1,6 +1,6 @@
 # hi-agent Platform Capability Matrix
 
-Last updated: 2026-05-01 (Wave 27 — in progress)
+Last updated: 2026-05-03 (Wave 30 — paperwork-debt closure; capability surface unchanged since W27)
 
 ---
 
