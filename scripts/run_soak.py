@@ -1,8 +1,9 @@
-"""Soak harness with --duration 1h|24h flag.
+"""Soak harness with --duration 1h|24h|240m flag.
 
 Single entry point for soak runs. Spawns a long-lived `python -m hi_agent serve`
-subprocess on the configured port, fires 1 run / 30s for the requested duration,
-asserts invariants at the end, and emits truthful evidence JSON.
+subprocess on the configured port, fires runs concurrently across multiple
+tenants and projects for the requested duration, asserts invariants at the
+end, and emits truthful evidence JSON.
 
 Invariants asserted at end of run:
   * 0 lost runs (every submitted run reached a terminal state OR was tracked as failed)
@@ -14,6 +15,13 @@ Invariants asserted at end of run:
     miss a transient current_stage)
   * every terminal run has finished_at populated
 
+W31-L1 multi-tenant invariants (when --tenants > 1 or --concurrency > 1):
+  * per-tenant accepted_runs_lost == 0
+  * per-tenant duplicate_terminal_executions == 0
+  * cross-tenant: no run_id appears in two tenants' result lists
+  * mid-soak SIGTERM (when --mid-soak-sigterm-after > 0):
+      at least1 run was in flight at SIGTERM AND at least1 resumed cleanly post-restart
+
 Usage:
     # 5-min smoke (proof of harness; tags provenance:shape_1h, NOT real 1h):
     python scripts/run_soak.py --duration 5m --port 9083
@@ -24,8 +32,14 @@ Usage:
     # 24h soak (kicked off in background by Track C-24h dispatch):
     python scripts/run_soak.py --duration 24h --port 9083
 
+    # W31-L1: 4h multi-tenant soak with mid-soak SIGTERM:
+    python scripts/run_soak.py --duration 4h --port 9083 \
+        --tenants 3 --projects-per-tenant 2 --concurrency 6 \
+        --mid-soak-sigterm-after 60 --require-polling-observation
+
 Provenance rules (NEVER fake):
   * duration_seconds >= 86400 AND invariants_held → provenance: real (24h credit)
+  * duration_seconds >= 14400 AND invariants_held → provenance: real (4h credit; W31-L1)
   * duration_seconds >= 3600  AND invariants_held → provenance: real (1h credit)
   * duration_seconds <  3600                      → provenance: shape_1h
                                                     (smoke validation that the harness works;
@@ -200,22 +214,48 @@ class _ServerProcess:
 _TERMINAL_STATES = {"completed", "done", "failed", "cancelled", "error"}
 
 
-def _submit_run(base_url: str, run_index: int) -> dict:
+def _submit_run(
+    base_url: str,
+    run_index: int,
+    *,
+    tenant_id: str = "soak_default_tenant",
+    project_id: str = "soak_test_project",
+    profile_id: str = "soak_test",
+    idempotency_key: str | None = None,
+    per_run_timeout_seconds: float = 60.0,
+    server_restart_event: threading.Event | None = None,
+    server_restart_timeout_seconds: float = 120.0,
+) -> dict:
     """Submit one run and poll until terminal or timeout. Returns result dict.
 
     Tracks invariants:
       * stage_first_seen_seconds: seconds between submission and first non-None current_stage
       * terminal_stage_count: number of stages recorded in result.stages[] at terminal
       * finished_at: populated when state reaches a terminal value
+      * tenant_id, project_id: spine fields for cross-tenant isolation checks
+      * idempotency_key: the W31-L1 idempotency key wired into routes_runs.py
+
+    When ``server_restart_event`` is set during polling (mid-soak SIGTERM),
+    the worker pauses polling for up to ``server_restart_timeout_seconds``
+    and resumes once the event clears. A run that was in-flight at SIGTERM
+    and reaches a terminal state after restart is recorded with
+    ``resumed_after_restart=True``.
     """
     import httpx
 
     payload = {
-        "goal": f"soak-run-{run_index}",
-        "profile_id": "soak_test",
-        "project_id": "soak_test_project",
+        "goal": f"soak-run-{tenant_id}-{run_index}",
+        "profile_id": profile_id,
+        "project_id": project_id,
         "task_family": "smoke",
+        # Spine field passed in body for downstream traceability. Auth
+        # middleware sets the authenticated tenant_id; this is the
+        # workload-side label used for cross-tenant invariant checks.
+        "tenant_id": tenant_id,
     }
+    headers: dict[str, str] = {}
+    if idempotency_key is not None:
+        headers["Idempotency-Key"] = idempotency_key
     submit_t = time.monotonic()
     run_id: str | None = None
     state = "unknown"
@@ -224,26 +264,46 @@ def _submit_run(base_url: str, run_index: int) -> dict:
     terminal_stage_count = 0
     finished_at: str | None = None
     poll_count = 0
+    in_flight_at_restart = False
+    resumed_after_restart = False
     try:
         c = httpx.Client(timeout=httpx.Timeout(10.0), trust_env=False)
-        resp = c.post(f"{base_url}/runs", json=payload)
+        resp = c.post(f"{base_url}/runs", json=payload, headers=headers)
         if resp.status_code not in (200, 201, 202):
             error = f"HTTP {resp.status_code}: {resp.text[:200]}"
             return {
                 "run_index": run_index,
                 "run_id": None,
+                "tenant_id": tenant_id,
+                "project_id": project_id,
+                "idempotency_key": idempotency_key,
                 "state": "http_error",
                 "stage_first_seen_seconds": None,
                 "terminal_stage_count": 0,
                 "finished_at": None,
+                "in_flight_at_restart": False,
+                "resumed_after_restart": False,
                 "duration_seconds": round(time.monotonic() - submit_t, 3),
                 "error": error,
             }
         body = resp.json()
         run_id = body.get("run_id") or body.get("id")
-        # Per-run timeout: dev mode finishes in seconds; allow 60s ceiling.
-        per_run_deadline = time.monotonic() + 60.0
+        # Per-run timeout: real-LLM runs may take 30-60s; allow caller to widen.
+        per_run_deadline = time.monotonic() + per_run_timeout_seconds
         while time.monotonic() < per_run_deadline:
+            # Mid-soak SIGTERM handling: when the orchestrator sets
+            # server_restart_event, the server is being killed and re-spawned.
+            # The worker pauses HTTP traffic during the gap and records that
+            # this run was in flight at SIGTERM time.
+            if server_restart_event is not None and server_restart_event.is_set():
+                in_flight_at_restart = True
+                # Wait for the event to clear (server back up) up to the
+                # configured timeout, then resume polling.
+                wait_deadline = time.monotonic() + server_restart_timeout_seconds
+                while server_restart_event.is_set() and time.monotonic() < wait_deadline:
+                    time.sleep(0.5)
+                # Even if the event hasn't cleared we attempt one more poll
+                # (the server may already be back).
             try:
                 poll = c.get(f"{base_url}/runs/{run_id}")
                 poll_count += 1
@@ -260,6 +320,10 @@ def _submit_run(base_url: str, run_index: int) -> dict:
                     state = info.get("state", "unknown")
                     if state in _TERMINAL_STATES:
                         finished_at = info.get("finished_at")
+                        if in_flight_at_restart and state in (
+                            "completed", "done",
+                        ):
+                            resumed_after_restart = True
                         # Fallback signal for fast runs that complete before
                         # polling catches a transient current_stage value.
                         result_obj = info.get("result") or {}
@@ -280,10 +344,15 @@ def _submit_run(base_url: str, run_index: int) -> dict:
     return {
         "run_index": run_index,
         "run_id": run_id,
+        "tenant_id": tenant_id,
+        "project_id": project_id,
+        "idempotency_key": idempotency_key,
         "state": state,
         "stage_first_seen_seconds": stage_first_seen_seconds,
         "terminal_stage_count": terminal_stage_count,
         "finished_at": finished_at,
+        "in_flight_at_restart": in_flight_at_restart,
+        "resumed_after_restart": resumed_after_restart,
         "poll_count": poll_count,
         "duration_seconds": round(time.monotonic() - submit_t, 3),
         "error": error,
@@ -388,6 +457,8 @@ def _compute_invariants(
     llm_fallback_count: int,
     stage_observation_window_seconds: float = 30.0,
     require_polling_observation: bool = False,
+    multi_tenant: bool = False,
+    sigterm_injected: bool = False,
 ) -> dict:
     """Compute invariants_held + per-invariant pass/fail map.
 
@@ -397,6 +468,15 @@ def _compute_invariants(
     substitute for the Rule-8 step-5 hard requirement that
     ``current_stage`` is non-None within 30s on every turn during
     polling. L.2 (real soak) MUST be invoked with this flag.
+
+    W31-L1 multi-tenant invariants (when ``multi_tenant=True``):
+      * per-tenant accepted_runs_lost == 0 (a "lost" run is one that
+        returned 200 to POST /runs but never reached a terminal state
+        and was not tracked as a timeout/exception)
+      * per-tenant duplicate_terminal_executions == 0 (the same run_id
+        reached a terminal state more than once)
+      * cross-tenant: no run_id appears in two tenants' result lists
+      * mid-soak SIGTERM: at least1 run was in flight AND at least1 resumed cleanly
     """
     submitted = len(results)
     terminal = sum(1 for r in results if r.get("state") in _TERMINAL_STATES)
@@ -450,7 +530,65 @@ def _compute_invariants(
         if r.get("state") in _TERMINAL_STATES and not r.get("finished_at")
     ]
 
-    invariants = {
+    # ---- W31-L1 multi-tenant invariants ------------------------------------
+    per_tenant: dict[str, dict] = {}
+    cross_tenant_leaks: list[dict] = []
+    duplicate_terminal_executions = 0
+    in_flight_count = 0
+    resumed_count = 0
+    if multi_tenant:
+        # Per-tenant aggregation.
+        by_tenant: dict[str, list[dict]] = {}
+        for r in results:
+            tid = r.get("tenant_id") or "__unlabelled__"
+            by_tenant.setdefault(tid, []).append(r)
+        for tid, runs in by_tenant.items():
+            t_submitted = len(runs)
+            t_terminal = sum(
+                1 for r in runs if r.get("state") in _TERMINAL_STATES
+            )
+            t_timeout = sum(
+                1 for r in runs
+                if r.get("state") in ("timeout", "exception", "http_error")
+            )
+            t_lost = t_submitted - t_terminal - t_timeout
+            t_ids = [r.get("run_id") for r in runs if r.get("run_id")]
+            t_dups = len(t_ids) - len(set(t_ids))
+            per_tenant[tid] = {
+                "submitted": t_submitted,
+                "terminal": t_terminal,
+                "timeout_or_exception": t_timeout,
+                "accepted_runs_lost": max(0, t_lost),
+                "duplicate_terminal_executions": t_dups,
+                "projects": sorted(
+                    {r.get("project_id", "") for r in runs if r.get("project_id")}
+                ),
+            }
+            duplicate_terminal_executions += t_dups
+        # Cross-tenant leak detection: a run_id appearing under two tenants'
+        # result lists indicates an idempotency-store leak or auth-context
+        # spillover.
+        run_id_to_tenants: dict[str, set[str]] = {}
+        for r in results:
+            rid = r.get("run_id")
+            tid = r.get("tenant_id") or "__unlabelled__"
+            if not rid:
+                continue
+            run_id_to_tenants.setdefault(rid, set()).add(tid)
+        for rid, tenants in run_id_to_tenants.items():
+            if len(tenants) > 1:
+                cross_tenant_leaks.append(
+                    {"run_id": rid, "tenants": sorted(tenants)}
+                )
+        # Mid-soak SIGTERM resume tally.
+        in_flight_count = sum(
+            1 for r in results if r.get("in_flight_at_restart")
+        )
+        resumed_count = sum(
+            1 for r in results if r.get("resumed_after_restart")
+        )
+
+    invariants: dict[str, tuple[bool, object]] = {
         "no_lost_runs": (lost_runs == 0, lost_runs),
         "no_duplicates": (duplicates == 0, duplicates),
         "llm_fallback_zero": (llm_fallback_count == 0, llm_fallback_count),
@@ -461,6 +599,33 @@ def _compute_invariants(
             not finished_at_misses, finished_at_misses[:5],
         ),
     }
+    if multi_tenant:
+        # Per-tenant aggregate: invariant holds when every tenant has 0 lost
+        # and 0 duplicate terminals.
+        per_tenant_lost = sum(t["accepted_runs_lost"] for t in per_tenant.values())
+        invariants["per_tenant_no_lost_runs"] = (
+            per_tenant_lost == 0, per_tenant_lost,
+        )
+        invariants["per_tenant_no_duplicate_terminal_executions"] = (
+            duplicate_terminal_executions == 0,
+            duplicate_terminal_executions,
+        )
+        invariants["no_cross_tenant_run_id_leak"] = (
+            not cross_tenant_leaks, cross_tenant_leaks[:5],
+        )
+        if sigterm_injected:
+            # The mid-soak SIGTERM contract is two-fold: at least1 in-flight at
+            # SIGTERM AND at least1 resumed cleanly. A SIGTERM that no run
+            # observed (e.g. injected too early) does not satisfy the
+            # invariant and indicates the harness or workload was not
+            # exercising in-flight runs at the injection time.
+            invariants["mid_soak_sigterm_resume"] = (
+                in_flight_count >= 1 and resumed_count >= 1,
+                {
+                    "in_flight_at_restart": in_flight_count,
+                    "resumed_after_restart": resumed_count,
+                },
+            )
     held = all(passed for passed, _ in invariants.values())
     return {
         "invariants_held": held,
@@ -472,6 +637,11 @@ def _compute_invariants(
         "submitted": submitted,
         "terminal": terminal,
         "timeout_or_exception": timeout_or_exc,
+        "per_tenant": per_tenant,
+        "cross_tenant_leaks": cross_tenant_leaks,
+        "duplicate_terminal_executions": duplicate_terminal_executions,
+        "in_flight_at_restart_count": in_flight_count,
+        "resumed_after_restart_count": resumed_count,
         "details": {
             k: {"passed": passed, "value": value}
             for k, (passed, value) in invariants.items()
@@ -485,14 +655,24 @@ def _compute_invariants(
 
 
 def _classify_provenance(
-    duration_seconds: float, invariants_held: bool, dry_run: bool,
+    duration_seconds: float,
+    invariants_held: bool,
+    dry_run: bool,
+    requested_duration_seconds: int = 0,
 ) -> tuple[str, str]:
-    """Return (provenance, label_hours)."""
+    """Return (provenance, label_hours).
+
+    W31-L1: The 4h band (>=14400s, <86400s) is "real" credit when
+    invariants hold. ``requested_duration_seconds`` is consulted for the
+    canonical filename suffix (240m vs 1h vs ad-hoc minute count).
+    """
     if dry_run:
         return "dry_run", "dry"
     # Real soaks must hold invariants AND meet duration thresholds.
     if duration_seconds >= 86400.0 and invariants_held:
         return "real", "24h"
+    if duration_seconds >= 14400.0 and invariants_held:
+        return "real", "240m"
     if duration_seconds >= 3600.0 and invariants_held:
         return "real", "1h"
     # Otherwise: shape_1h smoke validation. NOT 1h credit.
@@ -500,13 +680,18 @@ def _classify_provenance(
 
 
 def _evidence_filename(
-    sha: str, duration_seconds: float, dry_run: bool, provenance: str,
+    sha: str,
+    duration_seconds: float,
+    dry_run: bool,
+    provenance: str,
+    requested_duration_seconds: int = 0,
 ) -> str:
     """Pick a filename per the dispatch convention.
 
     Uses a 'shape' suffix when provenance is shape_1h to make the truthfulness
-    visible at the filename level. Real 1h/24h evidence uses the canonical
-    `<HEAD>-soak-1h.json` / `<HEAD>-soak-24h.json` form.
+    visible at the filename level. Real soak evidence uses the canonical
+    forms: `<HEAD>-soak-1h.json`, `<HEAD>-soak-240m.json`, `<HEAD>-soak-24h.json`.
+    The 240m suffix is the W31-L1 convention for 4h soaks.
     """
     if dry_run:
         return f"{sha}-soak-dry-{int(duration_seconds // 60)}m.json"
@@ -514,6 +699,8 @@ def _evidence_filename(
         return f"{sha}-soak-shape-{int(duration_seconds // 60)}m.json"
     if provenance == "real" and duration_seconds >= 86400.0:
         return f"{sha}-soak-24h.json"
+    if provenance == "real" and duration_seconds >= 14400.0:
+        return f"{sha}-soak-240m.json"
     if provenance == "real":
         return f"{sha}-soak-1h.json"
     return f"{sha}-soak-{int(duration_seconds // 60)}m.json"
@@ -535,11 +722,22 @@ def _write_evidence(
     server_log_path: str,
     out_dir: Path,
     notes: list[str],
+    workload: dict | None = None,
+    sigterm_events: list[dict] | None = None,
 ) -> Path:
     provenance, _label = _classify_provenance(
-        duration_seconds, invariants["invariants_held"], dry_run,
+        duration_seconds,
+        invariants["invariants_held"],
+        dry_run,
+        requested_duration_seconds=requested_duration_seconds,
     )
-    filename = _evidence_filename(sha, duration_seconds, dry_run, provenance)
+    filename = _evidence_filename(
+        sha,
+        duration_seconds,
+        dry_run,
+        provenance,
+        requested_duration_seconds=requested_duration_seconds,
+    )
     out_path = out_dir / filename
 
     runs_completed = sum(
@@ -578,6 +776,25 @@ def _write_evidence(
         "results": results,
         "notes": notes,
     }
+    if workload is not None:
+        evidence["workload"] = workload
+    # Per-tenant + cross-tenant + SIGTERM blocks always present in multi-tenant
+    # mode; `per_tenant` is empty when invariants were computed in single-tenant
+    # mode.
+    if invariants.get("per_tenant"):
+        evidence["per_tenant"] = invariants["per_tenant"]
+        evidence["cross_tenant_leaks"] = invariants.get("cross_tenant_leaks", [])
+        evidence["duplicate_terminal_executions"] = invariants.get(
+            "duplicate_terminal_executions", 0,
+        )
+        evidence["in_flight_at_restart_count"] = invariants.get(
+            "in_flight_at_restart_count", 0,
+        )
+        evidence["resumed_after_restart_count"] = invariants.get(
+            "resumed_after_restart_count", 0,
+        )
+    if sigterm_events:
+        evidence["sigterm_events"] = sigterm_events
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
     return out_path
@@ -638,6 +855,59 @@ def main(argv: list[str] | None = None) -> int:
             "L.2 (real 1h soak). Per Rule 8 step-5, current_stage non-None "
             "within 30s is the hard requirement; the post-hoc "
             "result.stages[] field is only a structural signal."
+        ),
+    )
+    parser.add_argument(
+        "--tenants",
+        type=int,
+        default=1,
+        help=(
+            "W31-L1: number of distinct tenants generating load (default: 1). "
+            "Each tenant uses a unique tenant_id label in the request payload "
+            "and a unique Idempotency-Key prefix. Set >=3 for the W31-L1 "
+            "multi-tenant invariant set."
+        ),
+    )
+    parser.add_argument(
+        "--projects-per-tenant",
+        type=int,
+        default=1,
+        help=(
+            "W31-L1: number of project_ids per tenant (default: 1). Each "
+            "(tenant, project) pair gets its own slot in the round-robin "
+            "worker dispatch. Set >=2 for the W31-L1 invariant set."
+        ),
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help=(
+            "W31-L1: number of concurrent worker threads sending POST /runs "
+            "(default: 1). When >1, workers pick (tenant, project) "
+            "round-robin from the cross product of --tenants x "
+            "--projects-per-tenant."
+        ),
+    )
+    parser.add_argument(
+        "--mid-soak-sigterm-after",
+        type=float,
+        default=0.0,
+        help=(
+            "W31-L1: wall-clock minute at which to SIGTERM the server PID "
+            "and restart it (default: 0 = no SIGTERM). The harness restarts "
+            "the server within 60s and resumes sampling. After SIGTERM, runs "
+            "in flight should resume cleanly via durable run_store. Set to "
+            "60 (minutes) for the canonical W31-L1 mid-soak SIGTERM."
+        ),
+    )
+    parser.add_argument(
+        "--per-run-timeout-seconds",
+        type=float,
+        default=180.0,
+        help=(
+            "Per-run polling deadline in seconds (default: 180). Real-LLM "
+            "runs commonly finish in 10-30s; widen for slower providers."
         ),
     )
     args = parser.parse_args(argv)
@@ -728,39 +998,238 @@ def main(argv: list[str] | None = None) -> int:
             server.stop()
             return 4
 
+    # ---- W31-L1 workload setup --------------------------------------------
+    if args.tenants < 1:
+        print("[soak] --tenants must be >= 1", file=sys.stderr)
+        return 5
+    if args.projects_per_tenant < 1:
+        print("[soak] --projects-per-tenant must be >= 1", file=sys.stderr)
+        return 5
+    if args.concurrency < 1:
+        print("[soak] --concurrency must be >= 1", file=sys.stderr)
+        return 5
+
+    tenants = [f"soak_t{i}" for i in range(args.tenants)]
+    projects = [f"soak_p{j}" for j in range(args.projects_per_tenant)]
+    workload_pairs = [(t, p) for t in tenants for p in projects]
+    multi_tenant = (
+        args.tenants > 1
+        or args.projects_per_tenant > 1
+        or args.concurrency > 1
+    )
+    workload = {
+        "tenants": args.tenants,
+        "projects_per_tenant": args.projects_per_tenant,
+        "concurrency": args.concurrency,
+        "tenants_list": tenants,
+        "projects_list": projects,
+        "mid_soak_sigterm_after_minutes": args.mid_soak_sigterm_after,
+        "run_interval_seconds": args.run_interval_seconds,
+        "per_run_timeout_seconds": args.per_run_timeout_seconds,
+    }
+
     # ---- main loop --------------------------------------------------------
     sampler = _Sampler(server_pid=server_pid, interval_seconds=args.sample_interval_seconds)
     sampler.start()
 
     results: list[dict] = []
+    results_lock = threading.Lock()
     t_start = time.monotonic()
     deadline = t_start + duration_seconds
-    run_index = 0
+    run_index_counter = [0]
+    run_index_lock = threading.Lock()
+    server_restart_event = threading.Event()
+    sigterm_events: list[dict] = []
+    sigterm_events_lock = threading.Lock()
+    workers_stop = threading.Event()
+    # Server reference is rebound by the SIGTERM thread; protect with lock so
+    # invariant code reads the latest pid/log_path.
+    server_ref: list[_ServerProcess | None] = [server]
+    server_pid_ref: list[int | None] = [server_pid]
+    server_log_ref: list[str] = [server_log_path]
+
+    def _next_run_index() -> int:
+        with run_index_lock:
+            i = run_index_counter[0]
+            run_index_counter[0] += 1
+            return i
+
+    def _worker_loop(worker_id: int, tenant_id: str, project_id: str) -> None:
+        """One worker submits POST /runs sequentially for its (tenant, project) slot.
+
+        Workers are paced by --run-interval-seconds. With N workers, the
+        aggregate submission rate is approximately N / run_interval_seconds.
+        """
+        while time.monotonic() < deadline and not workers_stop.is_set():
+            ri = _next_run_index()
+            idem_key = f"w31-soak-{tenant_id}-{project_id}-{ri}"
+            r = _submit_run(
+                base_url,
+                ri,
+                tenant_id=tenant_id,
+                project_id=project_id,
+                profile_id="soak_test",
+                idempotency_key=idem_key,
+                per_run_timeout_seconds=args.per_run_timeout_seconds,
+                server_restart_event=server_restart_event,
+            )
+            r["worker_id"] = worker_id
+            with results_lock:
+                results.append(r)
+            elapsed = time.monotonic() - t_start
+            print(
+                f"[soak] worker {worker_id} run #{ri} "
+                f"tenant={tenant_id} project={project_id} "
+                f"state={r['state']} "
+                f"stage_seen={r.get('stage_first_seen_seconds')} "
+                f"stages={r.get('terminal_stage_count')} "
+                f"in_flight_at_restart={r.get('in_flight_at_restart')} "
+                f"resumed={r.get('resumed_after_restart')} "
+                f"elapsed_minutes={elapsed / 60:.1f}"
+            )
+            # Pace runs at the requested interval (cap at deadline).
+            next_t = min(
+                time.monotonic() + args.run_interval_seconds, deadline,
+            )
+            while time.monotonic() < next_t and not workers_stop.is_set():
+                time.sleep(min(1.0, max(0.0, next_t - time.monotonic())))
+
+    def _sigterm_orchestrator() -> None:
+        """Mid-soak SIGTERM: kill server PID at the configured minute and
+        respawn within 60s. Sets server_restart_event during the gap so
+        worker threads pause polling.
+
+        Skips the SIGTERM if --no-spawn-server is set (we don't own the
+        server process) or if the configured minute is 0/negative.
+        """
+        if args.mid_soak_sigterm_after <= 0:
+            return
+        if args.no_spawn_server:
+            print(
+                "[soak] mid-soak SIGTERM requested but --no-spawn-server is "
+                "set; harness does not own the server process — skipping."
+            )
+            return
+        target_seconds = args.mid_soak_sigterm_after * 60.0
+        # Sleep until target_seconds after t_start.
+        while time.monotonic() < t_start + target_seconds:
+            if workers_stop.is_set():
+                return
+            time.sleep(1.0)
+        if workers_stop.is_set():
+            return
+
+        sigterm_t0 = _iso_now()
+        sigterm_t0_mono = time.monotonic()
+        old_pid = server_pid_ref[0]
+        print(
+            f"[soak] mid-soak SIGTERM: killing server pid={old_pid} "
+            f"at elapsed_minutes={args.mid_soak_sigterm_after}"
+        )
+        server_restart_event.set()
+        old_server = server_ref[0]
+        if old_server is not None:
+            try:
+                rc = old_server.stop()
+                print(f"[soak] mid-soak SIGTERM: server stopped exit_code={rc}")
+            except Exception as exc:
+                print(f"[soak] mid-soak SIGTERM: server.stop() raised: {exc}")
+
+        # Respawn — wait briefly for OS to release port, then start a new
+        # server on the same port pointing at the same data dir.
+        time.sleep(2.0)
+        new_server = _ServerProcess(args.port, log_dir=log_dir)
+        new_server.start()
+        server_ref[0] = new_server
+        server_pid_ref[0] = new_server.pid
+        server_log_ref[0] = str(new_server.log_path)
+        ready = new_server.wait_ready(base_url, timeout_seconds=90.0)
+        sigterm_t1 = _iso_now()
+        gap = round(time.monotonic() - sigterm_t0_mono, 2)
+        with sigterm_events_lock:
+            sigterm_events.append({
+                "killed_pid": old_pid,
+                "killed_at": sigterm_t0,
+                "respawned_pid": new_server.pid,
+                "respawned_at": sigterm_t1,
+                "ready_after_restart": ready,
+                "downtime_seconds": gap,
+            })
+        notes.append(
+            f"mid-soak SIGTERM at minute {args.mid_soak_sigterm_after}: "
+            f"old_pid={old_pid} new_pid={new_server.pid} "
+            f"ready={ready} downtime_seconds={gap}"
+        )
+        # Update sampler's pid so RSS/CPU samples track the new process.
+        import contextlib as _ctxlib
+
+        with _ctxlib.suppress(Exception):
+            sampler._pid = new_server.pid  # type: ignore[attr-defined]
+        if not ready:
+            print(
+                "[soak] mid-soak SIGTERM: respawn FAILED to become ready; "
+                "soak will continue but invariants will likely fail."
+            )
+        # Clear the event so workers resume polling.
+        server_restart_event.clear()
 
     print(
         f"[soak] running {args.duration} ({duration_seconds}s) "
-        f"against {base_url} — 1 run / {args.run_interval_seconds}s"
+        f"against {base_url} — concurrency={args.concurrency} "
+        f"tenants={args.tenants} projects_per_tenant={args.projects_per_tenant} "
+        f"workload_pairs={len(workload_pairs)} "
+        f"sigterm_after={args.mid_soak_sigterm_after}min"
     )
 
+    # Spawn workers — round-robin (tenant, project) assignment.
+    worker_threads: list[threading.Thread] = []
+    for w in range(args.concurrency):
+        tid, pid = workload_pairs[w % len(workload_pairs)]
+        th = threading.Thread(
+            target=_worker_loop,
+            args=(w, tid, pid),
+            daemon=True,
+            name=f"soak-worker-{w}-{tid}-{pid}",
+        )
+        th.start()
+        worker_threads.append(th)
+
+    sigterm_thread: threading.Thread | None = None
+    if args.mid_soak_sigterm_after > 0:
+        sigterm_thread = threading.Thread(
+            target=_sigterm_orchestrator,
+            daemon=True,
+            name="soak-sigterm",
+        )
+        sigterm_thread.start()
+
     try:
+        # Main thread idles until the deadline; workers and sigterm threads
+        # do the actual work. Periodic heartbeat for log clarity.
+        last_heartbeat = time.monotonic()
         while time.monotonic() < deadline:
-            r = _submit_run(base_url, run_index)
-            results.append(r)
-            elapsed = time.monotonic() - t_start
-            print(
-                f"[soak] run #{run_index + 1}: state={r['state']} "
-                f"stage_seen={r.get('stage_first_seen_seconds')} "
-                f"stages={r.get('terminal_stage_count')} "
-                f"dur={r['duration_seconds']}s elapsed={elapsed:.0f}s"
-            )
-            run_index += 1
-            # Pace runs at the requested interval (cap at deadline).
-            sleep_until = min(
-                time.monotonic() + args.run_interval_seconds, deadline,
-            )
-            time.sleep(max(0.0, sleep_until - time.monotonic()))
+            time.sleep(5.0)
+            now = time.monotonic()
+            if now - last_heartbeat >= 60.0:
+                with results_lock:
+                    n = len(results)
+                elapsed = now - t_start
+                print(
+                    f"[soak] heartbeat: elapsed_minutes={elapsed / 60:.1f} "
+                    f"submitted={n} deadline_in_minutes={(deadline - now) / 60:.1f}"
+                )
+                last_heartbeat = now
     except KeyboardInterrupt:
         notes.append("interrupted by KeyboardInterrupt")
+
+    workers_stop.set()
+    # Give workers up to per_run_timeout_seconds + buffer to drain in-flight runs.
+    drain_deadline = time.monotonic() + args.per_run_timeout_seconds + 30.0
+    for th in worker_threads:
+        remaining = max(1.0, drain_deadline - time.monotonic())
+        th.join(timeout=remaining)
+    if sigterm_thread is not None:
+        sigterm_thread.join(timeout=30.0)
 
     duration_actual = time.monotonic() - t_start
     end_iso = _iso_now()
@@ -768,14 +1237,17 @@ def main(argv: list[str] | None = None) -> int:
     # Scrape llm_fallback_count BEFORE stopping the server.
     llm_fallback_count = _scrape_llm_fallback_count(base_url)
     sampler.stop()
-    if server:
-        rc = server.stop()
+    final_server = server_ref[0]
+    if final_server is not None:
+        rc = final_server.stop()
         notes.append(f"server stopped: exit_code={rc}")
 
     invariants = _compute_invariants(
         results,
         llm_fallback_count,
         require_polling_observation=args.require_polling_observation,
+        multi_tenant=multi_tenant,
+        sigterm_injected=bool(sigterm_events),
     )
 
     out_path = _write_evidence(
@@ -790,17 +1262,21 @@ def main(argv: list[str] | None = None) -> int:
         samples=sampler.samples(),
         dry_run=False,
         invariants=invariants,
-        server_pid=server_pid,
-        server_log_path=server_log_path,
+        server_pid=server_pid_ref[0],
+        server_log_path=server_log_ref[0],
         out_dir=out_dir,
         notes=notes,
+        workload=workload,
+        sigterm_events=sigterm_events,
     )
     print(f"[soak] evidence written: {out_path}")
     print(
         f"[soak] invariants_held={invariants['invariants_held']} "
         f"submitted={invariants['submitted']} terminal={invariants['terminal']} "
         f"lost={invariants['lost_runs']} dups={invariants['duplicate_run_ids']} "
-        f"llm_fallback={invariants['llm_fallback_count']}"
+        f"llm_fallback={invariants['llm_fallback_count']} "
+        f"in_flight_at_restart={invariants.get('in_flight_at_restart_count', 0)} "
+        f"resumed={invariants.get('resumed_after_restart_count', 0)}"
     )
     return 0 if invariants["invariants_held"] else 1
 
