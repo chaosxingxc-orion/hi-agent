@@ -2,8 +2,8 @@
 
 **Date:** 2026-05-02
 **Branch:** wave-25-integration
-**Manifest:** `docs/releases/platform-release-manifest-2026-05-02-d05ed45f.json`
-Functional HEAD: b1b71465cc59d2803e0287b471c13c5c7865619c
+**Manifest:** `docs/releases/platform-release-manifest-2026-05-02-0e855076.json`
+Functional HEAD: 0e855076e04f8c5d4fab1300daa531c0b439e7ca
 notice-pre-final-commit: true
 
 ---
