@@ -33,7 +33,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -172,7 +172,7 @@ def main() -> int:
         "provenance": "structural",
         "release_head": sha,
         "verified_head": sha,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "assertions": assertions,
         "notes": notes,
         "failing": failing,
