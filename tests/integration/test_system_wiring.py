@@ -268,13 +268,14 @@ class TestCLIRun:
 class TestServerRoundTrip:
     """Full round-trip: create server, POST /runs, verify run executes."""
 
-    @pytest.mark.skip(  # expiry_wave: Wave 30
+    @pytest.mark.skip(  # expiry_wave: permanent
         reason=(
             "H1-Track4: assertion accepts 'running' as a valid terminal state, "
             "meaning the test passes even when execution has not completed. "
             "Rule 4 honesty: this test needs a deterministic executor and a "
             "proper wait-for-terminal loop. Covered by test_e2e_customer_scenarios "
-            "TC01 which uses _wait_for_terminal with a real executor factory."
+            "TC01 which uses _wait_for_terminal with a real executor factory. "
+            "(W31-D D-2': permanent — superseded by TC01 coverage.)"
         )
     )
     def test_post_run_creates_and_starts(self) -> None:

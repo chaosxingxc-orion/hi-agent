@@ -94,7 +94,7 @@ def _kill(proc: subprocess.Popen) -> None:
         "durable RunQueue boot-wiring gap tracked as DF-pending."
     ),
     strict=False,
-    expiry_wave="Wave 30",
+    expiry_wave="permanent",  # W31-D D-2': Windows sandbox subprocess binding limit; runs in Linux CI only
 )
 def test_process_kill_restart(tmp_path):
     """E2E: submit a run, kill the process, restart, query the run.

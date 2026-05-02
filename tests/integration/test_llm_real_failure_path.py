@@ -97,7 +97,7 @@ async def test_503_gateway_exhausts_retries_raises_failover_error() -> None:
 
     call_count = 0
 
-    def _factory(api_key: str):  # expiry_wave: Wave 30
+    def _factory(api_key: str):  # expiry_wave: permanent (W31-D D-2': test-local fixture)
         nonlocal call_count
         call_count += 1
         return mock_always_503_gateway
