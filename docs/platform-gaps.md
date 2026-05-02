@@ -1,6 +1,6 @@
 # hi-agent Platform Gaps — Response to Research Roadmap 2026-04-16
 
-**Last updated**: 2026-04-30 (Wave 25 — P-4 PARTIAL; W24 Memory/Capability/Cross-Run lifts)
+**Last updated**: 2026-05-02 (Wave 28 — governance truth-restoration; P-4 FULL unchanged; P-1..P-7 status unchanged from W27)
 **Source**: research/docs/hi-agent-strategic-roadmap-2026-04-16.md
 **Contact**: hi-agent platform team
 

@@ -59,13 +59,18 @@ def _latest_manifest() -> dict | None:
 
 
 def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
-    """Return True if commits between manifest_head..current_head only touch docs/releases/.
+    """Return True if commits between manifest_head..current_head are docs-only per Rule 14.
 
-    Only called when --allow-docs-only-gap is passed; raises RuntimeError on subprocess error
-    so the caller can treat gap detection failure as non-permissive.
+    Rule 14 definition: all changed files match docs/** EXCLUDING the two
+    functional governance configs (score_caps.yaml, allowlists.yaml).
+    Raises RuntimeError on subprocess error so the caller treats gap failure as non-permissive.
     """
     if manifest_head == current_head:
         return True
+    _FUNCTIONAL_DOCS = frozenset({
+        "docs/governance/score_caps.yaml",
+        "docs/governance/allowlists.yaml",
+    })
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", f"{manifest_head}..{current_head}"],
@@ -74,11 +79,10 @@ def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
         if result.returncode != 0:
             raise RuntimeError(f"git diff exited {result.returncode}: {result.stderr.strip()}")
         changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-        _docs_prefixes = (
-            "docs/releases/", "docs/verification/", "docs/delivery/",
-            "docs/downstream-responses/", "docs/governance/", "docs/scorecard",
+        return (
+            all(f.startswith("docs/") and f not in _FUNCTIONAL_DOCS for f in changed)
+            and bool(changed)
         )
-        return all(any(f.startswith(p) for p in _docs_prefixes) for f in changed) and bool(changed)
     except RuntimeError:
         raise
     except Exception as exc:
