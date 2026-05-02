@@ -8,6 +8,14 @@ W31-N adds:
   * Built-in ``GET /v1/health`` route that returns ``{"status": "ok"}``
     so operators (and the W31-N1 acceptance test) can probe a serving
     instance with a single request.
+  * (N.4) Optional ``tenant_event_emitter`` parameter on :func:`build_app`
+    so the bootstrap can inject :func:`hi_agent.observability.spine_events.
+    emit_tenant_context` without the middleware needing to import it.
+  * (N.9) ``include_mcp_tools`` and ``include_skills_memory`` default to
+    ``False`` because the corresponding routers are L1 stubs. The bootstrap
+    flips them to True only when an idempotency_facade has been wired
+    (production path) so dev-time builds stay quiet.
+  * (N-12) ``AGENT_SERVER_API_VERSION`` re-exported via ``__all__``.
 """
 from __future__ import annotations
 
@@ -17,7 +25,10 @@ from starlette.responses import JSONResponse
 
 from agent_server import AGENT_SERVER_API_VERSION
 from agent_server.api.middleware.idempotency import register_idempotency_middleware
-from agent_server.api.middleware.tenant_context import TenantContextMiddleware
+from agent_server.api.middleware.tenant_context import (
+    TenantContextMiddleware,
+    TenantEventEmitter,
+)
 from agent_server.api.routes_artifacts import build_router as _build_artifacts_router
 from agent_server.api.routes_gates import build_router as _build_gates_router
 from agent_server.api.routes_manifest import build_router as _build_manifest_router
@@ -35,7 +46,9 @@ from agent_server.facade.idempotency_facade import IdempotencyFacade
 from agent_server.facade.manifest_facade import ManifestFacade
 from agent_server.facade.run_facade import RunFacade
 
-__all__ = ["build_app"]
+# W31-N (N-12): export AGENT_SERVER_API_VERSION through the package
+# surface so callers don't need to reach into agent_server.config.
+__all__ = ["build_app", "AGENT_SERVER_API_VERSION"]
 
 
 def build_app(
@@ -46,8 +59,9 @@ def build_app(
     manifest_facade: ManifestFacade | None = None,
     idempotency_facade: IdempotencyFacade | None = None,
     idempotency_strict: bool | None = None,
-    include_mcp_tools: bool = True,
-    include_skills_memory: bool = True,
+    tenant_event_emitter: TenantEventEmitter | None = None,
+    include_mcp_tools: bool = False,
+    include_skills_memory: bool = False,
     include_gates: bool = True,
 ) -> FastAPI:
     """Construct the agent_server ASGI app with routes + middleware wired.
@@ -75,14 +89,20 @@ def build_app(
         that don't care about idempotency leave it ``None``.
     idempotency_strict:
         Override for the strict flag of :class:`IdempotencyMiddleware`.
-        ``None`` (the default) lets the middleware pick from
-        :class:`hi_agent.config.posture.Posture.from_env`.
+        ``None`` (the default) lets the middleware pick from the
+        bootstrap-derived flag on the facade.
+    tenant_event_emitter:
+        Optional callable invoked once per request with the validated
+        ``tenant_id`` (W31-N N.4). The bootstrap binds the real spine
+        emitter; tests pass ``None`` and get a no-op default.
     include_mcp_tools:
-        When True (default), wire GET /v1/mcp/tools + POST /v1/mcp/tools/{name}
-        (W24-O).
+        When True, wire GET /v1/mcp/tools + POST /v1/mcp/tools/{name}
+        (L1 stub, W24-O). Defaults to False (W31-N N.9). The bootstrap
+        opts in only when ``idempotency_facade`` is wired.
     include_skills_memory:
-        When True (default), wire POST /v1/skills + POST /v1/memory/write
-        (W24-P).
+        When True, wire POST /v1/skills + POST /v1/memory/write (L1 stub,
+        W24-P). Defaults to False (W31-N N.9). The bootstrap opts in
+        only when ``idempotency_facade`` is wired.
     include_gates:
         When True (default), wire POST /v1/gates/{gate_id}/decide.
     """
@@ -99,7 +119,12 @@ def build_app(
         register_idempotency_middleware(
             app, facade=idempotency_facade, strict=idempotency_strict
         )
-    app.add_middleware(TenantContextMiddleware)
+    if tenant_event_emitter is not None:
+        app.add_middleware(
+            TenantContextMiddleware, tenant_event_emitter=tenant_event_emitter
+        )
+    else:
+        app.add_middleware(TenantContextMiddleware)
 
     @app.get("/v1/health")
     async def _health(_request: Request) -> JSONResponse:  # pragma: no cover - smoke
@@ -127,7 +152,9 @@ def build_app(
     if include_mcp_tools:
         app.include_router(_build_mcp_tools_router())
     if include_skills_memory:
-        app.include_router(_build_skills_memory_router())
+        app.include_router(
+            _build_skills_memory_router(idempotency_facade=idempotency_facade)
+        )
     if include_gates:
         app.include_router(_build_gates_router())
     return app

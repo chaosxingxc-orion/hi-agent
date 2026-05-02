@@ -16,7 +16,10 @@ Posture-aware (Rule 11):
     * dev    — missing header → handler runs without idempotency.
     * research/prod — missing header on a mutating route → 400.
 
-This module imports only from agent_server.* and starlette.* per R-AS-1.
+W31-N (N.4): the strict-flag default is read from the facade itself
+(:attr:`IdempotencyFacade.is_strict`), which the bootstrap stamps from
+the posture. This module imports only from agent_server.* and
+starlette.* per R-AS-1.
 """
 from __future__ import annotations
 
@@ -25,7 +28,6 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from hi_agent.config.posture import Posture
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -203,11 +205,13 @@ def register_idempotency_middleware(
     middleware-internal types. The order is: tenant middleware first
     (validates X-Tenant-Id), then idempotency middleware (consumes it).
 
-    ``strict`` defaults to ``Posture.from_env().is_strict`` when ``None``,
-    so research/prod deployments automatically enforce idempotency keys
-    without callers needing to set it explicitly (Rule 11).
+    ``strict`` defaults to :attr:`IdempotencyFacade.is_strict` (stamped by
+    the bootstrap from posture) when ``None``, so research/prod
+    deployments automatically enforce idempotency keys without callers
+    needing to set it explicitly (Rule 11). W31-N N.4 removes the prior
+    direct dependency on :class:`hi_agent.config.posture.Posture`.
     """
-    effective_strict = Posture.from_env().is_strict if strict is None else strict
+    effective_strict = facade.is_strict if strict is None else strict
     app.add_middleware(
         IdempotencyMiddleware,
         facade=facade,

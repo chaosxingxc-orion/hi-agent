@@ -1,11 +1,12 @@
 """Northbound HTTP route handler for POST /v1/gates/{gate_id}/decide.
 
 Per R-AS-1 this module imports ONLY from agent_server.contracts and
-agent_server.facade — never from hi_agent.* directly (the
-GateDecisionRequest import is an exception: it's from hi_agent.contracts
-because it is the canonical contract type; it is not a hi_agent runtime
-dependency). Per R-AS-4 every handler reads the tenant context from
-request.state (set by TenantContextMiddleware), never from the request body.
+agent_server.facade — never from hi_agent.* directly. W31-N (N.5)
+introduced :class:`agent_server.contracts.gate.GateDecisionRequest` so
+the previous deferred ``from hi_agent.contracts.gate_decision import
+GateDecisionRequest`` is no longer required and has been removed. Per
+R-AS-4 every handler reads the tenant context from request.state (set
+by TenantContextMiddleware), never from the request body.
 
 # tdd-red-sha: e2c8c34a
 """
@@ -18,6 +19,7 @@ from fastapi import APIRouter, Request
 from starlette.responses import JSONResponse
 
 from agent_server.contracts.errors import ContractError
+from agent_server.contracts.gate import GateDecisionRequest
 from agent_server.contracts.tenancy import TenantContext
 
 
@@ -87,9 +89,6 @@ def build_router() -> APIRouter:
             return _error_response(err)
 
         # Build the GateDecisionRequest contract object for downstream use.
-        # Import is deferred to avoid circular imports at module init.
-        from hi_agent.contracts.gate_decision import GateDecisionRequest
-
         decided_at = str(body.get("decided_at", "")).strip()
         if not decided_at:
             decided_at = datetime.datetime.now(tz=datetime.UTC).isoformat()

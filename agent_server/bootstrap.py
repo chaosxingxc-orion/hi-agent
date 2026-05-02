@@ -43,6 +43,7 @@ from fastapi import FastAPI
 # These hi_agent imports are SCOPED to this module per R-AS-1. The
 # linter/governance gates accept this file as the single seam.
 from hi_agent.config.posture import Posture
+from hi_agent.observability.spine_events import emit_tenant_context
 from hi_agent.server.idempotency import IdempotencyStore
 
 from agent_server.api import build_app
@@ -217,8 +218,18 @@ def build_production_app(
     posture = Posture.from_env()
 
     # Idempotency: persistent store + facade + middleware-ready.
+    # W31-N N.4: pass the posture-derived is_strict flag so route handlers
+    # can read it without importing hi_agent.config.posture themselves.
     idem_store = IdempotencyStore(db_path=resolved_state_dir / "idempotency.db")
-    idem_facade = IdempotencyFacade(store=idem_store)
+    idem_facade = IdempotencyFacade(
+        store=idem_store, is_strict=posture.is_strict
+    )
+
+    # W31-N N.4: bind the real spine emitter for tenant context. The
+    # bootstrap is the only seam allowed to hand this to the middleware
+    # so route-level tests stay decoupled from hi_agent internals.
+    def _tenant_event_emitter(tenant_id: str) -> None:
+        emit_tenant_context(tenant_id=tenant_id)
 
     # Run/event/artifact backends — in-process stubs for W31-N1/N2.
     backend = _InProcessRunBackend()
@@ -245,6 +256,12 @@ def build_production_app(
         manifest_facade=manifest_facade,
         idempotency_facade=idem_facade,
         idempotency_strict=posture.is_strict,
+        tenant_event_emitter=_tenant_event_emitter,
+        # W31-N N.9: opt-in to L1 stub routers because production has the
+        # idempotency facade (and per-tenant scoping) wired. Default-off
+        # builds (route-level unit tests) keep them silent.
+        include_mcp_tools=True,
+        include_skills_memory=True,
     )
 
     # Stash references so the uvicorn worker / shutdown hook can reach

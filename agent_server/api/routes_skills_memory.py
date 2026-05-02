@@ -16,11 +16,19 @@ agent_server.facade — never from hi_agent.* directly. Per R-AS-4 every
 handler reads the tenant context from request.state (set by
 TenantContextMiddleware), never from the request body.
 
+W31-N (N.4): The is_strict flag is read from an injected
+:class:`IdempotencyFacade` (constructed with the posture-derived flag in
+the bootstrap), or falls back to the global ``HI_AGENT_POSTURE`` flag
+through a runtime-resolved env-only helper that does NOT import the
+hi_agent package. Removing the previous deferred ``from
+hi_agent.config.posture import Posture`` closes N-3.
+
 # tdd-red-sha: e2c8c34a
 """
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -30,21 +38,49 @@ from agent_server.contracts.errors import ContractError
 from agent_server.contracts.memory import MemoryTierEnum, MemoryWriteRequest
 from agent_server.contracts.skill import SkillRegistration
 from agent_server.contracts.tenancy import TenantContext
+from agent_server.facade.idempotency_facade import IdempotencyFacade
 
 _log = logging.getLogger("agent_server.skills_memory")
 
 _IDEMPOTENCY_HEADER = "Idempotency-Key"
 
+# Posture values that are considered strict (research/prod). W31-N (N.4):
+# resolved by reading HI_AGENT_POSTURE directly so the route module avoids
+# any dependency on the hi_agent package. The bootstrap-derived flag on
+# the injected facade takes precedence; this env fallback only applies
+# when no facade is wired (e.g. unit tests that opt out of idempotency).
+_STRICT_POSTURE_VALUES = frozenset({"research", "prod"})
 
-def build_router() -> APIRouter:
+
+def _strict_from_env() -> bool:
+    """Return True when HI_AGENT_POSTURE is set to research or prod.
+
+    Provides the route handler with a posture-strict signal without
+    importing ``hi_agent.config.posture`` (R-AS-1). Mirrors the semantics
+    of :class:`hi_agent.config.posture.Posture.from_env().is_strict`.
+    """
+    return os.environ.get("HI_AGENT_POSTURE", "dev").lower() in _STRICT_POSTURE_VALUES
+
+
+def build_router(*, idempotency_facade: IdempotencyFacade | None = None) -> APIRouter:
     """Build the /v1/skills and /v1/memory routers (W24-P).
 
     Idempotency is handled at the handler level (not middleware) so that
     the exact response envelope is under this module's control.  The
     handler reads the ``Idempotency-Key`` header and logs a WARNING under
     research/prod posture when it is missing, returning 400.
+
+    W31-N (N.4): When ``idempotency_facade`` is supplied (production
+    bootstrap) the strict flag is read from it. Otherwise the strict
+    decision falls back to :func:`_strict_from_env` so legacy unit tests
+    that build a router without a facade continue to behave correctly.
     """
     router = APIRouter(tags=["skills-memory"])
+
+    def _is_strict() -> bool:
+        if idempotency_facade is not None:
+            return idempotency_facade.is_strict
+        return _strict_from_env()
 
     def _error_response(exc: ContractError) -> JSONResponse:
         return JSONResponse(
@@ -69,12 +105,9 @@ def build_router() -> APIRouter:
         Under research/prod posture (is_strict) a missing key raises 400.
         Under dev posture a WARNING is logged and None is returned.
         """
-        from hi_agent.config.posture import Posture
-
         key = request.headers.get(_IDEMPOTENCY_HEADER, "").strip()
         if not key:
-            posture = Posture.from_env()
-            if posture.is_strict:
+            if _is_strict():
                 err = ContractError(
                     f"missing required {_IDEMPOTENCY_HEADER} header",
                     tenant_id=ctx.tenant_id,

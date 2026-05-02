@@ -61,22 +61,36 @@ class IdempotencyFacade:
         *,
         store: IdempotencyStore | None = None,
         db_path: str | Path | None = None,
+        is_strict: bool = False,
     ) -> None:
         """Construct a facade backed by an existing or new store.
 
         Either ``store`` (already-built) or ``db_path`` (path for a fresh
         store) must be supplied. Tests use ``db_path=tmp_path/...``.
+
+        W31-N (N.4): ``is_strict`` carries the posture-derived strict flag.
+        Route handlers consult :attr:`is_strict` to decide whether a missing
+        ``Idempotency-Key`` is a hard 400 or a dev-tolerable warning. The
+        bootstrap module is the single seam allowed to derive this value
+        from :class:`hi_agent.config.posture.Posture`; route handlers
+        themselves never import Posture.
         """
         if store is None and db_path is None:
             raise ValueError("IdempotencyFacade requires either store or db_path")
         if store is not None:
             self._store = store
             self._owns_store = False
-            return
-        # db_path branch — caller asked us to build a fresh store
-        assert db_path is not None  # mypy: above guard ensures it
-        self._store = IdempotencyStore(db_path=db_path)
-        self._owns_store = True
+        else:
+            # db_path branch — caller asked us to build a fresh store
+            assert db_path is not None  # mypy: above guard ensures it
+            self._store = IdempotencyStore(db_path=db_path)
+            self._owns_store = True
+        self._is_strict = bool(is_strict)
+
+    @property
+    def is_strict(self) -> bool:
+        """Return whether the strict posture rule applies (W31-N N.4)."""
+        return self._is_strict
 
     # ------------------------------------------------------------------
     # Public API used by IdempotencyMiddleware
