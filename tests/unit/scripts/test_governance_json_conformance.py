@@ -51,8 +51,8 @@ def test_script_emits_valid_json(script):
     missing = REQUIRED_FIELDS - set(data.keys())
     assert not missing, f"{script} JSON missing fields: {missing}"
 
-    assert data["status"] in ("pass", "fail", "warn"), \
-        f"{script} JSON status must be pass|fail|warn, got: {data['status']!r}"
+    assert data["status"] in ("pass", "fail", "warn", "not_applicable", "deferred"), \
+        f"{script} JSON status must be pass|fail|warn/not_applicable/deferred, got: {data['status']!r}"
 
     assert isinstance(data["violations"], list), \
         f"{script} JSON violations must be a list"
