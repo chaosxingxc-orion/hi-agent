@@ -52,9 +52,7 @@ def _is_gov_infra_path(path: str) -> bool:
     if "/" not in path and path.endswith(".md"):
         return True
     # Module-level ARCHITECTURE.md (e.g. hi_agent/ARCHITECTURE.md)
-    if path.endswith("/ARCHITECTURE.md"):
-        return True
-    return False
+    return path.endswith("/ARCHITECTURE.md")
 
 
 def _is_gov_infra_commit(sha: str) -> bool:
@@ -85,7 +83,11 @@ def _is_gov_infra_commit(sha: str) -> bool:
         )
         if r.returncode != 0 or not r.stdout.strip():
             return False
-        return all(_is_gov_infra_path(line.strip()) for line in r.stdout.splitlines() if line.strip())
+        return all(
+            _is_gov_infra_path(line.strip())
+            for line in r.stdout.splitlines()
+            if line.strip()
+        )
     except Exception:
         return False
 
