@@ -235,7 +235,6 @@ def check_score_cap(notice: Path | None = None) -> list[str]:
                     _evid_sha = _m.group(1)
                     with contextlib.suppress(Exception):
                         import sys as _sys
-                        import os as _os
                         _scripts = Path(__file__).parent
                         if str(_scripts) not in _sys.path:
                             _sys.path.insert(0, str(_scripts))

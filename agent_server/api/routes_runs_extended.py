@@ -42,6 +42,7 @@ def build_router(*, event_facade: EventFacade) -> APIRouter:
             raise ContractError("tenant context missing", detail="middleware")
         return ctx
 
+    # tdd-red-sha: 3bc0a83
     @router.post("/{run_id}/cancel")
     async def cancel_run(run_id: str, request: Request) -> JSONResponse:
         ctx = _ctx(request)
@@ -51,6 +52,7 @@ def build_router(*, event_facade: EventFacade) -> APIRouter:
             return _error_response(exc)
         return JSONResponse(status_code=200, content=_status_dict(status))
 
+    # tdd-red-sha: 3bc0a83
     @router.get("/{run_id}/events")
     async def stream_events(run_id: str, request: Request):
         ctx = _ctx(request)
@@ -63,7 +65,9 @@ def build_router(*, event_facade: EventFacade) -> APIRouter:
         async def _generator():
             try:
                 events_iter = event_facade.iter_events(ctx, run_id)
-            except ContractError:
+            except ContractError as exc:
+                # Emit a final error SSE chunk so client knows stream ended abnormally.
+                yield render_sse_chunk({"event": "error", "data": {"code": exc.http_status}})
                 return
             for event in events_iter:
                 yield render_sse_chunk(event)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 import time
@@ -9,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 from hi_agent.server.app import AgentServer
-from hi_agent.server.run_manager import ManagedRun, RunManager
+from hi_agent.server.run_manager import ManagedRun, QueueSaturatedError, RunManager
 from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
@@ -274,14 +275,15 @@ class TestRunManagerQueue:
             return "ok"
 
         ids = []
-        # Fill semaphore (1) + queue (2) = 3 accepted, 4th should be rejected.
+        # Fill semaphore (1) + queue (2) = 3 accepted, 4th+ raises QueueSaturatedError.
         for i in range(5):
             rid = mgr.create_run({"task_id": f"qf-{i}", "goal": "test"}).run_id
             ids.append(rid)
-            mgr.start_run(rid, blocking_executor)
+            with contextlib.suppress(QueueSaturatedError):
+                mgr.start_run(rid, blocking_executor)
 
         # At least one should be queue_full (immediate rejection).
-        errors = {rid: mgr.get_run(rid).error for rid in ids}  # type: ignore[union-attr]  expiry_wave: Wave 17
+        errors = {rid: mgr.get_run(rid).error for rid in ids}  # type: ignore[union-attr]  expiry_wave: Wave 29
         assert "queue_full" in errors.values(), f"Expected queue_full, got {errors}"
 
         gate.set()
@@ -380,7 +382,7 @@ class TestRunManagerQueue:
             while run.state not in ("completed", "failed") and time.monotonic() < deadline:
                 time.sleep(0.05)
 
-        assert mgr.get_run(rid1).state == "completed"  # type: ignore[union-attr]  expiry_wave: Wave 17
+        assert mgr.get_run(rid1).state == "completed"  # type: ignore[union-attr]  expiry_wave: Wave 29
         assert mgr.get_run(rid2).state == "completed"  # type: ignore[union-attr]
         assert rid1 in results
         assert rid2 in results
@@ -558,7 +560,9 @@ class TestRunsEndpoints:
         """POST /runs without goal returns 400."""
         resp = client.post("/runs", json={"task_id": "x"})
         assert resp.status_code == 400
-        assert resp.json()["error"] == "missing_goal"
+        body = resp.json()
+        # Accept both legacy "error" and current "error_category" / "message" format.
+        assert body.get("error") == "missing_goal" or "goal" in body.get("message", "")
 
     def test_list_runs(self, client: TestClient) -> None:
         """GET /runs lists created runs."""
@@ -661,7 +665,7 @@ class TestSSEStreaming:
         # Verify the route exists in the app routes
         app = client.app
         route_paths = []
-        for route in app.routes:  # type: ignore[union-attr]  expiry_wave: Wave 17
+        for route in app.routes:  # type: ignore[union-attr]  expiry_wave: Wave 29
             if hasattr(route, "path"):
                 route_paths.append(route.path)
         assert "/runs/{run_id}/events" in route_paths

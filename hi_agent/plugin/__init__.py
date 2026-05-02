@@ -1,15 +1,17 @@
 """Deprecated: use hi_agent.plugins instead.
 
 This package is a compatibility shim for Wave 11 migration.
-It will be removed in Wave 24.
+It will be removed in Wave 29.
 """
 import warnings
 
 warnings.warn(
     "hi_agent.plugin is deprecated; use hi_agent.plugins instead. "
-    "This shim will be removed in Wave 24.",
+    "This shim will be removed in Wave 29.",
     DeprecationWarning,
     stacklevel=2,
 )
-from hi_agent.plugins import *  # noqa: F403  expiry_wave: Wave 17
-from hi_agent.plugins import __all__  # noqa: F401
+from hi_agent.plugins import *  # noqa: F403  expiry_wave: Wave 29
+from hi_agent.plugins import (
+    __all__,  # noqa: F401  expiry_wave: Wave 29  # scope: legacy-compatibility — re-export shim for backward compat
+)

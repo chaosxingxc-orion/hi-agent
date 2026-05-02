@@ -15,7 +15,7 @@ import urllib.error
 import urllib.request
 
 
-def register(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+def register(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]  # expiry_wave: Wave 29
     parser = subparsers.add_parser(
         "cancel",
         help="Cancel a run via /v1/runs/{id}/cancel (or /signal fallback).",

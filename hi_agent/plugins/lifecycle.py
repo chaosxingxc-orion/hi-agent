@@ -74,7 +74,7 @@ class PluginLifecycle:
             if spec is None or spec.loader is None:
                 return False
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)  # type: ignore[union-attr]  expiry_wave: Wave 17
+            spec.loader.exec_module(module)  # type: ignore[union-attr]  expiry_wave: Wave 29
 
             hook_fn = getattr(module, hook_name, None)
             if hook_fn is None:

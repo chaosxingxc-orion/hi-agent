@@ -1,0 +1,219 @@
+{
+  "schema_version": "2",
+  "version": 2,
+  "check": "operator_drill",
+  "provenance": "simulated_pending_pm2",
+  "all_passed": true,
+  "head": "475fc41b",
+  "scenarios": [
+    {
+      "name": "stuck_run",
+      "duration_s": 0.16,
+      "passed": true,
+      "provenance": "simulated_pending_pm2",
+      "notes": "ops surfaces partially available (full status=404, diagnose=404); cancel->terminal (cancelled) verified, but full stall introspection requires a PM2-managed worker to inject SIGSTOP.",
+      "evidence": {
+        "run_id": "0c05cee4-4036-4b3f-91a3-285be6c2f74a",
+        "runs_endpoint_status": 200,
+        "ops_full_endpoint_status": 404,
+        "ops_diagnose_endpoint_status": 404,
+        "cancel_status": 200,
+        "final_state": "cancelled",
+        "current_stage_observed": null
+      }
+    },
+    {
+      "name": "provider_outage",
+      "duration_s": 20.14,
+      "passed": true,
+      "provenance": "simulated_pending_pm2",
+      "notes": "operator surfaces healthy but HI_AGENT_FAULT_LLM_TIMEOUT was not active - full provider-outage drill requires the driver to set the fault env before server start (PM2-managed restart).",
+      "evidence": {
+        "fault_active_in_env": false,
+        "health_status": 200,
+        "metrics_status": 200,
+        "ready_status": 200,
+        "submit_status": 201,
+        "run_id": "d114518d-739c-4b74-aafa-ae0d27ea4bc4",
+        "final_state": "timeout",
+        "metric_keys_count": 13
+      }
+    },
+    {
+      "name": "db_contention",
+      "duration_s": 0.25,
+      "passed": true,
+      "provenance": "real",
+      "notes": "burst 6/6 unique ids submitted in 174.4ms; list coverage 6/6; /health stable 200->200",
+      "evidence": {
+        "burst_size": 6,
+        "burst_elapsed_ms": 174.4,
+        "pre_health_status": 200,
+        "post_health_status": 200,
+        "metrics_status": 200,
+        "list_status": 200,
+        "submitted_count": 6,
+        "submit_status_codes": [
+          201,
+          201,
+          201,
+          201,
+          201,
+          201
+        ],
+        "all_run_ids_unique": true,
+        "list_coverage": 6,
+        "list_coverage_ratio": 1.0
+      }
+    },
+    {
+      "name": "restart_mid_run",
+      "duration_s": 20.36,
+      "passed": true,
+      "provenance": "simulated_pending_pm2",
+      "notes": "visibility/listing/health invariants hold (pre=True, listed=True, health=200); run state=timeout did not reach terminal in budget - true restart-mid-run drill requires PM2-managed SIGTERM cycle.",
+      "evidence": {
+        "fault_active_in_env": false,
+        "submit_status": 201,
+        "run_id": "53a2a0cc-0ded-4532-b0f6-bb5ce3891112",
+        "pre_get_status": 200,
+        "list_status": 200,
+        "run_listed": true,
+        "final_state": "timeout",
+        "post_health_status": 200
+      }
+    },
+    {
+      "name": "slo_burn",
+      "duration_s": 0.19,
+      "passed": true,
+      "provenance": "real",
+      "notes": "slo=200 alerts=200 runbook=200 metrics=200 dashboard=200 - burn-budget surfaces all healthy; sustained-burn assertion deferred to soak.",
+      "evidence": {
+        "burst_post_codes": [
+          201,
+          201,
+          201
+        ],
+        "slo_status": 200,
+        "alerts_status": 200,
+        "runbook_status": 200,
+        "metrics_status": 200,
+        "dashboard_status": 200,
+        "slo_payload_kind": "dict",
+        "alerts_count": 0
+      }
+    }
+  ],
+  "scenarios_total": 5,
+  "scenarios_passed": 5,
+  "scenarios_real": 2,
+  "scenarios_real_pm2": 0,
+  "scenarios_simulated_pending_pm2": 3,
+  "actions": [
+    {
+      "name": "stuck_run",
+      "duration_s": 0.16,
+      "passed": true,
+      "provenance": "simulated_pending_pm2",
+      "notes": "ops surfaces partially available (full status=404, diagnose=404); cancel->terminal (cancelled) verified, but full stall introspection requires a PM2-managed worker to inject SIGSTOP.",
+      "evidence": {
+        "run_id": "0c05cee4-4036-4b3f-91a3-285be6c2f74a",
+        "runs_endpoint_status": 200,
+        "ops_full_endpoint_status": 404,
+        "ops_diagnose_endpoint_status": 404,
+        "cancel_status": 200,
+        "final_state": "cancelled",
+        "current_stage_observed": null
+      }
+    },
+    {
+      "name": "provider_outage",
+      "duration_s": 20.14,
+      "passed": true,
+      "provenance": "simulated_pending_pm2",
+      "notes": "operator surfaces healthy but HI_AGENT_FAULT_LLM_TIMEOUT was not active - full provider-outage drill requires the driver to set the fault env before server start (PM2-managed restart).",
+      "evidence": {
+        "fault_active_in_env": false,
+        "health_status": 200,
+        "metrics_status": 200,
+        "ready_status": 200,
+        "submit_status": 201,
+        "run_id": "d114518d-739c-4b74-aafa-ae0d27ea4bc4",
+        "final_state": "timeout",
+        "metric_keys_count": 13
+      }
+    },
+    {
+      "name": "db_contention",
+      "duration_s": 0.25,
+      "passed": true,
+      "provenance": "real",
+      "notes": "burst 6/6 unique ids submitted in 174.4ms; list coverage 6/6; /health stable 200->200",
+      "evidence": {
+        "burst_size": 6,
+        "burst_elapsed_ms": 174.4,
+        "pre_health_status": 200,
+        "post_health_status": 200,
+        "metrics_status": 200,
+        "list_status": 200,
+        "submitted_count": 6,
+        "submit_status_codes": [
+          201,
+          201,
+          201,
+          201,
+          201,
+          201
+        ],
+        "all_run_ids_unique": true,
+        "list_coverage": 6,
+        "list_coverage_ratio": 1.0
+      }
+    },
+    {
+      "name": "restart_mid_run",
+      "duration_s": 20.36,
+      "passed": true,
+      "provenance": "simulated_pending_pm2",
+      "notes": "visibility/listing/health invariants hold (pre=True, listed=True, health=200); run state=timeout did not reach terminal in budget - true restart-mid-run drill requires PM2-managed SIGTERM cycle.",
+      "evidence": {
+        "fault_active_in_env": false,
+        "submit_status": 201,
+        "run_id": "53a2a0cc-0ded-4532-b0f6-bb5ce3891112",
+        "pre_get_status": 200,
+        "list_status": 200,
+        "run_listed": true,
+        "final_state": "timeout",
+        "post_health_status": 200
+      }
+    },
+    {
+      "name": "slo_burn",
+      "duration_s": 0.19,
+      "passed": true,
+      "provenance": "real",
+      "notes": "slo=200 alerts=200 runbook=200 metrics=200 dashboard=200 - burn-budget surfaces all healthy; sustained-burn assertion deferred to soak.",
+      "evidence": {
+        "burst_post_codes": [
+          201,
+          201,
+          201
+        ],
+        "slo_status": 200,
+        "alerts_status": 200,
+        "runbook_status": 200,
+        "metrics_status": 200,
+        "dashboard_status": 200,
+        "slo_payload_kind": "dict",
+        "alerts_count": 0
+      }
+    }
+  ],
+  "actions_total": 5,
+  "actions_passed": 5,
+  "command": "python scripts/run_operator_drill.py --version 2 --base-url http://127.0.0.1:8082",
+  "start_ts": "2026-04-30T20:22:09.313545+00:00",
+  "finish_ts": "2026-04-30T20:22:50.482350+00:00",
+  "generated_at": "2026-04-30T20:22:50.482350+00:00"
+}

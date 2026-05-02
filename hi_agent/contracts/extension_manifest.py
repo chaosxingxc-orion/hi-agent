@@ -29,7 +29,7 @@ class ExtensionDisallowedError(Exception):
         self.reasons: list[str] = reasons if reasons is not None else []
 
 
-class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 17
+class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 29
     """Raised when a dangerous extension requires human gate approval to enable."""
 
     def __init__(self, name: str, version: str, dangerous_capabilities: list[str]) -> None:
@@ -46,7 +46,7 @@ class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818  e
         )
 
 
-class ExtensionTenantScopeRequired(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 17
+class ExtensionTenantScopeRequired(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 29
     """Raised when enabling an extension with tenant_scope requires a non-empty tenant_id."""
 
     def __init__(self, name: str, version: str, tenant_scope: str) -> None:
@@ -75,7 +75,7 @@ class ExtensionManifest(Protocol):
 
     Enforcement fields:
         required_posture: Minimum posture required to enable this extension.
-            "any" | "dev" | "strict" | "prod"  ("research" is deprecated; Wave 24 removal)
+            "any" | "dev" | "strict" | "prod"  ("research" is deprecated; Wave 29 removal)
         tenant_scope: Isolation scope of this extension.
             "global" | "tenant" | "user" | "session"
         dangerous_capabilities: List of dangerous capability tags, e.g.
@@ -92,7 +92,7 @@ class ExtensionManifest(Protocol):
     posture_support: dict[str, bool]
 
     # -- Enforcement fields --
-    required_posture: str  # "any" | "dev" | "strict" | "prod"  ("research" deprecated Wave 24)
+    required_posture: str  # "any" | "dev" | "strict" | "prod"  ("research" deprecated Wave 29)
     tenant_scope: str  # "global" | "tenant" | "user" | "session"
     dangerous_capabilities: list[str]  # e.g. ["filesystem_write", "network_egress"]
     config_schema: dict | None  # JSON Schema for config; None = no config required
@@ -145,7 +145,7 @@ class ExtensionManifestMixin:
         # Deprecation: "research" is a legacy alias for "strict"; map it and warn.
         if rp == "research":
             warnings.warn(
-                "required_posture='research' is deprecated and will be removed in Wave 24. "
+                "required_posture='research' is deprecated and will be removed in Wave 29. "
                 "Use 'strict' instead.",
                 DeprecationWarning,
                 stacklevel=2,
@@ -174,7 +174,7 @@ class ExtensionManifestMixin:
 
 
 _VALID_MANIFEST_KINDS = frozenset({"plugin", "kernel", "mcp_tool", "knowledge"})
-_VALID_REQUIRED_POSTURES = frozenset({"any", "dev", "research", "strict", "prod"})
+_VALID_REQUIRED_POSTURES = frozenset({"any", "dev", "research", "prod"})
 _VALID_TENANT_SCOPES = frozenset({"global", "tenant", "user", "session"})
 
 
@@ -192,6 +192,8 @@ class ExtensionRegistry:
         self._enabled: set[str] = set()
         # key: (name, version, tenant_id) -> gate_decision_id
         self._human_gate_approvals: dict[tuple[str, str, str], str] = {}
+        # one-level rollback history: name -> previous manifest
+        self._previous: dict[str, ExtensionManifest] = {}
 
     # ------------------------------------------------------------------
     # Registration
@@ -255,6 +257,91 @@ class ExtensionRegistry:
             key,
             kind,
             effective_posture.value,
+        )
+
+    def upgrade(
+        self,
+        name: str,
+        new_version: str,
+        new_entrypoint: object,
+        posture: Posture | None = None,
+    ) -> None:
+        """Replace an existing extension entry with a new version.
+
+        Saves the current entry to _previous[name] to allow one-level rollback.
+        The new manifest must pass the same validation as register().
+
+        Args:
+            name: Extension name to upgrade.
+            new_version: Version string for the new entry.
+            new_entrypoint: New manifest object implementing ExtensionManifest Protocol.
+            posture: Current deployment posture.  None defaults to dev-permissive.
+
+        Raises:
+            KeyError: If no extension with the given name is currently registered.
+            ValueError: If the new manifest fails validation.
+        """
+        current = self.lookup(name)
+        if current is None:
+            raise KeyError(
+                f"ExtensionRegistry.upgrade: no extension named {name!r} is registered; "
+                "register it first before upgrading"
+            )
+
+        # Save the current entry for rollback before mutating state.
+        self._previous[name] = current
+        current_key = f"{name}:{getattr(current, 'version', '')}"
+        del self._manifests[current_key]
+
+        # Register the new version via the normal validated path.
+        try:
+            self.register(new_entrypoint, posture)
+        except Exception:
+            # Roll back the deletion so the registry stays consistent.
+            self._manifests[current_key] = current
+            del self._previous[name]
+            raise
+
+        logger.info(
+            "ExtensionRegistry.upgrade: upgraded %r from version %r to %r",
+            name,
+            getattr(current, "version", "?"),
+            new_version,
+        )
+
+    def rollback(self, name: str) -> None:
+        """Revert to the previous version of an extension.
+
+        Restores the manifest saved by the most recent upgrade() call.
+        The current version entry is removed.
+
+        Args:
+            name: Extension name to roll back.
+
+        Raises:
+            KeyError: If no prior version is tracked for this extension.
+        """
+        previous = self._previous.get(name)
+        if previous is None:
+            raise KeyError(
+                f"ExtensionRegistry.rollback: no prior version tracked for extension {name!r}"
+            )
+
+        # Remove the current entry (if still present).
+        current = self.lookup(name)
+        if current is not None:
+            current_key = f"{name}:{getattr(current, 'version', '')}"
+            self._manifests.pop(current_key, None)
+
+        # Restore the previous entry.
+        prev_key = f"{name}:{getattr(previous, 'version', '')}"
+        self._manifests[prev_key] = previous
+        del self._previous[name]
+
+        logger.info(
+            "ExtensionRegistry.rollback: rolled back %r to version %r",
+            name,
+            getattr(previous, "version", "?"),
         )
 
     def _validate_enforcement_fields(
@@ -348,7 +435,7 @@ class ExtensionRegistry:
     # Enable gate
     # ------------------------------------------------------------------
 
-    def enable(self, name: str, version: str, posture: Posture | None = None, *, tenant_id: str = "") -> None:  # noqa: E501  expiry_wave: Wave 17
+    def enable(self, name: str, version: str, posture: Posture | None = None, *, tenant_id: str = "") -> None:  # noqa: E501  expiry_wave: Wave 29
         """Fail-closed gate: check production_eligibility before enabling.
 
         Args:

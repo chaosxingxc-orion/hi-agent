@@ -314,7 +314,7 @@ class TestCompressionWithRunnerFlow:
         for stage_id in STAGES:
             summary = executor.stage_summaries[stage_id]
             assert summary.stage_id == stage_id
-            assert summary.outcome in {"succeeded", "active", "inconclusive"}
+            assert summary.outcome == "succeeded"
 
     def test_raw_memory_populated_during_run(self) -> None:
         """Raw memory store should have records for every stage."""

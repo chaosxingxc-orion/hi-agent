@@ -10,7 +10,7 @@ import pytest
 class TestDevSmokeGoldenPath:
     """Full execution path with heuristic fallback (no API keys required)."""
 
-    @pytest.mark.skip(  # expiry_wave: Wave 26
+    @pytest.mark.skip(  # expiry_wave: Wave 29
         reason=(
             "H1-Track4: dev_smoke golden is heuristic-mode only; heuristic executor "
             "may return 'failed' or 'reflected' instead of 'completed', so asserting "

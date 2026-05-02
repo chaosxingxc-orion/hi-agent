@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from time import time
 from typing import TYPE_CHECKING
 
+from hi_agent.observability.silent_degradation import record_silent_degradation
+
 if TYPE_CHECKING:
     from hi_agent.observability.collector import MetricsCollector
 
@@ -208,7 +210,12 @@ class SLOMonitor:
                 success_target=self._success_target,
                 latency_target_ms=self._latency_target_ms,
             )
-        except ValueError:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
+        except ValueError as exc:
+            record_silent_degradation(
+                component="management.slo.SLOMonitor._build_snapshot",
+                reason="build_slo_snapshot_value_error",
+                exc=exc,
+            )
             return None
 
     def _emit_violations(self, snapshot: SLOSnapshot) -> None:

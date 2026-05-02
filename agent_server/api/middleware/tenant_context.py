@@ -29,7 +29,7 @@ SESSION_HEADER = "X-Session-Id"
 class TenantContextMiddleware(BaseHTTPMiddleware):
     """Inject a TenantContext into request state from request headers."""
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]  # expiry_wave: Wave 29
         tenant_id = request.headers.get(TENANT_HEADER, "").strip()
         if not tenant_id:
             err = AuthError(f"missing or empty {TENANT_HEADER} header")
@@ -40,4 +40,10 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             profile_id=request.headers.get(PROFILE_HEADER, "").strip(),
             session_id=request.headers.get(SESSION_HEADER, "").strip(),
         )
+        # w25-F: spine tap for tenant_context layer
+        try:
+            from hi_agent.observability.spine_events import emit_tenant_context
+            emit_tenant_context(tenant_id=tenant_id)
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
+            pass
         return await call_next(request)

@@ -1,0 +1,98 @@
+{
+  "provenance": "structural",
+  "release_head": "eaecff4e",
+  "verified_head": "eaecff4e",
+  "generated_at": "2026-05-02T07:33:30.086547+00:00",
+  "run_id": "99066162-a891-41fb-b84b-3fd8ca195cbc",
+  "event_count": 10,
+  "event_types": [
+    "run_queued",
+    "run_started",
+    "run_started",
+    "run_finalized",
+    "lease_acquired",
+    "run_completed",
+    "heartbeat_renewed",
+    "llm_call",
+    "run_finalized",
+    "run_completed"
+  ],
+  "layers_present": [
+    "http_request",
+    "middleware",
+    "tenant_context",
+    "run_manager",
+    "kernel_dispatch",
+    "reasoning_loop",
+    "capability_handler",
+    "llm_gateway",
+    "sync_bridge",
+    "http_transport",
+    "llm_provider_response",
+    "fallback_recorder",
+    "artifact_ledger",
+    "event_store"
+  ],
+  "layers_missing": [],
+  "layer_count": 14,
+  "coverage": "14/14",
+  "spine_ok": true,
+  "metrics_snapshot": {
+    "hi_agent_events_stored_total": {
+      "_total": 10.0
+    },
+    "hi_agent_spine_event_store_total": {
+      "_total": 11.0
+    },
+    "hi_agent_events_published_total": {
+      "_total": 4.0
+    },
+    "hi_agent_spine_run_manager_total": {
+      "_total": 1.0
+    },
+    "hi_agent_spine_tenant_context_total": {
+      "_total": 1.0
+    },
+    "hi_agent_spine_reasoning_loop_total": {
+      "_total": 1.0
+    },
+    "hi_agent_spine_capability_handler_total": {
+      "tool=\"unknown\"": 1.0
+    },
+    "hi_agent_spine_sync_bridge_total": {
+      "_total": 1.0
+    },
+    "hi_agent_spine_http_transport_total": {
+      "profile=\"unknown\"": 1.0
+    },
+    "hi_agent_spine_artifact_ledger_total": {
+      "_total": 1.0
+    },
+    "runs_total": {
+      "status=\"completed\"": 1.0
+    },
+    "hi_agent_runs_completed_total": {
+      "_total": 1.0
+    },
+    "hi_agent_http_requests_total": {
+      "_total": 1.0
+    },
+    "hi_agent_spine_trace_id_propagated_total": {
+      "_total": 1.0
+    },
+    "hi_agent_llm_fallback_total": {
+      "_total": 1.0
+    },
+    "hi_agent_thread_count": {
+      "_total": 2.0
+    }
+  },
+  "failures": [],
+  "status": "pass",
+  "_evidence_meta": {
+    "provenance": "structural",
+    "head_sha": "eaecff4e908b2de346fe5d9691127a0da97a697f",
+    "generated_at": "2026-05-02T07:33:30.797043+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\build_observability_spine_evidence.py"
+  }
+}

@@ -72,6 +72,7 @@ markers = [
     "windows_unsafe: test uses IOCP/asyncio in a way that hangs on Windows; excluded from default-offline on win32",
     "posture_matrix: parametrized posture-aware tests covering dev/research/prod branches (Rule 11)",
     "unit: pure unit tests (no network, no filesystem, no real dependencies)",
+    "chaos: chaos-injection tests that exercise fault scenarios against the real runtime",
 ]
 
 [tool.ruff]
@@ -105,7 +106,7 @@ omit = [
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 50
+fail_under = 60
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",

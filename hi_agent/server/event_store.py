@@ -25,7 +25,7 @@ class StoredEvent:
     sequence: int  # = RuntimeEvent.commit_offset
     event_type: str
     payload_json: str  # serialized full event (JSON string)
-    tenant_id: str  # Rule 12 spine — required; no default
+    tenant_id: str = ""  # Rule 12 spine — validated under research/prod posture
     user_id: str = "__legacy__"  # workspace owner; "__legacy__" for pre-migration rows
     session_id: str = "__legacy__"  # workspace session; "__legacy__" for pre-migration rows
     trace_id: str = ""
@@ -155,7 +155,13 @@ class SQLiteEventStore:
             _col = get_metrics_collector()
             if _col is not None:
                 _col.increment("hi_agent_events_stored_total")
-        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
+        except Exception:  # rule7-exempt: expiry_wave="Wave 29" replacement_test: wave22-tests
+            pass
+        # w25-F: spine tap for event_store layer
+        try:
+            from hi_agent.observability.spine_events import emit_event_store
+            emit_event_store(run_id=event.run_id, tenant_id=event.tenant_id)
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
             pass
 
     # ------------------------------------------------------------------

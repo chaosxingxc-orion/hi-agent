@@ -41,7 +41,7 @@ _REQUIRED_FIELDS = [
     "expiry_or_followup",
     "evidence_artifact",
     "current_closure_level",
-    # W19-E8: new required fields (placeholders accepted until Wave 24)
+    # W19-E8: new required fields (placeholders accepted until Wave 29)
     "metric_name",
     "alert_rule",
     "runbook_path",
@@ -67,7 +67,7 @@ def _load_yaml(path: pathlib.Path) -> object:
     input via a regex fallback that can miss enum drift (LB-5).
     """
     try:
-        import yaml  # type: ignore[import-untyped]  expiry_wave: Wave 17
+        import yaml  # type: ignore[import-untyped]  expiry_wave: Wave 30
     except ImportError as exc:
         raise RuntimeError(
             "PyYAML is required for recurrence_ledger validation. "

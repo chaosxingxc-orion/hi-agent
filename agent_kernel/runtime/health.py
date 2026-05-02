@@ -285,7 +285,7 @@ def sqlite_lock_contention_health_check(
                 )
             return HealthStatus.OK, f"SQLite lock acquired in {elapsed_ms:.1f}ms"
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK in health check error path; must not mask original exception
+            with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK in health check error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
                 if conn.in_transaction:
                     conn.execute("ROLLBACK")
             return HealthStatus.UNHEALTHY, f"SQLite lock probe failed: {exc}"

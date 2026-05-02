@@ -219,9 +219,9 @@ def _build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="LLM provider to verify against (default: auto)",
     )
-    parser.add_argument("--profile-id", default="t3_gate")
+    parser.add_argument("--profile-id", default="rule15_volces")
     parser.add_argument("--ready-timeout", type=float, default=120.0)
-    parser.add_argument("--poll-timeout", type=float, default=180.0)
+    parser.add_argument("--poll-timeout", type=float, default=600.0)
     parser.add_argument("--poll-interval", type=float, default=1.0)
     parser.add_argument("--request-timeout", type=float, default=15.0)
     parser.add_argument("--startup-timeout", type=float, default=30.0)

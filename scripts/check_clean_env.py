@@ -36,57 +36,109 @@ def _get_head_sha() -> str:
     return ""
 
 
-_GOV_INFRA_DIRS = frozenset({"docs/", "scripts/", ".github/"})
+_GOV_INFRA_DIRS = frozenset({"docs/", "scripts/", ".github/", "tests/governance/"})
+
+
+def _is_gov_infra_path(path: str) -> bool:
+    """Return True if a single file path is governance/infrastructure-only.
+
+    Includes ``_GOV_INFRA_DIRS`` prefixes plus root-level Markdown files
+    (README.md, ARCHITECTURE.md, CLAUDE.md, etc.) — these are documentation,
+    not runtime, so changes don't invalidate clean-env evidence.
+    """
+    if any(path.startswith(p) for p in _GOV_INFRA_DIRS):
+        return True
+    # Root-level Markdown files: ARCHITECTURE.md, README.md, CLAUDE.md, etc.
+    if "/" not in path and path.endswith(".md"):
+        return True
+    # Module-level ARCHITECTURE.md (e.g. hi_agent/ARCHITECTURE.md)
+    return path.endswith("/ARCHITECTURE.md")
 
 
 def _is_gov_infra_commit(sha: str) -> bool:
-    """Return True if every file changed in commit ``sha`` is under a gov-infra prefix."""
+    """Return True if every file changed in commit ``sha`` is under a gov-infra prefix.
+
+    For merge commits we use ``--first-parent`` so the diff matches what an
+    end-of-PR review would see. The walk in ``_find_functional_head`` then
+    descends correctly through the PR's history without being foiled by the
+    aggregated merge diff at the tip.
+    """
     try:
+        # Detect merge commits: a commit with >1 parent. For merges, classify
+        # using the second-parent (PR head) instead of the aggregate merge
+        # diff -- otherwise GitHub's PR merge commit always shows the full
+        # cumulative PR diff against main, defeating the gov-infra check.
+        parents = subprocess.run(
+            ["git", "rev-list", "--parents", "-n1", sha],
+            capture_output=True, text=True, timeout=10, cwd=str(ROOT),
+        )
+        target_sha = sha
+        if parents.returncode == 0:
+            tokens = parents.stdout.strip().split()
+            if len(tokens) > 2:  # merge commit: [sha, parent1, parent2, ...]
+                target_sha = tokens[2]
         r = subprocess.run(
-            ["git", "diff-tree", "--no-commit-id", "-r", "--name-only", sha],
+            ["git", "diff-tree", "--no-commit-id", "-r", "--name-only", target_sha],
             capture_output=True, text=True, timeout=15, cwd=str(ROOT),
         )
         if r.returncode != 0 or not r.stdout.strip():
             return False
-        files = r.stdout.strip().splitlines()
         return all(
-            any(f.replace("\\", "/").startswith(d) for d in _GOV_INFRA_DIRS)
-            for f in files
+            _is_gov_infra_path(line.strip())
+            for line in r.stdout.splitlines()
+            if line.strip()
         )
     except Exception:
         return False
 
 
-def _find_functional_head(head_sha: str) -> str:
-    """Walk backwards until we reach a non-gov-infra commit.
+def _walk_gov_infra_history(head_sha: str, max_depth: int = 50) -> list[str]:
+    """Return the list of SHAs reachable from head while every step is gov-infra.
 
-    Accepts a clean-env evidence file from a SHA if all commits between that
-    SHA and HEAD are gov-infra-only (docs/scripts/.github), matching the
-    same exemption logic as check_t3_freshness.py.
+    Stops at the first non-gov-infra commit (which is *included* in the result
+    so it can serve as the functional head). Bounded by ``max_depth`` to avoid
+    runaway walks.
+
+    Merge-commit handling: GitHub Actions creates a merge commit for PR CI
+    where the first parent is the base (main) and the second parent is the
+    PR head. We follow the PR head, not the base, so the walk descends
+    through the PR's own commits instead of veering into main.
     """
     sha = head_sha
-    for _ in range(20):  # bound walk depth
-        parent_result = subprocess.run(
-            ["git", "rev-parse", f"{sha}^"],
+    walked: list[str] = []
+    for _ in range(max_depth):
+        walked.append(sha)
+        if not _is_gov_infra_commit(sha):
+            return walked  # functional commit reached
+        parents_result = subprocess.run(
+            ["git", "rev-list", "--parents", "-n1", sha],
             capture_output=True, text=True, timeout=10, cwd=str(ROOT),
         )
-        if parent_result.returncode != 0:
+        if parents_result.returncode != 0:
             break
-        if not _is_gov_infra_commit(sha):
-            return sha  # this commit touches hot/functional files
-        sha = parent_result.stdout.strip()
-    return sha
+        tokens = parents_result.stdout.strip().split()
+        if len(tokens) < 2:  # root commit (no parents)
+            break
+        # Merge commit: [sha, first_parent, second_parent, ...] -> follow PR head.
+        sha = tokens[2] if len(tokens) > 2 else tokens[1]
+    return walked
+
+
+def _find_functional_head(head_sha: str) -> str:
+    """Last commit in the gov-infra walk -- backward compatible single-sha API."""
+    walked = _walk_gov_infra_history(head_sha)
+    return walked[-1] if walked else head_sha
 
 
 def _find_candidates(head_sha: str) -> list[Path]:
     """Find clean-env evidence files for the given HEAD SHA in both dirs.
 
-    Also searches by the "functional HEAD" — the last non-gov-infra commit
-    reachable from HEAD — so that evidence committed as a gov-infra-only
-    commit (docs/verification/ write) remains valid across the evidence commit.
+    Searches at every SHA in the gov-infra walk so that evidence written at
+    any earlier docs/scripts/.github-only commit remains valid across later
+    docs-only follow-ons (manifest commits, notice updates).
     """
-    functional_sha = _find_functional_head(head_sha)
-    shas_to_search = {head_sha, functional_sha}
+    shas_to_search = set(_walk_gov_infra_history(head_sha))
+    shas_to_search.add(head_sha)
 
     candidates: list[Path] = []
     for sha in shas_to_search:

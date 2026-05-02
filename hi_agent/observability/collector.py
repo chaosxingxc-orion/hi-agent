@@ -126,6 +126,12 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "MCP stderr-reader threads that did not exit within 5s on close() (Rule 7 alarm).",
     ),
+    # HD-8 / Rule 7: closed FD detected on MCP transport invoke (alarm bell).
+    "mcp_transport_closed_fd_total": _MetricDef(
+        "mcp_transport_closed_fd_total",
+        "counter",
+        "MCP transport invocations rejected because stdin FD was already closed (Rule 7 alarm).",
+    ),
     # B4: per-failure-code counter (labels: failure_code).
     "hi_agent_failure_total": _MetricDef(
         "hi_agent_failure_total",
@@ -566,6 +572,47 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Spine layer: total trace_id propagations through HTTP middleware.",
     ),
+    # w25-F: 8 new spine layer counters for previously unwired layers.
+    "hi_agent_spine_run_manager_total": _MetricDef(
+        "hi_agent_spine_run_manager_total",
+        "counter",
+        "Spine layer: total run_queued events (run_manager boundary).",
+    ),
+    "hi_agent_spine_tenant_context_total": _MetricDef(
+        "hi_agent_spine_tenant_context_total",
+        "counter",
+        "Spine layer: total per-request tenant context resolutions (tenant_context boundary).",
+    ),
+    "hi_agent_spine_reasoning_loop_total": _MetricDef(
+        "hi_agent_spine_reasoning_loop_total",
+        "counter",
+        "Spine layer: total reasoning-loop stage entries (reasoning_loop boundary).",
+    ),
+    "hi_agent_spine_capability_handler_total": _MetricDef(
+        "hi_agent_spine_capability_handler_total",
+        "counter",
+        "Spine layer: total capability handler dispatches (capability_handler boundary).",
+    ),
+    "hi_agent_spine_sync_bridge_total": _MetricDef(
+        "hi_agent_spine_sync_bridge_total",
+        "counter",
+        "Spine layer: total sync→async bridge dispatches (sync_bridge boundary).",
+    ),
+    "hi_agent_spine_http_transport_total": _MetricDef(
+        "hi_agent_spine_http_transport_total",
+        "counter",
+        "Spine layer: total outbound HTTP transport requests (http_transport boundary).",
+    ),
+    "hi_agent_spine_artifact_ledger_total": _MetricDef(
+        "hi_agent_spine_artifact_ledger_total",
+        "counter",
+        "Spine layer: total artifact registrations in ArtifactLedger (artifact_ledger boundary).",
+    ),
+    "hi_agent_spine_event_store_total": _MetricDef(
+        "hi_agent_spine_event_store_total",
+        "counter",
+        "Spine layer: total events persisted to SQLiteEventStore (event_store boundary).",
+    ),
 }
 
 # Maximum samples retained for histogram-like metrics.
@@ -795,7 +842,7 @@ class MetricsCollector:
         self.gauge_set("hi_agent_thread_count", float(_threading.active_count()))
         if _sys.platform != "win32":
             try:
-                import psutil  # type: ignore[import-untyped]  # expiry_wave: Wave 18
+                import psutil  # type: ignore[import-untyped]  # expiry_wave: Wave 29
                 self.gauge_set("hi_agent_open_fd_count", float(psutil.Process().num_fds()))
             except Exception as exc:
                 _logger.warning("collector.sample_process_metrics: psutil fd count failed: %s", exc)
@@ -942,6 +989,19 @@ class MetricsCollector:
                 if self._alert_callback is not None:
                     self._alert_callback(alert)
         return fired
+
+    def get_counter(self, metric_name: str, labels: dict[str, str] | None = None) -> int:
+        """Return the integer sum of a named counter (across all label buckets).
+
+        If ``labels`` is provided, returns only the value for that label set.
+        Returns 0 if the metric has not been recorded.
+        """
+        with self._lock:
+            bucket = self._counters.get(metric_name, {})
+            if labels is not None:
+                lk = _labels_key(labels)
+                return int(bucket.get(lk, 0))
+            return int(sum(bucket.values())) if bucket else 0
 
     def get_alert_history(self) -> list[Alert]:
         """Return all previously fired alerts."""

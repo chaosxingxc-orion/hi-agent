@@ -325,6 +325,16 @@ async def handle_ready(request: Request) -> JSONResponse:
 
             builder = SystemBuilder(config=getattr(server, "_config", None))
         snapshot = builder.readiness()
+    except RecursionError:
+        _health_check_errors_total.labels(check_name="readiness").inc()
+        logger.warning(
+            "health check readiness failed with recursion",
+            extra={"check_name": "readiness", "error": "capability_serialization_overflow"},
+        )
+        return JSONResponse(
+            status_code=503,
+            content={"error": "capability_serialization_overflow"},
+        )
     except Exception as exc:
         _health_check_errors_total.labels(check_name="readiness").inc()
         logger.warning(
@@ -342,7 +352,7 @@ async def handle_ready(request: Request) -> JSONResponse:
     try:
         _env_rdy = _os_rdy.environ.get("HI_AGENT_ENV", "dev").lower()
         _runtime_mode_rdy = _rrm_rdy(_env_rdy, snapshot)
-        _auth_rdy = _AM_rdy(app=lambda *a: None, runtime_mode=_runtime_mode_rdy)  # type: ignore[arg-type]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
+        _auth_rdy = _AM_rdy(app=lambda *a: None, runtime_mode=_runtime_mode_rdy)  # type: ignore[arg-type]  expiry_wave: Wave 29 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
         snapshot = dict(snapshot, auth_posture=_auth_rdy.auth_posture)
     except Exception as exc:
         _health_check_errors_total.labels(check_name="auth_posture").inc()
@@ -667,7 +677,7 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
     try:
         from dataclasses import asdict
 
-        metrics = evolver._observer.get_metrics(skill_id)
+        metrics = evolver._observer.get_metrics(skill_id, tenant_id=ctx.tenant_id or None)
         return JSONResponse(asdict(metrics))
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -1038,7 +1048,7 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
         tool_count = 0
         mcp_srv = getattr(server, "_mcp_server", None)
         if mcp_srv is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
+            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29
                 tool_count = len(mcp_srv.list_tools().get("tools", []))
         # Derive transport status from a real health probe, not merely from
         # whether the transport object exists.  A server whose subprocess fails
@@ -1108,18 +1118,33 @@ async def handle_mcp_status(request: Request) -> JSONResponse:
 
 
 async def handle_plugins_list(request: Request) -> JSONResponse:
-    """Return list of loaded plugins."""
-    # TODO(owner=RO, expiry_wave=14): per-tenant plugin overlay needed — global plugin list
-    # returned to all callers. PluginManifest carries no tenant_id; full per-tenant scoping
-    # requires adding a tenant_id field to PluginManifest and filtering here. Risk: medium —
-    # callers see other tenants' plugin names.
+    """Return list of loaded plugins visible to the requesting tenant.
+
+    Plugin visibility: global-scoped plugins (tenant_scope != 'tenant') are
+    visible to every tenant; per-tenant plugins require the requesting
+    tenant's id to match the plugin's registered owner.
+    """
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_pl
+
+    try:
+        ctx = _rtc_pl()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
+        all_plugins = plugin_loader.list_loaded()
+        # Per-tenant overlay: include global-scoped plugins + tenant-matched plugins.
+        visible = [
+            p for p in all_plugins
+            if p.get("tenant_scope", "tenant") != "tenant"
+            or ctx.tenant_id == p.get("tenant_id", ctx.tenant_id)
+        ]
         return JSONResponse(
             {
-                "plugins": plugin_loader.list_loaded(),
-                "count": len(plugin_loader),
+                "plugins": visible,
+                "count": len(visible),
+                "tenant_id": ctx.tenant_id,
             }
         )
     except Exception as exc:
@@ -1127,21 +1152,33 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
 
 
 async def handle_plugins_status(request: Request) -> JSONResponse:
-    """Return plugin system status summary."""
-    # TODO(owner=RO, expiry_wave=14): per-tenant plugin overlay needed — global plugin status
-    # returned to all callers. PluginLoader._loaded is a single process-wide map; per-tenant
-    # status requires partitioning by tenant. Risk: medium — callers see aggregate plugin counts
-    # across all tenants.
+    """Return plugin system status summary for the requesting tenant.
+
+    Status counts are scoped to plugins visible to this tenant
+    (same visibility rules as handle_plugins_list).
+    """
+    from hi_agent.server.tenant_context import require_tenant_context as _rtc_ps
+
+    try:
+        ctx = _rtc_ps()
+    except RuntimeError:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
     try:
         server: AgentServer = request.app.state.agent_server
         plugin_loader = server.plugin_loader
-        plugins = plugin_loader.list_loaded()
+        all_plugins = plugin_loader.list_loaded()
+        plugins = [
+            p for p in all_plugins
+            if p.get("tenant_scope", "tenant") != "tenant"
+            or ctx.tenant_id == p.get("tenant_id", ctx.tenant_id)
+        ]
         active = sum(1 for p in plugins if p.get("status") == "active")
         return JSONResponse(
             {
                 "total": len(plugins),
                 "active": active,
                 "inactive": len(plugins) - active,
+                "tenant_id": ctx.tenant_id,
                 "plugins": [
                     {"name": p["name"], "status": p.get("status", "loaded")} for p in plugins
                 ],
@@ -1410,7 +1447,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
     ]
 
     @contextlib.asynccontextmanager
-    async def lifespan(app: Starlette):  # type: ignore[misc]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
+    async def lifespan(app: Starlette):  # type: ignore[misc]  expiry_wave: Wave 29 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
         """Start/stop background subsystems around the Starlette lifespan."""
         mm: MemoryLifecycleManager | None = agent_server.memory_manager
         if mm is not None:
@@ -1540,7 +1577,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
     _builder_auth = getattr(agent_server, "_builder", None)
     _readiness_auth: dict = {}
     if _builder_auth is not None:
-        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
+        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29
             _readiness_auth = _builder_auth.readiness()
     _runtime_mode_auth = _rrm_auth(_env_auth, _readiness_auth)
     app.add_middleware(AuthMiddleware, runtime_mode=_runtime_mode_auth)
@@ -1555,7 +1592,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         app.add_middleware(SessionMiddleware, session_store=_session_store)
     # Store the resolved auth posture on app.state so route handlers can read it
     # without constructing a new AuthMiddleware instance per-request.
-    _auth_posture_mw = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_auth)  # type: ignore[arg-type]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
+    _auth_posture_mw = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_auth)  # type: ignore[arg-type]  expiry_wave: Wave 29 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
     app.state.auth_posture = _auth_posture_mw.auth_posture
 
     # Rate limiting middleware.
@@ -1593,9 +1630,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
         detail = exc.detail if isinstance(exc.detail, dict) else {"error": str(exc.detail)}
         return JSONResponse(detail, status_code=exc.status_code)
 
-    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
-    app.add_exception_handler(404, http_exception_handler)  # type: ignore[arg-type]
-    app.add_exception_handler(405, http_exception_handler)  # type: ignore[arg-type]  expiry_wave: Wave 22 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
+    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]  expiry_wave: Wave 29 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
+    app.add_exception_handler(404, http_exception_handler)  # type: ignore[arg-type]  expiry_wave: Wave 29 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
+    app.add_exception_handler(405, http_exception_handler)  # type: ignore[arg-type]  expiry_wave: Wave 29 replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
 
     return app
 
@@ -1697,6 +1734,8 @@ class AgentServer:
         try:
             _backends = build_durable_backends(_data_dir, _posture)
         except RuntimeError as _be:
+            if _posture.is_strict:
+                raise
             logger.warning(
                 "build_durable_backends failed (%s); durable stores unavailable.",
                 _be,

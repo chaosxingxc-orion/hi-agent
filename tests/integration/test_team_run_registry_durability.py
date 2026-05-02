@@ -14,6 +14,7 @@ from hi_agent.server.team_run_registry import TeamRunRegistry
 def sample_team_run() -> TeamRun:
     return TeamRun(
         team_id="team-001",
+        tenant_id="t-test",
         pi_run_id="run-pi-001",
         project_id="proj-001",
         member_runs=(("role-survey", "run-survey-001"), ("role-writer", "run-writer-001")),
@@ -41,7 +42,7 @@ class TestTeamRunRegistryDurability:
 
         assert loaded is not None
         assert loaded.team_id == "team-001"
-        assert loaded.pi_run_id == "run-pi-001"
+        assert loaded.lead_run_id == "run-pi-001"
         assert loaded.project_id == "proj-001"
         assert ("role-survey", "run-survey-001") in loaded.member_runs
         assert ("role-writer", "run-writer-001") in loaded.member_runs
@@ -52,8 +53,12 @@ class TestTeamRunRegistryDurability:
         db_file = str(tmp_path / "team_registry.sqlite")
         reg = TeamRunRegistry(db_path=db_file)
 
-        run_v1 = TeamRun(team_id="team-x", pi_run_id="run-v1", project_id="proj")
-        run_v2 = TeamRun(team_id="team-x", pi_run_id="run-v2", project_id="proj")
+        run_v1 = TeamRun(
+            team_id="team-x", tenant_id="t-test", pi_run_id="run-v1", project_id="proj"
+        )
+        run_v2 = TeamRun(
+            team_id="team-x", tenant_id="t-test", pi_run_id="run-v2", project_id="proj"
+        )
 
         reg.register(run_v1)
         reg.register(run_v2)
@@ -61,7 +66,7 @@ class TestTeamRunRegistryDurability:
         reg.close()
 
         assert loaded is not None
-        assert loaded.pi_run_id == "run-v2"
+        assert loaded.lead_run_id == "run-v2"
 
     def test_get_missing_team_returns_none(self, tmp_path):
         reg = TeamRunRegistry(db_path=str(tmp_path / "r.sqlite"))

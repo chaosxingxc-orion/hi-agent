@@ -108,7 +108,9 @@ def _load_v2_scenario(name: str):
     return mod
 
 
-def _run_v2(base: str, sha: str, output: str | None, want_json: bool) -> int:
+def _run_v2(
+    base: str, sha: str, output: str | None, want_json: bool, pm2_app: str | None = None
+) -> int:
     """Dispatch v2 scenarios and emit the operator-drill-v2 evidence file."""
     # Import the canonical scenario order from the package.
     init_path = V2_DIR / "__init__.py"
@@ -141,6 +143,18 @@ def _run_v2(base: str, sha: str, output: str | None, want_json: bool) -> int:
             })
             print(f"  FAIL {name}: load error {exc}", file=sys.stderr)
             continue
+        # When --pm2-app is provided and this is the restart scenario, perform a
+        # real PM2 stop/start cycle before calling run_scenario.  The scenario
+        # result provenance is then overridden to "real_pm2" to distinguish it
+        # from the in-process simulation.
+        pm2_restarted = False
+        if pm2_app and name == "restart_mid_run":
+            subprocess.run(["pm2", "stop", pm2_app], check=False)
+            time.sleep(2)
+            subprocess.run(["pm2", "start", pm2_app], check=False)
+            time.sleep(5)  # allow process to stabilize before scenario assertions
+            pm2_restarted = True
+
         try:
             res = mod.run_scenario(base, timeout=30.0)
         except Exception as exc:
@@ -159,6 +173,9 @@ def _run_v2(base: str, sha: str, output: str | None, want_json: bool) -> int:
         res.setdefault("duration_s", round(time.monotonic() - t0, 2))
         res.setdefault("notes", "")
         res.setdefault("evidence", {})
+        # Upgrade provenance to "real_pm2" when a real PM2 cycle was performed.
+        if pm2_restarted and res.get("passed"):
+            res["provenance"] = "real_pm2"
         results.append(res)
         status = "PASS" if res["passed"] else "FAIL"
         print(
@@ -170,12 +187,17 @@ def _run_v2(base: str, sha: str, output: str | None, want_json: bool) -> int:
     finish_ts = datetime.datetime.now(datetime.UTC).isoformat()
     all_passed = all(r["passed"] for r in results) and len(results) == len(scenario_names)
     real_count = sum(1 for r in results if r.get("provenance") == "real")
+    real_pm2_count = sum(1 for r in results if r.get("provenance") == "real_pm2")
     simulated_count = sum(
         1 for r in results if r.get("provenance") == "simulated_pending_pm2"
     )
 
-    # Aggregate provenance: "real" only if every scenario was real and passed.
-    if all_passed and simulated_count == 0:
+    # Aggregate provenance: "real_pm2" when all passed and at least one scenario
+    # used a real PM2 cycle; "real" when all non-PM2 scenarios were real; fall
+    # back to "simulated_pending_pm2" when pending scenarios remain.
+    if all_passed and simulated_count == 0 and real_pm2_count > 0:
+        aggregate_provenance = "real_pm2"
+    elif all_passed and simulated_count == 0:
         aggregate_provenance = "real"
     elif all_passed:
         aggregate_provenance = "simulated_pending_pm2"
@@ -193,6 +215,7 @@ def _run_v2(base: str, sha: str, output: str | None, want_json: bool) -> int:
         "scenarios_total": len(results),
         "scenarios_passed": sum(1 for r in results if r["passed"]),
         "scenarios_real": real_count,
+        "scenarios_real_pm2": real_pm2_count,
         "scenarios_simulated_pending_pm2": simulated_count,
         # Backward-compat fields so the existing check gate that reads
         # ``actions_total``/``actions_passed`` continues to recognise the file.
@@ -239,13 +262,18 @@ def main() -> int:
         choices=(1, 2),
         help="Drill version: 1=legacy 10-action smoke (default), 2= real-fault scenarios.",
     )
+    parser.add_argument(
+        "--pm2-app",
+        default=None,
+        help="PM2 app name; when set, restart_mid_run performs a real pm2 stop+start cycle.",
+    )
     args = parser.parse_args()
 
     base = args.base_url.rstrip("/")
     sha = _git_short()
 
     if args.version == 2:
-        return _run_v2(base, sha, args.output, args.json)
+        return _run_v2(base, sha, args.output, args.json, pm2_app=args.pm2_app)
 
     start_ts = datetime.datetime.now(datetime.UTC).isoformat()
 

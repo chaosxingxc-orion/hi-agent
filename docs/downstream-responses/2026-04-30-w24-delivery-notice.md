@@ -2,14 +2,14 @@
 
 **Date:** 2026-04-30
 **Wave:** 24
-**Manifest:** TBD (replace with `2026-04-30-<final-sha>` after final manifest write)
-**Verified readiness:** TBD (target ≥ 95)
-**Raw implementation maturity:** 94.55+ (lifted by Tracks D/E/F/H/I)
-**Conditional readiness after blockers:** target ≥ 95
+**Manifest:** 2026-04-30-09dd77f
+**Verified readiness:** 94.55 (raw=94.55, capped=94.55, cap_factors=[])
+**Raw implementation maturity:** 94.55
+**Conditional readiness after blockers:** 94.55
 
-Functional HEAD: TBD
-Notice HEAD: TBD
-Validated by: scripts/build_release_manifest.py + scripts/verify_clean_env.py (8943 passed) + scripts/run_t3_gate.py (rerun pending)
+Functional HEAD: 09dd77fdc71d7a01b5975251c56e89dc17764458
+Notice HEAD: 09dd77fdc71d7a01b5975251c56e89dc17764458
+Validated by: scripts/build_release_manifest.py + scripts/verify_clean_env.py (8943 passed) + scripts/run_t3_gate.py (T3 DEFERRED — real-LLM key unavailable during W24 close)
 
 ---
 
@@ -136,13 +136,13 @@ I-F (contract v1 RELEASED + blocking freeze gate) is **deferred to W25** in the 
 
 ---
 
-## Score Computation (per W24 final manifest, TBD)
+## Score Computation (W24 final manifest 2026-04-30-09dd77f)
 
 ```
-raw_implementation_maturity:   94.55 (baseline) + ~3.5 from D/E/F/H/I/J → ~98
-current_verified_readiness:    target ≥ 95 (after T3 fresh + gate cleanup)
-seven_by_twenty_four:          target ≥ 80 (real spine + chaos partial; soak partial-1h carry)
-conditional_after_blockers:    matches verified
+raw_implementation_maturity:   94.55
+current_verified_readiness:    94.55 (cap_factors=[]; T3 DEFERRED cap resolved per governance §t3_deferred allowlist)
+seven_by_twenty_four:          65.0 (cap_factors_7x24=[soak_24h_missing, observability_spine_incomplete, chaos_non_runtime_coupled])
+conditional_after_blockers:    94.55
 ```
 
 ---
@@ -178,9 +178,9 @@ The substance of every track is correctly in HEAD's tree. The labels are misalig
 ## Verification Chain
 
 ```
-Manifest:    TBD (W24 final after this notice + signoff)
+Manifest:    2026-04-30-09dd77f (release_head=09dd77fdc71d7a01b5975251c56e89dc17764458)
 Clean-env:   docs/verification/<HEAD>-default-offline-clean-env.json (8943 passed)
-T3:          rerun pending at final HEAD
+T3:          DEFERRED — real-LLM key unavailable during W24 close; fresh T3 at W25
 Spine:       docs/verification/d8c7b0b-observability-spine.json (provenance=real, 12/14)
 Chaos:       docs/verification/04f8c91-chaos-runtime.json (provenance=runtime_partial, 8/10)
 Soak (1h):   docs/verification/cf9498f-soak-shape-5m.json (provenance=shape_1h, 10/10 invariants)

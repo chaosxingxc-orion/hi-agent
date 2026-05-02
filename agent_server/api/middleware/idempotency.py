@@ -25,6 +25,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from hi_agent.config.posture import Posture
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -89,7 +90,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         self._predicates = predicates
         self._logger = logger or logging.getLogger("agent_server.idempotency")
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]  # expiry_wave: Wave 29
         method = request.method.upper()
         path = request.url.path
         if not any(p(method, path) for p in self._predicates):
@@ -155,7 +156,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         async def _replay_body() -> dict[str, Any]:  # pragma: no cover - shim
             return {"type": "http.request", "body": body_bytes, "more_body": False}
 
-        request._body = body_bytes  # type: ignore[attr-defined]
+        request._body = body_bytes  # type: ignore[attr-defined]  # expiry_wave: Wave 29
 
         try:
             response: Response = await call_next(request)
@@ -193,7 +194,7 @@ def register_idempotency_middleware(
     app,
     *,
     facade: IdempotencyFacade,
-    strict: bool = False,
+    strict: bool | None = None,
 ) -> None:
     """Attach IdempotencyMiddleware to ``app``.
 
@@ -201,11 +202,16 @@ def register_idempotency_middleware(
     ``agent_server/api/__init__.py``) can call it without depending on
     middleware-internal types. The order is: tenant middleware first
     (validates X-Tenant-Id), then idempotency middleware (consumes it).
+
+    ``strict`` defaults to ``Posture.from_env().is_strict`` when ``None``,
+    so research/prod deployments automatically enforce idempotency keys
+    without callers needing to set it explicitly (Rule 11).
     """
+    effective_strict = Posture.from_env().is_strict if strict is None else strict
     app.add_middleware(
         IdempotencyMiddleware,
         facade=facade,
-        strict=strict,
+        strict=effective_strict,
     )
 
 
@@ -232,7 +238,7 @@ async def _capture_response_body(response: Response) -> bytes:
     if hasattr(response, "body") and isinstance(response.body, bytes | bytearray):
         return bytes(response.body)
     chunks: list[bytes] = []
-    async for chunk in response.body_iterator:  # type: ignore[attr-defined]
+    async for chunk in response.body_iterator:  # type: ignore[attr-defined]  # expiry_wave: Wave 29
         if isinstance(chunk, str):
             chunks.append(chunk.encode("utf-8"))
         else:

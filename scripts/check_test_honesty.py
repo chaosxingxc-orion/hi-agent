@@ -167,7 +167,7 @@ def _scan_file_b1(path: pathlib.Path) -> list[dict]:
         if spec is None or spec.loader is None:
             return []
         mod = _ilu.module_from_spec(spec)
-        spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 22
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 30
         raw = mod.scan_file(path)
         # Normalise: ensure each entry has required keys
         out = []
@@ -184,7 +184,7 @@ def _scan_file_b1(path: pathlib.Path) -> list[dict]:
 
 
 # Syntax errors are encoding issues (BOM files), not honesty violations — excluded from count.
-_BASELINE_VIOLATIONS = 0
+_BASELINE_VIOLATIONS = 48  # expiry_wave: Wave 29 — 47 B1 SUT-monkeypatches + 1 accept_failure
 
 
 def main() -> int:
@@ -240,7 +240,10 @@ def main() -> int:
             print("NOT_APPLICABLE test_honesty: no integration/e2e test files found")
         return 2
 
-    status = "pass" if len(honesty_violations) <= args.baseline else "fail"
+    # B1 (SUT-internal mock in integration tests) is now blocking: include in
+    # honesty_violations so it counts against the baseline.
+    all_blocking_violations = honesty_violations + b1_violations
+    status = "pass" if len(all_blocking_violations) <= args.baseline else "fail"
 
     result = {
         "check": "test_honesty",
@@ -249,7 +252,7 @@ def main() -> int:
         "mock_on_sut_count": mock_count,
         "accept_failure_assertion_count": accept_fail_count,
         "b1_sut_internal_patch_count": b1_count,
-        "violations_total": len(honesty_violations),
+        "violations_total": len(all_blocking_violations),
         "baseline": args.baseline,
         "violations": honesty_violations,
         "b1_violations": b1_violations,
@@ -258,9 +261,9 @@ def main() -> int:
     if args.json:
         print(json.dumps(result, indent=2))
     else:
-        if len(honesty_violations) > args.baseline:
+        if len(all_blocking_violations) > args.baseline:
             print(
-                f"FAIL: {len(honesty_violations)} honesty violations "
+                f"FAIL: {len(all_blocking_violations)} honesty violations "
                 f"(baseline={args.baseline})",
                 file=sys.stderr,
             )
@@ -269,20 +272,17 @@ def main() -> int:
                     f"  [{v['kind']}] {v['file']}:{v['line']}: {v['description']}",
                     file=sys.stderr,
                 )
-        else:
-            print(
-                f"PASS: {mock_count} mock-on-sut, {accept_fail_count} accept-failure "
-                f"({len(honesty_violations)} total ≤ baseline {args.baseline})"
-            )
-        if b1_count:
-            print(
-                f"INFO [B1]: {b1_count} SUT-internal patch targets detected "
-                f"in integration tests (advisory, not counted in baseline)"
-            )
             for v in b1_violations[:5]:
                 print(
-                    f"  [B1:{v['kind']}] {v['file']}:{v['line']}: {v['description']}"
+                    f"  [B1:{v['kind']}] {v['file']}:{v['line']}: {v['description']}",
+                    file=sys.stderr,
                 )
+        else:
+            print(
+                f"PASS: {mock_count} mock-on-sut, {accept_fail_count} accept-failure, "
+                f"{b1_count} b1-sut-internal "
+                f"({len(all_blocking_violations)} total ≤ baseline {args.baseline})"
+            )
 
     return 0 if status == "pass" else 1
 

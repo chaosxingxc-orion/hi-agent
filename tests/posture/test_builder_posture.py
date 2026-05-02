@@ -101,7 +101,7 @@ def test_snapshot(monkeypatch, posture_name, durable_key_expected):
     from hi_agent.config.readiness import ReadinessProbe
 
     probe = ReadinessProbe.__new__(ReadinessProbe)
-    probe._durable_backends_ok = None  # type: ignore[attr-defined]  # expiry_wave: Wave 22
+    probe._durable_backends_ok = None  # type: ignore[attr-defined]  # expiry_wave: Wave 29
 
     result = probe.snapshot()
     subsystems = result.get("subsystems", {})

@@ -32,7 +32,7 @@ def test_stderr_tail_failure_increments_counter(clean_metrics_singleton: Metrics
         def __iter__(self):
             raise RuntimeError("simulated buffer failure")
 
-    transport._stderr_buf = _BrokenBuf()  # type: ignore[attr-defined]  expiry_wave: Wave 17
+    transport._stderr_buf = _BrokenBuf()  # type: ignore[attr-defined]  expiry_wave: Wave 29
 
     result = transport.get_stderr_tail(n=10)
     assert result == []

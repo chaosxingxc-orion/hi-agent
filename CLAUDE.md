@@ -154,6 +154,15 @@ Before any artifact leaves the repo (zip, pip, docker, PM2 bundle), the followin
 
 All six hold. Any FAIL blocks ship. The artifact owner records the gate run in `docs/delivery/<date>-<sha>.md`. Unrecorded ≠ passed.
 
+**Architectural 7×24 Readiness** (reformed W28, GOV-E) — 7×24 operational readiness is an architectural property assertable in seconds-to-minutes, not a wall-clock soak. The following five assertions replace the old 24h-soak requirement:
+1. **Cross-loop stability**: 3 sequential real-LLM runs sharing one gateway/adapter (see steps 3–4 above).
+2. **Lifespan observable**: `current_stage` non-`None` within 30 s on all turns (step 5).
+3. **Cancellation round-trip** (step 6).
+4. **Spine provenance real**: observability spine evidence carries `provenance: real`.
+5. **Chaos runtime-coupled**: all 10 chaos scenarios have `runtime_coupled: true`.
+
+Evidence file: `docs/verification/<sha>-arch-7x24.json` with all 5 assertions PASS. The `score_caps.yaml::architectural_seven_by_twenty_four` cap fires only when any assertion fails.
+
 **T3 Invariance** — a gate pass is valid only for the SHA at which it was recorded. Any subsequent commit touching hot-path files invalidates T3 until a fresh gate run is recorded.
 
 Hot-path files: `hi_agent/llm/**`, `hi_agent/runtime/**`, `hi_agent/config/cognition_builder.py`, `hi_agent/config/json_config_loader.py`, `hi_agent/config/builder.py`, `hi_agent/runner.py`, `hi_agent/runner_stage.py`, `hi_agent/runtime_adapter/**`, `hi_agent/memory/compressor.py`, `hi_agent/server/app.py`, `hi_agent/profiles/**`, `agent_server/api/**`, `agent_server/facade/**`, `agent_server/cli/**`

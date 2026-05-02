@@ -112,7 +112,7 @@ class HttpLLMGateway:
             LLMBudgetExhaustedError: If the configured budget tracker signals exhaustion.
         """
         from hi_agent.observability.fallback import record_llm_request
-        from hi_agent.observability.spine_events import emit_llm_call
+        from hi_agent.observability.spine_events import emit_http_transport, emit_llm_call
         from hi_agent.server.fault_injection import get_fault_injector
 
         get_fault_injector().maybe_raise_llm_timeout_sync()
@@ -123,6 +123,8 @@ class HttpLLMGateway:
             run_id=_run_id_for_event,
         )
         emit_llm_call(tenant_id="", profile_id="")
+        # w25-F: spine tap for http_transport layer
+        emit_http_transport(tenant_id="", profile_id="")
         # Emit llm_call event to EventBus (-> SQLiteEventStore) at call boundary.
         try:
             import datetime as _dt
@@ -487,13 +489,12 @@ class HttpLLMGateway:
         except Exception as _obs_exc:
             _gateway_errors_total.inc()
             logger.warning(
-
-                "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
-
+                "llm_fallback: record_fallback self-failure at retries_exhausted; "
+                "run_id=%s exc=%r",
+                run_id or "unknown",
                 _obs_exc,
-
             )
-        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 17
+        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 29
 
     @staticmethod
     def _parse_response(raw: dict[str, Any], model: str) -> LLMResponse:
@@ -654,11 +655,10 @@ class HTTPGateway:
                     except Exception as _obs_exc:
                         _gateway_errors_total.inc()
                         logger.warning(
-
-                            "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
-
+                            "llm_fallback: record_fallback self-failure at failover_chain_failed"
+                            " (inner); run_id=%s exc=%r",
+                            _run_id_for_fallback,
                             _obs_exc,
-
                         )
                     logger.warning(
                         "FailoverChain.complete failed (%s), falling back to direct HTTP.", exc
@@ -678,11 +678,10 @@ class HTTPGateway:
             except Exception as _obs_exc:
                 _gateway_errors_total.inc()
                 logger.warning(
-
-                    "record_fallback raised; alarm-bell muted. Rule 7 violation. exc=%r",
-
+                    "llm_fallback: record_fallback self-failure at failover_chain_failed"
+                    " (outer); run_id=%s exc=%r",
+                    _run_id_for_fallback,
                     _obs_exc,
-
                 )
             logger.warning("HTTPGateway integration error (%s), using direct path.", exc)
 
@@ -744,7 +743,7 @@ class HTTPGateway:
                 if attempt < self._max_retries:
                     delay = self._retry_base * (2**attempt) + random.uniform(0, 1)
                     await asyncio.sleep(delay)
-        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 17
+        raise last_exc  # type: ignore[misc]  expiry_wave: Wave 29
 
     def supports_model(self, model: str) -> bool:
         """Return ``True``; the HTTP gateway delegates model validation to the provider."""

@@ -6,7 +6,6 @@ Uses threading for concurrent run execution (stdlib only).
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
@@ -72,7 +71,7 @@ class ManagedRun:
 
     run_id: str
     task_contract: dict[str, Any]
-    tenant_id: str  # Rule 12 spine — required; no default
+    tenant_id: str = ""  # Rule 12 spine — validated under research/prod posture
     state: str = "created"
     result: Any = None
     error: str | None = None
@@ -85,6 +84,7 @@ class ManagedRun:
     finished_at: str | None = None
     user_id: str = ""
     session_id: str = ""
+    project_id: str = ""
     current_stage: str | None = None
     stage_updated_at: str | None = None
     idempotency_key: str | None = None
@@ -116,6 +116,7 @@ class RunManager:
         run_store: SQLiteRunStore | None = None,
         run_queue: RunQueue | None = None,
         event_store: object | None = None,
+        postmortem_engine: object | None = None,
     ) -> None:
         """Initialize the run manager.
 
@@ -137,6 +138,9 @@ class RunManager:
             event_store: Optional SQLiteEventStore.  When provided,
                 ``to_dict`` reads the most recent event offset and timestamp
                 for liveness reporting.
+            postmortem_engine: Optional PostmortemEngine.  When provided,
+                ``on_project_completed`` is called after every terminal run
+                that carries a non-empty ``project_id``.
         """
         self._runs: dict[str, ManagedRun] = {}
         self._lock = threading.Lock()
@@ -145,7 +149,8 @@ class RunManager:
         self._idempotency_store = idempotency_store
         self._run_store = run_store
         self._run_queue = run_queue
-        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: Wave 17
+        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: Wave 29
+        self._postmortem_engine: object | None = postmortem_engine
         # Per-run sequence counters; seeded from storage on first use (restart-safe).
         self._event_seqs: dict[str, int] = {}
         self._event_seq_lock = threading.Lock()
@@ -380,6 +385,11 @@ class RunManager:
         # Under research/prod: explicit body spine wins; emit DeprecationWarning
         # when body omits tenant_id and we fall back to auth middleware.
         _posture = Posture.from_env()
+        if _posture.is_strict and workspace is None:
+            raise ValueError(
+                "authenticated workspace required under research/prod posture; "
+                "pass a TenantContext via workspace="
+            )
         _middleware_tenant_id: str = workspace.tenant_id if workspace else ""
         _body_tenant_id: str = task_contract_dict.get("tenant_id", "")
         if _posture.is_strict:
@@ -388,7 +398,7 @@ class RunManager:
             else:
                 warnings.warn(
                     "body spine required under posture research; falling back to auth middleware. "
-                    "This fallback will be removed in Wave 24 (removed if no callers found).",
+                    "This fallback will be removed in Wave 29 (removed if no callers found).",
                     DeprecationWarning,
                     stacklevel=2,
                 )
@@ -452,6 +462,7 @@ class RunManager:
             tenant_id=workspace.tenant_id if workspace else "",
             user_id=workspace.user_id if workspace else "",
             session_id=workspace.session_id if workspace else "",
+            project_id=task_contract_dict.get("project_id", ""),
             idempotency_key=idempotency_key,
             outcome="created",
             trace_id=_tc.trace_id if _tc is not None else "",
@@ -480,6 +491,25 @@ class RunManager:
                 raise ValueError(f"run with task_id '{client_task_id}' already exists in workspace")
             self._runs[run_id] = run
 
+        # Migrate pre-create fallback events (recorded before run_id was known)
+        # to the actual run_id so they appear in get_run_status fallback_events.
+        try:
+            from hi_agent.observability.fallback import (
+                get_fallback_events as _gfe,
+            )
+            from hi_agent.observability.fallback import (
+                record_fallback as _rf,
+            )
+            for _pre_ev in _gfe("pre-create"):
+                _rf(
+                    _pre_ev.get("kind", "route"),
+                    reason=_pre_ev.get("reason", ""),
+                    run_id=run_id,
+                    extra=_pre_ev.get("extra") or {},
+                )
+        except Exception:  # rule7-exempt: pre-create migration never blocks create_run  # noqa: E501  # expiry_wave: Wave 29
+            pass
+
         # --- emit run_queued lifecycle event ---------------------------------
         self._publish_run_event(
             run_id,
@@ -487,6 +517,12 @@ class RunManager:
             {"state": "created", "created_at": now},
             run,
         )
+        # w25-F: spine tap for run_manager layer
+        try:
+            from hi_agent.observability.spine_events import emit_run_manager
+            emit_run_manager(tenant_id=tenant_id, run_id=run_id)
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
+            pass
 
         # --- persist to run_store if available ------------------------------
         if self._run_store is not None:
@@ -519,6 +555,10 @@ class RunManager:
                 run_id=run_id,
                 priority=int(task_contract_dict.get("priority", 5)),
                 payload_json=json.dumps(task_contract_dict),
+                tenant_id=tenant_id,
+                user_id=workspace.user_id if workspace else "",
+                session_id=workspace.session_id if workspace else "",
+                project_id=task_contract_dict.get("project_id", ""),
             )
 
         return run
@@ -724,6 +764,9 @@ class RunManager:
                     json.dumps(self.to_dict(run)),
                     terminal_state=_terminal,
                 )
+            # Notify PostmortemEngine when a project-scoped run is terminal.
+            if self._postmortem_engine is not None and run.project_id:
+                self._notify_postmortem_engine(run)
 
     def _execute_run_durable(
         self,
@@ -760,7 +803,7 @@ class RunManager:
                 try:
                     from hi_agent.server.fault_injection import get_fault_injector
                     get_fault_injector().maybe_stall_heartbeat_sync()
-                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 17
+                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 29
                     if renewed:
                         run_for_hb = self._runs.get(run_id)
                         if run_for_hb is not None:
@@ -778,7 +821,7 @@ class RunManager:
                                     tenant_id=getattr(run_for_hb, "tenant_id", "") or "",
                                     run_id=run_id,
                                 )
-                            except Exception:  # rule7-exempt: expiry_wave="Wave 22"
+                            except Exception:  # rule7-exempt: expiry_wave="Wave 29"
                                 pass
                     if not renewed:
                         _hb_log.warning(
@@ -956,6 +999,39 @@ class RunManager:
                     json.dumps(self.to_dict(run)),
                     terminal_state=_terminal,
                 )
+            # Notify PostmortemEngine when a project-scoped run is terminal.
+            if self._postmortem_engine is not None and run.project_id:
+                self._notify_postmortem_engine(run)
+
+    def _notify_postmortem_engine(self, run: ManagedRun) -> None:
+        """Call PostmortemEngine.on_project_completed for project-scoped runs.
+
+        Builds a minimal ProjectRetrospective from the terminal run and
+        delegates to the injected PostmortemEngine.  Never propagates
+        exceptions — postmortem recording must not interrupt run lifecycle.
+
+        Args:
+            run: The terminal ManagedRun carrying a non-empty project_id.
+        """
+        try:
+            from hi_agent.evolve.contracts import ProjectRetrospective
+
+            retro = ProjectRetrospective(
+                project_id=run.project_id,
+                run_ids=[run.run_id],
+                tenant_id=run.tenant_id,
+            )
+            engine = self._postmortem_engine
+            if hasattr(engine, "on_project_completed"):
+                engine.on_project_completed(run.project_id, retro)  # type: ignore[union-attr]  expiry_wave: Wave 29  # scope: complex-union-resolution — hasattr guard narrows type but mypy can't infer it
+        except Exception as exc:
+            logger.warning(
+                "_notify_postmortem_engine: failed for run_id=%s project_id=%s: %s",
+                run.run_id,
+                run.project_id,
+                exc,
+                exc_info=True,
+            )
 
     @staticmethod
     def _write_trace_stub(run: ManagedRun) -> None:
@@ -998,6 +1074,10 @@ class RunManager:
                             "content": entry.content,
                             "metadata": entry.metadata,
                             "created_at": entry.created_at,
+                            "tenant_id": run.tenant_id,
+                            "user_id": run.user_id,
+                            "session_id": run.session_id,
+                            "project_id": run.project_id,
                         }
                     )
                     + "\n"
@@ -1043,11 +1123,15 @@ class RunManager:
             self._queue_seq += 1
         try:
             self._queue.put_nowait((priority, seq, run, executor_fn))
-        except queue.Full:
+        except queue.Full as exc:
+            with self._lock:
+                _transition_state(run, "failed", reason="queue_full")
+                run.error = "queue_full"
+                run.updated_at = datetime.now(UTC).isoformat()
             raise QueueSaturatedError(
-                queue_depth=self._queue_size,
+                queue_depth=self._queue.qsize(),
                 max_depth=self._queue_size,
-            ) from None
+            ) from exc
 
     def register_cancellation_token(self, run_id: str, token: Any) -> None:
         """Register a CancellationToken for a running executor.
@@ -1255,9 +1339,20 @@ class RunManager:
         _no_progress_seconds: float | None = None
         _candidates: list[float] = []
         if run.last_heartbeat_at is not None:
-            with contextlib.suppress(ValueError):
+            try:
                 _candidates.append(
                     datetime.fromisoformat(run.last_heartbeat_at).timestamp()
+                )
+            except ValueError as _exc:
+                from hi_agent.observability.silent_degradation import (
+                    record_silent_degradation,
+                )
+
+                record_silent_degradation(
+                    component="run_manager.to_dict",
+                    reason="heartbeat_timestamp_parse_failed",
+                    run_id=run.run_id,
+                    exc=_exc,
                 )
         if _last_event_at_ts is not None:
             _candidates.append(_last_event_at_ts)

@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from unittest.mock import MagicMock
 
 import httpx
 import pytest
@@ -87,7 +86,7 @@ class TestStreamDeltaCreation:
     def test_frozen_immutability(self):
         delta = StreamDelta(type="text", content="abc")
         with pytest.raises((AttributeError, TypeError)):
-            delta.content = "changed"  # type: ignore[misc]  expiry_wave: Wave 17
+            delta.content = "changed"  # type: ignore[misc]  expiry_wave: Wave 29
 
 
 # ---------------------------------------------------------------------------
@@ -327,6 +326,22 @@ class _FakeResponse:
         pass
 
 
+class _FakeHttpxClient:
+    """Fake httpx.AsyncClient — async context manager returning a fake response."""
+
+    def __init__(self, response: _FakeResponse) -> None:
+        self._response = response
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        pass
+
+    def stream(self, method: str, path: str, **kw):
+        return self._response
+
+
 @pytest.mark.asyncio
 class TestHTTPStreamingGatewayStream:
     def _make_gateway(self) -> HTTPStreamingGateway:
@@ -341,8 +356,8 @@ class TestHTTPStreamingGatewayStream:
         gw = self._make_gateway()
         fake_response = _FakeResponse(SSE_HAPPY_LINES)
 
-        # Patch the AsyncClient.stream context manager
-        gw._client.stream = MagicMock(return_value=fake_response)
+        # Patch _make_client so the per-call client returns the fake response
+        gw._make_client = lambda: _FakeHttpxClient(fake_response)
 
         request = LLMRequest(
             messages=[{"role": "user", "content": "Hi"}],
@@ -370,7 +385,7 @@ class TestHTTPStreamingGatewayStream:
     async def test_http_error_raises_provider_error(self):
         gw = self._make_gateway()
         fake_response = _FakeResponse([], status_code=401)
-        gw._client.stream = MagicMock(return_value=fake_response)
+        gw._make_client = lambda: _FakeHttpxClient(fake_response)
 
         request = LLMRequest(messages=[{"role": "user", "content": "Hi"}])
 
@@ -397,7 +412,7 @@ class TestHTTPStreamingGatewayStream:
             async def __aexit__(self, *a):
                 pass
 
-        gw._client.stream = MagicMock(return_value=_ErrorResponse())
+        gw._make_client = lambda: _FakeHttpxClient(_ErrorResponse())
         request = LLMRequest(messages=[{"role": "user", "content": "Hi"}])
 
         with pytest.raises(LLMProviderError):
@@ -437,7 +452,7 @@ class TestHTTPStreamingGatewayStream:
             ),
         )
         gw = self._make_gateway()
-        gw._client.stream = MagicMock(return_value=_FakeResponse(lines))
+        gw._make_client = lambda: _FakeHttpxClient(_FakeResponse(lines))
 
         request = LLMRequest(messages=[{"role": "user", "content": "Calculate"}])
         deltas = [d async for d in gw.stream(request)]
@@ -487,7 +502,7 @@ class TestStaleStreamTimeout:
                 pass
 
         gw = HTTPStreamingGateway(api_key="test-key")
-        gw._client.stream = MagicMock(return_value=_HangingResponse())
+        gw._make_client = lambda: _FakeHttpxClient(_HangingResponse())
 
         request = LLMRequest(messages=[{"role": "user", "content": "Hi"}])
 
@@ -518,7 +533,7 @@ class TestStaleStreamTimeout:
             ("message_stop", {"type": "message_stop"}),
         )
         gw = HTTPStreamingGateway(api_key="test-key")
-        gw._client.stream = MagicMock(return_value=_FakeResponse(lines))
+        gw._make_client = lambda: _FakeHttpxClient(_FakeResponse(lines))
 
         request = LLMRequest(messages=[{"role": "user", "content": "Hi"}])
         deltas = [d async for d in gw.stream(request)]

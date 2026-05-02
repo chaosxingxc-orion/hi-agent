@@ -57,6 +57,14 @@ _CODE_EXPR_STARTS = (
     "self.", "cls.", "get_", "load_", "build_", "os.", "env.", "config.",
     "settings.", "environ", "resolve",
 )
+# UUID in API-key context: matches when a recognized secret-adjacent keyword
+# and a UUID-format value appear on the same line. Catches patterns like
+# "Rotate Volces API key f103e564-61c5-..." in docs/releases JSON files.
+_SECRET_CONTEXT_WORDS_RE = re.compile(
+    r"\b(?:api[_\s]?key|api_secret|secret_key|access_key|secret|token"
+    r"|volces|anthropic|openai|VOLCES_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY)\b",
+    re.IGNORECASE,
+)
 
 findings: list[dict] = []
 
@@ -150,6 +158,25 @@ def check_md_file(path: Path) -> None:
             })
 
 
+def check_releases_file(path: Path) -> None:
+    """Scan a docs/releases file for UUID in API-key context (GOV-A W28)."""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return
+    for lineno, line in enumerate(lines, 1):
+        if not _SECRET_CONTEXT_WORDS_RE.search(line):
+            continue
+        uuid_m = _UUID_RE.search(line)
+        if uuid_m:
+            findings.append({
+                "file": _rel(path),
+                "line": lineno,
+                "kind": "uuid_in_secret_context",
+                "redacted_match": f"API-key UUID at line {lineno}: {uuid_m.group()[:8]}***",
+            })
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Secret scan gate.")
     parser.add_argument("--json", action="store_true")
@@ -171,6 +198,13 @@ def main() -> int:
     if downstream_dir.exists():
         for md_file in downstream_dir.glob("*.md"):
             check_md_file(md_file)
+
+    releases_dir = ROOT / "docs" / "releases"
+    if releases_dir.exists():
+        for releases_file in sorted(releases_dir.rglob("*.json")):
+            check_releases_file(releases_file)
+        for releases_file in sorted(releases_dir.rglob("*.md")):
+            check_md_file(releases_file)
 
     for src_dir in [ROOT / "scripts", ROOT / "hi_agent"]:
         if src_dir.exists():

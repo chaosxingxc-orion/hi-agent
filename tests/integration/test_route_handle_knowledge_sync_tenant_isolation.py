@@ -127,6 +127,7 @@ def _build_app(km, ctx: TenantContext) -> Starlette:
         "Fix in W22: pass tenant_id to to_wiki_pages() and limit sync scope."
     ),
     strict=False,
+    expiry_wave="Wave 29",
 )
 class TestKnowledgeSyncTenantIsolation:
     """POST /knowledge/sync must only sync the calling tenant's data (AX-F F1)."""

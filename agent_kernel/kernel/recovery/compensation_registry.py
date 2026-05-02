@@ -345,7 +345,7 @@ class CompensationRegistry:
                 break
 
         if dedupe_store is not None and idempotency_key is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on compensation error path; must not mask original
+            with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on compensation error path; must not mask original  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
                 dedupe_store.mark_unknown_effect(idempotency_key)
 
         exhausted = CompensationExhaustedError(

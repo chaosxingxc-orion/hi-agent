@@ -23,7 +23,7 @@ def test_new_perception_fields_exist():
     assert cfg.perception_summarize_char_threshold == 500
     assert cfg.perception_max_entities == 50
     assert cfg.perception_summarize_temperature == 0.3
-    assert cfg.perception_summarize_max_tokens == 200
+    assert cfg.perception_summarize_max_tokens == 2048
 
 
 def test_new_budget_guard_fields_exist():

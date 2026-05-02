@@ -294,7 +294,7 @@ def check_readiness() -> ReadinessReport:
     # Compute auth posture using a temporary AuthMiddleware instance (no-op app).
     _env_cr = _os_cr.environ.get("HI_AGENT_ENV", "dev").lower()
     _runtime_mode_cr = _rrm(_env_cr, raw)
-    _auth = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_cr)  # type: ignore[arg-type]  expiry_wave: Wave 17
+    _auth = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_cr)  # type: ignore[arg-type]  expiry_wave: Wave 29
     posture = _auth.auth_posture
 
     return ReadinessReport(

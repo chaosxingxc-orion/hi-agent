@@ -47,7 +47,6 @@ import os
 import subprocess
 import sys
 import time
-import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path

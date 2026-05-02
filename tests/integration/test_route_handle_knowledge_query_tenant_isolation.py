@@ -135,6 +135,7 @@ def _build_query_app(km, ctx: TenantContext) -> Starlette:
         "Fix in W22: pass tenant_id to KnowledgeManager.query() and filter results."
     ),
     strict=False,
+    expiry_wave="Wave 29",
 )
 class TestKnowledgeQueryTenantIsolation:
     """GET /knowledge/query must not return cross-tenant knowledge results (AX-F F1)."""

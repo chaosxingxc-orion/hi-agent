@@ -38,7 +38,7 @@ class TeamSharedContext:
     working_set: tuple[str, ...] = ()
     assertions: tuple[str, ...] = ()
     # Deprecated aliases — use working_set / assertions instead.
-    # Will be removed in Wave 24.
+    # Will be removed in Wave 29.
     hypotheses: tuple[str, ...] = ()
     claims: tuple[str, ...] = ()
     phase_history: tuple[str, ...] = ()
@@ -48,7 +48,7 @@ class TeamSharedContext:
         if self.hypotheses and not self.working_set:
             warnings.warn(
                 "TeamSharedContext.hypotheses is deprecated; use working_set instead. "
-                "hypotheses will be removed in Wave 24.",
+                "hypotheses will be removed in Wave 29.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -56,7 +56,7 @@ class TeamSharedContext:
         if self.claims and not self.assertions:
             warnings.warn(
                 "TeamSharedContext.claims is deprecated; use assertions instead. "
-                "claims will be removed in Wave 24.",
+                "claims will be removed in Wave 29.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -70,13 +70,13 @@ class TeamRun:
     team_id: str
     project_id: str
     # (agent_role_id, run_id) pairs for each team member
-    tenant_id: str  # Rule 12 spine — required; no default
+    tenant_id: str = ""  # Rule 12 spine — validated in TeamRunRegistry.register()
     member_runs: tuple[tuple[str, str], ...] = ()
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     # Contract spine (Rule 12): persistent records must answer "which tenant".
     user_id: str = ""
     session_id: str = ""
-    # Deprecated: use lead_run_id instead. Will be removed in Wave 24.
+    # Deprecated: use lead_run_id instead. Will be removed in Wave 29.
     pi_run_id: str = ""
     # Canonical field (Wave 11+). Prefer lead_run_id for all new callers.
     lead_run_id: str = dataclasses.field(default="")

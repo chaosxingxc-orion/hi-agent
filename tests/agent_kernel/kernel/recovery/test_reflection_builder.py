@@ -29,7 +29,7 @@ def _make_evidence(
     """Make evidence."""
     return ScriptFailureEvidence(
         script_id="script-1",
-        failure_kind=failure_kind,  # type: ignore[arg-type]  expiry_wave: Wave 17
+        failure_kind=failure_kind,  # type: ignore[arg-type]  expiry_wave: Wave 29
         budget_consumed_ratio=budget_consumed_ratio,
         output_produced=bool(partial_output),
         suspected_cause=suspected_cause,
@@ -290,4 +290,4 @@ class TestReflectionContextBuilderBuild:
             base_context=_make_base_context(),
         )
         with pytest.raises((FrozenInstanceError, AttributeError)):
-            result.system_instructions = "mutated"  # type: ignore[misc]  expiry_wave: Wave 17
+            result.system_instructions = "mutated"  # type: ignore[misc]  expiry_wave: Wave 29

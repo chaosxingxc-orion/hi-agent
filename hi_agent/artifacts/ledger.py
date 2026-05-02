@@ -18,6 +18,7 @@ from hi_agent.artifacts.metrics import (
     legacy_tenantless_visible_total,
 )
 from hi_agent.observability.metric_counter import Counter
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 _logger = logging.getLogger(__name__)
 _ledger_errors_total = Counter("hi_agent_ledger_errors_total")
@@ -69,6 +70,8 @@ class ArtifactLedger:
             self._path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._store: dict[str, Artifact] = {}
+        self._source_ref_index: dict[str, list[str]] = {}
+        self._upstream_index: dict[str, list[str]] = {}
         self._load()
 
     def _load(self) -> None:
@@ -85,6 +88,7 @@ class ArtifactLedger:
                     data = json.loads(line)
                     artifact = Artifact.from_dict(data)
                     self._store[artifact.artifact_id] = artifact
+                    self._index_artifact(artifact)
                 except Exception:
                     # --- TE-1: quarantine + metric + log; skip but do not abort startup ---
                     preview = line[:120] if len(line) > 120 else line
@@ -112,8 +116,12 @@ class ArtifactLedger:
                         collector = get_metrics_collector()
                         if collector is not None:
                             collector.increment("hi_agent_artifact_corrupt_line_total")
-                    except Exception:  # rule7-exempt: expiry_wave="Wave 22"
-                        pass
+                    except Exception as exc:
+                        record_silent_degradation(
+                            component="artifacts.ledger.ArtifactLedger._load",
+                            reason="corrupt_line_counter_increment_failed",
+                            exc=exc,
+                        )
 
     def register(self, artifact: Artifact) -> None:
         """Persist artifact to the ledger and update in-memory index.
@@ -157,6 +165,7 @@ class ArtifactLedger:
                 )
 
             self._store[artifact.artifact_id] = artifact
+            self._index_artifact(artifact)
             if self._path is not None:
                 # J2: path traversal guard — ledger path is controlled by
                 # __init__ (derived from HI_AGENT_DATA_DIR or an explicit
@@ -168,6 +177,14 @@ class ArtifactLedger:
                     f.write(json.dumps(artifact.to_dict(), default=str) + "\n")
                     f.flush()
                     os.fsync(f.fileno())
+            # w25-F: spine tap for artifact_ledger layer
+            try:
+                from hi_agent.observability.spine_events import emit_artifact_ledger
+                emit_artifact_ledger(
+                    tenant_id=getattr(artifact, "tenant_id", "") or "",
+                )
+            except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
+                pass
 
     def store(self, artifact: Artifact) -> None:
         """Alias for register() — satisfies ArtifactRegistry interface."""
@@ -221,9 +238,8 @@ class ArtifactLedger:
         self, source_ref: str, *, tenant_id: str | None = None
     ) -> list[Artifact]:
         """Return all artifacts referencing the given source ref, filtered by tenant."""
-        # TODO: implement full source_ref indexing in Wave 12
-        # (full index deferred; wave 11 deadline missed)
-        results = [a for a in self._store.values() if source_ref in a.source_refs]
+        artifact_ids = self._source_ref_index.get(source_ref, [])
+        results = [self._store[aid] for aid in artifact_ids if aid in self._store]
         if tenant_id is not None and tenant_id != "":
             results = [a for a in results if self._tenant_visible(a, tenant_id)]
         return results
@@ -232,14 +248,23 @@ class ArtifactLedger:
         self, upstream_id: str, *, tenant_id: str | None = None
     ) -> list[Artifact]:
         """Return all artifacts with upstream_id in upstream_artifact_ids, filtered by tenant."""
-        # TODO: implement full upstream index in Wave 12
-        # (full index deferred; wave 11 deadline missed)
-        results = [
-            a for a in self._store.values() if upstream_id in a.upstream_artifact_ids
-        ]
+        artifact_ids = self._upstream_index.get(upstream_id, [])
+        results = [self._store[aid] for aid in artifact_ids if aid in self._store]
         if tenant_id is not None and tenant_id != "":
             results = [a for a in results if self._tenant_visible(a, tenant_id)]
         return results
+
+    def _index_artifact(self, artifact: Artifact) -> None:
+        """Update source_ref and upstream indexes for a newly stored artifact."""
+        aid = artifact.artifact_id
+        for ref in artifact.source_refs:
+            self._source_ref_index.setdefault(ref, [])
+            if aid not in self._source_ref_index[ref]:
+                self._source_ref_index[ref].append(aid)
+        for uid in artifact.upstream_artifact_ids:
+            self._upstream_index.setdefault(uid, [])
+            if aid not in self._upstream_index[uid]:
+                self._upstream_index[uid].append(aid)
 
     def _allow_legacy(self, artifact: Artifact, requested_tenant: str) -> Artifact | None:
         """Apply posture-aware policy for legacy tenantless artifacts on get()."""

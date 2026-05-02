@@ -23,6 +23,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RELEASES_DIR = ROOT / "docs" / "releases"
+_FUNCTIONAL_DOCS = frozenset({
+    "docs/governance/score_caps.yaml",
+    "docs/governance/allowlists.yaml",
+})
 
 
 def _git_head() -> str:
@@ -58,11 +62,36 @@ def _latest_manifest() -> dict | None:
     return data
 
 
-def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
-    """Return True if commits between manifest_head..current_head only touch docs/releases/.
+_GOV_INFRA_PREFIXES = ("docs/", "scripts/", ".github/")
 
-    Only called when --allow-docs-only-gap is passed; raises RuntimeError on subprocess error
-    so the caller can treat gap detection failure as non-permissive.
+
+def _is_gov_only_path(path: str) -> bool:
+    """A path is gov-infra if it lives under docs/, scripts/, .github/, OR is
+    a documentation file at root / module level (README.md, ARCHITECTURE.md,
+    CLAUDE.md, hi_agent/ARCHITECTURE.md, ...).
+
+    The functional governance configs (score_caps.yaml, allowlists.yaml) are
+    explicitly NOT gov-infra -- they affect runtime gate behaviour.
+    """
+    if path in _FUNCTIONAL_DOCS:
+        return False
+    if any(path.startswith(p) for p in _GOV_INFRA_PREFIXES):
+        return True
+    if "/" not in path and path.endswith(".md"):
+        return True
+    return path.endswith("/ARCHITECTURE.md")
+
+
+def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
+    """Return True when the commits between manifest_head..current_head touch
+    only governance/infrastructure files (Rule 14 broadened in W28).
+
+    Rationale: a freshly generated manifest commit must by definition come
+    AFTER its release_head, and CI gate-script tweaks frequently bracket the
+    manifest commit. Penalising those follow-ons with manifest_freshness
+    failures forces a chicken-and-egg manifest rebuild loop. Restrict this
+    exemption to docs/scripts/.github (and the standard *.md doc files) so a
+    score_caps.yaml or runtime change still invalidates the manifest.
     """
     if manifest_head == current_head:
         return True
@@ -74,11 +103,7 @@ def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
         if result.returncode != 0:
             raise RuntimeError(f"git diff exited {result.returncode}: {result.stderr.strip()}")
         changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-        _docs_prefixes = (
-            "docs/releases/", "docs/verification/", "docs/delivery/",
-            "docs/downstream-responses/", "docs/governance/", "docs/scorecard",
-        )
-        return all(any(f.startswith(p) for p in _docs_prefixes) for f in changed) and bool(changed)
+        return all(_is_gov_only_path(f) for f in changed) and bool(changed)
     except RuntimeError:
         raise
     except Exception as exc:

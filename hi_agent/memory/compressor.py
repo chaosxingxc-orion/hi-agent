@@ -13,6 +13,7 @@ from hi_agent.llm.protocol import LLMGateway, LLMRequest
 from hi_agent.memory.compress_prompts import STAGE_COMPRESSION_PROMPT
 from hi_agent.memory.l0_raw import RawEventRecord
 from hi_agent.memory.l1_compressed import CompressedStageMemory
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 logger = logging.getLogger(__name__)
 
@@ -303,8 +304,12 @@ class MemoryCompressor:
                     "error": str(exc)[:200],
                 },
             )
-        except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
-            pass  # metrics must not crash caller — observability is best-effort
+        except Exception as exc:
+            record_silent_degradation(
+                component="memory.compressor.StageCompressor._emit_degradation_signal",
+                reason="record_fallback_failed",
+                exc=exc,
+            )
 
     def _build_summary_from_raw(
         self,
@@ -391,7 +396,7 @@ class MemoryCompressor:
         response = await loop.run_in_executor(
             None,
             self._gateway.complete,
-            request,  # type: ignore[union-attr]  expiry_wave: Wave 17
+            request,  # type: ignore[union-attr]  expiry_wave: Wave 29
         )
         parsed = json.loads(response.content)
 
@@ -444,7 +449,7 @@ class MemoryCompressor:
             },
         )
 
-        response = self._gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 17
+        response = self._gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 29
         parsed = json.loads(response.content)
 
         return CompressedStageMemory(
@@ -475,7 +480,7 @@ class MemoryCompressor:
             evidence_text=evidence_text,
         )
 
-        raw_response = await self.llm_fn(prompt)  # type: ignore[misc]  expiry_wave: Wave 17
+        raw_response = await self.llm_fn(prompt)  # type: ignore[misc]  expiry_wave: Wave 29
         parsed = json.loads(raw_response)
 
         return CompressedStageMemory(

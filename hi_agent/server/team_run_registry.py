@@ -7,10 +7,13 @@ defaults to ``:memory:`` for backward compatibility.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
+
+_logger = logging.getLogger(__name__)
 
 from hi_agent.contracts.team_runtime import TeamRun
 
@@ -114,10 +117,10 @@ CREATE TABLE IF NOT EXISTS team_runs (
 
     def _to_row(self, team_run: TeamRun) -> tuple:
         member_json = json.dumps(list(team_run.member_runs))
-        lead = team_run.lead_run_id
+        lead = team_run.lead_run_id or getattr(team_run, "pi_run_id", "")
         return (
             team_run.team_id,
-            "",
+            lead,  # pi_run_id column — coalesce lead_run_id and deprecated pi_run_id
             team_run.project_id,
             member_json,
             team_run.created_at,
@@ -164,6 +167,18 @@ CREATE TABLE IF NOT EXISTS team_runs (
                 fields (tenant_id, user_id, session_id, project_id) override the
                 corresponding team_run fields.
         """
+        if not team_run.tenant_id:
+            try:
+                from hi_agent.config.posture import Posture
+
+                if Posture.from_env().is_strict:
+                    raise ValueError(
+                        "tenant_id is required under research/prod posture (Rule 12)"
+                    )
+            except ValueError:
+                raise
+            except Exception as exc:
+                _logger.warning("team_run_registry.register: posture check failed: %s", exc)
         if exec_ctx is not None:
             from dataclasses import replace as _replace
 

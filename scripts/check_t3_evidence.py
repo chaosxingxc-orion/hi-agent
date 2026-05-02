@@ -19,23 +19,8 @@ import json
 import sys
 from pathlib import Path
 
-HOT_PATH_PATTERNS = [
-    "hi_agent/llm/*",
-    "hi_agent/llm/**/*",
-    "hi_agent/runtime/*",
-    "hi_agent/runtime/**/*",
-    "hi_agent/config/cognition_builder.py",
-    "hi_agent/config/json_config_loader.py",
-    "hi_agent/config/builder.py",
-    "hi_agent/runner.py",
-    "hi_agent/runner_stage.py",
-    "hi_agent/runtime_adapter/*",
-    "hi_agent/runtime_adapter/**/*",
-    "hi_agent/memory/compressor.py",
-    "hi_agent/server/app.py",
-    "hi_agent/profiles/*",
-    "hi_agent/profiles/**/*",
-]
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts._governance.hot_paths import HOT_PATH_PATTERNS
 
 T3_EVIDENCE_MARKER = "T3 evidence:"
 
@@ -116,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.json_output:
             print(json.dumps(result, indent=2))
         else:
-            print(f"Hot-path files changed ({len(hot_path_hits)} file(s)) and T3 evidence marker found. OK.")
+            print(f"Hot-path files changed ({len(hot_path_hits)} file(s)) and T3 evidence marker found. OK.")  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         return 0
 
     result = {

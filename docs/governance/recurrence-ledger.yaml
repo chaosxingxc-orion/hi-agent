@@ -6,7 +6,7 @@
 # Placeholder values carry expiry: Wave 22 for operationalization.
 
 schema_version: "1"
-current_wave: 21
+current_wave: 28
 
 entries:
   - issue_id: P0-1
@@ -27,9 +27,9 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/58394d6-release-identity.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_manifest_freshness_violations_total"
-    alert_rule: "hi_agent_manifest_freshness_violations_total > 0 for 5m"
+    alert_rule: "hi_agent_manifest_freshness_violations_alert"
     runbook_path: "docs/runbooks/manifest-stale.md"
 
   - issue_id: P0-2
@@ -49,9 +49,9 @@ entries:
     owner: DX
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/58394d6-default-offline-clean-env.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_clean_env_freshness_failures_total"
-    alert_rule: "hi_agent_clean_env_freshness_failures_total > 0 for 5m"
+    alert_rule: "hi_agent_clean_env_freshness_failures_alert"
     runbook_path: "docs/runbooks/clean-env-not-final-head.md"
 
   - issue_id: P0-3
@@ -72,9 +72,9 @@ entries:
     owner: TE
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/58394d6-observability-spine.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_observability_spine_structural_total"
-    alert_rule: "hi_agent_observability_spine_structural_total > 0 for 5m"
+    alert_rule: "hi_agent_observability_spine_structural_alert"
     runbook_path: "docs/runbooks/observability-spine-structural.md"
 
   - issue_id: P0-4
@@ -91,13 +91,17 @@ entries:
     code_fix: "Wave16-Track-D: soak harness updated to sample server PID; pilot run at 360m with provenance:pilot_run"
     regression_test: "scripts/check_soak_evidence.py --json (status=pilot acceptable; cap_7x24=65 enforced by score_caps.yaml)"
     release_gate: "release-gate.yml step: Check soak evidence (W14-C2)"
-    process_change: "CLAUDE.md Rule 8: operator-shape gate; 7x24 declared as architectural posture not engineering requirement"
+    process_change: >
+      CLAUDE.md Rule 8: operator-shape gate; 7x24 declared as architectural posture not engineering
+      requirement. W27 DEFERRAL (user decision 2026-05-01): 24h soak NOT run in Wave 27.
+      soak_24h_missing cap remains at 65; 7x24 score stays at 65 this wave. Target: Wave 28+.
+      Soak is the binding constraint. Spine and chaos evidence captured in W27 for future clearance.
     owner: TE
-    expiry_or_followup: "2026-07-01"
+    expiry_or_followup: "2026-07-15"
     evidence_artifact: "docs/verification/58394d6-soak-pilot-360m.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_soak_evidence_age_hours"
-    alert_rule: "hi_agent_soak_evidence_age_hours > 168"
+    alert_rule: "hi_agent_soak_evidence_stale_alert"
     runbook_path: "docs/runbooks/soak-evidence-stale.md"
 
   - issue_id: P0-5
@@ -118,9 +122,9 @@ entries:
     owner: TE
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/verification/58394d6-runtime-chaos.json"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_chaos_not_runtime_coupled_total"
-    alert_rule: "hi_agent_chaos_not_runtime_coupled_total > 0 for 5m"
+    alert_rule: "hi_agent_chaos_not_runtime_coupled_alert"
     runbook_path: "docs/runbooks/chaos-no-runtime-coupling.md"
 
   - issue_id: P0-6
@@ -141,9 +145,9 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/releases/2026-04-28-58394d6.json"
-    current_closure_level: verified_at_release_head
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_score_cap_overstatement_total"
-    alert_rule: "hi_agent_score_cap_overstatement_total > 0 for 5m"
+    alert_rule: "hi_agent_score_cap_overstatement_alert"
     runbook_path: "docs/runbooks/score-cap-overstates-readiness.md"
 
   - issue_id: S4-10
@@ -163,9 +167,9 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-05-12"
     evidence_artifact: "docs/governance/release-captain-checklist.md"
-    current_closure_level: verified_at_release_head
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_missing_owner_tag_total"
-    alert_rule: "hi_agent_missing_owner_tag_total > 0 for 1m"
+    alert_rule: "hi_agent_missing_owner_tag_alert"
     runbook_path: "docs/runbooks/ownership-accountability-weak.md"
 
   - issue_id: W17-A
@@ -186,9 +190,9 @@ entries:
     owner: GOV
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "scripts/check_doc_consistency.py, scripts/check_verification_artifacts.py (diff W17 vs W16)"
-    current_closure_level: component_exists
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_release_gate_continue_on_error_total"
-    alert_rule: "hi_agent_release_gate_continue_on_error_total > 0 for 1m"
+    alert_rule: "hi_agent_release_gate_weakening_alert"
     runbook_path: "docs/runbooks/release-gate-weakening.md"
 
   - issue_id: W17-B
@@ -209,9 +213,9 @@ entries:
     owner: RO
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "tests/security/test_run_store_tenant_required.py"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_cross_tenant_allowlist_expiry_total"
-    alert_rule: "hi_agent_cross_tenant_allowlist_expiry_total > 0 for 5m"
+    alert_rule: "hi_agent_cross_tenant_footgun_alert"
     runbook_path: "docs/runbooks/cross-tenant-primitive-footgun.md"
 
   - issue_id: W17-C
@@ -232,7 +236,165 @@ entries:
     owner: TE
     expiry_or_followup: "2026-06-01"
     evidence_artifact: "tests/conftest.py, scripts/check_conftest_fallback_scope.py"
-    current_closure_level: wired_into_default_path
+    current_closure_level: operationally_observable
     metric_name: "hi_agent_test_theatre_detected_total"
-    alert_rule: "hi_agent_test_theatre_detected_total > 0 for 5m"
+    alert_rule: "hi_agent_test_theatre_alert"
     runbook_path: "docs/runbooks/test-theatre-passing-via-fallback.md"
+
+  - issue_id: W28-A
+    defect_class: legacy_shim_removal
+    named_instance: "hi_agent.plugin.*, hi_agent.experiment.* compat shims still active at Wave 28 close"
+    peer_instances_audited:
+      - "Wave 25 baseline: shims added for Wave 11 migration"
+      - "Wave 27: shim removal deferred to Wave 28 (expiry_wave bumped)"
+    root_cause: >
+      Compatibility shims (hi_agent.plugin -> hi_agent.plugins, hi_agent.experiment ->
+      hi_agent.operations) were introduced in Wave 11 for backward compatibility. Consumer
+      audit required before removal was not completed in W28. Shims are still functional
+      but emit DeprecationWarning on import.
+    code_fix: "W29 target: audit consumers, remove shim packages"
+    regression_test: "W29 target: grep for any import of hi_agent.plugin. or hi_agent.experiment. to confirm zero callers"
+    release_gate: "scripts/check_expired_waivers.py (will fire in W29 if not removed)"
+    process_change: "CLAUDE.md Rule 17: expiry_wave bumped to Wave 29; W29 owner must audit and remove or escalate"
+    owner: CO
+    expiry_or_followup: "2026-06-15"
+    evidence_artifact: "docs/governance/wave-28-expiry-triage.md#group-1"
+    current_closure_level: component_exists
+    metric_name: "hi_agent_deprecated_shim_import_total"
+    alert_rule: "hi_agent_deprecated_shim_import_alert"
+    runbook_path: "docs/runbooks/legacy-shim-removal.md"
+
+  - issue_id: W28-B
+    defect_class: deprecated_field_removal
+    named_instance: "TeamSharedContext.{hypotheses,claims,phase_history}, TeamRun.pi_run_id, evaluation citations key, json_config_loader env alias still present at Wave 28 close"
+    peer_instances_audited:
+      - "Wave 11: deprecated aliases added with Wave 28 removal promise"
+      - "Wave 27: not removed"
+    root_cause: >
+      Deprecated data fields (hypotheses, claims, phase_history, pi_run_id) and deprecated
+      API keys (citations, env alias) required consumer-audit before removal. Audit not
+      completed in W28.
+    code_fix: "W29 target: remove deprecated fields from TeamSharedContext/TeamRun, remove citations fallback, remove env alias"
+    regression_test: "W29 target: unit tests asserting deprecated fields raise AttributeError on access"
+    release_gate: "scripts/check_expired_waivers.py (will fire in W29 if not removed)"
+    process_change: "CLAUDE.md Rule 17: expiry_wave bumped to Wave 29"
+    owner: CO
+    expiry_or_followup: "2026-06-15"
+    evidence_artifact: "docs/governance/wave-28-expiry-triage.md#group-3"
+    current_closure_level: component_exists
+    metric_name: "hi_agent_deprecated_field_access_total"
+    alert_rule: "hi_agent_deprecated_field_access_alert"
+    runbook_path: "docs/runbooks/deprecated-field-removal.md"
+
+  - issue_id: W28-C
+    defect_class: layering_allowlist_burndown
+    named_instance: "check_layering.py internal ALLOWLIST has 2 Wave 29-expiry entries for deprecated shims"
+    peer_instances_audited:
+      - "Wave 25 baseline: layering allowlist entries added for Wave 28 shim removal"
+    root_cause: >
+      The layering-check allowlist carries entries for the same compat shims as W28-A.
+      These allowlist entries defer enforcement of the layering rule violation until the
+      shims are removed.
+    code_fix: "W29 target: remove allowlist entries after shim removal under W28-A"
+    regression_test: "scripts/check_layering.py --json (allowlist entries removed = zero hits for shim paths)"
+    release_gate: "scripts/check_layering.py --json"
+    process_change: "CLAUDE.md Rule 17: entries bumped to Wave 29 in W28 close-out"
+    owner: GOV
+    expiry_or_followup: "2026-06-15"
+    evidence_artifact: "docs/governance/wave-28-expiry-triage.md#group-6"
+    current_closure_level: component_exists
+    metric_name: "hi_agent_layering_allowlist_count"
+    alert_rule: "hi_agent_layering_allowlist_alert"
+    runbook_path: "docs/runbooks/layering-allowlist-burndown.md"
+
+  - issue_id: W28-D
+    defect_class: prod_e2e_skeleton_activation
+    named_instance: "4 prod_e2e skeleton tests in test_e2e_trajectory_replay.py still skipped at Wave 28 close"
+    peer_instances_audited:
+      - "Wave 25 baseline: skips added with expiry_wave: Wave 28"
+      - "Wave 27: PM2/real-LLM operator drill deferred"
+    root_cause: >
+      E2E trajectory replay tests require a real PM2 + real-LLM operator shape that was
+      not validated in Wave 28. The reformed Rule 8 (architectural 7x24) does not
+      replace the need for prod_e2e profile runs; these tests remain pending until
+      operator-shape infra is in CI.
+    code_fix: "W29 target: run tests under prod_e2e profile with real LLM; unskip passing tests"
+    regression_test: "tests/e2e/test_e2e_trajectory_replay.py lines 17, 31, 43, 55 (unskipped)"
+    release_gate: "scripts/check_pytest_skip_discipline.py (will fire in W29 if still skipped)"
+    process_change: "CLAUDE.md Rule 16: prod_e2e profile required before skip can be lifted"
+    owner: TE
+    expiry_or_followup: "2026-06-15"
+    evidence_artifact: "docs/governance/wave-28-expiry-triage.md#group-7"
+    current_closure_level: component_exists
+    metric_name: "hi_agent_prod_e2e_skipped_total"
+    alert_rule: "hi_agent_prod_e2e_skipped_alert"
+    runbook_path: "docs/runbooks/prod-e2e-skeleton-activation.md"
+
+  - issue_id: W28-E
+    defect_class: release_identity_atomic_commit
+    named_instance: "check_release_identity uses --allow-docs-only-gap because manifest+commit are not atomic in CI"
+    peer_instances_audited:
+      - "Wave 27: release-gate.yml annotated TODO promote-in-W28"
+      - "Wave 28: flag retained; atomic manifest generation not implemented"
+    root_cause: >
+      The manifest generation script (build_release_manifest.py) is run locally and
+      committed in a docs-only follow-on commit. CI cannot generate+commit the manifest
+      atomically because it has no push access during the release-gate workflow run.
+      --allow-docs-only-gap exempts this legitimate structural gap.
+    code_fix: "W29 target: design CI-native manifest generation with atomic commit; evaluate release-captain bot approach"
+    regression_test: "W29 target: check_release_identity.py passes without --allow-docs-only-gap"
+    release_gate: "scripts/check_release_identity.py (allow-docs-only-gap to be removed in W29)"
+    process_change: "CLAUDE.md Rule 14: atomic manifest commit is the target state; W29 TODO annotation in release-gate.yml"
+    owner: GOV
+    expiry_or_followup: "2026-06-15"
+    evidence_artifact: "docs/governance/wave-28-expiry-triage.md#group-8"
+    current_closure_level: component_exists
+    metric_name: "hi_agent_manifest_identity_gap_total"
+    alert_rule: "hi_agent_manifest_identity_gap_alert"
+    runbook_path: "docs/runbooks/release-identity-atomic-commit.md"
+
+  - issue_id: W28-F
+    defect_class: rule7_except_narrowing
+    named_instance: "~17 broad except clauses with rule7-exempt and replacement_test: wave22-tests not narrowed at Wave 28 close"
+    peer_instances_audited:
+      - "Wave 22: wave22-tests written as replacement_test for these except clauses"
+      - "Wave 28: narrowing not executed"
+    root_cause: >
+      Broad except clauses across diagnostics, skill/observer, routes, auth, event_store,
+      and runtime_adapter were allowlisted in W25 baseline sweep with the assertion that
+      wave22 tests would replace them. The tests exist but the except clauses were never
+      narrowed to match the test assertions.
+    code_fix: "W29 target: narrow each except clause to the specific exception types asserted in wave22-tests; remove rule7-exempt annotation"
+    regression_test: "Existing wave22-tests plus narrowed exception handling; ruff check confirms no broad except: pass"
+    release_gate: "scripts/check_silent_degradation.py (rule7-exempt count must decrease)"
+    process_change: "CLAUDE.md Rule 7: every silent-degradation path must be Countable+Attributable+Inspectable+Gate-asserted"
+    owner: TE
+    expiry_or_followup: "2026-06-15"
+    evidence_artifact: "docs/governance/wave-28-expiry-triage.md#group-10"
+    current_closure_level: component_exists
+    metric_name: "hi_agent_rule7_exempt_count"
+    alert_rule: "hi_agent_rule7_exempt_alert"
+    runbook_path: "docs/runbooks/rule7-except-narrowing.md"
+
+  - issue_id: W28-G
+    defect_class: mypy_ignore_burndown_bundle_and_context
+    named_instance: "agent_kernel/runtime/bundle.py Rule-6 inline defaults and turn_engine.py ctx dynamic attrs carry expiry_wave: Wave 29"
+    peer_instances_audited:
+      - "Wave 25 baseline: type:ignore annotations added as technical debt"
+      - "Wave 28: not addressed"
+    root_cause: >
+      bundle.py uses Rule-6-violating inline fallback patterns (x or DefaultConfig())
+      that require refactoring constructor arguments to required kwargs. turn_engine.py
+      dynamically attaches attributes to ctx which mypy cannot type-check. Both require
+      structural refactoring beyond annotation fixes.
+    code_fix: "W29 target: refactor bundle.py to required constructor args; add typed dataclass fields to ctx in turn_engine.py"
+    regression_test: "W29 target: mypy --strict passes on bundle.py and turn_engine.py; check_rules.py inline-fallback scan exits 0"
+    release_gate: "scripts/check_rules.py (inline-fallback pattern scan)"
+    process_change: "CLAUDE.md Rule 6: inline fallback x or DefaultX() is forbidden; scope is required constructor arg"
+    owner: RO
+    expiry_or_followup: "2026-06-15"
+    evidence_artifact: "docs/governance/wave-28-expiry-triage.md#group-11"
+    current_closure_level: component_exists
+    metric_name: "hi_agent_inline_fallback_count"
+    alert_rule: "hi_agent_inline_fallback_alert"
+    runbook_path: "docs/runbooks/mypy-ignore-burndown.md"

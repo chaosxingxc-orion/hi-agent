@@ -39,6 +39,13 @@ def _evaluate() -> GateResult:
         parts = py_file.parts
         if ".git" in parts or "__pycache__" in parts or ".claude" in parts:
             continue
+        # Skip git worktrees (directories containing a .git file rather than dir)
+        try:
+            top_level = ROOT / parts[len(ROOT.parts)]
+            if (top_level / ".git").is_file():
+                continue
+        except IndexError:
+            pass
         if any(py_file.is_relative_to(d) for d in EXEMPT_DIRS):
             continue
         files_scanned += 1

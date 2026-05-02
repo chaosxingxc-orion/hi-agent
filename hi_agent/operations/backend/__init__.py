@@ -9,8 +9,8 @@ from typing import Protocol, runtime_checkable
 class ExperimentBackend(Protocol):
     """Protocol for operation execution backends.
 
-    Implementations: LocalBackend (subprocess), SSHBackend (paramiko).
-    Future: SlurmBackend, KubernetesBackend.
+    Implementations: LocalBackend (subprocess).
+    Future: SSHBackend (paramiko), SlurmBackend, KubernetesBackend.
     """
 
     def submit(self, op_spec: dict) -> str:

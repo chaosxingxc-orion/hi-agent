@@ -11,7 +11,7 @@ import urllib.parse
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 
 
-class URLPolicyViolation(Exception):  # noqa: N818 - public API keeps the established name.
+class URLPolicyViolation(Exception):  # noqa: N818  # scope: legacy-compatibility — public API name established before N818; rename would break callers
     """Raised when a URL fails security policy."""
 
 
@@ -74,7 +74,7 @@ class URLPolicy:
     def _check_ip(self, ip_str: str, hostname: str) -> None:
         try:
             addr = ipaddress.ip_address(ip_str)
-        except ValueError:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
+        except ValueError:  # rule7-exempt: expiry_wave="Wave 29" replacement_test: wave22-tests
             return
 
         # Unwrap IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)

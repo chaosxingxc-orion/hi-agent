@@ -20,5 +20,5 @@ Populate `config/llm_config.json` with your API key:
 ## For CI
 
 The CI workflow injects the key into `config/llm_config.json` at job start
-using `scripts/inject_volces_key.py`. No `VOLCE_API_KEY` env var is needed
+using `scripts/inject_provider_key.py --provider volces`. No `VOLCE_API_KEY` env var is needed
 in application code.

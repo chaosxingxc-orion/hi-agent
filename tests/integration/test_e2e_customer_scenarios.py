@@ -569,7 +569,7 @@ def test_tc11_sse_endpoint_returns_correct_content_type(
     # Also verify the route is registered at the right path.
     routes = {
         getattr(r, "path", None): r
-        for r in client.app.routes  # type: ignore[union-attr]  expiry_wave: Wave 17
+        for r in client.app.routes  # type: ignore[union-attr]  expiry_wave: Wave 29
     }
     sse_path = "/runs/{run_id}/events"
     assert sse_path in routes, (

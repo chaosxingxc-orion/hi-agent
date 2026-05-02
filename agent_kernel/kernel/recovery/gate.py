@@ -213,7 +213,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
                     comp_effect_class,
                     recovery_input.run_id,
                 )
-                mode = "abort"  # type: ignore[assignment]
+                mode = "abort"  # type: ignore[assignment]  # expiry_wave: Wave 29
                 effective_reason = f"{plan.reason}:no_compensation_handler"
                 effective_compensation_id = None
                 effective_escalation_ref = None
@@ -238,7 +238,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
                             comp_effect_class,
                             exc,
                         )
-                        mode = "human_escalation"  # type: ignore[assignment]
+                        mode = "human_escalation"  # type: ignore[assignment]  # expiry_wave: Wave 29
                         effective_reason = f"{plan.reason}:compensation_exhausted"
                         effective_compensation_id = None
 
@@ -337,7 +337,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
         """Emit on_recovery_triggered to the observability hook, if present."""
         if self._observability_hook is None:
             return
-        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate
+        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
             self._observability_hook.on_recovery_triggered(
                 run_id=run_id,
                 reason_code=reason_code,
@@ -350,7 +350,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
         """Emit on_reflection_round to the observability hook, if present."""
         if self._observability_hook is None:
             return
-        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate
+        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
             self._observability_hook.on_reflection_round(
                 run_id=run_id,
                 action_id=action_id,
@@ -364,7 +364,7 @@ class PlannedRecoveryGateService(RecoveryGateService):
         """Emit on_circuit_breaker_trip to the observability hook, if present."""
         if self._observability_hook is None:
             return
-        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate
+        with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block recovery gate  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
             self._observability_hook.on_circuit_breaker_trip(
                 run_id=run_id,
                 effect_class=effect_class,

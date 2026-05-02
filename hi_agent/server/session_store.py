@@ -100,8 +100,10 @@ class SessionStore:
             Newly generated session ID (UUID4).
         """
         if exec_ctx is not None:
-            tenant_id = tenant_id or exec_ctx.tenant_id
-            user_id = user_id or exec_ctx.user_id
+            if exec_ctx.tenant_id:
+                tenant_id = exec_ctx.tenant_id
+            if exec_ctx.user_id:
+                user_id = exec_ctx.user_id
         sid = str(uuid.uuid4())
         with self._lock:
             self._cx().execute(

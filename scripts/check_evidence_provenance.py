@@ -126,14 +126,19 @@ def main() -> int:
 
     if not all_results and not script_issues:
         result = {
-            "status": "not_applicable",
+            "status": "fail",
             "check": "evidence_provenance",
-            "reason": "no artifact files found",
+            "reason": (
+                "evidence_missing: no artifact files found in"
+                " docs/verification/ or docs/delivery/"
+            ),
             "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         }
         if args.json:
             print(json.dumps(result, indent=2))
-        return 0
+        else:
+            print("FAIL: no artifact files found", file=sys.stderr)
+        sys.exit(1)
 
     status = "pass" if not failing and not script_issues else "fail"
     # provenance is "real" only when the check actually ran and all assertions

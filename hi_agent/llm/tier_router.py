@@ -21,6 +21,11 @@ _logger = logging.getLogger(__name__)
 # Tier ordering for upgrade/downgrade logic
 _TIER_ORDER = [ModelTier.LIGHT, ModelTier.MEDIUM, ModelTier.STRONG]
 
+_CALIBRATION_WINDOW = 10       # rolling window size for per-tier quality EMA
+_QUALITY_UPGRADE_THRESHOLD = 0.60   # avg quality below this → upgrade tier
+_QUALITY_DOWNGRADE_THRESHOLD = 0.88  # avg quality above this → downgrade tier
+_CALIBRATION_MIN_SAMPLES = 3   # minimum samples before acting
+
 
 def _tier_index(tier: str) -> int:
     """Return numeric index for a tier (0=light, 1=medium, 2=strong)."""
@@ -54,6 +59,7 @@ class TierRouter:
         }
         self._lock = threading.Lock()
         self._calibration_log: list = []
+        self._calibration_stats: dict[str, list[float]] = {}
         self._setup_defaults()
 
     def _setup_defaults(self) -> None:
@@ -257,11 +263,11 @@ class TierRouter:
         target_tier = self._resolve_tier(
             purpose,
             complexity,
-            kwargs.get("budget_remaining_usd"),  # type: ignore[arg-type]  expiry_wave: Wave 17
-            kwargs.get("skill_confidence"),  # type: ignore[arg-type]
+            kwargs.get("budget_remaining_usd"),  # type: ignore[arg-type]  expiry_wave: Wave 29
+            kwargs.get("skill_confidence"),  # type: ignore[arg-type]  expiry_wave: Wave 29  # scope: complex-union-resolution — dict.get returns Any; typed kwarg overloads pending
         )
-        required_caps: list[str] | None = kwargs.get("required_capabilities")  # type: ignore[assignment]  expiry_wave: Wave 17
-        min_ctx: int = kwargs.get("min_context_window", 0)  # type: ignore[assignment]
+        required_caps: list[str] | None = kwargs.get("required_capabilities")  # type: ignore[assignment]  expiry_wave: Wave 29
+        min_ctx: int = kwargs.get("min_context_window", 0)  # type: ignore[assignment]  expiry_wave: Wave 29  # scope: complex-union-resolution — dict.get returns Any; typed kwarg overloads pending
 
         # Try target tier
         model = self._find_in_tier(target_tier, required_caps, min_ctx)
@@ -379,16 +385,74 @@ class TierRouter:
         self.apply_overrides(overrides)
 
     def ingest_calibration_signal(self, signal: object) -> None:
-        """Record a calibration signal for future TierRouter auto-tuning.
+        """Record a calibration signal and adjust routing weights.
 
-        Currently record-only: signals are stored but do not modify tier routing.
-        Auto-calibration requires stable usage data; wave 10 deadline missed,
-        retargeted Wave 12 (owner: CO).
+        After _CALIBRATION_MIN_SAMPLES for a given tier:
+        - avg quality < _QUALITY_UPGRADE_THRESHOLD → upgrade all purposes using
+          that tier by one step (e.g. light → medium).
+        - avg quality > _QUALITY_DOWNGRADE_THRESHOLD → downgrade all purposes
+          using that tier by one step (e.g. strong → medium).
 
         Args:
             signal: A CalibrationSignal instance from hi_agent.evolve.contracts.
         """
         self._calibration_log.append(signal)
+
+        tier = getattr(signal, "tier", None)
+        quality_score = getattr(signal, "quality_score", None)
+        if tier is None or quality_score is None or tier not in _TIER_ORDER:
+            return
+
+        tier_idx = _TIER_ORDER.index(tier)
+
+        with self._lock:
+            window = self._calibration_stats.setdefault(tier, [])
+            window.append(float(quality_score))
+            if len(window) > _CALIBRATION_WINDOW:
+                window[:] = window[-_CALIBRATION_WINDOW:]
+
+            if len(window) < _CALIBRATION_MIN_SAMPLES:
+                return
+
+            avg_quality = sum(window) / len(window)
+
+            if avg_quality < _QUALITY_UPGRADE_THRESHOLD and tier_idx < len(_TIER_ORDER) - 1:
+                upgraded = _TIER_ORDER[tier_idx + 1]
+                changed = []
+                for purpose, mapping in self._tier_map.items():
+                    if mapping.default_tier == tier and mapping.allow_upgrade:
+                        self._tier_map[purpose] = TierMapping(
+                            purpose=purpose,
+                            default_tier=upgraded,
+                            allow_upgrade=mapping.allow_upgrade,
+                            allow_downgrade=mapping.allow_downgrade,
+                        )
+                        changed.append(purpose)
+                if changed:
+                    _logger.warning(
+                        '{"event": "tier_calibration_upgrade", "from": "%s", "to": "%s",'
+                        ' "avg_quality": %.3f, "purposes": %s}',
+                        tier, upgraded, avg_quality, changed,
+                    )
+
+            elif avg_quality > _QUALITY_DOWNGRADE_THRESHOLD and tier_idx > 0:
+                downgraded = _TIER_ORDER[tier_idx - 1]
+                changed = []
+                for purpose, mapping in self._tier_map.items():
+                    if mapping.default_tier == tier and mapping.allow_downgrade:
+                        self._tier_map[purpose] = TierMapping(
+                            purpose=purpose,
+                            default_tier=downgraded,
+                            allow_upgrade=mapping.allow_upgrade,
+                            allow_downgrade=mapping.allow_downgrade,
+                        )
+                        changed.append(purpose)
+                if changed:
+                    _logger.info(
+                        '{"event": "tier_calibration_downgrade", "from": "%s", "to": "%s",'
+                        ' "avg_quality": %.3f, "purposes": %s}',
+                        tier, downgraded, avg_quality, changed,
+                    )
 
     def list_mappings(self) -> list[TierMapping]:
         """List all purpose -> tier mappings."""
@@ -469,7 +533,7 @@ class TierAwareLLMGateway:
                     run_id=meta.get("run_id") or "unknown",
                 )
 
-        return self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 17
+        return self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 29
 
     def stream(self, request: object) -> Iterator[object]:
         """Stream response chunks with tier-based model selection.
@@ -520,7 +584,7 @@ class TierAwareLLMGateway:
             yield from inner_stream(request)
         else:
             # Fallback: single-chunk yield from complete()
-            resp = self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 17
+            resp = self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 29
             yield LLMStreamChunk(
                 delta=getattr(resp, "content", ""),
                 finish_reason=getattr(resp, "finish_reason", "stop"),
@@ -577,8 +641,8 @@ class TierAwareLLMGateway:
                     run_id=meta.get("run_id") or "unknown",
                 )
 
-        return await self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 17
+        return await self._inner.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 29
 
     def supports_model(self, model: str) -> bool:
         """Delegate to inner gateway."""
-        return self._inner.supports_model(model)  # type: ignore[union-attr]  expiry_wave: Wave 17
+        return self._inner.supports_model(model)  # type: ignore[union-attr]  expiry_wave: Wave 29

@@ -103,6 +103,7 @@ def _check_artifacts(allow_docs_only_gap: bool = False) -> tuple[list[str], list
                 or data.get("verified_head")
                 or data.get("head_sha")
                 or data.get("sha")
+                or data.get("head")
                 or ""
             )
             if not artifact_head:
@@ -130,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         allow_docs_only_gap=args.allow_docs_only_gap
     )
 
-    if len(checked) == 0:
+    if len(checked) == 0:  # noqa: SIM108  # expiry_wave: Wave 30  # added: W25 baseline sweep
         status = "not_applicable"
     else:
         status = "pass" if has_current else "fail"

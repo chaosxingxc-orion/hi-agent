@@ -10,8 +10,8 @@ Exit 1: violations found.
 """
 from __future__ import annotations
 
-import ast
 import argparse
+import ast
 import json
 import pathlib
 import sys
@@ -109,9 +109,9 @@ def main() -> int:
         print(json.dumps({"violations": all_violations, "count": len(all_violations)}, indent=2))
     else:
         if all_violations:
-            print(f"FAIL: {len(all_violations)} async-resource-in-__init__ violation(s):", file=sys.stderr)
+            print(f"FAIL: {len(all_violations)} async-resource-in-__init__ violation(s):", file=sys.stderr)  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             for v in all_violations:
-                print(f"  {v['file']}:{v['line']} [{v['class']}.__init__] {v['type']}(..)", file=sys.stderr)
+                print(f"  {v['file']}:{v['line']} [{v['class']}.__init__] {v['type']}(..)", file=sys.stderr)  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         else:
             print("PASS: no async resources constructed in __init__")
 

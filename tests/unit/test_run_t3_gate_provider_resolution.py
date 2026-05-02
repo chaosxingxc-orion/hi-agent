@@ -11,10 +11,10 @@ def test_run_t3_gate_py_exists() -> None:
     assert (ROOT / "scripts" / "run_t3_gate.py").exists()
 
 
-def test_rule15_volces_gate_is_shim() -> None:
-    """rule15_volces_gate.py must reference run_t3_gate.py (it's a shim)."""
-    src = (ROOT / "scripts" / "rule15_volces_gate.py").read_text(encoding="utf-8")
-    assert "run_t3_gate" in src or "Deprecated" in src or "deprecated" in src
+def test_run_t3_gate_py_defaults_to_rule15_volces_profile() -> None:
+    """run_t3_gate.py default profile_id must be rule15_volces (shim removed W25)."""
+    src = (ROOT / "scripts" / "run_t3_gate.py").read_text(encoding="utf-8")
+    assert "rule15_volces" in src
 
 
 def test_inject_provider_key_exists() -> None:

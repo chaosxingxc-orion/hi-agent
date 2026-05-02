@@ -55,7 +55,7 @@ def _format_score_cap(manifest_dict: dict | None = None) -> str:
                 pass
             m = _re.match(r"^\s+cap:\s*(\d+(?:\.\d+)?)", line)
             if m:
-                return f"{float(m.group(1)):.1f} (see docs/governance/score_caps.yaml for cap rules)"
+                return f"{float(m.group(1)):.1f} (see docs/governance/score_caps.yaml for cap rules)"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
     return "see docs/governance/score_caps.yaml"
 
 

@@ -55,7 +55,7 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
         re = server.retrieval_engine
         if re is not None:
             re.mark_index_dirty()
-    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
+    except Exception:  # rule7-exempt: expiry_wave="Wave 29" replacement_test: wave22-tests
         pass
     return JSONResponse({"page_id": page_id, "status": "created"}, status_code=201)
 
@@ -92,7 +92,7 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
         re = server.retrieval_engine
         if re is not None:
             re.mark_index_dirty()
-    except Exception:  # rule7-exempt: expiry_wave="Wave 22" replacement_test: wave22-tests
+    except Exception:  # rule7-exempt: expiry_wave="Wave 29" replacement_test: wave22-tests
         pass
     return JSONResponse(
         {"nodes_created": count, "status": "created"},

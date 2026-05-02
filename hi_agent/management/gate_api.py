@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from enum import StrEnum
@@ -13,6 +14,37 @@ from hi_agent.management.gate_timeout import GateTimeoutPolicy, resolve_gate_tim
 
 if TYPE_CHECKING:
     from hi_agent.context.run_execution_context import RunExecutionContext
+
+_logger = logging.getLogger(__name__)
+
+
+def _check_unscoped_gate_read(
+    method: str, gate_ref: str | None, *, internal_unscoped: bool = False
+) -> None:
+    """Raise ValueError under strict posture for unscoped gate reads."""
+    if internal_unscoped:
+        return
+    try:
+        from hi_agent.config.posture import Posture
+
+        p = Posture.from_env()
+        if p.is_strict:
+            raise ValueError(
+                f"Gate read {method!r} called without tenant_id under strict posture "
+                f"(gate_ref={gate_ref!r}). Pass tenant_id= or use internal_unscoped=True "
+                "(only for process-internal callers)."
+            )
+        _logger.warning(
+            "Gate read %s called without tenant_id under strict posture "
+            "(gate_ref=%s); cross-tenant gate pool is being read",
+            method,
+            gate_ref,
+        )
+    except ValueError:
+        raise
+    except Exception as exc:
+        _logger.warning("gate_api._check_unscoped_gate_read: posture check failed: %s", exc)
+        return
 
 
 class GateAction(StrEnum):
@@ -78,6 +110,10 @@ class InMemoryGateAPI:
         timeout_policy: GateTimeoutPolicy = GateTimeoutPolicy.REJECT,
         escalation_target: str | None = None,
         exec_ctx: RunExecutionContext | None = None,
+        tenant_id: str = "",
+        user_id: str = "",
+        session_id: str = "",
+        project_id: str = "",
     ) -> GateRecord:
         """Create a new pending gate.
 
@@ -86,41 +122,83 @@ class InMemoryGateAPI:
             timeout_seconds: Gate timeout in seconds (must be > 0).
             timeout_policy: Policy applied when the gate times out.
             escalation_target: Optional escalation routing target.
-            exec_ctx: Optional RunExecutionContext; when provided, project_id
-                is derived from exec_ctx when not already set on the record.
+            exec_ctx: Optional RunExecutionContext; when provided, spine fields
+                are derived from exec_ctx when not already set on context.
+            tenant_id: Spine tenant identifier (fallback when not on context).
+            user_id: Spine user identifier.
+            session_id: Spine session identifier.
+            project_id: Spine project identifier.
         """
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
         if context.gate_ref in self._records:
             raise ValueError(f"gate {context.gate_ref} already exists")
 
-        derived_project_id = ""
         if exec_ctx is not None:
-            derived_project_id = exec_ctx.project_id or ""
+            _spine = exec_ctx.to_spine_kwargs()
+            tenant_id = _spine.get("tenant_id", tenant_id) or tenant_id
+            user_id = _spine.get("user_id", user_id) or user_id
+            session_id = _spine.get("session_id", session_id) or session_id
+            project_id = _spine.get("project_id", project_id) or project_id
 
+        ctx = replace(
+            context,
+            tenant_id=context.tenant_id or tenant_id,
+            user_id=context.user_id or user_id,
+            session_id=context.session_id or session_id,
+            project_id=context.project_id or project_id,
+        )
         record = GateRecord(
-            context=context,
+            context=ctx,
             status=GateStatus.PENDING,
             timeout_seconds=timeout_seconds,
             timeout_policy=timeout_policy,
             escalation_target=escalation_target.strip() if escalation_target else None,
-            project_id=derived_project_id,
+            project_id=ctx.project_id,
         )
-        self._records[context.gate_ref] = record
+        self._records[ctx.gate_ref] = record
         return record
 
-    def list_pending(self) -> list[GateRecord]:
-        """List pending gates sorted by open time then gate ref."""
-        rows = [record for record in self._records.values() if record.status is GateStatus.PENDING]
-        return sorted(rows, key=lambda record: (record.context.opened_at, record.context.gate_ref))
+    def list_pending(
+        self, tenant_id: str | None = None, *, internal_unscoped: bool = False
+    ) -> list[GateRecord]:
+        """List pending gates sorted by open time then gate ref.
 
-    def get_gate(self, gate_ref: str) -> GateRecord:
-        """Fetch a gate by reference."""
+        When ``tenant_id`` is provided only gates for that tenant are returned.
+        When ``tenant_id is None`` the listing is unscoped; under strict posture
+        this raises ValueError unless ``internal_unscoped=True``.
+        """
+        if tenant_id is None:
+            _check_unscoped_gate_read("list_pending", None, internal_unscoped=internal_unscoped)
+            rows = [r for r in self._records.values() if r.status is GateStatus.PENDING]
+        else:
+            rows = [
+                r for r in self._records.values()
+                if r.status is GateStatus.PENDING and r.context.tenant_id == tenant_id
+            ]
+        return sorted(rows, key=lambda r: (r.context.opened_at, r.context.gate_ref))
+
+    def get_gate(
+        self, gate_ref: str, tenant_id: str | None = None, *, internal_unscoped: bool = False
+    ) -> GateRecord:
+        """Fetch a gate by reference.
+
+        When ``tenant_id`` is provided and the gate belongs to a different tenant,
+        raises ``ValueError("gate ... not found")`` (object-level 404 semantics).
+        When ``tenant_id is None`` the lookup is unscoped; under strict posture
+        this raises ValueError unless ``internal_unscoped=True``.
+        """
         normalized_gate_ref = gate_ref.strip()
         if not normalized_gate_ref:
             raise ValueError("gate_ref must be a non-empty string")
+        if tenant_id is None:
+            _check_unscoped_gate_read(
+                "get_gate", normalized_gate_ref, internal_unscoped=internal_unscoped
+            )
         record = self._records.get(normalized_gate_ref)
         if record is None:
+            raise ValueError(f"gate {normalized_gate_ref} not found")
+        if tenant_id is not None and record.context.tenant_id != tenant_id:
             raise ValueError(f"gate {normalized_gate_ref} not found")
         return record
 
@@ -147,7 +225,7 @@ class InMemoryGateAPI:
         if normalized_action not in _valid_actions:
             raise ValueError(f"action must be one of {sorted(_valid_actions)}")
 
-        record = self.get_gate(gate_ref)
+        record = self.get_gate(gate_ref, internal_unscoped=True)
         if record.status is not GateStatus.PENDING:
             msg = f"gate {record.context.gate_ref} already resolved as {record.status.value}"
             raise ValueError(msg)
@@ -179,7 +257,8 @@ class InMemoryGateAPI:
     def apply_timeouts(self) -> list[GateRecord]:
         """Apply timeout policy to pending gates and return changed records."""
         changed: list[GateRecord] = []
-        for gate_ref in [record.context.gate_ref for record in self.list_pending()]:
+        pending = self.list_pending(internal_unscoped=True)
+        for gate_ref in [record.context.gate_ref for record in pending]:
             record = self._records[gate_ref]
             timeout_result = resolve_gate_timeout(
                 opened_at=record.context.opened_at,

@@ -29,22 +29,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Hot-path patterns — from CLAUDE.md Rule 8
-# ---------------------------------------------------------------------------
-_HOT_PATH_PATTERNS: list[str] = [
-    "hi_agent/llm/**",
-    "hi_agent/runtime/**",
-    "hi_agent/config/cognition_builder.py",
-    "hi_agent/config/json_config_loader.py",
-    "hi_agent/config/builder.py",
-    "hi_agent/runner.py",
-    "hi_agent/runner_stage.py",
-    "hi_agent/runtime_adapter/**",
-    "hi_agent/memory/compressor.py",
-    "hi_agent/server/app.py",
-    "hi_agent/profiles/**",
-]
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts._governance.hot_paths import HOT_PATH_PATTERNS as _HOT_PATH_PATTERNS
 
 
 def _is_hot_path(file_path: str) -> bool:
@@ -223,14 +209,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.json_output:
             print(json.dumps({
                 "check": "t3_freshness",
-                "status": "deferred",
+                "status": "fail",
                 "delivery_file": delivery_file.name,
                 "reason": reason,
                 "provenance": "unknown",
             }))
         else:
-            print(f"T3-WARN: {reason} — treating as provenance_unknown deferred", file=sys.stderr)
-        return 0  # deferred, not fail — allows cap to apply
+            print(f"T3-FAIL: {reason} — evidence file is unreadable", file=sys.stderr)
+        return 1
 
     # Reject structural provenance unless explicitly shape-verified
     provenance = delivery_data.get("provenance", "")
@@ -239,15 +225,21 @@ def main(argv: list[str] | None = None) -> int:
         if args.json_output:
             print(json.dumps({
                 "check": "t3_freshness",
-                "status": "deferred",
+                "status": "fail",
                 "delivery_file": delivery_file.name,
                 "verified_head": gate_sha_prov,
                 "provenance": provenance,
-                "reason": f"provenance:{provenance} rejected for T3 freshness — requires real or shape_verified",
+                "reason": (
+                    f"provenance:{provenance} rejected for T3 freshness"
+                    " — requires real or shape_verified"
+                ),
             }))
         else:
-            print(f"T3-WARN: {delivery_file.name} has provenance:{provenance} — not accepted as T3 evidence")
-        return 0  # deferred with cap, not hard fail
+            print(
+                f"T3-FAIL: {delivery_file.name} has provenance:{provenance}"
+                " — not accepted as T3 evidence"
+            )
+        return 1
 
     # If the delivery record explicitly marks this T3 as deferred, propagate that
     # status so the manifest builder can apply the t3_deferred cap (cap=72).

@@ -96,7 +96,7 @@ class TaskMonitor:
                     current = node_id
                     while current != neighbor:
                         cycle.append(current)
-                        current = parent.get(current, neighbor)  # type: ignore[assignment]  expiry_wave: Wave 17
+                        current = parent.get(current, neighbor)  # type: ignore[assignment]  expiry_wave: Wave 29
                     cycle.append(neighbor)
                     cycle.reverse()
                     cycles.append(cycle)

@@ -5,7 +5,7 @@
 > - L1 hi-agent detail: [`../hi_agent/ARCHITECTURE.md`](../hi_agent/ARCHITECTURE.md)
 > - L1 agent-kernel detail: this file
 
-> Last updated: 2026-04-25. Style baseline: Google Python Style Guide.
+> Last updated: 2026-05-02 (Wave 28). Style baseline: Google Python Style Guide.
 
 agent-kernel v0.2.0 -- 企业级 Agent 内核，基于六权限生命周期协议构建。
 

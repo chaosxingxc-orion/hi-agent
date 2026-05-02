@@ -212,7 +212,7 @@ class TemporalAdaptor:
             clear_run_actor_dependencies(self._deps)
         if self._env is not None:
             _logger.info("TemporalAdaptor shutting down embedded dev-server")
-            with contextlib.suppress(Exception):  # rule7-exempt: Temporal dev-server shutdown; best-effort teardown
+            with contextlib.suppress(Exception):  # rule7-exempt: Temporal dev-server shutdown; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
                 await self._env.shutdown()
 
     @property
@@ -270,7 +270,7 @@ class TemporalAdaptor:
 
         """
         if self.worker_failed:
-            raise self._worker_task.exception()  # type: ignore[misc]
+            raise self._worker_task.exception()  # type: ignore[misc]  # expiry_wave: Wave 29
 
     # ------------------------------------------------------------------
     # Internal connection helpers
@@ -349,5 +349,5 @@ class TemporalAdaptor:
                 task.get_name(),
             )
         for cb in self._worker_done_callbacks:
-            with contextlib.suppress(Exception):  # rule7-exempt: worker done callback must not block shutdown
+            with contextlib.suppress(Exception):  # rule7-exempt: worker done callback must not block shutdown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
                 cb(task)

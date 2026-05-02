@@ -1,0 +1,56 @@
+{
+  "wave": "27",
+  "manifest_id": "2026-05-01-9ef827db",
+  "release_head": "9ef827db085d8b05ef8e25e0ffc56a9f42ed85ab",
+  "signed_at": "2026-05-01T11:55:00+00:00",
+  "captain": "chaosxingxc-orion",
+  "scorecard": {
+    "current_verified_readiness": 94.55,
+    "seven_by_24_operational_readiness": 65.0,
+    "cap_factors": [],
+    "cap_factors_7x24": [
+      "soak_24h_missing: deferred",
+      "observability_spine_incomplete: deferred",
+      "chaos_non_runtime_coupled: deferred"
+    ]
+  },
+  "gates": {
+    "t3": "PASS — 3/3 real-LLM runs, 0 fallbacks, volces provider, ddb0e4d1",
+    "clean_env": "PASS — 9091/9091 default-offline at ae82126f",
+    "all_governance_gates": "28 PASS, 0 FAIL, 3 DEFERRED"
+  },
+  "phase1_lanes_closed": [
+    "Lane 0: CL3 stagger",
+    "Lane 1: RO-5 + P-4 StageDirective",
+    "Lane 2: C8 RunEventEmitter + CL9 + CL2 Rule 7",
+    "Lane 3: Routes W5-G + W24-O + W24-P + GateDecisionRequest",
+    "Lane 4: P-7 TierRouter L1→L3",
+    "Lane 5: W24-N posture 86%→100%",
+    "Lane 6: C7b noqa/type:ignore burndown",
+    "Lane 7: Track AA test fills",
+    "Lane 8: C12 ExtensionRegistry L2→L4",
+    "Lane 9: C11 ledger operationally_observable",
+    "Lane 10: ledger indexing + stale_todo closure",
+    "Lane 11: CL1+CL4+CL5+CL6+CL7+CL8+CL10",
+    "Lane 12: CI hardening W17-A",
+    "Lane 13: SSH retire + Python 3.14 warning",
+    "Lane 14: V1_FROZEN_HEAD reconciliation",
+    "Lane 15: W10-M.2 POST /artifacts",
+    "Lane 16: W10-M.3 ProjectPostmortem lifecycle"
+  ],
+  "outstanding_gaps": [
+    "soak_24h_missing: DEFERRED to W28 by user decision 2026-05-01",
+    "observability_spine_incomplete: W28 target — real spine run",
+    "chaos_non_runtime_coupled: W28 target"
+  ],
+  "user_decisions": [
+    "SSH backend: formally retired (no new dependency)",
+    "24h soak: skipped W27, deferred to W28 — soak_24h_missing cap stays active"
+  ],
+  "manifest_rewrite_count": 3,
+  "intermediate_manifests_archived": [
+    "docs/releases/archive/W27/platform-release-manifest-2026-05-01-a9209ef5.json",
+    "docs/releases/archive/W27/platform-release-manifest-2026-05-01-ebbeded5.json"
+  ],
+  "reminder": "Rotate Volces API key <rotated-and-redacted> NOW — was used for T3 gate only, must be invalidated after wave closure"
+}

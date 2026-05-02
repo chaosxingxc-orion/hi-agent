@@ -1,6 +1,6 @@
 # Agent Server Northbound Contract — v1
 
-**Status:** DRAFT
+**Status:** RELEASED (W22; freeze JSON: docs/governance/contract_v1_freeze.json)
 **Schema version:** 1.0
 **Effective from:** Wave 22
 **Owner tracks:** AS-CO, AS-RO

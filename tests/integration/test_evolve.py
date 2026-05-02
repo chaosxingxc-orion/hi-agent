@@ -83,7 +83,7 @@ class TestPostmortemAnalyzer:
         pm = _make_postmortem(outcome="completed")
         result = analyzer.analyze(pm)
 
-        assert result.trigger == "per_run_postmortem"
+        assert result.trigger == "per_run_retrospective"
         assert result.run_ids_analyzed == ["run-001"]
         assert result.metrics.runs_analyzed == 1
         assert result.timestamp  # non-empty
@@ -378,7 +378,7 @@ class TestEvolveEngine:
 
         result = engine.on_run_completed(pm)
 
-        assert result.trigger == "per_run_postmortem"
+        assert result.trigger == "per_run_retrospective"
         assert result.run_ids_analyzed == ["run-001"]
         assert result.metrics.runs_analyzed == 1
         assert isinstance(result.changes, list)

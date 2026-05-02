@@ -21,12 +21,16 @@ from hi_agent.plugins.manifest import PluginManifest
 def _clean_registry():
     """Remove test extensions from the global registry before and after each test."""
     registry = get_extension_registry()
-    test_names = {"__cli_test_ext__", "__cli_test_ext2__"}
-    for n in test_names:
-        registry._registry.pop(n, None)
+    test_prefixes = ("__cli_test_ext__", "__cli_test_ext2__")
+
+    def _purge():
+        stale = [k for k in list(registry._manifests) if k.startswith(test_prefixes)]
+        for k in stale:
+            registry._manifests.pop(k, None)
+
+    _purge()
     yield
-    for n in test_names:
-        registry._registry.pop(n, None)
+    _purge()
 
 
 def _run_extensions(argv: list[str]) -> tuple[int, str]:
@@ -61,7 +65,7 @@ def test_extensions_list_text_shows_registered() -> None:
         assert code == 0
         assert "__cli_test_ext__" in output
     finally:
-        registry._registry.pop("__cli_test_ext__", None)
+        registry._manifests.pop("__cli_test_ext__", None)
 
 
 def test_extensions_list_json_format() -> None:
@@ -76,7 +80,7 @@ def test_extensions_list_json_format() -> None:
         names = [item["name"] for item in parsed]
         assert "__cli_test_ext__" in names
     finally:
-        registry._registry.pop("__cli_test_ext__", None)
+        registry._manifests.pop("__cli_test_ext__", None)
 
 
 def test_extensions_list_posture_filter() -> None:
@@ -100,8 +104,8 @@ def test_extensions_list_posture_filter() -> None:
         assert "__cli_test_ext__" not in output
         assert "__cli_test_ext2__" in output
     finally:
-        registry._registry.pop("__cli_test_ext__", None)
-        registry._registry.pop("__cli_test_ext2__", None)
+        registry._manifests.pop("__cli_test_ext__", None)
+        registry._manifests.pop("__cli_test_ext2__", None)
 
 
 def test_extensions_inspect_known_extension() -> None:
@@ -123,7 +127,7 @@ def test_extensions_inspect_known_extension() -> None:
         assert parsed["name"] == "__cli_test_ext__"
         assert parsed["version"] == "5.0"
     finally:
-        registry._registry.pop("__cli_test_ext__", None)
+        registry._manifests.pop("__cli_test_ext__", None)
 
 
 def test_extensions_inspect_unknown_exits_nonzero() -> None:

@@ -21,6 +21,7 @@ from pathlib import Path
 from hi_agent.config.posture import Posture
 from hi_agent.memory.long_term import JsonGraphBackend
 from hi_agent.memory.sqlite_kg_backend import SqliteKnowledgeGraphBackend
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 _logger = logging.getLogger(__name__)
 
@@ -33,8 +34,12 @@ def _inc_kg_override_counter() -> None:
         collector = get_metrics_collector()
         if collector is not None:
             collector.increment("hi_agent_kg_backend_override_total")
-    except Exception:  # rule7-exempt: expiry_wave="Wave 22" metrics must never crash callers
-        pass
+    except Exception as exc:
+        record_silent_degradation(
+            component="memory.kg_factory._inc_kg_override_counter",
+            reason="metrics_increment_failed",
+            exc=exc,
+        )
 
 
 def make_knowledge_graph_backend(

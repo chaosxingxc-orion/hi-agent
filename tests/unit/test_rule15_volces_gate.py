@@ -110,9 +110,9 @@ def test_build_client_bypasses_environment_proxies():
         client.close()
 
 
-def test_build_parser_defaults_profile_id_to_t3_gate():
+def test_build_parser_defaults_profile_id_to_rule15_volces():
     args = _build_parser().parse_args(["--output", "evidence.json"])
-    assert args.profile_id == "t3_gate"
+    assert args.profile_id == "rule15_volces"
 
 
 def test_build_parser_accepts_custom_profile_id():
@@ -239,7 +239,7 @@ def test_run_gate_fails_cleanly_when_cancel_route_missing(tmp_path, monkeypatch)
             return FakeResponse(404, {"error": "run_not_found"}, method, url)
         return original_request(method, url, **kwargs)
 
-    client.request = broken_request  # type: ignore[assignment]  expiry_wave: Wave 17
+    client.request = broken_request  # type: ignore[assignment]  expiry_wave: Wave 29
     process = FakeProcess(["python", "-m", "hi_agent", "serve", "--port", "8090"])
     output = tmp_path / "failed.json"
     config = GateConfig(

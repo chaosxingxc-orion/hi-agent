@@ -6,13 +6,13 @@ relied on author discipline. Exits non-zero if any hard rule is violated.
 Hard rules (exit non-zero on violation):
   * Rule 5     — no ``asyncio.run(...)`` or ``asyncio.get_event_loop(...)``
                  outside entry points (BLOCKING; was advisory)
+  * Rule 6     — constructor-call inline fallback ``x or ClassName()``
+                 (BLOCKING; promoted from WARN per CLAUDE.md Rule 6 L121)
+  * Rule 7     — suspicious ``assert status in (..., "failed", ...)`` in tests
+                 (BLOCKING; promoted from WARN)
   * Rule 13    — no inline ``or X(...)`` fallback for shared-state resources
   * Rule 13    — (scope) builders must not default ``profile_id=""``
   * Language   — no CJK in LLM-prompt-facing string literals
-
-Soft rules (WARN only, exit stays 0):
-  * Rule 7     鈥?suspicious ``assert status in (..., "failed", ...)`` in tests
-  * Rule 6     鈥?constructor-call inline fallback (x or ClassName())
 
 Runs with no external dependencies (pure stdlib ``re``/``ast``/``pathlib``),
 so CI can invoke it on a fresh Python 3.12 without apt or pip installs.
@@ -369,14 +369,12 @@ def check_rule_6(files: list[Path], repo: Path) -> RuleResult:
     """Check for constructor-call inline fallbacks: ``x or SomeClass(...)``.
 
     Uses AST-based detection to skip docstrings, ExceptHandler bodies, and
-    stdlib/primitive type names.  Warning-mode: flags sites for manual review.
-    Fixed sites in hi_agent/ should not appear here; remaining agent_kernel/
-    sites are tracked as pre-existing debt.
+    stdlib/primitive type names.  BLOCKING: every match is a defect candidate
+    per CLAUDE.md Rule 6 L121.
     """
     result = RuleResult(
         "Rule 6",
         "constructor-call inline fallback (x or ClassName())",
-        is_warning=True,
     )
     for path in files:
         try:
@@ -540,7 +538,6 @@ def check_rule_7(repo: Path) -> RuleResult:
     result = RuleResult(
         "Rule 7 test honesty",
         "assert status in [...'failed'...]",
-        is_warning=True,
     )
     for path in _test_files(repo):
         try:
@@ -622,8 +619,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"OVERALL: PASS ({total_hard} of {total_hard} hard rules passed)")
     else:
-        # Collect Rule 6 and Rule 13 warning sites for JSON output.
-        rule6_result = next((r for r in results if r.rule_id == "Rule 6"), None)
+        # Collect Rule 13 warning sites for JSON output (Rule 6 is now BLOCKING).
         rule13_result = next((r for r in results if r.rule_id == "Rule 13"), None)
 
         def _parse_sites(violations: list[str]) -> list[dict]:
@@ -641,7 +637,6 @@ def main(argv: list[str] | None = None) -> int:
                     sites.append({"file": file_part, "line": line_num, "text": text_part})
             return sites
 
-        r6_violations = rule6_result.violations if rule6_result else []
         r13_violations = rule13_result.violations if rule13_result else []
 
         payload = {
@@ -652,10 +647,6 @@ def main(argv: list[str] | None = None) -> int:
                 for r in hard_fails
             ],
             "hard_pass": not bool(hard_fails),
-            "rule6_warnings": {
-                "count": len(r6_violations),
-                "sites": _parse_sites(r6_violations),
-            },
             "rule13_warnings": {
                 "count": len(r13_violations),
                 "sites": _parse_sites(r13_violations),

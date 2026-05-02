@@ -144,9 +144,9 @@ def _set_engine_context_provider(engine: object, provider: object) -> None:
     LLMRouteEngine's ``set_context_provider`` method.
     """
     if hasattr(engine, "set_context_provider"):
-        engine.set_context_provider(provider)  # type: ignore[union-attr]  expiry_wave: Wave 17
+        engine.set_context_provider(provider)  # type: ignore[union-attr]  expiry_wave: Wave 29
     elif hasattr(engine, "_context_provider"):
-        engine._context_provider = provider  # type: ignore[union-attr]  expiry_wave: Wave 17
+        engine._context_provider = provider  # type: ignore[union-attr]  expiry_wave: Wave 29
 
 
 def _make_subrun_done_callback(
@@ -1657,6 +1657,26 @@ class RunExecutor:
 
         RunFinalizer(self._build_finalizer_context())._cancel_pending_subruns(status)
 
+    async def _reap_pending_subruns(self, timeout: float = 5.0) -> None:
+        """Cancel and await all pending subrun futures within *timeout* seconds.
+
+        The synchronous _cancel_pending_subruns() only calls future.cancel()
+        without awaiting, so tasks leak until GC.  This async variant drives
+        each cancelled future to completion (or timeout) so the event loop
+        can release associated resources promptly on runner shutdown.
+
+        Args:
+            timeout: Per-future wall-clock seconds before abandoning the await.
+        """
+        import contextlib
+
+        for _task_id, fut in list(self._pending_subrun_futures.items()):
+            if callable(getattr(fut, "done", None)) and not fut.done():
+                fut.cancel()
+            with contextlib.suppress(asyncio.CancelledError, TimeoutError, Exception):
+                await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
+        self._pending_subrun_futures.clear()
+
     def _finalize_run(self, outcome: str) -> RunResult:
         """Delegate finalization to RunFinalizer (HI-W7-004)."""
         from hi_agent.execution.run_finalizer import RunFinalizer
@@ -2092,7 +2112,7 @@ class RunExecutor:
             future.add_done_callback(
                 _make_subrun_done_callback(self._completed_subrun_results, task_id)
             )
-            self._pending_subrun_futures[task_id] = future  # type: ignore[attr-defined]  expiry_wave: Wave 17
+            self._pending_subrun_futures[task_id] = future  # type: ignore[attr-defined]  expiry_wave: Wave 29
         except RuntimeError:
             # No running loop — synchronous call path.
             # DF-06: route through sync_bridge (Rule 12) to share a single
@@ -2102,7 +2122,7 @@ class RunExecutor:
             results = get_bridge().call_sync(
                 self._delegation_manager.delegate([req], parent_run_id=self.run_id)
             )
-            self._completed_subrun_results[task_id] = results[0]  # type: ignore[attr-defined]  expiry_wave: Wave 17
+            self._completed_subrun_results[task_id] = results[0]  # type: ignore[attr-defined]  expiry_wave: Wave 29
 
         return SubRunHandle(subrun_id=task_id, agent=agent)
 
@@ -2442,8 +2462,17 @@ async def execute_async(
                 run_id=run_id,
                 extra={"exc": str(_fin_exc)},
             )
-        except Exception:
-            pass
+        except Exception as _rec_exc:
+            from hi_agent.observability.silent_degradation import (
+                record_silent_degradation,
+            )
+
+            record_silent_degradation(
+                component="runner._record_fallback_self_failure",
+                reason="fallback_record_failed",
+                run_id=run_id,
+                exc=_rec_exc,
+            )
         _logger.warning("execute_async: _finalize_run failed: %s", _fin_exc)
 
     if _run_result is not None:
@@ -2457,7 +2486,7 @@ async def execute_async(
     except Exception as _fe_exc:
         import contextlib
 
-        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 17
+        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29
             record_fallback(
                 "llm",
                 reason="fallback_events_lookup_failed",

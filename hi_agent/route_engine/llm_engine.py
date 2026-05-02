@@ -197,7 +197,7 @@ class LLMRouteEngine:
                 "purpose": "route_decision",
             },
         )
-        response = self._gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 17
+        response = self._gateway.complete(request)  # type: ignore[union-attr]  expiry_wave: Wave 29
         return response.content
 
     def _parse_payload(self, raw: Any) -> dict[str, Any]:

@@ -154,7 +154,7 @@ async def test_async_invoke_sync_handler():
 # ======================================================================
 
 
-@pytest.mark.skip(  # expiry_wave: Wave 26
+@pytest.mark.skip(  # expiry_wave: Wave 29
     reason=(
         "H1-Track4 K-11: mocks executor._execute_action_with_retry, which is an "
         "internal method of the SUT (RunExecutor). Mocking an internal method makes "
@@ -205,7 +205,7 @@ def test_runner_exception_protection():
     def exploding_stage(stage_id: str):
         raise RuntimeError("unexpected kaboom")
 
-    executor._execute_stage = exploding_stage  # type: ignore[assignment]  expiry_wave: Wave 17
+    executor._execute_stage = exploding_stage  # type: ignore[assignment]  expiry_wave: Wave 29
 
     result = executor.execute()
     assert result == "failed"

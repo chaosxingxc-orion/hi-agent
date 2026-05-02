@@ -83,7 +83,7 @@ def main() -> int:
             print(f"  skip (absent): {d}")
             continue
         c, s = backfill_dir(d, args.dry_run)
-        print(f"  {d.name}: {c} sidecar(s) {'would be ' if args.dry_run else ''}created, {s} already present/skipped")
+        print(f"  {d.name}: {c} sidecar(s) {'would be ' if args.dry_run else ''}created, {s} already present/skipped")  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         total_created += c
         total_skipped += s
 

@@ -114,7 +114,7 @@ class TestTeamRunGetReturnsSpine:
         assert loaded.user_id == "u-rt"
         assert loaded.session_id == "s-rt"
         # And spine round-trips alongside the original payload fields.
-        assert loaded.pi_run_id == original.pi_run_id
+        assert loaded.lead_run_id == "run-pi-spine-1"
         assert loaded.project_id == original.project_id
         assert loaded.member_runs == original.member_runs
         assert loaded.created_at == original.created_at

@@ -16,6 +16,7 @@ import httpx
 
 from hi_agent.llm.errors import LLMProviderError, LLMTimeoutError
 from hi_agent.llm.protocol import LLMRequest, TokenUsage
+from hi_agent.observability.silent_degradation import record_silent_degradation
 
 # ---------------------------------------------------------------------------
 # Type aliases
@@ -125,7 +126,12 @@ class SseParser:
 
         try:
             data: dict[str, Any] = json.loads(data_str)
-        except json.JSONDecodeError:  # rule7-exempt: expiry_wave="Wave 22"
+        except json.JSONDecodeError as exc:
+            record_silent_degradation(
+                component="llm.streaming.StreamParser._parse_event",
+                reason="sse_json_decode_failed",
+                exc=exc,
+            )
             return None
 
         # ---- text delta ---------------------------------------------------
@@ -233,12 +239,13 @@ class HTTPStreamingGateway:
         self._default_model = model
         self._timeout = timeout
         self._pool_size = pool_size
-        # Rule 5: do NOT create AsyncClient in __init__ (sync context).
-        # Lazy-create on first call inside the running event loop.
-        self._client: httpx.AsyncClient | None = None
+        # Rule 5: no self._client field — AsyncClient is constructed per-call
+        # inside stream() via async with, so it is always loop-bound and never
+        # shared across asyncio.run() boundaries (DF-18 class fix).
         self._parser = SseParser()
 
     def _make_client(self) -> httpx.AsyncClient:
+        # Rule 5: per-call construction — caller must use this inside `async with`.
         return httpx.AsyncClient(
             base_url=self._base_url,
             headers={
@@ -260,6 +267,10 @@ class HTTPStreamingGateway:
     async def stream(self, request: LLMRequest) -> AsyncIterator[StreamDelta]:
         """Stream :class:`StreamDelta` events for *request*.
 
+        Rule 5 (DF-18 class): AsyncClient is constructed per-call via
+        ``async with`` so it is always bound to the running loop and never
+        shared across event-loop boundaries.
+
         Yields:
             :class:`StreamDelta` events as they arrive from the provider.
 
@@ -275,14 +286,15 @@ class HTTPStreamingGateway:
         emit_llm_call(tenant_id="", profile_id="")
         payload = self._build_payload(request, model)
 
-        if self._client is None:
-            self._client = self._make_client()
+        # Rule 5: construct AsyncClient per-call inside the running loop
+        # so no cross-loop resource is ever stored on self.  The previous
+        # pattern stored self._client lazily and shared it across asyncio.run()
+        # boundaries — DF-18 class bug.
         try:
-            async with self._client.stream(
-                "POST",
-                "/v1/messages",
-                json=payload,
-            ) as response:
+            async with (
+                self._make_client() as client,
+                client.stream("POST", "/v1/messages", json=payload) as response,
+            ):
                 if response.status_code >= 400:
                     body = await response.aread()
                     raise LLMProviderError(
@@ -303,10 +315,7 @@ class HTTPStreamingGateway:
             raise
 
     async def aclose(self) -> None:
-        """Close the underlying httpx client and release connections."""
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        """No-op: AsyncClient is now constructed per-call; nothing to close."""
 
     # ------------------------------------------------------------------
     # Internals

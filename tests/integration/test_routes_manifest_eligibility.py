@@ -27,7 +27,7 @@ def _app_with_plugin_loader(monkeypatch):
 
     # Patch require_tenant_context in the routes_manifest module namespace to
     # avoid 401 in the test environment.
-    monkeypatch.setattr(_routes_manifest, "require_tenant_context", lambda: None)  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 26
+    monkeypatch.setattr(_routes_manifest, "require_tenant_context", lambda: None)  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 29
 
     # Build a plugin loader with one synthetic manifest already loaded.
     pm = PluginManifest(

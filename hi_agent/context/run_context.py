@@ -11,12 +11,12 @@ from hi_agent.contracts import StageSummary, TrajectoryNode
 try:
     from hi_agent.context.nudge import NudgeState
 except ImportError:  # pragma: no cover
-    NudgeState = None  # type: ignore[assignment,misc]  expiry_wave: Wave 17
+    NudgeState = None  # type: ignore[assignment,misc]  expiry_wave: Wave 29
 
 try:
     from hi_agent.task_view.result_budget import ToolResultBudgetState
 except ImportError:  # pragma: no cover
-    ToolResultBudgetState = None  # type: ignore[assignment,misc]  expiry_wave: Wave 17
+    ToolResultBudgetState = None  # type: ignore[assignment,misc]  expiry_wave: Wave 29
 
 
 @dataclass

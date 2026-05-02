@@ -150,8 +150,8 @@ def test_builder_l1_l2_stores_under_research_posture(
     assert expected_l1.exists()
     assert expected_l2.exists()
 
-    l1_a.register("t", "r", "S1", CompressedStageMemory(stage_id="S1"))
-    idx = RunMemoryIndex(run_id="r")
+    l1_a.register("t", "r", "S1", CompressedStageMemory(stage_id="S1", tenant_id="t"))
+    idx = RunMemoryIndex(run_id="r", tenant_id="t")
     idx.add_stage("S1", "succeeded")
     l2_a.register("t", "r", idx, summary_text="restart-test")
     l1_a.close()

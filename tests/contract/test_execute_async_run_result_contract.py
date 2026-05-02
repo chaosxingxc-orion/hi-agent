@@ -40,7 +40,7 @@ def _make_executor(contract: TaskContract | None = None) -> RunExecutor:
         policy_versions=PolicyVersionSet(),
     )
     # Swap to async facade so execute_async can call start_run / execute_turn.
-    executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 17
+    executor.kernel = MockKernelFacade()  # type: ignore[assignment]  expiry_wave: Wave 29
     return executor
 
 
@@ -68,8 +68,8 @@ async def test_execute_async_run_result_has_required_fields():
     assert hasattr(result, "stages"), "RunResult must have stages"
     assert hasattr(result, "artifacts"), "RunResult must have artifacts"
     assert result.run_id, "run_id must be non-empty"
-    assert result.status in {"completed", "failed"}, (
-        f"status must be 'completed' or 'failed', got {result.status!r}"
+    assert result.status == "completed", (
+        f"status must be 'completed', got {result.status!r}"
     )
 
 

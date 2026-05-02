@@ -5,7 +5,7 @@
 # risk: low | medium | high
 
 schema_version: "1"
-current_wave: 23
+current_wave: 28
 
 # ---------------------------------------------------------------------------
 # route_scope_allowlist: loaded by scripts/check_route_scope.py
@@ -298,3 +298,14 @@ entries:
   # The data-partition gap (true cross-tenant isolation at the KG / skill /
   # tool registry level) remains tracked under SA-1 ledger A-06 / A-10 via
   # the existing xfail tests in tests/integration/test_route_handle_*_tenant_isolation.py.
+  # --- stale_todo entries (W26-G: close W12/W14 overdue TODOs) ---
+  # handle_plugins_list_no_tenant_scope: CLOSED W27-L3 — tenant overlay implemented in app.py.
+  # handle_plugins_status_no_tenant_scope: CLOSED W27-L3 — tenant overlay implemented in app.py.
+  - allowlist: stale_todo
+    entry: ssh_backend_retired_w27
+    owner: TE
+    risk: low
+    reason: "SSHBackend stub retired in W27 per Rule 2 simplicity: 4 NotImplementedError stubs deleted, no in-tree consumer since W10. SSH execution out of scope until real demand arises."
+    expiry_wave: "permanent"
+    replacement_test: "n/a — capability not in scope this release"
+    added_at: "Wave 27"

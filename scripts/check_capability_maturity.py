@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI gate: every registered CapabilityDescriptor must have an explicit maturity_level (Rule 13 / CL5)."""
+"""CI gate: every registered CapabilityDescriptor must have an explicit maturity_level (Rule 13 / CL5)."""  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
 from __future__ import annotations
 
 import argparse
@@ -44,7 +44,7 @@ def find_descriptor_instantiations(path: str) -> list[tuple[int, str | None]]:
             maturity = None
             for kw in node.keywords:
                 if kw.arg == "maturity_level":
-                    if isinstance(kw.value, ast.Constant):
+                    if isinstance(kw.value, ast.Constant):  # noqa: SIM108  # expiry_wave: Wave 30  # added: W25 baseline sweep
                         maturity = kw.value.value
                     else:
                         maturity = "<dynamic>"
@@ -53,18 +53,28 @@ def find_descriptor_instantiations(path: str) -> list[tuple[int, str | None]]:
 
 
 def main() -> int:
+    import json as _json
+
     parser = argparse.ArgumentParser(description="Capability maturity gate.")
     parser.add_argument("--strict", action="store_true",
                         help="Treat absent input as fail rather than not_applicable")
+    parser.add_argument("--json", action="store_true", dest="json_output")
     args = parser.parse_args()
 
     # not_applicable when the capability registry doesn't exist (fresh checkout, stripped bundle)
     if not Path(DATACLASS_FILE).exists():
         if args.strict:
-            print(f"FAIL (strict): input absent at {DATACLASS_FILE}; "
-                  "in strict mode, absent input is a defect", file=sys.stderr)
+            if args.json_output:
+                print(_json.dumps({"check": "capability_maturity", "status": "fail",
+                                   "reason": f"input absent at {DATACLASS_FILE}"}))
+            else:
+                print(f"FAIL (strict): input absent at {DATACLASS_FILE}; "
+                      "in strict mode, absent input is a defect", file=sys.stderr)
             return 1
-        print(f"not_applicable: {DATACLASS_FILE} not found")
+        if args.json_output:
+            print(_json.dumps({"check": "capability_maturity", "status": "not_applicable"}))
+        else:
+            print(f"not_applicable: {DATACLASS_FILE} not found")
         return 0
 
     violations: list[str] = []
@@ -83,17 +93,21 @@ def main() -> int:
                 continue
             if maturity is None:
                 violations.append(
-                    f"{registry_file}:{lineno}: CapabilityDescriptor instantiation missing maturity_level"
+                    f"{registry_file}:{lineno}: CapabilityDescriptor instantiation missing maturity_level"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 )
             elif maturity not in VALID_LEVELS:
                 violations.append(
-                    f"{registry_file}:{lineno}: maturity_level={maturity!r} not in {sorted(VALID_LEVELS)}"
+                    f"{registry_file}:{lineno}: maturity_level={maturity!r} not in {sorted(VALID_LEVELS)}"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 )
 
     if violations:
-        print(f"FAIL: {len(violations)} capability maturity violation(s):")
-        for v in violations:
-            print(f"  {v}")
+        if args.json_output:
+            print(_json.dumps({"check": "capability_maturity", "status": "fail",
+                               "violations": violations}))
+        else:
+            print(f"FAIL: {len(violations)} capability maturity violation(s):")
+            for v in violations:
+                print(f"  {v}")
         return 1
 
     total = sum(
@@ -101,7 +115,11 @@ def main() -> int:
         for f in REGISTRY_FILES
         if Path(f).exists()
     )
-    print(f"PASS: capability maturity check ({total} CapabilityDescriptor instantiation(s) verified)")
+    if args.json_output:
+        print(_json.dumps({"check": "capability_maturity", "status": "pass",
+                           "descriptors_verified": total}))
+    else:
+        print(f"PASS: capability maturity check ({total} CapabilityDescriptor instantiation(s) verified)")  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
     return 0
 
 

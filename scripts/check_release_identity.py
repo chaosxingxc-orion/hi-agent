@@ -86,10 +86,16 @@ def _latest_notice_head() -> tuple[str, str]:
 
 
 def _sha_match(a: str, b: str) -> bool:
+    """Return True when a and b refer to the same commit.
+
+    Uses the full length of the shorter string — NO artificial 12-char cap.
+    For two 40-char SHAs this requires exact equality.  For a short filename-
+    embedded SHA vs a full 40-char SHA (GS-11) it compares the full short SHA.
+    """
     if not a or not b:
         return False
-    short_len = min(len(a), len(b), 12)
-    return a[:short_len] == b[:short_len]
+    compare_len = min(len(a), len(b))
+    return a[:compare_len] == b[:compare_len]
 
 
 def main() -> int:
@@ -140,7 +146,7 @@ def main() -> int:
     violations = []
     # GS-11: manifest filename SHA must equal manifest content release_head SHA.
     # A renamed-but-not-regenerated manifest (or vice versa) is a corrupt artifact.
-    if manifest_filename_sha and manifest_head and not _sha_match(manifest_filename_sha, manifest_head):
+    if manifest_filename_sha and manifest_head and not _sha_match(manifest_filename_sha, manifest_head):  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
         violations.append(
             f"manifest filename SHA {manifest_filename_sha[:12]} != manifest content "
             f"release_head {manifest_head[:12]} ({manifest_name})"

@@ -27,6 +27,8 @@ from hi_agent.trajectory.graph import TrajectoryGraph, TrajNode
 from tests.helpers.kernel_adapter_fixture import MockKernel
 from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
+pytestmark = pytest.mark.usefixtures("fallback_explicit")
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -59,7 +61,7 @@ def _make_executor(
     kwargs.setdefault("policy_versions", PolicyVersionSet())
     executor = RunExecutor(contract=contract, kernel=mock_kernel, **kwargs)
     # execute_async reads executor.kernel �?replace with the async facade.
-    executor.kernel = facade  # type: ignore[assignment]  expiry_wave: Wave 17
+    executor.kernel = facade  # type: ignore[assignment]  expiry_wave: Wave 29
     return executor, facade
 
 

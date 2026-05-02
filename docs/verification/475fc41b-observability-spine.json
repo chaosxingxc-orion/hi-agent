@@ -1,0 +1,273 @@
+{
+  "provenance": "structural",
+  "release_head": "475fc41b",
+  "verified_head": "475fc41b",
+  "release_head_full": "475fc41bc1c7dc1a726bb97eae8ae2fe891ab22a",
+  "git_dirty": true,
+  "generated_at": "2026-04-30T20:24:15.977124+00:00",
+  "started_at": "2026-04-30T20:21:14.080148+00:00",
+  "run_id": "",
+  "trace_id": "",
+  "final_state": "",
+  "layer_count": 5,
+  "coverage": "5/14",
+  "layers": [
+    {
+      "layer": "http_request",
+      "event_type": "http_request",
+      "timestamp": "2026-04-30T20:24:15.961845+00:00",
+      "run_id": "",
+      "trace_id": "",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_http_requests_total",
+        "counter_total": 182.0
+      }
+    },
+    {
+      "layer": "middleware",
+      "event_type": "trace_id_propagated",
+      "timestamp": "2026-04-30T20:24:15.961875+00:00",
+      "run_id": "",
+      "trace_id": "",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_spine_trace_id_propagated_total",
+        "counter_total": 182.0
+      }
+    },
+    {
+      "layer": "sync_bridge",
+      "event_type": "sync_bridge_invoked",
+      "timestamp": "2026-04-30T20:24:15.961891+00:00",
+      "run_id": "",
+      "trace_id": "",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_events_published_total",
+        "counter_total": 4.0
+      }
+    },
+    {
+      "layer": "fallback_recorder",
+      "event_type": "fallback_recorder_snapshot",
+      "timestamp": "2026-04-30T20:24:15.961900+00:00",
+      "run_id": "",
+      "trace_id": "",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_llm_fallback_total",
+        "counter_total": 1.0
+      }
+    },
+    {
+      "layer": "event_store",
+      "event_type": "event_stored_total",
+      "timestamp": "2026-04-30T20:24:15.961905+00:00",
+      "run_id": "",
+      "trace_id": "",
+      "source": "metric_counter",
+      "extra": {
+        "counter_name": "hi_agent_events_stored_total",
+        "counter_total": 96.0
+      }
+    }
+  ],
+  "layers_present": [
+    "http_request",
+    "middleware",
+    "sync_bridge",
+    "fallback_recorder",
+    "event_store"
+  ],
+  "layers_missing": [
+    "tenant_context",
+    "run_manager",
+    "kernel_dispatch",
+    "reasoning_loop",
+    "capability_handler",
+    "llm_gateway",
+    "http_transport",
+    "llm_provider_response",
+    "artifact_ledger"
+  ],
+  "trace_id_consistent": true,
+  "event_count": 5,
+  "event_types": [
+    "http_request",
+    "trace_id_propagated",
+    "sync_bridge_invoked",
+    "fallback_recorder_snapshot",
+    "event_stored_total"
+  ],
+  "spine_ok": false,
+  "metrics_snapshot": {
+    "hi_agent_spine_sync_bridge_total": {
+      "_total": 47.0
+    },
+    "hi_agent_events_stored_total": {
+      "_total": 96.0
+    },
+    "hi_agent_spine_event_store_total": {
+      "_total": 96.0
+    },
+    "hi_agent_http_requests_total": {
+      "method=\"GET\",path=\"/ready\"": 1.0,
+      "method=\"POST\",path=\"/runs\"": 1.0,
+      "method=\"GET\",path=\"/runs/0eae0b03-49e0-4af7-9f04-06631c2d29f7\"": 180.0
+    },
+    "hi_agent_spine_trace_id_propagated_total": {
+      "_total": 182.0
+    },
+    "hi_agent_events_published_total": {
+      "_total": 4.0
+    },
+    "hi_agent_spine_run_manager_total": {
+      "_total": 1.0
+    },
+    "hi_agent_spine_reasoning_loop_total": {
+      "_total": 6.0
+    },
+    "hi_agent_llm_requests_total": {
+      "model=\"kimi-k2.6\",provider=\"anthropic\"": 9.0,
+      "model=\"glm-5.1\",provider=\"anthropic\"": 1.0
+    },
+    "hi_agent_spine_tool_call_total": {
+      "profile=\"unknown\",tool=\"analyze_goal\"": 1.0,
+      "profile=\"unknown\",tool=\"search_evidence\"": 2.0,
+      "profile=\"unknown\",tool=\"build_draft\"": 1.0,
+      "profile=\"unknown\",tool=\"synthesize\"": 1.0,
+      "profile=\"unknown\",tool=\"evaluate_acceptance\"": 1.0
+    },
+    "hi_agent_spine_capability_handler_total": {
+      "tool=\"analyze_goal\"": 1.0,
+      "tool=\"search_evidence\"": 2.0,
+      "tool=\"build_draft\"": 1.0,
+      "tool=\"synthesize\"": 1.0,
+      "tool=\"evaluate_acceptance\"": 1.0
+    },
+    "hi_agent_spine_artifact_ledger_total": {
+      "_total": 6.0
+    },
+    "fallback_heuristic": {
+      "reason=\"llm_json_parse_error\"": 1.0
+    },
+    "hi_agent_heuristic_fallback_total": {
+      "reason=\"llm_json_parse_error\"": 1.0
+    },
+    "hi_agent_spine_heartbeat_renewed_total": {
+      "_total": 1.0
+    },
+    "runs_total": {
+      "status=\"completed\"": 1.0
+    },
+    "fallback_llm": {
+      "reason=\"tier_downgrade purpose=evaluation from=light to=medium\"": 1.0
+    },
+    "hi_agent_llm_fallback_total": {
+      "reason=\"tier_downgrade purpose=evaluation from=light to=medium\"": 1.0
+    },
+    "hi_agent_thread_count": {
+      "_total": 6.0
+    },
+    "runs_active": {
+      "_total": 0.0
+    }
+  },
+  "ready_snapshot": {
+    "ready": true,
+    "health": "ok",
+    "execution_mode": "local",
+    "kernel_mode": "local-fsm",
+    "llm_mode": "real",
+    "llm_provider": "volces",
+    "llm_backend": "AnthropicLLMGateway",
+    "models": [
+      {
+        "name": "glm-5.1",
+        "provider": "volces",
+        "tier": "strong",
+        "status": "configured"
+      },
+      {
+        "name": "kimi-k2.6",
+        "provider": "volces",
+        "tier": "medium",
+        "status": "configured"
+      }
+    ],
+    "skills": [],
+    "mcp_servers": [],
+    "plugins": [],
+    "capabilities": [
+      "analyze_goal",
+      "build_draft",
+      "evaluate_acceptance",
+      "file_read",
+      "file_write",
+      "rule15_probe_capability",
+      "search_evidence",
+      "synthesize",
+      "web_fetch"
+    ],
+    "subsystems": {
+      "kernel": {
+        "status": "ok",
+        "mode": "local"
+      },
+      "llm": {
+        "status": "ok",
+        "models": 2
+      },
+      "capabilities": {
+        "status": "ok",
+        "count": 9
+      },
+      "skills": {
+        "status": "ok",
+        "discovered": 0
+      },
+      "mcp": {
+        "status": "ok",
+        "servers": 0,
+        "connected": 0,
+        "registered_only": 0,
+        "transport_status": "not_wired",
+        "capability_mode": "infrastructure_only",
+        "note": "External MCP transport (stdio/SSE/HTTP) not yet implemented. Platform tools are available via /mcp/tools/list as MCP-compatible endpoints. External server registration and forwarding are deferred."
+      },
+      "plugins": {
+        "status": "ok",
+        "count": 0
+      },
+      "durable_backends": {
+        "status": "not_required"
+      }
+    },
+    "evolve_policy": {
+      "mode": "auto",
+      "effective": true,
+      "source": "auto_dev_on"
+    },
+    "runtime_mode": "dev-smoke",
+    "prerequisites": {
+      "mode": "dev \u2014 heuristic fallback active, no external dependencies required",
+      "hint": "Use HI_AGENT_ENV=prod or `serve --prod` to require real credentials."
+    },
+    "auth_posture": "dev_risk_open",
+    "flags": {
+      "ready_to_serve": true,
+      "ready_to_accept_new_runs": true
+    }
+  },
+  "failures": [
+    "drive_one_run: run 0eae0b03-49e0-4af7-9f04-06631c2d29f7 did not reach terminal in 180.0s"
+  ],
+  "status": "fail",
+  "_evidence_meta": {
+    "provenance": "structural",
+    "head_sha": "475fc41bc1c7dc1a726bb97eae8ae2fe891ab22a",
+    "generated_at": "2026-04-30T20:24:15.998438+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\run_observability_spine.py"
+  }
+}

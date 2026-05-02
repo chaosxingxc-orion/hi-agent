@@ -93,14 +93,55 @@ def test_arch_gate_deferred_does_not_affect_verified(gate_key: str) -> None:
         )
 
 
+def test_7x24_capped_when_arch_evidence_missing(monkeypatch, tmp_path) -> None:
+    """W28+: 7x24 is governed by a single architectural rule
+    (`architectural_seven_by_twenty_four`) sourced from
+    docs/verification/<sha>-arch-7x24.json. The legacy single-purpose caps
+    (`observability_spine_incomplete`, `chaos_non_runtime_coupled`,
+    `soak_24h_missing`) were retired -- deferring those underlying gates no
+    longer caps 7x24 directly. The cap fires when arch-7x24 evidence is
+    absent OR shows any failing assertion.
+    """
+    import shutil
+
+    import build_release_manifest as brm
+
+    # Mirror the score_caps.yaml under tmp so _load_score_caps still resolves,
+    # then point ROOT to tmp so the evidence search finds an empty directory.
+    real_yaml = brm.ROOT / "docs" / "governance" / "score_caps.yaml"
+    fake_gov = tmp_path / "docs" / "governance"
+    fake_ver = tmp_path / "docs" / "verification"
+    fake_gov.mkdir(parents=True)
+    fake_ver.mkdir(parents=True)
+    shutil.copy(real_yaml, fake_gov / "score_caps.yaml")
+    monkeypatch.setattr(brm, "ROOT", tmp_path)
+
+    gates = _make_gates()
+    _cap_val, _reason, cap_factors_7x24 = _compute_cap(
+        gates,
+        is_dirty=False,
+        t3_stale=False,
+        expired_allowlist=0,
+        tier="seven_by_twenty_four_operational_readiness",
+    )
+
+    assert any("architectural_seven_by_twenty_four" in f for f in cap_factors_7x24), (
+        f"Expected architectural_seven_by_twenty_four cap when evidence is missing, "
+        f"got cap_factors_7x24={cap_factors_7x24}"
+    )
+
+
 @pytest.mark.parametrize("gate_key", [
     "soak_evidence",
     "observability_spine_completeness",
     "chaos_runtime_coupling",
 ])
-def test_arch_gate_deferred_still_caps_7x24(gate_key: str) -> None:
-    """When an architectural gate is deferred, seven_by_twenty_four_operational_readiness
-    MUST be capped (the 7x24-specific condition must still fire for that tier).
+def test_underlying_arch_gate_deferral_does_not_directly_cap_7x24(gate_key: str) -> None:
+    """W28+ guard against regression: deferring `soak_evidence`,
+    `observability_spine_completeness`, or `chaos_runtime_coupling` MUST NOT
+    by itself add a cap_factor to the 7x24 tier. Those concerns are now
+    routed through the unified architectural assertion check
+    (scripts/run_arch_7x24.py) instead of three single-purpose caps.
     """
     gates = _make_gates(**{gate_key: "deferred"})
 
@@ -112,10 +153,15 @@ def test_arch_gate_deferred_still_caps_7x24(gate_key: str) -> None:
         tier="seven_by_twenty_four_operational_readiness",
     )
 
-    # At least one architectural cap condition must have fired
-    assert cap_factors_7x24, (
-        f"Expected 7x24 to be capped when '{gate_key}' is deferred, "
-        f"but cap_factors_7x24 is empty"
+    legacy_caps = {
+        "soak_24h_missing", "soak_24h_pending",
+        "observability_spine_incomplete", "chaos_non_runtime_coupled",
+    }
+    leaked = [f for f in cap_factors_7x24 if any(c in f for c in legacy_caps)]
+    assert not leaked, (
+        f"Legacy single-purpose 7x24 cap fired for '{gate_key}' deferral: "
+        f"{leaked}. These caps were retired W28; only "
+        f"architectural_seven_by_twenty_four should govern the 7x24 tier."
     )
 
 

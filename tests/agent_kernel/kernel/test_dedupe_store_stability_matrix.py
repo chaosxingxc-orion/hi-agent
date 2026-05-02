@@ -17,7 +17,7 @@ def _envelope_for(seed: int) -> IdempotencyEnvelope:
         attempt_seq=1,
         effect_scope="idempotent_write",
         capability_snapshot_hash=f"hash:{seed % 41}",
-        host_kind=host_kind,  # type: ignore[arg-type]  expiry_wave: Wave 17
+        host_kind=host_kind,  # type: ignore[arg-type]  expiry_wave: Wave 29
     )
 
 

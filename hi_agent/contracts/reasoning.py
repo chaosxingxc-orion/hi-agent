@@ -48,7 +48,7 @@ class ReasoningTrace:
 
     run_id: str
     stage_id: str
-    tenant_id: str  # Rule 12 spine — required; no default
+    tenant_id: str = ""  # Rule 12 spine — validated under research/prod posture
     trace_id: str = ""
     steps: list[ReasoningStep] = field(default_factory=list)
 
@@ -63,6 +63,7 @@ class ReasoningTrace:
         return {
             "run_id": self.run_id,
             "stage_id": self.stage_id,
+            "tenant_id": self.tenant_id,
             "trace_id": self.trace_id,
             "steps": [
                 {
@@ -102,6 +103,7 @@ class ReasoningTrace:
         return cls(
             run_id=data.get("run_id", ""),
             stage_id=data.get("stage_id", ""),
+            tenant_id=data.get("tenant_id", ""),
             trace_id=data.get("trace_id", ""),
             steps=steps,
         )

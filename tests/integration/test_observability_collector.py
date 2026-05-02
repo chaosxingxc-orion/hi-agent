@@ -51,7 +51,11 @@ class TestMetricsCollectorBasics:
         mc = MetricsCollector()
         snap = mc.snapshot()
         assert isinstance(snap, dict)
-        assert len(snap) == 0
+        # snapshot() auto-populates process-level gauges (thread_count, open_fd_count)
+        # via sample_process_metrics(); no user-recorded metrics should be present.
+        _auto_keys = {"hi_agent_thread_count", "hi_agent_open_fd_count"}
+        user_metrics = {k: v for k, v in snap.items() if k not in _auto_keys}
+        assert len(user_metrics) == 0
 
     def test_prometheus_text_format(self):
         mc = MetricsCollector()

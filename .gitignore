@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+*$py.class
 *.egg-info/
 dist/
 build/
@@ -18,3 +20,17 @@ docs/superpowers/plans/
 docs/superpowers/specs/
 config/llm_config.local.json
 docs/delivery/soak-run-stdout.log
+docs/verification/soak-logs/
+hi-agent-w25-*
+.episodes/
+memory/
+.ruff_*.json
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+docs/.tmp/
+docs/.scratch/

@@ -1,4 +1,4 @@
-"""Artifact facade — list + get with HD-4 closure (W24 Track I-B).
+"""Artifact facade — list + get + register with HD-4 closure (W24 Track I-B).
 
 Under research/prod posture the facade refuses to surface artifacts whose
 stored ``tenant_id`` is empty (HD-4 closure: 404, not "owned by everyone").
@@ -11,14 +11,17 @@ Per R-AS-8 facade modules must stay <=200 LOC.
 from __future__ import annotations
 
 import hashlib
-import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+
+from hi_agent.config.posture import Posture
 
 from agent_server.contracts.errors import ContractError, NotFoundError
 from agent_server.contracts.tenancy import TenantContext
 
 ListArtifactsFn = Callable[..., list[dict[str, Any]]]
 GetArtifactFn = Callable[..., dict[str, Any]]
+RegisterArtifactFn = Callable[..., str]
 
 
 class ArtifactIntegrityError(ContractError):
@@ -27,27 +30,23 @@ class ArtifactIntegrityError(ContractError):
     http_status = 409
 
 
-def _is_strict_posture() -> bool:
-    """Return True iff HI_AGENT_POSTURE is research or prod."""
-    posture = os.environ.get("HI_AGENT_POSTURE", "dev").strip().lower()
-    return posture in {"research", "prod"}
-
-
 def _sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
 class ArtifactFacade:
-    """Adapter for /v1/runs/{id}/artifacts and /v1/artifacts/{id}."""
+    """Adapter for /v1/runs/{id}/artifacts, /v1/artifacts/{id}, and POST /v1/artifacts."""
 
     def __init__(
         self,
         *,
         list_artifacts: ListArtifactsFn,
         get_artifact: GetArtifactFn,
+        register_artifact: RegisterArtifactFn | None = None,
     ) -> None:
         self._list_artifacts = list_artifacts
         self._get_artifact = get_artifact
+        self._register_artifact = register_artifact
 
     def list_for_run(
         self, ctx: TenantContext, run_id: str
@@ -56,7 +55,7 @@ class ArtifactFacade:
             tenant_id=ctx.tenant_id, run_id=run_id
         )
         out: list[dict[str, Any]] = []
-        strict = _is_strict_posture()
+        strict = Posture.from_env().is_strict
         for rec in records:
             owner = (rec.get("tenant_id") or "").strip()
             if strict and not owner:
@@ -72,7 +71,7 @@ class ArtifactFacade:
             tenant_id=ctx.tenant_id, artifact_id=artifact_id
         )
         owner = (record.get("tenant_id") or "").strip()
-        if _is_strict_posture():
+        if Posture.from_env().is_strict:
             if not owner:
                 # HD-4: orphan records → 404 under strict posture.
                 raise NotFoundError(
@@ -82,6 +81,37 @@ class ArtifactFacade:
                 )
             self._verify_integrity(record, ctx.tenant_id)
         return _to_metadata_dict(record)
+
+    def register(
+        self,
+        ctx: TenantContext,
+        *,
+        run_id: str,
+        artifact_type: str,
+        content: Any,
+        metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Register a new artifact and return {artifact_id, created_at}.
+
+        Raises :class:`ContractError` (HTTP 400) if the backing callable is
+        not configured, or if the underlying callable raises.
+        """
+        if self._register_artifact is None:
+            err = ContractError(
+                "artifact write not configured",
+                tenant_id=ctx.tenant_id,
+                detail="register_artifact callable not injected",
+            )
+            err.http_status = 400
+            raise err
+        artifact_id = self._register_artifact(
+            tenant_id=ctx.tenant_id,
+            run_id=run_id,
+            artifact_type=artifact_type,
+            content=content,
+            metadata=metadata,
+        )
+        return {"artifact_id": artifact_id}
 
     def _verify_integrity(
         self, record: dict[str, Any], tenant_id: str

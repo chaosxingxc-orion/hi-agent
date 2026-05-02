@@ -1,6 +1,6 @@
 # hi-agent Platform Capability Matrix
 
-Last updated: 2026-04-29 (Wave 18 — Vocabulary Debt Clearance + Stable 80 Baseline)
+Last updated: 2026-05-01 (Wave 27 — in progress)
 
 ---
 
@@ -24,7 +24,7 @@ Active docs use L0–L4 exclusively (Rule 13, Wave 9+). Mapping from retired lab
 |---|---|---|---|---|---|
 | TRACE single-run execution | L2 | RunExecutor + StageOrchestrator; K-defects resolved; Wave 9 TE-5 adds reasoning trace schema | tests/integration/test_run_lifecycle*.py | POST /runs | dev ✓ research ✓ |
 | Config-driven extensibility | L2 | HI_AGENT_CONFIG_DIR; JSON profile loader with jsonschema validation (CO-8); hi_agent_config.json; extension-guide; quickstart (DX-2) | tests/integration/test_config_dir_resolution.py, test_profile_loader_schema.py | GET /tools | dev ✓ research ✓ (fail-closed) |
-| Registry-based capability | L2 | Canonical CapabilityDescriptor (CO-6 — DF-50 closed); /manifest exposes full descriptor surface (DX-4) | tests/contract/test_capability_descriptor_canonical.py | GET /tools, GET /manifest | dev ✓ |
+| Registry-based capability | L3 | Canonical CapabilityDescriptor (CO-6 — DF-50 closed); /manifest exposes full descriptor surface (DX-4); per-posture matrix wired (Track D, W24); probe_availability_with_posture raises CapabilityNotAvailableError (structured 400) | tests/contract/test_capability_descriptor_canonical.py, tests/unit/test_capability_posture_matrix.py | GET /tools, GET /manifest | dev ✓ research ✓ prod ✓ |
 | Long-running task stability | L1 (server-path); L2 component-only | RunQueue posture-default durable (RO-3); RunStore project_id first-class (CO-4); TeamRunRegistry durable (RO-4); cross-process restart not yet wired through full server boot (RO-5 pending Wave 10) | test_run_queue_posture_default.py, test_team_run_registry_durability.py | - | dev ✓ research L2→L3 in Wave 10 |
 | Project-level cross-run state | L2 | project_id in RunRecord + upsert (CO-4); posture-enforced required field (CO-2); list_runs_by_project query | test_run_store_project_id.py, test_project_id_posture.py | POST /runs {project_id} | dev warn research 400 |
 | Contract Spine Completeness | L2 | Artifact + tenant/user/session/team_space fields (CO-5); IdempotencyStore auth-scoped (RO-1/2); Artifact tenant-first query (TE-3) | test_artifact_spine_fields.py, test_idempotency_auth_scope.py, test_artifact_cross_tenant.py | - | dev ✓ research ✓ |
@@ -283,16 +283,73 @@ Active docs use L0–L4 exclusively (Rule 13, Wave 9+). Mapping from retired lab
 
 ---
 
-## Core Capability Summary (Wave 18 current)
+## Waves 19–22 — Score Lift + Observability + Cross-Tenant (2026-04-29)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| Gate strictness enforcement (C1 closed) | L3 | GOV | `scripts/check_gate_strictness.py` — all sites fixed | W19 — `continue-on-error: true` on blocking gates resolved |
+| Evidence driver observation-based (C2 closed) | L3 | TE | `/ops/drain` + real observation functions | W19 — synthetic/in-process evidence blocked |
+| Posture matrix tests (C6 closed) | L3 | RO | `tests/posture/` — 34 Posture.from_env() callsites | W19 — posture matrix delivered |
+| Error category hierarchy (C7 closed) | L3 | RO | `hi_agent/server/error_categories.py`; narrowing in app.py/runner.py | W19 — typed exception hierarchy |
+| Test fixture cleanup (C5 closed) | L3 | TE | HI_AGENT_ALLOW_HEURISTIC_FALLBACK removed from conftest | W19 — converted to fixture |
+| Ledger schema + observability (C11 closed) | L3 | TE | Ledger schema + metric/alert/runbook fields | W19 — delivered |
+| Doc truth gate (C10 closed) | L3 | GOV | `scripts/check_doc_truth.py` in release-gate | W19 — W17/18 written response delivered |
+| Multistatus gate protocol + 9 gate conversions | L3 | GOV | `scripts/_governance/multistatus_runner.py` — pass=9, fail=0 | W23 Track A — multistatus debt cleared |
+| Rule 7 closure on LLM hot path | L3 | TE | `tests/integration/test_http_gateway_rule7_closure.py` (7 tests) | W23 Track B — 3 swallow sites fixed |
+| Rule 5 closure on LLM hot path | L3 | RO | `tests/integration/test_http_gateway_loop_stability.py` (7 tests) | W23 Track C — lazy AsyncClient; loop binding fixed |
+| Multi-tenant spine phase 1 (9 dataclasses) | L3 | CO | `scripts/check_contract_spine_completeness.py` PASS, 40 files | W23 Track D — tenant_id required under research/prod |
+| Content-addressed artifact identity (A-11) | L3 | TE | `tests/integration/test_artifact_content_address.py` (17 tests) | W23 Track E — ArtifactConflictError 409 on hash mismatch |
+| Northbound facade phase 1 (3 routes) | L2 | AS-RO | `tests/integration/test_agent_server_routes_phase1.py` (10 tests) | W23 Track F — POST /v1/runs, GET /v1/runs/{id}, POST /v1/runs/{id}/signal |
+
+---
+
+## Wave 23–24 — Agent Server MVP + Memory/Capability L3 Lift (2026-04-30)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| L1 SQLite compressed memory store | L3 | RO | `hi_agent/memory/l1_store.py`; `tests/integration/test_l1_memory_restart.py` (24 tests) | W24 Track E — wired under research/prod; dev stays in-memory |
+| L2 run memory index store | L3 | RO | `hi_agent/memory/l2_store.py`; restart-survival integration test | W24 Track E — tenant_id NOT NULL schema; A-07 closed |
+| Per-posture capability matrix | L3 | CO | `tests/unit/test_capability_posture_matrix.py` (16 tests) | W24 Track D — probe_availability_with_posture; shell_exec prod-blocked; A-03 closed |
+| Northbound routes phase 2 (5 new routes + idempotency + CLI) | L3 | AS-RO | `tests/integration/test_agent_server_routes_phase2.py` | W24 Track I — 8 routes total; Idempotency-Key middleware; agent-server CLI 4 commands |
+| SessionStore tenant scoping (HD-3) | L3 | RO | `tests/integration/test_session_store_tenant_scoping.py` | W24 J3 — get→get_unsafe; get_for_tenant is public API |
+| ArtifactRegistry empty-tenant_id filter (HD-4) | L3 | TE | `tests/integration/test_artifact_tenant_filter.py` | W24 J4 — legacy artifacts no longer leak under research/prod |
+| Auth-error envelope unified (HD-5) | L3 | AS-RO | `tests/integration/test_agent_server_auth_error_envelope.py` | W24 J5 — {error_category,message,retryable,next_action} |
+| Log redaction (HD-6) | L3 | TE | `tests/unit/test_log_redaction.py` | W24 J6 — hash_tenant_id + redact_query; 4 routes_knowledge.py sites |
+| Idempotency replay identity strip (HD-7) | L3 | RO | `tests/integration/test_idempotency_replay_strip.py` | W24 J7 — strips request_id/trace_id/_response_timestamp |
+| MCP transport fd guard (HD-8) | L3 | TE | `tests/unit/test_mcp_transport_fd_guard.py` | W24 J8 — TransportClosedError; mcp_transport_closed_fd_total Counter |
+| EventStore tenant scoping (HD-2) | L3 | RO | `tests/integration/test_event_store_tenant_scoping.py` (7 tests) | W24 J2 — get_events requires tenant_id under research/prod |
+| Real observability spine (12/14 layers) | L3 | TE | `docs/verification/d8c7b0b-observability-spine.json` (provenance=real) | W24 Track A — 2 missing taps deferred to W25 |
+| Runtime-coupled chaos (8/10 PASS) | L3 | TE | `docs/verification/04f8c91-chaos-runtime.json` (provenance=runtime_partial) | W24 Track B — 2 SKIP require research/prod posture |
+| PM2/systemd/Docker operator harness | L2 | DX | `deployment/ecosystem.config.js`, `deployment/Dockerfile`, `docs/operator-runbook.md` | W24 Track F — A-04 closed |
+| Operator drill v2 (5 scenarios) | L3 | TE | `docs/verification/d17ec96-operator-drill-v2.json` (5/5 PASS) | W24 Track G — 2 real + 3 simulated_pending_pm2 |
+
+---
+
+## Wave 27 Additions (2026-05-01)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| TierRouter active calibration (P-7) | L3 | CO+RO | `tests/unit/test_tier_router_calibration.py` (19 tests) + `tests/integration/test_tier_router_ingest_calibration.py` (8 tests); commit `984d3a2d` | P-7 — ingest_calibration_signal → routing weight feedback loop; rule-7 WARNING on tier upgrade |
+| RunEventEmitter (C8) | L3 | TE | `tests/unit/test_run_event_emitter.py`; commit `c2b8523d` | C8 — 12 typed run lifecycle events; Rule 7 four-prong (counter+log+inspectable+gate-asserted) |
+| ExtensionRegistry upgrade/rollback + CLI (C12) | L4 | TE | `tests/integration/test_extension_lifecycle.py`; commit `326a0e1e` | C12 — third-party upgrade/rollback without source access; CLI subcommands |
+| ProjectPostmortem lifecycle wired (W10-M.3) | L3 | TE | `tests/integration/test_project_postmortem_lifecycle.py` (unit+runner spine tests); commit `c7de81f3` | W10-M.3 — PostmortemEngine.on_project_completed() wired; durable under research/prod; tenant_id carried |
+| POST /artifacts write API (W10-M.2) | L3 | TE+AS-RO | `tests/integration/test_routes_artifacts_write.py` (257 tests); commit `a16c47ad` | W10-M.2 — workspace-scoped tenant isolation; ArtifactRegistry.register_artifact() wired |
+| Ledger entries operationally_observable (C11) | L3 | GOV+TE | `tests/integration/test_ledger_alerts.py`; commit `f2ba631c` | C11 — 10 recurrence-ledger entries at operationally_observable; metric+alert+runbook fields |
+| GateStore restart survival (CL1) | L3 | CO+RO | `tests/integration/test_gate_store_restart_survival.py` | CL1 — Track X 4th store; close-reopen survival + tenant_id preserved |
+
+---
+
+## Core Capability Summary (Wave 27 current)
 
 | Dimension | L-Level | Notes |
 |---|---|---|
 | Execution Engine (TRACE) | L3 | Stable since Wave 10.2; cross-loop stress passing; R5/R8 gates green |
-| Memory Infrastructure | L3 | L0→L3 chain; ledger durable under research/prod; tenant-first query |
-| Capability Plugin System | L3-L4 | ExtensionRegistry with enforcement fields; posture-aware enable gate |
+| Memory Infrastructure | L3 | L1CompressedMemoryStore + L2RunMemoryIndexStore SQLite-backed (Track E, W24); tenant_id NOT NULL; restart-survival test; wired under research/prod; dev posture remains in-memory |
+| Capability Plugin System | L4 | ExtensionRegistry upgrade/rollback + CLI (W27 C12); posture-aware enable gate; per-posture matrix wired; shell_exec prod-blocked |
 | Knowledge Graph | L3 | SQLite backend default under research/prod (Wave 10.5) |
-| Planning / Multi-stage | L2-L3 | TRACE static; dynamic re-planning (P-4) deferred |
-| Artifact / Evidence | L3 | ArtifactLedger durable; provenance fields; tenant-first query |
-| Evolution / Feedback | L2-L3 | ExperimentStore durable; EvolveEngine wired; auto-calibration deferred |
-| Observability | L3 | 14 fallback counters; spine structural (real spine W19) |
+| Planning / Multi-stage | L2-L3 | TRACE static; dynamic re-planning (P-4) PARTIAL in W25 Track M |
+| Artifact / Evidence | L3 | ArtifactLedger durable; provenance fields; tenant-first query; content-addressed identity; POST /artifacts write API (W27 L15) |
+| Evolution / Feedback | L3 | PostmortemEngine wired (W27 L16); ExperimentStore durable; EvolveEngine; TierRouter active calibration (W27 L4) |
+| Cross-Run / Northbound | L3 | 8 northbound routes (3 W23 + 5 W24); idempotency middleware; agent-server CLI; v1 contract freeze deferred to W25 |
+| Observability | L3 | RunEventEmitter 12 typed events (W27 L2); 10 ledger entries operationally_observable (W27 L9); 14 fallback counters; real spine 12/14 layers |
 | Governance (gates) | L3 | 35 blocking CI gates; recurrence ledger; release captain protocol |

@@ -113,10 +113,10 @@ def _saturated_app(monkeypatch):
     def _saturated_start_run(_run_id, _executor_fn):
         raise QueueSaturatedError(queue_depth=1, max_depth=1)
 
-    manager.start_run = _saturated_start_run  # type: ignore[method-assign]  expiry_wave: Wave 17
+    manager.start_run = _saturated_start_run  # type: ignore[method-assign]  expiry_wave: Wave 29
 
     # Override queue depth accessors so /ready reports saturation.
-    manager.queue_depth = lambda: 1  # type: ignore[method-assign]  expiry_wave: Wave 17
+    manager.queue_depth = lambda: 1  # type: ignore[method-assign]  expiry_wave: Wave 29
 
     class _FakeBuilder:
         def readiness(self):

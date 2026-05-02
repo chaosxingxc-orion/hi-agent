@@ -1,0 +1,7 @@
+{
+  "artifact_path": "D:\\chao_workspace\\hi-agent\\docs\\verification\\61180bca-observability-spine.json",
+  "provenance": "structural",
+  "head_sha": "61180bca28211d428dd5752141ebb11af718a494",
+  "generated_at": "2026-05-02T08:52:38.050806+00:00",
+  "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\build_observability_spine_evidence.py"
+}

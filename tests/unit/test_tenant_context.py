@@ -33,7 +33,7 @@ def _make_ctx(**kwargs: object) -> TenantContext:
         "request_id": "req-001",
     }
     defaults.update(kwargs)
-    return TenantContext(**defaults)  # type: ignore[arg-type]  expiry_wave: Wave 17
+    return TenantContext(**defaults)  # type: ignore[arg-type]  expiry_wave: Wave 29
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,8 @@ LOC budget: <=200 (R-AS-8).
 """
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from agent_server.contracts.errors import ContractError
 from agent_server.contracts.run import RunRequest, RunResponse, RunStatus

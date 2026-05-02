@@ -56,4 +56,4 @@ def test_event_summary_store_validation_errors(run_id: str, summary: object) -> 
     """Invalid run IDs and summary payloads should raise ValueError."""
     store = EventSummaryStore()
     with pytest.raises(ValueError):
-        store.put_summary(run_id, summary)  # type: ignore[arg-type]  expiry_wave: Wave 17
+        store.put_summary(run_id, summary)  # type: ignore[arg-type]  expiry_wave: Wave 29

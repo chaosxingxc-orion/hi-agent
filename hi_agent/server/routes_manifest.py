@@ -317,6 +317,30 @@ async def handle_manifest(request: Request) -> JSONResponse:
     except Exception as _plugin_exc:
         logger.warning("manifest: plugin enumeration failed: %s", _plugin_exc)
 
+    # --- Extensions from global ExtensionRegistry ---
+    extensions: list[dict] = []
+    try:
+        from hi_agent.contracts.extension_manifest import get_extension_registry as _get_ext_reg
+
+        _ext_registry = _get_ext_reg()
+        _ext_posture = _current_posture if "_current_posture" in dir() else None
+        if _ext_posture is not None:
+            _ext_manifests = _ext_registry.list_for_posture(_ext_posture.value)
+        else:
+            _ext_manifests = _ext_registry.list_all()
+        for _em in _ext_manifests:
+            extensions.append(
+                {
+                    "name": getattr(_em, "name", ""),
+                    "version": getattr(_em, "version", ""),
+                    "manifest_kind": getattr(_em, "manifest_kind", ""),
+                    "required_posture": getattr(_em, "required_posture", "any"),
+                    "tenant_scope": getattr(_em, "tenant_scope", "tenant"),
+                }
+            )
+    except Exception as _ext_exc:
+        logger.warning("manifest: extension enumeration failed: %s", _ext_exc)
+
     # --- Active profile from config ---
     active_profile: str | None = None
     try:
@@ -357,7 +381,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
         manifest_env = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
         _readiness_snap: dict = {}
         if _builder is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 22
+            with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 29
                 _readiness_snap = _builder.readiness()
         runtime_mode = _rrm(manifest_env, _readiness_snap)
         manifest_llm_mode = _readiness_snap.get("llm_mode", "unknown")
@@ -399,6 +423,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
             "models": models,
             "mcp_servers": mcp_servers,
             "plugins": plugins,
+            "extensions": extensions,
             "evolve_policy": evolve_policy,
             "endpoints": endpoints,
             "active_profile": active_profile,

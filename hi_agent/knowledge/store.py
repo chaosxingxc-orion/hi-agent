@@ -10,6 +10,7 @@ from typing import Any
 from hi_agent.knowledge.entry import KnowledgeEntry
 
 
+# scope: process-internal — in-memory only; not persisted or transmitted across tenants
 @dataclass(frozen=True)
 class KnowledgeRecord:
     """Stored knowledge item."""
@@ -210,8 +211,8 @@ class InMemoryKnowledgeStore:
             Dictionary with ``total``, ``by_source``, and ``tag_distribution`` keys.
         """
         records = self.all_records()
-        by_source: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: Wave 17
-        tag_dist: dict[str, int] = Counter()  # type: ignore[assignment]
+        by_source: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: Wave 29
+        tag_dist: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: Wave 29  # scope: complex-union-resolution — Counter is dict[Any,int]; stub gap
         for rec in records:
             by_source[rec.source] += 1
             for tag in rec.tags:

@@ -98,15 +98,18 @@ def main() -> int:
     chaos_file = _latest_chaos_evidence()
     if chaos_file is None:
         result = {
-            "status": "deferred",
+            "status": "fail",
             "check": "chaos_runtime_coupling",
-            "reason": "no chaos evidence found in docs/verification/ or docs/delivery/",
+            "reason": (
+                "evidence_missing: no chaos evidence found in"
+                " docs/verification/ or docs/delivery/"
+            ),
         }
         if args.json:
             print(json.dumps(result, indent=2))
         else:
-            print("DEFERRED: no chaos evidence", file=sys.stderr)
-        return 0  # deferred: no blocking failure, manifest scoring handles score cap
+            print("FAIL: no chaos evidence", file=sys.stderr)
+        return 1
 
     try:
         data = json.loads(chaos_file.read_text(encoding="utf-8"))
@@ -123,13 +126,15 @@ def main() -> int:
     scenarios = data.get("scenarios", [])
     if not scenarios:
         result = {
-            "status": "deferred",
+            "status": "fail",
             "check": "chaos_runtime_coupling",
-            "reason": "chaos evidence has no scenarios",
+            "reason": "evidence_missing: chaos evidence has no scenarios",
         }
         if args.json:
             print(json.dumps(result, indent=2))
-        return 0  # deferred: no blocking failure, manifest scoring handles score cap
+        else:
+            print("FAIL: chaos evidence has no scenarios", file=sys.stderr)
+        return 1
 
     provenance = data.get("provenance", "unknown")
     all_passed = bool(data.get("all_passed", False))

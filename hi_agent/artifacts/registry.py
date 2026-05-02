@@ -91,7 +91,7 @@ class ArtifactRegistry:
             for field in ("tenant_id", "user_id", "session_id", "project_id", "run_id"):
                 if field not in kwargs and getattr(exec_ctx, field, ""):
                     kwargs[field] = getattr(exec_ctx, field)
-        artifact = Artifact(artifact_type=artifact_type, **kwargs)  # type: ignore[arg-type]
+        artifact = Artifact(artifact_type=artifact_type, **kwargs)  # type: ignore[arg-type]  expiry_wave: Wave 29  # scope: complex-union-resolution — **kwargs spread over optional fields; mypy can't verify complete coverage
         # A-11: when caller did not pin artifact_id and the type is
         # content-addressable, derive id from hash before storing so subsequent
         # idempotent registrations of the same content map to the same id.
@@ -263,6 +263,33 @@ class ArtifactRegistry:
     def count(self, tenant_id: str | None = None) -> int:
         """Return the number of stored artifacts, optionally filtered by tenant."""
         return len(self.all(tenant_id=tenant_id))
+
+    def register_artifact(
+        self,
+        *,
+        tenant_id: str,
+        run_id: str,
+        artifact_type: str,
+        content: object,
+        metadata: dict,
+    ) -> str:
+        """Create and store a new artifact; return its artifact_id.
+
+        Write path for POST /v1/artifacts.
+        Rule 12: tenant_id and run_id are required and stamped on the record.
+        """
+        if not tenant_id:
+            raise ValueError("register_artifact requires a non-empty tenant_id")
+        if not run_id:
+            raise ValueError("register_artifact requires a non-empty run_id")
+        artifact = self.create(
+            artifact_type=artifact_type,
+            content=content,
+            metadata=dict(metadata),
+            tenant_id=tenant_id,
+            run_id=run_id,
+        )
+        return artifact.artifact_id
 
     def clear(self) -> None:
         """Remove all artifacts."""

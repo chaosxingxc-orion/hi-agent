@@ -53,6 +53,24 @@ SCAN_FILES = [
     "hi_agent/server/event_store.py",
 ]
 
+# Glob patterns resolved against REPO_ROOT; matches auto-enroll without
+# requiring a SCAN_FILES edit (Track I: gate_*.py; Track X: *_store.py).
+SCAN_GLOBS = [
+    "hi_agent/server/gate_*.py",      # Track I — gate persistence classes
+    "hi_agent/**/*_store.py",         # Track X — store persistence classes
+    "hi_agent/**/*store.py",          # Track X — legacy store naming (e.g. events/store.py)
+]
+
+
+def _enumerate_scan_files(repo: Path) -> list[str]:
+    """Return deduplicated sorted list of repo-relative POSIX paths to scan.
+
+    Combines SCAN_FILES (explicit list) with SCAN_GLOBS (pattern matches).
+    """
+    files: list[Path] = [repo / f for f in SCAN_FILES if (repo / f).exists()]
+    for glob_pattern in SCAN_GLOBS:
+        files.extend(repo.glob(glob_pattern))
+    return sorted({p.relative_to(repo).as_posix() for p in files if p.exists()})
 REQUIRED_FIELD = "tenant_id"
 EXEMPT_MARKER = "# scope: process-internal"
 
@@ -214,9 +232,7 @@ def _gather_files() -> list[str]:
                 continue
             rel = path.relative_to(REPO_ROOT).as_posix()
             files.append(rel)
-    for f in SCAN_FILES:
-        if (REPO_ROOT / f).exists():
-            files.append(f)
+    files.extend(_enumerate_scan_files(REPO_ROOT))
     return files
 
 
@@ -229,7 +245,9 @@ def _emit_json(status: str, missing: list[dict], scanned: int) -> None:
         "missing": missing,
     }
     try:
-        from scripts._governance.multistatus import emit_and_exit  # type: ignore # expiry_wave: Wave 26
+        from scripts._governance.multistatus import (
+            emit_and_exit,  # type: ignore # expiry_wave: Wave 30
+        )
     except Exception:
         print(json.dumps(payload, indent=2))
         sys.exit(0 if status == "pass" else 1)

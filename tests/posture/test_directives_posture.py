@@ -26,9 +26,9 @@ def test_stage_directive_instantiates_under_posture(monkeypatch, posture_name):
 
     directive = StageDirective()
     assert directive.action == "continue"
-    assert directive.target_stage_id == ""
-    assert directive.new_stage_specs == []
-    assert directive.reason == ""
+    assert directive.target_stage_id is None
+    assert directive.insert == []
+    assert directive.reason is None
 
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
@@ -55,22 +55,28 @@ def test_stage_directive_skip_action_under_posture(monkeypatch, posture_name):
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
 def test_stage_directive_insert_action_under_posture(monkeypatch, posture_name):
-    """StageDirective with insert action carries new_stage_specs under all postures."""
+    """StageDirective with insert action carries InsertSpec entries under all postures."""
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
-    from hi_agent.contracts.directives import StageDirective
+    from hi_agent.contracts.directives import InsertSpec, StageDirective
 
-    new_specs = [{"stage_id": "new-stage", "name": "Extra Analysis"}]
-    directive = StageDirective(action="insert", new_stage_specs=new_specs)
+    specs = [InsertSpec(target_stage_id="anchor-stage", new_stage="Extra Analysis")]
+    directive = StageDirective(action="insert", insert=specs)
     assert directive.action == "insert"
-    assert len(directive.new_stage_specs) == 1
+    assert len(directive.insert) == 1
 
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
 def test_stage_directive_all_actions_under_posture(monkeypatch, posture_name):
     """StageDirective accepts all valid action values under all postures."""
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
-    from hi_agent.contracts.directives import StageDirective
+    from hi_agent.contracts.directives import InsertSpec, StageDirective
 
-    for action in ("continue", "skip", "repeat", "insert"):
-        directive = StageDirective(action=action)
-        assert directive.action == action
+    cases = [
+        {"action": "continue"},
+        {"action": "skip", "target_stage_id": "s1"},
+        {"action": "repeat", "target_stage_id": "s1"},
+        {"action": "insert", "insert": [InsertSpec(target_stage_id="s1", new_stage="new")]},
+    ]
+    for kwargs in cases:
+        directive = StageDirective(**kwargs)
+        assert directive.action == kwargs["action"]

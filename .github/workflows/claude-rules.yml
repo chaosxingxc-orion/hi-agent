@@ -69,7 +69,3 @@ jobs:
           python scripts/check_t3_evidence.py \
             --changed-files /tmp/changed_files.txt \
             --pr-body "$PR_BODY"
-      - name: check-owner-tag (advisory)
-        id: check_owner_tag
-        run: python scripts/check_owner_tag.py --n 20
-        continue-on-error: true  # TODO: promote to blocking in W22

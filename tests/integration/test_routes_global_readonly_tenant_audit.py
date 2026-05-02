@@ -117,7 +117,7 @@ class _FakeObserver:
     def get_all_metrics(self) -> dict[str, Any]:
         return {}
 
-    def get_metrics(self, skill_id: str) -> Any:
+    def get_metrics(self, skill_id: str, tenant_id: str | None = None) -> Any:
         return _FakeMetricsRecord()
 
 

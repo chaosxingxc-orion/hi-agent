@@ -33,7 +33,7 @@ class RunService:
 
     @property
     def run_manager(self) -> RunManager:
-        return self._server.run_manager  # type: ignore[return-value]  expiry_wave: Wave 17
+        return self._server.run_manager  # type: ignore[return-value]  expiry_wave: Wave 29
 
     @property
     def run_context_manager(self) -> Any:

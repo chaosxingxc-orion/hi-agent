@@ -1,12 +1,14 @@
 """hi-agent extensions subcommand.
 
 Subcommands:
+    list     -- list registered extensions (with optional --format and --posture flags)
     inspect  -- inspect a registered extension (with optional --explain and --posture flags)
     validate -- validate a manifest JSON/YAML file against ExtensionRegistry rules
 
 Usage::
 
-    hi-agent extensions inspect <name> <version> [--posture dev|research|prod] [--explain]
+    hi-agent extensions list [--format text|json] [--posture dev|research|prod]
+    hi-agent extensions inspect <name> [<version>] [--posture dev|research|prod] [--explain]
     hi-agent extensions validate <manifest-file>
 """
 
@@ -43,63 +45,83 @@ def _load_posture(posture_name: str | None) -> Posture:
     return Posture.from_env()
 
 
+def _manifest_to_dict(manifest) -> dict:
+    """Serialize a manifest to a plain dict for JSON output."""
+    return {
+        "name": getattr(manifest, "name", ""),
+        "version": getattr(manifest, "version", ""),
+        "manifest_kind": getattr(manifest, "manifest_kind", ""),
+        "schema_version": getattr(manifest, "schema_version", 1),
+        "required_posture": getattr(manifest, "required_posture", "any"),
+        "tenant_scope": getattr(manifest, "tenant_scope", "tenant"),
+        "dangerous_capabilities": list(getattr(manifest, "dangerous_capabilities", [])),
+        "posture_support": dict(getattr(manifest, "posture_support", {})),
+        "config_schema": getattr(manifest, "config_schema", None),
+    }
+
+
+def run_list(args) -> None:
+    """List registered extensions.
+
+    Args:
+        args: Parsed CLI arguments with format and posture fields.
+    """
+    from hi_agent.contracts.extension_manifest import get_extension_registry
+
+    fmt: str = getattr(args, "format", "text") or "text"
+    posture_name: str | None = getattr(args, "posture", None)
+    registry = get_extension_registry()
+
+    manifests = registry.list_for_posture(posture_name) if posture_name else registry.list_all()
+
+    if fmt == "json":
+        print(json.dumps([_manifest_to_dict(m) for m in manifests], indent=2))
+    else:
+        if not manifests:
+            print("No extensions registered.")
+        else:
+            for m in manifests:
+                print(f"{getattr(m, 'name', '?')} {getattr(m, 'version', '?')}")
+
+
 def run_inspect(args) -> None:
     """Inspect an extension manifest, optionally explaining production eligibility.
 
     Args:
         args: Parsed CLI arguments with name, version, posture, explain fields.
     """
+    from hi_agent.contracts.extension_manifest import get_extension_registry
+
     name: str = args.name
-    version: str = args.version
+    version: str | None = getattr(args, "version", None)
     posture = _load_posture(getattr(args, "posture", None))
     explain: bool = getattr(args, "explain", False)
 
-    # Attempt to load the plugin manifest from file system as a demo lookup.
-    # In a full DI wiring, this would query a server-managed ExtensionRegistry.
+    registry = get_extension_registry()
+    all_manifests = registry.list_all()
+    manifest = None
+    for m in all_manifests:
+        if getattr(m, "name", None) == name and (
+            version is None or getattr(m, "version", None) == version
+        ):
+            manifest = m
+            break
+
+    if manifest is None:
+        label = f"{name}:{version}" if version else name
+        print(f"error: extension {label!r} not found", file=sys.stderr)
+        sys.exit(1)
+
     try:
-        from hi_agent.plugins.manifest import PluginManifest
-
-        # Search common plugin directories for a matching manifest.
-        home_dir = Path.home() / ".hi_agent" / "plugins"
-        search_dirs = [Path(".hi_agent/plugins"), home_dir]
-        manifest = None
-        for plugin_dir in search_dirs:
-            candidate = plugin_dir / name / "plugin.json"
-            if candidate.exists():
-                try:
-                    loaded = PluginManifest.from_json(candidate)
-                    if loaded.version == version:
-                        manifest = loaded
-                        break
-                except Exception as _load_exc:
-                    _ext_errors_total.inc()
-                    logger.warning(
-                        "extensions: failed to load manifest %s: %s", candidate, _load_exc
-                    )
-
-        if manifest is None:
-            print(f"Extension {name}:{version} not found in plugin search paths.")
-            sys.exit(1)
-
-        print(f"Extension: {manifest.name}:{manifest.version}")
-        print(f"  manifest_kind:          {manifest.manifest_kind}")
-        print(f"  schema_version:         {manifest.schema_version}")
-        print(f"  required_posture:       {manifest.required_posture}")
-        print(f"  tenant_scope:           {manifest.tenant_scope}")
-        print(f"  dangerous_capabilities: {manifest.dangerous_capabilities}")
-        print(f"  config_schema:          {'present' if manifest.config_schema else 'None'}")
-        print(f"  posture_support:        {manifest.posture_support}")
-
+        data = _manifest_to_dict(manifest)
         if explain:
             eligible, reasons = manifest.production_eligibility(posture)
-            print(f"\nProduction eligibility (posture={posture.value!r}):")
-            if eligible:
-                print("  ELIGIBLE — no blocking reasons.")
-            else:
-                print(f"  BLOCKED ({len(reasons)} reason(s)):")
-                for i, reason in enumerate(reasons, 1):
-                    print(f"    [{i}] {reason}")
-
+            data["production_eligibility"] = {
+                "posture": posture.value,
+                "eligible": eligible,
+                "reasons": reasons,
+            }
+        print(json.dumps(data, indent=2))
     except SystemExit:
         raise
     except Exception as exc:
@@ -107,6 +129,61 @@ def run_inspect(args) -> None:
         logger.warning("extensions.inspect_error error=%s", exc)
         print(f"error: inspect failed — {exc}", file=sys.stderr)
         sys.exit(1)
+
+
+def run_upgrade(args) -> None:
+    """Upgrade a registered extension to a new version.
+
+    Wires to ExtensionRegistry.upgrade().  The new version must already be
+    registered; this is a placeholder that reports the intended operation.
+
+    Args:
+        args: Parsed CLI arguments with name and version fields.
+    """
+    from hi_agent.contracts.extension_manifest import get_extension_registry
+
+    name: str = args.name
+    version: str = args.version
+    registry = get_extension_registry()
+
+    current = registry.lookup(name)
+    if current is None:
+        print(f"error: extension {name!r} is not registered", file=sys.stderr)
+        sys.exit(1)
+
+    current_version = getattr(current, "version", "?")
+    print(
+        f"upgrade: {name!r} {current_version!r} -> {version!r} "
+        "(wire a new manifest via registry.upgrade() to complete)"
+    )
+
+
+def run_rollback(args) -> None:
+    """Roll back a registered extension to its previous version.
+
+    Wires to ExtensionRegistry.rollback().
+
+    Args:
+        args: Parsed CLI arguments with name field.
+    """
+    from hi_agent.contracts.extension_manifest import get_extension_registry
+
+    name: str = args.name
+    registry = get_extension_registry()
+
+    try:
+        registry.rollback(name)
+    except KeyError as exc:
+        _ext_errors_total.inc()
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:
+        _ext_errors_total.inc()
+        logger.warning("extensions.rollback_error error=%s", exc)
+        print(f"error: rollback failed — {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"rollback: {name!r} rolled back to previous version")
 
 
 def run_validate(args) -> None:
@@ -182,10 +259,31 @@ def build_extensions_parser(subparsers) -> None:
     )
     ext_sub = ext_parser.add_subparsers(dest="extensions_action")
 
+    # list
+    list_parser = ext_sub.add_parser("list", help="List registered extensions")
+    list_parser.add_argument(
+        "--format",
+        dest="format",
+        default="text",
+        choices=["text", "json"],
+        help="Output format (text or json). Default: text.",
+    )
+    list_parser.add_argument(
+        "--posture",
+        required=False,
+        default=None,
+        help="Filter by posture support (dev|research|prod).",
+    )
+
     # inspect
     inspect_parser = ext_sub.add_parser("inspect", help="Inspect an extension manifest")
     inspect_parser.add_argument("name", help="Extension name")
-    inspect_parser.add_argument("version", help="Extension version")
+    inspect_parser.add_argument(
+        "version",
+        nargs="?",
+        default=None,
+        help="Extension version (omit to match any version).",
+    )
     inspect_parser.add_argument(
         "--posture",
         required=False,
@@ -213,16 +311,38 @@ def build_extensions_parser(subparsers) -> None:
         "Defaults to HI_AGENT_POSTURE env var.",
     )
 
+    # upgrade
+    upgrade_parser = ext_sub.add_parser(
+        "upgrade", help="Upgrade a registered extension to a new version"
+    )
+    upgrade_parser.add_argument("name", help="Extension name to upgrade")
+    upgrade_parser.add_argument("version", help="New version string")
+
+    # rollback
+    rollback_parser = ext_sub.add_parser(
+        "rollback", help="Roll back a registered extension to its previous version"
+    )
+    rollback_parser.add_argument("name", help="Extension name to roll back")
+
 
 def run_extensions(args) -> None:
     """Dispatch extensions subcommands."""
     action = getattr(args, "extensions_action", None)
-    if action == "inspect":
+    if action == "list":
+        run_list(args)
+    elif action == "inspect":
         run_inspect(args)
     elif action == "validate":
         run_validate(args)
+    elif action == "upgrade":
+        run_upgrade(args)
+    elif action == "rollback":
+        run_rollback(args)
     else:
-        print("Usage: hi-agent extensions [inspect|validate]", file=sys.stderr)
+        print(
+            "Usage: hi-agent extensions [list|inspect|validate|upgrade|rollback]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 

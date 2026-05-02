@@ -25,14 +25,16 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = ROOT / ".github" / "workflows"
+_CURRENT_WAVE_FILE = ROOT / "docs" / "governance" / "current-wave.txt"
 
 _DOCS_ONLY_GAP = re.compile(r"--allow-docs-only-gap")
 _CONTINUE_ON_ERROR = re.compile(r"^\s*continue-on-error:\s*true", re.MULTILINE)
 _API_KEY_CONDITIONAL = re.compile(r"if:.*env\.\w*API_KEY\w*.*!=")
-# Steps with a "# TODO: promote to blocking in W<N>" comment are advisory-by-design
-# for the current wave and exempt from the gate-weakening check.
+# Capture "# TODO: promote to blocking in W<N>" annotations.
+# An annotation is only a valid exemption when N > current_wave (still future).
+# An annotation with N <= current_wave is EXPIRED and the step is not exempt.
 _PROMOTE_TO_BLOCKING_COMMENT = re.compile(
-    r"#\s*(?:TODO|advisory)[^\n]*(?:promote to blocking|blocking in W)\d+",
+    r"#\s*(?:TODO|advisory)[^\n]*(?:promote to blocking|blocking in W)(\d+)",
     re.IGNORECASE,
 )
 # Steps that explicitly declare not_applicable context (e.g. until T3 reruns)
@@ -40,6 +42,29 @@ _NOT_APPLICABLE_COMMENT = re.compile(
     r"#\s*not_applicable",
     re.IGNORECASE,
 )
+
+
+def _current_wave() -> int:
+    """Return the current wave number from docs/governance/current-wave.txt."""
+    try:
+        return int(_CURRENT_WAVE_FILE.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return 0  # fail-open: treat as wave 0 so no annotation is exempt
+
+
+def _parse_promote_target_wave(step_text: str) -> int | None:
+    """Extract the target wave number N from a '# TODO: promote to blocking in W<N>' comment.
+
+    Returns None if no such annotation is found.
+    Returns the wave number if found — callers compare it against current_wave().
+    """
+    m = _PROMOTE_TO_BLOCKING_COMMENT.search(step_text)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except (IndexError, ValueError):
+        return None
 
 
 def _parse_steps(text: str) -> list:
@@ -78,21 +103,29 @@ def _check_file(wf_path: pathlib.Path) -> list:
         has_api_key_if = bool(_API_KEY_CONDITIONAL.search(step_text))
         has_docs_only_gap = bool(_DOCS_ONLY_GAP.search(step_text))
         has_continue_on_error = bool(_CONTINUE_ON_ERROR.search(step_text))
-        # Advisory-by-design exemptions: steps that explicitly declare a promotion
-        # wave via "# TODO: promote to blocking in W<N>" or are marked not_applicable.
-        has_promote_annotation = bool(_PROMOTE_TO_BLOCKING_COMMENT.search(step_text))
+        # Advisory-by-design: a promote annotation is only valid when its target
+        # wave N is strictly GREATER than the current wave.  An expired annotation
+        # (N <= current_wave) is NOT an exemption — the gate weakening must be fixed.
+        target_wave = _parse_promote_target_wave(step_text)
+        promote_annotation_valid = (
+            target_wave is not None and target_wave > _current_wave()
+        )
         has_not_applicable = bool(_NOT_APPLICABLE_COMMENT.search(step_text))
-        is_advisory_by_design = has_promote_annotation or has_not_applicable
+        is_advisory_by_design = promote_annotation_valid or has_not_applicable
 
         if has_docs_only_gap and not is_advisory_by_design:
+            expiry_note = (
+                f" (annotation targets W{target_wave} which is <= current W{_current_wave()})"
+                if target_wave is not None else ""
+            )
             issues.append({
                 "file": str(wf_path.relative_to(ROOT)),
                 "step": step_name,
                 "violation": "--allow-docs-only-gap",
                 "detail": (
                     "Flag removes docs-only-gap exemption from gate; "
-                    "not permitted without ledger issue_id or "
-                    "'# TODO: promote to blocking in W<N>' annotation"
+                    "not permitted without a future-wave '# TODO: promote to blocking in W<N>' "
+                    f"annotation{expiry_note}"
                 ),
             })
         if has_continue_on_error and not has_api_key_if and not is_advisory_by_design:

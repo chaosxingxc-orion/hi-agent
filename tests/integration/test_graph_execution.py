@@ -7,6 +7,7 @@ max-steps safety limit.
 
 from __future__ import annotations
 
+import pytest
 from hi_agent.contracts import CTSExplorationBudget, TaskContract
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
@@ -17,6 +18,14 @@ from hi_agent.runner import RunExecutor
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
+
+pytestmark = pytest.mark.usefixtures("fallback_explicit")
+
+
+@pytest.fixture(autouse=True)
+def _patch_gateway(monkeypatch):
+    from hi_agent.config import cognition_builder as _cb
+    monkeypatch.setattr(_cb.CognitionBuilder, "build_llm_gateway", lambda self: None)
 
 
 def _make_contract(
@@ -73,7 +82,7 @@ def _make_executor_with_stub(
             return "failed"
         return None  # success
 
-    executor._execute_stage = stub_execute_stage  # type: ignore[assignment]  expiry_wave: Wave 17
+    executor._execute_stage = stub_execute_stage  # type: ignore[assignment]  expiry_wave: Wave 29
     return executor, kernel, stages_executed
 
 
@@ -266,7 +275,7 @@ class TestExecuteGraphMultipleSuccessors:
             stages_executed.append(stage_id)
             return None
 
-        executor._execute_stage = stub_execute_stage  # type: ignore[assignment]  expiry_wave: Wave 17
+        executor._execute_stage = stub_execute_stage  # type: ignore[assignment]  expiry_wave: Wave 29
 
         result = executor.execute_graph()
 
@@ -348,7 +357,7 @@ class TestExecuteGraphMaxStepsSafety:
             step_count["n"] += 1
             return None
 
-        executor._execute_stage = always_succeed  # type: ignore[assignment]  expiry_wave: Wave 17
+        executor._execute_stage = always_succeed  # type: ignore[assignment]  expiry_wave: Wave 29
 
         result = executor.execute_graph()
 

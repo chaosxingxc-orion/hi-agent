@@ -1,4 +1,4 @@
-"""Northbound HTTP route handlers for /v1/artifacts (W24 Track I-B).
+"""Northbound HTTP route handlers for /v1/artifacts (W24 Track I-B, W27-L15).
 
 Per R-AS-1 this module imports ONLY from agent_server.contracts and
 agent_server.facade — never from hi_agent.* directly. Per R-AS-4 every
@@ -8,6 +8,8 @@ TenantContextMiddleware), never from the request body.
 # tdd-red-sha: 3bc0a83
 """
 from __future__ import annotations
+
+from typing import Any
 
 from fastapi import APIRouter, Request
 from starlette.responses import JSONResponse
@@ -38,6 +40,7 @@ def build_router(*, artifact_facade: ArtifactFacade) -> APIRouter:
             raise ContractError("tenant context missing", detail="middleware")
         return ctx
 
+    # tdd-red-sha: 3bc0a83
     @router.get("/v1/runs/{run_id}/artifacts")
     async def list_run_artifacts(
         run_id: str, request: Request
@@ -57,6 +60,7 @@ def build_router(*, artifact_facade: ArtifactFacade) -> APIRouter:
             },
         )
 
+    # tdd-red-sha: 3bc0a83
     @router.get("/v1/artifacts/{artifact_id}")
     async def get_artifact(
         artifact_id: str, request: Request
@@ -67,6 +71,65 @@ def build_router(*, artifact_facade: ArtifactFacade) -> APIRouter:
         except ContractError as exc:
             return _error_response(exc)
         return JSONResponse(status_code=200, content=_serialize(record))
+
+    # tdd-red-sha: 326a0e1e
+    @router.post("/v1/artifacts")
+    async def post_artifact(request: Request) -> JSONResponse:
+        ctx = _ctx(request)
+        try:
+            body: dict[str, Any] = await request.json()
+        except Exception as exc:  # pragma: no cover - defensive
+            err = ContractError("invalid JSON body", detail=str(exc))
+            err.http_status = 400
+            return _error_response(err)
+        run_id = str(body.get("run_id", "")).strip()
+        artifact_type = str(body.get("artifact_type", "")).strip()
+        content = body.get("content")
+        metadata: dict[str, Any] = dict(body.get("metadata", {}) or {})
+        if not run_id:
+            err = ContractError(
+                "run_id is required",
+                tenant_id=ctx.tenant_id,
+                detail="missing run_id",
+            )
+            err.http_status = 400
+            return _error_response(err)
+        if not artifact_type:
+            err = ContractError(
+                "artifact_type is required",
+                tenant_id=ctx.tenant_id,
+                detail="missing artifact_type",
+            )
+            err.http_status = 400
+            return _error_response(err)
+        if content is None:
+            err = ContractError(
+                "content is required",
+                tenant_id=ctx.tenant_id,
+                detail="missing content",
+            )
+            err.http_status = 400
+            return _error_response(err)
+        try:
+            result = artifact_facade.register(
+                ctx,
+                run_id=run_id,
+                artifact_type=artifact_type,
+                content=content,
+                metadata=metadata,
+            )
+        except ContractError as exc:
+            return _error_response(exc)
+        from datetime import UTC, datetime
+        return JSONResponse(
+            status_code=201,
+            content={
+                "artifact_id": result["artifact_id"],
+                "created_at": datetime.now(UTC).isoformat(),
+                "tenant_id": ctx.tenant_id,
+                "run_id": run_id,
+            },
+        )
 
     return router
 

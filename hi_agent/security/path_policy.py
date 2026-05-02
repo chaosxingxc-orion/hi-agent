@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 
-class PathPolicyViolation(Exception):  # noqa: N818 - public API keeps the established name.
+class PathPolicyViolation(Exception):  # noqa: N818  # scope: legacy-compatibility — public API name established before N818; rename would break callers
     """Raised when a path fails security policy."""
 
 

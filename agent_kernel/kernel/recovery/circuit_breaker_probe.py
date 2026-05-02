@@ -49,7 +49,7 @@ class CircuitBreakerProbeScheduler:
                 while True:
                     await asyncio.sleep(self._interval_s)
                     await self.probe_once()
-            except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 22"
+            except asyncio.CancelledError:  # rule7-exempt: expiry_wave="Wave 29"
                 return
 
         self._task = asyncio.get_running_loop().create_task(_loop(), name="circuit_breaker_probe")
