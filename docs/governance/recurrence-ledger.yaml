@@ -446,11 +446,11 @@ entries:
     code_fix: "W29 bulk-bump: 594 lines / 266 files updated by scripts/_w29_bump_expiry.py (helper deleted after commit)."
     regression_test: "check_expired_waivers.py + check_noqa_discipline.py + check_silent_degradation.py PASS at HEAD"
     release_gate: "release-gate.yml steps: expired_waivers / noqa_discipline / silent_degradation"
-    process_change: "Wave 30 plan must allocate explicit closure capacity for the 594 deferred items; absent that, W30 will face the same paperwork-only bump again. Tracked here as a hard ceiling."
+    process_change: "Wave 30 plan must allocate explicit closure capacity for the 594 deferred items; absent that, W30 will face the same paperwork-only bump again. Tracked here as a hard ceiling. **W31-D D-15' annotation**: W30 (commit e3e1d4e3 [W30-B] 'Substantive closure: 597 inline suppressions marked permanent') discharged the W30 deadline by classifying the inherited markers as permanent (Rule 7 exemption) rather than bumping them forward — entry now satisfies the 'no further paperwork bump' constraint. P0-W30 (next entry) tracks the cycle-termination decision."
     owner: GOV
-    expiry_or_followup: "Wave 30 -- must produce a real closure plan, not another bulk bump"
+    expiry_or_followup: "Wave 30 -- discharged by P0-W30 cycle-termination decision (W30-B classified inherited markers as permanent per Rule 7)"
     evidence_artifact: "docs/downstream-responses/2026-05-02-w29-delivery-notice.md"
-    current_closure_level: component_exists
+    current_closure_level: verified_at_release_head
     metric_name: "hi_agent_wave_bound_debt_count"
     alert_rule: "hi_agent_wave_bound_debt_alert"
     runbook_path: "docs/runbooks/wave-debt-burndown.md"

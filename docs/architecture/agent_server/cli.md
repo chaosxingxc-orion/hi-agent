@@ -190,5 +190,5 @@ the SSE route is available; the fallback is less efficient but correct.
 | `serve` delegates to `hi_agent` subprocess; version skew between CLI and runtime | Medium | Version pinned via same repo; becomes an issue if packages are released separately |
 | `tail-events` fallback polling is 1 Hz by default; not suitable for long-running runs | Low | `--poll-interval` flag allows adjustment |
 | No streaming reconnect in `tail-events` SSE path; server restart drops the stream | Medium | Client must re-run the command |
-| `type: ignore[type-arg]` annotations on `argparse._SubParsersAction` in all command files | Low | Annotated `expiry_wave: Wave 29` |
+| `type: ignore[type-arg]` annotations on `argparse._SubParsersAction` in all command files | Low | Annotated `expiry_wave: permanent` (W31-D D-14' — argparse stub gap) |
 | `cancel` sends an empty body to `/cancel`; if the route requires a body in a future version this will break | Low | Version compatibility concern for future contract changes |

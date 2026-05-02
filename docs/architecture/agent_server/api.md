@@ -178,7 +178,7 @@ handlers are `async`. The facade delegates to sync kernel callables (or the
 
 | Risk | Severity | Notes |
 |------|----------|-------|
-| `type: ignore[override]` on middleware `dispatch` | Low | Starlette type-stub gap; annotated `expiry_wave: Wave 29` |
-| `request._body = body_bytes` in IdempotencyMiddleware | Low | Private attribute access; annotated `expiry_wave: Wave 29` |
+| `type: ignore[override]` on middleware `dispatch` | Low | Starlette type-stub gap; annotated `expiry_wave: permanent` (W31-D D-14' — see note below) |
+| `request._body = body_bytes` in IdempotencyMiddleware | Low | Private attribute access; annotated `expiry_wave: permanent` (W31-D D-14' — see note below) |
 | SSE stream closes after terminal-state replay; live tail is not persistent | Medium | Streaming reconnect not yet implemented |
 | `routes_skills_memory.py` and `routes_manifest.py` lack TDD SHA annotations | Low | Pre-R-AS-5 files; retroactive annotation needed |

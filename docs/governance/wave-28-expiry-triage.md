@@ -1,5 +1,30 @@
 # Wave 28 Expiry Triage
 
+> **HISTORICAL** (W31-D D-19' annotation, 2026-05-03)
+>
+> This document is a snapshot of the W28 triage exercise. The dispositions
+> recorded here (close-now / defer-W29 / permanent-with-Rule17) drove W28's
+> attempted closure plan. **Subsequent waves overrode several of these
+> dispositions:**
+>
+> - **defer-W29 → W30 reclassification**: W30-B (commit `e3e1d4e3`)
+>   reclassified the bulk of inherited Wave-bound markers as `permanent` (Rule 7
+>   exemption) rather than continuing the bump cycle. See
+>   `docs/downstream-responses/2026-05-03-w30-delivery-notice.md` and
+>   recurrence-ledger entry `P0-W30`.
+> - **W29-A retroactively closed the W28 release-identity break**: see
+>   `docs/governance/errata/2026-05-02-W28-readiness-correction.md`.
+>
+> Dispositions in the table below remain useful as a triage record but are not
+> the current state. The current state is owned by the recurrence-ledger
+> entries `P0-W28`, `P0-W29`, `P0-W30` plus the W30-B classifier sweep.
+>
+> Per the W31 directive, this document is preserved in place (historical
+> annotation) rather than relocated to `docs/governance/archive/` to keep the
+> stable reference path used by W28 audit trails.
+
+---
+
 Generated: 2026-05-02
 
 ## Summary
