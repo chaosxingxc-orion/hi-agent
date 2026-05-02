@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,11 +23,52 @@ ROOT = Path(__file__).resolve().parent.parent
 DELIVERY_DIR = ROOT / "docs" / "delivery"
 RELEASES_DIR = ROOT / "docs" / "releases"
 
+# Hot-path prefixes per CLAUDE.md Rule 8 (T3 Invariance).
+# Commits touching ONLY non-hot-path files leave T3 evidence valid.
+_HOT_PATH_PREFIXES = (
+    "hi_agent/llm/",
+    "hi_agent/runtime/",
+    "hi_agent/config/cognition_builder.py",
+    "hi_agent/config/json_config_loader.py",
+    "hi_agent/config/builder.py",
+    "hi_agent/runner.py",
+    "hi_agent/runner_stage.py",
+    "hi_agent/runtime_adapter/",
+    "hi_agent/memory/compressor.py",
+    "hi_agent/server/app.py",
+    "hi_agent/profiles/",
+    "agent_server/api/",
+    "agent_server/facade/",
+    "agent_server/cli/",
+)
+
 sys.path.insert(0, str(ROOT / "scripts"))
 try:
     from _governance.governance_gap import is_gov_only_gap as _is_gov_only_gap
 except ImportError:
     def _is_gov_only_gap(a: str, b: str) -> bool:  # type: ignore[misc]  # expiry_wave: Wave 29
+        return False
+
+
+def _no_hot_path_changes(base: str, head: str) -> bool:
+    """Return True when no hot-path files changed between base..head.
+
+    Per CLAUDE.md Rule 8, T3 evidence is only invalidated by commits that
+    touch hot-path files. Non-hot-path changes (tests, governance, docs) do
+    not invalidate T3 evidence.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base}..{head}"],
+            capture_output=True, text=True, cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            return False
+        changed = result.stdout.strip().splitlines()
+        return not any(
+            f.startswith(p) for f in changed for p in _HOT_PATH_PREFIXES
+        )
+    except Exception:
         return False
 
 
@@ -184,10 +226,13 @@ def main() -> int:
 
     # Match at 7-char prefix resolution (either direction)
     if m_norm != t_norm:
-        # Allow mismatch when every commit between the two SHAs is gov-infra-only
-        # (scripts/**, .github/**, docs/**) — no hot-path changes, T3 still valid.
+        # Allow mismatch when gov-infra-only gap OR no hot-path files changed.
+        # Gov-infra: docs/scripts/.github only.
+        # No-hot-path: aligns with CLAUDE.md Rule 8 — T3 only invalidated by
+        # commits touching hi_agent/llm, hi_agent/runtime, agent_server/api, etc.
         try:
-            gap_ok = _is_gov_only_gap(t3_head, manifest_head)
+            gap_ok = _is_gov_only_gap(t3_head, manifest_head) or \
+                _no_hot_path_changes(t3_head, manifest_head)
         except Exception:
             gap_ok = False
         if not gap_ok:
@@ -213,7 +258,7 @@ def main() -> int:
                 )
             return 1
 
-    gap_note = "" if m_norm == t_norm else " (gov-infra-only gap permitted)"
+    gap_note = "" if m_norm == t_norm else " (non-hot-path gap permitted)"
     result = {
         "status": "pass",
         "check": "evidence_identity",
