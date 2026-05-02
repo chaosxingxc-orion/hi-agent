@@ -23,6 +23,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RELEASES_DIR = ROOT / "docs" / "releases"
+_FUNCTIONAL_DOCS = frozenset({
+    "docs/governance/score_caps.yaml",
+    "docs/governance/allowlists.yaml",
+})
 
 
 def _git_head() -> str:
@@ -67,10 +71,6 @@ def _manifest_commit_gap(manifest_head: str, current_head: str) -> bool:
     """
     if manifest_head == current_head:
         return True
-    _FUNCTIONAL_DOCS = frozenset({
-        "docs/governance/score_caps.yaml",
-        "docs/governance/allowlists.yaml",
-    })
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", f"{manifest_head}..{current_head}"],
