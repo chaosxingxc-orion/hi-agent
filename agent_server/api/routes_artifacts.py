@@ -79,8 +79,7 @@ def build_router(*, artifact_facade: ArtifactFacade) -> APIRouter:
         try:
             body: dict[str, Any] = await request.json()
         except Exception as exc:  # pragma: no cover - defensive
-            err = ContractError("invalid JSON body", detail=str(exc))
-            err.http_status = 400
+            err = ContractError("invalid JSON body", detail=str(exc), http_status=400)
             return _error_response(err)
         run_id = str(body.get("run_id", "")).strip()
         artifact_type = str(body.get("artifact_type", "")).strip()
@@ -91,24 +90,24 @@ def build_router(*, artifact_facade: ArtifactFacade) -> APIRouter:
                 "run_id is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing run_id",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
         if not artifact_type:
             err = ContractError(
                 "artifact_type is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing artifact_type",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
         if content is None:
             err = ContractError(
                 "content is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing content",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
         try:
             result = artifact_facade.register(

@@ -63,8 +63,7 @@ def build_router() -> APIRouter:
         try:
             body: dict[str, Any] = await request.json()
         except Exception as exc:  # pragma: no cover — defensive
-            err = ContractError("invalid JSON body", detail=str(exc))
-            err.http_status = 400
+            err = ContractError("invalid JSON body", detail=str(exc), http_status=400)
             return _error_response(err)
 
         run_id = str(body.get("run_id", "")).strip()
@@ -75,8 +74,8 @@ def build_router() -> APIRouter:
                 "run_id is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing run_id in request body",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
 
         if decision not in {"approved", "rejected"}:
@@ -84,8 +83,8 @@ def build_router() -> APIRouter:
                 f"decision must be 'approved' or 'rejected', got {decision!r}",
                 tenant_id=ctx.tenant_id,
                 detail="invalid decision value",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
 
         # Build the GateDecisionRequest contract object for downstream use.
@@ -104,8 +103,12 @@ def build_router() -> APIRouter:
                 decided_at=decided_at,
             )
         except ValueError as exc:
-            err = ContractError(str(exc), tenant_id=ctx.tenant_id, detail="contract validation")
-            err.http_status = 400
+            err = ContractError(
+                str(exc),
+                tenant_id=ctx.tenant_id,
+                detail="contract validation",
+                http_status=400,
+            )
             return _error_response(err)
 
         return JSONResponse(

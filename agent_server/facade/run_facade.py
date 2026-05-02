@@ -45,16 +45,16 @@ class RunFacade:
                 "idempotency_key is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing idempotency_key",
+                http_status=400,
             )
-            err.http_status = 400
             raise err
         if not req.profile_id:
             err = ContractError(
                 "profile_id is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing profile_id",
+                http_status=400,
             )
-            err.http_status = 400
             raise err
         record = self._start_run(
             tenant_id=ctx.tenant_id,

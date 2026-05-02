@@ -1,7 +1,7 @@
 {
   "digests": {
     "agent_server/contracts/__init__.py": "9b2a49eda70ae4fbd2540d304693599dd82e9020e2cd7962d706fd7eef2c4ae3",
-    "agent_server/contracts/errors.py": "5ecfb4cfbb93e347581967e636f2e7873a8c66e9d8651cb383b86cc622c11d6b",
+    "agent_server/contracts/errors.py": "3e1040e30abec30ec585c1ad5433e37079f03758415bd9286bff4ad521df8e7a",
     "agent_server/contracts/gate.py": "5db427e94951dd800abd9d3f077c187fbe7d6cc2894032484dbcdf971734c038",
     "agent_server/contracts/llm_proxy.py": "d05c58711ee4c028c738a3faca6a80dbd94394bad50d90eb01498643f92e12bf",
     "agent_server/contracts/memory.py": "c2ff512f2e5b930e17824ff7870b2b018d02e874b2f6c8aa62310bd91b0a0f7a",

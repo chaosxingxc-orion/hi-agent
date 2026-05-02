@@ -112,8 +112,8 @@ def build_router(*, idempotency_facade: IdempotencyFacade | None = None) -> APIR
                     f"missing required {_IDEMPOTENCY_HEADER} header",
                     tenant_id=ctx.tenant_id,
                     detail="research/prod posture demands idempotency keys on mutating routes",
+                    http_status=400,
                 )
-                err.http_status = 400
                 raise err
             _log.warning(
                 "idempotency_key_missing tenant=%s path=%s",
@@ -145,8 +145,7 @@ def build_router(*, idempotency_facade: IdempotencyFacade | None = None) -> APIR
         try:
             body: dict[str, Any] = await request.json()
         except Exception as exc:  # pragma: no cover — defensive
-            err = ContractError("invalid JSON body", detail=str(exc))
-            err.http_status = 400
+            err = ContractError("invalid JSON body", detail=str(exc), http_status=400)
             return _error_response(err)
 
         skill_id = str(body.get("skill_id", "")).strip()
@@ -158,24 +157,24 @@ def build_router(*, idempotency_facade: IdempotencyFacade | None = None) -> APIR
                 "skill_id is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing skill_id in request body",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
         if not version:
             err = ContractError(
                 "version is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing version in request body",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
         if not handler_ref:
             err = ContractError(
                 "handler_ref is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing handler_ref in request body",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
 
         # Build the registration contract object for downstream use.
@@ -229,8 +228,7 @@ def build_router(*, idempotency_facade: IdempotencyFacade | None = None) -> APIR
         try:
             body: dict[str, Any] = await request.json()
         except Exception as exc:  # pragma: no cover — defensive
-            err = ContractError("invalid JSON body", detail=str(exc))
-            err.http_status = 400
+            err = ContractError("invalid JSON body", detail=str(exc), http_status=400)
             return _error_response(err)
 
         tier_raw = str(body.get("tier", "L0")).strip()
@@ -242,8 +240,8 @@ def build_router(*, idempotency_facade: IdempotencyFacade | None = None) -> APIR
                 "key is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing key in request body",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
 
         try:
@@ -254,8 +252,8 @@ def build_router(*, idempotency_facade: IdempotencyFacade | None = None) -> APIR
                 f"invalid tier {tier_raw!r}; expected one of: {valid}",
                 tenant_id=ctx.tenant_id,
                 detail="tier validation failed",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
 
         # Build the write contract object for downstream use.

@@ -87,8 +87,7 @@ def build_router() -> APIRouter:
         try:
             await request.json()
         except Exception as exc:  # pragma: no cover — defensive
-            err = ContractError("invalid JSON body", detail=str(exc))
-            err.http_status = 400
+            err = ContractError("invalid JSON body", detail=str(exc), http_status=400)
             return _error_response(err)
 
         if not tool_name or not tool_name.strip():
@@ -96,8 +95,8 @@ def build_router() -> APIRouter:
                 "tool_name is required",
                 tenant_id=ctx.tenant_id,
                 detail="empty tool name in path",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
 
         # At L1 maturity no tools are registered; return 404 for any invocation.

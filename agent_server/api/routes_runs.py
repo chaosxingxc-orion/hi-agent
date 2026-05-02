@@ -48,8 +48,7 @@ def build_router(*, run_facade: RunFacade) -> APIRouter:
         try:
             body: dict[str, Any] = await request.json()
         except Exception as exc:  # pragma: no cover - defensive
-            err = ContractError("invalid JSON body", detail=str(exc))
-            err.http_status = 400
+            err = ContractError("invalid JSON body", detail=str(exc), http_status=400)
             return _error_response(err)
         try:
             req = RunRequest(
@@ -64,7 +63,10 @@ def build_router(*, run_facade: RunFacade) -> APIRouter:
             resp = run_facade.start(ctx, req)
         except ContractError as exc:
             return _error_response(exc)
-        return JSONResponse(status_code=200, content=_run_response_to_dict(resp))
+        # W31-N (N-11): POST /v1/runs creates a new resource, so the
+        # correct HTTP status is 201 Created — not 200 OK. The response
+        # envelope is unchanged so existing parsers continue to work.
+        return JSONResponse(status_code=201, content=_run_response_to_dict(resp))
 
     # tdd-red-sha: ddc0f0d
     @router.get("/{run_id}")
@@ -83,8 +85,7 @@ def build_router(*, run_facade: RunFacade) -> APIRouter:
         try:
             body: dict[str, Any] = await request.json()
         except Exception as exc:  # pragma: no cover - defensive
-            err = ContractError("invalid JSON body", detail=str(exc))
-            err.http_status = 400
+            err = ContractError("invalid JSON body", detail=str(exc), http_status=400)
             return _error_response(err)
         signal = str(body.get("signal", "")).strip()
         if not signal:
@@ -92,8 +93,8 @@ def build_router(*, run_facade: RunFacade) -> APIRouter:
                 "signal is required",
                 tenant_id=ctx.tenant_id,
                 detail="missing signal",
+                http_status=400,
             )
-            err.http_status = 400
             return _error_response(err)
         try:
             status = run_facade.signal(

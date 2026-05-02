@@ -101,8 +101,8 @@ class ArtifactFacade:
                 "artifact write not configured",
                 tenant_id=ctx.tenant_id,
                 detail="register_artifact callable not injected",
+                http_status=400,
             )
-            err.http_status = 400
             raise err
         artifact_id = self._register_artifact(
             tenant_id=ctx.tenant_id,
