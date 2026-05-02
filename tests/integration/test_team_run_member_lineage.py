@@ -64,7 +64,7 @@ def test_register_replaces_existing():
     )
     registry.register(team_v1)
     registry.register(team_v2)
-    assert registry.get("t3").lead_run_id == "run-pi-v2"  # type: ignore[union-attr]
+    assert registry.get("t3").lead_run_id == "run-pi-v2"  # type: ignore[union-attr]  # expiry_wave: Wave 29
 
 
 def test_unregister_removes_team():
