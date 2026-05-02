@@ -228,8 +228,41 @@ class AuthMiddleware:
                 raw = _decode_jwt_payload(token) or {}
             validated_claims = raw
 
+        # T-11' (W31): resolve tenant_id with posture-aware fallback.
+        # Under research/prod, missing tenant_id is a hard reject — silent
+        # coercion to "default" masked cross-tenant access.  Under dev, the
+        # legacy fallback is preserved with a WARNING for back-compat.
+        raw_tenant_id = validated_claims.get("tenant_id", "") or ""
+        raw_tenant_id = str(raw_tenant_id).strip()
+        if not raw_tenant_id:
+            from hi_agent.config.posture import Posture as _Posture
+
+            if _Posture.from_env().is_strict:
+                _logger.warning(
+                    "AuthMiddleware: rejecting token under research/prod "
+                    "posture — tenant_id claim is missing or empty (T-11')."
+                )
+                await self._reject(
+                    scope,
+                    receive,
+                    send,
+                    "missing_tenant_id_claim",
+                    status=401,
+                )
+                return
+            # dev: fall back to "default" with a WARNING so the legacy bucket
+            # is observable rather than silent.
+            _logger.warning(
+                "AuthMiddleware: tenant_id claim missing under dev posture; "
+                "falling back to 'default' (T-11'). Configure JWT to carry "
+                "tenant_id before promoting to research/prod."
+            )
+            tenant_id_value = "default"
+        else:
+            tenant_id_value = raw_tenant_id
+
         ctx = TenantContext(
-            tenant_id=str(validated_claims.get("tenant_id", "") or "default"),
+            tenant_id=tenant_id_value,
             user_id=str(validated_claims.get("sub", "")),
             roles=[role],
             auth_method="jwt" if is_jwt else "api_key",
