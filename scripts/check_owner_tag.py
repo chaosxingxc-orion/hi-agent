@@ -25,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 _OWNER_TRAILER = re.compile(r"^Owner:\s*(CO|RO|DX|TE|GOV|AS-CO|AS-RO)\s*$", re.IGNORECASE | re.MULTILINE)  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-_SUBJECT_PREFIX = re.compile(  # noqa: E501  # expiry_wave: Wave 30  # added: W28 transitional wave-prefix format
+_SUBJECT_PREFIX = re.compile(  # expiry_wave: Wave 30  # added: W28 transitional wave-prefix format
     r"^\[(co|ro|dx|te|gov|as-co|as-ro)-W\d+-\w+\]"
     r"|^\[w\d+[-\w]+\]",  # wave-number-only prefix [wNN-*] used in W25-W28
     re.IGNORECASE,
