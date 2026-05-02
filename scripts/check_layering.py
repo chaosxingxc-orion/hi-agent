@@ -1,9 +1,16 @@
-﻿"""Layer violation checker 鈥?platform code must not import lower-stability layers.
+﻿"""Layer violation checker — platform code must not import lower-stability layers.
 
-Walks every .py file under hi_agent/ and agent_kernel/ and flags any import
-whose module starts with ``examples``, ``tests``, ``scripts``, or ``docs``.
+W31-N (N.5) extends the original ``hi_agent`` / ``agent_kernel`` scan to
+also cover ``agent_server/api`` and ``agent_server/api/middleware`` per
+R-AS-1: those route-handler modules must NOT import from ``hi_agent.*``
+under any circumstance, including function-body deferred imports.
 
-Allowlisted entries are lazy/deprecated shims explicitly tracked for removal.
+Walks every .py file under each scan root and flags any import whose
+top-level module is in the corresponding forbidden-prefix set. Imports
+nested inside function/method definitions are also captured.
+
+Allowlisted entries are lazy/deprecated shims explicitly tracked for
+removal.
 
 Usage::
 
@@ -29,12 +36,29 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-SOURCE_ROOTS = ("hi_agent", "agent_kernel")
-
 SKIP_DIRS = frozenset({"venv", ".venv", "node_modules", ".git", "dist", "build", "__pycache__"})
 
-# Lower-stability layer prefixes that platform code must not import from.
-FORBIDDEN_PREFIXES = ("examples", "tests", "scripts", "docs")
+# Per-scan-root rule definitions:
+#   * ``forbidden`` — top-level module names that may not appear in any import
+#   * ``allowlist`` — bool indicating whether ALLOWLIST entries are honored
+#                     (False means no exception is permitted regardless of the
+#                     central ALLOWLIST)
+#
+# W31-N3 adds ``agent_server/api`` (nested ``middleware`` is covered by
+# the os.walk recursion) with FORBIDDEN_PREFIXES = ("hi_agent",) and
+# allowlist disabled — there is no permitted "deferred" import escape
+# valve under R-AS-1.
+SOURCE_ROOTS_CONFIG: tuple[tuple[str, tuple[str, ...], bool], ...] = (
+    ("hi_agent", ("examples", "tests", "scripts", "docs"), True),
+    ("agent_kernel", ("examples", "tests", "scripts", "docs"), True),
+    ("agent_server/api", ("hi_agent",), False),
+)
+
+# Backward compatibility: callers that introspect SOURCE_ROOTS or
+# FORBIDDEN_PREFIXES at module import time keep working with the
+# original two-root configuration.
+SOURCE_ROOTS = tuple(root for root, _, _ in SOURCE_ROOTS_CONFIG[:2])
+FORBIDDEN_PREFIXES = SOURCE_ROOTS_CONFIG[0][1]
 
 # Allowlisted entries: lazy/deprecated shims scheduled for removal.
 # Each entry: file path relative to REPO_ROOT, line number, reason, expiry wave.
@@ -150,7 +174,19 @@ def _check_dynamic_imports(tree: ast.Module) -> list[tuple[int, str]]:
     return results
 
 
-def check_file(path: Path, report: LayeringReport) -> None:
+def check_file(
+    path: Path,
+    report: LayeringReport,
+    *,
+    forbidden_prefixes: tuple[str, ...] = FORBIDDEN_PREFIXES,
+    allowlist_enabled: bool = True,
+) -> None:
+    """Scan a single file under the given forbidden-prefix rule.
+
+    W31-N (N.5): when ``allowlist_enabled`` is False every match is a
+    violation, regardless of whether the central ALLOWLIST contains the
+    file:line. This is the ``agent_server/api/**`` rule per R-AS-1.
+    """
     rel = os.path.relpath(path, REPO_ROOT).replace("\\", "/")
     try:
         source = path.read_text(encoding="utf-8", errors="replace")
@@ -161,9 +197,9 @@ def check_file(path: Path, report: LayeringReport) -> None:
     candidates = _extract_imports(tree) + _check_dynamic_imports(tree)
 
     for lineno, top_module in candidates:
-        if top_module not in FORBIDDEN_PREFIXES:
+        if top_module not in forbidden_prefixes:
             continue
-        allowlist_entry = _is_allowlisted(rel, lineno)
+        allowlist_entry = _is_allowlisted(rel, lineno) if allowlist_enabled else None
         if allowlist_entry is not None:
             # Reconstruct the actual module string for reporting
             # (best-effort: just use top_module, full module not stored here)
@@ -181,16 +217,23 @@ def check_file(path: Path, report: LayeringReport) -> None:
 
 
 def run_check() -> LayeringReport:
+    """Scan every source root with its associated forbidden-prefix rule."""
     report = LayeringReport(head=_get_git_sha())
-    for source_root in SOURCE_ROOTS:
+    for source_root, forbidden, allow_enabled in SOURCE_ROOTS_CONFIG:
         root_path = REPO_ROOT / source_root
         if not root_path.exists():
             continue
         for dirpath, dirnames, filenames in os.walk(root_path):
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
             for filename in filenames:
-                if filename.endswith(".py"):
-                    check_file(Path(dirpath) / filename, report)
+                if not filename.endswith(".py"):
+                    continue
+                check_file(
+                    Path(dirpath) / filename,
+                    report,
+                    forbidden_prefixes=forbidden,
+                    allowlist_enabled=allow_enabled,
+                )
     return report
 
 
