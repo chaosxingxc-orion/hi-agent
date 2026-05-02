@@ -11,12 +11,21 @@ def test_agent_server_importable():
 
 
 def test_required_subpackages_exist():
-    subpackages = [
-        "contracts", "api", "mcp", "facade",
-        "tenancy", "workspace", "cli", "config", "observability",
-    ]
+    # W31-H7: empty shell subpackages mcp/, observability/, tenancy/,
+    # workspace/ removed; their responsibilities live in hi_agent/ and the
+    # contract layer. See agent_server/ARCHITECTURE.md §2 and
+    # docs/governance/package-consolidation-2026-05-02.md.
+    subpackages = ["contracts", "api", "facade", "cli", "config"]
     for sub in subpackages:
         importlib.import_module(f"agent_server.{sub}")
+
+
+def test_removed_shell_subpackages_no_longer_importable():
+    """W31-H7: the four bare shells must not re-appear under agent_server/."""
+    removed = ["mcp", "observability", "tenancy", "workspace"]
+    for sub in removed:
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(f"agent_server.{sub}")
 
 
 def test_config_submodules_exist():

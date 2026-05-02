@@ -36,12 +36,14 @@ agent_server/
 ├── facade/          — Adapters from contract types to hi_agent callables
 ├── api/             — FastAPI route handlers + middleware
 │   └── middleware/  — Idempotency + tenant context injection
-├── cli/             — CLI entry point (serve / run / cancel / tail-events)
-├── mcp/             — MCP integration hooks (stub, Wave 28+)
-├── tenancy/         — Multi-tenancy support utilities
-├── workspace/       — Workspace isolation utilities
-└── observability/   — Observability hooks
+└── cli/             — CLI entry point (serve / run / cancel / tail-events)
 ```
+
+**Note (W31-H7):** Empty shell subpackages `mcp/`, `observability/`, `tenancy/`,
+and `workspace/` were removed. Their responsibilities are delegated upward to
+`hi_agent/` (`hi_agent/mcp/`, `hi_agent/observability/`) and to the contract
+layer here (`agent_server/contracts/{tenancy,workspace}.py`). Enforced by
+`scripts/check_no_shell_packages.py`.
 
 ---
 
@@ -417,10 +419,10 @@ systemctl start hi-agent.service
 
 | Item | Status | Mitigation |
 |------|--------|-----------|
-| MCP integration is stub | `agent_server/mcp/` carries placeholder routes | Wave 28+ work; no production caller depends on it |
+| MCP integration responsibilities live in `hi_agent/mcp/` | Routes under `agent_server/api/routes_mcp_tools.py` delegate to `hi_agent` runtime | W31-H7 removed the empty `agent_server/mcp/` shell; no production caller depended on it |
 | Streaming SSE backpressure | Long-running runs may emit > buffer size | `_generator()` cooperates with event loop via `await asyncio.sleep(0)`; downstream sets `X-Accel-Buffering: no` |
 | Idempotency cache TTL | Unbounded growth without TTL pruner | `IdempotencyFacade` accepts a `prune_after_seconds` argument; ops sets via env in research/prod |
-| Workspace path traversal | User-controlled `workspace_id` could escape | `agent_server/workspace/` validates and `hi_agent/server/workspace_path.py` enforces; covered by security tests |
+| Workspace path traversal | User-controlled `workspace_id` could escape | `hi_agent/server/workspace_path.py` enforces; `agent_server/contracts/workspace.py` carries the `WorkspaceContext` value object; covered by security tests |
 
 ---
 
