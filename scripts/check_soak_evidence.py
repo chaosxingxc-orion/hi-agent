@@ -20,6 +20,11 @@ Status semantics:
 Exit codes:
   0  — pass or deferred (non-blocking; manifest scoring applies cap factor)
   1  — fail (blocking)
+
+W31-L (L-1' fix): Added --strict flag. With --strict, "deferred" → exit 1
+(blocking). Without --strict, the legacy non-blocking behaviour is preserved
+for back-compat. CI/release-gate now passes --strict so a missing arch-7x24
+evidence at current HEAD is a hard failure, not a silent advisory.
 """
 from __future__ import annotations
 
@@ -81,24 +86,38 @@ def _emit(args: argparse.Namespace, payload: dict, *, exit_code: int) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Architectural 7x24 readiness gate.")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        default=False,
+        help=(
+            "W31-L (L-1'): When set, 'deferred' (no arch-7x24 evidence found "
+            "for current HEAD) exits 1 instead of 0. CI uses --strict so a "
+            "missing evidence at HEAD is a hard FAIL, not a silent advisory."
+        ),
+    )
     args = parser.parse_args()
 
     head_sha = _repo_head()
     evidence_file = _find_arch_evidence(head_sha)
 
     if evidence_file is None:
+        # --strict: a missing arch-7x24 evidence at current HEAD is FAIL, not
+        # a silent advisory. Without --strict (back-compat), exit 0.
+        deferred_exit = 1 if args.strict else 0
         return _emit(
             args,
             {
                 "check": "soak_evidence",
-                "status": "deferred",
+                "status": "deferred" if not args.strict else "fail",
                 "reason": (
                     "no arch-7x24 evidence found; run scripts/run_arch_7x24.py "
                     "to produce <sha>-arch-7x24.json"
                 ),
                 "assertions_required": _REQUIRED_ASSERTIONS,
+                "strict": args.strict,
             },
-            exit_code=0,
+            exit_code=deferred_exit,
         )
 
     try:

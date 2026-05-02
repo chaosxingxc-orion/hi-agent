@@ -143,8 +143,12 @@ jobs:
       - name: Check contract spine completeness (W23-D / Rule 12)
         run: python scripts/check_contract_spine_completeness.py --json
 
-      - name: Check soak evidence (W14-C2)
-        run: python scripts/check_soak_evidence.py --json
+      - name: Check soak evidence (W14-C2 / W31-L L-1' --strict)
+        # W31-L (L-1'): --strict flag converts "deferred" (no evidence at HEAD)
+        # into exit-1 FAIL so CI blocks on missing arch-7x24 evidence rather
+        # than silently advising. Back-compat path (without --strict) remains
+        # for local invocation.
+        run: python scripts/check_soak_evidence.py --json --strict
 
       - name: Check chaos runtime coupling (W14-C4)
         run: python scripts/check_chaos_runtime_coupling.py --json
