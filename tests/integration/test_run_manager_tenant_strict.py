@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 
 import pytest
-from hi_agent.errors.categories import TenantScopeError
+from hi_agent.contracts.errors import TenantScopeError
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.run_store import SQLiteRunStore
 from hi_agent.server.tenant_context import TenantContext

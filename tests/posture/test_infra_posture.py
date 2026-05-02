@@ -170,7 +170,7 @@ def test_validate_spine(monkeypatch, posture_name, empty_raises):
     """
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     from hi_agent.contracts._spine_validation import validate_spine
-    from hi_agent.errors.categories import TenantScopeError
+    from hi_agent.contracts.errors import TenantScopeError
 
     class _FakeObj:
         tenant_id = ""
