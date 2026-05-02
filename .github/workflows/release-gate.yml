@@ -168,7 +168,14 @@ jobs:
       # --- W16 new gates ---
 
       - name: Manifest freshness (W16-A8)
-        run: python scripts/check_manifest_freshness.py --json
+        # --allow-docs-only-gap: same exemption as the release_identity step
+        # below. The manifest commit is itself a docs-only follow-on after the
+        # functional commit (the manifest filename and contents both live under
+        # docs/releases/). Without this flag, every push that ships a fresh
+        # manifest would fail manifest_freshness on the next push because
+        # HEAD has moved past the manifest's release_head. Promotion target
+        # W29 once CI generates+commits the manifest in a single atomic step.
+        run: python scripts/check_manifest_freshness.py --json --allow-docs-only-gap
 
       - name: Release identity (W16-A8)
         # TODO: promote to blocking in W29 once manifest commit is atomic at release HEAD.
