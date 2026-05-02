@@ -123,7 +123,7 @@ def _make_action(
         action_id=f"act-{uuid.uuid4().hex[:8]}",
         run_id=run_id,
         action_type=action_type,
-        effect_class=effect_class,  # type: ignore[arg-type]  expiry_wave: Wave 29
+        effect_class=effect_class,  # type: ignore[arg-type]  expiry_wave: Wave 30
         interaction_target=interaction_target,  # type: ignore[arg-type]
     )
 
@@ -161,7 +161,7 @@ def _make_exporter(
 
     provider = provider or MockTracerProvider()
     exporter = object.__new__(OTLPRunTraceExporter)
-    exporter._tracer = provider.tracer  # type: ignore[attr-defined]  expiry_wave: Wave 29
+    exporter._tracer = provider.tracer  # type: ignore[attr-defined]  expiry_wave: Wave 30
     exporter._include_payload = include_payload  # type: ignore[attr-defined]
     return exporter, provider.tracer
 

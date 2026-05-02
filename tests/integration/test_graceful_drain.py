@@ -59,7 +59,7 @@ def test_shutdown_marks_active_runs_failed() -> None:
     manager = RunManager(
         max_concurrent=2,
         queue_size=4,
-        run_queue=spy_queue,  # type: ignore[arg-type]  expiry_wave: Wave 29
+        run_queue=spy_queue,  # type: ignore[arg-type]  expiry_wave: Wave 30
     )
 
     # Simulate a run that started executing (added to _active_run_ids) but has

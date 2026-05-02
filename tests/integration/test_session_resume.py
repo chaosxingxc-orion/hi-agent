@@ -266,7 +266,7 @@ class TestSeqRestore:
                 captured_seq["branch_seq"] = self_inner.branch_seq
                 return orig_execute_remaining(self_inner)
 
-            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 29
+            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
                 RunExecutor.resume_from_checkpoint(
                 path,
                 kernel,
@@ -306,7 +306,7 @@ class TestL1SummariesRestored:
                 captured["summaries"] = dict(self_inner.stage_summaries)
                 return orig_execute_remaining(self_inner)
 
-            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 29
+            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
                 RunExecutor.resume_from_checkpoint(
                 path,
                 kernel,
@@ -350,7 +350,7 @@ class TestL0RecordsAvailable:
                     captured["l0_count"] = len(self_inner.session.l0_records)
                 return orig_execute_remaining(self_inner)
 
-            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 29
+            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
                 RunExecutor.resume_from_checkpoint(
                 path,
                 kernel,
@@ -391,7 +391,7 @@ class TestCompactBoundariesRestored:
                     captured["boundary_count"] = len(self_inner.session._compact_boundaries)
                 return orig_execute_remaining(self_inner)
 
-            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 29
+            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
                 RunExecutor.resume_from_checkpoint(
                 path,
                 kernel,
@@ -435,7 +435,7 @@ class TestLLMCostContinuation:
                     captured["calls_before"] = len(self_inner.session.llm_calls)
                 return orig_execute_remaining(self_inner)
 
-            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 29
+            with patch.object(RunExecutor, "_execute_remaining", patched):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
                 RunExecutor.resume_from_checkpoint(
                 path,
                 kernel,
@@ -637,9 +637,9 @@ class TestCLIResume:
             # Also patch resume_from_checkpoint to inject raw_memory (Rule 6).
             from hi_agent.runner import RunExecutor as _RunExecutor
 
-            _orig_resume = _RunExecutor.resume_from_checkpoint.__func__  # type: ignore[attr-defined]  expiry_wave: Wave 29
+            _orig_resume = _RunExecutor.resume_from_checkpoint.__func__  # type: ignore[attr-defined]  expiry_wave: Wave 30
 
-            def _patched_resume(cls, cp_path, kernel, **kwargs):  # type: ignore[no-untyped-def]  expiry_wave: Wave 29
+            def _patched_resume(cls, cp_path, kernel, **kwargs):  # type: ignore[no-untyped-def]  expiry_wave: Wave 30
                 kwargs.setdefault("raw_memory", RawMemoryStore())
                 kwargs.setdefault("event_emitter", EventEmitter())
                 kwargs.setdefault("compressor", MemoryCompressor())

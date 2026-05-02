@@ -175,16 +175,16 @@ class TestFrozen:
         """Verifies assignment raises."""
         cfg = KernelConfig()
         with pytest.raises(FrozenInstanceError):
-            cfg.max_tracked_runs = 999  # type: ignore[misc]  expiry_wave: Wave 29
+            cfg.max_tracked_runs = 999  # type: ignore[misc]  expiry_wave: Wave 30
 
     def test_assignment_on_str_field_raises(self) -> None:
         """Verifies assignment on str field raises."""
         cfg = KernelConfig()
         with pytest.raises(FrozenInstanceError):
-            cfg.default_model_ref = "other"  # type: ignore[misc]  expiry_wave: Wave 29
+            cfg.default_model_ref = "other"  # type: ignore[misc]  expiry_wave: Wave 30
 
     def test_assignment_on_optional_field_raises(self) -> None:
         """Verifies assignment on optional field raises."""
         cfg = KernelConfig()
         with pytest.raises(FrozenInstanceError):
-            cfg.phase_timeout_s = 10.0  # type: ignore[misc]  expiry_wave: Wave 29
+            cfg.phase_timeout_s = 10.0  # type: ignore[misc]  expiry_wave: Wave 30

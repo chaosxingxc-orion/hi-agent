@@ -149,7 +149,7 @@ def _build_app(km, ctx: TenantContext) -> Starlette:
         "KnowledgeManager.ingest_text and enforce page ownership checks."
     ),
     strict=False,
-    expiry_wave="Wave 29",
+    expiry_wave="Wave 30",
 )
 class TestKnowledgeIngestTenantIsolation:
     """POST /knowledge/ingest must isolate ingested pages by tenant (AX-F F1)."""

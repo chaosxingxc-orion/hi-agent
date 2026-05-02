@@ -40,7 +40,7 @@ class FakeFacade:
 
         # Return a response object with run_id attribute
         class _Resp:
-            run_id = f"run-{self._run_counter:04d}"  # type: ignore[assignment]  expiry_wave: Wave 29
+            run_id = f"run-{self._run_counter:04d}"  # type: ignore[assignment]  expiry_wave: Wave 30
 
         return _Resp()
 

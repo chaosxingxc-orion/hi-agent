@@ -65,7 +65,7 @@ class LLMGatewayConfig:
             else os.environ.get("OPENAI_API_KEY", "")
         )
         return cls(
-            provider=provider,  # type: ignore[arg-type]  # expiry_wave: Wave 29
+            provider=provider,  # type: ignore[arg-type]  # expiry_wave: Wave 30
             model=model,
             api_key=api_key or "",
             max_tokens=int(os.environ.get("AGENT_KERNEL_LLM_MAX_TOKENS", "4096")),

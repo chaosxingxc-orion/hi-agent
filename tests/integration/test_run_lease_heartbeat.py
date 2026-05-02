@@ -45,7 +45,7 @@ def test_heartbeat_keeps_lease_alive_during_long_run() -> None:
         heartbeat_calls.append(time.monotonic())
         return _orig_heartbeat(run_id, worker_id)
 
-    rq.heartbeat = _spy_heartbeat  # type: ignore[method-assign]  expiry_wave: Wave 29
+    rq.heartbeat = _spy_heartbeat  # type: ignore[method-assign]  expiry_wave: Wave 30
 
     rm = RunManager(run_queue=rq)
     try:
@@ -60,7 +60,7 @@ def test_heartbeat_keeps_lease_alive_during_long_run() -> None:
                 error = None
                 finished_at = None
                 llm_fallback_count = 0
-                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 29
+                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 30
 
                 def to_dict(self):
                     return {"status": "completed"}
@@ -116,11 +116,11 @@ def test_heartbeat_failure_transitions_run_to_failed() -> None:
         heartbeat_calls.append(1)
         return False  # simulate lease renewal denied
 
-    rq.heartbeat = _deny_heartbeat  # type: ignore[method-assign]  expiry_wave: Wave 29
+    rq.heartbeat = _deny_heartbeat  # type: ignore[method-assign]  expiry_wave: Wave 30
 
     # Use a very short heartbeat interval so the test completes quickly.
     # We monkey-patch the property value directly.
-    rq.__dict__["lease_heartbeat_interval_seconds"] = 0.1  # type: ignore[attr-defined]  expiry_wave: Wave 29
+    rq.__dict__["lease_heartbeat_interval_seconds"] = 0.1  # type: ignore[attr-defined]  expiry_wave: Wave 30
 
     rm = RunManager(run_queue=rq)
     try:
@@ -145,7 +145,7 @@ def test_heartbeat_failure_transitions_run_to_failed() -> None:
                 error = "lease_lost: heartbeat renewal denied"
                 finished_at = None
                 llm_fallback_count = 0
-                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 29
+                fallback_events: list = []  # noqa: RUF012  expiry_wave: Wave 30
 
                 def to_dict(self):
                     return {"status": "failed"}

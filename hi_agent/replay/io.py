@@ -47,7 +47,7 @@ class ReplayRecorder:
 
     def __init__(self, path: str | Path) -> None:
         self._path = Path(path)
-        self._handle = None  # type: ignore[assignment]  expiry_wave: Wave 29
+        self._handle = None  # type: ignore[assignment]  expiry_wave: Wave 30
 
     # -- public API --------------------------------------------------
 

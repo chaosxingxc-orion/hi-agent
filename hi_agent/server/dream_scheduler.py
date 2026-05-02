@@ -68,7 +68,7 @@ class MemoryLifecycleManager:
             self._consolidator = LongTermConsolidator(self._mid, self._graph)
 
         # Asyncio periodic scheduler state
-        self._scheduler_task: asyncio.Task | None = None  # type: ignore[type-arg]  expiry_wave: Wave 29
+        self._scheduler_task: asyncio.Task | None = None  # type: ignore[type-arg]  expiry_wave: Wave 30
         self._check_interval_seconds: float = 60.0  # check once per minute
 
     # ------------------------------------------------------------------

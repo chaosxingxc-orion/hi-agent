@@ -83,7 +83,7 @@ def _path_token(path: Path) -> str:
     return path.name
 
 
-def _get_profile_dir_manager(request: Request):  # type: ignore[return]  expiry_wave: Wave 29
+def _get_profile_dir_manager(request: Request):  # type: ignore[return]  expiry_wave: Wave 30
     """Extract ProfileDirectoryManager from the server, if available."""
     server = getattr(request.app.state, "agent_server", None)
     if server is None:

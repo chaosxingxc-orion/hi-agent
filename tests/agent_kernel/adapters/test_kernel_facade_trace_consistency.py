@@ -30,7 +30,7 @@ def _make_gateway(lifecycle_state: str = "running") -> MagicMock:
     gw.query_projection = AsyncMock(
         return_value=RunProjection(
             run_id="run-1",
-            lifecycle_state=lifecycle_state,  # type: ignore[arg-type]  expiry_wave: Wave 29
+            lifecycle_state=lifecycle_state,  # type: ignore[arg-type]  expiry_wave: Wave 30
             projected_offset=0,
             waiting_external=False,
             ready_for_dispatch=True,
@@ -120,7 +120,7 @@ class TestHumanGateStateSurvivesFacadeRestart:
             facade1.open_human_gate(
                 HumanGateRequest(
                     gate_ref="gate-1",
-                    gate_type="gate_a",  # type: ignore[arg-type]  expiry_wave: Wave 29
+                    gate_type="gate_a",  # type: ignore[arg-type]  expiry_wave: Wave 30
                     run_id="run-1",
                     trigger_reason="test",
                     trigger_source="system",
@@ -143,7 +143,7 @@ class TestHumanGateStateSurvivesFacadeRestart:
             facade1.open_human_gate(
                 HumanGateRequest(
                     gate_ref="gate-1",
-                    gate_type="gate_a",  # type: ignore[arg-type]  expiry_wave: Wave 29
+                    gate_type="gate_a",  # type: ignore[arg-type]  expiry_wave: Wave 30
                     run_id="run-1",
                     trigger_reason="test",
                     trigger_source="system",

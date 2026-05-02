@@ -413,7 +413,7 @@ class TestErrorHandlingContracts:
         adapter, _ = _make_kernel_facade_adapter()
         adapter._current_run_id = "run-001"
         with pytest.raises(ValueError):
-            adapter.record_task_view("tv-001", "not-a-dict")  # type: ignore[arg-type]  expiry_wave: Wave 29
+            adapter.record_task_view("tv-001", "not-a-dict")  # type: ignore[arg-type]  expiry_wave: Wave 30
 
     def test_signal_run_non_dict_payload_raises_value_error(self) -> None:
         """signal_run must raise ValueError when payload is not a dict.
@@ -422,7 +422,7 @@ class TestErrorHandlingContracts:
         """
         adapter, _ = _make_kernel_facade_adapter()
         with pytest.raises((ValueError, RuntimeAdapterBackendError)):
-            adapter.signal_run("run-001", "pause", payload="not-a-dict")  # type: ignore[arg-type]  expiry_wave: Wave 29
+            adapter.signal_run("run-001", "pause", payload="not-a-dict")  # type: ignore[arg-type]  expiry_wave: Wave 30
 
 
 # ---------------------------------------------------------------------------

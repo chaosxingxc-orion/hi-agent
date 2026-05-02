@@ -157,7 +157,7 @@ class TestTurnFidelityRecord:
             event_count=3,
         )
         with pytest.raises((FrozenInstanceError, AttributeError)):
-            record.outcome_kind = "blocked"  # type: ignore[misc]  expiry_wave: Wave 29
+            record.outcome_kind = "blocked"  # type: ignore[misc]  expiry_wave: Wave 30
 
     def test_snapshot_hash_matches_when_equal(self) -> None:
         """snapshot_hash field equality is correctly compared."""

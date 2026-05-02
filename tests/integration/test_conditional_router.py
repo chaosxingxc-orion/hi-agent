@@ -264,7 +264,7 @@ class TestErrorResilience:
     def test_failing_condition_skipped_in_evaluate(self) -> None:
         router = ConditionalRouter()
         router.add_route(
-            condition=lambda ctx: 1 / 0 > 0,  # type: ignore[operator]  expiry_wave: Wave 29
+            condition=lambda ctx: 1 / 0 > 0,  # type: ignore[operator]  expiry_wave: Wave 30
             target_stage="S_crash",
             priority=100,
         )
@@ -279,7 +279,7 @@ class TestErrorResilience:
     def test_all_conditions_fail_uses_default(self) -> None:
         router = ConditionalRouter()
         router.add_route(
-            condition=lambda ctx: (_ for _ in ()).throw(ValueError("boom")),  # type: ignore[func-returns-value]  expiry_wave: Wave 29
+            condition=lambda ctx: (_ for _ in ()).throw(ValueError("boom")),  # type: ignore[func-returns-value]  expiry_wave: Wave 30
             target_stage="S_crash",
         )
         router.set_default("S_fallback")

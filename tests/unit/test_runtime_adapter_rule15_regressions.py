@@ -18,7 +18,7 @@ def test_kernel_facade_adapter_keeps_unknown_branch_failure_as_reason() -> None:
         captured["method_name"] = method_name
         captured["request"] = request
 
-    adapter._call = fake_call  # type: ignore[method-assign]  expiry_wave: Wave 29
+    adapter._call = fake_call  # type: ignore[method-assign]  expiry_wave: Wave 30
 
     adapter.mark_branch_state("run-1", "stage-1", "branch-1", "failed", "acceptance_rejected")
 

@@ -507,7 +507,7 @@ class TurnEngine:
                 await phase_fn(ctx)
             if self._observability_hook is not None:
                 _phase_elapsed_ms = (time.monotonic_ns() - _phase_start_ns) // 1_000_000
-                with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._observability_hook.on_turn_phase(
                         run_id=ctx.input_value.run_id,
                         action_id=ctx.action.action_id if ctx.action else "",
@@ -648,7 +648,7 @@ class TurnEngine:
         admitted = _is_admitted(ctx.admission_result)
         ctx.emitted_events.append(TurnStateEvent(state="admission_checked"))
         if self._observability_hook is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 self._observability_hook.on_admission_evaluated(
                     run_id=ctx.input_value.run_id,
                     action_id=ctx.action.action_id,
@@ -711,7 +711,7 @@ class TurnEngine:
         )
         if legacy_key != ti.dispatch_dedupe_key:
             legacy_record = None
-            with contextlib.suppress(Exception):  # rule7-exempt: legacy dedupe key lookup must not block dispatch  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: legacy dedupe key lookup must not block dispatch  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 legacy_record = self._dedupe_store.get(legacy_key)
             if legacy_record is not None:
                 ctx.emitted_events.append(TurnStateEvent(state="dispatch_blocked"))
@@ -727,7 +727,7 @@ class TurnEngine:
                     emitted_events=ctx.emitted_events,
                 )
                 if self._observability_hook is not None:
-                    with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                    with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                         self._observability_hook.on_dedupe_hit(
                             run_id=ctx.input_value.run_id,
                             action_id=legacy_key,
@@ -748,7 +748,7 @@ class TurnEngine:
             host_kind=dp.host_kind,
             emitted_events=ctx.emitted_events,
         )
-        ctx._dedupe_available = dedupe_available  # type: ignore[attr-defined]  # expiry_wave: Wave 29
+        ctx._dedupe_available = dedupe_available  # type: ignore[attr-defined]  # expiry_wave: Wave 30
         if not reservation.accepted:
             ctx.emitted_events.append(TurnStateEvent(state="dispatch_blocked"))
             ctx.result = TurnResult(
@@ -763,21 +763,21 @@ class TurnEngine:
                 emitted_events=ctx.emitted_events,
             )
             if self._observability_hook is not None:
-                with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._observability_hook.on_dedupe_hit(
                         run_id=ctx.input_value.run_id,
                         action_id=ti.dispatch_dedupe_key,
                         outcome="duplicate",
                     )
             return
-        dedupe_available = ctx._dedupe_available  # type: ignore[attr-defined]  # expiry_wave: Wave 29
+        dedupe_available = ctx._dedupe_available  # type: ignore[attr-defined]  # expiry_wave: Wave 30
         _dedupe_outcome = "degraded" if not dedupe_available else "accepted"
-        ctx._dedupe_outcome = _dedupe_outcome  # type: ignore[attr-defined]  # expiry_wave: Wave 29
+        ctx._dedupe_outcome = _dedupe_outcome  # type: ignore[attr-defined]  # expiry_wave: Wave 30
         if dedupe_available and legacy_key != ti.dispatch_dedupe_key:
             # Backward compatibility: mirror the new dedupe slot into the
             # historical key shape so pre-policy readers can still resolve the
             # same dispatch lifecycle.
-            with contextlib.suppress(Exception):  # rule7-exempt: legacy idempotency envelope mirror must not block dispatch  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: legacy idempotency envelope mirror must not block dispatch  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 legacy_envelope = IdempotencyEnvelope(
                     dispatch_idempotency_key=legacy_key,
                     operation_fingerprint=ctx.envelope.operation_fingerprint,
@@ -794,12 +794,12 @@ class TurnEngine:
                     peer_operation_id=ctx.envelope.peer_operation_id,
                 )
                 if legacy_reservation.accepted:
-                    ctx._legacy_alias_key = legacy_key  # type: ignore[attr-defined]  # expiry_wave: Wave 29
+                    ctx._legacy_alias_key = legacy_key  # type: ignore[attr-defined]  # expiry_wave: Wave 30
         # mark_dispatched() is no longer called here: _reserve_with_degradation
         # uses reserve_and_dispatch() which atomically combines reservation and
         # dispatch state update, eliminating the non-atomic window (D-M3).
         if self._observability_hook is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 self._observability_hook.on_dedupe_hit(
                     run_id=ctx.input_value.run_id,
                     action_id=ti.dispatch_dedupe_key,
@@ -816,9 +816,9 @@ class TurnEngine:
         assert ctx.envelope is not None
         ti = ctx.turn_identity
         dp = ctx.dispatch_policy
-        dedupe_available: bool = ctx._dedupe_available  # type: ignore[attr-defined]  # expiry_wave: Wave 29
-        _dedupe_outcome: str = ctx._dedupe_outcome  # type: ignore[attr-defined]  # expiry_wave: Wave 29
-        legacy_alias_key: str | None = ctx._legacy_alias_key  # type: ignore[attr-defined]  # expiry_wave: Wave 29
+        dedupe_available: bool = ctx._dedupe_available  # type: ignore[attr-defined]  # expiry_wave: Wave 30
+        _dedupe_outcome: str = ctx._dedupe_outcome  # type: ignore[attr-defined]  # expiry_wave: Wave 30
+        legacy_alias_key: str | None = ctx._legacy_alias_key  # type: ignore[attr-defined]  # expiry_wave: Wave 30
 
         execution_context = _build_execution_context(
             input_value=ctx.input_value,
@@ -846,15 +846,15 @@ class TurnEngine:
                 exc_info=True,
             )
             if dedupe_available:
-                with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._dedupe_store.mark_unknown_effect(ti.dispatch_dedupe_key)
                 if legacy_alias_key is not None:
-                    with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                    with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                         self._dedupe_store.mark_unknown_effect(legacy_alias_key)
             raise
         _dispatch_latency_ms = (time.monotonic_ns() - _dispatch_start_ns) // 1_000_000
         if self._observability_hook is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 self._observability_hook.on_dispatch_attempted(
                     run_id=ctx.input_value.run_id,
                     action_id=ctx.action.action_id,
@@ -866,11 +866,11 @@ class TurnEngine:
             if dedupe_available:
                 self._dedupe_store.mark_acknowledged(ti.dispatch_dedupe_key)
                 if legacy_alias_key is not None:
-                    with contextlib.suppress(Exception):  # rule7-exempt: mark_acknowledged for legacy key; must not block primary key success path  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                    with contextlib.suppress(Exception):  # rule7-exempt: mark_acknowledged for legacy key; must not block primary key success path  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                         self._dedupe_store.mark_acknowledged(legacy_alias_key)
             ctx.emitted_events.append(TurnStateEvent(state="dispatch_acknowledged"))
             if self._observability_hook is not None:
-                with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._observability_hook.on_action_dispatch(
                         run_id=ctx.input_value.run_id,
                         action_id=ctx.action.action_id,
@@ -900,13 +900,13 @@ class TurnEngine:
         if dedupe_available:
             self._dedupe_store.mark_unknown_effect(ti.dispatch_dedupe_key)
             if legacy_alias_key is not None:
-                with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect for legacy key; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: mark_unknown_effect for legacy key; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._dedupe_store.mark_unknown_effect(legacy_alias_key)
         ctx.emitted_events.extend(
             [TurnStateEvent(state="effect_unknown"), TurnStateEvent(state="recovery_pending")]
         )
         if self._observability_hook is not None:
-            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: observability hook must not block turn engine  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 self._observability_hook.on_action_dispatch(
                     run_id=ctx.input_value.run_id,
                     action_id=ctx.action.action_id,

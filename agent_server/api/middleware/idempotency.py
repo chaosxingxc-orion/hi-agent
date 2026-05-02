@@ -90,7 +90,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         self._predicates = predicates
         self._logger = logger or logging.getLogger("agent_server.idempotency")
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]  # expiry_wave: Wave 29
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]  # expiry_wave: Wave 30
         method = request.method.upper()
         path = request.url.path
         if not any(p(method, path) for p in self._predicates):
@@ -156,7 +156,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         async def _replay_body() -> dict[str, Any]:  # pragma: no cover - shim
             return {"type": "http.request", "body": body_bytes, "more_body": False}
 
-        request._body = body_bytes  # type: ignore[attr-defined]  # expiry_wave: Wave 29
+        request._body = body_bytes  # type: ignore[attr-defined]  # expiry_wave: Wave 30
 
         try:
             response: Response = await call_next(request)
@@ -238,7 +238,7 @@ async def _capture_response_body(response: Response) -> bytes:
     if hasattr(response, "body") and isinstance(response.body, bytes | bytearray):
         return bytes(response.body)
     chunks: list[bytes] = []
-    async for chunk in response.body_iterator:  # type: ignore[attr-defined]  # expiry_wave: Wave 29
+    async for chunk in response.body_iterator:  # type: ignore[attr-defined]  # expiry_wave: Wave 30
         if isinstance(chunk, str):
             chunks.append(chunk.encode("utf-8"))
         else:

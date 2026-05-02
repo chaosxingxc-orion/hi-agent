@@ -82,7 +82,7 @@ def test_gateresult_is_frozen() -> None:
 
     r = GateResult(status=GateStatus.PASS, gate_name="g")
     with pytest.raises(FrozenInstanceError):
-        r.gate_name = "other"  # type: ignore[misc] # expiry_wave: Wave 29
+        r.gate_name = "other"  # type: ignore[misc] # expiry_wave: Wave 30
 
 
 def test_gateresult_from_dict_rejects_missing_field() -> None:
@@ -175,7 +175,7 @@ def test_parse_raises_when_no_json_line() -> None:
 
 def test_parse_rejects_non_string() -> None:
     with pytest.raises(MultistatusParseError):
-        parse(b"bytes")  # type: ignore[arg-type] # expiry_wave: Wave 29
+        parse(b"bytes")  # type: ignore[arg-type] # expiry_wave: Wave 30
 
 
 # ---------------------------------------------------------------------------

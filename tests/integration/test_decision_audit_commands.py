@@ -50,4 +50,4 @@ def test_cmd_decision_audit_append_validates_mapping() -> None:
     """Append command should require mapping payload."""
     store = InMemoryDecisionAuditStore()
     with pytest.raises(TypeError):
-        cmd_decision_audit_append(store, ["bad"])  # type: ignore[arg-type]  expiry_wave: Wave 29
+        cmd_decision_audit_append(store, ["bad"])  # type: ignore[arg-type]  expiry_wave: Wave 30

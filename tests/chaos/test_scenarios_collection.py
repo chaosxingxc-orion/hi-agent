@@ -29,17 +29,17 @@ def _load_scenario(filename: str):
         if spec_h is not None and spec_h.loader is not None:
             mod_h = importlib.util.module_from_spec(spec_h)
             sys.modules["_helpers"] = mod_h
-            spec_h.loader.exec_module(mod_h)  # type: ignore[union-attr]  # expiry_wave: Wave 29
+            spec_h.loader.exec_module(mod_h)  # type: ignore[union-attr]  # expiry_wave: Wave 30
 
     scenario_path = _SCENARIOS_DIR / filename
     spec = importlib.util.spec_from_file_location(scenario_path.stem, scenario_path)
     assert spec is not None and spec.loader is not None, f"could not create spec for {filename}"
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 29
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 30
     return mod
 
 
-def _check_interface(mod) -> None:  # type: ignore[type-arg]  # expiry_wave: Wave 29
+def _check_interface(mod) -> None:  # type: ignore[type-arg]  # expiry_wave: Wave 30
     """Assert SCENARIO_NAME and run_scenario(base_url, timeout) exist."""
     assert hasattr(mod, "SCENARIO_NAME"), f"{mod.__name__} missing SCENARIO_NAME"
     assert isinstance(mod.SCENARIO_NAME, str) and mod.SCENARIO_NAME, (

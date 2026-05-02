@@ -239,7 +239,7 @@ def test_run_gate_fails_cleanly_when_cancel_route_missing(tmp_path, monkeypatch)
             return FakeResponse(404, {"error": "run_not_found"}, method, url)
         return original_request(method, url, **kwargs)
 
-    client.request = broken_request  # type: ignore[assignment]  expiry_wave: Wave 29
+    client.request = broken_request  # type: ignore[assignment]  expiry_wave: Wave 30
     process = FakeProcess(["python", "-m", "hi_agent", "serve", "--port", "8090"])
     output = tmp_path / "failed.json"
     config = GateConfig(

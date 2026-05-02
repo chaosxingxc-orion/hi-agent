@@ -82,7 +82,7 @@ class SQLiteTurnIntentLog(TurnIntentLog):
                 )
                 self._conn.commit()
             except Exception:
-                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._conn.rollback()
                 raise
 

@@ -23,7 +23,7 @@ pytestmark = pytest.mark.integration
         "for skills not accessible to that tenant."
     ),
     strict=False,
-    expiry_wave="Wave 29",
+    expiry_wave="Wave 30",
 )
 def test_skills_list_is_tenant_scoped():
     """GET /skills/list for Tenant B must not return skills scoped to Tenant A only.
@@ -43,7 +43,7 @@ def test_skills_list_is_tenant_scoped():
         "When per-tenant overlay lands, this should filter by requesting tenant."
     ),
     strict=False,
-    expiry_wave="Wave 29",
+    expiry_wave="Wave 30",
 )
 def test_skills_status_is_tenant_scoped():
     """GET /skills/status must be tenant-scoped when per-tenant overlay lands.

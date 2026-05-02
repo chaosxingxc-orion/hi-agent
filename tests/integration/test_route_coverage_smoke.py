@@ -83,7 +83,7 @@ _LIFESPAN_DEPENDENT_503_ROUTES: frozenset[str] = frozenset(
 )
 
 
-@pytest.mark.parametrize("method,path", UNTESTED_ROUTES, ids=[f"{m} {p}" for m, p in UNTESTED_ROUTES])  # noqa: E501  # expiry_wave: Wave 29
+@pytest.mark.parametrize("method,path", UNTESTED_ROUTES, ids=[f"{m} {p}" for m, p in UNTESTED_ROUTES])  # noqa: E501  # expiry_wave: Wave 30
 def test_route_smoke_non_5xx(client: TestClient, method: str, path: str) -> None:
     """Route must return non-5xx (server must not crash).
 

@@ -20,7 +20,7 @@ from hi_agent.security.injection_scanner import (
 
 def _make_scanner(**kwargs: object) -> InjectionScanner:
     """Return an InjectionScanner using built-in patterns unless overridden."""
-    return InjectionScanner(**kwargs)  # type: ignore[arg-type]  expiry_wave: Wave 29
+    return InjectionScanner(**kwargs)  # type: ignore[arg-type]  expiry_wave: Wave 30
 
 
 # ---------------------------------------------------------------------------

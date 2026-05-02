@@ -435,7 +435,7 @@ class RunActorWorkflow:
         try:
             parent_handle = temporal_workflow.get_external_workflow_handle(parent_workflow_id)
             await parent_handle.signal("signal", child_signal_payload)
-        except (TemporalError, RuntimeError):  # rule7-exempt: expiry_wave="Wave 29"
+        except (TemporalError, RuntimeError):  # rule7-exempt: expiry_wave="Wave 30"
             # Parent notification is best-effort; do not fail child completion.
             return
 
@@ -539,7 +539,7 @@ class RunActorWorkflow:
         # Only mark the signal as seen after the append succeeds; if append
         # fails, the next retry of the same caused_by must be processed.
         if input_value.caused_by:
-            self._seen_signal_tokens.add(signal_token)  # type: ignore[possibly-undefined]  # expiry_wave: Wave 29
+            self._seen_signal_tokens.add(signal_token)  # type: ignore[possibly-undefined]  # expiry_wave: Wave 30
         await self.process_action_commit(signal_commit)
         # process_action_commit() refreshes _last_projection via catch_up().
         # Avoid awaiting here so query state remains driven by sync-safe cache.
@@ -692,7 +692,7 @@ class RunActorWorkflow:
                 # not skip re-execution, preserving at-most-once semantics.
                 dedupe_key = turn_result.dispatch_dedupe_key
                 if dedupe_key is not None and self._dedupe_store is not None:
-                    with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave="Wave 29"
+                    with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave="Wave 30"
                         self._dedupe_store.mark_unknown_effect(dedupe_key)
                 raise
             _assert_single_dispatch_attempt_in_turn(turn_result)
@@ -701,7 +701,7 @@ class RunActorWorkflow:
                 # reset the failure counter for this effect class.
                 _on_success = getattr(self._recovery, "on_action_success", None)
                 if callable(_on_success):
-                    with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave="Wave 29"
+                    with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave="Wave 30"
                         _result = _on_success(commit.action.effect_class)  # pylint: disable=not-callable
                         # on_action_success is sync; if a mock returns a
                         # coroutine, discard it cleanly to avoid ResourceWarning.

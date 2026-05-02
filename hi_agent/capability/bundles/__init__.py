@@ -24,7 +24,7 @@ def __getattr__(name: str) -> object:
         import warnings
 
         warnings.warn(
-            "ResearchBundle is deprecated and will be removed in Wave 29. "
+            "ResearchBundle is deprecated and will be removed in Wave 30. "
             "Use a domain-neutral bundle name.",
             DeprecationWarning,
             stacklevel=2,

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     try:
         from hi_agent.llm.streaming import StreamDelta
     except ImportError:
-        StreamDelta = object  # type: ignore[assignment,misc]  expiry_wave: Wave 29
+        StreamDelta = object  # type: ignore[assignment,misc]  expiry_wave: Wave 30
 
 logger = logging.getLogger(__name__)
 

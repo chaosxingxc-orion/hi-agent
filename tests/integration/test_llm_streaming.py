@@ -86,7 +86,7 @@ class TestStreamDeltaCreation:
     def test_frozen_immutability(self):
         delta = StreamDelta(type="text", content="abc")
         with pytest.raises((AttributeError, TypeError)):
-            delta.content = "changed"  # type: ignore[misc]  expiry_wave: Wave 29
+            delta.content = "changed"  # type: ignore[misc]  expiry_wave: Wave 30
 
 
 # ---------------------------------------------------------------------------

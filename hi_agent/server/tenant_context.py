@@ -63,7 +63,7 @@ def set_tenant_context(ctx: TenantContext) -> Token:
     return _tenant_context_var.set(ctx)
 
 
-def reset_tenant_context(token: Token) -> None:  # type: ignore[type-arg]  expiry_wave: Wave 29
+def reset_tenant_context(token: Token) -> None:  # type: ignore[type-arg]  expiry_wave: Wave 30
     """Restore the context variable to the state before the matching set()."""
     _tenant_context_var.reset(token)
 

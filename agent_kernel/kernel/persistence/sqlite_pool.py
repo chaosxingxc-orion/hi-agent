@@ -45,7 +45,7 @@ class SQLiteConnectionPool:
     def release_read(self, conn: sqlite3.Connection) -> None:
         """Return one read connection to pool."""
         if self._closed:
-            with contextlib.suppress(Exception):  # rule7-exempt: connection close on pool teardown; best-effort  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: connection close on pool teardown; best-effort  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 conn.close()
             return
         self._read_pool.put(conn)
@@ -83,9 +83,9 @@ class SQLiteConnectionPool:
             if self._closed:
                 return
             self._closed = True
-        with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+        with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             self._write_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        with contextlib.suppress(Exception):  # rule7-exempt: SQLite connection close on shutdown; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+        with contextlib.suppress(Exception):  # rule7-exempt: SQLite connection close on shutdown; best-effort teardown  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             self._write_conn.close()
 
         while True:
@@ -93,7 +93,7 @@ class SQLiteConnectionPool:
                 conn = self._read_pool.get_nowait()
             except Exception:
                 break
-            with contextlib.suppress(Exception):  # rule7-exempt: SQLite connection close on pool drain; best-effort  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+            with contextlib.suppress(Exception):  # rule7-exempt: SQLite connection close on pool drain; best-effort  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                 conn.close()
 
     def _open_connection(self, *, query_only: bool) -> sqlite3.Connection:

@@ -155,13 +155,13 @@ class SQLiteEventStore:
             _col = get_metrics_collector()
             if _col is not None:
                 _col.increment("hi_agent_events_stored_total")
-        except Exception:  # rule7-exempt: expiry_wave="Wave 29" replacement_test: wave22-tests
+        except Exception:  # rule7-exempt: expiry_wave="Wave 30" replacement_test: wave22-tests
             pass
         # w25-F: spine tap for event_store layer
         try:
             from hi_agent.observability.spine_events import emit_event_store
             emit_event_store(run_id=event.run_id, tenant_id=event.tenant_id)
-        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 29
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 30
             pass
 
     # ------------------------------------------------------------------

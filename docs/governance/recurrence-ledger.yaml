@@ -427,3 +427,30 @@ entries:
     metric_name: "hi_agent_notice_pre_final_commit_violations_total"
     alert_rule: "hi_agent_notice_pre_final_commit_violations_alert"
     runbook_path: "docs/runbooks/manifest-stale.md"
+
+  - issue_id: P0-W29
+    defect_class: wave_expiry_paperwork_deferral
+    named_instance: "W29 hit current_wave=29 with 594 source-code lines carrying expiry_wave: Wave 29 (475 noqa/type-ignore + 19 expired-waiver verbs + 100 silent-degradation rule7-exempt). None of those production-code closures were addressed in W29; all were bumped to Wave 30 in commit [W29-C]."
+    peer_instances_audited:
+      - "W27 punted ~475 noqa entries from Wave 28 to Wave 29 in the same paperwork-only fashion"
+      - "W28 inherited the W27 punt and never closed it, so the cycle re-fires every wave"
+    root_cause: >
+      W29 scope was narrowed to W28 release-identity recurrence prevention
+      (notice-pre-final-commit escape hatch closure, atomic
+      manifest+notice+signoff commit ordering). The 594 wave-bound
+      deprecation/type-ignore/rule7-exempt items inherited from W27 and
+      W28 represent structural debt (mypy --strict cleanup, deprecated-shim
+      removal, silent-fallback elimination) that does not fit the W29
+      scope. Bumping the markers en masse to Wave 30 keeps the gates
+      truthful but does not reduce the underlying debt.
+    code_fix: "W29 bulk-bump: 594 lines / 266 files updated by scripts/_w29_bump_expiry.py (helper deleted after commit)."
+    regression_test: "check_expired_waivers.py + check_noqa_discipline.py + check_silent_degradation.py PASS at HEAD"
+    release_gate: "release-gate.yml steps: expired_waivers / noqa_discipline / silent_degradation"
+    process_change: "Wave 30 plan must allocate explicit closure capacity for the 594 deferred items; absent that, W30 will face the same paperwork-only bump again. Tracked here as a hard ceiling."
+    owner: GOV
+    expiry_or_followup: "Wave 30 -- must produce a real closure plan, not another bulk bump"
+    evidence_artifact: "docs/downstream-responses/2026-05-02-w29-delivery-notice.md"
+    current_closure_level: component_exists
+    metric_name: "hi_agent_wave_bound_debt_count"
+    alert_rule: "hi_agent_wave_bound_debt_alert"
+    runbook_path: "docs/runbooks/wave-debt-burndown.md"

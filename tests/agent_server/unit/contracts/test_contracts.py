@@ -29,7 +29,7 @@ def test_tenant_context_frozen():
 
     ctx = TenantContext(tenant_id="t1")
     with pytest.raises(FrozenInstanceError):
-        ctx.tenant_id = "t2"  # type: ignore  # expiry_wave: Wave 29
+        ctx.tenant_id = "t2"  # type: ignore  # expiry_wave: Wave 30
 
 
 def test_run_request_requires_tenant_id():
@@ -42,7 +42,7 @@ def test_run_request_frozen():
 
     req = RunRequest(tenant_id="t1", profile_id="p1", goal="do something")
     with pytest.raises(FrozenInstanceError):
-        req.goal = "changed"  # type: ignore  # expiry_wave: Wave 29
+        req.goal = "changed"  # type: ignore  # expiry_wave: Wave 30
 
 
 def test_memory_tier_enum_values():

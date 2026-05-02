@@ -184,7 +184,7 @@ def _scan_file_b1(path: pathlib.Path) -> list[dict]:
 
 
 # Syntax errors are encoding issues (BOM files), not honesty violations — excluded from count.
-_BASELINE_VIOLATIONS = 48  # expiry_wave: Wave 29 — 47 B1 SUT-monkeypatches + 1 accept_failure
+_BASELINE_VIOLATIONS = 48  # expiry_wave: Wave 30 — 47 B1 SUT-monkeypatches + 1 accept_failure
 
 
 def main() -> int:

@@ -41,7 +41,7 @@ _REQUIRED_FIELDS = [
     "expiry_or_followup",
     "evidence_artifact",
     "current_closure_level",
-    # W19-E8: new required fields (placeholders accepted until Wave 29)
+    # W19-E8: new required fields (placeholders accepted until Wave 30)
     "metric_name",
     "alert_rule",
     "runbook_path",

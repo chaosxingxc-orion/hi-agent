@@ -159,7 +159,7 @@ class TestTierAwareLLMGatewaySkillConfidence:
                 return True
 
         gw = TierAwareLLMGateway(inner=_FakeInner(), tier_router=router, registry=registry)
-        gw._selected_models = selected_models  # type: ignore[attr-defined]  expiry_wave: Wave 29
+        gw._selected_models = selected_models  # type: ignore[attr-defined]  expiry_wave: Wave 30
         return gw
 
     def test_gateway_reads_skill_confidence_from_metadata(self) -> None:
@@ -177,7 +177,7 @@ class TestTierAwareLLMGatewaySkillConfidence:
         )
         gw.complete(request)
         # The selected model should be the light tier model
-        assert gw._selected_models[-1] == "light-1"  # type: ignore[attr-defined]  expiry_wave: Wave 29
+        assert gw._selected_models[-1] == "light-1"  # type: ignore[attr-defined]  expiry_wave: Wave 30
 
     def test_gateway_ignores_low_skill_confidence(self) -> None:
         """TierAwareLLMGateway does not downgrade with skill_confidence < 0.85."""
@@ -194,4 +194,4 @@ class TestTierAwareLLMGatewaySkillConfidence:
         )
         gw.complete(request)
         # execution maps to MEDIUM; low confidence should not change that
-        assert gw._selected_models[-1] == "medium-1"  # type: ignore[attr-defined]  expiry_wave: Wave 29
+        assert gw._selected_models[-1] == "medium-1"  # type: ignore[attr-defined]  expiry_wave: Wave 30

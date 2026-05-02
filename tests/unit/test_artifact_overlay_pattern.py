@@ -5,7 +5,7 @@ from __future__ import annotations
 def test_overlay_artifact_importable():
     """Research overlay artifacts are importable from their new location."""
     from examples.research_overlay.artifacts import (
-        CitationArtifact,  # noqa: F401  expiry_wave: Wave 29
+        CitationArtifact,  # noqa: F401  expiry_wave: Wave 30
     )
 
 

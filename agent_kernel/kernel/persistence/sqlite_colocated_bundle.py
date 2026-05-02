@@ -79,7 +79,7 @@ class _SharedConnectionEventLog:
                 self._insert_event_rows(commit.run_id, seq, commit.events, next_offset)
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._conn.execute("ROLLBACK")
                 raise
         return f"commit-ref-{seq}"
@@ -317,7 +317,7 @@ class _SharedConnectionDedupeStore:
                 )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._conn.execute("ROLLBACK")
                 raise
         return DedupeReservation(accepted=True, reason="accepted")
@@ -364,7 +364,7 @@ class _SharedConnectionDedupeStore:
                     )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._conn.execute("ROLLBACK")
                 raise
 
@@ -412,7 +412,7 @@ class _SharedConnectionDedupeStore:
                     )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._conn.execute("ROLLBACK")
                 raise
 
@@ -458,7 +458,7 @@ class _SharedConnectionDedupeStore:
                     )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._conn.execute("ROLLBACK")
                 raise
 
@@ -522,7 +522,7 @@ class _SharedConnectionDedupeStore:
                     )
                 self._conn.execute("COMMIT")
             except Exception:
-                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+                with contextlib.suppress(Exception):  # rule7-exempt: SQLite ROLLBACK on error path; must not mask original exception  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
                     self._conn.execute("ROLLBACK")
                 raise
 
@@ -647,7 +647,7 @@ class ColocatedSQLiteBundle:
 
     def close(self) -> None:
         """Close the shared connection after a best-effort WAL checkpoint."""
-        with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 29  # added: W25 baseline sweep
+        with contextlib.suppress(Exception):  # rule7-exempt: SQLite WAL checkpoint on close; best-effort teardown  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
             self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         self._conn.close()
 

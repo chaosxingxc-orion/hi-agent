@@ -50,7 +50,7 @@ async def test_reconcile_once_aggregates_counts_from_provider() -> None:
         per_run_repaired={"r1": 1, "r2": 2},
     )
     scheduler = ScheduledOutboxReconciler(
-        reconciler=reconciler,  # type: ignore[arg-type]  expiry_wave: Wave 29
+        reconciler=reconciler,  # type: ignore[arg-type]  expiry_wave: Wave 30
         event_log=object(),
         dedupe_store=object(),
         run_ids_provider=lambda: ["r1", "r2"],
@@ -67,7 +67,7 @@ async def test_reconcile_once_discovers_run_ids_from_event_log() -> None:
     """Verifies reconcile once discovers run ids from event log."""
     reconciler = _ReconcilerStub(per_run_found={"r1": 1}, per_run_repaired={"r1": 1})
     scheduler = ScheduledOutboxReconciler(
-        reconciler=reconciler,  # type: ignore[arg-type]  expiry_wave: Wave 29
+        reconciler=reconciler,  # type: ignore[arg-type]  expiry_wave: Wave 30
         event_log=_EventLogWithRuns(["r1", "r2"]),
         dedupe_store=object(),
     )
@@ -83,7 +83,7 @@ async def test_reconcile_once_emits_observability_on_violations() -> None:
     hook = MagicMock()
     reconciler = _ReconcilerStub(per_run_found={"r1": 1}, per_run_repaired={"r1": 0})
     scheduler = ScheduledOutboxReconciler(
-        reconciler=reconciler,  # type: ignore[arg-type]  expiry_wave: Wave 29
+        reconciler=reconciler,  # type: ignore[arg-type]  expiry_wave: Wave 30
         event_log=object(),
         dedupe_store=object(),
         run_ids_provider=lambda: ["r1"],
@@ -98,7 +98,7 @@ async def test_start_is_idempotent_and_task_is_cancellable() -> None:
     """Verifies start is idempotent and task is cancellable."""
     reconciler = _ReconcilerStub(per_run_found={}, per_run_repaired={})
     scheduler = ScheduledOutboxReconciler(
-        reconciler=reconciler,  # type: ignore[arg-type]  expiry_wave: Wave 29
+        reconciler=reconciler,  # type: ignore[arg-type]  expiry_wave: Wave 30
         event_log=object(),
         dedupe_store=object(),
         run_ids_provider=lambda: [],
