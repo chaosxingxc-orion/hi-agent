@@ -3,9 +3,9 @@
 
 Checks:
   1. docs/platform-capability-matrix.md "Last updated: ... Wave N" is within
-     2 waves of docs/governance/recurrence-ledger.yaml `current_wave`.
-  2. docs/platform-gaps.md "Last updated: ... Wave N" is within 2 waves of
-     `current_wave`.
+     1 wave of docs/governance/recurrence-ledger.yaml `current_wave` (W31-D3).
+  2. docs/platform-gaps.md "Last updated: ... Wave N" is within 1 wave of
+     `current_wave` (W31-D3).
   3. Every *-delivery-notice.md in docs/downstream-responses/ that is older
      than 7 days has a sibling *-response.md with the same date prefix.
 
@@ -28,7 +28,7 @@ MATRIX_PATH = ROOT / "docs" / "platform-capability-matrix.md"
 GAPS_PATH = ROOT / "docs" / "platform-gaps.md"
 RESPONSES_DIR = ROOT / "docs" / "downstream-responses"
 
-_MAX_WAVE_LAG = 2
+_MAX_WAVE_LAG = 1
 _NOTICE_STALENESS_DAYS = 7
 
 
