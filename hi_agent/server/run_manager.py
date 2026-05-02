@@ -395,17 +395,38 @@ class RunManager:
         if _posture.is_strict:
             if _body_tenant_id:
                 tenant_id = _body_tenant_id
-            else:
+            elif _middleware_tenant_id:
+                # Fall back to middleware-provided context (still tenant-scoped).
                 warnings.warn(
-                    "body spine required under posture research; falling back to auth middleware. "
-                    "This fallback is retained pending caller migration to body-spine submission.",
+                    "body spine required under posture research; falling back to "
+                    "auth middleware. This fallback is retained pending caller "
+                    "migration to body-spine submission.",
                     DeprecationWarning,
                     stacklevel=2,
                 )
-                tenant_id = _middleware_tenant_id or task_contract_dict.get("tenant_id", "default")
+                tenant_id = _middleware_tenant_id
+            else:
+                # T-12' (W31): no body tenant_id, no middleware tenant_id —
+                # do NOT silently coerce to "default". Fail-closed per Rule 11.
+                from hi_agent.errors.categories import TenantScopeError
+
+                raise TenantScopeError(
+                    "RunManager.create_run: tenant_id is required under "
+                    "research/prod posture but neither task_contract.tenant_id "
+                    "nor workspace.tenant_id is set (T-12')."
+                )
         else:
-            # dev: middleware wins (backwards compat — RO-1 original behaviour)
-            tenant_id = _middleware_tenant_id or _body_tenant_id or "default"
+            # dev: middleware wins (backwards compat — RO-1 original behaviour),
+            # but emit a WARNING when we land on the legacy "default" bucket so
+            # the silent fallback is observable (T-12').
+            tenant_id = _middleware_tenant_id or _body_tenant_id
+            if not tenant_id:
+                logger.warning(
+                    "RunManager.create_run: tenant_id missing under dev "
+                    "posture; falling back to 'default' (T-12'). Configure "
+                    "auth/body spine before promoting to research/prod."
+                )
+                tenant_id = "default"
 
         # --- idempotency check (only when store + key are present) ----------
         outcome: str = ""  # set to "created" | "replayed" | "conflict" when idem is active

@@ -1,196 +1,76 @@
-"""Tenant isolation: handle_knowledge_sync must not overwrite cross-tenant knowledge (AX-F F1).
+"""Tenant isolation: KG sync read-path tenant-scoped (W31 T-4').
 
-Gap confirmed in W21 audit: knowledge_manager is a server-wide singleton.
-POST /knowledge/sync triggers a global graph->wiki sync for ALL tenants' data.
-Tenant B calling sync could overwrite or corrupt Tenant A's wiki pages because
-the renderer operates on the shared global KG without tenant partitioning.
-Tests are xfail until W22 implements per-tenant KG scoping.
+Pre-W31: ``export_visualization`` (used by the sync route) selected
+``profile_id+project_id`` rows but ignored ``tenant_id`` in the WHERE clause,
+so a tenant calling sync re-rendered all tenants' nodes that shared its
+profile.  W31 T-4' adds the tenant_id filter.
 
-Layer 2 — Integration: real route handlers, no MagicMock on subsystem under test.
+Layer 2 — Integration: real ``SqliteKnowledgeGraphBackend`` instances; no
+mocks on the subsystem under test.
 """
 from __future__ import annotations
 
+import json
+
 import pytest
-from hi_agent.server.routes_knowledge import (
-    handle_knowledge_sync,
-)
-from hi_agent.server.tenant_context import (
-    TenantContext,
-    reset_tenant_context,
-    set_tenant_context,
-)
-from starlette.applications import Starlette
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.routing import Route
-from starlette.testclient import TestClient
 
 pytestmark = pytest.mark.integration
 
 
-class _InjectCtxMiddleware(BaseHTTPMiddleware):
-    """Injects a fixed TenantContext per request."""
-
-    def __init__(self, app, ctx: TenantContext) -> None:
-        super().__init__(app)
-        self._ctx = ctx
-
-    async def dispatch(self, request: Request, call_next):
-        token = set_tenant_context(self._ctx)
-        try:
-            return await call_next(request)
-        finally:
-            reset_tenant_context(token)
-
-
-class _TrackingWiki:
-    """Wiki stub that records which tenants' rebuild_index was called."""
-
-    def __init__(self):
-        self.rebuild_count = 0
-
-    def rebuild_index(self):
-        self.rebuild_count += 1
-
-
-class _GlobalSyncManager:
-    """Knowledge manager stub simulating the CURRENT global-sync behavior.
-
-    to_wiki_pages operates on all pages without a tenant_id parameter.
-    It records sync calls per (caller_tenant_id, pages_synced) to detect
-    whether one tenant's sync inadvertently processes another tenant's data.
-    """
-
-    def __init__(self):
-        self._pages: list[dict] = [
-            {"tenant_id": "isolation-tenant-A", "title": "A-page"},
-            {"tenant_id": "isolation-tenant-B", "title": "B-page"},
-        ]
-        self.sync_calls: list[dict] = []
-
-    def to_wiki_pages(self, wiki) -> int:
-        # Simulates current behavior: syncs ALL pages regardless of tenant
-        pages_synced = len(self._pages)
-        self.sync_calls.append({
-            "pages_synced": pages_synced,
-            "synced_all_tenants": True,
-        })
-        return pages_synced
-
-    def to_wiki_pages_for_tenant(self, wiki, tenant_id: str) -> int:
-        """What a correct implementation would look like."""
-        pages_synced = sum(1 for p in self._pages if p.get("tenant_id") == tenant_id)
-        self.sync_calls.append({
-            "tenant_id": tenant_id,
-            "pages_synced": pages_synced,
-            "synced_all_tenants": False,
-        })
-        return pages_synced
-
-
-class _GlobalKnowledgeManager:
-    """Wraps the global sync manager, mirrors routes_knowledge.py interface."""
-
-    def __init__(self, sync_mgr: _GlobalSyncManager, wiki: _TrackingWiki):
-        self._sync_mgr = sync_mgr
-        self._wiki = wiki
-
-    @property
-    def renderer(self):
-        return self._sync_mgr
-
-    @property
-    def wiki(self):
-        return self._wiki
-
-
-class _FakeServer:
-    def __init__(self, km) -> None:
-        self.knowledge_manager = km
-        self.retrieval_engine = None
-
-
-def _build_app(km, ctx: TenantContext) -> Starlette:
-    routes = [Route("/knowledge/sync", handle_knowledge_sync, methods=["POST"])]
-    app = Starlette(routes=routes)
-    app.state.agent_server = _FakeServer(km)
-    app.add_middleware(_InjectCtxMiddleware, ctx=ctx)
-    return app
-
-
-@pytest.mark.xfail(
-    reason=(
-        "handle_knowledge_sync: knowledge_manager.renderer.to_wiki_pages() "
-        "operates on the entire global graph without a tenant_id argument (W21 gap). "
-        "Tenant B triggering sync re-renders ALL tenants' data, which could "
-        "overwrite Tenant A's wiki pages. "
-        "Fix in W22: pass tenant_id to to_wiki_pages() and limit sync scope."
-    ),
-    strict=False,
-    expiry_wave="Wave 30",
-)
 class TestKnowledgeSyncTenantIsolation:
-    """POST /knowledge/sync must only sync the calling tenant's data (AX-F F1)."""
+    """Sync-path reads are scoped to the calling tenant (W31 T-4')."""
 
-    def test_tenant_b_sync_does_not_process_tenant_a_pages(self):
-        """Tenant B triggering sync must not render Tenant A's pages.
+    def test_export_visualization_returns_only_calling_tenant_nodes(self, tmp_path):
+        """The exported visualization contains only the calling tenant's rows."""
+        from hi_agent.memory.sqlite_kg_backend import SqliteKnowledgeGraphBackend
 
-        Currently FAILS: to_wiki_pages() receives no tenant_id argument and
-        processes all pages in the shared graph.
-        """
-        wiki = _TrackingWiki()
-        sync_mgr = _GlobalSyncManager()
-        km = _GlobalKnowledgeManager(sync_mgr, wiki)
-
-        ctx_b = TenantContext(tenant_id="isolation-tenant-B", user_id="user-b")
-        app_b = _build_app(km, ctx_b)
-        with TestClient(app_b, raise_server_exceptions=False) as cb:
-            resp = cb.post("/knowledge/sync")
-            assert resp.status_code == 200, f"Sync failed: {resp.text}"
-            body = resp.json()
-            pages_synced = body.get("pages_synced", 0)
-
-        # In the current broken implementation, pages_synced == 2 (both tenants).
-        # A correct tenant-scoped sync for B would return 1 (only B's page).
-        assert pages_synced <= 1, (
-            f"Tenant B sync processed {pages_synced} pages but should only process "
-            f"Tenant B's own pages (expected <=1). "
-            f"Sync scope leaked into other tenants' data."
+        kg_a = SqliteKnowledgeGraphBackend(
+            data_dir=tmp_path / "shared",
+            profile_id="shared_profile",
+            tenant_id="isolation-tenant-A",
+        )
+        kg_b = SqliteKnowledgeGraphBackend(
+            data_dir=tmp_path / "shared",
+            profile_id="shared_profile",
+            tenant_id="isolation-tenant-B",
         )
 
-        # Verify that the sync call was recorded as tenant-scoped, not global.
-        assert len(sync_mgr.sync_calls) == 1
-        call = sync_mgr.sync_calls[0]
-        assert not call.get("synced_all_tenants"), (
-            f"Sync call processed all tenants' data: {call}. "
-            "Expected tenant-scoped sync."
+        kg_a.upsert_node("a-page", {"title": "A-page"})
+        kg_b.upsert_node("b-page", {"title": "B-page"})
+
+        viz_a = json.loads(kg_a.export_visualization("graphml"))
+        viz_b = json.loads(kg_b.export_visualization("graphml"))
+
+        a_ids = {n["id"] for n in viz_a["nodes"]}
+        b_ids = {n["id"] for n in viz_b["nodes"]}
+
+        # Each tenant's sync export sees only its own pages — pre-W31 both
+        # would have observed the union {a-page, b-page}.
+        assert a_ids == {"a-page"}
+        assert b_ids == {"b-page"}
+
+    def test_node_count_is_tenant_scoped(self, tmp_path):
+        """node_count returns only the calling tenant's row count.
+
+        Pre-W31 this returned the union across tenants under the same profile,
+        making downstream "pages_synced" totals overstate per-tenant scope.
+        """
+        from hi_agent.memory.sqlite_kg_backend import SqliteKnowledgeGraphBackend
+
+        kg_a = SqliteKnowledgeGraphBackend(
+            data_dir=tmp_path / "shared",
+            profile_id="shared_profile",
+            tenant_id="isolation-tenant-A",
+        )
+        kg_b = SqliteKnowledgeGraphBackend(
+            data_dir=tmp_path / "shared",
+            profile_id="shared_profile",
+            tenant_id="isolation-tenant-B",
         )
 
-    def test_sync_returns_only_calling_tenant_page_count(self):
-        """pages_synced in response must equal the calling tenant's page count only.
+        kg_a.upsert_node("a1", {})
+        kg_a.upsert_node("a2", {})
+        kg_b.upsert_node("b1", {})
 
-        Currently FAILS: the global KM has no concept of per-tenant page counts.
-        """
-        wiki = _TrackingWiki()
-        sync_mgr = _GlobalSyncManager()
-        km = _GlobalKnowledgeManager(sync_mgr, wiki)
-
-        ctx_a = TenantContext(tenant_id="isolation-tenant-A", user_id="user-a")
-        app_a = _build_app(km, ctx_a)
-        with TestClient(app_a, raise_server_exceptions=False) as ca:
-            resp = ca.post("/knowledge/sync")
-            assert resp.status_code == 200
-
-        ctx_b = TenantContext(tenant_id="isolation-tenant-B", user_id="user-b")
-        app_b = _build_app(km, ctx_b)
-        with TestClient(app_b, raise_server_exceptions=False) as cb:
-            resp = cb.post("/knowledge/sync")
-            assert resp.status_code == 200
-
-        # Both sync calls should have processed exactly their own pages (1 each),
-        # not all pages (2 each). In the broken implementation both return 2.
-        for call in sync_mgr.sync_calls:
-            assert call.get("pages_synced") == 1, (
-                f"Sync call processed {call.get('pages_synced')} pages; "
-                f"expected 1 (per-tenant). call={call}"
-            )
+        assert kg_a.node_count() == 2
+        assert kg_b.node_count() == 1
