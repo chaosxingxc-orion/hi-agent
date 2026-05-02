@@ -35,7 +35,7 @@ def _make_gateway(lifecycle_state: str = "running", waiting_external: bool = Fal
     gw.query_projection = AsyncMock(
         return_value=RunProjection(
             run_id="run-1",
-            lifecycle_state=lifecycle_state,  # type: ignore[arg-type]  expiry_wave: Wave 30
+            lifecycle_state=lifecycle_state,  # type: ignore[arg-type]  expiry_wave: permanent
             projected_offset=0,
             waiting_external=waiting_external,
             ready_for_dispatch=True,
@@ -236,7 +236,7 @@ class TestBranchManagement:
                 BranchStateUpdateRequest(
                     run_id="run-1",
                     branch_id="b1",
-                    new_state="pruned",  # type: ignore[arg-type]  expiry_wave: Wave 30
+                    new_state="pruned",  # type: ignore[arg-type]  expiry_wave: permanent
                 )
             )
         )
@@ -256,7 +256,7 @@ class TestBranchManagement:
                 BranchStateUpdateRequest(
                     run_id="run-1",
                     branch_id="b1",
-                    new_state="failed",  # type: ignore[arg-type]  expiry_wave: Wave 30
+                    new_state="failed",  # type: ignore[arg-type]  expiry_wave: permanent
                     failure_code=TraceFailureCode.CALLBACK_TIMEOUT,
                     reason="timed out",
                 )
@@ -277,7 +277,7 @@ class TestBranchManagement:
                     BranchStateUpdateRequest(
                         run_id="run-1",
                         branch_id="nonexistent",
-                        new_state="pruned",  # type: ignore[arg-type]  expiry_wave: Wave 30
+                        new_state="pruned",  # type: ignore[arg-type]  expiry_wave: permanent
                     )
                 )
             )
@@ -337,7 +337,7 @@ class TestOpenHumanGate:
             gw.signal_run.reset_mock()
             req = HumanGateRequest(
                 gate_ref=f"gate-{gate_type}",
-                gate_type=gate_type,  # type: ignore[arg-type]  expiry_wave: Wave 30
+                gate_type=gate_type,  # type: ignore[arg-type]  expiry_wave: permanent
                 run_id="run-1",
                 trigger_reason="test",
                 trigger_source="system",

@@ -254,7 +254,7 @@ class TestConcurrentSyncCallers:
         )
 
         n = 10
-        results: list[LLMResponse | Exception] = [None] * n  # type: ignore[list-item] # expiry_wave: Wave 30
+        results: list[LLMResponse | Exception] = [None] * n  # type: ignore[list-item] # expiry_wave: permanent
         bridge_ids: list[int] = [0] * n
         barrier = threading.Barrier(n)
 

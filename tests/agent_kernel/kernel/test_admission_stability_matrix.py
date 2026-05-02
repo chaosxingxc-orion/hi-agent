@@ -47,9 +47,9 @@ def _action_for(seed: int) -> Action:
         action_id=f"action-{seed}",
         run_id=f"run-{seed}",
         action_type="tool.search",
-        effect_class=effect_class,  # type: ignore[arg-type]  expiry_wave: Wave 30
+        effect_class=effect_class,  # type: ignore[arg-type]  expiry_wave: permanent
         external_idempotency_level=external_level,  # type: ignore[arg-type]
-        input_json=input_json,  # type: ignore[arg-type]  expiry_wave: Wave 30
+        input_json=input_json,  # type: ignore[arg-type]  expiry_wave: permanent
         policy_tags=policy_tags,
         timeout_ms=timeout_ms,
     )

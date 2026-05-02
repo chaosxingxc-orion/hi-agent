@@ -63,7 +63,7 @@ class _DelayedFirstGetProjectionService(InMemoryDecisionProjectionService):
         super().__init__(event_log)
         self._delay_consumed = False
 
-    async def get(self, run_id: str):  # type: ignore[override]  expiry_wave: Wave 30
+    async def get(self, run_id: str):  # type: ignore[override]  expiry_wave: permanent
         """Gets test data."""
         if not self._delay_consumed and _in_temporal_workflow_context():
             self._delay_consumed = True
@@ -89,7 +89,7 @@ class _PerRunDelayedFirstGetProjectionService(InMemoryDecisionProjectionService)
         self._remaining_delayed_run_ids = set(delayed_run_ids)
         self._delay_seconds = delay_seconds
 
-    async def get(self, run_id: str):  # type: ignore[override]  expiry_wave: Wave 30
+    async def get(self, run_id: str):  # type: ignore[override]  expiry_wave: permanent
         """Gets test data."""
         if run_id in self._remaining_delayed_run_ids and _in_temporal_workflow_context():
             self._remaining_delayed_run_ids.remove(run_id)
@@ -124,7 +124,7 @@ async def test_real_run_actor_workflow_runs_signal_and_query_in_temporal_test_en
     """RunActorWorkflow should run through start->callback signal->projection query."""
     assert WorkflowEnvironment is not None, "Expected non-None result for WorkflowEnvironment"
     assert Worker is not None, "Expected non-None result for Worker"
-    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 30
+    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: permanent
 
     _ensure_run_actor_workflow_is_temporal_workflow()
 
@@ -195,7 +195,7 @@ async def test_child_completion_signal_updates_parent_active_child_runs_in_tempo
     """Child completion should remove child id from parent projection list."""
     assert WorkflowEnvironment is not None, "Expected non-None result for WorkflowEnvironment"
     assert Worker is not None, "Expected non-None result for Worker"
-    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: Wave 30
+    assert UnsandboxedWorkflowRunner is not None, "Expected non-None result for UnsandboxedWorkflowRunner"  # noqa: E501  # expiry_wave: permanent
 
     _ensure_run_actor_workflow_is_temporal_workflow()
 
@@ -290,7 +290,7 @@ async def test_child_completion_signal_updates_parent_active_child_runs_in_tempo
                     break
                 await asyncio.sleep(0.1)
 
-            assert completed_projection is not None, "Expected non-None result for completed_projection"  # noqa: E501  # expiry_wave: Wave 30
+            assert completed_projection is not None, "Expected non-None result for completed_projection"  # noqa: E501  # expiry_wave: permanent
             assert parent_started["run_id"] == parent_run_id
             assert child_started["run_id"] == child_run_id
             assert child_run_id not in completed_projection.active_child_runs

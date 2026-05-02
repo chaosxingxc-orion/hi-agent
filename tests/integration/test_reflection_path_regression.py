@@ -231,7 +231,7 @@ def test_recovery_passes_real_attempt_history(tmp_path: Any, monkeypatch: Any) -
         received_attempts.append(list(attempts))
         return _original_build(descriptor, attempts)
 
-    bridge.build_context = _spy_build  # type: ignore[method-assign]  expiry_wave: Wave 30
+    bridge.build_context = _spy_build  # type: ignore[method-assign]  expiry_wave: permanent
 
     async def _noop_inference(**kwargs: Any) -> dict:
         """Mock reason: avoids LLM dependency; F-6 wiring is the SUT."""
@@ -294,7 +294,7 @@ def test_recovery_passes_real_attempt_history(tmp_path: Any, monkeypatch: Any) -
         # so the test can assert the attempts list is non-empty.
         return [a for a in attempt_log if a.task_id == task_id]
 
-    executor._get_attempt_history = _recording_get_attempt_history  # type: ignore[method-assign]  expiry_wave: Wave 30
+    executor._get_attempt_history = _recording_get_attempt_history  # type: ignore[method-assign]  expiry_wave: permanent
 
     with contextlib.suppress(Exception):
         executor.execute()

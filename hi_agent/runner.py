@@ -144,9 +144,9 @@ def _set_engine_context_provider(engine: object, provider: object) -> None:
     LLMRouteEngine's ``set_context_provider`` method.
     """
     if hasattr(engine, "set_context_provider"):
-        engine.set_context_provider(provider)  # type: ignore[union-attr]  expiry_wave: Wave 30
+        engine.set_context_provider(provider)  # type: ignore[union-attr]  expiry_wave: permanent
     elif hasattr(engine, "_context_provider"):
-        engine._context_provider = provider  # type: ignore[union-attr]  expiry_wave: Wave 30
+        engine._context_provider = provider  # type: ignore[union-attr]  expiry_wave: permanent
 
 
 def _make_subrun_done_callback(
@@ -2112,7 +2112,7 @@ class RunExecutor:
             future.add_done_callback(
                 _make_subrun_done_callback(self._completed_subrun_results, task_id)
             )
-            self._pending_subrun_futures[task_id] = future  # type: ignore[attr-defined]  expiry_wave: Wave 30
+            self._pending_subrun_futures[task_id] = future  # type: ignore[attr-defined]  expiry_wave: permanent
         except RuntimeError:
             # No running loop — synchronous call path.
             # DF-06: route through sync_bridge (Rule 12) to share a single
@@ -2122,7 +2122,7 @@ class RunExecutor:
             results = get_bridge().call_sync(
                 self._delegation_manager.delegate([req], parent_run_id=self.run_id)
             )
-            self._completed_subrun_results[task_id] = results[0]  # type: ignore[attr-defined]  expiry_wave: Wave 30
+            self._completed_subrun_results[task_id] = results[0]  # type: ignore[attr-defined]  expiry_wave: permanent
 
         return SubRunHandle(subrun_id=task_id, agent=agent)
 
@@ -2486,7 +2486,7 @@ async def execute_async(
     except Exception as _fe_exc:
         import contextlib
 
-        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: Wave 30
+        with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: permanent
             record_fallback(
                 "llm",
                 reason="fallback_events_lookup_failed",

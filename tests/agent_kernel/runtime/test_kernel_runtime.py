@@ -84,7 +84,7 @@ def test_collect_closeables_includes_bundle_under_wrapped_event_log() -> None:
 
     bundle = _Closable()
     base_event_log = _Closable()
-    base_event_log._kernel_colocated_bundle = bundle  # type: ignore[attr-defined]  expiry_wave: Wave 30
+    base_event_log._kernel_colocated_bundle = bundle  # type: ignore[attr-defined]  expiry_wave: permanent
     wrapped = _Wrapper(base_event_log)
     dedupe_store = _Closable()
 

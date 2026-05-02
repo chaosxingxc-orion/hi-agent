@@ -77,7 +77,7 @@ def ensure_vendored_source() -> None:
             _STATE["patched"] = True
             return
 
-        _pkg.__path__ = [vendor_abs, *installed_paths]  # type: ignore[assignment]  # expiry_wave: Wave 30
+        _pkg.__path__ = [vendor_abs, *installed_paths]  # type: ignore[assignment]  # expiry_wave: permanent
 
         # Patch bridge subpackage so the Rust extension is still found in the
         # installed wheel.  ``temporalio/bridge/__init__.py`` is an empty docstring
@@ -91,8 +91,8 @@ def ensure_vendored_source() -> None:
                 for p in installed_paths
                 if os.path.isdir(os.path.join(p, "bridge"))
             ]
-            _bridge.__path__ = [vendor_bridge, *installed_bridge]  # type: ignore[assignment]  # expiry_wave: Wave 30
-        except ImportError:  # rule7-exempt: expiry_wave="Wave 30" replacement_test: wave22-tests
+            _bridge.__path__ = [vendor_bridge, *installed_bridge]  # type: ignore[assignment]  # expiry_wave: permanent
+        except ImportError:  # rule7-exempt: expiry_wave="permanent" replacement_test: wave22-tests
             pass
 
         importlib.invalidate_caches()

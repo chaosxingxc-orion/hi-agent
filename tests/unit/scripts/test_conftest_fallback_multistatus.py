@@ -24,7 +24,7 @@ def _load_script(name: str) -> types.ModuleType:
     spec = importlib.util.spec_from_file_location(name.replace(".py", ""), path)
     assert spec and spec.loader, f"Cannot load {path}"
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 30
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: permanent
     return mod
 
 

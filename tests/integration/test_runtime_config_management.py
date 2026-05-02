@@ -43,7 +43,7 @@ def test_runtime_config_patch_bumps_version_and_updates_snapshot() -> None:
         ({}, "ops"),
         ({"": 1}, "ops"),
         ({"  ": 1}, "ops"),
-        ({1: "bad_key"}, "ops"),  # type: ignore[dict-item]  expiry_wave: Wave 30
+        ({1: "bad_key"}, "ops"),  # type: ignore[dict-item]  expiry_wave: permanent
         ({"k": "v"}, ""),
         ({"k": "v"}, "   "),
     ],

@@ -13,7 +13,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio  # noqa: F401 - imported for pytest-asyncio registration  expiry_wave: Wave 30
+import pytest_asyncio  # noqa: F401 - imported for pytest-asyncio registration  expiry_wave: permanent
 from hi_agent.task_mgmt.delegation import (
     ChildRunPoller,
     DelegationConfig,

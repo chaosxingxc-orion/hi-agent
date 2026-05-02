@@ -41,6 +41,16 @@ _EXPIRY = re.compile(
     r'expiry_wave\s*[:=\s]+["\']?Wave\s*(\d+)',
     re.IGNORECASE,
 )
+# W30 addition: ``expiry_wave: permanent`` declares an intentionally-permanent
+# suppression (e.g. backward-compat shim, public API exception class name).
+# Per Rule 17 these are tracked technical debt with no future-wave deadline;
+# the suppression's permanence MUST be justified by an inline reason next to
+# it. The gate accepts permanent as not-expired but does NOT validate the
+# justification text -- that is reviewer responsibility.
+_EXPIRY_PERMANENT = re.compile(
+    r'expiry_wave\s*[:=\s]+["\']?permanent["\']?',
+    re.IGNORECASE,
+)
 
 _SCAN_DIRS = ["hi_agent", "agent_kernel", "agent_server", "scripts", "tests"]
 _EXEMPT_FILES = {
@@ -55,8 +65,11 @@ _EXEMPT_FILES = {
 def _check_expiry(line: str, prev_line: str | None) -> str | None:
     """Return an issue string if the suppression is missing or has expired expiry_wave.
 
-    Returns None if the annotation is present and not expired.
+    Returns None if the annotation is present and not expired (including
+    `expiry_wave: permanent`, which marks intentionally-permanent suppressions).
     """
+    if _EXPIRY_PERMANENT.search(line) or (prev_line and _EXPIRY_PERMANENT.search(prev_line)):
+        return None
     m = _EXPIRY.search(line)
     if not m and prev_line is not None:
         m = _EXPIRY.search(prev_line)

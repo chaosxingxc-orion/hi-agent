@@ -283,7 +283,7 @@ class TestRunManagerQueue:
                 mgr.start_run(rid, blocking_executor)
 
         # At least one should be queue_full (immediate rejection).
-        errors = {rid: mgr.get_run(rid).error for rid in ids}  # type: ignore[union-attr]  expiry_wave: Wave 30
+        errors = {rid: mgr.get_run(rid).error for rid in ids}  # type: ignore[union-attr]  expiry_wave: permanent
         assert "queue_full" in errors.values(), f"Expected queue_full, got {errors}"
 
         gate.set()
@@ -382,7 +382,7 @@ class TestRunManagerQueue:
             while run.state not in ("completed", "failed") and time.monotonic() < deadline:
                 time.sleep(0.05)
 
-        assert mgr.get_run(rid1).state == "completed"  # type: ignore[union-attr]  expiry_wave: Wave 30
+        assert mgr.get_run(rid1).state == "completed"  # type: ignore[union-attr]  expiry_wave: permanent
         assert mgr.get_run(rid2).state == "completed"  # type: ignore[union-attr]
         assert rid1 in results
         assert rid2 in results
@@ -665,7 +665,7 @@ class TestSSEStreaming:
         # Verify the route exists in the app routes
         app = client.app
         route_paths = []
-        for route in app.routes:  # type: ignore[union-attr]  expiry_wave: Wave 30
+        for route in app.routes:  # type: ignore[union-attr]  expiry_wave: permanent
             if hasattr(route, "path"):
                 route_paths.append(route.path)
         assert "/runs/{run_id}/events" in route_paths

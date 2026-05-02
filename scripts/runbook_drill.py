@@ -25,11 +25,13 @@ def _git_short_sha() -> str:
 def _run_library_drill() -> list[dict[str, str]]:
     scenarios: list[dict[str, str]] = []
     try:
-        from hi_agent.server import incident_runbook_commands  # type: ignore  expiry_wave: Wave 30
+        from hi_agent.server import (
+            incident_runbook_commands,  # type: ignore  expiry_wave: permanent
+        )
     except ModuleNotFoundError:
         docs = sorted(Path("docs/runbook").glob("*.md"))
         status = "pass" if docs else "fail"
-        detail = f"found {len(docs)} runbook file(s) under docs/runbook" if docs else "no .md files found under docs/runbook"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+        detail = f"found {len(docs)} runbook file(s) under docs/runbook" if docs else "no .md files found under docs/runbook"  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
         scenarios.append(
             {
                 "name": "docs_existence_drill",

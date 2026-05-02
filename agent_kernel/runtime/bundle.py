@@ -321,12 +321,12 @@ class AgentKernelRuntimeBundle:
             log backend.
 
         """
-        resolved_event_log_config = event_log_config if event_log_config is not None else RuntimeEventLogConfig()  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-        resolved_dedupe_config = dedupe_config if dedupe_config is not None else RuntimeDedupeConfig()  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-        resolved_decision_deduper_config = decision_deduper_config if decision_deduper_config is not None else RuntimeDecisionDedupeConfig()  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-        resolved_recovery_config = recovery_outcome_config if recovery_outcome_config is not None else RuntimeRecoveryOutcomeConfig()  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-        resolved_turn_intent_config = turn_intent_log_config if turn_intent_log_config is not None else RuntimeTurnIntentLogConfig()  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-        resolved_production_safety = production_safety_config if production_safety_config is not None else RuntimeProductionSafetyConfig()  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+        resolved_event_log_config = event_log_config if event_log_config is not None else RuntimeEventLogConfig()  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
+        resolved_dedupe_config = dedupe_config if dedupe_config is not None else RuntimeDedupeConfig()  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
+        resolved_decision_deduper_config = decision_deduper_config if decision_deduper_config is not None else RuntimeDecisionDedupeConfig()  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
+        resolved_recovery_config = recovery_outcome_config if recovery_outcome_config is not None else RuntimeRecoveryOutcomeConfig()  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
+        resolved_turn_intent_config = turn_intent_log_config if turn_intent_log_config is not None else RuntimeTurnIntentLogConfig()  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
+        resolved_production_safety = production_safety_config if production_safety_config is not None else RuntimeProductionSafetyConfig()  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
         cls._enforce_production_safety(
             production_safety_config=resolved_production_safety,
             event_log_config=resolved_event_log_config,
@@ -371,7 +371,7 @@ class AgentKernelRuntimeBundle:
             deduper=kernel_core["deduper"],
             dedupe_store=kernel_core["dedupe_store"],
             turn_intent_log=kernel_core["turn_intent_log"],
-            strict_mode_config=(strict_mode_config if strict_mode_config is not None else RuntimeStrictModeConfig()),  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+            strict_mode_config=(strict_mode_config if strict_mode_config is not None else RuntimeStrictModeConfig()),  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
             gateway=boundary["gateway"],
             facade=boundary["facade"],
             runner_adapter=boundary["runner_adapter"],
@@ -537,10 +537,10 @@ class AgentKernelRuntimeBundle:
             dedupe_config if dedupe_config is not None else RuntimeDedupeConfig(),
         )
         recovery_outcomes = AgentKernelRuntimeBundle._build_recovery_outcomes(
-            recovery_outcome_config if recovery_outcome_config is not None else RuntimeRecoveryOutcomeConfig(),  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+            recovery_outcome_config if recovery_outcome_config is not None else RuntimeRecoveryOutcomeConfig(),  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
         )
         turn_intent_log = AgentKernelRuntimeBundle._build_turn_intent_log(
-            turn_intent_log_config if turn_intent_log_config is not None else RuntimeTurnIntentLogConfig(),  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+            turn_intent_log_config if turn_intent_log_config is not None else RuntimeTurnIntentLogConfig(),  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
         )
         recovery_planner = RecoveryPlanner()
 
@@ -561,7 +561,7 @@ class AgentKernelRuntimeBundle:
             )
             reflection_builder = ReflectionContextBuilder()
 
-        resolved_deduper_config = decision_deduper_config if decision_deduper_config is not None else RuntimeDecisionDedupeConfig()  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+        resolved_deduper_config = decision_deduper_config if decision_deduper_config is not None else RuntimeDecisionDedupeConfig()  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
         deduper: DecisionDeduper
         if resolved_deduper_config.backend == "sqlite":
             deduper = SQLiteDecisionDeduper(resolved_deduper_config.sqlite_database_path)

@@ -43,7 +43,7 @@ def test_build_executor_without_patch_uses_global():
         raise RuntimeError("stop")
 
     with (
-        patch.object(SystemBuilder, "_build_executor_impl", mock_impl),  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
+        patch.object(SystemBuilder, "_build_executor_impl", mock_impl),  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: permanent
         contextlib.suppress(RuntimeError),
     ):
         builder.build_executor(MagicMock())
@@ -64,7 +64,7 @@ def test_build_executor_with_patch_uses_patched_config():
         raise RuntimeError("stop")
 
     with (
-        patch.object(SystemBuilder, "_build_executor_impl", mock_impl),  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
+        patch.object(SystemBuilder, "_build_executor_impl", mock_impl),  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: permanent
         contextlib.suppress(RuntimeError),
     ):
         builder.build_executor(MagicMock(), config_patch={"max_stages": 99})

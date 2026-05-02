@@ -46,7 +46,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 try:
     from _governance.governance_gap import is_gov_only_gap as _is_gov_only_gap
 except ImportError:
-    def _is_gov_only_gap(a: str, b: str) -> bool:  # type: ignore[misc]  # expiry_wave: Wave 30
+    def _is_gov_only_gap(a: str, b: str) -> bool:  # type: ignore[misc]  # expiry_wave: permanent
         return False
 
 

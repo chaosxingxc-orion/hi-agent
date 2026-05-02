@@ -223,7 +223,7 @@ class StageExecutor:
         try:
             from hi_agent.observability.spine_events import emit_reasoning_loop
             emit_reasoning_loop(run_id=executor.run_id)
-        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 30
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: permanent
             pass
         executor._persist_snapshot(stage_id=stage_id)
         executor._watchdog_reset()
@@ -264,8 +264,8 @@ class StageExecutor:
             # Propagate budget fraction into LLM metadata so that
             # TierAwareLLMGateway can apply budget-driven tier downgrade.
             if not hasattr(executor, "_llm_metadata"):
-                executor._llm_metadata = {}  # type: ignore[attr-defined]  expiry_wave: Wave 30
-            executor._llm_metadata["budget_remaining"] = self.budget_guard.remaining_fraction  # type: ignore[attr-defined]  expiry_wave: Wave 30  # scope: dynamic-attribute — _llm_metadata set dynamically on executor; typed field pending
+                executor._llm_metadata = {}  # type: ignore[attr-defined]  expiry_wave: permanent
+            executor._llm_metadata["budget_remaining"] = self.budget_guard.remaining_fraction  # type: ignore[attr-defined]  expiry_wave: permanent  # scope: dynamic-attribute — _llm_metadata set dynamically on executor; typed field pending
 
         # --- Auto-compress before routing (lazy compaction) ---
         if self.auto_compress is not None and executor.session is not None:

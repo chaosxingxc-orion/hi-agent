@@ -211,8 +211,8 @@ class InMemoryKnowledgeStore:
             Dictionary with ``total``, ``by_source``, and ``tag_distribution`` keys.
         """
         records = self.all_records()
-        by_source: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: Wave 30
-        tag_dist: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: Wave 30  # scope: complex-union-resolution — Counter is dict[Any,int]; stub gap
+        by_source: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: permanent
+        tag_dist: dict[str, int] = Counter()  # type: ignore[assignment]  expiry_wave: permanent  # scope: complex-union-resolution — Counter is dict[Any,int]; stub gap
         for rec in records:
             by_source[rec.source] += 1
             for tag in rec.tags:

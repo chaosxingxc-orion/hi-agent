@@ -103,7 +103,7 @@ def test_l0_file_is_flushed_before_summarizer_reads_it(
         observed["lines_at_summarize"] = lines
         return real_summarize(self, run_id_arg, base_dir_arg)
 
-    monkeypatch.setattr(_l0_mod.L0Summarizer, "summarize_run", _observing_summarize)  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
+    monkeypatch.setattr(_l0_mod.L0Summarizer, "summarize_run", _observing_summarize)  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: permanent
 
     # Point the finalizer at our tmp_path via raw_memory._base_dir (already set).
     assert raw_memory._base_dir == base_dir

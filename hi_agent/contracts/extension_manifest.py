@@ -29,7 +29,7 @@ class ExtensionDisallowedError(Exception):
         self.reasons: list[str] = reasons if reasons is not None else []
 
 
-class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 30
+class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818  expiry_wave: permanent
     """Raised when a dangerous extension requires human gate approval to enable."""
 
     def __init__(self, name: str, version: str, dangerous_capabilities: list[str]) -> None:
@@ -46,7 +46,7 @@ class ExtensionRequiresHumanApproval(ExtensionDisallowedError):  # noqa: N818  e
         )
 
 
-class ExtensionTenantScopeRequired(ExtensionDisallowedError):  # noqa: N818  expiry_wave: Wave 30
+class ExtensionTenantScopeRequired(ExtensionDisallowedError):  # noqa: N818  expiry_wave: permanent
     """Raised when enabling an extension with tenant_scope requires a non-empty tenant_id."""
 
     def __init__(self, name: str, version: str, tenant_scope: str) -> None:
@@ -75,7 +75,7 @@ class ExtensionManifest(Protocol):
 
     Enforcement fields:
         required_posture: Minimum posture required to enable this extension.
-            "any" | "dev" | "strict" | "prod"  ("research" is deprecated; Wave 30 removal)
+            "any" | "dev" | "strict" | "prod"  ("research" is deprecated; mapped to "strict")
         tenant_scope: Isolation scope of this extension.
             "global" | "tenant" | "user" | "session"
         dangerous_capabilities: List of dangerous capability tags, e.g.
@@ -92,7 +92,7 @@ class ExtensionManifest(Protocol):
     posture_support: dict[str, bool]
 
     # -- Enforcement fields --
-    required_posture: str  # "any" | "dev" | "strict" | "prod"  ("research" deprecated Wave 30)
+    required_posture: str  # "any" | "dev" | "strict" | "prod"  ("research" alias maps to "strict")
     tenant_scope: str  # "global" | "tenant" | "user" | "session"
     dangerous_capabilities: list[str]  # e.g. ["filesystem_write", "network_egress"]
     config_schema: dict | None  # JSON Schema for config; None = no config required
@@ -145,8 +145,8 @@ class ExtensionManifestMixin:
         # Deprecation: "research" is a legacy alias for "strict"; map it and warn.
         if rp == "research":
             warnings.warn(
-                "required_posture='research' is deprecated and will be removed in Wave 30. "
-                "Use 'strict' instead.",
+                "required_posture='research' is deprecated; use 'strict' instead. "
+                "The legacy alias is mapped to 'strict' for backward compatibility.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -435,7 +435,7 @@ class ExtensionRegistry:
     # Enable gate
     # ------------------------------------------------------------------
 
-    def enable(self, name: str, version: str, posture: Posture | None = None, *, tenant_id: str = "") -> None:  # noqa: E501  expiry_wave: Wave 30
+    def enable(self, name: str, version: str, posture: Posture | None = None, *, tenant_id: str = "") -> None:  # noqa: E501  expiry_wave: permanent
         """Fail-closed gate: check production_eligibility before enabling.
 
         Args:

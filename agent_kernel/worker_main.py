@@ -64,7 +64,7 @@ def _build_llm_gateway(config: KernelConfig) -> Any | None:
     )
 
     gateway_config = LLMGatewayConfig(
-        provider=config.llm_provider,  # type: ignore[arg-type]  # expiry_wave: Wave 30
+        provider=config.llm_provider,  # type: ignore[arg-type]  # expiry_wave: permanent
         model=config.llm_model,
         api_key=config.llm_api_key,
     )

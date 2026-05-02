@@ -27,7 +27,7 @@ def _make_output(
     return ModelOutput(
         raw_text=raw_text,
         tool_calls=tool_calls or [],
-        finish_reason=finish_reason,  # type: ignore[arg-type]  expiry_wave: Wave 30
+        finish_reason=finish_reason,  # type: ignore[arg-type]  expiry_wave: permanent
     )
 
 

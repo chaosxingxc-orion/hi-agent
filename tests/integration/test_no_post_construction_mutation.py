@@ -57,7 +57,7 @@ class TestNoPostConstructionMutation:
 
         builder = SystemBuilder()
 
-        with patch.object(builder, "build_skill_evolver", return_value=sentinel_evolver):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
+        with patch.object(builder, "build_skill_evolver", return_value=sentinel_evolver):  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: permanent
             contract = _make_contract()
             executor = builder.build_executor(contract)
 

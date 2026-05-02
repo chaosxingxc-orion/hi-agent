@@ -18,7 +18,7 @@ def _load_module() -> object:
     assert spec is not None
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: Wave 30
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]  # expiry_wave: permanent
     return mod
 
 

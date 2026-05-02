@@ -687,7 +687,7 @@ def create_app_temporal(
     data_dir = os.environ.get("AGENT_KERNEL_DATA_DIR", "/app/data")
 
     @asynccontextmanager
-    async def _lifespan(app: Starlette):  # type: ignore[type-arg]  # expiry_wave: Wave 30
+    async def _lifespan(app: Starlette):  # type: ignore[type-arg]  # expiry_wave: permanent
         """Manages application startup and shutdown lifecycle."""
         os.makedirs(data_dir, exist_ok=True)
 
@@ -746,7 +746,7 @@ def create_app_temporal(
     inner = Starlette(routes=_build_routes(), lifespan=_lifespan)
     # ApiKeyMiddleware forwards non-HTTP scopes (lifespan) to the inner app,
     # so the lifespan context manager fires correctly even when wrapped.
-    return ApiKeyMiddleware(inner, api_key=config.api_key)  # type: ignore[return-value]  # expiry_wave: Wave 30
+    return ApiKeyMiddleware(inner, api_key=config.api_key)  # type: ignore[return-value]  # expiry_wave: permanent
 
 
 def _server_main() -> None:

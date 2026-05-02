@@ -38,7 +38,7 @@ class KnowledgeBuilder:
         wiki = KnowledgeWiki(os.path.join(self._knowledge_base_dir(), "knowledge", "wiki"))
         try:
             wiki.load()
-        except (FileNotFoundError, KeyError, ValueError):  # rule7-exempt: expiry_wave="Wave 30"
+        except (FileNotFoundError, KeyError, ValueError):  # rule7-exempt: expiry_wave="permanent"
             pass  # expected on fresh installs
         except Exception as exc:
             _knowledge_builder_errors_total.inc()

@@ -47,7 +47,7 @@ def test_with_capability_returns_new_instance_bound_to_capability():
 def test_frozen_prevents_mutation():
     ctx = RunExecutionContext(tenant_id="t1")
     try:
-        ctx.tenant_id = "t2"  # type: ignore[misc]  expiry_wave: Wave 30
+        ctx.tenant_id = "t2"  # type: ignore[misc]  expiry_wave: permanent
     except (AttributeError, Exception):
         return
     raise AssertionError("RunExecutionContext should be frozen")

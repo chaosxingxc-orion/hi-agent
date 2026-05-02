@@ -149,7 +149,7 @@ class RunManager:
         self._idempotency_store = idempotency_store
         self._run_store = run_store
         self._run_queue = run_queue
-        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: Wave 30
+        self._event_store: SQLiteEventStore | None = event_store  # type: ignore[assignment]  expiry_wave: permanent
         self._postmortem_engine: object | None = postmortem_engine
         # Per-run sequence counters; seeded from storage on first use (restart-safe).
         self._event_seqs: dict[str, int] = {}
@@ -398,7 +398,7 @@ class RunManager:
             else:
                 warnings.warn(
                     "body spine required under posture research; falling back to auth middleware. "
-                    "This fallback will be removed in Wave 30 (removed if no callers found).",
+                    "This fallback is retained pending caller migration to body-spine submission.",
                     DeprecationWarning,
                     stacklevel=2,
                 )
@@ -507,7 +507,7 @@ class RunManager:
                     run_id=run_id,
                     extra=_pre_ev.get("extra") or {},
                 )
-        except Exception:  # rule7-exempt: pre-create migration never blocks create_run  # noqa: E501  # expiry_wave: Wave 30
+        except Exception:  # rule7-exempt: pre-create migration never blocks create_run  # noqa: E501  # expiry_wave: permanent
             pass
 
         # --- emit run_queued lifecycle event ---------------------------------
@@ -521,7 +521,7 @@ class RunManager:
         try:
             from hi_agent.observability.spine_events import emit_run_manager
             emit_run_manager(tenant_id=tenant_id, run_id=run_id)
-        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: Wave 30
+        except Exception:  # rule7-exempt: spine emitters must never block execution path  # noqa: E501  # expiry_wave: permanent
             pass
 
         # --- persist to run_store if available ------------------------------
@@ -803,7 +803,7 @@ class RunManager:
                 try:
                     from hi_agent.server.fault_injection import get_fault_injector
                     get_fault_injector().maybe_stall_heartbeat_sync()
-                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: Wave 30
+                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: permanent
                     if renewed:
                         run_for_hb = self._runs.get(run_id)
                         if run_for_hb is not None:
@@ -821,7 +821,7 @@ class RunManager:
                                     tenant_id=getattr(run_for_hb, "tenant_id", "") or "",
                                     run_id=run_id,
                                 )
-                            except Exception:  # rule7-exempt: expiry_wave="Wave 30"
+                            except Exception:  # rule7-exempt: expiry_wave="permanent"
                                 pass
                     if not renewed:
                         _hb_log.warning(
@@ -1023,7 +1023,7 @@ class RunManager:
             )
             engine = self._postmortem_engine
             if hasattr(engine, "on_project_completed"):
-                engine.on_project_completed(run.project_id, retro)  # type: ignore[union-attr]  expiry_wave: Wave 30  # scope: complex-union-resolution — hasattr guard narrows type but mypy can't infer it
+                engine.on_project_completed(run.project_id, retro)  # type: ignore[union-attr]  expiry_wave: permanent  # scope: complex-union-resolution — hasattr guard narrows type but mypy can't infer it
         except Exception as exc:
             logger.warning(
                 "_notify_postmortem_engine: failed for run_id=%s project_id=%s: %s",

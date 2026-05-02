@@ -71,7 +71,7 @@ def test_pi_c_gate_blocks_then_resumes(profile_id_for_test: str) -> None:
             raise GatePendingError(gate_id=gate_id)
         return original_execute_stage(stage_id)
 
-    executor._execute_stage = gated_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 30
+    executor._execute_stage = gated_execute_stage  # type: ignore[method-assign]  expiry_wave: permanent
 
     # Phase 1 — execute() must raise GatePendingError with a structured gate_id.
     with pytest.raises(GatePendingError) as exc_info:

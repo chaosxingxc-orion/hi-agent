@@ -101,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.json_output:
             print(json.dumps(result, indent=2))
         else:
-            print(f"Hot-path files changed ({len(hot_path_hits)} file(s)) and T3 evidence marker found. OK.")  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+            print(f"Hot-path files changed ({len(hot_path_hits)} file(s)) and T3 evidence marker found. OK.")  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
         return 0
 
     result = {

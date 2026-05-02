@@ -87,7 +87,7 @@ class TestPolicyVersionSetFrozen:
     def test_frozen_immutable(self) -> None:
         pvs = PolicyVersionSet()
         with pytest.raises(AttributeError):
-            pvs.route_policy = "route_v2"  # type: ignore[misc]  expiry_wave: Wave 30
+            pvs.route_policy = "route_v2"  # type: ignore[misc]  expiry_wave: permanent
 
     def test_custom_versions(self) -> None:
         pvs = PolicyVersionSet(
@@ -126,7 +126,7 @@ class TestPolicyVersionSetFrozen:
         assert executor.policy_versions.route_policy == "route_v99"
         # Frozen
         with pytest.raises(AttributeError):
-            executor.policy_versions.route_policy = "changed"  # type: ignore[misc]  expiry_wave: Wave 30
+            executor.policy_versions.route_policy = "changed"  # type: ignore[misc]  expiry_wave: permanent
 
     def test_policy_versions_default_in_runner(self) -> None:
         """RunExecutor defaults to PolicyVersionSet() when none provided."""

@@ -70,7 +70,7 @@ def _coerce_int(value: object, default: int) -> int:
     try:
         if isinstance(value, str) and not value.strip():
             return default
-        return int(value)  # type: ignore[arg-type]  expiry_wave: Wave 30
+        return int(value)  # type: ignore[arg-type]  expiry_wave: permanent
     except (TypeError, ValueError):
         return default
 
@@ -79,7 +79,7 @@ def _coerce_float(value: object, default: float) -> float:
     try:
         if isinstance(value, str) and not value.strip():
             return default
-        return float(value)  # type: ignore[arg-type]  expiry_wave: Wave 30
+        return float(value)  # type: ignore[arg-type]  expiry_wave: permanent
     except (TypeError, ValueError):
         return default
 

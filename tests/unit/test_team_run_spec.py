@@ -119,4 +119,4 @@ def test_team_run_spec_is_frozen() -> None:
 
     spec = TeamRunSpec(team_id="t", project_id="p", profile_id="prof")
     with pytest.raises(dataclasses.FrozenInstanceError):
-        spec.team_id = "mutated"  # type: ignore[misc]  expiry_wave: Wave 30
+        spec.team_id = "mutated"  # type: ignore[misc]  expiry_wave: permanent

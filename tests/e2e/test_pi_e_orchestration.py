@@ -157,7 +157,7 @@ def test_pi_e_full_orchestration(profile_id_for_test: str) -> None:
             raise GatePendingError(gate_id=gate_id)
         return original_execute_stage(stage_id)
 
-    executor._execute_stage = gated_execute_stage  # type: ignore[method-assign]  expiry_wave: Wave 30
+    executor._execute_stage = gated_execute_stage  # type: ignore[method-assign]  expiry_wave: permanent
 
     # --- Phase 1: execute() must raise GatePendingError at pi_e_s_final --
     with pytest.raises(GatePendingError) as exc_info:

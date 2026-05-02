@@ -78,7 +78,7 @@ class TestOpenHumanGateSpinePropagation:
         """Under research posture, open_human_gate with empty tenant_id raises ValueError."""
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
 
-        adapter = self._make_adapter(MagicMock())  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: Wave 30
+        adapter = self._make_adapter(MagicMock())  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: permanent
 
         req = HumanGateRequest(
             run_id="r1",

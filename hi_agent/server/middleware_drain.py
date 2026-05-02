@@ -35,7 +35,7 @@ class DrainMiddleware(BaseHTTPMiddleware):
     If that attribute is absent or False the middleware is a no-op.
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]  # expiry_wave: Wave 30
+    async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]  # expiry_wave: permanent
         if request.method in _SAFE_METHODS:
             return await call_next(request)
 

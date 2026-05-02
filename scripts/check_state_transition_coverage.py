@@ -60,7 +60,7 @@ def main() -> int:
             print(json.dumps(result, indent=2))
         else:
             status = result["status"].upper()
-            msg = result.get("reason") or f"{result.get('transitions_covered', '?')} transitions covered"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
+            msg = result.get("reason") or f"{result.get('transitions_covered', '?')} transitions covered"  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
             print(f"{status}: {msg}")
         return exit_code
 

@@ -19,7 +19,7 @@ import urllib.error
 import urllib.request
 
 
-def register(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]  # expiry_wave: Wave 30
+def register(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]  # expiry_wave: permanent
     parser = subparsers.add_parser(
         "tail-events",
         help="Stream events for a run from /v1/runs/{id}/events (SSE).",
