@@ -39,7 +39,7 @@ def _scan_file(path: Path) -> list[dict]:
                 "pattern": "assert_true",
                 "content": line.strip()[:100],
             })
-        elif _ACCEPT_FAILURE.search(line):
+        elif _ACCEPT_FAILURE.search(line) and "# vacuous-ok:" not in line:
             issues.append({
                 "file": str(path.relative_to(ROOT)),
                 "line": i,

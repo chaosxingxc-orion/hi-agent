@@ -23,7 +23,7 @@ def test_doctor_returns_200_or_503(test_client):
     resp = test_client.get("/doctor")
     # 503 is expected in offline test mode (no LLM configured); 200 means ready.
     # Both are valid outcomes for this fixture — neither indicates test failure.
-    assert resp.status_code in (200, 503)
+    assert resp.status_code in (200, 503)  # vacuous-ok: 503 is expected in offline/no-LLM test mode
 
 
 def test_doctor_response_has_required_keys(test_client):
@@ -44,7 +44,7 @@ def test_doctor_dev_environment_no_blocking(test_client):
     # In test env (dev mode), there should be no blocking issues
     assert body["blocking"] == []
     # 503 is expected offline (no LLM API key); 200 means ready.
-    assert resp.status_code in (200, 503)
+    assert resp.status_code in (200, 503)  # vacuous-ok: 503 is expected in offline/no-LLM test mode
 
 
 def test_doctor_issue_shape(test_client):

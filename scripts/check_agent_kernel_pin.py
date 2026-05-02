@@ -137,7 +137,20 @@ def main() -> int:
     if not pyproject.exists():
         raise RuntimeError(f"File not found: {pyproject}")
 
-    dep = parse_dependency(pyproject, args.package)
+    try:
+        dep = parse_dependency(pyproject, args.package)
+    except RuntimeError as exc:
+        if "Dependency not found" in str(exc):
+            # Mono-repo: agent-kernel is a local package, not an external git pin.
+            import json as _json
+            if args.json:
+                print(_json.dumps({"check": "agent_kernel_pin", "status": "not_applicable",
+                                   "violations": [], "counts": {},
+                                   "head": run_git("rev-parse", "--short", "HEAD").strip()}))
+            else:
+                print(f"not_applicable: {args.package} not in project.dependencies (mono-repo)")
+            return 0
+        raise
     url, revision = split_git_dependency(dep, args.package)
     pinned_commit = resolve_revision_to_commit(url, revision)
 

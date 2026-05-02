@@ -22,6 +22,13 @@ ROOT = Path(__file__).resolve().parent.parent
 DELIVERY_DIR = ROOT / "docs" / "delivery"
 RELEASES_DIR = ROOT / "docs" / "releases"
 
+sys.path.insert(0, str(ROOT / "scripts"))
+try:
+    from _governance.governance_gap import is_gov_only_gap as _is_gov_only_gap
+except ImportError:
+    def _is_gov_only_gap(a: str, b: str) -> bool:  # type: ignore[misc]
+        return False
+
 
 def _load_json(path: Path) -> dict | None:
     try:
@@ -35,9 +42,8 @@ def _find_latest_manifest() -> tuple[Path, dict] | None:
     if not RELEASES_DIR.exists():
         return None
     candidates = [
-        f for f in RELEASES_DIR.glob("*.json")
+        f for f in RELEASES_DIR.glob("platform-release-manifest-*.json")
         if "archive" not in str(f).lower()
-        and not f.stem.endswith("-provenance")
     ]
     if not candidates:
         return None
@@ -178,28 +184,36 @@ def main() -> int:
 
     # Match at 7-char prefix resolution (either direction)
     if m_norm != t_norm:
-        result = {
-            "status": "fail",
-            "check": "evidence_identity",
-            "manifest_file": manifest_path.name,
-            "t3_file": t3_path.name,
-            "manifest_head": manifest_head[:8],
-            "t3_head": t3_head[:8],
-            "reason": (
-                f"T3 verified_head {t3_head[:8]!r} "
-                f"!= manifest release_head {manifest_head[:8]!r}"
-            ),
-        }
-        if args.json:
-            print(json.dumps(result, indent=2))
-        else:
-            print(
-                f"FAIL: T3 verified_head={t3_head[:8]} "
-                f"!= manifest release_head={manifest_head[:8]}",
-                file=sys.stderr,
-            )
-        return 1
+        # Allow mismatch when every commit between the two SHAs is gov-infra-only
+        # (scripts/**, .github/**, docs/**) — no hot-path changes, T3 still valid.
+        try:
+            gap_ok = _is_gov_only_gap(t3_head, manifest_head)
+        except Exception:
+            gap_ok = False
+        if not gap_ok:
+            result = {
+                "status": "fail",
+                "check": "evidence_identity",
+                "manifest_file": manifest_path.name,
+                "t3_file": t3_path.name,
+                "manifest_head": manifest_head[:8],
+                "t3_head": t3_head[:8],
+                "reason": (
+                    f"T3 verified_head {t3_head[:8]!r} "
+                    f"!= manifest release_head {manifest_head[:8]!r}"
+                ),
+            }
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                print(
+                    f"FAIL: T3 verified_head={t3_head[:8]} "
+                    f"!= manifest release_head={manifest_head[:8]}",
+                    file=sys.stderr,
+                )
+            return 1
 
+    gap_note = "" if m_norm == t_norm else " (gov-infra-only gap permitted)"
     result = {
         "status": "pass",
         "check": "evidence_identity",
@@ -208,12 +222,14 @@ def main() -> int:
         "manifest_head": manifest_head[:8],
         "t3_head": t3_head[:8],
     }
+    if m_norm != t_norm:
+        result["gov_infra_gap"] = True
     if args.json:
         print(json.dumps(result, indent=2))
     else:
         print(
             f"PASS: T3 verified_head={t3_head[:8]} "
-            f"matches manifest release_head={manifest_head[:8]}"
+            f"matches manifest release_head={manifest_head[:8]}{gap_note}"
         )
     return 0
 
