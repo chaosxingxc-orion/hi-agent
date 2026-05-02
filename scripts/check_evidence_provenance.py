@@ -4,11 +4,15 @@
 Reads every JSON in docs/verification/ and docs/delivery/.
 Fails when:
   - any artifact is missing the `provenance` field (emits NOT_APPLICABLE for legacy/_legacy/)
-  - any artifact consumed by a strict gate has provenance in {synthetic, unknown}
+  - any artifact consumed by a strict gate has provenance in
+    {synthetic, unknown, structural, degraded} (W31-L L-5' fix:
+    adds structural and degraded to the disallowed set for real-required
+    gates; previously the docstring claimed strict-real semantics but
+    the code only blocked synthetic/unknown).
 
-Strict gates that require provenance:real:
-  check_t3_freshness, check_observability_spine_completeness,
-  check_chaos_runtime_coupling
+Strict gates that require provenance:real (no structural/degraded fallback):
+  check_observability_spine_completeness, check_chaos_runtime_coupling,
+  check_soak_evidence
 
 Exit 0: pass or not_applicable (all legacy).
 Exit 1: fail (missing or disallowed provenance).
@@ -40,7 +44,13 @@ _ALLOWED_FOR_ALL = frozenset({
     # W24 vocabulary additions (Tracks B, C, G; honest partial-credit tags):
     "runtime", "runtime_partial", "shape_1h", "simulated_pending_pm2",
 })
-_DISALLOWED_FOR_STRICT = frozenset({"synthetic", "unknown"})
+# W31-L (L-5' fix): a "strict gate" requires provenance:real. Previously the
+# docstring claimed real-required semantics but the disallowed set only
+# blocked synthetic/unknown — a structural or degraded artifact silently
+# satisfied the gate. The W31-L fix expands the disallowed set to include
+# structural and degraded, so gates listed in _REAL_REQUIRED_CHECKS now
+# block on any non-real provenance.
+_DISALLOWED_FOR_STRICT = frozenset({"synthetic", "unknown", "structural", "degraded"})
 
 
 def _scan_dir(directory: pathlib.Path) -> list[dict]:
