@@ -1,4 +1,11 @@
-"""Unit tests: register_idempotency_middleware uses Posture.from_env() not string-compare."""
+"""Unit tests: register_idempotency_middleware reads strict from the facade.
+
+W31-N (N.4) removed the inline ``from hi_agent.config.posture import Posture``
+from agent_server/api/middleware/idempotency.py per R-AS-1. The strict
+flag is now stamped on the IdempotencyFacade by the bootstrap (which is
+the SINGLE seam allowed to import Posture). Middleware reads
+``facade.is_strict`` when ``strict=None``.
+"""
 from __future__ import annotations
 
 from agent_server.api.middleware.idempotency import (
@@ -6,22 +13,21 @@ from agent_server.api.middleware.idempotency import (
 )
 
 
-def test_idempotency_middleware_uses_posture_enum(monkeypatch):
-    """register_idempotency_middleware imports Posture; no raw os.environ string-compare."""
+def test_idempotency_middleware_does_not_import_hi_agent() -> None:
+    """W31-N (N.4): middleware module must NOT import from hi_agent.* per R-AS-1."""
     import agent_server.api.middleware.idempotency as mod
 
-    # Verify Posture is imported in the module
-    assert hasattr(mod, "Posture"), (
-        "Posture must be imported in idempotency middleware module"
+    # Posture used to be imported here; the deferred-import violation
+    # is closed in W31-N N.4 and the seam is now the bootstrap module.
+    assert not hasattr(mod, "Posture"), (
+        "Posture must NOT be imported in idempotency middleware (R-AS-1); "
+        "see agent_server/bootstrap.py — the canonical seam"
     )
 
 
-def test_register_idempotency_strict_defaults_to_posture_dev(monkeypatch):
-    """When strict is None and posture is dev, middleware is constructed with strict=False."""
-    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
-
-    # Capture what strict value is passed to IdempotencyMiddleware
-    captured = {}
+def test_register_idempotency_strict_defaults_to_facade_dev() -> None:
+    """When strict=None and facade.is_strict=False, middleware is built with strict=False."""
+    captured: dict[str, object] = {}
 
     class FakeApp:
         def add_middleware(self, cls, **kwargs):
@@ -29,48 +35,43 @@ def test_register_idempotency_strict_defaults_to_posture_dev(monkeypatch):
             captured["strict"] = kwargs.get("strict")
 
     class FakeFacade:
-        pass
+        is_strict = False
 
     register_idempotency_middleware(FakeApp(), facade=FakeFacade(), strict=None)
     assert captured["strict"] is False, (
-        "dev posture must produce strict=False in IdempotencyMiddleware"
+        "facade.is_strict=False must produce strict=False in IdempotencyMiddleware"
     )
 
 
-def test_register_idempotency_strict_defaults_to_posture_research(monkeypatch):
-    """When strict is None and posture is research, middleware is constructed with strict=True."""
-    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-
-    captured = {}
+def test_register_idempotency_strict_defaults_to_facade_research() -> None:
+    """When strict=None and facade.is_strict=True, middleware is built with strict=True."""
+    captured: dict[str, object] = {}
 
     class FakeApp:
         def add_middleware(self, cls, **kwargs):
-            captured["cls"] = cls
             captured["strict"] = kwargs.get("strict")
 
     class FakeFacade:
-        pass
+        is_strict = True
 
     register_idempotency_middleware(FakeApp(), facade=FakeFacade(), strict=None)
     assert captured["strict"] is True, (
-        "research posture must produce strict=True in IdempotencyMiddleware"
+        "facade.is_strict=True must produce strict=True in IdempotencyMiddleware"
     )
 
 
-def test_register_idempotency_explicit_strict_overrides_posture(monkeypatch):
-    """Explicit strict=False overrides even a research posture (caller's explicit choice)."""
-    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-
-    captured = {}
+def test_register_idempotency_explicit_strict_overrides_facade() -> None:
+    """Explicit strict=False overrides even a research-stamped facade (caller's explicit choice)."""
+    captured: dict[str, object] = {}
 
     class FakeApp:
         def add_middleware(self, cls, **kwargs):
             captured["strict"] = kwargs.get("strict")
 
     class FakeFacade:
-        pass
+        is_strict = True
 
     register_idempotency_middleware(FakeApp(), facade=FakeFacade(), strict=False)
     assert captured["strict"] is False, (
-        "explicit strict=False must override posture-derived value"
+        "explicit strict=False must override facade-derived value"
     )

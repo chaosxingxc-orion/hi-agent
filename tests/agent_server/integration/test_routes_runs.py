@@ -98,7 +98,8 @@ def _headers(tenant: str = "tenant-A") -> dict[str, str]:
     return {"X-Tenant-Id": tenant}
 
 
-def test_post_runs_success_returns_200_and_run_id(client: TestClient) -> None:
+def test_post_runs_success_returns_201_and_run_id(client: TestClient) -> None:
+    """W31-N N-11: POST /v1/runs returns 201 Created (creates new resource)."""
     body = {
         "profile_id": "default",
         "goal": "demo",
@@ -106,7 +107,7 @@ def test_post_runs_success_returns_200_and_run_id(client: TestClient) -> None:
         "metadata": {"k": "v"},
     }
     resp = client.post("/v1/runs", json=body, headers=_headers())
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 201, resp.text
     data = resp.json()
     assert data["tenant_id"] == "tenant-A"
     assert data["run_id"].startswith("run_")
@@ -147,7 +148,8 @@ def test_post_runs_duplicate_idempotency_key_returns_409(
         "idempotency_key": "dup-1",
     }
     first = client.post("/v1/runs", json=body, headers=_headers())
-    assert first.status_code == 200
+    # W31-N N-11: POST /v1/runs returns 201 Created on first creation.
+    assert first.status_code == 201
     second = client.post("/v1/runs", json=body, headers=_headers())
     assert second.status_code == 409
     assert second.json()["error"] == "ConflictError"

@@ -145,11 +145,12 @@ def _hdr(tenant: str = "tenant-A", *, idem: str | None = None) -> dict[str, str]
 def test_same_key_same_body_replays_byte_identical_content(
     dev_client: TestClient, backend: _StubBackend
 ) -> None:
+    """W31-N N-11: POST /v1/runs returns 201 on first creation; replay is also 201."""
     body = {"profile_id": "default", "goal": "demo", "idempotency_key": "k-1"}
     first = dev_client.post("/v1/runs", json=body, headers=_hdr(idem="k-1"))
-    assert first.status_code == 200
+    assert first.status_code == 201
     second = dev_client.post("/v1/runs", json=body, headers=_hdr(idem="k-1"))
-    assert second.status_code == 200
+    assert second.status_code == 201
     first_body = first.json()
     second_body = second.json()
     assert first_body["run_id"] == second_body["run_id"]
@@ -189,14 +190,16 @@ def test_missing_header_in_dev_warning_only(
     body = {"profile_id": "default", "goal": "x", "idempotency_key": "k-4"}
     resp = dev_client.post("/v1/runs", json=body, headers=_hdr())
     # Body still has idempotency_key so the route-level facade succeeds;
-    # the missing header simply means no replay is set up.
-    assert resp.status_code == 200
+    # the missing header simply means no replay is set up. W31-N N-11:
+    # POST /v1/runs returns 201 Created.
+    assert resp.status_code == 201
     assert backend.start_calls == 1
 
 
 def test_cross_tenant_key_collision_returns_distinct_responses(
     dev_client: TestClient, backend: _StubBackend
 ) -> None:
+    """W31-N N-11: POST /v1/runs returns 201 Created on each new tenant."""
     body = {"profile_id": "default", "goal": "y", "idempotency_key": "shared"}
     a_resp = dev_client.post(
         "/v1/runs", json=body, headers=_hdr("tenant-A", idem="shared")
@@ -204,8 +207,8 @@ def test_cross_tenant_key_collision_returns_distinct_responses(
     b_resp = dev_client.post(
         "/v1/runs", json=body, headers=_hdr("tenant-B", idem="shared")
     )
-    assert a_resp.status_code == 200
-    assert b_resp.status_code == 200
+    assert a_resp.status_code == 201
+    assert b_resp.status_code == 201
     assert a_resp.json()["run_id"] != b_resp.json()["run_id"]
     assert a_resp.json()["tenant_id"] == "tenant-A"
     assert b_resp.json()["tenant_id"] == "tenant-B"
@@ -258,4 +261,5 @@ def test_5xx_releases_slot_for_retry(tmp_path: Path) -> None:
     first = client.post("/v1/runs", json=body, headers=_hdr(idem="k-retry"))
     assert first.status_code >= 500
     second = client.post("/v1/runs", json=body, headers=_hdr(idem="k-retry"))
-    assert second.status_code == 200, second.text
+    # W31-N N-11: POST /v1/runs returns 201 Created (resource newly created on retry).
+    assert second.status_code == 201, second.text
