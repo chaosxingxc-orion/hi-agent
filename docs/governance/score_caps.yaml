@@ -10,15 +10,15 @@
 #   architecture_readiness — code/architecture maturity
 #   (all: applies to all tiers)
 #
-# ── 7x24 readiness is ARCHITECTURAL, not engineering (W28+) ───────────────
+# ── 7x24 readiness model (W28+ with W31-L L-12'/L-13' correction) ─────────
 #
-# 7x24 operational readiness is a property of the architecture, not a
+# 7x24 operational readiness is a property of the architecture, not solely a
 # deliverable of engineering work. The platform either has the architectural
 # primitives required for continuous operation (sync_bridge, observable
 # lifecycle, cancellation contract, typed event spine, runtime-coupled
 # chaos) or it does not. There is no separate "make it 7x24" workstream.
 #
-# A SINGLE rule governs the 7x24 tier: `architectural_seven_by_twenty_four`.
+# Static rule: `architectural_seven_by_twenty_four`.
 # It evaluates 5 architectural assertions emitted by `scripts/run_arch_7x24.py`
 # (a static check that runs in seconds, not a 24h wall-clock soak):
 #
@@ -28,16 +28,28 @@
 #   4. spine_provenance_real    -- RunEventEmitter records provenance
 #   5. chaos_runtime_coupled_all -- all chaos scenarios runtime-coupled
 #
-# The cap fires ONLY for the seven_by_twenty_four_operational_readiness
-# tier so the architectural status NEVER penalises current_verified_readiness.
-# The two legacy single-purpose caps (`observability_spine_incomplete`,
-# `chaos_non_runtime_coupled`) were retired because their concerns are now
-# subsumed by assertions #4 and #5 above.
+# The static rule is scoped exclusively to the
+# seven_by_twenty_four_operational_readiness tier.
+#
+# W31-L (L-12'/L-13' correction): soak evidence is also visible to the
+# `current_verified_readiness` tier via the new `soak_evidence_not_real`
+# cap rule. Previously W28 fully retired the wall-clock-soak cap from
+# current_verified_readiness AND excluded soak_evidence from
+# `_ARCH_CONSTRAINT_GATES`'s gate_fail scope, so a real FAIL on soak did
+# NOT affect current_verified_readiness — that gap is what the W28 errata
+# names "metric redefinition, not measurement". The L-12'/L-13' fix
+# re-introduces a SINGLE cap_factor (`soak_evidence_not_real`) on the
+# verified tier so a missing-or-non-real soak evidence is reflected, but
+# does not require a wall-clock-24h soak (it is satisfied by a real 1h
+# soak with provenance:real per scripts/run_soak.py).
 #
 # Double-count protection: build_release_manifest.py keeps
-# _ARCH_CONSTRAINT_GATES (soak_evidence, observability_spine_completeness,
+# _ARCH_CONSTRAINT_GATES (observability_spine_completeness,
 # chaos_runtime_coupling) excluded from the generic gate_warn / gate_fail /
-# gate_missing scans on current_verified_readiness.
+# gate_missing scans on current_verified_readiness. soak_evidence is
+# REMOVED from _ARCH_CONSTRAINT_GATES (W31-L L-12') so a FAIL on soak
+# affects current_verified_readiness via gate_fail; the new
+# `soak_evidence_not_real` rule covers the missing/non-real case.
 # ──────────────────────────────────────────────────────────────────────────
 schema_version: "2"
 
@@ -137,12 +149,14 @@ cap_rules:
     factor: provenance_unknown_or_synthetic
     scope: [current_verified_readiness, seven_by_twenty_four_operational_readiness]
     description: "Evidence consumed by gate has unknown or synthetic provenance"
-  # ── 7x24 is architectural (single rule) ──────────────────────────────────
+  # ── 7x24: static (always) + soak (W31-L L-12'/L-13' correction) ─────────
   # The old soak_24h_missing / soak_24h_pending wall-clock caps and the
   # single-purpose observability_spine_incomplete / chaos_non_runtime_coupled
-  # caps are RETIRED. A single architectural rule replaces them:
-  # `architectural_seven_by_twenty_four` evaluates 5 static assertions emitted
-  # by scripts/run_arch_7x24.py. Evidence: docs/verification/<sha>-arch-7x24.json.
+  # caps are RETIRED. The static architectural rule remains scoped to the
+  # 7x24 tier. The L-12'/L-13' correction adds a soak-evidence cap to the
+  # verified tier (re-introduced after W28 retirement without paired
+  # evidence rule). Evidence: docs/verification/<sha>-arch-7x24.json (static)
+  # and docs/verification/<sha>-soak-{1h,24h}.json (soak).
   - condition: architectural_seven_by_twenty_four
     cap: 90
     factor: architectural_seven_by_twenty_four
@@ -155,6 +169,12 @@ cap_rules:
       - spine_provenance_real
       - chaos_runtime_coupled_all
     lifecycle_note: "Single 7x24 rule (W28+). Cap=90 (small signal, not a draconian penalty). Cap clears when <sha>-arch-7x24.json shows 5/5 PASS. Run via scripts/run_arch_7x24.py."
+  - condition: soak_evidence_not_real
+    cap: 75
+    factor: soak_evidence_not_real
+    scope: [current_verified_readiness]
+    description: "Latest soak evidence has provenance != 'real' or is missing for current HEAD"
+    lifecycle_note: "W31-L (L-12'/L-13'): re-introduces a soak-evidence cap on the verified tier. Cap=75 (significant, not draconian). Cap clears when scripts/run_soak.py emits <sha>-soak-{1h,24h}.json with provenance:real for the current HEAD. The W28 errata records why this rule is necessary: cap retirement without paired-evidence rule was the root cause of the verified=94.55 metric redefinition."
   - condition: expired_allowlist_accepted_as_pass
     cap: 70
     factor: expired_allowlist_accepted

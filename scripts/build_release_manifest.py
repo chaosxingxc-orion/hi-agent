@@ -62,8 +62,13 @@ CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 # in score_caps.yaml.  Excluding them here prevents double-counting when
 # gate_warn/gate_fail/gate_missing scan all gate statuses without per-gate
 # scope awareness.
+#
+# W31-L (L-12'/L-13' correction): soak_evidence is REMOVED from the
+# architectural-constraint set so a real FAIL on soak (e.g. invariants
+# violated, provenance != real) DOES affect current_verified_readiness via
+# gate_fail. The new `soak_evidence_not_real` cap rule in score_caps.yaml
+# covers the missing/non-real-provenance case for the verified tier.
 _ARCH_CONSTRAINT_GATES: frozenset[str] = frozenset({
-    "soak_evidence",
     "observability_spine_completeness",
     "chaos_runtime_coupling",
 })
@@ -755,6 +760,31 @@ def _compute_cap(
             failing = [k for k, v in assertions.items() if v != "PASS"]
             if failing:
                 return f"architectural_seven_by_twenty_four: failing={', '.join(sorted(failing))}"
+            return None
+        if condition == "soak_evidence_not_real":
+            # W31-L (L-12'/L-13'): re-introduces a soak-evidence cap on the
+            # current_verified_readiness tier. Cap=75 fires when no soak
+            # evidence exists at current HEAD or its provenance is not 'real'.
+            # Satisfied by a real 1h soak (provenance:real) per
+            # scripts/run_soak.py.
+            head_sha = _git_head_sha()
+            soak_file = _find_soak_evidence_for_head(head_sha)
+            if soak_file is None:
+                return (
+                    "soak_evidence_not_real: no soak evidence at HEAD "
+                    f"({head_sha[:12]}); run scripts/run_soak.py "
+                    "--duration 1h --require-polling-observation"
+                )
+            try:
+                soak_data = json.loads(soak_file.read_text(encoding="utf-8"))
+            except Exception:
+                return f"soak_evidence_not_real: {soak_file.name} unreadable"
+            prov = soak_data.get("provenance")
+            if prov != "real":
+                return (
+                    f"soak_evidence_not_real: {soak_file.name} "
+                    f"provenance={prov!r}, required provenance:real"
+                )
             return None
         return None
 
