@@ -58,7 +58,44 @@ def _is_runs_mutation(method: str, path: str) -> bool:
     return path.startswith("/v1/runs/")
 
 
-_DEFAULT_PREDICATES: tuple[_MutationPredicate, ...] = (_is_runs_mutation,)
+def _is_skills_mutation(method: str, path: str) -> bool:
+    """W31-N (N.10): skill register is a mutating route — guard with idempotency.
+
+    The route handler in routes_skills_memory.py also reads the
+    Idempotency-Key header for response-envelope echoing. The middleware
+    layer adds reserve/replay/conflict semantics on top so retries become
+    byte-identical replays from the SQLite store.
+    """
+    if method not in _MUTATING_METHODS:
+        return False
+    return path == "/v1/skills" or path.startswith("/v1/skills/")
+
+
+def _is_memory_write_mutation(method: str, path: str) -> bool:
+    """W31-N (N.10): /v1/memory/write is a mutating route — guard with idempotency."""
+    if method not in _MUTATING_METHODS:
+        return False
+    return path == "/v1/memory/write"
+
+
+def _is_gates_decide_mutation(method: str, path: str) -> bool:
+    """W31-N (N.10): POST /v1/gates/{gate_id}/decide is a mutating route.
+
+    Gates are the single hand-off where human approval crosses the wire;
+    mistakenly recording the same decision twice breaks downstream audit
+    invariants, so idempotency is mandatory under research/prod posture.
+    """
+    if method not in _MUTATING_METHODS:
+        return False
+    return path.startswith("/v1/gates/")
+
+
+_DEFAULT_PREDICATES: tuple[_MutationPredicate, ...] = (
+    _is_runs_mutation,
+    _is_skills_mutation,
+    _is_memory_write_mutation,
+    _is_gates_decide_mutation,
+)
 
 
 class IdempotencyMiddleware(BaseHTTPMiddleware):
