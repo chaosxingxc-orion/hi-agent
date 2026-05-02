@@ -1,0 +1,22 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-05-02-aa073e12",
+  "verified_head": "aa073e129cb0ae9939034eeff29971df3d2b6e33",
+  "generated_at": "2026-05-02T19:57:04.045021+00:00",
+  "current_verified_readiness": 94.55,
+  "cap": null,
+  "cap_reason": "all gates pass",
+  "cap_factors": [],
+  "score_claim_issues": [],
+  "paired_evidence_issues": [],
+  "previous_wave_manifest_id": "2026-05-02-23a30d78",
+  "status": "pass",
+  "_evidence_meta": {
+    "provenance": "derived",
+    "head_sha": "194b37edf3333157f80889ca6364a9c0b8ea2c80",
+    "generated_at": "2026-05-02T19:57:04.082742+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\check_score_cap.py"
+  }
+}
