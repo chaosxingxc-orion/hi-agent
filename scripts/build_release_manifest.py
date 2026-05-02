@@ -402,6 +402,7 @@ def _compute_cap(
     expired_allowlist: int = 0,
     multistatus_pending_count: int = 0,
     tier: str = "current_verified_readiness",
+    head_short: str = "",
 ) -> tuple[float | None, str, list[str]]:
     """Return (cap_value, cap_reason, cap_factors) based on gate statuses and registry rules.
 
@@ -410,6 +411,9 @@ def _compute_cap(
     The lowest matching cap wins.
 
     tier: only rules whose scope includes this tier (or rules with no scope) are applied.
+    head_short: short-SHA of the manifest's release_head; used in the cap_reason
+        string when no cap fires (W31-D D-17' fix — replaces vague 'all gates pass'
+        language that is on the Rule 14 forbidden-phrase list).
     """
     cap_rules = _load_score_caps()
     if not cap_rules:
@@ -771,7 +775,11 @@ def _compute_cap(
             matched_caps.append(float(rule.get("cap", 70.0)))
 
     if not matched_factors:
-        return None, "all gates pass", []
+        # W31-D D-17' fix: replace Rule 14 forbidden-phrase 'all gates pass' with
+        # SHA-anchored language. When no cap fires we assert the absence of
+        # triggers at a specific SHA, not a positive global state.
+        sha_label = head_short or "unknown"
+        return None, f"no gate-fail conditions triggered at SHA {sha_label}", []
 
     lowest_cap = min(matched_caps)
     return lowest_cap, "; ".join(matched_factors), matched_factors
@@ -854,6 +862,10 @@ def _gather_evidence(gates: dict[str, Any]) -> dict[str, Any]:
     multistatus = _run_multistatus_runner()
     multistatus_pending_count = int(multistatus.get("defer_count", 0))
 
+    # W31-D D-17' fix: capture head_short here so _compute_score can pass it
+    # through to _compute_cap for SHA-anchored cap_reason language.
+    head_short = _git_short_sha()
+
     return {
         "dirty": dirty,
         "t3_status": t3_status,
@@ -863,6 +875,7 @@ def _gather_evidence(gates: dict[str, Any]) -> dict[str, Any]:
         "expired_allowlist_total": expired_allowlist_total,
         "clean_env_status": clean_env_status,
         "clean_env_summary_available": clean_env_summary_available,
+        "head_short": head_short,
         "multistatus": multistatus,
         "multistatus_pending_count": multistatus_pending_count,
     }
@@ -878,6 +891,10 @@ def _compute_score(gates: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
     t3_stale = evidence["t3_stale"]
     expired_allowlist_total = evidence["expired_allowlist_total"]
     multistatus_pending_count = int(evidence.get("multistatus_pending_count", 0))
+    # W31-D D-17' fix: forward head_short to _compute_cap so the no-cap-fired
+    # cap_reason string can name the SHA at which the assertion was verified
+    # (replacing the vague 'all gates pass' language).
+    head_short = str(evidence.get("head_short", ""))
 
     dimensions = _load_weights()
     raw = _compute_raw(dimensions) if dimensions else 0.0
@@ -889,6 +906,7 @@ def _compute_score(gates: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
         expired_allowlist=expired_allowlist_total,
         multistatus_pending_count=multistatus_pending_count,
         tier="current_verified_readiness",
+        head_short=head_short,
     )
     verified = round(min(raw, cap), 2) if cap is not None else raw
 
@@ -899,6 +917,7 @@ def _compute_score(gates: dict[str, Any], evidence: dict[str, Any]) -> dict[str,
         expired_allowlist=expired_allowlist_total,
         multistatus_pending_count=multistatus_pending_count,
         tier="seven_by_twenty_four_operational_readiness",
+        head_short=head_short,
     )
     seven_by_twenty_four = round(min(raw, cap_7x24), 2) if cap_7x24 is not None else raw
 
