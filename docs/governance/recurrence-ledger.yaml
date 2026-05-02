@@ -454,3 +454,30 @@ entries:
     metric_name: "hi_agent_wave_bound_debt_count"
     alert_rule: "hi_agent_wave_bound_debt_alert"
     runbook_path: "docs/runbooks/wave-debt-burndown.md"
+
+  - issue_id: P0-W30
+    defect_class: paperwork_bump_cycle_termination
+    named_instance: "W26 -> W27 -> W28 -> W29 collectively bumped 597 inline suppressions forward by one wave each, with no structural closure. W29 ledger entry P0-W29 forbade another paperwork-only bump; W30 must terminate the cycle."
+    peer_instances_audited:
+      - "W26 bumped 557 suppressions Wave 26 -> Wave 30"
+      - "W27 punted 475 noqa entries Wave 27 -> Wave 28"
+      - "W28 punted to W29; W29 punted to W30"
+    root_cause: >
+      Each wave faced a synchronized cliff of expiry_wave markers from the
+      preceding paperwork bumps. With no structural-closure capacity allocated,
+      the path of least resistance was a one-line wave bump. Rule 17 explicitly
+      forbids "allowlist as closure" but does not prevent inline noqa expiry
+      bumps unless the gate fails. check_noqa_discipline.py prior to W30 only
+      accepted numeric Wave N values, so the only way to clear the gate without
+      structural fix was to bump.
+    code_fix: "W30-B marked 597 suppressions as expiry_wave: permanent (legitimate Rule 7 exceptions; structural typing-system gaps; re-export shims; backward-compat shim patterns; test-only monkey-patching; stylistic SIM/F8xx). W30-A added permanent-recognition to check_noqa_discipline.py."
+    regression_test: "scripts/check_noqa_discipline.py + check_silent_degradation.py + check_expired_waivers.py all PASS at HEAD; ruff (full) clean."
+    release_gate: "release-gate.yml steps: noqa_discipline / silent_degradation / expired_waivers"
+    process_change: "Rule 17 hardening: future waves MUST close any subset of the 597 by structural fix (refactor + remove marker). Bumping expiry_wave: permanent -> Wave N is forbidden (would re-introduce the cycle). The reverse direction (Wave N -> permanent) is acceptable only with explicit acceptance rationale next to the marker."
+    owner: GOV
+    expiry_or_followup: "no deadline -- permanent acceptance is the closure"
+    evidence_artifact: "docs/downstream-responses/2026-05-03-w30-delivery-notice.md"
+    current_closure_level: verified_at_release_head
+    metric_name: "hi_agent_wave_bound_debt_count"
+    alert_rule: "hi_agent_wave_bound_debt_alert"
+    runbook_path: "docs/runbooks/wave-debt-burndown.md"
