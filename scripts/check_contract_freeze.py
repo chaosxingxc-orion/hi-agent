@@ -66,7 +66,16 @@ def _is_v1_released() -> bool:
 
 
 def do_snapshot() -> None:
-    """Capture SHA-256 digests of all contracts/*.py files and write the snapshot JSON."""
+    """Capture SHA-256 digests of all contracts/*.py files and write the snapshot JSON.
+
+    W31-N (N.8): the helper now overwrites ``V1_FROZEN_HEAD`` in
+    ``agent_server/config/version.py`` unconditionally — previously it
+    only filled in an empty literal, which let the JSON and version.py
+    drift apart whenever a re-snapshot ran after an initial bootstrap.
+    The two values must agree at all times; the legacy "if empty"
+    branch was a single-shot conditional that the post-V1 freeze cycle
+    silently bypassed.
+    """
     if not CONTRACTS_DIR.exists():
         print(f"SKIP snapshot: {CONTRACTS_DIR} does not exist")
         sys.exit(0)
@@ -82,16 +91,43 @@ def do_snapshot() -> None:
     SNAP_PATH.write_text(json.dumps(snap, indent=2, sort_keys=True), encoding="utf-8")
     print(f"Snapshot written: {SNAP_PATH} ({len(digests)} files, HEAD={head[:8]})")
 
-    # Update V1_FROZEN_HEAD in version.py
+    # Update V1_FROZEN_HEAD in version.py — overwrite whatever was there.
     content = VERSION_PY.read_text(encoding="utf-8")
-    if 'V1_FROZEN_HEAD = ""' in content:
-        content = content.replace('V1_FROZEN_HEAD = ""', f'V1_FROZEN_HEAD = "{head}"')
+    new_line = f'V1_FROZEN_HEAD = "{head}"'
+    import re as _re
+    pattern = _re.compile(r'^V1_FROZEN_HEAD\s*=\s*"[^"]*"', _re.MULTILINE)
+    if pattern.search(content):
+        content = pattern.sub(new_line, content, count=1)
         VERSION_PY.write_text(content, encoding="utf-8")
         print(f"Updated version.py V1_FROZEN_HEAD = \"{head}\"")
+    else:
+        print(
+            f"WARN: V1_FROZEN_HEAD assignment not found in {VERSION_PY}; "
+            "leaving version.py untouched"
+        )
+
+
+def _read_version_v1_frozen_head() -> str:
+    """Return the V1_FROZEN_HEAD string from version.py (W31-N N.8)."""
+    try:
+        content = VERSION_PY.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    import re as _re
+    match = _re.search(r'^V1_FROZEN_HEAD\s*=\s*"([^"]*)"', content, _re.MULTILINE)
+    if match is None:
+        return ""
+    return match.group(1)
 
 
 def do_enforce() -> GateResult:
-    """Compare current contracts/*.py digests against the saved snapshot."""
+    """Compare current contracts/*.py digests against the saved snapshot.
+
+    W31-N (N.8): also asserts that ``V1_FROZEN_HEAD`` in version.py
+    matches ``v1_frozen_head`` in contract_v1_freeze.json. A drift
+    between the two means subsequent freeze re-runs would not know which
+    of the two to trust, so the gate fails closed.
+    """
     if not CONTRACTS_DIR.exists():
         return GateResult(
             status=GateStatus.PASS,
@@ -109,6 +145,25 @@ def do_enforce() -> GateResult:
 
     snap = json.loads(SNAP_PATH.read_text(encoding="utf-8"))
     violations: list[dict[str, str]] = []
+
+    # W31-N (N.8): version.py must agree with the snapshot file.
+    snap_head = str(snap.get("v1_frozen_head", ""))
+    version_head = _read_version_v1_frozen_head()
+    if snap_head and version_head and snap_head != version_head:
+        return GateResult(
+            status=GateStatus.FAIL,
+            gate_name="contract_freeze",
+            reason=(
+                "v1_frozen_head drift: version.py "
+                f"({version_head[:8]}) != contract_v1_freeze.json "
+                f"({snap_head[:8]}); run --snapshot to resync"
+            ),
+            evidence={
+                "version_py_head": version_head,
+                "snapshot_head": snap_head,
+                "drift": True,
+            },
+        )
 
     for rel_path, expected in snap["digests"].items():
         actual_path = ROOT / rel_path
@@ -143,12 +198,14 @@ def do_enforce() -> GateResult:
         gate_name="contract_freeze",
         reason=(
             f"all {len(snap['digests'])} contract files match snapshot "
-            f"(frozen at {snap['v1_frozen_head'][:8]})"
+            f"(frozen at {snap['v1_frozen_head'][:8]}); "
+            f"version.py V1_FROZEN_HEAD agrees"
         ),
         evidence={
             "v1_frozen_head": snap["v1_frozen_head"],
             "files_checked": len(snap["digests"]),
             "violations": [],
+            "version_py_head": version_head,
         },
     )
 
