@@ -153,7 +153,6 @@ CREATE TABLE IF NOT EXISTS team_runs (
             user_id=user_id,
             session_id=session_id,
             lead_run_id=effective_lead,
-            pi_run_id=effective_lead,  # backward compat: mirror lead_run_id into deprecated field
         )
 
     # -- public API ----------------------------------------------------------
