@@ -98,11 +98,11 @@ def test_post_runs_idempotency_replays_same_response(
     headers = {"X-Tenant-Id": "tenant-prod-1", "Idempotency-Key": "ria-pipe-1"}
 
     first = client.post("/v1/runs", json=body, headers=headers)
-    assert first.status_code == 200, first.text
+    assert first.status_code == 201, first.text
     second = client.post("/v1/runs", json=body, headers=headers)
-    assert second.status_code == 200, second.text
+    assert second.status_code == 201, second.text
     third = client.post("/v1/runs", json=body, headers=headers)
-    assert third.status_code == 200, third.text
+    assert third.status_code == 201, third.text
 
     first_body = json.loads(first.content)
     second_body = json.loads(second.content)
@@ -137,7 +137,7 @@ def test_post_runs_different_body_same_key_returns_409(
         json={"profile_id": "default", "goal": "first", "idempotency_key": "ria-pipe-2"},
         headers=headers,
     )
-    assert first.status_code == 200, first.text
+    assert first.status_code == 201, first.text
 
     second = client.post(
         "/v1/runs",
