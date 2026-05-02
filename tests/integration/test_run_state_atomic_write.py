@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import hi_agent.state.run_state as run_state_module
+import hi_agent.run_state_store.run_state as run_state_module
 import pytest
-from hi_agent.state import RunStateSnapshot, RunStateStore
+from hi_agent.run_state_store import RunStateSnapshot, RunStateStore
 
 
 def _make_snapshot(run_id: str) -> RunStateSnapshot:

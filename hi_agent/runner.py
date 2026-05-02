@@ -71,7 +71,7 @@ from hi_agent.runner_lifecycle import RunLifecycle
 from hi_agent.runner_stage import StageExecutor
 from hi_agent.runner_telemetry import RunTelemetry
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
-from hi_agent.state import RunStateSnapshot, RunStateStore
+from hi_agent.run_state_store import RunStateSnapshot, RunStateStore
 from hi_agent.trajectory.optimizers import GreedyOptimizer
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
 

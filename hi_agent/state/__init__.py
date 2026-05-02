@@ -1,5 +1,16 @@
-"""Run state persistence primitives."""
+"""DEPRECATED — use ``hi_agent.run_state_store`` instead. Removed in W34.
 
-from hi_agent.state.run_state import RunStateSnapshot, RunStateStore
+This shim was added when ``hi_agent.state`` (one file: RunStateSnapshot,
+RunStateStore) was renamed to ``hi_agent.run_state_store`` to disambiguate
+from ``hi_agent.state_machine`` (formal FSM definitions).
+"""
 
-__all__ = ["RunStateSnapshot", "RunStateStore"]
+import warnings
+
+warnings.warn(
+    "hi_agent.state is deprecated; use hi_agent.run_state_store",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from hi_agent.run_state_store import *  # noqa: F401, F403, E402  # expiry_wave: Wave 34

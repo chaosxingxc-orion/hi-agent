@@ -38,7 +38,7 @@ from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.skill.matcher import SkillMatcher
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry
-from hi_agent.state import RunStateStore
+from hi_agent.run_state_store import RunStateStore
 from hi_agent.task_decomposition.decomposer import TaskDecomposer
 
 

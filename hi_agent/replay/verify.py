@@ -7,7 +7,7 @@ from pathlib import Path
 
 from hi_agent.replay.engine import ReplayEngine, ReplayReport
 from hi_agent.replay.io import load_event_envelopes_jsonl
-from hi_agent.state import RunStateSnapshot, RunStateStore
+from hi_agent.run_state_store import RunStateSnapshot, RunStateStore
 
 
 @dataclass(slots=True)
