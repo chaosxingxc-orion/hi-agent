@@ -491,24 +491,10 @@ def _compute_cap(
                     if matched:
                         return f"provenance_unknown_or_synthetic: {json_file.name}={matched}"
             return None
-        if condition == "soak_24h_missing":
-            # partial_1h status grants 1h credit and is handled by the
-            # separate `soak_24h_pending` rule (cap 80). Only fire missing when
-            # status is neither `pass` nor `partial_1h`.
-            soak_gate = gates.get("soak_evidence")
-            soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-            if soak_status in ("pass", "partial_1h"):
-                return None
-            return f"soak_24h_missing: {soak_status}"
-        if condition == "soak_24h_pending":
-            # real 1h soak evidence with invariants_held grants partial
-            # credit — caps 7x24 readiness at 80 (from 65 under missing).
-            soak_gate = gates.get("soak_evidence")
-            soak_status = soak_gate.get("status", "unknown") if isinstance(soak_gate, dict) else "unknown"  # noqa: E501  # expiry_wave: Wave 30  # added: W25 baseline sweep
-            return f"soak_24h_pending: {soak_status}" if soak_status == "partial_1h" else None
-        # observability_spine_incomplete + chaos_non_runtime_coupled retired
-        # in W28+: 7x24 is governed by the single architectural assertion
-        # rule (see condition == "architectural_seven_by_twenty_four" below).
+        # soak_24h_missing / soak_24h_pending / observability_spine_incomplete /
+        # chaos_non_runtime_coupled were retired in W28+: 7x24 is governed by
+        # the single architectural assertion rule (see condition ==
+        # "architectural_seven_by_twenty_four" below).
         if condition == "t3_shape_verified":
             t3_gate = gates.get("t3_freshness")
             t3_provenance = t3_gate.get("provenance", "") if isinstance(t3_gate, dict) else ""
