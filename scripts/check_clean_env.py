@@ -92,36 +92,44 @@ def _is_gov_infra_commit(sha: str) -> bool:
         return False
 
 
-def _find_functional_head(head_sha: str) -> str:
-    """Walk backwards until we reach a non-gov-infra commit.
+def _walk_gov_infra_history(head_sha: str, max_depth: int = 20) -> list[str]:
+    """Return the list of SHAs reachable from head while every step is gov-infra.
 
-    Accepts a clean-env evidence file from a SHA if all commits between that
-    SHA and HEAD are gov-infra-only (docs/scripts/.github), matching the
-    same exemption logic as check_t3_freshness.py.
+    Stops at the first non-gov-infra commit (which is *included* in the result
+    so it can serve as the functional head). Bounded by ``max_depth`` to avoid
+    runaway walks.
     """
     sha = head_sha
-    for _ in range(20):  # bound walk depth
+    walked: list[str] = []
+    for _ in range(max_depth):
+        walked.append(sha)
+        if not _is_gov_infra_commit(sha):
+            return walked  # functional commit reached
         parent_result = subprocess.run(
             ["git", "rev-parse", f"{sha}^"],
             capture_output=True, text=True, timeout=10, cwd=str(ROOT),
         )
         if parent_result.returncode != 0:
             break
-        if not _is_gov_infra_commit(sha):
-            return sha  # this commit touches hot/functional files
         sha = parent_result.stdout.strip()
-    return sha
+    return walked
+
+
+def _find_functional_head(head_sha: str) -> str:
+    """Last commit in the gov-infra walk -- backward compatible single-sha API."""
+    walked = _walk_gov_infra_history(head_sha)
+    return walked[-1] if walked else head_sha
 
 
 def _find_candidates(head_sha: str) -> list[Path]:
     """Find clean-env evidence files for the given HEAD SHA in both dirs.
 
-    Also searches by the "functional HEAD" — the last non-gov-infra commit
-    reachable from HEAD — so that evidence committed as a gov-infra-only
-    commit (docs/verification/ write) remains valid across the evidence commit.
+    Searches at every SHA in the gov-infra walk so that evidence written at
+    any earlier docs/scripts/.github-only commit remains valid across later
+    docs-only follow-ons (manifest commits, notice updates).
     """
-    functional_sha = _find_functional_head(head_sha)
-    shas_to_search = {head_sha, functional_sha}
+    shas_to_search = set(_walk_gov_infra_history(head_sha))
+    shas_to_search.add(head_sha)
 
     candidates: list[Path] = []
     for sha in shas_to_search:
