@@ -1,0 +1,76 @@
+{
+  "wave": 31,
+  "release_head": "bd8bc2c2f72b46a91d1b83c4c53fc2719e6631cf",
+  "manifest_id": "2026-05-02-bd8bc2c2",
+  "signed_at": "2026-05-03T20:55:00Z",
+  "signed_by": "platform-team",
+  "status": "SHIP",
+  "ship_caveat": {
+    "open_item": "W31-L1 real ≥4h soak in flight; cap holds at soak_evidence_not_real=75 until evidence file lands at docs/verification/<head>-soak-240m.json with provenance=real",
+    "binding_followup": "if no soak evidence within 12h of this signoff, cap_7x24 returns to 65 and Known-Defect Notice (Rule 9) is filed",
+    "negotiation_with_ria": "post-soak cap proposed at 75 (architectural assertions remain complementary fast-feedback signal); RIA may accept 75 or hold at 65"
+  },
+  "scorecard": {
+    "raw_implementation_maturity": 94.5,
+    "current_verified_readiness": 55.0,
+    "seven_by_24_operational_readiness": 90.0,
+    "conditional_readiness_after_blockers": 55.0
+  },
+  "cap_factors": [
+    "head_mismatch (resolved when this signoff + notice + manifest land in same commit)",
+    "notice_inconsistency (resolved by this notice)",
+    "soak_evidence_not_real (open; expected cap=75 post-soak)",
+    "gate_fail: doc_consistency (resolved by this notice)",
+    "gate_fail: evidence_provenance (3 historical W27 artifacts; documented in W28 erratum)"
+  ],
+  "manifest_rewrite_count": 1,
+  "rule_14_strict": {
+    "release_head_equals_head": true,
+    "is_dirty": false,
+    "atomic_commit_planned": true,
+    "permitted_post_manifest_commits": ["the manifest file itself", "this signoff", "the closure notice"]
+  },
+  "rule_15_levels": {
+    "B-1": "verified_at_release_head",
+    "B-2": "verified_at_release_head",
+    "B-3": "wired_into_default_path",
+    "B-4": "verified_at_release_head",
+    "B-5": "verified_at_release_head",
+    "B-6": "verified_at_release_head"
+  },
+  "directive_acceptance_table": {
+    "W31-N1": "PASS",
+    "W31-N2": "PASS",
+    "W31-N3": "PASS",
+    "W31-N4": "PASS",
+    "W31-L1": "IN-PROGRESS",
+    "W31-L2": "PASS",
+    "W31-G1": "PASS",
+    "W31-D1": "PASS",
+    "W31-D2": "PASS",
+    "W31-D3": "PASS",
+    "W31-T1": "PASS",
+    "W31-H1": "PASS",
+    "W31-H2": "PASS",
+    "W31-H3": "PASS"
+  },
+  "hidden_findings_closed": {
+    "N": "13 of 13",
+    "L": "14 of 15 (L-3' chaos provenance hardcode tracked Wave 33)",
+    "D": "18 of 20 (2 minor housekeeping items Wave 33)",
+    "T": "22 of 27 (5 medium items Wave 33)",
+    "H": "12 of 16 (4 medium-low items Wave 33)"
+  },
+  "test_results": {
+    "default_offline": "9175 passed, 8 skipped at HEAD bd8bc2c2",
+    "tenant_isolation_suite": "297 passed, 0 xfailed (down from 7 xfailed)",
+    "n_track_acceptance": "42 passed (layering + bootstrap + idempotency + scripts)",
+    "agent_server_full": "117 passed",
+    "rule_8_step_6_cancel": "404 unknown / 200 live — verified by T3 gate at 1bd3ddf0"
+  },
+  "t3_evidence": "docs/delivery/2026-05-03-1bd3ddf0-t3-volces.json (provenance: real, Volces; 3 sequential runs PASS)",
+  "previous_wave_manifest": "2026-05-02-aa073e12 (W30)",
+  "current_wave_txt": "31",
+  "downstream_directive": "research/docs/hi-agent-wave31-blocker-closure-requirements-2026-05-02.md (M1)",
+  "promote_to_m2": "After RIA team reviews this closure and confirms acceptance"
+}
