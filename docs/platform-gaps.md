@@ -14,15 +14,22 @@ hi-agent is the **capability platform layer**. The research team is the **busine
 
 ## P-1 through P-7 Gap Status
 
-| Gap | Research Priority | hi-agent Status | Latest Action | Target Phase |
-|---|---|---|---|---|
-| **P-1** Provenance standard — `RawMemoryEntry.provenance` field, `CapabilitySpec.source_reference` contract | HIGH | **L3** (per W30 notice) | project_id posture-required (CO-2, Wave 9); contract spine completeness enforced under research/prod (Wave 10.2); GateStore/TeamRunRegistry/FeedbackStore/RunQueue all carry tenant/user/session/project fields. | Phase 2 ✓ |
-| **P-2** Reasoning trace storage — structured side-channel for stage LLM reasoning steps | HIGH | **L2** (per W30 notice) | ReasoningTrace schema + write hook delivered Wave 9 (TE-5). Route `GET /runs/{id}/reasoning-trace` deferred to L2; schema + evidence hook at L1. Downstream can consume via artifact ledger. | Phase 2 ✓ |
-| **P-3** Cross-Run Project aggregation — `project_id` scope alongside `profile_id`; memory spanning multiple runs | HIGH | **L2** (per W30 notice) | project_id first-class in RunRecord (CO-4, Wave 9); posture-required under research/prod (CO-2); cross-run project query wired (list_runs_by_project, Wave 10.2). | Phase 2 ✓ |
-| **P-4** Dynamic re-planning API — `StageDirective(skip_to, insert_stage)` mid-run plan mutation | MEDIUM | **FULL** (per W30 notice — manifest 2026-05-02-aa073e12) | StageDirective(skip_to, insert_stage with target_stage_id) wired in run_linear + run_graph + run_resume with posture-aware fail-closed; 3 spine event kinds (stage_skipped/inserted/replanned). FULL closure recorded against W30 manifest `2026-05-02-aa073e12` (Functional HEAD aa073e129cb0ae9939034eeff29971df3d2b6e33). | Phase 3 ✓ |
-| **P-5** Confidence scoring contract — `Artifact.confidence: float`, `evidence_count` fields | MEDIUM | **L2** (per W30 notice) | ArtifactLedger durable (TE-2, Wave 9); evidence_count/content_hash/producer fields on Artifact (CO-5, Wave 9); idempotency replay returns byte-identical snapshot (H1-Track1). | Phase 2 ✓ |
-| **P-6** Knowledge Graph inference layer — transitive queries, conflict detection on `LongTermMemoryGraph` | MEDIUM | **L3** (per W30 notice) | SqliteKnowledgeGraphBackend deployed as default under research/prod (Wave 10.5); posture-aware factory; upsert_node/upsert_edge/query_relation/transitive_query/detect_conflict supported. Neo4j permanently declined. | Phase 3 ✓ |
-| **P-7** Feedback integration path — `submit_run_feedback()` API wired to `EvolveEngine`/`HybridRouteEngine` | MEDIUM | **L0 unchanged (deferred per RIA W31 directive §6 — calibration quality is post-integration)** | ExperimentStore durable (Wave 10.4, L2); EvolveEngine writes EvolutionExperiment on proposals; active calibration deferred per RIA W31 directive §6 — calibration quality is post-integration. | Phase 3 deferred |
+**Schema note (W31 D-1'):** P-1..P-7 below use the **W30-notice taxonomy** (canonical, per
+`docs/governance/p-gap-vocabulary.md`). A different P-N taxonomy used in pre-W31 notices
+(P-1=Provenance, P-2=Reasoning trace, P-3=Cross-Run Project, P-4=Dynamic re-planning,
+P-5=Confidence, P-6=KG inference, P-7=Feedback) is retired — see vocabulary doc for the
+mapping. Status fields below are byte-equal to the W30 delivery notice
+(`docs/downstream-responses/2026-05-03-w30-delivery-notice.md` §"Platform Gap Status").
+
+| Gap | hi-agent Status | Latest Action | Target Phase |
+|---|---|---|---|
+| **P-1** Long-running task | **L3** (per W30 notice) | RunQueue posture-default durable (RO-3); RunStore project_id first-class (CO-4); TeamRunRegistry durable (RO-4); cross-process restart wired through full server boot (W10.4 Class L); RecoveryState enum + decide_recovery_action() at L3 (W10.5). | Phase 2 ✓ |
+| **P-2** Multi-agent team | **L2** (per W30 notice) | TeamRunSpec platform contract (CO-7, Wave 9); TeamRunRegistry SQLite-durable (RO-4); status/finished_at spine (W10.2); TeamRun/AgentRole dataclasses; cross-tenant routes_team isolation (W10.5 Class H). | Phase 2 ✓ |
+| **P-3** Evolution closed-loop | **L2** (per W30 notice) | ProjectPostmortem + CalibrationSignal + on_project_completed wired (W27 L16); ExperimentStore durable (W10.4); EvolveEngine writes EvolutionExperiment on proposals; ReasoningTrace schema + write hook (TE-5). | Phase 2 ✓ |
+| **P-4** StageDirective wiring | **FULL** (per W30 notice — manifest 2026-05-02-aa073e12) | StageDirective(skip_to, insert_stage with target_stage_id) wired in run_linear + run_graph + run_resume with posture-aware fail-closed; 3 spine event kinds (stage_skipped/inserted/replanned). FULL closure recorded against W30 manifest `2026-05-02-aa073e12` (Functional HEAD aa073e129cb0ae9939034eeff29971df3d2b6e33). | Phase 3 ✓ |
+| **P-5** KG abstraction | **L2** (per W30 notice) | KnowledgeGraphBackend Protocol + JsonGraphBackend alias (Wave 9); SqliteKnowledgeGraphBackend Protocol-compliant (W10.4 Class R); posture-aware factory (W10.4); cross-tenant routes_knowledge isolation (W10.4). Higher inference (transitive/conflict-detect) deployed as default under research/prod at W10.5 — see Capability Matrix "Knowledge Graph" L3 row. Neo4j permanently declined (see "Permanently Declined" below). | Phase 3 ✓ |
+| **P-6** TierRouter | **L3** (per W30 notice) | TierRouter + TierAwareLLMGateway with active calibration (W27 L4); ingest_calibration_signal → routing weight feedback loop; rule-7 WARNING on tier upgrade; 19 unit + 8 integration tests at commit `984d3a2d`. | Phase 3 ✓ |
+| **P-7** ResearchProjectSpec | **L0 unchanged** (deferred per RIA W31 directive §6 — calibration quality is post-integration) | ResearchProjectSpec is a research-team workspace model; platform layer offers `TeamRunSpec` as the platform-neutral equivalent (Wave 9 CO-7; L2). Active integration into hi-agent core is **out of capability-layer scope** per Rule 10 + 3-gate intake; calibration deferred per RIA W31 directive §6. | Phase 3 deferred |
 
 ---
 
@@ -77,5 +84,5 @@ hi-agent is the **capability platform layer**. The research team is the **busine
 
 | Ask | Reason |
 |---|---|
-| P2-2: Neo4j-backed L3 with Cypher | Permanently declined. JSON-backed `LongTermMemoryGraph` satisfies all required graph operations at our scale. Neo4j adds external service dependency without functional gain. Downstream can implement `KnowledgeGraphBackend` Protocol with Neo4j if needed. |
-| P3-2: `TierRouter.calibrate()` | Renamed to `ingest_calibration_signal()` — record-only. Active calibration (routing influence) deferred to Wave 19. |
+| P2-2: Neo4j-backed L3 with Cypher (under P-5 KG abstraction) | Permanently declined. SQLite-backed `SqliteKnowledgeGraphBackend` satisfies all required graph operations at our scale. Neo4j adds external service dependency without functional gain. Downstream can implement `KnowledgeGraphBackend` Protocol with Neo4j if needed. |
+| P3-2: `TierRouter.calibrate()` (under P-6 TierRouter) | Renamed to `ingest_calibration_signal()` — record-only at W10.4. **Superseded by W27 L4: active calibration shipped — `ingest_calibration_signal` now influences routing weights** (`tests/integration/test_tier_router_ingest_calibration.py`, commit 984d3a2d). |
