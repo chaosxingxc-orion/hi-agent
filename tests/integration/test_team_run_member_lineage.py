@@ -19,7 +19,7 @@ def test_register_and_retrieve_team():
     registry.register(team)
     retrieved = registry.get("t1")
     assert retrieved is not None
-    assert retrieved.pi_run_id == "run-pi"
+    assert retrieved.lead_run_id == "run-pi"
 
 
 def test_list_members_returns_all_pairs():
@@ -64,7 +64,7 @@ def test_register_replaces_existing():
     )
     registry.register(team_v1)
     registry.register(team_v2)
-    assert registry.get("t3").pi_run_id == "run-pi-v2"  # type: ignore[union-attr]  expiry_wave: Wave 29
+    assert registry.get("t3").lead_run_id == "run-pi-v2"  # type: ignore[union-attr]
 
 
 def test_unregister_removes_team():

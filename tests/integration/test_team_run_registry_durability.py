@@ -42,7 +42,7 @@ class TestTeamRunRegistryDurability:
 
         assert loaded is not None
         assert loaded.team_id == "team-001"
-        assert loaded.pi_run_id == "run-pi-001"
+        assert loaded.lead_run_id == "run-pi-001"
         assert loaded.project_id == "proj-001"
         assert ("role-survey", "run-survey-001") in loaded.member_runs
         assert ("role-writer", "run-writer-001") in loaded.member_runs
@@ -66,7 +66,7 @@ class TestTeamRunRegistryDurability:
         reg.close()
 
         assert loaded is not None
-        assert loaded.pi_run_id == "run-v2"
+        assert loaded.lead_run_id == "run-v2"
 
     def test_get_missing_team_returns_none(self, tmp_path):
         reg = TeamRunRegistry(db_path=str(tmp_path / "r.sqlite"))
