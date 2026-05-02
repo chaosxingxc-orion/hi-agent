@@ -182,6 +182,61 @@ def _is_dirty() -> bool:
     return result.returncode != 0
 
 
+def _find_arch_evidence_for_head(head_sha: str) -> pathlib.Path | None:
+    """Find arch-7x24 evidence keyed to the given HEAD SHA. No mtime fallback.
+
+    W31-L L-2' fix: previously _compute_cap used a mtime-sorted glob over
+    every *-arch-7x24.json in docs/verification/, which silently cleared
+    the cap whenever any evidence existed (even at a different SHA).
+    This helper mirrors scripts/check_soak_evidence._find_arch_evidence:
+    exact short SHA or exact full SHA filename, nothing else. Callers must
+    treat ``None`` as "no evidence at HEAD; cap fires".
+    """
+    if not head_sha or head_sha == "unknown":
+        return None
+    verif_dir = ROOT / "docs" / "verification"
+    if not verif_dir.exists():
+        return None
+    exact_short = verif_dir / f"{head_sha[:8]}-arch-7x24.json"
+    if exact_short.exists():
+        return exact_short
+    exact_full = verif_dir / f"{head_sha}-arch-7x24.json"
+    if exact_full.exists():
+        return exact_full
+    # Try 7-char short-SHA variant (some scripts emit 7-char prefixes).
+    exact_7 = verif_dir / f"{head_sha[:7]}-arch-7x24.json"
+    if exact_7.exists():
+        return exact_7
+    return None
+
+
+def _find_soak_evidence_for_head(head_sha: str) -> pathlib.Path | None:
+    """W31-L L-12'/L-13' helper: find soak evidence keyed to HEAD SHA.
+
+    Mirrors :func:`_find_arch_evidence_for_head` for *-soak-*.json artifacts
+    produced by scripts/run_soak.py (1h or 24h). Used by the new
+    ``soak_evidence_not_real`` cap rule which fires when no soak evidence
+    file exists for the current HEAD or when its provenance is not real.
+    """
+    if not head_sha or head_sha == "unknown":
+        return None
+    verif_dir = ROOT / "docs" / "verification"
+    if not verif_dir.exists():
+        return None
+    candidates = [
+        verif_dir / f"{head_sha[:8]}-soak-1h.json",
+        verif_dir / f"{head_sha[:8]}-soak-24h.json",
+        verif_dir / f"{head_sha[:7]}-soak-1h.json",
+        verif_dir / f"{head_sha[:7]}-soak-24h.json",
+        verif_dir / f"{head_sha}-soak-1h.json",
+        verif_dir / f"{head_sha}-soak-24h.json",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
+
+
 def _run_gate(gate_key: str, script: str, has_json: bool, extra_args: list[str] | None = None, timeout: int = 120) -> dict[str, Any]:  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
     """Run a governance script and return a gate result dict."""
     script_path = SCRIPTS / script
@@ -669,16 +724,25 @@ def _compute_cap(
                         return f"score_artifact_inconsistent: {sf.name} manifest_id={manifest_id} not in filename"  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
             return None
         if condition == "architectural_seven_by_twenty_four":
-            # Cap fires when arch-7x24 evidence is absent or any assertion fails.
-            # Evidence produced by scripts/run_arch_7x24.py at final HEAD.
-            arch_files = sorted(
-                (ROOT / "docs" / "verification").glob("*arch-7x24.json"),
-                key=lambda p: p.stat().st_mtime,
-            )
-            if not arch_files:
-                return "architectural_seven_by_twenty_four: no evidence file found"
+            # Cap fires when arch-7x24 evidence is absent at current HEAD or
+            # any assertion fails. Evidence produced by scripts/run_arch_7x24.py.
+            #
+            # W31-L (L-2' fix): HEAD-tied lookup, NOT mtime-sorted glob.
+            # The mtime-sort path silently cleared the cap whenever ANY
+            # arch-7x24 evidence existed (including stale evidence at a
+            # previous SHA). The lookup is now SHA-tied and mirrors
+            # check_soak_evidence._find_arch_evidence(): exact short or full
+            # SHA filename, no fallback. Without HEAD-tied evidence, the cap
+            # fires.
+            head_sha = _git_head_sha()
+            arch_file = _find_arch_evidence_for_head(head_sha)
+            if arch_file is None:
+                return (
+                    "architectural_seven_by_twenty_four: no evidence file at HEAD "
+                    f"({head_sha[:12]}); run scripts/run_arch_7x24.py"
+                )
             try:
-                arch_data = json.loads(arch_files[-1].read_text(encoding="utf-8"))
+                arch_data = json.loads(arch_file.read_text(encoding="utf-8"))
             except Exception:
                 return "architectural_seven_by_twenty_four: evidence unreadable"
             assertions = arch_data.get("assertions", {})

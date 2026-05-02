@@ -1,0 +1,58 @@
+{
+  "wave": 28,
+  "manifest_id": "2026-05-02-9e607a65",
+  "release_head": "9e607a6560609912ffff2c0fd155bb9b18833ed0",
+  "signed_by": null,
+  "signed_at": null,
+  "status": "rescinded",
+  "rescinded_at": "2026-05-03T00:00:00Z",
+  "rescinded_in_wave": 31,
+  "rescinded_by_commit": "W31-D D-12' errata-infrastructure",
+  "rescinded_reason": [
+    "W28 had no formal release-captain signoff at the time of publication (no docs/releases/wave28-signoff.json was ever created).",
+    "W28 declared verified=94.55 with notice-pre-final-commit:true and Functional HEAD 9e607a65, but after PR#17 merge main HEAD became 24742d7d -- the manifest's release_head stayed stale at 9e607a65. Per Rule 14 a stale release_head caps verified at 50; the 94.55 W28 claim was therefore structurally invalid.",
+    "W28's seven_by_24_operational_readiness reform retired the wall-clock-soak cap without a paired-evidence rule, so the 94.55 7x24 score was a metric redefinition, not a measured score.",
+    "W29 retroactively closed the release-identity break (commit 9add02bc) and adopted 23a30d78 as the first honest verified=94.55 release. W31-L closes the paired-evidence rule for cap-retirement."
+  ],
+  "rescinded_corrections": {
+    "verified_readiness": {
+      "claimed": 94.55,
+      "rule_14_capped_value": 50,
+      "rule_14_basis": "release_head=9e607a65 != main HEAD=24742d7d after PR#17 merge"
+    },
+    "seven_by_24_operational_readiness": {
+      "claimed": 94.55,
+      "honest_value": "deferred (no measured soak evidence; cap-retirement pending paired-evidence rule W31-L)"
+    },
+    "current_verified_readiness": {
+      "claimed": 94.55,
+      "rule_14_capped_value": 50
+    },
+    "cap_factors": {
+      "claimed_to_be_empty": true,
+      "actual_cap_factors_per_rule_14": [
+        "release_head_mismatch (cap 70 -> further capped 50 by stale-head policy)",
+        "soak_cap_retired_without_paired_evidence (W31-L finding)"
+      ]
+    }
+  },
+  "scope_at_publication_for_historical_record": [
+    "W28 was published as part of PR#17 (Wave 25-28 unified delivery, merge commit 24742d7d).",
+    "W28's stated lanes (Lane 4 P-7 TierRouter L1->L3, etc.) were merged in that PR.",
+    "The rescission applies only to the verified-readiness numerical claims, not to the merged code/test deliverables. Code merged in PR#17 remains valid; the readiness scoring of that code at the time of W28 close was misstated."
+  ],
+  "supersedes": null,
+  "superseded_by": "wave29-signoff.json (the W29 atomic close at HEAD b2eea41 / manifest 23a30d78 is the first honest verified=94.55 record)",
+  "errata_links": [
+    "docs/governance/errata/2026-05-02-W28-readiness-correction.md",
+    "docs/governance/errata/2026-05-02-W28-manifest-path-relocation.md",
+    "docs/governance/errata/2026-05-02-W28-cap-reason-language.md"
+  ],
+  "recurrence_prevention": {
+    "release_head_mismatch": "scripts/check_notice_pre_final_commit_clean.py (W29-A 9add02bc) + scripts/check_manifest_freshness.py (W16-A8) + scripts/check_release_identity.py (W16-A8)",
+    "soak_cap_retirement_paired_evidence": "W31-L Track L deliverables (scripts/check_score_cap.py paired-evidence rule + tests/scripts/test_score_cap_paired_evidence.py)",
+    "missing_signoff_per_wave": "docs/governance/release-captain-checklist.md (W16-G3) + scripts/check_recurrence_ledger.py (W16-G3)",
+    "manifest_rewrite_explosion": "scripts/check_manifest_rewrite_budget.py (W17-B19) caps at 3 rewrites per wave; W28 had 19 rewrites and would now require captain escalation"
+  },
+  "note": "This file is non-canonical for delivery purposes. The canonical 'first honest 94.55' release is Wave 29 (wave29-signoff.json). This file exists to record that W28's signoff is rescinded and to provide a stable artifact for tooling that scans docs/releases/ for wave-N signoffs."
+}
