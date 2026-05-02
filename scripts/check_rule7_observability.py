@@ -44,6 +44,14 @@ _RULE7_EXEMPT_LITERAL = "rule7-exempt"
 
 # Matches ``# rule7-exempt: expiry_wave="Wave N"`` to extract wave number.
 _EXPIRY_RE = re.compile(r'rule7-exempt[^"\']*["\']?[Ww]ave\s+(\d+)["\']?')
+# W30: matches ``# rule7-exempt: expiry_wave="permanent"`` (or with ``:`` form)
+# Permanent declarations are accepted closure per Rule 17 (tracked technical
+# debt, not a closure to bump). The annotation MUST appear next to a brief
+# justification; this gate doesn't validate the justification text.
+_PERMANENT_RE = re.compile(
+    r'rule7-exempt[^"\']*expiry_wave\s*[:=]\s*["\']?permanent["\']?',
+    re.IGNORECASE,
+)
 
 _CURRENT_WAVE_PATH = _REPO_ROOT / "docs" / "governance" / "current-wave.txt"
 
@@ -94,6 +102,10 @@ def _scan_file(path: Path, current_wave_num: int | None) -> list[dict[str, objec
 
         # Check for rule7-exempt annotation.
         if _RULE7_EXEMPT_LITERAL not in line:
+            continue
+
+        # W30: permanent declarations are valid closure (Rule 17 tracked debt).
+        if _PERMANENT_RE.search(line):
             continue
 
         # Allow if expiry_wave is in the future.

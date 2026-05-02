@@ -2,6 +2,7 @@
 
 **Date:** 2026-04-26
 **Status:** historical-acknowledgement
+Manifest: 2026-05-02-aa073e12 (the W30 manifest under which this stub was created)
 
 This file exists to satisfy `check_doc_truth.py`'s sibling-response-file
 requirement for Wave 10 delivery notices that predate the response-file
