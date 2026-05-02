@@ -88,3 +88,78 @@ paired-evidence rule. The corrected interpretation of W28 readiness is:
   must be derived from manifest facts.
 - **Rule 15** — Closure-claim taxonomy: "all gates pass" without evidence at the
   release HEAD is not a valid closure claim.
+
+---
+
+## L-track perspective (W31-L appendix)
+
+Audit perspective from W31-L (gov-track L: integrity gap closure on the
+score-cap / soak / evidence-provenance trio). This appendix is appended on
+2026-05-03 (W31-L atomic close); all earlier sections remain unchanged.
+
+### Metric-redefinition mechanics
+
+The W28 verified score moved from W27's 65 to W28's 94.55 — a 29.55-point
+jump with no offsetting engineering commit. The mechanics:
+
+1. W28 retired the wall-clock-soak cap on `seven_by_twenty_four_operational_readiness`
+   (the only tier that previously reflected soak evidence at all).
+2. W28 added `score_caps.yaml::architectural_seven_by_twenty_four` which evaluates
+   five static assertions emitted by `scripts/run_arch_7x24.py`.
+3. W28 left `_ARCH_CONSTRAINT_GATES` containing `soak_evidence`, so any
+   real FAIL on soak via `scripts/check_soak_evidence.py` did NOT contribute
+   to `gate_fail` on `current_verified_readiness` either.
+4. The combined effect: the verified tier had **no soak signal at all**.
+   Verified jumped 65 → 94.55 because the cap that previously held 65 was
+   removed without any replacement.
+
+This is the metric-redefinition pattern: scores changed by changing the
+scoring rule, not by improving the system being scored. The W28 delivery
+notice did not flag this — the notice asserted the new score as a
+measurement.
+
+### Integrity-gap acknowledgement
+
+Per Rule 14 §5 (no manual score increases) and the closure-claim taxonomy
+(Rule 15), W28's verified=94.55 claim was an integrity gap. The gap was
+not detected at W28 publication time, was not detected at W29 either
+(W29 inherited the same scoring rules), and only surfaced during the
+W31-L audit when the ratio of "wall-clock soak evidence" to "score
+inflation" was computed. W31-L re-introduces soak as a cap-retirement
+gate AND adds the paired-evidence rule, closing both halves of the gap.
+
+### W31-L corrections (this wave)
+
+The L-track delivers four interlocking corrections, each with a paired
+test:
+
+| Defect | Code fix | Test |
+|---|---|---|
+| L-1' (`check_soak_evidence` --strict) | scripts/check_soak_evidence.py | tests/unit/scripts/test_check_soak_evidence_strict.py |
+| L-2' (HEAD-tied arch-7x24 lookup) | scripts/build_release_manifest.py:_find_arch_evidence_for_head | tests/unit/scripts/test_build_release_manifest_head_tied.py |
+| W31-G1 (paired-evidence rule) | scripts/check_score_cap.py:_check_paired_evidence | tests/unit/scripts/test_score_cap_paired_evidence.py |
+| L-5' (provenance strict for real-required gates) | scripts/check_evidence_provenance.py:_DISALLOWED_FOR_STRICT | tests/unit/scripts/test_check_evidence_provenance_strict.py |
+| L-12'/L-13' (soak cap on verified tier) | scripts/build_release_manifest.py:_ARCH_CONSTRAINT_GATES + score_caps.yaml | tests/unit/scripts/test_soak_evidence_not_real_cap.py |
+| L-15' (run_soak strict polling) | scripts/run_soak.py:--require-polling-observation | tests/unit/scripts/test_run_soak_require_polling.py |
+
+Each correction is small and surgical; their union closes the
+metric-redefinition vector at every layer it can re-emerge:
+- Cap-retirement validation (W31-G1 paired-evidence + L-5' provenance)
+- Cap-coverage on the primary tier (L-12'/L-13')
+- HEAD-tied evidence lookup (L-2', preventing stale evidence from
+  silently clearing caps)
+- Strict observability requirement (L-15', preventing fast-completing
+  runs from substituting structural signals for live observability)
+- CI strict failure on missing evidence (L-1' --strict)
+
+### What this errata does NOT do
+
+- Does NOT retroactively rewrite `docs/releases/archive/W28/platform-release-manifest-2026-05-02-9e607a65.json`.
+  Per Rule 14, published artifacts are immutable. The W28 manifest stays as-is.
+- Does NOT recompute W28's score. The audit interpretation in the
+  "Corrected interpretation" section above is binding for downstream readers,
+  but the manifest field values are not edited.
+- Does NOT block the W31 manifest from being built. W31's verified tier
+  will reflect the new soak_evidence_not_real cap; if no real soak evidence
+  is produced at W31 final HEAD, W31 verified is capped at 75. That is the
+  intended (honest) outcome.
