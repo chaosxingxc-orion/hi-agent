@@ -206,6 +206,31 @@ def _dummy_run(run_index: int, elapsed_s: float) -> dict:
     }
 
 
+def _scrape_llm_fallback_count(base_url: str) -> int:
+    """Read hi_agent_llm_fallback_total from /metrics. Returns 0 if not present."""
+    try:
+        import re
+
+        import httpx
+        r = httpx.get(f"{base_url}/metrics", timeout=5.0, trust_env=False)
+        if r.status_code != 200:
+            return 0
+        total = 0
+        # Match `hi_agent_llm_fallback_total{...} <number>` or without labels.
+        for m in re.finditer(
+            r"^hi_agent_llm_fallback_total(?:\{[^}]*\})?\s+(\d+(?:\.\d+)?)",
+            r.text,
+            re.MULTILINE,
+        ):
+            try:
+                total += int(float(m.group(1)))
+            except (ValueError, TypeError):
+                continue
+        return total
+    except Exception:
+        return 0
+
+
 def _write_evidence(
     sha: str,
     full_sha: str,
@@ -217,6 +242,7 @@ def _write_evidence(
     dry_run: bool,
     sigterm_injections: int,
     out_dir: Path,
+    llm_fallback_count: int = 0,
 ) -> Path:
     runs_submitted = len(results)
     runs_completed = sum(
@@ -237,11 +263,26 @@ def _write_evidence(
     all_ids = [r.get("run_id") for r in results if r.get("run_id")]
     duplicate_executions = len(all_ids) - len(set(all_ids))
 
+    # W32-C.5: provenance="real" requires ALL of:
+    #   - duration >= 86400s (the 24h threshold)
+    #   - runs_failed == 0 (no failures observed)
+    #   - duplicate_executions == 0 (no double-execute)
+    #   - llm_fallback_count == 0 (no Rule-7 fallbacks)
+    # Any deviation downgrades to "structural" so a 24h run with any failure
+    # cannot silently claim real evidence.
     _min_real_seconds = 86400.0  # 24h threshold for provenance:real
     if dry_run:
         provenance = "dry_run"
-    elif duration_seconds >= _min_real_seconds:
+    elif (
+        duration_seconds >= _min_real_seconds
+        and runs_failed == 0
+        and duplicate_executions == 0
+        and llm_fallback_count == 0
+    ):
         provenance = "real"
+    elif duration_seconds >= _min_real_seconds:
+        # 24h+ run but invariants violated -> structural, not real.
+        provenance = "structural"
     else:
         provenance = "shape_verified"
 
@@ -259,6 +300,7 @@ def _write_evidence(
         "runs_failed": runs_failed,
         "runs_with_exceptions": runs_with_errors,
         "duplicate_executions": duplicate_executions,
+        "llm_fallback_count": llm_fallback_count,
         "sigterm_injections": sigterm_injections,
         "health_samples": samples,
         "alert_events": [],
@@ -405,6 +447,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             time.sleep(max(0.0, sleep_until - time.monotonic()))
 
+    # W32-C.5: scrape llm_fallback_count BEFORE stopping sampler so it is
+    # available for the invariant gate inside _write_evidence.
+    llm_fallback_count = (
+        0 if args.dry_run else _scrape_llm_fallback_count(args.base_url)
+    )
     sampler.stop()
     end_time = _iso_now()
     duration_seconds = time.monotonic() - t_start
@@ -416,6 +463,7 @@ def main(argv: list[str] | None = None) -> int:
         results=results, samples=sampler.samples(),
         dry_run=args.dry_run, sigterm_injections=sigterm_injections,
         out_dir=out_dir,
+        llm_fallback_count=llm_fallback_count,
     )
 
     runs_ok = sum(1 for r in results if r["state"] in ("completed", "done", "dry_run"))

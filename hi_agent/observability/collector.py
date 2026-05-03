@@ -447,6 +447,21 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Health check subcomponent exceptions (labels: check_name).",
     ),
+    # W32-C.6 / Rule 7: health-check silent-degradation fallbacks.
+    # Distinct from hi_agent_health_check_errors_total — the fallback
+    # counter increments only when the health-check exception was
+    # SWALLOWED (i.e. the response field was set to a degraded default
+    # like {"status": "error"} rather than propagating). Pairs with
+    # record_silent_degradation() at every catch site in
+    # hi_agent/server/app.py to satisfy Rule 7 (countable + attributable).
+    "hi_agent_health_check_fallback_total": _MetricDef(
+        "hi_agent_health_check_fallback_total",
+        "counter",
+        (
+            "Health/readiness check exceptions silently degraded to a "
+            "fallback response (Rule 7 alarm; labels: component)."
+        ),
+    ),
     # event_stored: incremented by SQLiteEventStore for every event appended.
     "hi_agent_events_stored_total": _MetricDef(
         "hi_agent_events_stored_total",

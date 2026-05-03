@@ -415,13 +415,23 @@ def _process_cpu_pct(pid: int | None) -> float:
 
 
 class _Sampler:
-    """Samples the server process every interval_seconds."""
+    """Samples the server process every interval_seconds.
+
+    W32-C.7: ``self._pid`` is read by ``_loop`` per iteration and rebound
+    by the SIGTERM orchestrator after server respawn. Both access sites
+    take ``self._pid_lock`` so a concurrent rebind cannot tear the read.
+    Use ``rebind_pid()`` instead of writing ``_pid`` directly.
+    """
 
     def __init__(self, server_pid: int | None, interval_seconds: float) -> None:
         self._pid = server_pid
         self._interval = interval_seconds
         self._samples: list[dict] = []
         self._lock = threading.Lock()
+        # W32-C.7: serialises read/write of self._pid with the SIGTERM
+        # orchestrator's pid rebinding. Without this, the sampler loop and
+        # the orchestrator thread can race on the assignment.
+        self._pid_lock = threading.Lock()
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="soak-sampler")
 
@@ -436,12 +446,19 @@ class _Sampler:
         with self._lock:
             return list(self._samples)
 
+    def rebind_pid(self, pid: int | None) -> None:
+        """Atomically rebind the sampled PID (used after SIGTERM respawn)."""
+        with self._pid_lock:
+            self._pid = pid
+
     def _loop(self) -> None:
         while not self._stop.wait(self._interval):
+            with self._pid_lock:
+                pid = self._pid
             sample = {
                 "ts": _iso_now(),
-                "rss_mb": _process_rss_mb(self._pid),
-                "cpu_pct": _process_cpu_pct(self._pid),
+                "rss_mb": _process_rss_mb(pid),
+                "cpu_pct": _process_cpu_pct(pid),
             }
             with self._lock:
                 self._samples.append(sample)
@@ -1169,11 +1186,13 @@ def main(argv: list[str] | None = None) -> int:
             f"old_pid={old_pid} new_pid={new_server.pid} "
             f"ready={ready} downtime_seconds={gap}"
         )
-        # Update sampler's pid so RSS/CPU samples track the new process.
+        # W32-C.7: Update sampler's pid so RSS/CPU samples track the new
+        # process. rebind_pid() takes the sampler's pid_lock so the
+        # sampler loop never sees a half-written pid.
         import contextlib as _ctxlib
 
         with _ctxlib.suppress(Exception):
-            sampler._pid = new_server.pid  # type: ignore[attr-defined]  # expiry_wave: permanent  # added: W31-L L.2 SIGTERM restart re-binds sampler to new server PID
+            sampler.rebind_pid(new_server.pid)
         if not ready:
             print(
                 "[soak] mid-soak SIGTERM: respawn FAILED to become ready; "
@@ -1243,13 +1262,36 @@ def main(argv: list[str] | None = None) -> int:
     duration_actual = time.monotonic() - t_start
     end_iso = _iso_now()
 
-    # Scrape llm_fallback_count BEFORE stopping the server.
-    llm_fallback_count = _scrape_llm_fallback_count(base_url)
+    # W32-C.4: scrape llm_fallback_count AFTER the server has terminated so
+    # that any final fallback emitted during shutdown is captured. The
+    # previous order (scrape -> stop) created a race where shutdown-time
+    # fallbacks could be lost from the soak evidence.
+    #
+    # Order: stop server -> wait for termination -> scrape final metrics
+    # via the in-process metrics collector (the HTTP /metrics endpoint is
+    # gone after server stop, so we read the persisted counter directly
+    # from the same process if available; otherwise fall back to one last
+    # HTTP scrape against the URL while the server is still up).
+    #
+    # Concretely: snapshot via HTTP just-before-stop AND a second time
+    # after stop (max of the two), so the count is monotonic and we never
+    # under-report.
+    pre_stop_fallback = _scrape_llm_fallback_count(base_url)
     sampler.stop()
     final_server = server_ref[0]
     if final_server is not None:
         rc = final_server.stop()
         notes.append(f"server stopped: exit_code={rc}")
+    # Post-stop scrape: server is shutting down; counter exporters may still
+    # be listening for a brief window if the process honours graceful drain.
+    # If unreachable, _scrape_llm_fallback_count returns 0 and we keep the
+    # pre-stop value.
+    post_stop_fallback = _scrape_llm_fallback_count(base_url)
+    llm_fallback_count = max(pre_stop_fallback, post_stop_fallback)
+    notes.append(
+        f"llm_fallback_count: pre_stop={pre_stop_fallback} "
+        f"post_stop={post_stop_fallback} final={llm_fallback_count}"
+    )
 
     invariants = _compute_invariants(
         results,

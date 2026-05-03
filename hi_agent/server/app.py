@@ -63,6 +63,7 @@ from hi_agent.config.posture import Posture
 from hi_agent.config.stack import ConfigStack
 from hi_agent.config.watcher import ConfigFileWatcher
 from hi_agent.observability.metric_counter import Counter
+from hi_agent.observability.silent_degradation import record_silent_degradation
 from hi_agent.server._durable_backends import build_durable_backends
 from hi_agent.server.auth_middleware import AuthMiddleware
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
@@ -122,6 +123,31 @@ from hi_agent.server.team_event_store import TeamEventStore
 
 logger = logging.getLogger(__name__)
 _health_check_errors_total = Counter("hi_agent_health_check_errors_total")
+# W32-C.6: Rule 7 health-check fallback counter. Incremented at every site
+# that swallows a health-check exception and substitutes a degraded
+# default response. Pairs with record_silent_degradation() so each event
+# is countable + attributable + inspectable + gate-asserted.
+_health_check_fallback_total = Counter("hi_agent_health_check_fallback_total")
+
+
+def _record_health_check_fallback(
+    component: str, reason: str, exc: BaseException | None = None
+) -> None:
+    """Rule 7 helper: record a health-check silent-degradation event.
+
+    Increments the labelled fallback counter, calls
+    ``record_silent_degradation`` (which also writes a WARNING log and
+    appends to the durable fallback_events list), so every health-check
+    fallback path is countable + attributable + inspectable per Rule 7.
+    """
+    # rule7-exempt: observability must not propagate
+    with contextlib.suppress(Exception):
+        _health_check_fallback_total.labels(component=component).inc()
+    record_silent_degradation(
+        component=f"health_check.{component}",
+        reason=reason,
+        exc=exc,
+    )
 
 
 async def handle_health(request: Request) -> JSONResponse:
@@ -146,6 +172,7 @@ async def handle_health(request: Request) -> JSONResponse:
             extra={"check_name": "run_manager", "error": str(exc)},
             exc_info=True,
         )
+        _record_health_check_fallback("run_manager", "get_status_failed", exc)
         subsystems["run_manager"] = {"status": "error"}
         overall = "degraded"
 
@@ -173,6 +200,7 @@ async def handle_health(request: Request) -> JSONResponse:
             extra={"check_name": "memory", "error": str(exc)},
             exc_info=True,
         )
+        _record_health_check_fallback("memory", "memory_inspection_failed", exc)
         subsystems["memory"] = {"status": "error"}
         overall = "degraded"
 
@@ -202,6 +230,7 @@ async def handle_health(request: Request) -> JSONResponse:
             extra={"check_name": "metrics", "error": str(exc)},
             exc_info=True,
         )
+        _record_health_check_fallback("metrics", "metrics_snapshot_failed", exc)
         subsystems["metrics"] = {"status": "error"}
         overall = "degraded"
 
@@ -228,6 +257,7 @@ async def handle_health(request: Request) -> JSONResponse:
             extra={"check_name": "context", "error": str(exc)},
             exc_info=True,
         )
+        _record_health_check_fallback("context", "context_health_failed", exc)
         subsystems["context"] = {"status": "error"}
         overall = "degraded"
 
@@ -250,6 +280,7 @@ async def handle_health(request: Request) -> JSONResponse:
             extra={"check_name": "event_bus", "error": str(exc)},
             exc_info=True,
         )
+        _record_health_check_fallback("event_bus", "event_bus_stats_failed", exc)
         subsystems["event_bus"] = {"status": "error"}
         overall = "degraded"
 
@@ -290,6 +321,7 @@ async def handle_health(request: Request) -> JSONResponse:
             extra={"check_name": "kernel_adapter", "error": str(exc)},
             exc_info=True,
         )
+        _record_health_check_fallback("kernel_adapter", "kernel_health_failed", exc)
         subsystems["kernel_adapter"] = {"status": "error"}
 
     return JSONResponse(
@@ -325,11 +357,14 @@ async def handle_ready(request: Request) -> JSONResponse:
 
             builder = SystemBuilder(config=getattr(server, "_config", None))
         snapshot = builder.readiness()
-    except RecursionError:
+    except RecursionError as exc:
         _health_check_errors_total.labels(check_name="readiness").inc()
         logger.warning(
             "health check readiness failed with recursion",
             extra={"check_name": "readiness", "error": "capability_serialization_overflow"},
+        )
+        _record_health_check_fallback(
+            "readiness", "capability_serialization_overflow", exc
         )
         return JSONResponse(
             status_code=503,
@@ -342,6 +377,7 @@ async def handle_ready(request: Request) -> JSONResponse:
             extra={"check_name": "readiness", "error": str(exc)},
             exc_info=True,
         )
+        _record_health_check_fallback("readiness", "readiness_snapshot_failed", exc)
         snapshot = {
             "ready": False,
             "health": "error",
@@ -361,6 +397,7 @@ async def handle_ready(request: Request) -> JSONResponse:
             extra={"check_name": "auth_posture", "error": str(exc)},
             exc_info=True,
         )
+        _record_health_check_fallback("auth_posture", "auth_posture_failed", exc)
         snapshot = dict(snapshot, auth_posture="unknown")
 
     # Augment snapshot with fine-grained readiness flags.
@@ -387,6 +424,9 @@ async def handle_ready(request: Request) -> JSONResponse:
             "readiness flag enrichment failed (non-fatal)",
             extra={"check_name": "readiness_flags", "error": str(exc)},
             exc_info=True,
+        )
+        _record_health_check_fallback(
+            "readiness_flags", "readiness_flag_enrichment_failed", exc
         )
 
     # Draining supersedes all other readiness: return 503 immediately so
@@ -1509,6 +1549,127 @@ def build_app(agent_server: AgentServer) -> Starlette:
         except Exception as _rh_exc:
             logger.warning("lifespan: _rehydrate_runs raised unexpectedly: %s", _rh_exc)
 
+        # W32-C.8: background lease-expiry loop. Previously expire_stale_leases
+        # only ran on startup via _rehydrate_runs(). A lease that goes stale
+        # mid-flight had no automatic reclaim until the next process restart.
+        # Now an asyncio task scans every HI_AGENT_LEASE_EXPIRY_INTERVAL_S
+        # seconds (default 30s) and re-enqueues stale leases under the same
+        # posture-driven decision logic.
+        import os as _os_lease
+
+        _lease_interval_s = float(
+            _os_lease.environ.get("HI_AGENT_LEASE_EXPIRY_INTERVAL_S", "30")
+        )
+
+        async def _lease_expiry_loop() -> None:
+            """Periodically scan for stale leases and re-enqueue under posture.
+
+            ``_rehydrate_runs`` is synchronous SQLite work; we offload it to
+            the default executor so the event loop is not blocked by I/O.
+            On any failure we emit a Rule 7 silent-degradation signal.
+            """
+            _loop_local = asyncio.get_running_loop()
+            while True:
+                try:
+                    await asyncio.sleep(_lease_interval_s)
+                except asyncio.CancelledError:
+                    raise
+                try:
+                    # Use a closure (no positional args) so the executor
+                    # call is robust against signature changes in
+                    # _rehydrate_runs and matches the Rule 6 single-builder
+                    # contract for the agent_server reference.
+                    await _loop_local.run_in_executor(
+                        None, lambda: _rehydrate_runs(agent_server)
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as _le_exc:
+                    record_silent_degradation(
+                        component="lease_expiry_loop",
+                        reason="lease_expiry_scan_failed",
+                        exc=_le_exc,
+                    )
+
+        _lease_expiry_task = asyncio.create_task(_lease_expiry_loop())
+        agent_server._lease_expiry_task = _lease_expiry_task
+        # wave-literal-ok
+        logger.info(
+            "lease-expiry background loop started "
+            "(interval=%.1fs)", _lease_interval_s
+        )
+
+        # W32-C.9: current_stage watchdog — Rule 8 step 5 requires
+        # current_stage to be non-None within 30s on every turn. This
+        # watchdog scans every 30s for non-terminal runs whose
+        # current_stage has been None for >60s, fires a Rule 7 alarm,
+        # and emits a WARNING log per offending run.
+        _terminal_states = {
+            "completed", "succeeded", "failed", "cancelled",
+            "done", "error", "timed_out",
+        }
+
+        async def _current_stage_watchdog() -> None:
+            """Detect non-terminal runs with current_stage=None for >60s."""
+            from datetime import datetime as _dt
+            warned: dict[str, float] = {}
+            while True:
+                try:
+                    await asyncio.sleep(30.0)
+                except asyncio.CancelledError:
+                    raise
+                try:
+                    runs = agent_server.run_manager.list_runs()
+                except Exception as _wd_exc:
+                    record_silent_degradation(
+                        component="current_stage_watchdog",
+                        reason="list_runs_failed",
+                        exc=_wd_exc,
+                    )
+                    continue
+                _now = asyncio.get_running_loop().time()
+                _now_iso = _dt.now(UTC).isoformat()
+                for run in runs:
+                    run_id = getattr(run, "run_id", None)
+                    state = getattr(run, "state", None)
+                    cur_stage = getattr(run, "current_stage", None)
+                    created_at = getattr(run, "created_at", None) or ""
+                    if state in _terminal_states or run_id is None:
+                        # Drop any prior warning bookkeeping for terminal runs.
+                        warned.pop(run_id or "", None)
+                        continue
+                    if cur_stage is not None:
+                        warned.pop(run_id, None)
+                        continue
+                    # Compute age in seconds since created_at (best-effort).
+                    age_s = 0.0
+                    if created_at:
+                        try:
+                            _created_dt = _dt.fromisoformat(created_at.rstrip("Z"))
+                            age_s = (
+                                _dt.fromisoformat(_now_iso.rstrip("Z"))
+                                - _created_dt
+                            ).total_seconds()
+                        except (ValueError, TypeError):
+                            age_s = 0.0
+                    if age_s > 60.0 and run_id not in warned:
+                        warned[run_id] = _now
+                        logger.warning(
+                            "current_stage watchdog: run %s has current_stage=None "
+                            "for %.1fs (state=%s) — Rule 8 step-5 violation",
+                            run_id, age_s, state,
+                        )
+                        record_silent_degradation(
+                            component="current_stage_watchdog",
+                            reason="current_stage_none_over_60s",
+                            run_id=run_id,
+                            extra={"age_seconds": age_s, "state": state or ""},
+                        )
+
+        _current_stage_task = asyncio.create_task(_current_stage_watchdog())
+        agent_server._current_stage_watchdog_task = _current_stage_task
+        logger.info("current_stage watchdog started (scan_interval=30s)")
+
         # Install SIGTERM handler so the server drains active runs on graceful
         # termination (PM2/systemd/docker stop).  SIGTERM is available on
         # Windows via the signal module but cannot be sent by kill(); it is
@@ -1528,6 +1689,13 @@ def build_app(agent_server: AgentServer) -> Starlette:
         try:
             yield
         finally:
+            # W32-C.8 / C.9: cancel background watchdog tasks before
+            # tearing down run_manager so they do not race against
+            # shutdown bookkeeping.
+            for _bg_task in (_lease_expiry_task, _current_stage_task):
+                _bg_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await _bg_task
             agent_server.run_manager.shutdown()
             if mm is not None:
                 await mm.stop()
