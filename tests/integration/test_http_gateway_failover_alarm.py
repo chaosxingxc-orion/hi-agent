@@ -318,5 +318,8 @@ class TestAsyncFailoverAlarm:
         collector = get_metrics_collector()
         if collector is not None:
             snapshot = collector.snapshot()
-            # The counter name used by record_fallback is hi_agent_llm_fallback_total
-            assert snapshot.get("hi_agent_llm_fallback_total", 0) >= 1
+            # The counter name used by record_fallback is hi_agent_llm_fallback_total.
+            # snapshot[counter] is a dict[label_key, value]; sum across labels.
+            labeled = snapshot.get("hi_agent_llm_fallback_total", {})
+            total = sum(labeled.values()) if isinstance(labeled, dict) else labeled
+            assert total >= 1
