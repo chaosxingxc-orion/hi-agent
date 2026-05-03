@@ -199,6 +199,14 @@ jobs:
       - name: Test honesty audit (W16-K)
         run: python scripts/check_test_honesty.py --json
 
+      - name: Rule 9 open findings (W32-D D.6)
+        # Blocks delivery if docs/rules-incident-log.md carries any
+        # `Status: OPEN` finding under a ship-blocking category (LLM path,
+        # Run lifecycle, HTTP contract, Security boundary, Resource lifetime,
+        # Observability). Per CLAUDE.md Rule 9, open findings in these
+        # categories MUST block delivery — this is the machine-checked enforcement.
+        run: python scripts/check_rule9_open_findings.py --json
+
       # --- W17 anti-loop gates ---
 
       - name: Wave label consistency (W17-B11)

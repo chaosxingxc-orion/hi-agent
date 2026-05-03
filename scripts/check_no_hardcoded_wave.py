@@ -2,12 +2,20 @@
 """W14-A4: No hardcoded Wave N strings outside _current_wave.py and docs/.
 
 W31-D D-2' extension: scope expanded from scripts/ alone to scripts/ + tests/.
+W32-D D.2 extension: scan radius extended to hi_agent/ and agent_server/ so
+production-code wave-string literals are also caught. File-level top-of-module
+``# expiry_wave: Wave N`` markers (placed in a module docstring or as a
+top-of-module comment for re-export shims with a documented removal target)
+are permitted; inline quoted-string Wave-N literals in the code path are
+rejected.
+
 Wave-bound test fixtures should source the wave from _governance.wave just
 like production scripts do, so a wave bump only needs the canonical file
 edited.
 
-Scans scripts/*.py and tests/*.py for patterns like "Wave 14", "Wave 13",
-"Wave N" that should be loaded from scripts/_governance/wave.py instead.
+Scans scripts/*.py, tests/*.py, hi_agent/*.py, agent_server/*.py for patterns
+like "Wave 14", "Wave 13", "Wave N" (quoted-string literal form) that should
+be loaded from scripts/_governance/wave.py instead.
 
 Allowed exceptions:
 - scripts/_current_wave.py (the source of truth, deprecated re-export)
@@ -15,9 +23,11 @@ Allowed exceptions:
 - docs/ directory (documentation and governance files)
 - Any line with a comment # wave-literal-ok
 - Any line containing an `expiry_wave: Wave N` annotation (legitimate
-  historical value; per-line marker, not enforcement)
+  historical value; per-line marker, not enforcement). This covers both
+  the per-line `# expiry_wave: Wave N` form on noqa lines (compat-shim
+  pattern) and any explicit `expiry_wave="Wave N"` kwarg form.
 
-Exit 0: pass (no hardcoded wave strings found in scripts/ or tests/).
+Exit 0: pass (no hardcoded wave strings found in any scanned tree).
 Exit 1: fail (hardcoded wave strings found).
 """
 # Status values: pass | fail | not_applicable | deferred
@@ -32,8 +42,19 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = ROOT / "scripts"
 TESTS_DIR = ROOT / "tests"
+HI_AGENT_DIR = ROOT / "hi_agent"
+AGENT_SERVER_DIR = ROOT / "agent_server"
 # W31-D D-2': directories scanned for hardcoded wave strings.
-_SCAN_DIRS: tuple[pathlib.Path, ...] = (SCRIPTS_DIR, TESTS_DIR)
+# W32-D D.2: extended to production code (hi_agent/, agent_server/) so
+# inline string-literal hits in production are caught. File-level top-of-
+# module markers and per-line `# expiry_wave: Wave N` annotations remain
+# exempt via _EXPIRY_WAVE_PATTERN.
+_SCAN_DIRS: tuple[pathlib.Path, ...] = (
+    SCRIPTS_DIR,
+    TESTS_DIR,
+    HI_AGENT_DIR,
+    AGENT_SERVER_DIR,
+)
 
 _WAVE_PATTERN = re.compile(r'"Wave\s+\d+"', re.IGNORECASE)
 _EXCEPTION_COMMENT = re.compile(r"wave-literal-ok", re.IGNORECASE)
@@ -64,6 +85,9 @@ _EXEMPT_FILES = frozenset({
     "test_check_recurrence_ledger.py",
     "test_check_manifest_rewrite_budget.py",
     "test_manifest_consensus.py",
+    # W32-D D.2: test for the gate itself; carries intentional wave-string
+    # fixtures (`"Wave 99"`) that exercise the rejection path.
+    "test_check_no_hardcoded_wave.py",
 })
 
 

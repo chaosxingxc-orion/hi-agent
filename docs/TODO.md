@@ -1,6 +1,6 @@
 # hi-agent Engineering TODO
 
-Last updated: 2026-05-03 (Wave 30 closed; Wave 31 in progress)
+Last updated: 2026-05-03 (Wave 31 closed; Wave 32 in this PR)
 
 ## DONE (Wave 1-4, SA-1..SA-8, 2026-04-22/24)
 

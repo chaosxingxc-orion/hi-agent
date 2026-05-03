@@ -1,6 +1,6 @@
 # hi-agent Platform Capability Matrix
 
-Last updated: 2026-05-03 (Wave 30 — paperwork-debt closure; capability surface unchanged since W27)
+Last updated: 2026-05-03 (Wave 31 closed; Wave 32 in this PR)
 
 ---
 
@@ -339,7 +339,22 @@ Active docs use L0–L4 exclusively (Rule 13, Wave 9+). Mapping from retired lab
 
 ---
 
-## Core Capability Summary (Wave 27 current)
+## Wave 31 Closures — Real-Kernel Binding + Tenant Partition (2026-05-03)
+
+| Capability | Level | Owner | Evidence | Rule / Class |
+|---|---|---|---|---|
+| Northbound real-kernel binding (W31-N1..N4) | L3 | AS-RO | `tests/integration/test_serve_uses_agent_server_app.py` + `test_middleware_pipeline_production.py`; commits `b89c0373`, `8eacb9fd`, `83502449`, `c537e819` | RIA W31 §2 — `hi-agent serve` binds `agent_server.api.app.build_app()`; check_layering + check_facade_seams extended to agent_server/api/** + agent_server/middleware/** |
+| Tenant data partition at all stores (W31-T1) | L3 | RO | 7 xfail tenant tests flipped to PASS under `prod` posture; 297 tenant tests PASS; spine gate scans 5 new dirs | RIA W31 §6 — T-1'..T-7' + T-13' BLOCKERs closed; data partition at all persistence boundaries |
+| Functional idempotency middleware in production (W31-N1/N2) | L2-L3 | AS-RO | `tests/integration/test_middleware_pipeline_production.py`; commit `8eacb9fd` | RIA W31 §2 — middleware mounted in served FastAPI app, not just registered |
+| Configurable development surface clean (W31-H2/D1) | OK | GOV | `scripts/check_no_shell_packages.py --json` exit 0 (commit `e3f42ce9`); 4 shell subpackages deleted (commit `4e990bf5`); `agent_server/ARCHITECTURE.md` §2/§16 updated | RIA W31 §5 — package consolidation per `docs/governance/package-consolidation-2026-05-02.md` |
+| Soak sampler binds server PID (W31-L2) | L3 | TE | `tests/scripts/test_run_soak_sampler_binding.py` 9/9 PASS; commit `f3b2bad9` | RIA W31 §3 — `scripts/run_soak.py` + `scripts/soak_24h.py` sample the running server PID, not the harness PID |
+| Architectural 7×24 strict gate (W31-L1 prep) | L2-L3 | TE | `scripts/check_soak_evidence.py --strict` blocks CI on missing arch-7x24 evidence; W31-G1 paired-evidence rule | RIA W31 §3 — `--strict` flag converts deferred to FAIL; cap holds at `soak_evidence_not_real`=75 until ≥4h real soak completes (W31-L1 in-flight) |
+
+---
+
+## Core Capability Summary (Wave 31 current)
+
+Per W31 closure 2026-05-02-953d36cb. W31 deltas applied to the Wave 27 baseline below: Cross-Run / Northbound row updated to reflect real served surface; new Tenant Isolation row reflecting +L; new Functional Idempotency row reflecting middleware production-mount; Configurable Development row reflecting package-consolidation cleanup. Architectural 7×24 capped at 75 pending W31-L1 real-soak evidence (in-flight).
 
 | Dimension | L-Level | Notes |
 |---|---|---|
@@ -350,6 +365,9 @@ Active docs use L0–L4 exclusively (Rule 13, Wave 9+). Mapping from retired lab
 | Planning / Multi-stage | L2-L3 | TRACE static; dynamic re-planning (P-4) PARTIAL in W25 Track M |
 | Artifact / Evidence | L3 | ArtifactLedger durable; provenance fields; tenant-first query; content-addressed identity; POST /artifacts write API (W27 L15) |
 | Evolution / Feedback | L3 | PostmortemEngine wired (W27 L16); ExperimentStore durable; EvolveEngine; TierRouter active calibration (W27 L4) |
-| Cross-Run / Northbound | L3 | 8 northbound routes (3 W23 + 5 W24); idempotency middleware; agent-server CLI; v1 contract freeze deferred to W25 |
+| Tenant Isolation | L3 (new W31) | Data partition at all stores; 7 xfail tests flipped to PASS under prod; 297 tenant tests PASS; spine gate scans 5 new dirs (capability/mcp/knowledge/llm/management) |
+| Functional Idempotency | L2-L3 (new W31) | Idempotency-Key middleware production-mounted in `agent_server.api.app.build_app()`; replay returns 200 + identity-stripped body |
+| Cross-Run / Northbound | L3 (W31 +L) | `hi-agent serve` binds the real served FastAPI app; 8 northbound routes; production middleware pipeline; v1 contract freeze in place; layering + facade-seam gates extended to agent_server/api/** + middleware/** |
 | Observability | L3 | RunEventEmitter 12 typed events (W27 L2); 10 ledger entries operationally_observable (W27 L9); 14 fallback counters; real spine 12/14 layers |
-| Governance (gates) | L3 | 35 blocking CI gates; recurrence ledger; release captain protocol |
+| Governance (gates) | L3 | 38 blocking CI gates (35 prior + W31 facade-seam, no-shell-packages, --strict soak; W32-D D.6 adds rule9-open-findings); recurrence ledger; release captain protocol |
+| Architectural 7×24 | L2-L3 (capped) | 5/5 architectural assertions PASS; cap holds at `soak_evidence_not_real`=75 until W31-L1 real ≥4h soak evidence lands at HEAD with `provenance: real` and `llm_fallback_count == 0` |

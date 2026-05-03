@@ -307,5 +307,6 @@ entries:
     risk: low
     reason: "SSHBackend stub retired in W27 per Rule 2 simplicity: 4 NotImplementedError stubs deleted, no in-tree consumer since W10. SSH execution out of scope until real demand arises."
     expiry_wave: "permanent"
-    replacement_test: "n/a — capability not in scope this release"
+    permanence_rationale: "Feature-removal allowlist, not a deferred-debt allowlist. The SSHBackend implementation (4 NotImplementedError stubs in hi_agent/operator_tools/ssh_backend.py) was deleted entirely in W27. There is no in-tree consumer to migrate, no test to flake, and no future re-introduction planned. This allowlist entry is an immutable historical record that the W27-era stale-TODO scan recognised the now-deleted stub once existed; removing this entry would not change any code or test outcome. Per Rule 17, classified permanent because the gate-fix path (re-introducing SSH execution) is explicitly out of scope (decline-and-redirect under 3-gate intake)."
+    replacement_test: "n/a — capability removed from codebase; no surface to test"
     added_at: "Wave 27"

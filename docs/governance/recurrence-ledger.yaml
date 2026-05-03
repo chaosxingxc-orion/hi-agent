@@ -6,7 +6,7 @@
 # Placeholder values carry expiry: Wave 22 for operationalization.
 
 schema_version: "1"
-current_wave: 30
+current_wave: 31
 
 entries:
   - issue_id: P0-1
@@ -481,3 +481,109 @@ entries:
     metric_name: "hi_agent_wave_bound_debt_count"
     alert_rule: "hi_agent_wave_bound_debt_alert"
     runbook_path: "docs/runbooks/wave-debt-burndown.md"
+
+  - issue_id: W32-N
+    defect_class: northbound_real_kernel_binding
+    named_instance: "RIA Wave 31 directive §2 (W31-N1..N4) — agent_server northbound surface declared L3 but the FastAPI app served by `hi-agent serve` was an empty placeholder; production middleware pipeline (idempotency / tenant scope) not wired; check_layering.py + check_facade_seams.py did not cover agent_server/api/** or agent_server/middleware/**."
+    peer_instances_audited:
+      - "W30 W30-A4 idempotency middleware existed but was not mounted in the served app"
+      - "W28 contract freeze added agent_server/contracts/v1 but no E2E coverage"
+    root_cause: >
+      Northbound layer was authored ahead of the actual served surface. `hi-agent serve`
+      bound to a hello-world FastAPI app rather than `agent_server.api.app.build_app()`.
+      Layering / facade-seam gates had a narrower scan radius than the production
+      surface, so an unwired service could pass CI. The L3 declaration in the matrix
+      was a documentation-only assertion.
+    code_fix: "W31-N1..N4 (commits b89c0373, 8eacb9fd, 83502449, c537e819): hi-agent serve binds agent_server.api.app.build_app(); middleware pipeline production-mounted; check_layering.py + check_facade_seams.py extended to agent_server/api/** + agent_server/middleware/**; r-as-1-seam annotations on every cross-package import in agent_server/facade/**. W32-D D.4 carries the matrix entry to L3 reflecting the served surface."
+    regression_test: "tests/integration/test_serve_uses_agent_server_app.py + tests/integration/test_middleware_pipeline_production.py + scripts/check_layering.py --json + scripts/check_facade_seams.py --json"
+    release_gate: "release-gate.yml steps: check_layering / check_facade_seams"
+    process_change: "Rule 13 hardening: an L3 claim against a northbound contract requires a binding test that the served process actually exposes the contract. Documentation-only L-level changes are not allowed."
+    owner: AS-RO
+    expiry_or_followup: "Wave 32 — closed in W31; W32 carries doc-truth refresh per W32-D D.4"
+    evidence_artifact: "docs/downstream-responses/2026-05-03-w31-delivery-notice.md"
+    current_closure_level: verified_at_release_head
+    metric_name: "hi_agent_northbound_real_binding_violations_total"
+    alert_rule: "hi_agent_northbound_real_binding_alert"
+    runbook_path: "docs/runbooks/northbound-real-kernel-binding.md"
+
+  - issue_id: W32-T
+    defect_class: tenant_correctness_carryover
+    named_instance: "RIA Wave 31 directive §6 (W31-T1) closed BLOCKER tenant-isolation defects (T-1'..T-7' + T-13') and flipped 7 xfail tenant tests, but 5 MEDIUM/LOW carryover items remain open at W32 entry: T-9'/T-10' (wiki/entry tenant-scope), T-15' (team_run_registry), T-16'/T-17' (get_unsafe access-control), T-25' (definition.py 'default' coercion). All 5 carry expiry_wave: Wave 33 markers in the codebase + W32 ledger entry per Rule 17."
+    peer_instances_audited:
+      - "W30 SA tenant audit found unscoped knowledge-routes (closed W31)"
+      - "W31 deep-scan T track surfaced 27 findings (22 closed, 5 carried)"
+    root_cause: >
+      W31 scope hard-prioritised BLOCKER tenant-data-leak fixes and the prod-posture
+      xfail flip. The remaining 5 items are MEDIUM (cross-tenant access in wiki/entry
+      handlers, team_run_registry list_by_workspace, run_store get_unsafe escape hatch,
+      profile-definition string coercion) — they are non-leak defects but represent
+      future-leak surface area. They were carried to W33 with explicit expiry_wave
+      markers because W31 + W32 capacity went to closure verification rather than new
+      structural work on these surfaces.
+    code_fix: "W33 target: T-9'/T-10' wiki+entry tenant-scope handlers; T-15' team_run_registry list_by_workspace; T-16'/T-17' run_store get_unsafe rename + caller migration; T-25' profile definition.py 'default' coercion explicit. Each fix accompanied by a regression test asserting cross-tenant isolation."
+    regression_test: "W33 target: tests/integration/test_route_handle_wiki_tenant_isolation.py, test_route_handle_entry_tenant_isolation.py, test_team_run_registry_list_by_workspace_scope.py, test_run_store_get_unsafe_replacement.py, test_profile_definition_default_coercion.py"
+    release_gate: "scripts/check_tenant_correctness.py (will fire in W33 if any of the 5 markers remains)"
+    process_change: "Rule 12 hardening: every cross-tenant defect surfaced by deep-scan agents enters the recurrence-ledger as a tracked carryover item with explicit expiry_wave + regression-test commitment, not as an unannotated TODO."
+    owner: RO
+    expiry_or_followup: "Wave 33"
+    evidence_artifact: "docs/downstream-responses/2026-05-03-w31-delivery-notice.md"
+    current_closure_level: component_exists
+    metric_name: "hi_agent_tenant_correctness_carryover_count"
+    alert_rule: "hi_agent_tenant_correctness_carryover_alert"
+    runbook_path: "docs/runbooks/tenant-correctness-carryover.md"
+
+  - issue_id: W32-L
+    defect_class: rule7_chaos_provenance_carryover
+    named_instance: "RIA Wave 31 directive §3 (W31-L) closed L-1' arch-7x24 strict gate and L-2' soak sampler binding, but L-2'/L-3' chaos scenario provenance fixes (raising chaos evidence from runtime_coupled-only to provenance: real on the remaining 2 of 10 scenarios) were carried to W33. Rule 7 silent-degradation paths in the chaos harness still emit `provenance: pilot_run` on those 2 scenarios."
+    peer_instances_audited:
+      - "W16 P0-5 closed runtime_coupled:true on all 10 scenarios"
+      - "W27 raised provenance:real on 8 of 10; 2 deferred to W31"
+      - "W31 deep-scan surfaced L-2'/L-3' as remaining chaos provenance gap"
+    root_cause: >
+      The two chaos scenarios in question (concurrent-cancel storm + worker-restart
+      mid-LLM) require multi-process coordination beyond the W27 chaos harness's
+      single-subprocess shape. They were tagged `provenance: pilot_run` in W27 with
+      the intent to harden in W28, but slipped through W28-W31 because each wave
+      faced higher-priority structural blockers. Rule 7 alarm exists per the
+      check_chaos_runtime_coupling gate; the missing piece is the structural
+      promotion to provenance: real.
+    code_fix: "W33 target: extend tests/chaos/scenarios/ with multi-process coordination harness; re-record evidence with provenance: real for both scenarios; regenerate docs/verification/<head>-runtime-chaos.json."
+    regression_test: "scripts/check_chaos_runtime_coupling.py --json (already PASS at provenance:real on 8/10; W33 will require 10/10)"
+    release_gate: "release-gate.yml step: Check chaos runtime coupling (W14-C4)"
+    process_change: "Rule 7 hardening: any chaos scenario that lands as `provenance: pilot_run` must carry an explicit ledger entry with W+1 expiry, not slip silently across waves."
+    owner: TE
+    expiry_or_followup: "Wave 33"
+    evidence_artifact: "docs/verification/5c115d82-soak-shape-241m.json"
+    current_closure_level: wired_into_default_path
+    metric_name: "hi_agent_chaos_pilot_run_count"
+    alert_rule: "hi_agent_chaos_pilot_run_alert"
+    runbook_path: "docs/runbooks/chaos-pilot-run-carryover.md"
+
+  - issue_id: W32-D
+    defect_class: doc_truth_governance_drift
+    named_instance: "W32 Track D audit surfaced six doc-truth/governance defects: (1) recurrence-ledger.yaml current_wave: 30 vs current-wave.txt: 31 + allowlists current_wave: 31 (BLOCKER), (2) hardcoded `# expiry_wave: Wave 34` literals in production code (hi_agent/errors/, hi_agent/harness/, hi_agent/ops/, hi_agent/profile/, hi_agent/state/, hi_agent/skills/) outside check_no_hardcoded_wave.py scan radius (HIGH), (3) ssh_backend_retired_w27 allowlist marked expiry_wave: permanent without permanence_rationale field (MEDIUM), (4) platform-capability-matrix.md / TODO.md / platform-gaps.md timestamps still cite W30 closure though W31 has shipped (MEDIUM), (5) runtime_adapter __all__ has 45 exports without scope distinction (MEDIUM hygiene), (6) Rule 9 ship-blocking open-findings have no CI gate (NEW)."
+    peer_instances_audited:
+      - "W17/B11 wave_consistency caught current-wave/manifest/notice drift but did not check recurrence-ledger.yaml current_wave"
+      - "W31-D D-2' extended check_no_hardcoded_wave.py from scripts/ to scripts/+tests/ but did not extend to hi_agent/+agent_server/"
+      - "W17 allowlist discipline added required-fields validation but did not require permanence_rationale on expiry_wave: permanent entries"
+    root_cause: >
+      Each existing gate was scoped to one drift surface (current-wave.txt, allowlists.yaml,
+      manifest.wave, notice wave) but recurrence-ledger.yaml's own current_wave field was
+      not in that scan list, so it could drift unnoticed. The hardcoded-wave check
+      exempted production code (hi_agent/, agent_server/) on the assumption that
+      production code has no wave references, but compatibility shims do (per W11
+      shim-removal markers). Permanent allowlist entries lacked a structural
+      requirement to record why they are permanent (vs deferred-and-lapsed). Rule 9
+      open-findings discipline was governed by self-audit narrative rather than a
+      machine-checked gate.
+    code_fix: "W32-D D.1: recurrence-ledger.yaml current_wave 30 -> 31; D.2: check_no_hardcoded_wave.py scan extended to hi_agent/+agent_server/ with file-level top-of-module marker exemption + inline-literal rejection; D.3: ssh_backend_retired_w27 entry adds permanence_rationale field; D.4: platform-*.md timestamps refreshed to '2026-05-03 (Wave 31 closed; Wave 32 in this PR)'; D.5: runtime_adapter __all__ annotated with scope: public-contract / scope: process-internal; D.6: scripts/check_rule9_open_findings.py NEW + tests/scripts/test_check_rule9_open_findings.py + release-gate.yml integration."
+    regression_test: "scripts/check_doc_truth.py --json + scripts/check_wave_consistency.py --json + scripts/check_allowlist_discipline.py --json + scripts/check_no_hardcoded_wave.py --json + scripts/check_rule9_open_findings.py --json + tests/scripts/test_check_rule9_open_findings.py"
+    release_gate: "release-gate.yml steps: doc_truth / wave_consistency / allowlist_discipline / no_hardcoded_wave / rule9_open_findings (new W32)"
+    process_change: "Rule 14 + Rule 17 hardening: every governance YAML with a current_wave field is in the wave-consistency scan list; every permanent-expiry allowlist entry carries permanence_rationale; production code wave-string scan radius matches the source-of-truth shim removal markers; Rule 9 open-findings policy is now machine-enforced."
+    owner: GOV
+    expiry_or_followup: "Wave 32 — closed in this PR"
+    evidence_artifact: "docs/governance/recurrence-ledger.yaml + scripts/check_no_hardcoded_wave.py + scripts/check_rule9_open_findings.py"
+    current_closure_level: verified_at_release_head
+    metric_name: "hi_agent_doc_truth_governance_drift_total"
+    alert_rule: "hi_agent_doc_truth_governance_drift_alert"
+    runbook_path: "docs/runbooks/doc-truth-governance-drift.md"

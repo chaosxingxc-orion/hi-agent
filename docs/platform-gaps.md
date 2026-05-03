@@ -1,6 +1,6 @@
 # hi-agent Platform Gaps — Response to Research Roadmap 2026-04-16
 
-**Last updated**: 2026-05-03 (Wave 31 in progress; P-1..P-7 status frozen at W30 close)
+**Last updated**: 2026-05-03 (Wave 31 closed; Wave 32 in this PR)
 **Source**: research/docs/hi-agent-strategic-roadmap-2026-04-16.md
 **Contact**: hi-agent platform team
 
@@ -14,12 +14,15 @@ hi-agent is the **capability platform layer**. The research team is the **busine
 
 ## P-1 through P-7 Gap Status
 
-**Schema note (W31 D-1'):** P-1..P-7 below use the **W30-notice taxonomy** (canonical, per
+**Schema note (W31 D-1', refreshed W32-D D.4):** P-1..P-7 below use the **W30-notice taxonomy** (canonical, per
 `docs/governance/p-gap-vocabulary.md`). A different P-N taxonomy used in pre-W31 notices
 (P-1=Provenance, P-2=Reasoning trace, P-3=Cross-Run Project, P-4=Dynamic re-planning,
 P-5=Confidence, P-6=KG inference, P-7=Feedback) is retired — see vocabulary doc for the
-mapping. Status fields below are byte-equal to the W30 delivery notice
-(`docs/downstream-responses/2026-05-03-w30-delivery-notice.md` §"Platform Gap Status").
+mapping. Status fields below remain byte-equal to the W30 delivery notice
+(`docs/downstream-responses/2026-05-03-w30-delivery-notice.md` §"Platform Gap Status");
+the W31 closure (`2026-05-03-w31-delivery-notice.md`) did not modify P-1..P-7 levels —
+W31 deltas (Tenant L3, Functional idempotency L2-L3, Northbound L3, Configurable D OK)
+are surfaced under "Readiness Delta" below and in the Capability Matrix, not in this P-N table.
 
 | Gap | hi-agent Status | Latest Action | Target Phase |
 |---|---|---|---|
