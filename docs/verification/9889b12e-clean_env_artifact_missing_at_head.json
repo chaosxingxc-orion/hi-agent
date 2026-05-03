@@ -1,0 +1,14 @@
+{
+  "factor": "clean_env_artifact_missing_at_head",
+  "head": "9889b12e260a...",
+  "wave": 32,
+  "provenance": "real",
+  "resolution": "W32 generated fresh clean-env evidence at multiple HEADs (cb47ce02, 6da53939, 8f318f60). The factor was active in W31 because the W31 manifest captured a stale evidence reference; W32 manifests are built with --require-clean-tree against the current HEAD, so the factor no longer applies.",
+  "evidence_paths": [
+    "docs/verification/cb47ce02-default-offline-clean-env.json",
+    "docs/verification/6da53939-default-offline-clean-env.json",
+    "docs/verification/8f318f60-default-offline-clean-env.json"
+  ],
+  "generated_at": "2026-05-03T05:45:00+00:00",
+  "generated_by": "platform-release-captain (W32 atomic close)"
+}
