@@ -22,6 +22,16 @@ from tests.helpers.kernel_adapter_fixture import MockKernel
 from tests.helpers.kernel_facade_fixture import MockKernelFacade
 
 
+@pytest.fixture(autouse=True)
+def _dev_posture(monkeypatch):
+    """W33-E.1: Posture.resolve_runtime_mode() defaults to 'prod' (Rule 11
+    fail-closed). Contract tests run without LLM credentials; pin dev so
+    register_trace_capabilities heuristic fallback is allowed.
+    """
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
+    yield
+
+
 def _contract(goal: str = "Say hello", task_family: str = "quick_task") -> TaskContract:
     return TaskContract(task_id="contract-async-001", goal=goal, task_family=task_family)
 
