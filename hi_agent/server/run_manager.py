@@ -618,7 +618,7 @@ class RunManager:
         # run whose start_run() never registers an executor (rather than
         # spinning release_lease forever and starving the test runner).
         _executor_release_count: dict[str, int] = {}
-        _MAX_EXECUTOR_RELEASE_RETRIES = 50  # 50 * 50ms = 2.5s budget
+        _max_executor_release_retries = 50  # 50 * 50ms = 2.5s budget
         while not self._shutdown:
             if self._run_queue is not None:
                 self._run_queue.release_expired_leases()
@@ -665,7 +665,7 @@ class RunManager:
                     # calls it), fail after N retries to avoid an infinite
                     # loop that starves other runs in the queue.
                     _retries = _executor_release_count.get(run_id, 0)
-                    if _retries >= _MAX_EXECUTOR_RELEASE_RETRIES:
+                    if _retries >= _max_executor_release_retries:
                         _executor_release_count.pop(run_id, None)
                         self._run_queue.fail(
                             run_id, "run_manager", "executor_register_timeout"
