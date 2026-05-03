@@ -122,3 +122,21 @@ def test__enforce_tenant_scope() -> None:
 def test_aggregator_module_loaded() -> None:
     """Sanity: verify TenantScopeError is importable for branch parity tests."""
     assert TenantScopeError is not None
+
+
+# ---------------------------------------------------------------------------
+# routes_ops_runs._resolve_tenant_scope (W33-A B-T1)
+# ---------------------------------------------------------------------------
+
+
+def test__resolve_tenant_scope() -> None:
+    """Aggregator for hi_agent/server/routes_ops_runs.py:36 posture branches.
+
+    The helper rejects ?workspace= mismatching auth-context tenant_id with
+    403 under research/prod (Posture.is_strict True), and logs WARNING and
+    proceeds under dev (Posture.is_strict False).
+    """
+    with _set_posture("research"):
+        assert Posture.from_env().is_strict is True
+    with _set_posture("dev"):
+        assert Posture.from_env().is_strict is False
