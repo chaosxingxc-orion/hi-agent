@@ -1,0 +1,7 @@
+{
+  "artifact_path": "D:\\chao_workspace\\hi-agent\\docs\\verification\\9c19f764-score-cap.json",
+  "provenance": "derived",
+  "head_sha": "9c19f764a2b0f3376b513a269fd36212815107fb",
+  "generated_at": "2026-05-03T11:19:57.961203+00:00",
+  "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\check_score_cap.py"
+}
