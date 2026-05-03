@@ -125,8 +125,10 @@ def test_ready_readiness_failure_records_rule7_signals(
     with caplog.at_level(logging.WARNING):
         resp = client.get("/ready")
 
-    # Should be 503 because snapshot is forced to ready=False.
-    assert resp.status_code in (200, 503), resp.text
+    # The handler degrades silently to a 503 fallback (Rule 7) when snapshot
+    # raises; this is the contract under instrumentation so we assert it
+    # explicitly rather than accepting both success and failure.
+    assert resp.status_code == 503, resp.text
 
     final_counter = _counter_value_for("readiness")
     assert final_counter > initial_counter
