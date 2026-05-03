@@ -215,9 +215,9 @@ class SQLiteEventStore:
             session_id=row[7],
             trace_id=row[8],
             created_at=row[9],
-            parent_run_id=row[10] if len(row) > 10 else "",
-            attempt_id=row[11] if len(row) > 11 else "",
-            phase_id=row[12] if len(row) > 12 else "",
+            parent_run_id=row[10],
+            attempt_id=row[11],
+            phase_id=row[12],
         )
 
     def list_since(

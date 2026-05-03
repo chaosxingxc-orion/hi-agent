@@ -170,9 +170,9 @@ ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
             updated_at=row[12],
             project_id=row[13],
             finished_at=row[14],
-            parent_run_id=row[15] if len(row) > 15 else "",
-            attempt_id=row[16] if len(row) > 16 else "",
-            phase_id=row[17] if len(row) > 17 else "",
+            parent_run_id=row[15],
+            attempt_id=row[16],
+            phase_id=row[17],
         )
 
     # -- public API ----------------------------------------------------------

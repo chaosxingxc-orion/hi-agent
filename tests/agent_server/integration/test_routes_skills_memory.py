@@ -25,13 +25,42 @@ Coverage:
 """
 from __future__ import annotations
 
+import os
+import time
 from typing import Any
 
+import jwt as pyjwt
 import pytest
 from agent_server.api import build_app
 from agent_server.contracts.errors import NotFoundError
 from agent_server.facade.run_facade import RunFacade
 from fastapi.testclient import TestClient
+
+# W33-C.4: JWT auth middleware was added to build_app(); under
+# research/prod posture, every request needs a valid Bearer token.
+# Tests that previously ran under research without auth now must
+# present a bearer.
+_JWT_SECRET = "test-secret-w33-skills-memory-must-be-32-bytes-padding-pad"
+_JWT_AUDIENCE = "hi-agent"
+
+
+def _make_bearer(tenant: str = "tenant-A", role: str = "write") -> str:
+    payload = {
+        "sub": f"user-for-{tenant}",
+        "tenant_id": tenant,
+        "role": role,
+        "aud": _JWT_AUDIENCE,
+        "exp": int(time.time()) + 3600,
+    }
+    token = pyjwt.encode(payload, _JWT_SECRET, algorithm="HS256")
+    return f"Bearer {token}"
+
+
+@pytest.fixture(autouse=True)
+def _jwt_secret_env(monkeypatch):
+    """All tests in this module sign tokens with the same test secret."""
+    monkeypatch.setenv("HI_AGENT_JWT_SECRET", _JWT_SECRET)
+    yield
 
 # ---------------------------------------------------------------------------
 # Minimal stub backend so build_app's required run_facade is satisfied.
@@ -80,8 +109,9 @@ def client() -> TestClient:
     return TestClient(app)
 
 
-def _headers(tenant: str = "tenant-A") -> dict[str, str]:
-    return {"X-Tenant-Id": tenant}
+def _headers(tenant: str = "tenant-A", *, role: str = "write") -> dict[str, str]:
+    """Return canonical headers including a valid JWT (W33-C.4 auth)."""
+    return {"X-Tenant-Id": tenant, "Authorization": _make_bearer(tenant, role)}
 
 
 # ---------------------------------------------------------------------------

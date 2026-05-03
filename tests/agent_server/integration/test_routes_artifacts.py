@@ -10,8 +10,10 @@ not "owned by everyone").
 """
 from __future__ import annotations
 
+import time
 from typing import Any
 
+import jwt as pyjwt
 import pytest
 from agent_server.api import build_app
 from agent_server.contracts.errors import NotFoundError
@@ -19,6 +21,29 @@ from agent_server.facade.artifact_facade import ArtifactFacade
 from agent_server.facade.event_facade import EventFacade
 from agent_server.facade.run_facade import RunFacade
 from fastapi.testclient import TestClient
+
+# W33-C.4: JWT auth middleware was added to build_app(). Tests under
+# research posture must present a valid Bearer token.
+_JWT_SECRET = "test-secret-w33-artifacts-must-be-32-bytes-padding-padding"
+_JWT_AUDIENCE = "hi-agent"
+
+
+def _make_bearer(tenant: str = "tenant-A", role: str = "read") -> str:
+    payload = {
+        "sub": f"user-for-{tenant}",
+        "tenant_id": tenant,
+        "role": role,
+        "aud": _JWT_AUDIENCE,
+        "exp": int(time.time()) + 3600,
+    }
+    token = pyjwt.encode(payload, _JWT_SECRET, algorithm="HS256")
+    return f"Bearer {token}"
+
+
+@pytest.fixture(autouse=True)
+def _jwt_secret_env(monkeypatch):
+    monkeypatch.setenv("HI_AGENT_JWT_SECRET", _JWT_SECRET)
+    yield
 
 
 class _StubArtifactBackend:
@@ -140,8 +165,9 @@ def client_factory(backend: _StubArtifactBackend, monkeypatch):
         c.close()
 
 
-def _headers(tenant: str = "tenant-A") -> dict[str, str]:
-    return {"X-Tenant-Id": tenant}
+def _headers(tenant: str = "tenant-A", *, role: str = "read") -> dict[str, str]:
+    """Return canonical headers including a valid JWT (W33-C.4 auth)."""
+    return {"X-Tenant-Id": tenant, "Authorization": _make_bearer(tenant, role)}
 
 
 # ---------------------------------------------------------------------------
