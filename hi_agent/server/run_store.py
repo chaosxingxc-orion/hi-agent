@@ -36,6 +36,12 @@ class RunRecord:
     session_id: str = "__legacy__"  # workspace session; "__legacy__" for pre-migration rows
     project_id: str = ""  # project scope; empty for pre-migration / unscoped rows
     finished_at: float = 0.0  # 0 until terminal state; epoch seconds
+    # W33-F: Rule 12 spine lineage fields (additive Optional, default empty for back-compat).
+    # NOTE: ``attempt_count`` (above) is a counter; ``attempt_id`` is a stable
+    # identifier per attempt (UUID4 or similar). Both can coexist.
+    parent_run_id: str = ""  # parent run identifier (lineage; empty for root runs)
+    attempt_id: str = ""  # stable identifier per attempt (UUID4 or similar)
+    phase_id: str = ""  # TRACE phase tagging (e.g. "intake", "execute", "finalize")
 
 
 class SQLiteRunStore:
@@ -60,7 +66,10 @@ CREATE TABLE IF NOT EXISTS run_records (
     error_summary       TEXT    NOT NULL DEFAULT '',
     created_at          REAL    NOT NULL,
     updated_at          REAL    NOT NULL,
-    finished_at         REAL    NOT NULL DEFAULT 0
+    finished_at         REAL    NOT NULL DEFAULT 0,
+    parent_run_id       TEXT    NOT NULL DEFAULT '',
+    attempt_id          TEXT    NOT NULL DEFAULT '',
+    phase_id            TEXT    NOT NULL DEFAULT ''
 )
 """
     _CREATE_INDEX = """\
@@ -71,6 +80,9 @@ ON run_records (tenant_id)
     _MIGRATE_RUN_RECORDS = """\
 ALTER TABLE run_records ADD COLUMN user_id TEXT NOT NULL DEFAULT '__legacy__';
 ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__';
+ALTER TABLE run_records ADD COLUMN parent_run_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE run_records ADD COLUMN attempt_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
 """
 
     def __init__(
@@ -119,6 +131,21 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cx.execute(
                 "ALTER TABLE run_records ADD COLUMN finished_at REAL NOT NULL DEFAULT 0"
             )
+        # W33-F: Rule 12 spine lineage fields. Idempotent — re-running on a
+        # database that already has the columns is a no-op via the membership
+        # check.
+        if "parent_run_id" not in cols:
+            cx.execute(
+                "ALTER TABLE run_records ADD COLUMN parent_run_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "attempt_id" not in cols:
+            cx.execute(
+                "ALTER TABLE run_records ADD COLUMN attempt_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "phase_id" not in cols:
+            cx.execute(
+                "ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT ''"
+            )
         cx.commit()
         cx.execute(
             "CREATE INDEX IF NOT EXISTS idx_run_records_workspace "
@@ -143,6 +170,9 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             updated_at=row[12],
             project_id=row[13],
             finished_at=row[14],
+            parent_run_id=row[15] if len(row) > 15 else "",
+            attempt_id=row[16] if len(row) > 16 else "",
+            phase_id=row[17] if len(row) > 17 else "",
         )
 
     # -- public API ----------------------------------------------------------
@@ -173,8 +203,9 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                 "INSERT OR REPLACE INTO run_records "
                 "(run_id, tenant_id, user_id, session_id, task_contract_json, status, priority, "
                 "attempt_count, cancellation_flag, result_summary, error_summary, "
-                "created_at, updated_at, project_id, finished_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "created_at, updated_at, project_id, finished_at, "
+                "parent_run_id, attempt_id, phase_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.run_id,
                     record.tenant_id,
@@ -191,6 +222,9 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                     record.updated_at,
                     record.project_id,
                     record.finished_at,
+                    record.parent_run_id,
+                    record.attempt_id,
+                    record.phase_id,
                 ),
             )
             self._conn.commit()
@@ -217,7 +251,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                 cur = self._conn.execute(
                     "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                     "status, priority, attempt_count, cancellation_flag, result_summary, "
-                    "error_summary, created_at, updated_at, project_id, finished_at "
+                    "error_summary, created_at, updated_at, project_id, finished_at, "
+                    "parent_run_id, attempt_id, phase_id "
                     "FROM run_records WHERE run_id = ? AND tenant_id = ?",
                     (run_id, workspace),
                 )
@@ -226,7 +261,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                 cur = self._conn.execute(
                     "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                     "status, priority, attempt_count, cancellation_flag, result_summary, "
-                    "error_summary, created_at, updated_at, project_id, finished_at "
+                    "error_summary, created_at, updated_at, project_id, finished_at, "
+                    "parent_run_id, attempt_id, phase_id "
                     "FROM run_records WHERE run_id = ?",
                     (run_id,),
                 )
@@ -269,7 +305,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cur = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at, project_id, finished_at "
+                "error_summary, created_at, updated_at, project_id, finished_at, "
+                "parent_run_id, attempt_id, phase_id "
                 "FROM run_records WHERE tenant_id = ? ORDER BY created_at ASC",
                 (tenant_id,),
             )
@@ -294,7 +331,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             row = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at, project_id, finished_at "
+                "error_summary, created_at, updated_at, project_id, finished_at, "
+                "parent_run_id, attempt_id, phase_id "
                 "FROM run_records WHERE run_id=? AND tenant_id=? AND user_id=? AND session_id=?",
                 (run_id, tenant_id, user_id, session_id),
             ).fetchone()
@@ -318,7 +356,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                 rows = self._conn.execute(
                     "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                     "status, priority, attempt_count, cancellation_flag, result_summary, "
-                    "error_summary, created_at, updated_at, project_id, finished_at "
+                    "error_summary, created_at, updated_at, project_id, finished_at, "
+                    "parent_run_id, attempt_id, phase_id "
                     "FROM run_records WHERE tenant_id=? AND user_id=? AND session_id=? "
                     "ORDER BY created_at DESC",
                     (tenant_id, user_id, session_id),
@@ -327,7 +366,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
                 rows = self._conn.execute(
                     "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                     "status, priority, attempt_count, cancellation_flag, result_summary, "
-                    "error_summary, created_at, updated_at, project_id, finished_at "
+                    "error_summary, created_at, updated_at, project_id, finished_at, "
+                    "parent_run_id, attempt_id, phase_id "
                     "FROM run_records WHERE tenant_id=? AND user_id=? ORDER BY created_at DESC",
                     (tenant_id, user_id),
                 ).fetchall()
@@ -455,7 +495,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cur = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at, project_id, finished_at "
+                "error_summary, created_at, updated_at, project_id, finished_at, "
+                "parent_run_id, attempt_id, phase_id "
                 "FROM run_records WHERE tenant_id = ? AND project_id = ? "
                 "ORDER BY created_at ASC",
                 (tenant_id, project_id),
@@ -522,7 +563,8 @@ ALTER TABLE run_records ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'
             cur = self._conn.execute(
                 "SELECT run_id, tenant_id, user_id, session_id, task_contract_json, "
                 "status, priority, attempt_count, cancellation_flag, result_summary, "
-                "error_summary, created_at, updated_at, project_id, finished_at "
+                "error_summary, created_at, updated_at, project_id, finished_at, "
+                "parent_run_id, attempt_id, phase_id "
                 "FROM run_records WHERE status IN ('queued', 'running') "
                 "ORDER BY created_at ASC",
             )

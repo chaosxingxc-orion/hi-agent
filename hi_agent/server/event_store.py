@@ -30,6 +30,10 @@ class StoredEvent:
     session_id: str = "__legacy__"  # workspace session; "__legacy__" for pre-migration rows
     trace_id: str = ""
     created_at: float = field(default_factory=time.time)
+    # W33-F: Rule 12 spine lineage fields (additive Optional, default empty for back-compat).
+    parent_run_id: str = ""  # parent run identifier (lineage; empty for root runs)
+    attempt_id: str = ""  # stable identifier per attempt (UUID4 or similar)
+    phase_id: str = ""  # TRACE phase tagging (e.g. "intake", "execute", "finalize")
 
 
 _SCHEMA = """
@@ -44,7 +48,10 @@ CREATE TABLE IF NOT EXISTS run_events (
     user_id     TEXT    NOT NULL DEFAULT '__legacy__',
     session_id  TEXT    NOT NULL DEFAULT '__legacy__',
     trace_id    TEXT    NOT NULL DEFAULT '',
-    created_at  REAL    NOT NULL DEFAULT 0.0
+    created_at  REAL    NOT NULL DEFAULT 0.0,
+    parent_run_id TEXT  NOT NULL DEFAULT '',
+    attempt_id  TEXT    NOT NULL DEFAULT '',
+    phase_id    TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_run_events_run_seq ON run_events (run_id, sequence);
 """
@@ -52,6 +59,9 @@ CREATE INDEX IF NOT EXISTS idx_run_events_run_seq ON run_events (run_id, sequenc
 _MIGRATE_RUN_EVENTS = """\
 ALTER TABLE run_events ADD COLUMN user_id TEXT NOT NULL DEFAULT '__legacy__';
 ALTER TABLE run_events ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__';
+ALTER TABLE run_events ADD COLUMN parent_run_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE run_events ADD COLUMN attempt_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE run_events ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
 """
 
 
@@ -90,6 +100,21 @@ class SQLiteEventStore:
         if "session_id" not in cols:
             cx.execute(
                 "ALTER TABLE run_events ADD COLUMN session_id TEXT NOT NULL DEFAULT '__legacy__'"
+            )
+        # W33-F: Rule 12 spine lineage fields. Idempotent — re-running on a
+        # database that already has the columns is a no-op via the membership
+        # check.
+        if "parent_run_id" not in cols:
+            cx.execute(
+                "ALTER TABLE run_events ADD COLUMN parent_run_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "attempt_id" not in cols:
+            cx.execute(
+                "ALTER TABLE run_events ADD COLUMN attempt_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "phase_id" not in cols:
+            cx.execute(
+                "ALTER TABLE run_events ADD COLUMN phase_id TEXT NOT NULL DEFAULT ''"
             )
         cx.commit()
         cx.execute(
@@ -134,8 +159,9 @@ class SQLiteEventStore:
                 """
                 INSERT OR IGNORE INTO run_events
                     (event_id, run_id, sequence, event_type, payload_json,
-                     tenant_id, user_id, session_id, trace_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     tenant_id, user_id, session_id, trace_id, created_at,
+                     parent_run_id, attempt_id, phase_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.event_id,
@@ -148,6 +174,9 @@ class SQLiteEventStore:
                     event.session_id,
                     event.trace_id,
                     event.created_at,
+                    event.parent_run_id,
+                    event.attempt_id,
+                    event.phase_id,
                 ),
             )
             self._conn.commit()
@@ -173,7 +202,8 @@ class SQLiteEventStore:
     def _row_to_event(self, row: tuple) -> StoredEvent:
         # Row column order matches explicit SELECT:
         # event_id[0], run_id[1], sequence[2], event_type[3], payload_json[4],
-        # tenant_id[5], user_id[6], session_id[7], trace_id[8], created_at[9]
+        # tenant_id[5], user_id[6], session_id[7], trace_id[8], created_at[9],
+        # parent_run_id[10], attempt_id[11], phase_id[12]
         return StoredEvent(
             event_id=row[0],
             run_id=row[1],
@@ -185,6 +215,9 @@ class SQLiteEventStore:
             session_id=row[7],
             trace_id=row[8],
             created_at=row[9],
+            parent_run_id=row[10] if len(row) > 10 else "",
+            attempt_id=row[11] if len(row) > 11 else "",
+            phase_id=row[12] if len(row) > 12 else "",
         )
 
     def list_since(
@@ -210,7 +243,8 @@ class SQLiteEventStore:
         threshold = last_id if last_id is not None else since_sequence
         query = (
             "SELECT event_id, run_id, sequence, event_type, payload_json, "
-            "tenant_id, user_id, session_id, trace_id, created_at "
+            "tenant_id, user_id, session_id, trace_id, created_at, "
+            "parent_run_id, attempt_id, phase_id "
             "FROM run_events WHERE run_id = ? AND sequence > ?"
         )
         params: list = [run_id, threshold]
@@ -239,7 +273,8 @@ class SQLiteEventStore:
         if tenant_id_filter:
             query = (
                 "SELECT event_id, run_id, sequence, event_type, payload_json, "
-                "tenant_id, user_id, session_id, trace_id, created_at "
+                "tenant_id, user_id, session_id, trace_id, created_at, "
+                "parent_run_id, attempt_id, phase_id "
                 "FROM run_events WHERE run_id = ? AND tenant_id = ? "
                 "ORDER BY id ASC LIMIT ? OFFSET ?"
             )
@@ -247,7 +282,8 @@ class SQLiteEventStore:
         else:
             query = (
                 "SELECT event_id, run_id, sequence, event_type, payload_json, "
-                "tenant_id, user_id, session_id, trace_id, created_at "
+                "tenant_id, user_id, session_id, trace_id, created_at, "
+                "parent_run_id, attempt_id, phase_id "
                 "FROM run_events WHERE run_id = ? ORDER BY id ASC LIMIT ? OFFSET ?"
             )
             params = (run_id, limit, offset)
@@ -265,6 +301,9 @@ class SQLiteEventStore:
                 "session_id": row[7],
                 "trace_id": row[8],
                 "created_at": row[9],
+                "parent_run_id": row[10],
+                "attempt_id": row[11],
+                "phase_id": row[12],
             }
             for row in rows
         ]
