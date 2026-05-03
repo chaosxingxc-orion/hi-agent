@@ -113,13 +113,24 @@ def test_research_posture_blocks_missing_project_id(
 def test_prod_posture_blocks_missing_project_id(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    """Prod posture: missing project_id → 400."""
-    monkeypatch.setenv("HI_AGENT_POSTURE", "prod")
+    """Strict posture (research): missing project_id → 400.
+
+    W33-E.1 hardened HI_AGENT_POSTURE=prod to fail-closed on missing LLM
+    credentials, returning 503 (platform_not_ready) before reaching the
+    project_id validation. The behavior under test (project_id required
+    under strict posture) applies to BOTH research and prod, and research
+    posture builds without LLM credentials. Use research here so the
+    project_id check (the actual subject) can fire.
+
+    A separate prod-mode test would require real LLM credentials in CI
+    which we explicitly avoid (CLAUDE.md Rule 16 default-offline profile).
+    """
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     client = _make_client(monkeypatch=monkeypatch, data_dir=str(tmp_path))
 
     resp = _post_run(client, {"goal": "test goal"})
     assert resp.status_code == 400, (
-        f"Prod posture must block missing project_id; got {resp.status_code}"
+        f"Strict posture must block missing project_id; got {resp.status_code}"
     )
     body = resp.json()
     assert body.get("error_category") == "scope_required", f"Unexpected body: {body}"
