@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-05-03-a90a18df",
+  "verified_head": "a90a18dfda49073ceac6166749c53a6a00162526",
+  "generated_at": "2026-05-03T12:02:35.843665+00:00",
+  "current_verified_readiness": 75.0,
+  "cap": 75.0,
+  "cap_reason": "gate_warn/deferred: multistatus_gates; soak_evidence_not_real: no soak evidence at HEAD (a90a18dfda49); run scripts/run_soak.py --duration 1h --require-polling-observation",
+  "cap_factors": [
+    "gate_warn/deferred: multistatus_gates",
+    "soak_evidence_not_real: no soak evidence at HEAD (a90a18dfda49); run scripts/run_soak.py --duration 1h --require-polling-observation"
+  ],
+  "score_claim_issues": [],
+  "paired_evidence_issues": [],
+  "previous_wave_manifest_id": "2026-05-02-953d36cb",
+  "status": "pass",
+  "_evidence_meta": {
+    "provenance": "derived",
+    "head_sha": "a90a18dfda49073ceac6166749c53a6a00162526",
+    "generated_at": "2026-05-03T12:02:35.877820+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\check_score_cap.py"
+  }
+}
