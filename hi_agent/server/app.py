@@ -140,8 +140,7 @@ def _record_health_check_fallback(
     appends to the durable fallback_events list), so every health-check
     fallback path is countable + attributable + inspectable per Rule 7.
     """
-    # rule7-exempt: observability must not propagate
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(Exception):  # rule7-exempt: observability must not propagate; counter increment failure must not break the request handler
         _health_check_fallback_total.labels(component=component).inc()
     record_silent_degradation(
         component=f"health_check.{component}",

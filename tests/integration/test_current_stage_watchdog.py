@@ -35,7 +35,7 @@ def test_watchdog_fires_alarm_for_run_stuck_with_current_stage_none():
     server = AgentServer(rate_limit_rps=10000)
 
     # A list_runs that returns one stuck run; the watchdog scans this.
-    server.run_manager.list_runs = MagicMock(  # type: ignore[method-assign]
+    server.run_manager.list_runs = MagicMock(  # type: ignore[method-assign]  expiry_wave: permanent
         return_value=[_stuck_run("stuck-run-1", age_seconds=120.0)]
     )
 
@@ -94,7 +94,7 @@ def test_watchdog_does_not_fire_for_terminal_runs():
         datetime.now(UTC) - timedelta(seconds=120)
     ).isoformat()
 
-    server.run_manager.list_runs = MagicMock(  # type: ignore[method-assign]
+    server.run_manager.list_runs = MagicMock(  # type: ignore[method-assign]  expiry_wave: permanent
         return_value=[terminal_run]
     )
 

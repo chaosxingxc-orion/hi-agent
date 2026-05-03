@@ -176,8 +176,8 @@ class TestLegacyRowsWithoutTenantId:
         reg = TeamRunRegistry(db_path=db_file)
         try:
             # Manually insert a legacy row with empty tenant_id, mimicking pre-W32 data.
-            with reg._lock:  # type: ignore[attr-defined]  # exposed for test setup
-                reg._conn.execute(  # type: ignore[attr-defined]  # exposed for test setup
+            with reg._lock:  # type: ignore[attr-defined]  expiry_wave: permanent  # exposed for test setup
+                reg._conn.execute(  # type: ignore[attr-defined]  expiry_wave: permanent  # exposed for test setup
                     "INSERT INTO team_runs (team_id, pi_run_id, project_id, member_runs, "
                     "created_at, status, finished_at, tenant_id, user_id, session_id, "
                     "lead_run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -185,7 +185,7 @@ class TestLegacyRowsWithoutTenantId:
                      "2026-04-01T00:00:00+00:00", "created", 0.0,
                      "", "", "", "run-pi-legacy"),
                 )
-                reg._conn.commit()  # type: ignore[attr-defined]  # exposed for test setup
+                reg._conn.commit()  # type: ignore[attr-defined]  expiry_wave: permanent  # exposed for test setup
 
             # Tenant-scoped query must NOT match the legacy unscoped row.
             assert reg.get("legacy-team", tenant_id="any-tenant") is None

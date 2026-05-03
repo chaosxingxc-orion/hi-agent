@@ -118,7 +118,7 @@ def test_ready_readiness_failure_records_rule7_signals(
 
     # Replace builder.readiness() with a failing callable. The handler also
     # reaches for run_mgr.queue_depth, so leave run_manager intact.
-    server._builder.readiness = MagicMock(  # type: ignore[attr-defined]
+    server._builder.readiness = MagicMock(  # type: ignore[attr-defined]  expiry_wave: permanent
         side_effect=ValueError("readiness_synthetic_failure")
     )
 

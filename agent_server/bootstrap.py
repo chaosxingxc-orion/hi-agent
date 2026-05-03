@@ -113,7 +113,7 @@ def _resolve_backend_kind(posture: Posture) -> Literal["real", "stub"]:
             "AGENT_SERVER_BACKEND=stub is forbidden under research/prod posture; "
             "set AGENT_SERVER_BACKEND=real (the default) or unset it."
         )
-    return raw  # type: ignore[return-value]  # narrowed above
+    return raw  # type: ignore[return-value]  expiry_wave: permanent  # narrowed by raise above
 
 
 class _InProcessRunBackend:
