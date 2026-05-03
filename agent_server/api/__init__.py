@@ -26,6 +26,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from agent_server import AGENT_SERVER_API_VERSION
+from agent_server.api.middleware.auth import JWTAuthMiddleware
 from agent_server.api.middleware.idempotency import register_idempotency_middleware
 from agent_server.api.middleware.tenant_context import (
     TenantContextMiddleware,
@@ -123,11 +124,11 @@ def build_app(
     if lifespan is not None:
         app_kwargs["lifespan"] = lifespan
     app = FastAPI(**app_kwargs)
-    # Middleware order at request time:
-    #   TenantContext (validates X-Tenant-Id) -> Idempotency (consumes ctx)
+    # Middleware order at request time (W33-C.4 adds JWTAuth outermost):
+    #   JWTAuth -> TenantContext -> Idempotency
     # FastAPI's add_middleware inserts at index 0 (last added is OUTERMOST
-    # and runs FIRST). To get TenantContext outermost we therefore add the
-    # idempotency middleware FIRST and the tenant middleware LAST.
+    # and runs FIRST). To get JWTAuth outermost we add it LAST after the
+    # idempotency and tenant-context middlewares.
     if idempotency_facade is not None:
         register_idempotency_middleware(
             app, facade=idempotency_facade, strict=idempotency_strict
@@ -138,6 +139,11 @@ def build_app(
         )
     else:
         app.add_middleware(TenantContextMiddleware)
+    # W33-C.4: JWT auth is outermost so unauthenticated requests are
+    # rejected before the tenant or idempotency layers see them. Under
+    # dev posture the middleware is a passthrough; under research/prod
+    # it fails closed with HTTP 401.
+    app.add_middleware(JWTAuthMiddleware)
 
     @app.get("/v1/health")
     async def _health(_request: Request) -> JSONResponse:  # pragma: no cover - smoke

@@ -159,3 +159,36 @@ class TestReleaseLease:
 
     def test_release_lease_unknown_run_returns_false(self, q: RunQueue) -> None:
         assert q.release_lease("nonexistent", "worker-A") is False
+
+
+class TestReenqueueClearsAdoptionToken:
+    """W33-C.3: ``reenqueue`` must clear ``adoption_token`` so a second
+    recovery pass can claim the run via ``claim_with_adoption_token``.
+
+    Without this clear, the second lease-expiry on the same run would
+    find a non-NULL ``adoption_token`` left over from the first recovery
+    and the CAS update would fail with rowcount=0, stranding the run.
+    """
+
+    def test_reenqueue_clears_adoption_token_for_second_recovery(
+        self, q: RunQueue
+    ) -> None:
+        q.enqueue("run-1", priority=0)
+        # 1) First recovery pass claims the adoption token.
+        first_claimed = q.claim_with_adoption_token("run-1", "token-1")
+        assert first_claimed is True
+        # Sanity: a second concurrent recovery cannot grab the same token.
+        race = q.claim_with_adoption_token("run-1", "token-1b")
+        assert race is False
+        # 2) Worker actually claims+leases the run (mirrors normal path).
+        item = q.claim_next("worker-A")
+        assert item is not None
+        # 3) Simulate lease expiry by reenqueueing.
+        ok = q.reenqueue("run-1")
+        assert ok is True
+        # 4) Second recovery pass MUST be able to claim a fresh token.
+        second_claimed = q.claim_with_adoption_token("run-1", "token-2")
+        assert second_claimed is True, (
+            "reenqueue must clear adoption_token; otherwise the second "
+            "recovery cycle leaves the run un-adoptable"
+        )

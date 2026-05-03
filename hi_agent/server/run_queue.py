@@ -6,10 +6,20 @@ runs so another worker can claim them.
 
 Follows the same code style as ``SQLiteRunStore`` and
 ``SqliteEvidenceStore``.
+
+W33 D.2: defense-in-depth tenant scoping. The 8 mutation/inspection
+methods (``reenqueue``, ``cancel``, ``heartbeat``, ``complete``, ``fail``,
+``dequeue_unclaimed``, ``is_cancelled``, ``dead_letter``,
+``requeue_from_dlq``) accept an optional ``tenant_id`` kwarg. Under
+research/prod posture (read via ``Posture.from_env()``) a missing/empty
+``tenant_id`` raises ``TenantScopeError``. When provided, queries add
+``WHERE tenant_id = ?`` so a future internal caller cannot mutate a row
+that does not belong to the supplied tenant.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 import threading
@@ -18,6 +28,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
+_logger = logging.getLogger(__name__)
+
 
 class OptimisticLockError(Exception):
     """Raised when a recovery lease claim fails due to concurrent adoption.
@@ -25,6 +37,46 @@ class OptimisticLockError(Exception):
     Thrown by callers that detect ``claim_with_adoption_token`` returned
     ``False``, indicating another recovery pass already owns the run.
     """
+
+
+def _check_tenant_scope(tenant_id: str | None, *, method: str) -> str | None:
+    """Posture-aware tenant scope check for run-queue mutation methods.
+
+    research/prod posture rejects empty/None ``tenant_id`` with
+    ``TenantScopeError``. dev posture emits a one-line WARNING and returns
+    ``None`` for back-compat (call proceeds without a tenant filter).
+
+    Returns:
+        The provided ``tenant_id`` (after stripping) when non-empty;
+        ``None`` when empty/None and posture is dev (back-compat).
+    """
+    value = (tenant_id or "").strip()
+    if value:
+        return value
+    # Lazy import to avoid pulling Posture at module import time.
+    try:
+        from hi_agent.config.posture import Posture
+        posture = Posture.from_env()
+    except Exception:
+        # Defensive: if posture resolution fails, treat as strict to fail closed.
+        from hi_agent.contracts.errors import TenantScopeError
+        raise TenantScopeError(
+            f"RunQueue.{method}: tenant_id is required but posture "
+            f"resolution failed."
+        ) from None
+    if posture.is_strict:
+        from hi_agent.contracts.errors import TenantScopeError
+        raise TenantScopeError(
+            f"RunQueue.{method}: tenant_id is required under "
+            f"research/prod posture but was empty or missing."
+        )
+    _logger.warning(
+        "RunQueue.%s: tenant_id missing under dev posture; proceeding "
+        "without tenant filter (back-compat). Pass tenant_id from "
+        "TenantContext to scope the call properly.",
+        method,
+    )
+    return None
 
 
 def _resolve_db_path(db_path: str | None) -> str:
@@ -199,29 +251,54 @@ ON run_queue (tenant_id, user_id, session_id, status)
             )
             self._conn.commit()
 
-    def reenqueue(self, run_id: str, tenant_id: str = "") -> bool:
+    def reenqueue(self, run_id: str, tenant_id: str | None = None) -> bool:
         """Reset an existing run's status to 'queued' for re-processing.
 
         Used by recovery to re-queue a lease-expired run.  Unlike ``enqueue``,
         this method explicitly updates an existing row rather than inserting.
 
+        W33-C.3: also clears ``adoption_token`` so a subsequent recovery pass
+        can claim the run via :meth:`claim_with_adoption_token`. Without this
+        reset, the second lease-expiry on the same run would find a non-NULL
+        ``adoption_token`` carried over from the first recovery and the CAS
+        update would fail (rowcount=0), stranding the run as un-adoptable.
+
+        W33 D.2: defense-in-depth tenant scoping. Under research/prod posture
+        a missing/empty ``tenant_id`` raises ``TenantScopeError``. When
+        provided, the UPDATE filters on ``tenant_id`` so a row owned by
+        another tenant is never reset by this call.
+
         Args:
             run_id: Identifier of the run to re-enqueue.
-            tenant_id: Tenant spine — used to verify the row is owned by the
-                expected tenant; ignored if empty.
+            tenant_id: Tenant spine — required under research/prod posture.
+                When provided the UPDATE filters on tenant_id; under dev a
+                missing value is allowed with a WARNING for back-compat.
 
         Returns:
-            ``True`` if the run was reset to 'queued'; ``False`` if not found.
+            ``True`` if the run was reset to 'queued'; ``False`` if not found
+            or owned by a different tenant.
         """
+        scoped = _check_tenant_scope(tenant_id, method="reenqueue")
         now = time.time()
         with self._lock:
-            result = self._conn.execute(
-                "UPDATE run_queue "
-                "SET status = 'queued', worker_id = NULL, "
-                "    lease_expires_at = NULL, updated_at = ? "
-                "WHERE run_id = ?",
-                (now, run_id),
-            )
+            if scoped is not None:
+                result = self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET status = 'queued', worker_id = NULL, "
+                    "    lease_expires_at = NULL, adoption_token = NULL, "
+                    "    updated_at = ? "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (now, run_id, scoped),
+                )
+            else:
+                result = self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET status = 'queued', worker_id = NULL, "
+                    "    lease_expires_at = NULL, adoption_token = NULL, "
+                    "    updated_at = ? "
+                    "WHERE run_id = ?",
+                    (now, run_id),
+                )
             self._conn.commit()
         return result.rowcount > 0
 
@@ -279,27 +356,46 @@ ON run_queue (tenant_id, user_id, session_id, status)
 
         return {"run_id": run_id, "payload_json": payload_json}
 
-    def heartbeat(self, run_id: str, worker_id: str) -> bool:
+    def heartbeat(
+        self, run_id: str, worker_id: str, tenant_id: str | None = None
+    ) -> bool:
         """Extend the lease for an active run.
+
+        W33 D.2: defense-in-depth tenant scoping. Under research/prod posture
+        a missing/empty ``tenant_id`` raises ``TenantScopeError``. When
+        provided, the UPDATE filters on ``tenant_id`` so a row owned by
+        another tenant is never extended by this call.
 
         Args:
             run_id: Identifier of the leased run.
             worker_id: Must match the worker that claimed the run.
+            tenant_id: Tenant spine — required under research/prod posture.
 
         Returns:
             ``True`` if the lease was extended; ``False`` if the lease was
-            already stolen by another worker (or the run no longer exists).
+            already stolen by another worker, the run does not exist, or
+            it is owned by a different tenant.
         """
+        scoped = _check_tenant_scope(tenant_id, method="heartbeat")
         now = time.time()
         lease_expires_at = now + self._lease_timeout
         with self._lock:
-            result = self._conn.execute(
-                "UPDATE run_queue "
-                "SET lease_expires_at = ?, updated_at = ? "
-                "WHERE run_id = ? AND worker_id = ? AND status = 'leased' "
-                "AND lease_expires_at >= ?",
-                (lease_expires_at, now, run_id, worker_id, now),
-            )
+            if scoped is not None:
+                result = self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET lease_expires_at = ?, updated_at = ? "
+                    "WHERE run_id = ? AND worker_id = ? AND status = 'leased' "
+                    "AND lease_expires_at >= ? AND tenant_id = ?",
+                    (lease_expires_at, now, run_id, worker_id, now, scoped),
+                )
+            else:
+                result = self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET lease_expires_at = ?, updated_at = ? "
+                    "WHERE run_id = ? AND worker_id = ? AND status = 'leased' "
+                    "AND lease_expires_at >= ?",
+                    (lease_expires_at, now, run_id, worker_id, now),
+                )
             self._conn.commit()
         return result.rowcount > 0
 
@@ -340,40 +436,78 @@ ON run_queue (tenant_id, user_id, session_id, status)
             self._conn.commit()
         return result.rowcount > 0
 
-    def complete(self, run_id: str, worker_id: str) -> None:
+    def complete(
+        self, run_id: str, worker_id: str, tenant_id: str | None = None
+    ) -> None:
         """Mark run as completed and remove it from the active queue.
+
+        W33 D.2: defense-in-depth tenant scoping. Under research/prod posture
+        a missing/empty ``tenant_id`` raises ``TenantScopeError``. When
+        provided, the UPDATE filters on ``tenant_id`` so a row owned by
+        another tenant is never marked completed by this call.
 
         Args:
             run_id: Identifier of the leased run.
             worker_id: Must match the worker that claimed the run.
+            tenant_id: Tenant spine — required under research/prod posture.
         """
+        scoped = _check_tenant_scope(tenant_id, method="complete")
         now = time.time()
         with self._lock:
-            self._conn.execute(
-                "UPDATE run_queue "
-                "SET status = 'completed', worker_id = NULL, "
-                "    lease_expires_at = NULL, updated_at = ? "
-                "WHERE run_id = ? AND worker_id = ?",
-                (now, run_id, worker_id),
-            )
+            if scoped is not None:
+                self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET status = 'completed', worker_id = NULL, "
+                    "    lease_expires_at = NULL, updated_at = ? "
+                    "WHERE run_id = ? AND worker_id = ? AND tenant_id = ?",
+                    (now, run_id, worker_id, scoped),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET status = 'completed', worker_id = NULL, "
+                    "    lease_expires_at = NULL, updated_at = ? "
+                    "WHERE run_id = ? AND worker_id = ?",
+                    (now, run_id, worker_id),
+                )
             self._conn.commit()
 
-    def fail(self, run_id: str, worker_id: str, error: str = "") -> None:
+    def fail(
+        self,
+        run_id: str,
+        worker_id: str,
+        error: str = "",
+        tenant_id: str | None = None,
+    ) -> None:
         """Record a failure; re-queue if retries remain, otherwise mark failed.
+
+        W33 D.2: defense-in-depth tenant scoping. Under research/prod posture
+        a missing/empty ``tenant_id`` raises ``TenantScopeError``. When
+        provided, every UPDATE/SELECT filters on ``tenant_id`` so a row
+        owned by another tenant is never failed by this call.
 
         Args:
             run_id: Identifier of the leased run.
             worker_id: Must match the worker that claimed the run.
             error: Human-readable error description (stored in payload for
                 observability; not surfaced through this API).
+            tenant_id: Tenant spine — required under research/prod posture.
         """
+        scoped = _check_tenant_scope(tenant_id, method="fail")
         now = time.time()
         with self._lock:
-            cur = self._conn.execute(
-                "SELECT attempt_count, max_attempts FROM run_queue "
-                "WHERE run_id = ? AND worker_id = ?",
-                (run_id, worker_id),
-            )
+            if scoped is not None:
+                cur = self._conn.execute(
+                    "SELECT attempt_count, max_attempts FROM run_queue "
+                    "WHERE run_id = ? AND worker_id = ? AND tenant_id = ?",
+                    (run_id, worker_id, scoped),
+                )
+            else:
+                cur = self._conn.execute(
+                    "SELECT attempt_count, max_attempts FROM run_queue "
+                    "WHERE run_id = ? AND worker_id = ?",
+                    (run_id, worker_id),
+                )
             row = cur.fetchone()
             if row is None:
                 return
@@ -390,13 +524,28 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 new_worker = None
                 new_lease = None
 
-            self._conn.execute(
-                "UPDATE run_queue "
-                "SET status = ?, attempt_count = ?, worker_id = ?, "
-                "    lease_expires_at = ?, updated_at = ? "
-                "WHERE run_id = ?",
-                (new_status, new_attempt_count, new_worker, new_lease, now, run_id),
-            )
+            if scoped is not None:
+                self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET status = ?, attempt_count = ?, worker_id = ?, "
+                    "    lease_expires_at = ?, updated_at = ? "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (
+                        new_status, new_attempt_count, new_worker,
+                        new_lease, now, run_id, scoped,
+                    ),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET status = ?, attempt_count = ?, worker_id = ?, "
+                    "    lease_expires_at = ?, updated_at = ? "
+                    "WHERE run_id = ?",
+                    (
+                        new_status, new_attempt_count, new_worker,
+                        new_lease, now, run_id,
+                    ),
+                )
 
             if new_attempt_count >= max_attempts:
                 # Auto-DLQ: insert dead_lettered_runs record for the exhausted run.
@@ -422,21 +571,36 @@ ON run_queue (tenant_id, user_id, session_id, status)
 
             self._conn.commit()
 
-    def cancel(self, run_id: str) -> None:
+    def cancel(self, run_id: str, tenant_id: str | None = None) -> None:
         """Set the cancellation flag on a queued or leased run.
 
         Does not remove the run from the queue; workers must poll
         ``is_cancelled()`` and terminate cooperatively.
 
+        W33 D.2: defense-in-depth tenant scoping. Under research/prod posture
+        a missing/empty ``tenant_id`` raises ``TenantScopeError``. When
+        provided, the UPDATE filters on ``tenant_id`` so a row owned by
+        another tenant is never cancelled by this call.
+
         Args:
             run_id: Identifier of the run.
+            tenant_id: Tenant spine — required under research/prod posture.
         """
+        scoped = _check_tenant_scope(tenant_id, method="cancel")
         now = time.time()
         with self._lock:
-            self._conn.execute(
-                "UPDATE run_queue SET cancellation_flag = 1, updated_at = ? WHERE run_id = ?",
-                (now, run_id),
-            )
+            if scoped is not None:
+                self._conn.execute(
+                    "UPDATE run_queue SET cancellation_flag = 1, updated_at = ? "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (now, run_id, scoped),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE run_queue SET cancellation_flag = 1, updated_at = ? "
+                    "WHERE run_id = ?",
+                    (now, run_id),
+                )
             self._conn.commit()
 
     def release_expired_leases(self) -> int:
@@ -521,39 +685,70 @@ ON run_queue (tenant_id, user_id, session_id, status)
             self._conn.commit()
         return result.rowcount > 0
 
-    def is_cancelled(self, run_id: str) -> bool:
+    def is_cancelled(self, run_id: str, tenant_id: str | None = None) -> bool:
         """Return True if the cancellation flag is set for this run.
+
+        W33 D.2: defense-in-depth tenant scoping. Under research/prod posture
+        a missing/empty ``tenant_id`` raises ``TenantScopeError``. When
+        provided, the SELECT filters on ``tenant_id`` so a row owned by
+        another tenant returns ``False`` (treated as not cancelled / not
+        owned by this caller).
 
         Args:
             run_id: Identifier of the run.
+            tenant_id: Tenant spine — required under research/prod posture.
 
         Returns:
-            ``True`` if the run exists and its cancellation flag is set.
+            ``True`` if the run exists, belongs to ``tenant_id`` (when
+            provided), and its cancellation flag is set; ``False``
+            otherwise.
         """
+        scoped = _check_tenant_scope(tenant_id, method="is_cancelled")
         with self._lock:
-            cur = self._conn.execute(
-                "SELECT cancellation_flag FROM run_queue WHERE run_id = ?",
-                (run_id,),
-            )
+            if scoped is not None:
+                cur = self._conn.execute(
+                    "SELECT cancellation_flag FROM run_queue "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (run_id, scoped),
+                )
+            else:
+                cur = self._conn.execute(
+                    "SELECT cancellation_flag FROM run_queue WHERE run_id = ?",
+                    (run_id,),
+                )
             row = cur.fetchone()
         if row is None:
             return False
         return bool(row[0])
 
-    def dequeue_unclaimed(self, run_id: str) -> None:
+    def dequeue_unclaimed(self, run_id: str, tenant_id: str | None = None) -> None:
         """Remove a queued run that was never claimed. Rollback primitive.
 
         Only removes the run when it is still in 'queued' status (never claimed
         by a worker), making it safe to use as a creation-failure rollback.
 
+        W33 D.2: defense-in-depth tenant scoping. Under research/prod posture
+        a missing/empty ``tenant_id`` raises ``TenantScopeError``. When
+        provided, the DELETE filters on ``tenant_id`` so a row owned by
+        another tenant is never removed by this call.
+
         Args:
             run_id: Identifier of the run to remove.
+            tenant_id: Tenant spine — required under research/prod posture.
         """
+        scoped = _check_tenant_scope(tenant_id, method="dequeue_unclaimed")
         with self._lock:
-            self._conn.execute(
-                "DELETE FROM run_queue WHERE run_id = ? AND status = 'queued'",
-                (run_id,),
-            )
+            if scoped is not None:
+                self._conn.execute(
+                    "DELETE FROM run_queue "
+                    "WHERE run_id = ? AND status = 'queued' AND tenant_id = ?",
+                    (run_id, scoped),
+                )
+            else:
+                self._conn.execute(
+                    "DELETE FROM run_queue WHERE run_id = ? AND status = 'queued'",
+                    (run_id,),
+                )
             self._conn.commit()
 
     def dead_letter(
@@ -561,23 +756,43 @@ ON run_queue (tenant_id, user_id, session_id, status)
         run_id: str,
         reason: str,
         original_state: str,
-        tenant_id: str,
+        tenant_id: str | None = None,
     ) -> None:
         """Move a run to the dead-letter queue and mark it failed in run_queue.
+
+        W33 D.2: defense-in-depth tenant scoping. Under research/prod posture
+        a missing/empty ``tenant_id`` raises ``TenantScopeError``. When
+        provided, both the read of ``attempt_count`` and the UPDATE of
+        ``run_queue`` filter on ``tenant_id`` so a row owned by another
+        tenant is never dead-lettered by this call.
 
         Args:
             run_id: Identifier of the run to dead-letter.
             reason: Human-readable reason for dead-lettering.
             original_state: The run's state/status at dead-letter time.
-            tenant_id: Tenant spine field for the DLQ record.
+            tenant_id: Tenant spine — required under research/prod posture;
+                stored on the DLQ record. Under dev a missing value emits a
+                WARNING and the row stores ``""``.
         """
+        scoped = _check_tenant_scope(tenant_id, method="dead_letter")
+        # DLQ record needs a non-NULL tenant_id (NOT NULL column); preserve
+        # the prior behaviour of writing whatever was passed when scoped is
+        # None under dev posture. Use empty string in that fallback case.
+        dlq_tenant_id = scoped if scoped is not None else ""
         now_iso = datetime.now(UTC).isoformat()
         now_ts = time.time()
         with self._lock:
             # Read attempt_count from run_queue so DLQ record captures it.
-            _ac_row = self._conn.execute(
-                "SELECT attempt_count FROM run_queue WHERE run_id = ?", (run_id,)
-            ).fetchone()
+            if scoped is not None:
+                _ac_row = self._conn.execute(
+                    "SELECT attempt_count FROM run_queue "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (run_id, scoped),
+                ).fetchone()
+            else:
+                _ac_row = self._conn.execute(
+                    "SELECT attempt_count FROM run_queue WHERE run_id = ?", (run_id,)
+                ).fetchone()
             _attempts_count = int(_ac_row[0]) if _ac_row else 0
             self._conn.execute(
                 "INSERT OR REPLACE INTO dead_lettered_runs "
@@ -588,14 +803,22 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 "            WHERE run_id = ?), 0), "
                 "  (SELECT last_requeue_at FROM dead_lettered_runs WHERE run_id = ?), ?)",
                 (
-                    run_id, reason, original_state, now_iso, tenant_id,
+                    run_id, reason, original_state, now_iso, dlq_tenant_id,
                     run_id, run_id, _attempts_count,
                 ),
             )
-            self._conn.execute(
-                "UPDATE run_queue SET status = 'failed', updated_at = ? WHERE run_id = ?",
-                (now_ts, run_id),
-            )
+            if scoped is not None:
+                self._conn.execute(
+                    "UPDATE run_queue SET status = 'failed', updated_at = ? "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (now_ts, run_id, scoped),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE run_queue SET status = 'failed', updated_at = ? "
+                    "WHERE run_id = ?",
+                    (now_ts, run_id),
+                )
             self._conn.commit()
         # Rule 7: count dead-lettered runs
         try:
@@ -645,42 +868,77 @@ ON run_queue (tenant_id, user_id, session_id, status)
             for row in rows
         ]
 
-    def requeue_from_dlq(self, run_id: str) -> bool:
+    def requeue_from_dlq(self, run_id: str, tenant_id: str | None = None) -> bool:
         """Remove a run from the DLQ and reset it to queued status.
+
+        W33 D.2: defense-in-depth tenant scoping. Under research/prod posture
+        a missing/empty ``tenant_id`` raises ``TenantScopeError``. When
+        provided, the DLQ existence check, the DLQ DELETE, and the
+        ``run_queue`` UPDATE all filter on ``tenant_id`` so a row owned by
+        another tenant is never requeued by this call.
 
         Args:
             run_id: Identifier of the dead-lettered run to requeue.
+            tenant_id: Tenant spine — required under research/prod posture.
 
         Returns:
-            ``True`` if the run was found in the DLQ and requeued;
-            ``False`` if not found.
+            ``True`` if the run was found in the DLQ for ``tenant_id`` and
+            requeued; ``False`` if not found or owned by another tenant.
         """
+        scoped = _check_tenant_scope(tenant_id, method="requeue_from_dlq")
         now_ts = time.time()
         now_iso = datetime.now(UTC).isoformat()
         with self._lock:
-            cur = self._conn.execute(
-                "SELECT run_id FROM dead_lettered_runs WHERE run_id = ?",
-                (run_id,),
-            )
+            if scoped is not None:
+                cur = self._conn.execute(
+                    "SELECT run_id FROM dead_lettered_runs "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (run_id, scoped),
+                )
+            else:
+                cur = self._conn.execute(
+                    "SELECT run_id FROM dead_lettered_runs WHERE run_id = ?",
+                    (run_id,),
+                )
             if cur.fetchone() is None:
                 return False
-            self._conn.execute(
-                "UPDATE dead_lettered_runs "
-                "SET requeue_count = requeue_count + 1, last_requeue_at = ? "
-                "WHERE run_id = ?",
-                (now_iso, run_id),
-            )
-            self._conn.execute(
-                "DELETE FROM dead_lettered_runs WHERE run_id = ?",
-                (run_id,),
-            )
-            self._conn.execute(
-                "UPDATE run_queue "
-                "SET status = 'queued', worker_id = NULL, "
-                "    lease_expires_at = NULL, updated_at = ? "
-                "WHERE run_id = ?",
-                (now_ts, run_id),
-            )
+            if scoped is not None:
+                self._conn.execute(
+                    "UPDATE dead_lettered_runs "
+                    "SET requeue_count = requeue_count + 1, last_requeue_at = ? "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (now_iso, run_id, scoped),
+                )
+                self._conn.execute(
+                    "DELETE FROM dead_lettered_runs "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (run_id, scoped),
+                )
+                self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET status = 'queued', worker_id = NULL, "
+                    "    lease_expires_at = NULL, updated_at = ? "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (now_ts, run_id, scoped),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE dead_lettered_runs "
+                    "SET requeue_count = requeue_count + 1, last_requeue_at = ? "
+                    "WHERE run_id = ?",
+                    (now_iso, run_id),
+                )
+                self._conn.execute(
+                    "DELETE FROM dead_lettered_runs WHERE run_id = ?",
+                    (run_id,),
+                )
+                self._conn.execute(
+                    "UPDATE run_queue "
+                    "SET status = 'queued', worker_id = NULL, "
+                    "    lease_expires_at = NULL, updated_at = ? "
+                    "WHERE run_id = ?",
+                    (now_ts, run_id),
+                )
             self._conn.commit()
         return True
 

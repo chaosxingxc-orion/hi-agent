@@ -342,8 +342,6 @@ async def handle_ready(request: Request) -> JSONResponse:
     registries and subsystems used by actual run execution — not a
     reconstructed default snapshot.
     """
-    import os as _os_rdy
-
     from hi_agent.server.auth_middleware import AuthMiddleware as _AM_rdy
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_rdy
 
@@ -383,7 +381,8 @@ async def handle_ready(request: Request) -> JSONResponse:
 
     # Augment snapshot with auth_posture.
     try:
-        _env_rdy = _os_rdy.environ.get("HI_AGENT_ENV", "dev").lower()
+        from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode_rdy
+        _env_rdy = _resolve_mode_rdy()
         _runtime_mode_rdy = _rrm_rdy(_env_rdy, snapshot)
         _auth_rdy = _AM_rdy(app=lambda *a: None, runtime_mode=_runtime_mode_rdy)  # type: ignore[arg-type]  expiry_wave: permanent replacement_test: tests/unit/test_server_app_rule7.py::test_probe_exempt
         snapshot = dict(snapshot, auth_posture=_auth_rdy.auth_posture)
@@ -1665,11 +1664,36 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # Windows via the signal module but cannot be sent by kill(); it is
         # raised by TerminateProcess.  The try/except guards against platforms
         # where SIGTERM is not a valid signal number.
+        #
+        # W33-C.2: previously the handler called ``run_manager.shutdown()``
+        # immediately, which used the default 2 s timeout to mark in-flight
+        # runs failed. That broke Rule 8 step 1 under PM2/systemd/docker stop.
+        # The handler now calls ``drain(timeout_s)`` first (default 30 s,
+        # overridable via ``HI_AGENT_DRAIN_TIMEOUT_S``), then ``shutdown``.
         try:
+            import os as _os_drain
+
+            _drain_timeout_s = float(
+                _os_drain.environ.get("HI_AGENT_DRAIN_TIMEOUT_S", "30")
+            )
 
             def _sigterm_handler(signum: int, frame: object) -> None:
-                logger.warning("SIGTERM received — initiating graceful drain")
-                agent_server.run_manager.shutdown()
+                logger.warning(
+                    "SIGTERM received — draining (timeout=%.1fs) before shutdown",
+                    _drain_timeout_s,
+                )
+                try:
+                    agent_server.run_manager.drain(timeout_s=_drain_timeout_s)
+                except Exception as _drain_exc:  # rule7-exempt: SIGTERM is best-effort
+                    logger.warning(
+                        "SIGTERM drain raised: %s", _drain_exc
+                    )
+                try:
+                    agent_server.run_manager.shutdown(timeout=2.0)
+                except Exception as _shutdown_exc:  # rule7-exempt: SIGTERM is best-effort
+                    logger.warning(
+                        "SIGTERM shutdown raised: %s", _shutdown_exc
+                    )
 
             signal.signal(signal.SIGTERM, _sigterm_handler)
         except (OSError, ValueError):
@@ -1728,11 +1752,10 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # Auth middleware (outermost — rejects unauthenticated requests before
     # they reach rate limiting or route handlers).
     # Enabled only when HI_AGENT_API_KEY env-var is set; no-op otherwise.
-    import os as _os_auth
-
+    from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode_auth
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm_auth
 
-    _env_auth = _os_auth.environ.get("HI_AGENT_ENV", "dev").lower()
+    _env_auth = _resolve_mode_auth()
     _builder_auth = getattr(agent_server, "_builder", None)
     _readiness_auth: dict = {}
     if _builder_auth is not None:
@@ -1874,11 +1897,12 @@ class AgentServer:
         os.environ.setdefault("HI_AGENT_ENV", "dev")
 
         # Config stack for hot-reload and per-run overrides.
+        from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode_cs
         base_config_path = os.environ.get("HI_AGENT_CONFIG_FILE")
         self._config_stack = ConfigStack(
             base_config_path=base_config_path,
             profile=os.environ.get("HI_AGENT_PROFILE"),
-            env=os.environ.get("HI_AGENT_ENV", "dev"),
+            env=_resolve_mode_cs(),
         )
         if base_config_path:
             # Use stack-resolved config (incorporates file + profile + env).
@@ -2222,9 +2246,9 @@ class AgentServer:
         # that's exactly the state that leaves a run wedged with CPU idle and
         # current_stage=None. Surface the condition as a RuntimeError so
         # handle_create_run can return 503 instead of 201+stuck.
-        import os as _os_p16
+        from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode_p16
 
-        if _os_p16.environ.get("HI_AGENT_ENV", "dev").lower() == "prod":
+        if _resolve_mode_p16() == "prod":
             _missing: list[str] = []
             if getattr(executor, "kernel", None) is None:
                 _missing.append("kernel_adapter")

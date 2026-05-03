@@ -328,48 +328,90 @@ class RealKernelBackend:
         Each row is shaped as ``{event_id, run_id, sequence, event_type,
         payload, payload_json, created_at}``. The event facade renders
         these as SSE frames.
+
+        W33-C.5: this is a LIVE-TAIL generator, not a snapshot. It polls
+        the event store every ~100ms for new rows and yields them as they
+        appear, exiting only when the run reaches a terminal state OR the
+        caller stops consuming. Without live tailing, an SSE client that
+        connects before the run finishes would receive only the events
+        already persisted at connect time and the connection would close.
         """
         # Ownership guard — unknown run_id raises 404.
         self._record_to_dict(run_id, tenant_id)
         event_store = self._agent_server._event_store
         if event_store is None:
-            return []
-        try:
-            # NB: list_since uses ``WHERE sequence > ?``, so passing 0
-            # would exclude the sequence-0 ``run_queued`` event the
-            # RunManager emits at create_run. Pass -1 so the SSE stream
-            # includes the very first lifecycle event.
-            stored = event_store.list_since(
-                run_id,
-                since_sequence=-1,
-                tenant_id=tenant_id,
-            )
-        except Exception as exc:  # pragma: no cover - storage error
-            _log.warning(
-                "iter_events: event_store.list_since failed for run_id=%s: %s",
-                run_id,
-                exc,
-            )
-            return []
-        out: list[dict[str, Any]] = []
-        for ev in stored:
+            return iter(())
+
+        terminal_states = frozenset(
+            {"completed", "succeeded", "failed", "cancelled", "done", "error"}
+        )
+        agent_server = self._agent_server
+        # r-as-1-seam: KernelTenantContext is the workspace contract for run lookups
+        from hi_agent.server.tenant_context import (
+            TenantContext as _KernelTenantContext,
+        )
+
+        def _row_to_event(ev: Any) -> dict[str, Any]:
             try:
                 payload = json.loads(ev.payload_json) if ev.payload_json else {}
             except json.JSONDecodeError:
                 payload = {"_raw": ev.payload_json}
-            out.append(
-                {
-                    "event_id": ev.event_id,
-                    "run_id": ev.run_id,
-                    "sequence": ev.sequence,
-                    "event_type": ev.event_type,
-                    "payload": payload,
-                    "payload_json": ev.payload_json,
-                    "created_at": ev.created_at,
-                    "tenant_id": ev.tenant_id,
-                }
-            )
-        return out
+            return {
+                "event_id": ev.event_id,
+                "run_id": ev.run_id,
+                "sequence": ev.sequence,
+                "event_type": ev.event_type,
+                "payload": payload,
+                "payload_json": ev.payload_json,
+                "created_at": ev.created_at,
+                "tenant_id": ev.tenant_id,
+            }
+
+        def _live_iter() -> Iterable[dict[str, Any]]:
+            import time as _time
+
+            last_seq = -1  # list_since uses WHERE sequence > ?, so -1 includes sequence-0
+            poll_interval_s = 0.1
+            # Hard upper bound on per-run streaming time so a misbehaving
+            # client cannot wedge a generator forever. 10 minutes is well
+            # past every real-LLM run we observe.
+            max_total_s = 600.0
+            started = _time.monotonic()
+            workspace = _KernelTenantContext(tenant_id=tenant_id)
+            while True:
+                try:
+                    stored = event_store.list_since(
+                        run_id,
+                        since_sequence=last_seq,
+                        tenant_id=tenant_id,
+                    )
+                except Exception as exc:  # pragma: no cover - storage error
+                    _log.warning(
+                        "iter_events: event_store.list_since failed for run_id=%s: %s",
+                        run_id,
+                        exc,
+                    )
+                    return
+                for ev in stored:
+                    yield _row_to_event(ev)
+                    last_seq = max(last_seq, ev.sequence)
+                # Check terminal state AFTER yielding everything we observed
+                # so the final event of a fast-finishing run is delivered.
+                run = agent_server.run_manager.get_run(run_id, workspace=workspace)
+                state = getattr(run, "state", None) if run is not None else None
+                if state in terminal_states:
+                    return
+                if _time.monotonic() - started > max_total_s:
+                    _log.warning(
+                        "iter_events: run_id=%s exceeded max_total_s=%.1f; "
+                        "closing live tail",
+                        run_id,
+                        max_total_s,
+                    )
+                    return
+                _time.sleep(poll_interval_s)
+
+        return _live_iter()
 
     # ------------------------------------------------------------------
     # Artifact callables — minimal pass-through over the AgentServer.
