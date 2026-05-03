@@ -614,6 +614,11 @@ class RunManager:
         """
         idle_cycles = 0
         max_idle_cycles = 20
+        # Track per-run executor-not-found retries so we eventually fail a
+        # run whose start_run() never registers an executor (rather than
+        # spinning release_lease forever and starving the test runner).
+        _executor_release_count: dict[str, int] = {}
+        _MAX_EXECUTOR_RELEASE_RETRIES = 50  # 50 * 50ms = 2.5s budget
         while not self._shutdown:
             if self._run_queue is not None:
                 self._run_queue.release_expired_leases()
@@ -654,17 +659,33 @@ class RunManager:
                     # WITHOUT bumping ``attempt_count`` so the next
                     # iteration (after a brief sleep) can re-claim once
                     # the executor is registered.
+                    #
+                    # BUT we bound the retry count: if start_run never
+                    # registers (caller raised before reaching it, or never
+                    # calls it), fail after N retries to avoid an infinite
+                    # loop that starves other runs in the queue.
+                    _retries = _executor_release_count.get(run_id, 0)
+                    if _retries >= _MAX_EXECUTOR_RELEASE_RETRIES:
+                        _executor_release_count.pop(run_id, None)
+                        self._run_queue.fail(
+                            run_id, "run_manager", "executor_register_timeout"
+                        )
+                        continue
                     if not self._run_queue.release_lease(run_id, "run_manager"):
                         # Lease already lost (e.g. expired + recovered).
                         # Not a transient race - fall back to fail.
+                        _executor_release_count.pop(run_id, None)
                         self._run_queue.fail(
                             run_id, "run_manager", "executor_not_found"
                         )
                         continue
+                    _executor_release_count[run_id] = _retries + 1
                     import time as _time
 
                     _time.sleep(0.05)
                     continue
+                # Executor registered successfully - clear the retry counter.
+                _executor_release_count.pop(run_id, None)
                 acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
                 if not acquired:
                     self._run_queue.fail(run_id, "run_manager", "queue_timeout")

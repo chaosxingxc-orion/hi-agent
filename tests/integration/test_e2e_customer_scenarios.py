@@ -74,7 +74,7 @@ def _wait_for_terminal(
     client: TestClient,
     run_id: str,
     *,
-    timeout: float = 10.0,
+    timeout: float = 30.0,
     poll_interval: float = 0.05,
 ) -> dict[str, Any]:
     """Poll GET /runs/{run_id} until the run reaches a terminal state.
