@@ -1,0 +1,80 @@
+{
+  "wave": 32,
+  "signoff_date": "2026-05-03",
+  "signed_by": "platform-release-captain",
+  "manifest_id": "2026-05-03-8f305ca7",
+  "release_head": "8f305ca7609eea61939b3d4add9c9ce6444e90b3",
+  "scorecard": {
+    "raw_implementation_maturity": 94.5,
+    "current_verified_readiness": 75.0,
+    "seven_by_24_operational_readiness": 90.0,
+    "conditional_readiness_after_blockers": 75.0
+  },
+  "cap_factors_remaining": [
+    "evidence_provenance: 3 historical W27 artifacts retained per W28 erratum (out of scope per directive)",
+    "soak_evidence_not_real: WAIVED under RIA's updated 7x24 architectural-feasibility criterion (acceptance 2026-05-03 sec 2)"
+  ],
+  "tracks_closed": [
+    {
+      "track": "W32-A",
+      "title": "Real-kernel binding for v1 northbound routes",
+      "level": "verified_at_release_head",
+      "code_commit": "df121b6f",
+      "test_or_gate": "tests/integration/test_v1_runs_real_kernel_binding.py (8 tests PASS); scripts/check_layering.py + check_facade_seams.py exit 0",
+      "delivery_change": "R-AS-1 two-seam discipline (bootstrap.py + agent_server/runtime/**); facade-seams gate extended"
+    },
+    {
+      "track": "W32-B",
+      "title": "Tenant-correctness W33 carryover + 4 new gaps",
+      "level": "verified_at_release_head",
+      "code_commit": "e67dfc55",
+      "test_or_gate": "52 new tests; W31 16-test regression PASS; scripts/check_contract_spine_completeness.py exit 0; new check_admin_session_store_imports.py gate",
+      "delivery_change": "SessionStore.get_unsafe privatized; process-internal annotation discipline strengthened"
+    },
+    {
+      "track": "W32-C",
+      "title": "Rule 7 / 7x24 truthfulness gaps",
+      "level": "operationally_observable",
+      "code_commit": "d3215524",
+      "test_or_gate": "14 new tests; chaos provenance conditional; scripts/check_rules.py 6/6 PASS",
+      "delivery_change": "chaos scenarios compute provenance from observed fault injection; soak scrape post-stop; health-check Rule 7 instrumentation; new hi_agent_health_check_fallback_total counter"
+    },
+    {
+      "track": "W32-D",
+      "title": "Doc-truth + governance closures",
+      "level": "verified_at_release_head",
+      "code_commit": "7d174187",
+      "test_or_gate": "16 new tests; all governance gates green; new scripts/check_rule9_open_findings.py",
+      "delivery_change": "recurrence-ledger consistent; check_no_hardcoded_wave scans hi_agent/agent_server; Rule 9 CI gate"
+    },
+    {
+      "track": "W32-E",
+      "title": "Workspace cleanup + dependency analysis",
+      "level": "verified_at_release_head",
+      "code_commit": "8f160ddb",
+      "test_or_gate": "vulture-100 audit; cleanup-audit log",
+      "delivery_change": "audit methodology documented; W31-L1 shape evidence preserved"
+    },
+    {
+      "track": "W32-F",
+      "title": "ARCHITECTURE/README refresh",
+      "level": "verified_at_release_head",
+      "code_commit": "8f160ddb",
+      "test_or_gate": "16 ARCHITECTURE.md docs (5 agent_server + 9 hi_agent + 2 top-level); 36 mermaid diagrams; standard 11-section template",
+      "delivery_change": "every major subsystem has per-subsystem ARCHITECTURE.md citing real file:line locations"
+    }
+  ],
+  "outstanding_items_w33_plus": [
+    "H-3' experiment shim deletion (after consumer audit, per RIA acceptance §5)",
+    "H-13' task_mgmt triplet umbrella",
+    "H-14' templates/ consolidation",
+    "W31-L1 wall-clock soak (waived; opportunistic)",
+    "3 historical W27 evidence_provenance artifacts (out of scope per directive)",
+    "Integration-tier blocking promotion"
+  ],
+  "ria_acceptance_references": [
+    "research/docs/hi-agent-wave31-acceptance-2026-05-03.md (RIA M1 acceptance + W32 expectation)",
+    "research/docs/hi-agent-wave31-blocker-closure-requirements-2026-05-02.md (W31 directive)"
+  ],
+  "ria_score_cap_acceptance": "RIA accepted cap=75 per acceptance 2026-05-03 §3 (RIA waived W31-L1 under updated 7x24 architectural-feasibility criterion §2)"
+}
