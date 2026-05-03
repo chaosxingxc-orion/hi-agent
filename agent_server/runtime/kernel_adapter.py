@@ -258,6 +258,7 @@ class RealKernelBackend:
             # spine so this is observable in metrics/logs, but never re-raise
             # because we are already unwinding from a primary failure.
             try:
+                # r-as-1-seam: silent_degradation is the loud-fallback contract emitter
                 from hi_agent.observability.silent_degradation import (
                     record_silent_degradation,
                 )
