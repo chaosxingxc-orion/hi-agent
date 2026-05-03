@@ -5,8 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-# W31 T-24' decision: value object — KG row carries tenant_id; tenant-agnostic.
-# scope: process-internal
+# scope: process-internal — value object only. Tenant scoping lives on the SqliteKnowledgeGraphBackend row, not the dataclass. Every read/write path (KnowledgeManager.ingest_text / query / get_stats / lint) MUST pass tenant_id explicitly. The ingest pipeline rejects an absent tenant_id under research/prod posture per check_contract_spine_completeness.py.  # noqa: E501  # single-line annotation required by check_contract_spine_completeness.py
 @dataclass
 class KnowledgeEntry:
     """A typed knowledge item for the knowledge store.

@@ -164,8 +164,27 @@ class KnowledgeManager:
 
         return count
 
-    def ingest_text(self, title: str, content: str, tags: list[str] | None = None) -> str:
-        """Ingest free-text knowledge. Creates a wiki page. Returns page_id."""
+    def ingest_text(
+        self,
+        title: str,
+        content: str,
+        tags: list[str] | None = None,
+        *,
+        tenant_id: str | None = None,
+    ) -> str:
+        """Ingest free-text knowledge. Creates a wiki page. Returns page_id.
+
+        W32 Track B Gap 6 (W33 T-9'/T-10'): callers MUST provide
+        ``tenant_id`` so write-path attribution is tracked. Strict posture
+        rejects an absent value; dev posture emits a WARNING and proceeds
+        for back-compat.
+
+        Note: the underlying wiki store is process-internal and does not
+        partition by tenant. Per-tenant partitioning is a store-level
+        concern tracked separately. Manager-level acceptance is the
+        prerequisite for that follow-up.
+        """
+        self._require_tenant_for_write(tenant_id, op="ingest_text")
         page_id = _slugify(title)
         page = WikiPage(
             page_id=page_id,
@@ -178,8 +197,20 @@ class KnowledgeManager:
         self._wiki.append_log("ingest_text", f"Created page '{page_id}'")
         return page_id
 
-    def ingest_structured(self, facts: list[dict[str, Any]]) -> int:
-        """Ingest structured facts into graph and return created node count."""
+    def ingest_structured(
+        self,
+        facts: list[dict[str, Any]],
+        *,
+        tenant_id: str | None = None,
+    ) -> int:
+        """Ingest structured facts into graph and return created node count.
+
+        W32 Track B Gap 6 (W33 T-9'/T-10'): callers MUST provide
+        ``tenant_id`` so write-path attribution is tracked. Strict posture
+        rejects an absent value; dev posture emits a WARNING and proceeds
+        for back-compat.
+        """
+        self._require_tenant_for_write(tenant_id, op="ingest_structured")
         count = 0
         for fact in facts:
             content = fact.get("content", "")
@@ -290,6 +321,29 @@ class KnowledgeManager:
         msg = (
             f"KnowledgeManager.{op}: tenant_id is missing or empty; "
             "cross-tenant reads are forbidden under research/prod posture."
+        )
+        if posture.is_strict:
+            raise TenantScopeError(msg)
+        logging.getLogger(__name__).warning(msg)
+
+    @staticmethod
+    def _require_tenant_for_write(tenant_id: str | None, *, op: str) -> None:
+        """Validate tenant_id presence on write paths (W32 Track B Gap 6).
+
+        Under research/prod posture, raise TenantScopeError if missing.
+        Under dev posture, log a WARNING and proceed (back-compat).
+        """
+        import logging
+
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.errors import TenantScopeError
+
+        if tenant_id and tenant_id.strip():
+            return
+        posture = Posture.from_env()
+        msg = (
+            f"KnowledgeManager.{op}: tenant_id is missing or empty; "
+            "cross-tenant writes are forbidden under research/prod posture."
         )
         if posture.is_strict:
             raise TenantScopeError(msg)

@@ -13,6 +13,8 @@ class ProfileRegistry:
     and capability requirements — without hardcoding any of that in core.
     """
 
+    # scope: process-internal — profile schemas are filesystem-loaded and shared across tenants in the worker process. Per-tenant profile selection happens at the registry consumer (RunManager.create_run via task_contract.profile_id). Adding tenant scoping here would require duplicate profile registration per tenant, which is not a current consumer requirement.  # noqa: E501  # single-line annotation required by W32 Track B Gap 1
+
     def __init__(self) -> None:
         self._profiles: dict[str, ProfileSpec] = {}
 

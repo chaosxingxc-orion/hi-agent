@@ -50,7 +50,7 @@ async def handle_knowledge_ingest(request: Request) -> JSONResponse:
         hash_tenant_id(tenant_id),
         redact_query(title),
     )
-    page_id = km.ingest_text(title, content, tags)
+    page_id = km.ingest_text(title, content, tags, tenant_id=tenant_id)
     try:
         re = server.retrieval_engine
         if re is not None:
@@ -87,7 +87,7 @@ async def handle_knowledge_ingest_structured(request: Request) -> JSONResponse:
         hash_tenant_id(tenant_id),
         len(facts),
     )
-    count = km.ingest_structured(facts)
+    count = km.ingest_structured(facts, tenant_id=tenant_id)
     try:
         re = server.retrieval_engine
         if re is not None:

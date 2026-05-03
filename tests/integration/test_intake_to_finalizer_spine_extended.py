@@ -18,6 +18,7 @@ from __future__ import annotations
 import pytest
 from hi_agent.context.run_execution_context import RunExecutionContext
 from hi_agent.contracts.team_runtime import TeamRun
+from hi_agent.server._admin_session_store import admin_get_session
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent
 from hi_agent.server.idempotency import IdempotencyStore
 from hi_agent.server.session_store import SessionStore
@@ -134,7 +135,7 @@ class TestAllWritersCarryConsistentSpine:
             user_id="overridden",
             exec_ctx=exec_ctx,
         )
-        record = session_store.get_unsafe(sid)
+        record = admin_get_session(session_store, sid)
         assert record is not None
         assert record.tenant_id == "spine-tenant"
         assert record.user_id == "spine-user"
@@ -202,7 +203,7 @@ class TestAllWritersCarryConsistentSpine:
         assert events[0].tenant_id == "spine-tenant"
         team = team_registry.get("team-all-001")
         assert team.tenant_id == "spine-tenant"
-        session = session_store.get_unsafe(sid)
+        session = admin_get_session(session_store, sid)
         assert session.tenant_id == "spine-tenant"
         assert artifact.tenant_id == "spine-tenant"
 
@@ -249,7 +250,7 @@ class TestAllWritersCarryConsistentSpine:
 
         # Writer 4 — no exec_ctx
         sid = session_store.create("t-compat", "u-compat")
-        assert session_store.get_unsafe(sid) is not None
+        assert admin_get_session(session_store, sid) is not None
 
         # Writer 5 — no exec_ctx
         artifact = artifact_registry.create(artifact_type="compat")

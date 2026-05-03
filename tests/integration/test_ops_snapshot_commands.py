@@ -14,11 +14,17 @@ from hi_agent.management.ops_snapshot_store import OpsSnapshotStore
 def test_ops_snapshot_commands_roundtrip() -> None:
     """Put/latest/list should return normalized payloads."""
     store = OpsSnapshotStore()
-    cmd_ops_snapshot_put(store, {"run_id": "run-1", "timestamp": 1.0, "status": "ok"})
-    cmd_ops_snapshot_put(store, {"run_id": "run-1", "timestamp": 2.0, "status": "degraded"})
+    cmd_ops_snapshot_put(
+        store,
+        {"run_id": "run-1", "tenant_id": "t-a", "timestamp": 1.0, "status": "ok"},
+    )
+    cmd_ops_snapshot_put(
+        store,
+        {"run_id": "run-1", "tenant_id": "t-a", "timestamp": 2.0, "status": "degraded"},
+    )
 
-    latest = cmd_ops_snapshot_latest(store, "run-1")
-    listed = cmd_ops_snapshot_list(store, "run-1")
+    latest = cmd_ops_snapshot_latest(store, "run-1", "t-a")
+    listed = cmd_ops_snapshot_list(store, "run-1", "t-a")
 
     assert latest["found"] is True
     assert latest["snapshot"]["timestamp"] == 2.0
@@ -28,8 +34,8 @@ def test_ops_snapshot_commands_roundtrip() -> None:
 def test_ops_snapshot_commands_validate_store_type() -> None:
     """All snapshot commands should reject invalid store objects."""
     with pytest.raises(TypeError, match="store must be an OpsSnapshotStore"):
-        cmd_ops_snapshot_put(object(), {"run_id": "run-1", "timestamp": 1.0})  # type: ignore[arg-type]  expiry_wave: permanent
+        cmd_ops_snapshot_put(object(), {"run_id": "run-1", "tenant_id": "t-a", "timestamp": 1.0})  # type: ignore[arg-type]  expiry_wave: permanent
     with pytest.raises(TypeError, match="store must be an OpsSnapshotStore"):
-        cmd_ops_snapshot_latest(object(), "run-1")  # type: ignore[arg-type]  expiry_wave: permanent
+        cmd_ops_snapshot_latest(object(), "run-1", "t-a")  # type: ignore[arg-type]  expiry_wave: permanent
     with pytest.raises(TypeError, match="store must be an OpsSnapshotStore"):
-        cmd_ops_snapshot_list(object(), "run-1")  # type: ignore[arg-type]  expiry_wave: permanent
+        cmd_ops_snapshot_list(object(), "run-1", "t-a")  # type: ignore[arg-type]  expiry_wave: permanent

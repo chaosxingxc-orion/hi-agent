@@ -1,6 +1,7 @@
 """Tests for SessionStore — SQLite-backed session CRUD."""
 
 import pytest
+from hi_agent.server._admin_session_store import admin_get_session
 from hi_agent.server.session_store import SessionStore
 
 
@@ -13,7 +14,7 @@ def store(tmp_path):
 
 def test_create_and_get(store):
     sid = store.create(tenant_id="t1", user_id="u1", team_id="eng")
-    rec = store.get_unsafe(sid)
+    rec = admin_get_session(store, sid)
     assert rec is not None
     assert rec.session_id == sid
     assert rec.tenant_id == "t1"
@@ -22,7 +23,7 @@ def test_create_and_get(store):
 
 
 def test_get_nonexistent_returns_none(store):
-    assert store.get_unsafe("does-not-exist") is None
+    assert admin_get_session(store, "does-not-exist") is None
 
 
 def test_validate_ownership_true(store):
@@ -48,7 +49,7 @@ def test_list_active(store):
 def test_archive(store):
     sid = store.create(tenant_id="t1", user_id="u1")
     store.archive(sid, tenant_id="t1", user_id="u1")
-    rec = store.get_unsafe(sid)
+    rec = admin_get_session(store, sid)
     assert rec.status == "archived"
 
 

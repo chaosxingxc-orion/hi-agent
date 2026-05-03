@@ -5,6 +5,7 @@ No mocks — uses real SessionStore (SQLite :memory:) and real RunManager.
 """
 
 import pytest
+from hi_agent.server._admin_session_store import admin_get_session
 from hi_agent.server.routes_sessions import (
     handle_get_session_runs,
     handle_list_sessions,
@@ -99,7 +100,7 @@ def test_patch_session_archive(store, manager):
     client = TestClient(app)
     resp = client.patch(f"/sessions/{sid}", json={"status": "archived"})
     assert resp.status_code == 200
-    rec = store.get_unsafe(sid)
+    rec = admin_get_session(store, sid)
     assert rec.status == "archived"
 
 

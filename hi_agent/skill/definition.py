@@ -184,12 +184,36 @@ class SkillDefinition:
     tenant_id: str = ""  # scope: spine-required — enforced under strict posture
 
     def __post_init__(self) -> None:
+        import logging
+
         from hi_agent.config.posture import Posture
 
-        if Posture.from_env().is_strict and not self.tenant_id:
+        posture = Posture.from_env()
+
+        if posture.is_strict and not self.tenant_id:
             raise ValueError(
                 "SkillDefinition.tenant_id required under research/prod posture"
             )
+
+        # W32 Track B Gap 5 (W33 T-25'): under research/prod posture, the
+        # placeholder ``model="default"`` is rejected — callers MUST supply
+        # a concrete model identifier. Under dev posture a missing model is
+        # permitted with a WARNING (Rule 11 posture-aware default).
+        if not self.model or self.model.strip().lower() == "default":
+            if posture.is_strict:
+                raise ValueError(
+                    "SkillDefinition.model is required under research/prod "
+                    "posture (W32 Track B Gap 5 / W33 T-25'); the placeholder "
+                    "'default' is no longer auto-coerced. Pass model="
+                    "<concrete-id> at construction time."
+                )
+            logging.getLogger(__name__).warning(
+                "SkillDefinition[%s].model is empty or 'default' — coerced to "
+                "'default' under dev posture; research/prod will reject this.",
+                self.skill_id or "<unknown>",
+            )
+            # Preserve back-compat shape under dev: explicit "default" sentinel.
+            object.__setattr__(self, "model", "default")
 
     # ------------------------------------------------------------------
     # Downstream-compatible aliases (additive, do not rename source fields)

@@ -1,6 +1,7 @@
 """Tests for SessionMiddleware — route-aware session auto-creation."""
 
 import pytest
+from hi_agent.server._admin_session_store import admin_get_session
 from hi_agent.server.session_middleware import SessionMiddleware
 from hi_agent.server.session_store import SessionStore
 from hi_agent.server.tenant_context import TenantContext, set_tenant_context
@@ -72,7 +73,7 @@ def test_post_runs_auto_creates_session(store):
     assert resp.status_code == 200
     assert "x-session-id" in resp.headers
     sid = resp.headers["x-session-id"]
-    assert store.get_unsafe(sid) is not None
+    assert admin_get_session(store, sid) is not None
 
 
 def test_post_runs_uses_existing_session(store):

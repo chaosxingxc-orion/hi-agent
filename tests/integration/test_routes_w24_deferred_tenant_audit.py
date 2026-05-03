@@ -110,26 +110,30 @@ def audit_calls(monkeypatch):
 
 
 class _FakeKM:
-    def ingest_text(self, title: str, content: str, tags: list) -> str:
+    def ingest_text(
+        self, title: str, content: str, tags: list, *, tenant_id: str | None = None
+    ) -> str:
         return "page-1"
 
-    def ingest_structured(self, facts: list) -> int:
+    def ingest_structured(self, facts: list, *, tenant_id: str | None = None) -> int:
         return len(facts)
 
-    def query(self, q: str, limit: int = 10) -> Any:
+    def query(self, q: str, limit: int = 10, *, tenant_id: str | None = None) -> Any:
         @dataclass
         class _R:
             total_results: int = 0
 
         return _R()
 
-    def query_for_context(self, q: str, budget_tokens: int = 1500) -> str:
+    def query_for_context(
+        self, q: str, budget_tokens: int = 1500, *, tenant_id: str | None = None
+    ) -> str:
         return ""
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self, *, tenant_id: str | None = None) -> dict[str, Any]:
         return {"pages": 0, "nodes": 0}
 
-    def lint(self) -> list[str]:
+    def lint(self, *, tenant_id: str | None = None) -> list[str]:
         return []
 
     @property

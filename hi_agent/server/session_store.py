@@ -1,6 +1,13 @@
 """SQLite-backed session store for durable session state persistence.
 
 Provides CRUD operations for user sessions with ownership validation.
+
+W32 Track B Gap 4: the unscoped admin accessor previously exposed as
+``SessionStore.get_unsafe`` has been removed from the public class. Admin
+tooling that legitimately needs cross-tenant reads must import
+``admin_get_session`` from ``hi_agent.server._admin_session_store``. This
+prevents the unscoped accessor from being reachable from tenant-facing
+code paths via attribute access on the public store.
 """
 
 from __future__ import annotations
@@ -114,21 +121,21 @@ class SessionStore:
             self._cx().commit()
         return sid
 
-    def get_unsafe(self, session_id: str) -> SessionRecord | None:
-        """Retrieve a session by ID without tenant scoping.
+    # W32 Track B Gap 4: the public ``get_unsafe`` accessor has been removed.
+    # Admin tooling that legitimately needs cross-tenant reads MUST import
+    # ``admin_get_session`` from ``hi_agent.server._admin_session_store`` and
+    # call it explicitly. The helper below is private to support the admin
+    # module without exposing an unscoped public method on this class.
+    # scope: process-internal — admin shim
+    def _admin_internal_get(self, session_id: str) -> SessionRecord | None:
+        """INTERNAL: cross-tenant fetch by session_id; admin module ONLY.
 
         # scope: process-internal -- admin only
 
-        DO NOT use this on a tenant-facing code path. It returns the session
-        regardless of which tenant owns it, which can leak existence
-        information across tenants. Public callers MUST use
-        :meth:`get_for_tenant` instead.
-
-        Args:
-            session_id: Session identifier.
-
-        Returns:
-            SessionRecord if found, None otherwise.
+        DO NOT call from tenant-facing code paths. Public callers MUST use
+        :meth:`get_for_tenant` instead. The single legitimate caller is
+        :func:`hi_agent.server._admin_session_store.admin_get_session`,
+        which is gated by an import-allowlist in CI.
         """
         row = (
             self._cx()

@@ -3,7 +3,9 @@
 Layer 2 — Integration: real SQLite SessionStore (no mocks).
 
 Verifies that ``get_for_tenant`` filters by tenant_id and that
-``get_unsafe`` is the admin-only escape hatch.
+``admin_get_session`` (W32 Track B Gap 4 — moved out of the public class
+into ``hi_agent.server._admin_session_store``) is the admin-only escape
+hatch.
 
 HD-3 root cause:
     SessionStore.get(session_id) returned a record regardless of which
@@ -14,6 +16,7 @@ HD-3 root cause:
 from __future__ import annotations
 
 import pytest
+from hi_agent.server._admin_session_store import admin_get_session
 from hi_agent.server.session_store import SessionStore
 
 
@@ -82,30 +85,45 @@ class TestGetForTenantScoping:
         assert rec.status == "archived"
 
 
-class TestGetUnsafe:
-    """``get_unsafe`` is the admin-only escape hatch."""
+class TestAdminGetSession:
+    """``admin_get_session`` (private module) is the admin-only escape hatch."""
 
-    def test_get_unsafe_returns_record_for_owning_tenant(self, store):
+    def test_admin_get_session_returns_record_for_owning_tenant(self, store):
         sid = store.create(tenant_id="tenant-A", user_id="user-1")
-        rec = store.get_unsafe(sid)
+        rec = admin_get_session(store, sid)
         assert rec is not None
         assert rec.tenant_id == "tenant-A"
 
-    def test_get_unsafe_returns_record_regardless_of_tenant(self, store):
-        """``get_unsafe`` MUST NOT filter by tenant — that is the whole point.
+    def test_admin_get_session_returns_record_regardless_of_tenant(self, store):
+        """``admin_get_session`` MUST NOT filter by tenant — that is the whole point.
 
         Admin tooling needs to retrieve sessions across tenants. The safety
-        promise is that ``get_unsafe`` never appears on a tenant-scoped
-        public path; this test protects the unscoped contract.
+        promise is that ``admin_get_session`` is gated by an import-allowlist
+        and never appears on a tenant-scoped public path; this test protects
+        the unscoped contract.
         """
         sid = store.create(tenant_id="tenant-A", user_id="user-1")
 
         # Caller passes no tenant; record is returned anyway.
-        rec = store.get_unsafe(sid)
+        rec = admin_get_session(store, sid)
 
         assert rec is not None
         assert rec.session_id == sid
         assert rec.tenant_id == "tenant-A"
 
-    def test_get_unsafe_missing_returns_none(self, store):
-        assert store.get_unsafe("nope") is None
+    def test_admin_get_session_missing_returns_none(self, store):
+        assert admin_get_session(store, "nope") is None
+
+    def test_public_class_does_not_expose_get_unsafe(self):
+        """W32 Track B Gap 4: SessionStore must NOT expose ``get_unsafe``.
+
+        The unsafe accessor was moved into a private module
+        (``hi_agent.server._admin_session_store``) so route handlers and
+        middleware that mistype the method name get an AttributeError
+        rather than a silent cross-tenant data leak.
+        """
+        assert not hasattr(SessionStore, "get_unsafe"), (
+            "SessionStore.get_unsafe must NOT exist on the public class. "
+            "Use hi_agent.server._admin_session_store.admin_get_session "
+            "instead."
+        )

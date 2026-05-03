@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 from hi_agent.context.run_execution_context import RunExecutionContext
+from hi_agent.server._admin_session_store import admin_get_session
 from hi_agent.server.session_store import SessionStore
 
 
@@ -32,7 +33,7 @@ class TestCreateWithExecCtx:
             user_id="",
             exec_ctx=ctx,
         )
-        record = store.get_unsafe(sid)
+        record = admin_get_session(store, sid)
         assert record is not None
         assert record.tenant_id == "t1"
         assert record.user_id == "u1"
@@ -44,7 +45,7 @@ class TestCreateWithExecCtx:
             user_id="u-positional",
             exec_ctx=None,
         )
-        record = store.get_unsafe(sid)
+        record = admin_get_session(store, sid)
         assert record is not None
         assert record.tenant_id == "t-positional"
         assert record.user_id == "u-positional"
@@ -60,7 +61,7 @@ class TestCreateWithExecCtx:
             user_id="",          # empty positional → ctx fills the gap
             exec_ctx=ctx,
         )
-        record = store.get_unsafe(sid)
+        record = admin_get_session(store, sid)
         assert record is not None
         # empty ctx.tenant_id → positional wins
         assert record.tenant_id == "t-positional"
@@ -70,7 +71,7 @@ class TestCreateWithExecCtx:
     def test_create_without_exec_ctx_backward_compat(self, store):
         """Existing callers without exec_ctx kwarg continue to work."""
         sid = store.create("t-compat", "u-compat")
-        record = store.get_unsafe(sid)
+        record = admin_get_session(store, sid)
         assert record is not None
         assert record.tenant_id == "t-compat"
         assert record.user_id == "u-compat"

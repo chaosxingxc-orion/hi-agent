@@ -17,14 +17,20 @@ from hi_agent.management.ops_timeline_commands import (
 def test_ops_snapshot_and_timeline_commands_flow() -> None:
     """Commands should compose into stable snapshot/timeline flow."""
     store = OpsSnapshotStore()
-    cmd_ops_snapshot_put(store, {"run_id": "run-1", "timestamp": 10.0, "state": "ok"})
-    cmd_ops_snapshot_put(store, {"run_id": "run-1", "timestamp": 20.0, "state": "warn"})
+    cmd_ops_snapshot_put(
+        store,
+        {"run_id": "run-1", "tenant_id": "t-a", "timestamp": 10.0, "state": "ok"},
+    )
+    cmd_ops_snapshot_put(
+        store,
+        {"run_id": "run-1", "tenant_id": "t-a", "timestamp": 20.0, "state": "warn"},
+    )
 
-    latest = cmd_ops_snapshot_latest(store, "run-1")
+    latest = cmd_ops_snapshot_latest(store, "run-1", "t-a")
     assert latest["found"] is True
     assert latest["snapshot"]["state"] == "warn"
 
-    listed = cmd_ops_snapshot_list(store, "run-1")
+    listed = cmd_ops_snapshot_list(store, "run-1", "t-a")
     assert listed["count"] == 2
 
     timeline_payload = cmd_ops_timeline_build(

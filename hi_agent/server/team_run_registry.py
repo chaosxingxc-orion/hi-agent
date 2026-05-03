@@ -204,63 +204,143 @@ CREATE TABLE IF NOT EXISTS team_runs (
             )
             self._conn.commit()
 
-    def get(self, team_id: str) -> TeamRun | None:
-        """Return the TeamRun for team_id, or None if not registered.
+    def _require_tenant_id(self, tenant_id: str | None, *, op: str) -> str:
+        """Validate tenant_id presence under research/prod posture (W32 Track B Gap 3).
+
+        Returns the validated tenant_id (always a string; empty allowed under
+        dev for back-compat). Under research/prod a missing or empty value
+        raises ValueError so cross-tenant team_id collisions cannot leak.
+        """
+        if tenant_id is not None and tenant_id.strip():
+            return tenant_id
+        try:
+            from hi_agent.config.posture import Posture
+
+            if Posture.from_env().is_strict:
+                raise ValueError(
+                    f"tenant_id is required under research/prod posture for {op}() "
+                    "(Rule 12; W32 Track B Gap 3)"
+                )
+        except ValueError:
+            raise
+        except Exception as exc:  # pragma: no cover — defensive
+            _logger.warning("team_run_registry.%s: posture check failed: %s", op, exc)
+        # Dev: emit a warning but accept "" so legacy callers continue to work.
+        _logger.warning(
+            "team_run_registry.%s: tenant_id missing/empty; cross-tenant team_id "
+            "collision risk under dev posture",
+            op,
+        )
+        return tenant_id or ""
+
+    def get(self, team_id: str, *, tenant_id: str | None = None) -> TeamRun | None:
+        """Return the TeamRun for ``(tenant_id, team_id)``, or None if not registered.
 
         Args:
             team_id: Team identifier.
+            tenant_id: Tenant identifier. Required under research/prod posture
+                so two tenants registering teams with the same id never collide
+                (W32 Track B Gap 3 / W33 T-15').
+
+        Returns:
+            TeamRun if found, None otherwise.
         """
+        tenant_id_v = self._require_tenant_id(tenant_id, op="get")
         with self._lock:
-            cur = self._conn.execute(
-                "SELECT team_id, pi_run_id, project_id, member_runs, "
-                "created_at, status, finished_at, tenant_id, user_id, session_id, lead_run_id "
-                "FROM team_runs WHERE team_id = ?",
-                (team_id,),
-            )
+            if tenant_id_v:
+                cur = self._conn.execute(
+                    "SELECT team_id, pi_run_id, project_id, member_runs, "
+                    "created_at, status, finished_at, tenant_id, user_id, session_id, lead_run_id "
+                    "FROM team_runs WHERE team_id = ? AND tenant_id = ?",
+                    (team_id, tenant_id_v),
+                )
+            else:
+                cur = self._conn.execute(
+                    "SELECT team_id, pi_run_id, project_id, member_runs, "
+                    "created_at, status, finished_at, tenant_id, user_id, session_id, lead_run_id "
+                    "FROM team_runs WHERE team_id = ?",
+                    (team_id,),
+                )
             row = cur.fetchone()
         return self._from_row(row) if row else None
 
-    def list_members(self, team_id: str) -> list[tuple[str, str]]:
-        """Return the (role_id, run_id) member pairs for a team.
+    def list_members(
+        self, team_id: str, *, tenant_id: str | None = None
+    ) -> list[tuple[str, str]]:
+        """Return the (role_id, run_id) member pairs for ``(tenant_id, team_id)``.
 
         Args:
             team_id: Team identifier.
+            tenant_id: Tenant identifier. Required under research/prod posture
+                so two tenants registering teams with the same id never collide
+                (W32 Track B Gap 3 / W33 T-15').
 
         Returns:
             List of (role_id, run_id) tuples, or empty list if not found.
         """
-        run = self.get(team_id)
+        run = self.get(team_id, tenant_id=tenant_id)
         return list(run.member_runs) if run else []
 
-    def unregister(self, team_id: str) -> None:
-        """Remove a team from the registry.
+    def unregister(self, team_id: str, *, tenant_id: str | None = None) -> None:
+        """Remove a team from the registry, scoped to ``(tenant_id, team_id)``.
 
         Args:
             team_id: Team identifier. No-op if not present.
+            tenant_id: Tenant identifier. Required under research/prod posture
+                so two tenants registering teams with the same id never collide
+                (W32 Track B Gap 3 / W33 T-15').
         """
+        tenant_id_v = self._require_tenant_id(tenant_id, op="unregister")
         with self._lock:
-            self._conn.execute("DELETE FROM team_runs WHERE team_id = ?", (team_id,))
+            if tenant_id_v:
+                self._conn.execute(
+                    "DELETE FROM team_runs WHERE team_id = ? AND tenant_id = ?",
+                    (team_id, tenant_id_v),
+                )
+            else:
+                self._conn.execute(
+                    "DELETE FROM team_runs WHERE team_id = ?",
+                    (team_id,),
+                )
             self._conn.commit()
 
-    def set_status(self, team_id: str, status: str, finished_at: float | None = None) -> None:
-        """Update the status of a team run.
+    def set_status(
+        self,
+        team_id: str,
+        status: str,
+        finished_at: float | None = None,
+        *,
+        tenant_id: str | None = None,
+    ) -> None:
+        """Update the status of a team run, scoped to ``(tenant_id, team_id)``.
 
         Args:
             team_id: Team identifier.
             status: New status value (e.g. 'running', 'completed', 'failed', 'cancelled').
             finished_at: Explicit finished_at epoch timestamp. When None, auto-set for
                 terminal states (completed/failed/cancelled) and left 0 for non-terminal.
+            tenant_id: Tenant identifier. Required under research/prod posture
+                so two tenants registering teams with the same id never collide
+                (W32 Track B Gap 3 / W33 T-15').
         """
         import time as _time
+        tenant_id_v = self._require_tenant_id(tenant_id, op="set_status")
         now = _time.time()
         ft = finished_at if finished_at is not None else (
             now if status in ("completed", "failed", "cancelled") else 0.0
         )
         with self._lock:
-            self._conn.execute(
-                "UPDATE team_runs SET status = ?, finished_at = ? WHERE team_id = ?",
-                (status, ft, team_id),
-            )
+            if tenant_id_v:
+                self._conn.execute(
+                    "UPDATE team_runs SET status = ?, finished_at = ? "
+                    "WHERE team_id = ? AND tenant_id = ?",
+                    (status, ft, team_id, tenant_id_v),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE team_runs SET status = ?, finished_at = ? WHERE team_id = ?",
+                    (status, ft, team_id),
+                )
             self._conn.commit()
 
     def close(self) -> None:

@@ -181,12 +181,15 @@ class HttpLLMGateway:
                 )
 
         if self._budget_tracker is not None:
-            self._budget_tracker.check()
+            # W32 Track B Gap 7: pass tenant_id (when present in request metadata)
+            # so per-tenant budgets are checked alongside the global aggregate.
+            _tenant_id_for_budget = (request.metadata or {}).get("tenant_id")
+            self._budget_tracker.check(tenant_id=_tenant_id_for_budget)
             # Inject real-time remaining budget ratio into request metadata so
             # that TierAwareLLMGateway can make accurate per-request tier
             # downgrade decisions instead of relying on the caller-supplied
             # default of 1.0.
-            _snap = self._budget_tracker.snapshot()
+            _snap = self._budget_tracker.snapshot(tenant_id=_tenant_id_for_budget)
             remaining_calls = _snap["remaining_calls"]
             max_calls = _snap["max_calls"]
             remaining_tokens = _snap["remaining_tokens"]
@@ -314,7 +317,9 @@ class HttpLLMGateway:
         # 3. Fallback: original direct HTTP logic.
         response = self._direct_complete(request)
         if self._budget_tracker is not None:
-            self._budget_tracker.record(response.usage)
+            # W32 Track B Gap 7: per-tenant attribution.
+            _tenant_id_for_budget = (request.metadata or {}).get("tenant_id")
+            self._budget_tracker.record(response.usage, tenant_id=_tenant_id_for_budget)
         return response
 
     def _direct_complete(self, request: LLMRequest) -> LLMResponse:
@@ -599,12 +604,15 @@ class HTTPGateway:
         await get_fault_injector().maybe_raise_llm_timeout()
         emit_llm_call(tenant_id="", profile_id="")
         if self._budget_tracker is not None:
-            self._budget_tracker.check()
+            # W32 Track B Gap 7: pass tenant_id (when present in request metadata)
+            # so per-tenant budgets are checked alongside the global aggregate.
+            _tenant_id_for_budget = (request.metadata or {}).get("tenant_id")
+            self._budget_tracker.check(tenant_id=_tenant_id_for_budget)
             # Inject real-time remaining budget ratio into request metadata so
             # that TierAwareLLMGateway can make accurate per-request tier
             # downgrade decisions instead of relying on the caller-supplied
             # default of 1.0.
-            _snap = self._budget_tracker.snapshot()
+            _snap = self._budget_tracker.snapshot(tenant_id=_tenant_id_for_budget)
             remaining_calls = _snap["remaining_calls"]
             max_calls = _snap["max_calls"]
             remaining_tokens = _snap["remaining_tokens"]
@@ -688,7 +696,9 @@ class HTTPGateway:
         # 3. Fallback: original direct HTTP logic.
         response = await self._direct_complete(request)
         if self._budget_tracker is not None:
-            self._budget_tracker.record(response.usage)
+            # W32 Track B Gap 7: per-tenant attribution (async path).
+            _tenant_id_for_budget = (request.metadata or {}).get("tenant_id")
+            self._budget_tracker.record(response.usage, tenant_id=_tenant_id_for_budget)
         return response
 
     async def _direct_complete(self, request: LLMRequest) -> LLMResponse:

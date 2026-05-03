@@ -69,12 +69,13 @@ class _FakeKnowledgeManager:
     """Minimal knowledge manager stub.
 
     W31, T-2'/T-3': accepts tenant_id kwarg on read methods (signature change).
+    W32, Gap 6 (T-9'/T-10'): accepts tenant_id kwarg on write methods too.
     """
 
-    def ingest_text(self, title, content, tags):
+    def ingest_text(self, title, content, tags, *, tenant_id=None):
         return "page-001"
 
-    def ingest_structured(self, facts):
+    def ingest_structured(self, facts, *, tenant_id=None):
         return len(facts)
 
     def query_for_context(self, q, budget_tokens=1500, *, tenant_id=None, **_):

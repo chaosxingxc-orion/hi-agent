@@ -9,6 +9,7 @@ restart-survival test).
 from __future__ import annotations
 
 import pytest
+from hi_agent.server._admin_session_store import admin_get_session
 from hi_agent.server.session_store import SessionStore
 
 
@@ -25,7 +26,7 @@ def test_session_survives_restart(tmp_path):
 
     store2 = SessionStore(db_path=db)
     store2.initialize()
-    record = store2.get_unsafe(sid)
+    record = admin_get_session(store2, sid)
     assert record is not None, "Session not found after restart"
     assert record.tenant_id == "t-test"
     assert record.user_id == "u-1"
@@ -68,7 +69,7 @@ def test_archived_session_persists_across_restart(tmp_path):
 
     store2 = SessionStore(db_path=db)
     store2.initialize()
-    record = store2.get_unsafe(sid)
+    record = admin_get_session(store2, sid)
     assert record is not None
     assert record.status == "archived"
     assert record.archived_at is not None

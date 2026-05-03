@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import pytest
 from hi_agent.server import routes_events, routes_runs
+from hi_agent.server._admin_session_store import admin_get_session
 from hi_agent.server.run_manager import RunManager
 from hi_agent.server.session_middleware import SessionMiddleware
 from hi_agent.server.session_store import SessionStore
@@ -333,7 +334,7 @@ def test_8_post_runs_creates_session_when_absent(shared_manager, ctx_a, session_
     sid = resp.headers.get("x-session-id") or resp.headers.get("X-Session-Id")
     assert sid is not None and len(sid) > 0
     # Session must exist in the store
-    assert session_store.get_unsafe(sid) is not None
+    assert admin_get_session(session_store, sid) is not None
 
 
 # ---------------------------------------------------------------------------
