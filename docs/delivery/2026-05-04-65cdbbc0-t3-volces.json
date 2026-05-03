@@ -1,0 +1,199 @@
+{
+  "command": [
+    "C:\\Python314\\python.exe",
+    "D:\\chao_workspace\\hi-agent\\scripts\\run_t3_gate.py",
+    "--output",
+    "docs\\delivery\\2026-05-04-65cdbbc0-t3-volces.json",
+    "--profile-id",
+    "rule15_volces",
+    "--provider",
+    "volces",
+    "--port",
+    "8080"
+  ],
+  "mode": "spawned",
+  "base_url": "http://127.0.0.1:8080",
+  "profile_id": "rule15_volces",
+  "provider": "volces",
+  "started_at": "2026-05-03T19:32:34.160675+00:00",
+  "finished_at": "2026-05-03T19:39:10.550709+00:00",
+  "total_duration_s": 396.3900369000039,
+  "ready": {
+    "ready": true,
+    "health": "ok",
+    "execution_mode": "local",
+    "kernel_mode": "local-fsm",
+    "llm_mode": "real",
+    "llm_provider": "volces",
+    "llm_backend": "AnthropicLLMGateway",
+    "models": [
+      {
+        "name": "glm-5.1",
+        "provider": "volces",
+        "tier": "strong",
+        "status": "configured"
+      },
+      {
+        "name": "kimi-k2.6",
+        "provider": "volces",
+        "tier": "medium",
+        "status": "configured"
+      }
+    ],
+    "skills": [],
+    "mcp_servers": [],
+    "plugins": [],
+    "capabilities": [
+      "analyze_goal",
+      "build_draft",
+      "evaluate_acceptance",
+      "file_read",
+      "file_write",
+      "rule15_probe_capability",
+      "search_evidence",
+      "synthesize",
+      "web_fetch"
+    ],
+    "subsystems": {
+      "kernel": {
+        "status": "ok",
+        "mode": "local"
+      },
+      "llm": {
+        "status": "ok",
+        "models": 2
+      },
+      "capabilities": {
+        "status": "ok",
+        "count": 9
+      },
+      "skills": {
+        "status": "ok",
+        "discovered": 0
+      },
+      "mcp": {
+        "status": "ok",
+        "servers": 0,
+        "connected": 0,
+        "registered_only": 0,
+        "transport_status": "not_wired",
+        "capability_mode": "infrastructure_only",
+        "note": "External MCP transport (stdio/SSE/HTTP) not yet implemented. Platform tools are available via /mcp/tools/list as MCP-compatible endpoints. External server registration and forwarding are deferred."
+      },
+      "plugins": {
+        "status": "ok",
+        "count": 0
+      },
+      "durable_backends": {
+        "status": "not_required"
+      }
+    },
+    "evolve_policy": {
+      "mode": "auto",
+      "effective": true,
+      "source": "auto_dev_on"
+    },
+    "runtime_mode": "dev-smoke",
+    "prerequisites": {
+      "mode": "dev \u2014 heuristic fallback active, no external dependencies required",
+      "hint": "Use HI_AGENT_ENV=prod or `serve --prod` to require real credentials."
+    },
+    "auth_posture": "dev_risk_open",
+    "flags": {
+      "ready_to_serve": true,
+      "ready_to_accept_new_runs": true
+    }
+  },
+  "runs": [
+    {
+      "run_id": "3c7824cc-1440-4ab8-9b72-fca504073ad9",
+      "create_status": 201,
+      "final_state": "completed",
+      "polls": 148,
+      "duration_s": 147.28835089999484,
+      "fallback_events": []
+    },
+    {
+      "run_id": "423fbf9c-efea-47f6-8a0e-58f90f42e1f6",
+      "create_status": 201,
+      "final_state": "completed",
+      "polls": 129,
+      "duration_s": 128.25511480000569,
+      "fallback_events": []
+    },
+    {
+      "run_id": "784b797f-0ad2-4f03-b739-b69678ef40ca",
+      "create_status": 201,
+      "final_state": "completed",
+      "polls": 121,
+      "duration_s": 120.24994559999323,
+      "fallback_events": []
+    }
+  ],
+  "cancel_known": {
+    "run_id": "d5f50cb4-324d-446e-a55c-2bcb697753bd",
+    "status_code": 200,
+    "response": {
+      "run_id": "d5f50cb4-324d-446e-a55c-2bcb697753bd",
+      "state": "cancelled",
+      "cancellation_propagated": {
+        "queue": true,
+        "token": false
+      }
+    },
+    "final_status_code": 200,
+    "final_response": {
+      "run_id": "d5f50cb4-324d-446e-a55c-2bcb697753bd",
+      "task_contract": {
+        "goal": "T3 gate run 0",
+        "profile_id": "rule15_volces",
+        "project_id": "t3_gate_project"
+      },
+      "state": "cancelled",
+      "result": null,
+      "error": null,
+      "created_at": "2026-05-03T19:32:34.690763+00:00",
+      "updated_at": "2026-05-03T19:32:34.721825+00:00",
+      "current_stage": null,
+      "stage_updated_at": null,
+      "llm_fallback_count": 0,
+      "finished_at": null,
+      "fallback_events": [],
+      "started_at": "2026-05-03T19:32:34.721259+00:00",
+      "last_heartbeat_at": null,
+      "last_event_offset": 2,
+      "last_event_at": "2026-05-03T19:32:34.722593+00:00",
+      "current_action_id": null,
+      "no_progress_seconds": 0.001699686050415039
+    }
+  },
+  "cancel_unknown": {
+    "run_id": "t3-gate-unknown-run",
+    "status_code": 404,
+    "response": {
+      "error": "run_not_found",
+      "run_id": "t3-gate-unknown-run"
+    }
+  },
+  "server_command": [
+    "C:\\Python314\\python.exe",
+    "-m",
+    "hi_agent",
+    "serve",
+    "--port",
+    "8080"
+  ],
+  "server_pid": 43292,
+  "status": "passed",
+  "error": null,
+  "verified_head": "65cdbbc0241df4fbf65ec546373b98569d340798",
+  "verified_at": "2026-05-03T19:32:33.870139+00:00",
+  "dirty_during_run": false,
+  "provenance": "real",
+  "_evidence_meta": {
+    "provenance": "real",
+    "head_sha": "65cdbbc0241df4fbf65ec546373b98569d340798",
+    "generated_at": "2026-05-03T19:39:10.569115+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\run_t3_gate.py"
+  }
+}
