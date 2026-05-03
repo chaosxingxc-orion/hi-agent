@@ -53,7 +53,9 @@ def test_current_wave_files_agree() -> None:
 
 def test_current_wave_matches_canonical_helper() -> None:
     """The canonical loader and the file must agree."""
-    from scripts._governance.wave import current_wave_number  # type: ignore[import-not-found]  expiry_wave: permanent
+    from scripts._governance.wave import (
+        current_wave_number,  # type: ignore[import-not-found]  expiry_wave: permanent
+    )
 
     helper_value = current_wave_number()
     canonical = _read_int(CANONICAL_FILE)
