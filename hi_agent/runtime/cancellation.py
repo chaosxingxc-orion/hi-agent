@@ -30,6 +30,7 @@ class CancellationToken:
         self,
         run_id: str,
         run_queue: RunQueue | None = None,
+        tenant_id: str = "",
     ) -> None:
         """Create a cancellation token.
 
@@ -37,9 +38,13 @@ class CancellationToken:
             run_id: Identifier of the run this token belongs to.
             run_queue: Optional durable queue.  When provided,
                 :attr:`is_cancelled` also consults the queue record.
+            tenant_id: Tenant spine — passed through to ``RunQueue.cancel``
+                and ``RunQueue.is_cancelled`` so that the durable mutations
+                are tenant-scoped per W33 D.2.
         """
         self._run_id = run_id
         self._run_queue = run_queue
+        self._tenant_id = tenant_id
         self._cancelled: bool = False
 
     @property
@@ -51,7 +56,9 @@ class CancellationToken:
         """
         if self._cancelled:
             return True
-        if self._run_queue is not None and self._run_queue.is_cancelled(self._run_id):
+        if self._run_queue is not None and self._run_queue.is_cancelled(
+            self._run_id, tenant_id=self._tenant_id or None
+        ):
             self._cancelled = True  # cache the result to avoid repeated DB reads
             return True
         return False
@@ -64,7 +71,9 @@ class CancellationToken:
         """
         self._cancelled = True
         if self._run_queue is not None:
-            self._run_queue.cancel(self._run_id)
+            self._run_queue.cancel(
+                self._run_id, tenant_id=self._tenant_id or None
+            )
 
     def check_or_raise(self) -> None:
         """Raise ``RunCancelledError`` if the run has been cancelled.

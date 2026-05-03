@@ -115,7 +115,8 @@ async def handle_requeue_from_dlq(request: Request) -> JSONResponse:
     if run_id not in own_run_ids:
         return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
 
-    requeued = run_queue.requeue_from_dlq(run_id)
+    # W33 D.2: pass tenant_id so the DLQ requeue is tenant-scoped end-to-end.
+    requeued = run_queue.requeue_from_dlq(run_id, tenant_id=tenant_id)
     if not requeued:
         return JSONResponse({"error": "not_found", "run_id": run_id}, status_code=404)
     return JSONResponse({"status": "requeued", "run_id": run_id})

@@ -8,18 +8,56 @@ W10-005: extended with capability.invoke, capability.deny, mcp.tools_call,
 and mcp.server_restart event helpers.
 
 P1-2d: ToolCallAuditEvent dataclass + AuditStore with record_tool_call().
+
+W33 D.1: every audit event carries ``tenant_id``. Under research/prod
+posture a missing/empty tenant_id raises ``TenantScopeError``; under dev
+posture a missing tenant_id falls back to ``""`` with a WARNING log so
+existing dev fixtures continue to work but the silent fallback is
+observable. Callers SHOULD pass an explicit ``tenant_id`` from their
+authenticated ``TenantContext``; relying on the fallback is tracked as
+spine debt.
 """
 
 from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import time
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
+
+logger = logging.getLogger(__name__)
+
+
+def _resolve_tenant_id(tenant_id: str | None, *, source: str) -> str:
+    """Return a posture-validated tenant_id for an audit emission.
+
+    research/prod posture rejects empty/None tenant_id with TenantScopeError.
+    dev posture emits a one-line WARNING and returns ``""`` for back-compat.
+    """
+    value = (tenant_id or "").strip()
+    if value:
+        return value
+    # Lazy import to avoid circular import at module load time.
+    from hi_agent.config.posture import Posture
+    posture = Posture.from_env()
+    if posture.is_strict:
+        from hi_agent.contracts.errors import TenantScopeError
+        raise TenantScopeError(
+            f"audit.{source}: tenant_id is required under "
+            f"research/prod posture but was empty or missing."
+        )
+    logger.warning(
+        "audit.%s: tenant_id missing under dev posture; falling back to "
+        "empty string. Pass tenant_id from TenantContext to scope properly.",
+        source,
+    )
+    return ""
+
 
 # ---------------------------------------------------------------------------
 # P1-2d: structured audit dataclass + store
@@ -44,6 +82,29 @@ class ToolCallAuditEvent:
     result_status: Literal["ok", "error", "timeout"] | None
     duration_ms: float | None
     timestamp: str  # ISO8601
+    tenant_id: str = ""  # W33 D.1: spine field for tenant attribution
+
+    def __post_init__(self) -> None:
+        """Enforce posture-aware tenant_id presence (W33 D.1)."""
+        # Normalise.
+        self.tenant_id = (self.tenant_id or "").strip()
+        if self.tenant_id:
+            return
+        # Lazy import to avoid circular import at module load time.
+        from hi_agent.config.posture import Posture
+        posture = Posture.from_env()
+        if posture.is_strict:
+            from hi_agent.contracts.errors import TenantScopeError
+            raise TenantScopeError(
+                "ToolCallAuditEvent: tenant_id is required under "
+                "research/prod posture but was empty or missing."
+            )
+        # dev: warn-and-emit with empty tenant_id for back-compat.
+        logger.warning(
+            "ToolCallAuditEvent: tenant_id missing under dev posture; "
+            "falling back to empty string. Pass tenant_id from "
+            "TenantContext to scope properly."
+        )
 
 
 class AuditStore:
@@ -68,6 +129,7 @@ class AuditStore:
         result_status: str | None = None,
         duration_ms: float | None = None,
         approval_id: str | None = None,
+        tenant_id: str = "",
     ) -> None:
         """Create a ToolCallAuditEvent and persist it."""
         now = datetime.now(UTC).isoformat()
@@ -86,6 +148,7 @@ class AuditStore:
             result_status=result_status,  # type: ignore[arg-type]  expiry_wave: permanent
             duration_ms=duration_ms,
             timestamp=now,
+            tenant_id=tenant_id,
         )
         # Audit emitters must never block execution.
         with contextlib.suppress(Exception):  # rule7-exempt: audit emitters must not block
@@ -106,21 +169,39 @@ class AuditStore:
                     "result_status": event.result_status,
                     "duration_ms": event.duration_ms,
                     "timestamp": event.timestamp,
+                    "tenant_id": event.tenant_id,
                 },
+                tenant_id=event.tenant_id,
             )
 
 
-def emit(event_name: str, payload: dict) -> None:
+def emit(event_name: str, payload: dict, *, tenant_id: str | None = None) -> None:
     """Append an audit event to .hi_agent/audit/events.jsonl.
 
     Args:
         event_name: Short identifier for the event type, e.g.
             "evolve.explicit_on_in_prod".
         payload: Arbitrary key-value metadata to include in the event record.
+        tenant_id: Tenant spine field (W33 D.1). Required under research/prod
+            posture; ``""`` is acceptable under dev with a WARNING log. Falls
+            back to ``payload.get("tenant_id", "")`` when not provided so
+            callers that already embed tenant_id in payload keep working.
     """
+    # Resolve tenant_id from kwarg first, then from payload as a back-compat
+    # convenience. The posture guard is applied to the resolved value.
+    if tenant_id is None:
+        tenant_id = payload.get("tenant_id", "") if isinstance(payload, dict) else ""
+    resolved_tenant = _resolve_tenant_id(tenant_id, source=f"emit:{event_name}")
     audit_dir = Path(".hi_agent/audit")
     audit_dir.mkdir(parents=True, exist_ok=True)
-    event = {"event": event_name, "timestamp": time.time(), **payload}
+    event = {
+        "event": event_name,
+        "timestamp": time.time(),
+        "tenant_id": resolved_tenant,
+        **payload,
+    }
+    # Force the resolved tenant_id to win even if payload had a different value.
+    event["tenant_id"] = resolved_tenant
     with open(audit_dir / "events.jsonl", "a") as f:
         f.write(json.dumps(event) + "\n")
 
@@ -136,6 +217,7 @@ def emit_capability_invoke(
     duration_ms: int,
     *,
     truncated: bool = False,
+    tenant_id: str = "",
 ) -> None:
     """Record a successful capability invocation."""
     emit(
@@ -146,6 +228,7 @@ def emit_capability_invoke(
             "duration_ms": duration_ms,
             "output_truncated": truncated,
         },
+        tenant_id=tenant_id,
     )
 
 
@@ -153,6 +236,8 @@ def emit_capability_deny(
     capability_name: str,
     role: str | None,
     reason: str,
+    *,
+    tenant_id: str = "",
 ) -> None:
     """Record a denied capability invocation (RBAC or availability check)."""
     emit(
@@ -162,6 +247,7 @@ def emit_capability_deny(
             "role": role,
             "reason": reason,
         },
+        tenant_id=tenant_id,
     )
 
 
@@ -171,6 +257,7 @@ def emit_mcp_tools_call(
     duration_ms: int,
     *,
     error: str | None = None,
+    tenant_id: str = "",
 ) -> None:
     """Record an MCP tools/call invocation."""
     emit(
@@ -181,6 +268,7 @@ def emit_mcp_tools_call(
             "duration_ms": duration_ms,
             "error": error,
         },
+        tenant_id=tenant_id,
     )
 
 
@@ -190,6 +278,7 @@ def emit_mcp_server_restart(
     *,
     success: bool,
     error: str | None = None,
+    tenant_id: str = "",
 ) -> None:
     """Record an MCP server restart attempt."""
     emit(
@@ -200,4 +289,5 @@ def emit_mcp_server_restart(
             "success": success,
             "error": error,
         },
+        tenant_id=tenant_id,
     )

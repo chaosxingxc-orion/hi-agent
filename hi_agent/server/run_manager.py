@@ -644,7 +644,12 @@ class RunManager:
                     # prior process whose executor closures are gone).
                     # Increment attempt_count via fail() so DLQ guards
                     # against an infinite re-claim loop.
-                    self._run_queue.fail(run_id, "run_manager", "run_not_found")
+                    # W33 D.2: tenant_id is unavailable here (no in-memory
+                    # ManagedRun); pass empty so dev-posture warns and
+                    # research/prod fails closed per Rule 11.
+                    self._run_queue.fail(
+                        run_id, "run_manager", "run_not_found", tenant_id=""
+                    )
                     continue
                 if executor_fn is None:
                     # Race: ``create_run`` enqueued the run but the route
@@ -668,7 +673,10 @@ class RunManager:
                     if _retries >= _max_executor_release_retries:
                         _executor_release_count.pop(run_id, None)
                         self._run_queue.fail(
-                            run_id, "run_manager", "executor_register_timeout"
+                            run_id,
+                            "run_manager",
+                            "executor_register_timeout",
+                            tenant_id=getattr(run, "tenant_id", "") or "",
                         )
                         continue
                     if not self._run_queue.release_lease(run_id, "run_manager"):
@@ -676,7 +684,10 @@ class RunManager:
                         # Not a transient race - fall back to fail.
                         _executor_release_count.pop(run_id, None)
                         self._run_queue.fail(
-                            run_id, "run_manager", "executor_not_found"
+                            run_id,
+                            "run_manager",
+                            "executor_not_found",
+                            tenant_id=getattr(run, "tenant_id", "") or "",
                         )
                         continue
                     _executor_release_count[run_id] = _retries + 1
@@ -688,7 +699,12 @@ class RunManager:
                 _executor_release_count.pop(run_id, None)
                 acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
                 if not acquired:
-                    self._run_queue.fail(run_id, "run_manager", "queue_timeout")
+                    self._run_queue.fail(
+                        run_id,
+                        "run_manager",
+                        "queue_timeout",
+                        tenant_id=getattr(run, "tenant_id", "") or "",
+                    )
                     with self._lock:
                         _transition_state(
                             run, "failed", reason="queue_timeout: durable semaphore"
@@ -895,7 +911,11 @@ class RunManager:
                 try:
                     from hi_agent.server.fault_injection import get_fault_injector
                     get_fault_injector().maybe_stall_heartbeat_sync()
-                    renewed = self._run_queue.heartbeat(run_id, "run_manager")  # type: ignore[union-attr]  expiry_wave: permanent
+                    renewed = self._run_queue.heartbeat(  # type: ignore[union-attr]  expiry_wave: permanent
+                        run_id,
+                        "run_manager",
+                        tenant_id=getattr(run, "tenant_id", "") or "",
+                    )
                     if renewed:
                         run_for_hb = self._runs.get(run_id)
                         if run_for_hb is not None:
@@ -1018,10 +1038,16 @@ class RunManager:
                 run.result = result
                 run.updated_at = datetime.now(UTC).isoformat()
             if self._run_queue is not None:
+                _rq_tenant = getattr(run, "tenant_id", "") or ""
                 if run.state == "completed":
-                    self._run_queue.complete(run_id, "run_manager")
+                    self._run_queue.complete(
+                        run_id, "run_manager", tenant_id=_rq_tenant
+                    )
                 else:
-                    self._run_queue.fail(run_id, "run_manager", run.error or "")
+                    self._run_queue.fail(
+                        run_id, "run_manager", run.error or "",
+                        tenant_id=_rq_tenant,
+                    )
         except Exception as exc:
             _run_execution_errors_total.inc()
             logger.warning(
@@ -1035,7 +1061,10 @@ class RunManager:
                 run.error = str(exc)
                 run.updated_at = datetime.now(UTC).isoformat()
             if self._run_queue is not None:
-                self._run_queue.fail(run_id, "run_manager", str(exc))
+                self._run_queue.fail(
+                    run_id, "run_manager", str(exc),
+                    tenant_id=getattr(run, "tenant_id", "") or "",
+                )
         finally:
             # Stop the heartbeat thread before releasing resources.
             _heartbeat_stop.set()
@@ -1348,7 +1377,9 @@ class RunManager:
         # Propagate to durable queue (cooperative cancellation flag).
         if self._run_queue is not None:
             try:
-                self._run_queue.cancel(run_id)
+                self._run_queue.cancel(
+                    run_id, tenant_id=getattr(run, "tenant_id", "") or ""
+                )
             except Exception as _exc:
                 logging.getLogger(__name__).warning(
                     "cancel_run: run_queue.cancel failed for run_id=%s: %s", run_id, _exc
@@ -1530,9 +1561,16 @@ class RunManager:
                 list(abandoned),
             )
             for _rid in abandoned:
+                _shutdown_run = self._runs.get(_rid)
+                _shutdown_tenant = (
+                    getattr(_shutdown_run, "tenant_id", "") if _shutdown_run else ""
+                ) or ""
                 if self._run_queue is not None:
                     try:
-                        self._run_queue.fail(_rid, "run_manager", "server_shutdown")
+                        self._run_queue.fail(
+                            _rid, "run_manager", "server_shutdown",
+                            tenant_id=_shutdown_tenant,
+                        )
                     except Exception as _exc:
                         _log.warning(
                             "shutdown: run_queue.fail failed for run_id=%s: %s", _rid, _exc

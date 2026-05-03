@@ -41,9 +41,11 @@ def test_heartbeat_keeps_lease_alive_during_long_run() -> None:
     heartbeat_calls: list[float] = []
     _orig_heartbeat = rq.heartbeat
 
-    def _spy_heartbeat(run_id: str, worker_id: str) -> bool:
+    def _spy_heartbeat(
+        run_id: str, worker_id: str, tenant_id: str | None = None
+    ) -> bool:
         heartbeat_calls.append(time.monotonic())
-        return _orig_heartbeat(run_id, worker_id)
+        return _orig_heartbeat(run_id, worker_id, tenant_id=tenant_id)
 
     rq.heartbeat = _spy_heartbeat  # type: ignore[method-assign]  expiry_wave: permanent
 
@@ -112,7 +114,9 @@ def test_heartbeat_failure_transitions_run_to_failed() -> None:
     # Patch heartbeat to return False on first call, simulating renewal denial.
     heartbeat_calls: list[int] = []
 
-    def _deny_heartbeat(run_id: str, worker_id: str) -> bool:
+    def _deny_heartbeat(
+        run_id: str, worker_id: str, tenant_id: str | None = None
+    ) -> bool:
         heartbeat_calls.append(1)
         return False  # simulate lease renewal denied
 

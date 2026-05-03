@@ -46,13 +46,22 @@ def test_shutdown_marks_active_runs_failed() -> None:
         def release_expired_leases(self) -> int:
             return 0
 
-        def fail(self, run_id: str, worker_id: str, error: str = "") -> None:
+        # W33 D.2: accept tenant_id kwarg per RunQueue.fail / .complete / .cancel.
+        def fail(
+            self,
+            run_id: str,
+            worker_id: str,
+            error: str = "",
+            tenant_id: str | None = None,
+        ) -> None:
             failed_ids.append(run_id)
 
-        def complete(self, run_id: str, worker_id: str) -> None:
+        def complete(
+            self, run_id: str, worker_id: str, tenant_id: str | None = None
+        ) -> None:
             pass
 
-        def cancel(self, run_id: str) -> None:
+        def cancel(self, run_id: str, tenant_id: str | None = None) -> None:
             pass
 
     spy_queue = _SpyRunQueue()
